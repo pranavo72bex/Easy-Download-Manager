@@ -31,10 +31,9 @@ desktop/crates/dm-gpui/src/window_tests/dialogs.rs 2120
 desktop/crates/dm-gpui/src/window_tests/downloads.rs 1777
 desktop/crates/dm-gpui/src/window_tests/lists.rs 908
 desktop/crates/dm-gpui/src/window_tests/options.rs 1004
-desktop/crates/dm-js/src/builtins/object.rs 983
 desktop/crates/dm-js/src/interp.rs 1676
 desktop/crates/dm-js/src/parser.rs 1701
-desktop/crates/dm-js/src/regexp.rs 1033
+desktop/crates/dm-js/src/regexp.rs 970
 desktop/crates/dm-media/src/mkvmux.rs 1174
 desktop/crates/dm-media/src/mp3.rs 931
 desktop/crates/dm-media/src/mp3/tables.rs 2021

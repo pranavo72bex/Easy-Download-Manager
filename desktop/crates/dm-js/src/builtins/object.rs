@@ -3,14 +3,19 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! `Object`, `Function`, `Symbol`, the errors, `Boolean` and `Reflect`.
+//! `Object`, `Function`, `Symbol`, the errors, `Boolean` and `Reflect`: `Object` here, the
+//! others in files of their own beside it.
+
+mod errors;
+mod function;
+mod reflect;
 
 use std::rc::Rc;
 
-use super::{arg, constructor, getter, global, method, symbol_method};
+use super::{arg, constructor, method};
 use crate::interp::{Interp, Res};
 use crate::lexer::text;
-use crate::object::{Class, Func, Obj, Prop, Slot};
+use crate::object::{Class, Obj, Prop, Slot};
 use crate::value::{Key, Symbol, Value};
 
 /// Installs them.
@@ -24,7 +29,18 @@ pub fn install(interp: &mut Interp) {
         i.boolean_proto.clone(),
     );
 
-    // ---- Object
+    let object = install_object(interp, &op);
+    install_object_checks(interp, &object);
+    install_object_prototype(interp, &op);
+    function::install_function(interp, &fp);
+    function::install_symbol(interp, &sp);
+    errors::install_errors(interp, &ep);
+    errors::install_boolean(interp, &bp);
+    reflect::install_reflect(interp);
+}
+
+/// `Object`, with its functions that list, copy, make and define.
+fn install_object(interp: &mut Interp, op: &Obj) -> Obj {
     let object = constructor(
         interp,
         "Object",
@@ -39,7 +55,7 @@ pub fn install(interp: &mut Interp) {
                 other => Ok(Value::Object(i.to_object(&other)?)),
             }
         },
-        &op,
+        op,
     );
     method(interp, &object, "keys", 1, |i, _, a, _| {
         let o = i.to_object(&arg(a, 0))?;
@@ -141,11 +157,16 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Object(o))
     });
-    method(interp, &object, "getOwnPropertyNames", 1, |i, _, a, _| {
+    object
+}
+
+/// `Object`'s functions that read descriptors, lock, check and compare.
+fn install_object_checks(interp: &mut Interp, object: &Obj) {
+    method(interp, object, "getOwnPropertyNames", 1, |i, _, a, _| {
         let o = i.to_object(&arg(a, 0))?;
         Ok(i.array(string_keys(&o, false)))
     });
-    method(interp, &object, "getOwnPropertySymbols", 1, |i, _, a, _| {
+    method(interp, object, "getOwnPropertySymbols", 1, |i, _, a, _| {
         let o = i.to_object(&arg(a, 0))?;
         let keys = o
             .own_keys(false)
@@ -157,7 +178,7 @@ pub fn install(interp: &mut Interp) {
     });
     method(
         interp,
-        &object,
+        object,
         "getOwnPropertyDescriptor",
         2,
         |i, _, a, _| {
@@ -171,7 +192,7 @@ pub fn install(interp: &mut Interp) {
     );
     method(
         interp,
-        &object,
+        object,
         "getOwnPropertyDescriptors",
         1,
         |i, _, a, _| {
@@ -210,9 +231,9 @@ pub fn install(interp: &mut Interp) {
                 Ok(arg(a, 0))
             },
         };
-        method(interp, &object, name, 1, run);
+        method(interp, object, name, 1, run);
     }
-    method(interp, &object, "isFrozen", 1, |_, _, a, _| {
+    method(interp, object, "isFrozen", 1, |_, _, a, _| {
         Ok(Value::Bool(match arg(a, 0) {
             Value::Object(o) => {
                 !o.borrow().extensible
@@ -223,7 +244,7 @@ pub fn install(interp: &mut Interp) {
             _ => true,
         }))
     });
-    method(interp, &object, "isSealed", 1, |_, _, a, _| {
+    method(interp, object, "isSealed", 1, |_, _, a, _| {
         Ok(Value::Bool(match arg(a, 0) {
             Value::Object(o) => {
                 !o.borrow().extensible
@@ -234,12 +255,12 @@ pub fn install(interp: &mut Interp) {
             _ => true,
         }))
     });
-    method(interp, &object, "isExtensible", 1, |_, _, a, _| {
+    method(interp, object, "isExtensible", 1, |_, _, a, _| {
         Ok(Value::Bool(
             matches!(arg(a, 0), Value::Object(o) if o.borrow().extensible),
         ))
     });
-    method(interp, &object, "is", 2, |_, _, a, _| {
+    method(interp, object, "is", 2, |_, _, a, _| {
         let (x, y) = (arg(a, 0), arg(a, 1));
         Ok(Value::Bool(match (&x, &y) {
             (Value::Number(p), Value::Number(q)) => {
@@ -249,19 +270,21 @@ pub fn install(interp: &mut Interp) {
             _ => x.strict_equals(&y),
         }))
     });
-    method(interp, &object, "hasOwn", 2, |i, _, a, _| {
+    method(interp, object, "hasOwn", 2, |i, _, a, _| {
         let o = i.to_object(&arg(a, 0))?;
         let key = i.to_key(&arg(a, 1))?;
         Ok(Value::Bool(o.own(&key).is_some()))
     });
+}
 
-    // Object.prototype
-    method(interp, &op, "hasOwnProperty", 1, |i, this, a, _| {
+/// `Object.prototype`'s methods and its `__proto__`.
+fn install_object_prototype(interp: &mut Interp, op: &Obj) {
+    method(interp, op, "hasOwnProperty", 1, |i, this, a, _| {
         let key = i.to_key(&arg(a, 0))?;
         let o = i.to_object(this)?;
         Ok(Value::Bool(o.own(&key).is_some()))
     });
-    method(interp, &op, "isPrototypeOf", 1, |i, this, a, _| {
+    method(interp, op, "isPrototypeOf", 1, |i, this, a, _| {
         let Value::Object(v) = arg(a, 0) else {
             return Ok(Value::Bool(false));
         };
@@ -275,17 +298,17 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Bool(false))
     });
-    method(interp, &op, "propertyIsEnumerable", 1, |i, this, a, _| {
+    method(interp, op, "propertyIsEnumerable", 1, |i, this, a, _| {
         let key = i.to_key(&arg(a, 0))?;
         let o = i.to_object(this)?;
         Ok(Value::Bool(o.own(&key).is_some_and(|p| p.enumerable)))
     });
-    method(interp, &op, "toString", 0, object_to_string);
-    method(interp, &op, "toLocaleString", 0, |i, this, _, _| {
+    method(interp, op, "toString", 0, object_to_string);
+    method(interp, op, "toLocaleString", 0, |i, this, _, _| {
         let f = i.get_of(this, &Key::str("toString"))?;
         i.call(&f, this.clone(), &[])
     });
-    method(interp, &op, "valueOf", 0, |i, this, _, _| {
+    method(interp, op, "valueOf", 0, |i, this, _, _| {
         Ok(Value::Object(i.to_object(this)?))
     });
     op.define(
@@ -321,7 +344,7 @@ pub fn install(interp: &mut Interp) {
             configurable: true,
         },
     );
-    method(interp, &op, "__defineGetter__", 2, |i, this, a, _| {
+    method(interp, op, "__defineGetter__", 2, |i, this, a, _| {
         let o = i.to_object(this)?;
         let key = i.to_key(&arg(a, 0))?;
         if let Value::Object(f) = arg(a, 1) {
@@ -340,7 +363,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Undefined)
     });
-    method(interp, &op, "__lookupGetter__", 1, |i, this, a, _| {
+    method(interp, op, "__lookupGetter__", 1, |i, this, a, _| {
         let o = i.to_object(this)?;
         let key = i.to_key(&arg(a, 0))?;
         let mut at = Some(o);
@@ -354,383 +377,6 @@ pub fn install(interp: &mut Interp) {
             at = x.proto();
         }
         Ok(Value::Undefined)
-    });
-
-    // ---- Function
-    let function = constructor(
-        interp,
-        "Function",
-        1,
-        |i, _, a, _| {
-            // `new Function(a, b, body)`: the program's own text, made here as any other.
-            let mut params = Vec::new();
-            for p in a.iter().take(a.len().saturating_sub(1)) {
-                params.push(i.to_rust_string(p)?);
-            }
-            let body = match a.last() {
-                Some(b) => i.to_rust_string(b)?,
-                None => String::new(),
-            };
-            let src = format!(
-                "(function anonymous({}\n) {{\n{}\n}})",
-                params.join(","),
-                body
-            );
-            let parsed = crate::parser::parse(&src).map_err(|e| i.syntax_error(&e.message))?;
-            let parsed: &'static [crate::ast::Stmt] = Box::leak(parsed.into_boxed_slice());
-            match parsed.first() {
-                Some(crate::ast::Stmt::Expr(e)) => {
-                    let scope = i.global_scope.clone();
-                    i.eval(e, &scope)
-                }
-                _ => Err(i.syntax_error("not a function body")),
-            }
-        },
-        &fp,
-    );
-    let _ = function;
-    method(interp, &fp, "call", 1, |i, this, a, _| {
-        let rest = a.get(1..).unwrap_or(&[]).to_vec();
-        i.call(this, arg(a, 0), &rest)
-    });
-    method(interp, &fp, "apply", 2, |i, this, a, _| {
-        let list = list_of(i, &arg(a, 1))?;
-        i.call(this, arg(a, 0), &list)
-    });
-    method(interp, &fp, "bind", 1, |i, this, a, _| {
-        let Value::Object(target) = this else {
-            return Err(i.type_error("Bind must be called on a function"));
-        };
-        if !target.is_callable() {
-            return Err(i.type_error("Bind must be called on a function"));
-        }
-        let name = i.get(this, &Key::str("name"))?;
-        let name = i.to_rust_string(&name).unwrap_or_default();
-        let length = i.get(this, &Key::str("length"))?;
-        let length = match length {
-            Value::Number(n) => (n - a.len().saturating_sub(1) as f64).max(0.0),
-            _ => 0.0,
-        };
-        let f = Obj::new(
-            Some(i.intrinsics.function_proto.clone()),
-            Class::Function(Func::Bound {
-                target: target.clone(),
-                this: arg(a, 0),
-                args: a.get(1..).unwrap_or(&[]).to_vec(),
-            }),
-        );
-        f.define(
-            Key::str("name"),
-            Prop::data(Value::str(&format!("bound {name}")), false, false, true),
-        );
-        f.define(
-            Key::str("length"),
-            Prop::data(Value::Number(length), false, false, true),
-        );
-        Ok(Value::Object(f))
-    });
-    method(interp, &fp, "toString", 0, |i, this, _, _| match this {
-        Value::Object(f) if f.is_callable() => Ok(Value::str(&i.function_source(f))),
-        _ => Err(i.type_error("Function.prototype.toString requires that 'this' be a Function")),
-    });
-    let has_instance = Key::Symbol(interp.intrinsics.sym_has_instance.clone());
-    symbol_method(
-        interp,
-        &fp,
-        &has_instance,
-        "[Symbol.hasInstance]",
-        |i, this, a, _| {
-            let Value::Object(f) = this else {
-                return Ok(Value::Bool(false));
-            };
-            let f = f.clone();
-            Ok(Value::Bool(i.instance_of(&arg(a, 0), &f)?))
-        },
-    );
-    fp.define(
-        Key::str("name"),
-        Prop::data(Value::str(""), false, false, true),
-    );
-    fp.define(
-        Key::str("length"),
-        Prop::data(Value::Number(0.0), false, false, true),
-    );
-
-    // ---- Symbol
-    let symbol = constructor(
-        interp,
-        "Symbol",
-        0,
-        |i, _, a, made| {
-            if made.is_some() {
-                return Err(i.type_error("Symbol is not a constructor"));
-            }
-            let description = match arg(a, 0) {
-                Value::Undefined => None,
-                v => Some(i.to_text(&v)?),
-            };
-            Ok(Value::Symbol(Rc::new(Symbol { description })))
-        },
-        &sp,
-    );
-    let well_known = {
-        let i = &interp.intrinsics;
-        [
-            ("iterator", i.sym_iterator.clone()),
-            ("asyncIterator", i.sym_async_iterator.clone()),
-            ("toPrimitive", i.sym_to_primitive.clone()),
-            ("hasInstance", i.sym_has_instance.clone()),
-            ("toStringTag", i.sym_to_string_tag.clone()),
-            ("species", i.sym_species.clone()),
-            ("isConcatSpreadable", i.sym_concat_spreadable.clone()),
-            ("unscopables", i.sym_unscopables.clone()),
-            ("match", i.sym_match.clone()),
-            ("matchAll", i.sym_match_all.clone()),
-            ("replace", i.sym_replace.clone()),
-            ("search", i.sym_search.clone()),
-            ("split", i.sym_split.clone()),
-        ]
-    };
-    for (name, s) in well_known {
-        symbol.define(
-            Key::str(name),
-            Prop::data(Value::Symbol(s), false, false, false),
-        );
-    }
-    method(interp, &symbol, "for", 1, |i, _, a, _| {
-        let key = i.to_text(&arg(a, 0))?;
-        if let Some((_, s)) = i.intrinsics.registry.iter().find(|(k, _)| *k == key) {
-            return Ok(Value::Symbol(s.clone()));
-        }
-        let s = Rc::new(Symbol {
-            description: Some(key.clone()),
-        });
-        i.intrinsics.registry.push((key, s.clone()));
-        Ok(Value::Symbol(s))
-    });
-    method(interp, &symbol, "keyFor", 1, |i, _, a, _| {
-        let Value::Symbol(s) = arg(a, 0) else {
-            return Err(i.type_error("not a symbol"));
-        };
-        Ok(i.intrinsics
-            .registry
-            .iter()
-            .find(|(_, x)| Rc::ptr_eq(x, &s))
-            .map(|(k, _)| Value::String(k.clone()))
-            .unwrap_or(Value::Undefined))
-    });
-    method(interp, &sp, "toString", 0, |i, this, _, _| {
-        let s = this_symbol(i, this)?;
-        let d = s
-            .description
-            .clone()
-            .map(|d| String::from_utf16_lossy(&d))
-            .unwrap_or_default();
-        Ok(Value::str(&format!("Symbol({d})")))
-    });
-    method(interp, &sp, "valueOf", 0, |i, this, _, _| {
-        Ok(Value::Symbol(this_symbol(i, this)?))
-    });
-    getter(
-        interp,
-        &sp,
-        Key::str("description"),
-        "description",
-        |i, this, _, _| {
-            Ok(this_symbol(i, this)?
-                .description
-                .clone()
-                .map(Value::String)
-                .unwrap_or(Value::Undefined))
-        },
-    );
-    let to_tag = Key::Symbol(interp.intrinsics.sym_to_string_tag.clone());
-    sp.define(
-        to_tag.clone(),
-        Prop::data(Value::str("Symbol"), false, false, true),
-    );
-    let to_prim = Key::Symbol(interp.intrinsics.sym_to_primitive.clone());
-    symbol_method(
-        interp,
-        &sp,
-        &to_prim,
-        "[Symbol.toPrimitive]",
-        |i, this, _, _| Ok(Value::Symbol(this_symbol(i, this)?)),
-    );
-
-    // ---- errors
-    let error = constructor(interp, "Error", 1, make_error, &ep);
-    let _ = error;
-    ep.set_hidden(Key::str("name"), Value::str("Error"));
-    ep.set_hidden(Key::str("message"), Value::str(""));
-    method(interp, &ep, "toString", 0, |i, this, _, _| {
-        let name = i.get_of(this, &Key::str("name"))?;
-        let name = if name.is_nullish() {
-            "Error".to_string()
-        } else {
-            i.to_rust_string(&name)?
-        };
-        let msg = i.get_of(this, &Key::str("message"))?;
-        let msg = if msg.is_nullish() {
-            String::new()
-        } else {
-            i.to_rust_string(&msg)?
-        };
-        Ok(Value::str(&match (name.is_empty(), msg.is_empty()) {
-            (_, true) => name,
-            (true, false) => msg,
-            _ => format!("{name}: {msg}"),
-        }))
-    });
-    let kinds = {
-        let i = &interp.intrinsics;
-        vec![
-            ("TypeError", i.type_error_proto.clone()),
-            ("RangeError", i.range_error_proto.clone()),
-            ("ReferenceError", i.reference_error_proto.clone()),
-            ("SyntaxError", i.syntax_error_proto.clone()),
-            ("EvalError", Obj::new(Some(ep.clone()), Class::Ordinary)),
-            ("URIError", Obj::new(Some(ep.clone()), Class::Ordinary)),
-            (
-                "AggregateError",
-                Obj::new(Some(ep.clone()), Class::Ordinary),
-            ),
-        ]
-    };
-    for (name, proto) in kinds {
-        let c = constructor(interp, name, 1, make_error, &proto);
-        c.borrow_mut().proto = interp
-            .global
-            .own(&Key::str("Error"))
-            .and_then(|p| match p.slot {
-                Slot::Data(Value::Object(o)) | Slot::ReadOnly(Value::Object(o)) => Some(o),
-                _ => None,
-            });
-        proto.set_hidden(Key::str("name"), Value::str(name));
-        proto.set_hidden(Key::str("message"), Value::str(""));
-    }
-
-    // ---- Boolean
-    constructor(
-        interp,
-        "Boolean",
-        1,
-        |_, _, a, made| {
-            let b = arg(a, 0).truthy();
-            Ok(match made {
-                Some(p) => Value::Object(Obj::new(Some(p.clone()), Class::Boolean(b))),
-                None => Value::Bool(b),
-            })
-        },
-        &bp,
-    );
-    method(interp, &bp, "toString", 0, |i, this, _, _| {
-        Ok(Value::str(if this_bool(i, this)? {
-            "true"
-        } else {
-            "false"
-        }))
-    });
-    method(interp, &bp, "valueOf", 0, |i, this, _, _| {
-        Ok(Value::Bool(this_bool(i, this)?))
-    });
-
-    // ---- Reflect
-    let reflect = interp.plain_object();
-    global(interp, "Reflect", Value::Object(reflect.clone()));
-    method(interp, &reflect, "apply", 3, |i, _, a, _| {
-        let list = list_of(i, &arg(a, 2))?;
-        i.call(&arg(a, 0), arg(a, 1), &list)
-    });
-    method(interp, &reflect, "construct", 2, |i, _, a, _| {
-        let list = list_of(i, &arg(a, 1))?;
-        let nt = if a.len() > 2 { Some(arg(a, 2)) } else { None };
-        i.construct(&arg(a, 0), &list, nt.as_ref())
-    });
-    method(interp, &reflect, "get", 2, |i, _, a, _| {
-        let key = i.to_key(&arg(a, 1))?;
-        let target = arg(a, 0);
-        if let (Value::Object(o), Some(receiver)) = (&target, a.get(2)) {
-            let o = o.clone();
-            return i.get_from(&o, &key, receiver);
-        }
-        i.get(&target, &key)
-    });
-    method(interp, &reflect, "set", 3, |i, _, a, _| {
-        let key = i.to_key(&arg(a, 1))?;
-        i.set(&arg(a, 0), key, arg(a, 2))?;
-        Ok(Value::Bool(true))
-    });
-    method(interp, &reflect, "has", 2, |i, _, a, _| {
-        let Value::Object(o) = arg(a, 0) else {
-            return Err(i.type_error("Reflect.has called on non-object"));
-        };
-        let key = i.to_key(&arg(a, 1))?;
-        Ok(Value::Bool(i.has_property(&o, &key)))
-    });
-    method(interp, &reflect, "ownKeys", 1, |i, _, a, _| {
-        let Value::Object(o) = arg(a, 0) else {
-            return Err(i.type_error("Reflect.ownKeys called on non-object"));
-        };
-        let keys = o
-            .own_keys(false)
-            .into_iter()
-            .map(|k| k.to_value())
-            .collect();
-        Ok(i.array(keys))
-    });
-    method(interp, &reflect, "getPrototypeOf", 1, |i, _, a, _| {
-        let Value::Object(o) = arg(a, 0) else {
-            return Err(i.type_error("Reflect.getPrototypeOf called on non-object"));
-        };
-        Ok(o.proto().map(Value::Object).unwrap_or(Value::Null))
-    });
-    method(interp, &reflect, "setPrototypeOf", 2, |_, _, a, _| {
-        if let Value::Object(o) = arg(a, 0) {
-            o.borrow_mut().proto = arg(a, 1).as_object().cloned();
-        }
-        Ok(Value::Bool(true))
-    });
-    method(interp, &reflect, "defineProperty", 3, |i, _, a, _| {
-        let (Value::Object(o), Value::Object(d)) = (arg(a, 0), arg(a, 2)) else {
-            return Err(i.type_error("Reflect.defineProperty called on non-object"));
-        };
-        let key = i.to_key(&arg(a, 1))?;
-        define_property(i, &o, key, &d)?;
-        Ok(Value::Bool(true))
-    });
-    method(interp, &reflect, "deleteProperty", 2, |i, _, a, _| {
-        let Value::Object(o) = arg(a, 0) else {
-            return Err(i.type_error("Reflect.deleteProperty called on non-object"));
-        };
-        let key = i.to_key(&arg(a, 1))?;
-        Ok(Value::Bool(o.delete(&key)))
-    });
-    method(
-        interp,
-        &reflect,
-        "getOwnPropertyDescriptor",
-        2,
-        |i, _, a, _| {
-            let Value::Object(o) = arg(a, 0) else {
-                return Err(i.type_error("Reflect.getOwnPropertyDescriptor called on non-object"));
-            };
-            let key = i.to_key(&arg(a, 1))?;
-            Ok(o.own(&key)
-                .map(|p| descriptor(i, &p))
-                .unwrap_or(Value::Undefined))
-        },
-    );
-    method(interp, &reflect, "isExtensible", 1, |_, _, a, _| {
-        Ok(Value::Bool(
-            matches!(arg(a, 0), Value::Object(o) if o.borrow().extensible),
-        ))
-    });
-    method(interp, &reflect, "preventExtensions", 1, |_, _, a, _| {
-        if let Value::Object(o) = arg(a, 0) {
-            o.borrow_mut().extensible = false;
-        }
-        Ok(Value::Bool(true))
     });
 }
 

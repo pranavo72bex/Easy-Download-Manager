@@ -8,6 +8,8 @@
 //! and lookbehind, greedy and lazy quantifiers, backreferences, classes, and the flags `i`, `g`,
 //! `m`, `s`, `y` (and `u`, `d`, read). A match that takes too many steps is stopped.
 
+mod look;
+
 use crate::lexer::Text;
 
 /// A compiled pattern.
@@ -865,42 +867,12 @@ impl Regex {
                     behind,
                     negate,
                 } => {
-                    let (start, end, behind, negate) = (*start, *end, *behind, *negate);
-                    let mut inner = caps.clone();
-                    let mut inner_regs = regs.clone();
-                    let found = if behind {
-                        // Some start before here from which it matches up to exactly here.
-                        let mut hit = false;
-                        for k in (0..=pos).rev() {
-                            let mut c = caps.clone();
-                            let mut r = regs.clone();
-                            let sub = Regex {
-                                prog: self.prog[..end].to_vec(),
-                                ..self.sub()
-                            };
-                            if let Some(e) =
-                                sub.run_to(input, start, k, &mut c, &mut r, steps, pos)?
-                            {
-                                let _ = e;
-                                inner = c;
-                                hit = true;
-                                break;
-                            }
-                        }
-                        hit
-                    } else {
-                        self.run(input, start, pos, &mut inner, &mut inner_regs, steps)?
-                            .is_some()
-                    };
-                    if found != negate {
-                        if !negate {
-                            *caps = inner;
-                        }
-                        pc = end;
-                        true
-                    } else {
-                        false
+                    let look = (*start, *end, *behind, *negate);
+                    let hit = self.look(input, pos, caps, regs, steps, look)?;
+                    if hit {
+                        pc = *end;
                     }
+                    hit
                 }
             };
             if !ok {
@@ -914,41 +886,6 @@ impl Regex {
                     None => return Ok(None),
                 }
             }
-        }
-    }
-
-    /// A copy of the pattern's settings, its program left empty (a lookbehind's own run).
-    fn sub(&self) -> Regex {
-        Regex {
-            source: self.source.clone(),
-            flags: self.flags.clone(),
-            prog: Vec::new(),
-            classes: self.classes.clone(),
-            groups: self.groups,
-            names: Vec::new(),
-            ignore_case: self.ignore_case,
-            multiline: self.multiline,
-            dot_all: self.dot_all,
-            regs: self.regs,
-        }
-    }
-
-    /// Runs as [`Regex::run`], a match counting only where it ends at `must_end`.
-    #[allow(clippy::too_many_arguments)]
-    fn run_to(
-        &self,
-        input: &[u16],
-        pc: usize,
-        pos: usize,
-        caps: &mut Vec<Option<usize>>,
-        regs: &mut Vec<usize>,
-        steps: &mut usize,
-        must_end: usize,
-    ) -> Result<Option<usize>, PatternError> {
-        let limited = &input[..must_end];
-        match self.run(limited, pc, pos, caps, regs, steps)? {
-            Some(e) if e == must_end => Ok(Some(e)),
-            _ => Ok(None),
         }
     }
 }

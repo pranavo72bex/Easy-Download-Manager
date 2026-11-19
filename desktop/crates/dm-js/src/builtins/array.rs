@@ -16,6 +16,38 @@ use crate::value::{relative_index, Key, Value};
 /// Installs `Array`.
 pub fn install(interp: &mut Interp) {
     let ap = interp.intrinsics.array_proto.clone();
+    let array = install_array(interp, &ap);
+    install_cutting(interp, &ap);
+    install_searching(interp, &ap);
+    install_callbacks(interp, &ap);
+    let values = method(interp, &ap, "values", 0, |i, this, _, _| {
+        let o = i.to_object(this)?;
+        Ok(i.array_iterator(Value::Object(o), 1))
+    });
+    interp.intrinsics.array_values = Value::Object(values.clone());
+    let iter_key = Key::Symbol(interp.intrinsics.sym_iterator.clone());
+    ap.set_hidden(iter_key, Value::Object(values));
+    method(interp, &ap, "keys", 0, |i, this, _, _| {
+        let o = i.to_object(this)?;
+        Ok(i.array_iterator(Value::Object(o), 0))
+    });
+    method(interp, &ap, "entries", 0, |i, this, _, _| {
+        let o = i.to_object(this)?;
+        Ok(i.array_iterator(Value::Object(o), 2))
+    });
+    let species = Key::Symbol(interp.intrinsics.sym_species.clone());
+    super::getter(
+        interp,
+        &array,
+        species,
+        "[Symbol.species]",
+        |_, this, _, _| Ok(this.clone()),
+    );
+    let _ = symbol_method;
+}
+
+/// `Array`, with its functions (`isArray`, `of`, `from`).
+fn install_array(interp: &mut Interp, ap: &Obj) -> Obj {
     let array = constructor(
         interp,
         "Array",
@@ -35,7 +67,7 @@ pub fn install(interp: &mut Interp) {
                 .unwrap_or_else(|| i.intrinsics.array_proto.clone());
             Ok(Value::Object(Obj::new(Some(proto), Class::Array(items))))
         },
-        &ap,
+        ap,
     );
     method(interp, &array, "isArray", 1, |_, _, a, _| {
         Ok(Value::Bool(
@@ -71,8 +103,12 @@ pub fn install(interp: &mut Interp) {
         };
         Ok(i.array(items))
     });
+    array
+}
 
-    method(interp, &ap, "push", 1, |i, this, a, _| {
+/// `Array.prototype`'s methods from `push` to `concat`: those that add, take and cut.
+fn install_cutting(interp: &mut Interp, ap: &Obj) {
+    method(interp, ap, "push", 1, |i, this, a, _| {
         if let Some(n) = with_items(this, |items| {
             items.extend_from_slice(a);
             items.len()
@@ -87,7 +123,7 @@ pub fn install(interp: &mut Interp) {
         i.set(this, Key::str("length"), Value::Number(len as f64))?;
         Ok(Value::Number(len as f64))
     });
-    method(interp, &ap, "pop", 0, |i, this, _, _| {
+    method(interp, ap, "pop", 0, |i, this, _, _| {
         if let Some(v) = with_items(this, |items| items.pop()) {
             return Ok(v.unwrap_or(Value::Undefined));
         }
@@ -96,7 +132,7 @@ pub fn install(interp: &mut Interp) {
         write_back(i, this, list)?;
         Ok(v)
     });
-    method(interp, &ap, "shift", 0, |i, this, _, _| {
+    method(interp, ap, "shift", 0, |i, this, _, _| {
         if let Some(v) = with_items(this, |items| (!items.is_empty()).then(|| items.remove(0))) {
             return Ok(v.unwrap_or(Value::Undefined));
         }
@@ -109,7 +145,7 @@ pub fn install(interp: &mut Interp) {
         write_back(i, this, list)?;
         Ok(v)
     });
-    method(interp, &ap, "unshift", 1, |i, this, a, _| {
+    method(interp, ap, "unshift", 1, |i, this, a, _| {
         if let Some(n) = with_items(this, |items| {
             items.splice(0..0, a.iter().cloned());
             items.len()
@@ -122,7 +158,7 @@ pub fn install(interp: &mut Interp) {
         write_back(i, this, list)?;
         Ok(Value::Number(n as f64))
     });
-    method(interp, &ap, "splice", 2, |i, this, a, _| {
+    method(interp, ap, "splice", 2, |i, this, a, _| {
         let len = length(i, this)?;
         let start = relative_index(i.to_number(&arg(a, 0))?, len);
         let count = match a.len() {
@@ -143,7 +179,7 @@ pub fn install(interp: &mut Interp) {
         write_back(i, this, list)?;
         Ok(i.array(removed))
     });
-    method(interp, &ap, "slice", 2, |i, this, a, _| {
+    method(interp, ap, "slice", 2, |i, this, a, _| {
         let list = items_of(i, this)?;
         let len = list.len();
         let start = relative_index(i.to_number(&arg(a, 0))?, len);
@@ -153,7 +189,7 @@ pub fn install(interp: &mut Interp) {
         };
         Ok(i.array(list.get(start..end.max(start)).unwrap_or(&[]).to_vec()))
     });
-    method(interp, &ap, "concat", 1, |i, this, a, _| {
+    method(interp, ap, "concat", 1, |i, this, a, _| {
         let mut out = items_of(i, this)?;
         let spreadable = Key::Symbol(i.intrinsics.sym_concat_spreadable.clone());
         for v in a {
@@ -176,7 +212,11 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(i.array(out))
     });
-    method(interp, &ap, "join", 1, |i, this, a, _| {
+}
+
+/// `Array.prototype`'s methods from `join` to `sort`: those that read, search and reorder.
+fn install_searching(interp: &mut Interp, ap: &Obj) {
+    method(interp, ap, "join", 1, |i, this, a, _| {
         let sep = match arg(a, 0) {
             Value::Undefined => crate::lexer::text(","),
             v => i.to_text(&v)?,
@@ -193,18 +233,18 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::String(out.into()))
     });
-    method(interp, &ap, "toString", 0, |i, this, _, _| {
+    method(interp, ap, "toString", 0, |i, this, _, _| {
         let join = i.get_of(this, &Key::str("join"))?;
         if join.as_object().is_some_and(|f| f.is_callable()) {
             return i.call(&join, this.clone(), &[]);
         }
         super::object::object_to_string(i, this, &[], None)
     });
-    method(interp, &ap, "toLocaleString", 0, |i, this, _, _| {
+    method(interp, ap, "toLocaleString", 0, |i, this, _, _| {
         let join = i.get_of(this, &Key::str("join"))?;
         i.call(&join, this.clone(), &[])
     });
-    method(interp, &ap, "reverse", 0, |i, this, _, _| {
+    method(interp, ap, "reverse", 0, |i, this, _, _| {
         if with_items(this, |items| items.reverse()).is_some() {
             return Ok(this.clone());
         }
@@ -213,7 +253,7 @@ pub fn install(interp: &mut Interp) {
         write_back(i, this, list)?;
         Ok(this.clone())
     });
-    method(interp, &ap, "indexOf", 1, |i, this, a, _| {
+    method(interp, ap, "indexOf", 1, |i, this, a, _| {
         let list = items_of(i, this)?;
         let from = relative_index(i.to_number(&arg(a, 1))?, list.len());
         let wanted = arg(a, 0);
@@ -225,7 +265,7 @@ pub fn install(interp: &mut Interp) {
                 .unwrap_or(-1.0),
         ))
     });
-    method(interp, &ap, "lastIndexOf", 1, |i, this, a, _| {
+    method(interp, ap, "lastIndexOf", 1, |i, this, a, _| {
         let list = items_of(i, this)?;
         let wanted = arg(a, 0);
         let from = match a.get(1) {
@@ -248,7 +288,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Number(-1.0))
     });
-    method(interp, &ap, "includes", 1, |i, this, a, _| {
+    method(interp, ap, "includes", 1, |i, this, a, _| {
         let list = items_of(i, this)?;
         let from = relative_index(i.to_number(&arg(a, 1))?, list.len());
         let wanted = arg(a, 0);
@@ -256,7 +296,7 @@ pub fn install(interp: &mut Interp) {
             list.iter().skip(from).any(|v| v.same_value_zero(&wanted)),
         ))
     });
-    method(interp, &ap, "at", 1, |i, this, a, _| {
+    method(interp, ap, "at", 1, |i, this, a, _| {
         let list = items_of(i, this)?;
         let n = int_arg(i, a, 0)?;
         let at = if n < 0.0 { list.len() as f64 + n } else { n };
@@ -266,7 +306,7 @@ pub fn install(interp: &mut Interp) {
             Value::Undefined
         })
     });
-    method(interp, &ap, "fill", 1, |i, this, a, _| {
+    method(interp, ap, "fill", 1, |i, this, a, _| {
         let len = length(i, this)?;
         let start = relative_index(i.to_number(&arg(a, 1))?, len);
         let end = match arg(a, 2) {
@@ -278,7 +318,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(this.clone())
     });
-    method(interp, &ap, "copyWithin", 2, |i, this, a, _| {
+    method(interp, ap, "copyWithin", 2, |i, this, a, _| {
         let mut list = items_of(i, this)?;
         let len = list.len();
         let target = relative_index(i.to_number(&arg(a, 0))?, len);
@@ -296,19 +336,22 @@ pub fn install(interp: &mut Interp) {
         write_back(i, this, list)?;
         Ok(this.clone())
     });
-    method(interp, &ap, "sort", 1, |i, this, a, _| {
+    method(interp, ap, "sort", 1, |i, this, a, _| {
         let compare = arg(a, 0);
         let mut list = items_of(i, this)?;
         sort(i, &mut list, &compare)?;
         write_back(i, this, list)?;
         Ok(this.clone())
     });
-    // The callback methods: each element with its index and the array.
-    method(interp, &ap, "forEach", 1, |i, this, a, _| {
+}
+
+/// `Array.prototype`'s methods that call back: each element with its index and the array.
+fn install_callbacks(interp: &mut Interp, ap: &Obj) {
+    method(interp, ap, "forEach", 1, |i, this, a, _| {
         each(i, this, a, |_, _, _, _| Ok(None))?;
         Ok(Value::Undefined)
     });
-    method(interp, &ap, "map", 1, |i, this, a, _| {
+    method(interp, ap, "map", 1, |i, this, a, _| {
         let mut out = Vec::new();
         each(i, this, a, |_, _, _, r| {
             out.push(r);
@@ -316,7 +359,7 @@ pub fn install(interp: &mut Interp) {
         })?;
         Ok(i.array(out))
     });
-    method(interp, &ap, "filter", 1, |i, this, a, _| {
+    method(interp, ap, "filter", 1, |i, this, a, _| {
         let mut out = Vec::new();
         each(i, this, a, |_, v, _, r| {
             if r.truthy() {
@@ -326,29 +369,29 @@ pub fn install(interp: &mut Interp) {
         })?;
         Ok(i.array(out))
     });
-    method(interp, &ap, "some", 1, |i, this, a, _| {
+    method(interp, ap, "some", 1, |i, this, a, _| {
         let found = each(i, this, a, |_, _, _, r| {
             Ok(r.truthy().then_some(Value::Bool(true)))
         })?;
         Ok(found.unwrap_or(Value::Bool(false)))
     });
-    method(interp, &ap, "every", 1, |i, this, a, _| {
+    method(interp, ap, "every", 1, |i, this, a, _| {
         let found = each(i, this, a, |_, _, _, r| {
             Ok((!r.truthy()).then_some(Value::Bool(false)))
         })?;
         Ok(found.unwrap_or(Value::Bool(true)))
     });
-    method(interp, &ap, "find", 1, |i, this, a, _| {
+    method(interp, ap, "find", 1, |i, this, a, _| {
         let found = each(i, this, a, |_, v, _, r| Ok(r.truthy().then_some(v)))?;
         Ok(found.unwrap_or(Value::Undefined))
     });
-    method(interp, &ap, "findIndex", 1, |i, this, a, _| {
+    method(interp, ap, "findIndex", 1, |i, this, a, _| {
         let found = each(i, this, a, |_, _, n, r| {
             Ok(r.truthy().then_some(Value::Number(n as f64)))
         })?;
         Ok(found.unwrap_or(Value::Number(-1.0)))
     });
-    method(interp, &ap, "findLast", 1, |i, this, a, _| {
+    method(interp, ap, "findLast", 1, |i, this, a, _| {
         let list = items_of(i, this)?;
         for n in (0..list.len()).rev() {
             let r = i.call(
@@ -362,7 +405,7 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Undefined)
     });
-    method(interp, &ap, "findLastIndex", 1, |i, this, a, _| {
+    method(interp, ap, "findLastIndex", 1, |i, this, a, _| {
         let list = items_of(i, this)?;
         for n in (0..list.len()).rev() {
             let r = i.call(
@@ -376,13 +419,13 @@ pub fn install(interp: &mut Interp) {
         }
         Ok(Value::Number(-1.0))
     });
-    method(interp, &ap, "reduce", 1, |i, this, a, _| {
+    method(interp, ap, "reduce", 1, |i, this, a, _| {
         reduce(i, this, a, false)
     });
-    method(interp, &ap, "reduceRight", 1, |i, this, a, _| {
+    method(interp, ap, "reduceRight", 1, |i, this, a, _| {
         reduce(i, this, a, true)
     });
-    method(interp, &ap, "flat", 0, |i, this, a, _| {
+    method(interp, ap, "flat", 0, |i, this, a, _| {
         let depth = match arg(a, 0) {
             Value::Undefined => 1.0,
             v => i.to_number(&v)?,
@@ -392,7 +435,7 @@ pub fn install(interp: &mut Interp) {
         flatten(i, list, depth, &mut out)?;
         Ok(i.array(out))
     });
-    method(interp, &ap, "flatMap", 1, |i, this, a, _| {
+    method(interp, ap, "flatMap", 1, |i, this, a, _| {
         let mut mapped = Vec::new();
         each(i, this, a, |_, _, _, r| {
             mapped.push(r);
@@ -402,30 +445,6 @@ pub fn install(interp: &mut Interp) {
         flatten(i, mapped, 1.0, &mut out)?;
         Ok(i.array(out))
     });
-    let values = method(interp, &ap, "values", 0, |i, this, _, _| {
-        let o = i.to_object(this)?;
-        Ok(i.array_iterator(Value::Object(o), 1))
-    });
-    interp.intrinsics.array_values = Value::Object(values.clone());
-    let iter_key = Key::Symbol(interp.intrinsics.sym_iterator.clone());
-    ap.set_hidden(iter_key, Value::Object(values));
-    method(interp, &ap, "keys", 0, |i, this, _, _| {
-        let o = i.to_object(this)?;
-        Ok(i.array_iterator(Value::Object(o), 0))
-    });
-    method(interp, &ap, "entries", 0, |i, this, _, _| {
-        let o = i.to_object(this)?;
-        Ok(i.array_iterator(Value::Object(o), 2))
-    });
-    let species = Key::Symbol(interp.intrinsics.sym_species.clone());
-    super::getter(
-        interp,
-        &array,
-        species,
-        "[Symbol.species]",
-        |_, this, _, _| Ok(this.clone()),
-    );
-    let _ = symbol_method;
 }
 
 /// Runs `f` on a real array's elements; none where `this` is not one.
