@@ -15,7 +15,7 @@ fn row(id: Id) -> Arc<Entry> {
 
 fn read(queue_file: &Path) -> Vec<Entry> {
     let text = std::fs::read(queue_file).unwrap();
-    let entries: Vec<Entry> = serde_json::from_slice(&text).unwrap();
+    let entries: Vec<Entry> = crate::saved::rows_from_slice(&text).unwrap();
     replayed(queue_file, &text, entries)
 }
 
@@ -115,4 +115,59 @@ fn a_secret_stays_out_of_the_journal_and_comes_back() {
     assert!(!journal.contains("session=abc"), "{journal}");
     let kept = std::fs::read_to_string(secrets_file(&file)).unwrap();
     assert!(kept.contains("session=abc"), "{kept}");
+}
+
+fn same(read: &[Entry], rows: &[Arc<Entry>]) -> bool {
+    let rows: Vec<&Entry> = rows.iter().map(|r| &**r).collect();
+    serde_json::to_value(read).unwrap() == serde_json::to_value(rows).unwrap()
+}
+
+#[test]
+fn the_queue_and_its_secrets_carry_their_format_and_read_back_the_same_rows() {
+    // A short list (written indented) and a long one (compact, then a journal).
+    for count in [3, 600] {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("queue.json");
+        let mut rows: Vec<Arc<Entry>> = (1..=count).map(row).collect();
+        Arc::make_mut(&mut rows[1]).cookies = "session=abc".into();
+        let saved = write(&file, rows.clone(), None).unwrap();
+        let text = std::fs::read(&file).unwrap();
+        assert_eq!(crate::saved::format_of(&text), QUEUE_FORMAT);
+        let secrets = std::fs::read(secrets_file(&file)).unwrap();
+        assert_eq!(crate::saved::format_of(&secrets), SECRETS_FORMAT);
+        // The secrets come back in the queue's own read (`persist`), not in this one.
+        Arc::make_mut(&mut rows[1]).cookies.clear();
+        assert!(same(&read(&file), &rows), "{count} rows");
+        Arc::make_mut(&mut rows[0]).description = "changed".into();
+        write(&file, rows.clone(), Some(saved)).unwrap();
+        assert!(same(&read(&file), &rows), "{count} rows, changed");
+        if let Ok(journal) = std::fs::read_to_string(journal_file(&file)) {
+            let first = journal.lines().next().unwrap();
+            let header: Header = serde_json::from_str(first).unwrap();
+            assert_eq!(header.format, JOURNAL_FORMAT, "{first}");
+        }
+    }
+}
+
+#[test]
+fn a_queue_file_and_journal_from_before_the_numbers_read_as_they_did() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("queue.json");
+    let rows: Vec<Arc<Entry>> = (1..=3).map(row).collect();
+    // A bare list, as every dm before the numbers wrote it, and a journal whose first line
+    // names its base alone.
+    let bare: Vec<&Entry> = rows.iter().map(|r| &**r).collect();
+    let bytes = serde_json::to_vec_pretty(&bare).unwrap();
+    std::fs::write(&file, &bytes).unwrap();
+    assert_eq!(crate::saved::format_of(&bytes), 0);
+    assert!(same(&read(&file), &rows));
+    let mut changed = Entry::clone(&rows[2]);
+    changed.description = "from the journal".into();
+    let journal = format!(
+        "{}\n{}\n",
+        serde_json::json!({ "base": base_of(&bytes) }),
+        serde_json::to_string(&Change::Row(Box::new(changed))).unwrap()
+    );
+    std::fs::write(journal_file(&file), journal).unwrap();
+    assert_eq!(read(&file)[2].description, "from the journal");
 }

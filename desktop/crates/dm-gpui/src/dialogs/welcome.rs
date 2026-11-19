@@ -26,9 +26,9 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 /// Written once the welcome has been shown.
-const WELCOMED: &str = "welcomed";
+const WELCOMED: &str = dm_core::paths::WELCOMED;
 /// Written once "Not now" is chosen on the add-to-browser bar.
-const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
+const BROWSER_HINT_HIDDEN: &str = dm_core::paths::BROWSER_HINT_HIDDEN;
 
 /// The welcome's view.
 pub struct Welcome {

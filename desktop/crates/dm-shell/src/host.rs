@@ -152,13 +152,13 @@ pub fn read_frame(input: &mut impl Read) -> Option<serde_json::Value> {
 
 /// Where the app looks for work handed over by a browser.
 pub fn inbox(home: &Path) -> PathBuf {
-    home.join("inbox")
+    home.join(dm_core::paths::INBOX)
 }
 
 /// The file in the inbox where a running dm writes the loopback port its
 /// doorbell listens on. No extension, so the watcher never reads it as a
 /// request.
-pub const BELL: &str = "bell";
+pub const BELL: &str = dm_core::paths::INBOX_BELL;
 
 /// Tells a running dm there is something in its inbox, now.
 ///
@@ -434,7 +434,7 @@ pub(crate) fn saved(home: &Path) -> crate::Settings {
     // Read as the window reads it, so the two never disagree (an older
     // edition of the pop-up defaults, one odd field), and read only: this
     // process has no window to say it moved a file aside.
-    crate::Settings::read_only(&home.join("settings.json"))
+    crate::Settings::read_only(&home.join(dm_core::paths::SETTINGS))
 }
 
 /// What answering needs from outside this process. A trait so a test can
@@ -626,6 +626,13 @@ const FORMATS_KEPT_SECS: u64 = 600;
 /// How many pages' readings are kept.
 const FORMATS_KEPT_PAGES: usize = 48;
 
+/// The formats cache's format number (`dm_core::saved`). 0, before the numbers: a bare list.
+/// 1: `{"format": 1, "rows": [...]}`.
+const FORMATS_FORMAT: u32 = 1;
+
+/// The extension file's: 1, the hello's fields beside `format`.
+const EXTENSION_FORMAT: u32 = 1;
+
 fn now_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -659,12 +666,12 @@ struct Remembered {
 }
 
 fn formats_file(home: &Path) -> std::path::PathBuf {
-    home.join("formats.cache.json")
+    home.join(dm_core::paths::FORMATS_CACHE)
 }
 
 fn recalled_formats(home: &Path, key: &str, now: u64) -> Option<Vec<Choice>> {
-    let text = std::fs::read_to_string(formats_file(home)).ok()?;
-    let all: Vec<Remembered> = serde_json::from_str(&text).ok()?;
+    let bytes = std::fs::read(formats_file(home)).ok()?;
+    let all: Vec<Remembered> = dm_core::saved::rows_from_slice(&bytes).ok()?;
     all.into_iter()
         .find(|r| r.key == key && now.saturating_sub(r.at) < FORMATS_KEPT_SECS)
         .map(|r| r.choices)
@@ -677,9 +684,9 @@ fn remember_formats(home: &Path, key: &str, choices: &[Choice], now: u64) {
     if choices.is_empty() {
         return;
     }
-    let mut all: Vec<Remembered> = std::fs::read_to_string(formats_file(home))
+    let mut all: Vec<Remembered> = std::fs::read(formats_file(home))
         .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
+        .and_then(|bytes| dm_core::saved::rows_from_slice(&bytes).ok())
         .unwrap_or_default();
     all.retain(|r| r.key != key && now.saturating_sub(r.at) < FORMATS_KEPT_SECS);
     all.push(Remembered {
@@ -689,7 +696,7 @@ fn remember_formats(home: &Path, key: &str, choices: &[Choice], now: u64) {
     });
     let excess = all.len().saturating_sub(FORMATS_KEPT_PAGES);
     all.drain(..excess);
-    let Ok(text) = serde_json::to_string(&all) else {
+    let Ok(text) = dm_core::saved::rows_to_vec(FORMATS_FORMAT, &all, false) else {
         return;
     };
     let _ = std::fs::create_dir_all(home);
@@ -703,7 +710,7 @@ fn remember_formats(home: &Path, key: &str, choices: &[Choice], now: u64) {
 /// The answer to one frame, or `None` for a frame that gets none.
 /// The file that keeps what the last extension to say hello said of itself.
 fn extension_file(home: &Path) -> std::path::PathBuf {
-    home.join("extension.json")
+    home.join(dm_core::paths::EXTENSION)
 }
 
 /// Keeps what an extension said of itself in its hello, written only when it changed. Best
@@ -713,7 +720,10 @@ fn note_extension(home: &Path, greeting: &dm_protocol::Greeting) {
     if extension_heard(home).as_ref() == Some(greeting) {
         return;
     }
-    let Ok(text) = serde_json::to_string(greeting) else {
+    let Ok(text) = serde_json::to_string(&dm_core::saved::Stamped {
+        format: EXTENSION_FORMAT,
+        body: greeting,
+    }) else {
         return;
     };
     let _ = std::fs::create_dir_all(home);
@@ -733,7 +743,7 @@ pub fn extension_heard(home: &Path) -> Option<dm_protocol::Greeting> {
 
 /// The file whose being there says a browser's extension has talked to dm.
 fn browser_seen_file(home: &Path) -> std::path::PathBuf {
-    home.join("browser.seen")
+    home.join(dm_core::paths::BROWSER_SEEN)
 }
 
 /// Notes that an extension has said hello, and which browser it is in
@@ -931,8 +941,9 @@ pub fn answer(
         // opens it. Nothing is downloaded.
         Ok(Asked::Show) => {
             let shown = if world.app_running() {
-                let shown = std::fs::create_dir_all(inbox(home))
-                    .and_then(|()| std::fs::write(inbox(home).join("show"), b""));
+                let shown = std::fs::create_dir_all(inbox(home)).and_then(|()| {
+                    std::fs::write(inbox(home).join(dm_core::paths::INBOX_SHOW), b"")
+                });
                 world.ring();
                 shown
             } else {

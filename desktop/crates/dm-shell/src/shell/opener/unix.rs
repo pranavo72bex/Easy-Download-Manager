@@ -153,7 +153,8 @@ impl OpenerSays {
         let dir = settings::home();
         std::fs::create_dir_all(&dir).ok()?;
         let path = dir.join(format!(
-            ".opener-{}-{}.txt",
+            "{}{}-{}.txt",
+            dm_core::paths::OPENER_PREFIX,
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));

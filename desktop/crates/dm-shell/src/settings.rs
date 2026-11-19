@@ -603,6 +603,11 @@ fn yes() -> bool {
 /// (`docs/decisions.md`, "dm works exactly like reference A").
 pub const POPUPS_VERSION: u32 = 2;
 
+/// The settings file's format number (`dm_core::saved`), written beside its fields. 0, before
+/// the numbers: the same fields with none. A file of a higher number reads as far as this dm
+/// knows its fields; the rest are passed over, as any field it does not know.
+pub const SETTINGS_FORMAT: u32 = 1;
+
 impl Settings {
     /// The settings as a file to carry to another computer: every choice,
     /// but no password — Sign-ins keep their sites and names, the proxy its
@@ -615,7 +620,11 @@ impl Settings {
         out.proxy.password.clear();
         out.recent_urls.clear();
         out.last_folders.clear();
-        serde_json::to_string_pretty(&out).unwrap_or_default()
+        serde_json::to_string_pretty(&dm_core::saved::Stamped {
+            format: SETTINGS_FORMAT,
+            body: &out,
+        })
+        .unwrap_or_default()
     }
 
     /// Settings read from such a file, in place of these: the passwords
@@ -1173,7 +1182,7 @@ impl Settings {
     pub fn parts_dir(&self) -> PathBuf {
         let chosen = self.parts_dir.trim();
         if chosen.is_empty() {
-            home().join("parts")
+            home().join(dm_core::paths::PARTS)
         } else {
             PathBuf::from(chosen)
         }
@@ -1255,7 +1264,7 @@ impl Settings {
 
     /// Where the settings are kept: `settings.json` in dm's home.
     pub fn path() -> PathBuf {
-        home().join("settings.json")
+        home().join(dm_core::paths::SETTINGS)
     }
 
     /// Reads what is stored, falling back to the defaults, and says so when
@@ -1341,7 +1350,7 @@ impl Settings {
         let (read, dropped) = match Self::parse(&text) {
             Ok(parsed) => parsed,
             Err(e) => {
-                let aside = path.with_extension("json.unreadable");
+                let aside = dm_core::paths::unreadable(path);
                 let notice = match std::fs::rename(path, &aside) {
                     Ok(()) => format!(
                         "the saved settings could not be read ({e}); they were kept as {} \
@@ -1371,7 +1380,7 @@ impl Settings {
         }
         // Whatever was left out or changed, the file as it was is kept
         // before the next save writes over it.
-        let aside = path.with_extension("json.unreadable");
+        let aside = dm_core::paths::unreadable(path);
         notes.push(match std::fs::copy(path, &aside) {
             Ok(_) => format!("the file as it was is kept as {}", aside.display()),
             Err(io) => format!("the file as it was could not be kept aside ({io})"),
@@ -1457,7 +1466,11 @@ impl Settings {
             // A refusal leaves the password in the file, as before; the next read says so.
             let _ = file.move_passwords_to(store, &dm_core::secretstore::namespace(path));
         }
-        dm_core::write_atomic(path, serde_json::to_string_pretty(&file)?.as_bytes())
+        let stamped = dm_core::saved::Stamped {
+            format: SETTINGS_FORMAT,
+            body: &file,
+        };
+        dm_core::write_atomic(path, serde_json::to_string_pretty(&stamped)?.as_bytes())
     }
 }
 
@@ -1809,7 +1822,7 @@ pub fn home() -> PathBuf {
     }
     dm_core::folders::local_data()
         .unwrap_or_else(std::env::temp_dir)
-        .join("dm-engine")
+        .join(dm_core::paths::HOME_FOLDER)
 }
 
 /// The file that makes a copy of dm portable: put beside the program, it
@@ -1817,7 +1830,7 @@ pub fn home() -> PathBuf {
 /// rather than in the computer's place for them.
 pub const PORTABLE_MARKER: &str = "portable";
 /// The folder a portable dm keeps what belongs to it in.
-pub const PORTABLE_DATA: &str = "dm-data";
+pub const PORTABLE_DATA: &str = dm_core::paths::PORTABLE_HOME_FOLDER;
 
 /// Where a portable copy of dm in `program_dir` keeps its things, or `None`
 /// where there is no [`PORTABLE_MARKER`] beside it. On macOS the program is

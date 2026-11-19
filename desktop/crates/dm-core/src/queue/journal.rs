@@ -62,14 +62,27 @@ enum Change {
     Gone(Id),
 }
 
+/// The queue file's format number (`dm_core::saved`). 0, before the numbers: a bare list of
+/// rows. 1: `{"format": 1, "rows": [...]}`.
+pub(super) const QUEUE_FORMAT: u32 = 1;
+
+/// The secrets file's, as the queue file's: 1, its list under `rows`.
+pub(super) const SECRETS_FORMAT: u32 = 1;
+
+/// The journal's, in its first line. 0, before the numbers: the line named the base alone.
+const JOURNAL_FORMAT: u32 = 1;
+
 /// The journal's first line.
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Header {
     base: String,
+    /// The journal's format number; none (0) in one from before the numbers.
+    #[serde(default)]
+    format: u32,
 }
 
 pub(super) fn journal_file(queue_file: &Path) -> PathBuf {
-    queue_file.with_extension("journal")
+    crate::paths::journal(queue_file)
 }
 
 /// What names a queue file's contents: its length and a hash of its bytes
@@ -150,12 +163,8 @@ fn whole(queue_file: &Path, rows: Vec<Arc<Entry>>) -> std::io::Result<Saved> {
     write_secrets(queue_file, &secrets)?;
     // Indented for a person reading a short list; a long one is written
     // compact, a third of the bytes.
-    let bytes = if entries.len() <= PRETTY_UP_TO {
-        serde_json::to_vec_pretty(&entries)
-    } else {
-        serde_json::to_vec(&entries)
-    }
-    .map_err(std::io::Error::from)?;
+    let bytes = crate::saved::rows_to_vec(QUEUE_FORMAT, &entries, entries.len() <= PRETTY_UP_TO)
+        .map_err(std::io::Error::from)?;
     crate::write_atomic_with(queue_file, |w| w.write_all(&bytes))?;
     // What it held is in the file now. Left behind by a stop here, it names
     // the file before this one and is not replayed.
@@ -212,6 +221,7 @@ fn append(
             &mut lines,
             &Header {
                 base: previous.base.clone(),
+                format: JOURNAL_FORMAT,
             },
         )?;
         lines.push(b'\n');
@@ -262,7 +272,8 @@ pub(super) fn write_secrets(queue_file: &Path, secrets: &[Secret]) -> std::io::R
     }
     // Sealed under a key the operating system's store keeps where there is one; the same
     // bytes as ever where there is none (`secretstore.rs`).
-    let plain = serde_json::to_vec_pretty(secrets).map_err(std::io::Error::from)?;
+    let plain =
+        crate::saved::rows_to_vec(SECRETS_FORMAT, secrets, true).map_err(std::io::Error::from)?;
     let bytes = crate::secretstore::sealed(plain);
     crate::write_atomic_with(&kept, |w| w.write_all(&bytes))
 }

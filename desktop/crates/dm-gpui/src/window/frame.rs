@@ -23,7 +23,10 @@ use std::path::Path;
 use gpui::{point, px, size, Bounds, Pixels, Size, WindowBounds};
 
 /// The file, in dm's home.
-const FILE: &str = "window.json";
+const FILE: &str = dm_core::paths::WINDOW;
+
+/// The file's format number (`dm_core::saved`): 1, the frame's fields beside `format`.
+const FORMAT: u32 = 1;
 
 /// The frame kept at the last quit, and the display it was on, if there is
 /// one that reads.
@@ -70,6 +73,7 @@ fn written(bounds: WindowBounds, display: Option<u64>) -> String {
         WindowBounds::Maximized(frame) => ("zoomed", frame),
     };
     serde_json::json!({
+        "format": FORMAT,
         "x": f32::from(frame.origin.x),
         "y": f32::from(frame.origin.y),
         "width": f32::from(frame.size.width),
@@ -155,6 +159,13 @@ mod tests {
         );
         assert_eq!(read("{}"), None);
         assert_eq!(read("not json"), None);
+        assert_eq!(
+            dm_core::saved::format_of(written(windowed, None).as_bytes()),
+            FORMAT
+        );
+        // A file from before the numbers reads the same.
+        let old = r#"{"x": 120, "y": 80, "width": 900, "height": 600, "state": "windowed"}"#;
+        assert_eq!(read(old), Some(windowed));
     }
 
     #[test]

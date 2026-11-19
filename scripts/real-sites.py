@@ -98,7 +98,12 @@ def main():
 
         def rows():
             q = home / "queue.json"
-            return {r["url"]: r for r in json.loads(q.read_text(encoding="utf-8") or "[]")} if q.exists() else {}
+            if not q.exists():
+                return {}
+            data = json.loads(q.read_text(encoding="utf-8") or "[]")
+            # {"format": N, "rows": [...]} since gaps row A8; a bare list before it.
+            listed = data.get("rows", []) if isinstance(data, dict) else data
+            return {r["url"]: r for r in listed}
 
         started = time.time()
         while time.time() - started < 1500:

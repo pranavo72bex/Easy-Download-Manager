@@ -197,9 +197,12 @@ pub struct Recorded {
     pub validator: Option<String>,
 }
 
+/// The plan's format number (`crate::saved`): 1, [`Recorded`]'s fields beside `format`.
+const FORMAT: u32 = 1;
+
 /// Where the plan is written, beside the parts it describes.
 pub fn record_path(parts_dir: &Path) -> std::path::PathBuf {
-    parts_dir.join("plan.json")
+    parts_dir.join(crate::paths::PLAN)
 }
 
 /// Writes the plan the parts in `parts_dir` are being fetched under.
@@ -216,7 +219,11 @@ pub fn record(
         ranges: segments.iter().map(|s| (s.start, s.end)).collect(),
         validator: validator.map(str::to_owned),
     };
-    let json = serde_json::to_vec(&recorded).map_err(std::io::Error::other)?;
+    let json = serde_json::to_vec(&crate::saved::Stamped {
+        format: FORMAT,
+        body: &recorded,
+    })
+    .map_err(std::io::Error::other)?;
     /* Rewritten at every split, so not waited onto the disk: a flush each
      * time held every connection behind it and halved a fast download. A
      * power cut can leave the plan before the last split, which still covers
@@ -266,6 +273,13 @@ mod tests {
         assert_eq!(back.segments(), planned);
         assert_eq!(back.size, Some(80 * MIN_SEGMENT));
         assert!(back.resumable);
+        let written = std::fs::read(record_path(dir.path())).unwrap();
+        assert_eq!(crate::saved::format_of(&written), FORMAT);
+        // A plan from before the numbers reads the same.
+        let mut fields: serde_json::Value = serde_json::from_slice(&written).unwrap();
+        fields.as_object_mut().unwrap().remove("format");
+        std::fs::write(record_path(dir.path()), fields.to_string()).unwrap();
+        assert_eq!(recorded(dir.path()), Some(back));
     }
 
     #[test]

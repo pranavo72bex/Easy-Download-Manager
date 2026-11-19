@@ -89,9 +89,11 @@ def window(name, seconds=30):
 
 def rows(home):
     try:
-        return json.loads((home / "queue.json").read_text(encoding="utf-8") or "[]")
+        data = json.loads((home / "queue.json").read_text(encoding="utf-8") or "[]")
     except (OSError, ValueError):
         return []
+    # {"format": N, "rows": [...]} since gaps row A8; a bare list before it.
+    return data.get("rows", []) if isinstance(data, dict) else data
 
 
 def control(home):

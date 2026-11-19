@@ -391,6 +391,41 @@ fn the_real_world_lists_qualities_from_a_reading_kept_or_none_for_a_site_without
     );
 }
 
+/// The formats cache and the extension's file carry their format numbers (gaps row A8); files
+/// from before the numbers read the same.
+#[test]
+fn the_formats_cache_and_the_extension_file_carry_their_format() {
+    let home = tempfile::tempdir().unwrap();
+    let key = formats_key("https://video.example/watch/2", "");
+    let kept = Choice {
+        label: "MP4 640×360".into(),
+        quality: "360".into(),
+        size: None,
+    };
+    remember_formats(home.path(), &key, std::slice::from_ref(&kept), 1000);
+    let written = std::fs::read(formats_file(home.path())).unwrap();
+    assert_eq!(dm_core::saved::format_of(&written), FORMATS_FORMAT);
+    assert_eq!(
+        recalled_formats(home.path(), &key, 1001),
+        Some(vec![kept.clone()])
+    );
+    // A bare list, as a dm before the numbers wrote it.
+    let old = serde_json::to_string(&[Remembered {
+        key: key.clone(),
+        at: 1000,
+        choices: vec![kept.clone()],
+    }])
+    .unwrap();
+    std::fs::write(formats_file(home.path()), old).unwrap();
+    assert_eq!(recalled_formats(home.path(), &key, 1001), Some(vec![kept]));
+
+    let greeting = dm_protocol::Greeting::default();
+    note_extension(home.path(), &greeting);
+    let written = std::fs::read(extension_file(home.path())).unwrap();
+    assert_eq!(dm_core::saved::format_of(&written), EXTENSION_FORMAT);
+    assert_eq!(extension_heard(home.path()), Some(greeting));
+}
+
 #[test]
 fn the_warm_reading_does_nothing() {
     let home = tempfile::tempdir().unwrap();

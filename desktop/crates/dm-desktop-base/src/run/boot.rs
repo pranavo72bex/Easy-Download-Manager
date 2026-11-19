@@ -158,7 +158,8 @@ pub fn start(
     // One client for the engine's one-off requests, on this one runtime (gaps row S14).
     dm_core::share_one_client();
     // YouTube's cut players kept between sessions, under dm's home (gaps row Y13).
-    dm_core::youtube::set_kept_players(Some(dm_shell::settings::home().join("players")));
+    let players = dm_shell::settings::home().join(dm_core::paths::PLAYERS);
+    dm_core::youtube::set_kept_players(Some(players));
     crate::signals::on_signal(&runtime, {
         let wake = Arc::clone(&wake);
         move || wake(Wake::Now)

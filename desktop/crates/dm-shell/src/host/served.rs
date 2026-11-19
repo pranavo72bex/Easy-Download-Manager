@@ -15,7 +15,7 @@ use dm_protocol::Rules;
 const SHIPPED: &str = dm_assets::RULES;
 
 /// The file a newer document is put in, in dm's home folder.
-pub const FILE: &str = "rules.json";
+pub const FILE: &str = dm_core::paths::RULES;
 
 /// The rules to serve: the newer of the shipped document and the home folder's.
 pub fn served(home: &Path) -> Rules {

@@ -209,7 +209,9 @@ def lock_is_held(home):
 def rows(home):
     if not (home / "queue.json").exists():
         return []
-    return json.loads((home / "queue.json").read_text(encoding="utf-8") or "[]")
+    data = json.loads((home / "queue.json").read_text(encoding="utf-8") or "[]")
+    # {"format": N, "rows": [...]} since gaps row A8; a bare list before it.
+    return data.get("rows", []) if isinstance(data, dict) else data
 
 
 def hand_off(env, url, ident="one"):
