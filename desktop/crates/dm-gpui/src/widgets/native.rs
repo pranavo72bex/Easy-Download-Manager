@@ -70,8 +70,6 @@ impl<T: Copy> Each<T> {
 pub(crate) enum WindowSize {
     /// The main window, the downloads list, on its first start.
     Main,
-    /// The question asked before the main window opens.
-    StartQuestion,
     /// Options.
     Options,
     /// The site grabber.
@@ -110,7 +108,6 @@ impl WindowSize {
                 windows: (840.0, 520.0),
                 gnome: (900.0, 600.0),
             },
-            Self::StartQuestion => Each::all((360.0, 140.0)),
             Self::Options => Each {
                 macos: (680.0, 600.0),
                 windows: (620.0, 520.0),

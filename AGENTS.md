@@ -52,7 +52,10 @@ extension that hands it the browser's downloads.
   window goes into every catalog, into `template/catalog.json` with an empty translation,
   and, translated without a native speaker, into each `unread/<code>.json`; `cargo xtask
   i18n` counts them, `docs/guide/translating.md`) and
-  numbers (`format`), and the system's services. `crates/dm-gpui` is the
+  numbers (`format`), and the system's services; its modules are in three folders,
+  `platform/` (the system's services), `view/` (the dialogs' models and words) and `run/`
+  (the ways dm runs, one `modes::Mode` parsed from the command line), each reached from the
+  crate's root as before (`dm_desktop_base::rows`). `crates/dm-gpui` is the
   window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
   no web view, plus the tray: one file per part of the window, in five
   folders (`window/`: `list.rs` the rows and their reads, `tick.rs` what each
@@ -369,7 +372,7 @@ until the queue/queues rename.)
 |------|------------|-------------|
 | **backend** | What a window or `--headless` holds: the queue, the settings in force, and the problems no row carries. | `dm_shell::app::backend::Backend`. |
 | **session** | What one run of a window remembers that is not saved: When done, what was said, the watched folder's state. | `dm_shell::app::session::Session`. |
-| **presentation** | Whatever shows dm to a person: the GPUI window, or the loop of `--headless`. | `dm-gpui`, `dm-desktop-base/src/headless.rs`. |
+| **presentation** | Whatever shows dm to a person: the GPUI window, or the loop of `--headless`. | `dm-gpui`, `dm-desktop-base/src/run/headless.rs`. |
 | **host** (browser's) | The small program a browser starts to hand a download to dm (native messaging). | `dm_shell::host`. |
 | **host** (address's) | The server's name in an address: `example.com`. | `dm_core::host_of`. |
 | **host** (JavaScript's) | Was the computer's JavaScript engine, run for YouTube's checks; dm now runs its own interpreter in process. | `dm-js`, `dm_core::javascript`. |

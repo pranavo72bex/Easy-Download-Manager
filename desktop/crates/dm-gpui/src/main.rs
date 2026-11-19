@@ -7,10 +7,10 @@
 //! one queue), reads the queue once each time it is woken, and draws its
 //! rows.
 //!
+//! What the command line asks for is one `dm_desktop_base::modes::Mode`:
+//! each mode with no window runs there and ends the program, and
 //! `--headless` runs dm with no window and no GPUI at all
 //! (`dm_desktop_base::headless`).
-//! `--accessibility` prints what VoiceOver is given of each window and
-//! quits; `--churn` first opens and closes a dialog window 50 times.
 
 // A release opens no console window beside dm's own on Windows; the
 // command-line modes attach to the terminal they were started from
@@ -33,7 +33,6 @@ mod widgets;
 mod window;
 
 use std::sync::Arc;
-use std::time::Duration;
 
 /// On macOS a large block goes back to the system when it is freed: the
 /// system's allocator kept a download's buffers long after it ended
@@ -43,74 +42,10 @@ use std::time::Duration;
 static ALLOCATOR: dm_core::memory::Allocator = dm_core::memory::Allocator;
 
 use dm_desktop_base::boot::{self, Wake};
-use dm_desktop_base::i18n::t;
+use dm_desktop_base::modes::Mode;
 use gpui::{
-    div, point, prelude::*, px, size, App, Bounds, Context, Role, TitlebarOptions, Window,
-    WindowBounds, WindowHandle, WindowOptions,
+    point, prelude::*, px, size, App, Bounds, TitlebarOptions, WindowBounds, WindowOptions,
 };
-
-/// A dialog in a window of its own, as dm's are (B42): a question, OK and
-/// Cancel. `--accessibility` opens it, to show whether a screen reader
-/// reaches both.
-struct Question;
-
-/// A button a screen reader can find: an id, the button role, its words.
-fn button(id: &'static str, words: &'static str) -> impl IntoElement {
-    div()
-        .id(id)
-        .role(Role::Button)
-        .aria_label(words)
-        .px_3()
-        .py_1()
-        .border_1()
-        .rounded_md()
-        .child(words)
-}
-
-impl Render for Question {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .id("question")
-            .role(Role::Dialog)
-            .aria_label(t("Delete the file?"))
-            .size_full()
-            .flex()
-            .flex_col()
-            .gap_3()
-            .p_4()
-            .child(t("Delete the file?"))
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .child(button("ok", t("OK")).into_any_element())
-                    .child(button("cancel", t("Cancel")).into_any_element()),
-            )
-    }
-}
-
-/// Opens the question in a dialog window of its own, over the screen's middle.
-fn open_question(cx: &mut App) -> Option<WindowHandle<Question>> {
-    let (width, height) = widgets::native::WindowSize::StartQuestion.here();
-    let dialog = Bounds::centered(None, size(px(width), px(height)), cx);
-    crate::window::screen::open_window(
-        cx,
-        WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(dialog)),
-            kind: crate::dialogs::question::KIND,
-            ..Default::default()
-        },
-        |window, cx| {
-            crate::window::screen::set_title(window, t("Delete"), cx);
-            cx.new(|_| Question)
-        },
-    )
-    .ok()
-}
-
-/// The shell's own words on the command line, taken out before dm reads
-/// the rest.
-const OWN_FLAGS: [&str; 2] = ["--accessibility", "--churn"];
 
 fn main() {
     // The start's stages, where DM_FINISH_TRACE names a file (gaps row S16).
@@ -118,17 +53,13 @@ fn main() {
     // A portable copy's home, before any thread starts.
     dm_shell::settings::enter_portable();
 
-    let all = dm_shell::shell::args();
-    let dump_accessibility = all.iter().any(|a| a == "--accessibility");
-    let churn = all.iter().any(|a| a == "--churn");
-    let args: Vec<String> = all
-        .into_iter()
-        .filter(|a| !OWN_FLAGS.contains(&a.as_str()))
-        .collect();
-    // Every way dm runs with no window (`dm_desktop_base::modes`): the
-    // browser's host, the warm page reader, --version, --help, the
-    // command-line client, MCP, --register and --unregister, a typo.
-    if let Some(code) = dm_desktop_base::modes::without_window(&args) {
+    let args = dm_shell::shell::args();
+    // What the command line asks for, read once (`dm_desktop_base::modes`).
+    // Every way dm runs with no window ends here: the browser's host, the
+    // warm page reader, --version, --help, the command-line client, MCP,
+    // --register and --unregister, a typo.
+    let mode = Mode::parse(&args);
+    if let Some(code) = mode.run(&args) {
         if code == 0 {
             return;
         }
@@ -154,7 +85,7 @@ fn main() {
 
     // `--headless`: no window and no GPUI at all, so it runs where there is
     // no display (`dm_desktop_base::headless`).
-    let headless = args.iter().any(|a| a == "--headless");
+    let headless = mode == Mode::Headless;
     // Woken from any thread; read on the window's own, in `window::list::Downloads`,
     // or by the headless loop.
     let (wakes, woken) = window::wakes::pair();
@@ -397,13 +328,7 @@ fn main() {
         // The commands themselves are the list's (`Downloads`' root element
         // handles `window::menus::Run`), reached through the window's own dispatch,
         // as a key or the menu bar sends them: the list keeps the keyboard.
-        if dump_accessibility && open_question(cx).is_none() {
-            eprintln!("dm-gpui: the dialog's window could not be opened");
-        }
         cx.activate(true);
-        if dump_accessibility {
-            cx.spawn(async move |cx| dump(cx, churn).await).detach();
-        }
     });
 }
 
@@ -438,45 +363,6 @@ fn wire(view: &gpui::Entity<window::list::Downloads>, cx: &mut App) {
     cx.on_action(move |_: &window::viewmenu::TextSmaller, cx| smaller(cx));
     let normal = text_size(None);
     cx.on_action(move |_: &window::viewmenu::TextNormal, cx| normal(cx));
-}
-
-/// What VoiceOver is given of each window, then out (`--accessibility`). The
-/// first ask wakes AccessKit, which GPUI answers with a placeholder and the
-/// real tree on the next frame: so ask, draw every window again, then read.
-/// With `churn`, a dialog is opened, read and closed 50 times first.
-async fn dump(cx: &mut gpui::AsyncApp, churn: bool) {
-    cx.background_executor().timer(Duration::from_secs(2)).await;
-    cx.update(|cx| {
-        let _ = dm_desktop_base::a11y_tree::windows();
-        cx.refresh_windows();
-    });
-    cx.background_executor().timer(Duration::from_secs(1)).await;
-    for _ in 0..if churn { 50 } else { 0 } {
-        let opened = cx.update(open_question);
-        cx.background_executor()
-            .timer(Duration::from_millis(80))
-            .await;
-        cx.update(|cx| {
-            let _ = dm_desktop_base::a11y_tree::windows();
-            if let Some(handle) = opened {
-                let _ = handle.update(cx, |_, window, _| window.remove_window());
-            }
-        });
-        cx.background_executor()
-            .timer(Duration::from_millis(40))
-            .await;
-    }
-    cx.update(|cx| cx.refresh_windows());
-    cx.background_executor()
-        .timer(Duration::from_millis(500))
-        .await;
-    cx.update(|cx| {
-        match dm_desktop_base::a11y_tree::windows() {
-            Ok(tree) => println!("{tree:#}"),
-            Err(why) => eprintln!("dm-gpui: {why}"),
-        }
-        cx.quit();
-    });
 }
 
 #[cfg(test)]

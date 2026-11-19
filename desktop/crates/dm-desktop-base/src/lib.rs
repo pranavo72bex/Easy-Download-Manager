@@ -25,6 +25,11 @@
 //! the computer writes numbers and dates); `i18n` (the words in the
 //! language picked, and the catalogs), `format` (how a row's numbers are
 //! said) and `details` (the text Copy details puts on the clipboard).
+//!
+//! In three folders, each saying what is in it: `platform` (the system's
+//! services), `view` (what the windows and dialogs say and decide) and `run`
+//! (the ways dm runs). Every module is reached from the crate's root, as
+//! `dm_desktop_base::rows`, wherever its folder is.
 
 // Never crash on what comes from outside: no unwrap, expect or panic in
 // shipped code (tests may), checked by clippy in CI.
@@ -32,53 +37,22 @@
     not(test),
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
-pub mod a11y_tree;
-pub mod accent;
-pub mod add_url;
-pub mod asks;
-pub mod autostart;
-pub mod awake;
-pub mod boot;
-pub mod cli;
-pub mod columns;
-pub mod contrast;
-pub mod control;
-pub mod desktop;
-pub mod details;
-pub mod drops;
-pub mod file_info;
-pub mod find;
-pub mod format;
-pub mod grabber;
-pub mod headless;
-pub mod held;
-pub mod i18n;
-pub mod jumplist;
-pub mod links_import;
-pub mod login;
-pub mod mcp;
-pub mod mica;
-pub mod modes;
+
+mod platform;
+mod run;
+mod view;
+
 #[cfg(target_os = "macos")]
-pub mod opened;
-pub mod options;
-pub mod power;
-pub mod probe;
-pub mod progress;
-pub mod project;
-pub mod quiet;
-pub mod region;
-pub mod row_edits;
-pub mod rows;
-pub mod save_to;
-pub mod scheduler;
-pub mod selection;
-pub mod signals;
-pub mod system_theme;
-pub mod taskbar;
+pub use platform::opened;
 #[cfg(windows)]
-pub mod toast;
-pub mod toolbar;
-pub mod tray;
-pub mod wake;
-pub mod zip_list;
+pub use platform::toast;
+pub use platform::{
+    a11y_tree, accent, autostart, awake, contrast, desktop, drops, jumplist, login, mica, power,
+    quiet, region, signals, system_theme, taskbar, wake,
+};
+pub use run::{boot, cli, control, headless, mcp, modes, probe};
+pub use view::{
+    add_url, asks, columns, details, file_info, find, format, grabber, held, i18n, links_import,
+    options, progress, project, row_edits, rows, save_to, scheduler, selection, toolbar, tray,
+    zip_list,
+};

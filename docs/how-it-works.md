@@ -76,7 +76,7 @@ site, Scheduler, Speed limiter, Options. It is held together like this:
   GPUI's test platform over a real queue and drive it through the control
   port's methods (`src/harness.rs`): menus, toolbar, row commands, dialogs
   and Options, each checked for what it does.
-- **A control protocol** (`dm-desktop-base/src/control.rs`): `dm-gpui --control <port>` takes
+- **A control protocol** (`dm-desktop-base/src/run/control.rs`): `dm-gpui --control <port>` takes
   JSON lines on loopback with a private token, to list and run commands,
   add downloads, run a batch of up to 256 steps, read the window back and
   take screenshots. `--headless` runs dm with no window at all, and
@@ -226,7 +226,7 @@ failure is silent. Install to `/Applications` and register that;
 |---|---|
 | **Archives** | A finished `.zip`, `.tar`, `.tar.gz`, `.tgz` or `.7z` is extracted from its row menu: **Extract here** (a new folder beside it) or **Extract to…** (a new folder inside one the person picks). `dm-core`'s `extract.rs` judges every entry before it writes any: a path that leaves the folder (`..`, absolute, drive, backslash), a symlink or device file, a password, a repeated name (also in another case) or totals of entries, bytes and compression ratio past its limits fail the whole archive; the bytes actually written are counted against the sizes the header claims; the folder is always new, so nothing is replaced; the archive is kept and nothing extracted is opened or run. Only Deflate and Stored entries — the `zip` crate is built without its C-backed codecs. A tar is read by dm's own `extract/tar.rs`; a 7z by `extract/sevenz.rs` (its header, `sevenz/header.rs`) with dm's own LZMA and LZMA2 decoders (`sevenz/lzma.rs`), solid archives included, every file's CRC32 checked as it is written; BCJ filters, PPMd, BZip2, AES passwords and split archives are refused by name before anything is written |
 | **Live streams** | RTMP, RTSP and MMS are recorded as they come (`live.rs`). Options › Downloads › *Stop recording a live stream after, minutes* ends a recording the way Stop does — the file closed first — and keeps and places what was recorded; 0 records until the stream ends or Stop |
-| **Command line** | `dm-gpui list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`dm-desktop-base/src/cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. dm must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no dm |
+| **Command line** | `dm-gpui list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`dm-desktop-base/src/run/cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. dm must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no dm |
 | **Watched folder** | `app/watch.rs`: every five seconds a folder named in Options is read for links saved as `.url`, `.webloc`, text or `.torrent`, read as a drop is read; handled files move to its `done` folder |
 | **Site rules** | `Settings::with_site_rule` gives a site's downloads a folder and a speed of their own at the moment a row is added, whatever the way in; what a person chose for one download stands |
 | **Checking and naming** | Properties shows a finished file's SHA-256 (hashed on the app's runtime) and checks a pasted digest; Move/Rename of several files takes a `{n}`/`{name}` pattern |
