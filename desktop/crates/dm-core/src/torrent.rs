@@ -32,6 +32,9 @@ use tokio_util::sync::CancellationToken;
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error, Progress};
 
+mod run;
+use run::*;
+
 /// A torrent's swarm as its engine last saw it: shown beside the bytes, as
 /// a torrent has peers where a file has connections.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -518,54 +521,7 @@ pub async fn download_torrent(
     // session listening on a port for the life of the process.
     let _guard = CancelOnDrop(token.clone());
 
-    let add = if is_magnet(url) {
-        // In the spelling the engine looks for: it matches `magnet:` exactly.
-        let rest = url.trim().get(7..).unwrap_or_default();
-        let magnet = format!("magnet:{rest}");
-        Source::Magnet(if proxied {
-            tcp_trackers_of_magnet(&magnet)?
-        } else {
-            magnet
-        })
-    } else if let Some(path) = local_file(url) {
-        // A .torrent on this computer, opened with dm from a file manager.
-        let bytes = tokio::fs::read(&path).await.map_err(|e| {
-            Error::Internal(format!(
-                "could not read the torrent file {}: {e}",
-                path.display()
-            ))
-        })?;
-        Source::File(
-            if proxied {
-                tcp_trackers_of(&bytes)?
-            } else {
-                bytes
-            }
-            .into(),
-        )
-    } else {
-        // Fetched with dm's client rather than librqbit's, so a .torrent
-        // behind a proxy is reachable exactly as a file would be, and with
-        // the page's referrer, so one served only to its own page is too.
-        let bytes = crate::download::or_stop(
-            &options.control,
-            fetch_metainfo(
-                client,
-                url,
-                options.referrer.as_deref(),
-                options.sign_in.as_ref(),
-            ),
-        )
-        .await?;
-        Source::File(
-            if proxied {
-                tcp_trackers_of(&bytes)?
-            } else {
-                bytes
-            }
-            .into(),
-        )
-    };
+    let add = source_of(client, url, options, proxied).await?;
 
     // What it was added from, to add it again over the finished files when it is
     // kept shared (gaps row 147).
@@ -587,226 +543,26 @@ pub async fn download_torrent(
     .await?;
     let handle = added.ok_or_else(|| Error::Internal("the torrent produced no handle".into()))?;
 
-    /* A file name inside the torrent is the swarm's to choose: one with a
-     * drive, a stream suffix or a device name would land outside the folder
-     * the files go in. Refused as soon as the list is known. The torrent is
-     * removed without deleting files: a delete would act on that path. */
-    let escaping = handle
-        .files()
-        .map(|files| files.iter().any(|file| !plain_torrent_path(&file.relative)))
-        .unwrap_or(false);
-    if escaping {
-        let _ = session.forget(handle.id(), false).await;
-        token.cancel();
-        return Err(Error::Internal(
-            "the torrent names a file outside its own folder, so it was not downloaded".into(),
-        ));
-    }
-
-    // Its files, once known, for a person to choose from.
-    if let Some(tx) = &report {
-        let files = handle
-            .files()
-            .map(|files| {
-                files
-                    .iter()
-                    .map(|file| TorrentFile {
-                        name: file.relative.to_string_lossy().replace('\\', "/"),
-                        size: file.len,
-                        wanted: true,
-                        priority: Priority::Normal,
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        if !files.is_empty() {
-            let _ = tx.send(Update::Files(files)).await;
-        }
-    }
-
-    // A digest is for one file: refused as soon as the metadata shows more,
-    // rather than after the whole tree was fetched for nothing.
-    let several = handle.files().map(|files| files.len() > 1).unwrap_or(false);
-    if several && options.checksum.is_some() {
-        let _ = session.forget(handle.id(), true).await;
-        token.cancel();
-        return Err(Error::Internal(
-            "a checksum cannot be checked over a torrent of several files".into(),
-        ));
-    }
+    check_files(&session, &handle, &token, options, report.as_ref()).await?;
 
     /* Tier by tier where the files' priorities differ: the library counts
      * only the files asked for, so the row's total is every wanted file's,
      * and its "finished" ends a tier rather than the torrent. */
     let tiers = options.torrent.tiers.clone();
-    let mut tier = 0;
-    let tiered_total = (tiers.len() > 1)
-        .then(|| {
-            handle
-                .files()
-                .map(|files| {
-                    tiers
-                        .iter()
-                        .flatten()
-                        .filter_map(|&i| files.get(i).map(|f| f.len))
-                        .sum::<u64>()
-                })
-                .ok()
-        })
-        .flatten();
+    let tiered_total = tiered_total(&handle, &tiers);
 
-    let mut named = false;
-    let mut last = Instant::now();
-    /* From the first sample, not from zero: a resumed torrent's first report
-     * already counts the bytes on disk, and measured from zero they showed
-     * as a burst of speed nobody downloaded. */
-    let mut last_done: Option<u64> = None;
-    let mut last_sent: Option<u64> = None;
+    transfer(
+        &session,
+        &handle,
+        &token,
+        options,
+        report.as_ref(),
+        &tiers,
+        tiered_total,
+    )
+    .await?;
 
-    loop {
-        // A pause or cancel is honoured here, between samples, the same place
-        // the HTTP engine checks it. Cancelling deletes the partial files;
-        // pausing leaves them for a resume to pick up.
-        match options.control.check() {
-            Ok(()) => {}
-            Err(stop) => {
-                token.cancel();
-                if matches!(stop, Error::Cancelled) {
-                    let _ = session.forget(handle.id(), true).await;
-                }
-                return Err(stop);
-            }
-        }
-
-        // The shared ceiling can change while this runs — someone drags the
-        // limit slider — and an HTTP download picks that up on its next chunk.
-        // A torrent must too, or "one ceiling governs files and torrents
-        // together" would hold only at the moment it started.
-        // Only when it changed: each call makes a fresh limiter with a full
-        // second's allowance, and set twice a second it let a torrent run at
-        // three times its share.
-        let cap = download_cap(options).await;
-        if session.download_bps() != cap {
-            session.set_download_bps(cap);
-        }
-
-        let stats = handle.stats();
-
-        // The name is known only once the metadata is, which for a magnet
-        // means after the first peers answer. Sent as soon as it is, so the
-        // row stops showing the info-hash and starts showing the name.
-        if !named {
-            if let Some(name) = handle.name() {
-                if let Some(tx) = &report {
-                    let _ = tx
-                        .send(Update::Named {
-                            category: category::classify(&name, None),
-                            name,
-                        })
-                        .await;
-                }
-                named = true;
-            }
-        }
-
-        if let Some(tx) = &report {
-            let now = Instant::now();
-            let dt = (now - last).as_secs_f64();
-            let total = tiered_total.or((stats.total_bytes > 0).then_some(stats.total_bytes));
-            /* Never less than already reported. The engine's count
-             * drops when a piece fails its hash and is fetched again, and
-             * while it checks what is on disk; a row whose bar went back
-             * read as a download losing data. The high-water mark, held to
-             * the total, catches up once the piece arrives again. */
-            // While it initialises, the engine's count is how much of what is
-            // on disk it has checked, not what it has: a fresh torrent showed
-            // a piece "downloaded" with no peer connected, now and then.
-            let have = match stats.state {
-                State::Initializing => last_done.unwrap_or(0),
-                _ => stats.progress_bytes,
-            };
-            let done = high_water(last_done, have, total);
-            // Measured rather than read off the engine's own estimator, so the
-            // number is in the same units and computed the same way as every
-            // other row.
-            let speed = match last_done {
-                Some(before) if dt > 0.0 => done.saturating_sub(before) as f64 / dt,
-                _ => 0.0,
-            };
-            let eta = match total {
-                Some(total) if speed > 1.0 && total > done => {
-                    Some(Duration::from_secs_f64((total - done) as f64 / speed))
-                }
-                _ => None,
-            };
-            let _ = tx
-                .send(Update::Progress(Progress {
-                    downloaded: done,
-                    total,
-                    speed,
-                    eta,
-                    estimated: false,
-                }))
-                .await;
-            let swarm = Swarm::of(&stats, last_sent, dt);
-            let _ = tx.send(Update::Swarm(swarm)).await;
-            last = now;
-            last_done = Some(done);
-            last_sent = Some(swarm.uploaded);
-        }
-
-        if stats.finished {
-            if tier + 1 >= tiers.len() {
-                break;
-            }
-            // This tier is whole: the next one joins the files asked for.
-            tier += 1;
-            let asked: std::collections::HashSet<usize> =
-                tiers[..=tier].iter().flatten().copied().collect();
-            if let Err(e) = session.ask_for(&handle, &asked).await {
-                token.cancel();
-                return Err(Error::Internal(format!(
-                    "the torrent's next files could not be asked for: {e}"
-                )));
-            }
-        }
-        if let State::Error = stats.state {
-            token.cancel();
-            return Err(Error::Internal(
-                stats.error.unwrap_or_else(|| "the torrent failed".into()),
-            ));
-        }
-
-        tokio::time::sleep(TICK).await;
-    }
-
-    let name = handle.name().unwrap_or_else(|| handle.info_hash());
-    let bytes = handle.stats().total_bytes;
-
-    /* Where the engine put it, read from the handle rather than guessed from
-     * the name: one file is written straight into the output folder under
-     * its own name, and only a tree gets a folder named for the torrent. */
-    let staged = handle
-        .files()
-        .map(|files| match files.as_slice() {
-            [only] => handle.output_folder().join(&only.relative),
-            _ => handle.output_folder().to_path_buf(),
-        })
-        .map_err(|e| Error::Internal(format!("the finished torrent has no metadata: {e}")))?;
-
-    /* The files left out are not the person's: pieces they share with a
-     * wanted file leave them partly written, and moved with the rest they
-     * would look like files that were fetched. */
-    // Every tier's files: `only` is the first tier's alone where there are several.
-    if let Some(only) = &options.torrent.wanted() {
-        if let Ok(files) = handle.files() {
-            for (i, file) in files.iter().enumerate() {
-                if !only.contains(&i) {
-                    let _ = std::fs::remove_file(handle.output_folder().join(&file.relative));
-                }
-            }
-        }
-    }
+    let (name, bytes, staged) = finished_files(&handle, options)?;
 
     // Forgotten by the session, files kept, so nothing holds them open
     // while they are moved into place.
@@ -820,30 +576,7 @@ pub async fn download_torrent(
 
     let (path, category, verified, left_behind) = place(&staged, &name, options).await?;
 
-    // Shared from where it now is, where the person keeps finished torrents shared. Not
-    // where the file was renamed on the way (a name already taken): the torrent names it
-    // otherwise, and its engine would start a fresh file under that name.
-    if let (Some(share), Some(again)) = (options.torrent.share, again) {
-        let folder = if staged.is_dir() || path.is_dir() {
-            Some(path.clone())
-        } else if path.file_name() == staged.file_name() {
-            path.parent().map(Path::to_path_buf)
-        } else {
-            None
-        };
-        if let Some(folder) = folder {
-            keep_sharing(
-                path.clone(),
-                folder,
-                again,
-                options.torrent.wanted(),
-                bytes,
-                share,
-                options.proxy_for(url),
-                options.torrent.no_public_discovery,
-            );
-        }
-    }
+    share_finished(options, url, again, &staged, &path, bytes);
 
     Ok(Finished {
         left_behind,

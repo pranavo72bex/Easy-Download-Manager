@@ -280,88 +280,7 @@ impl Queue {
             {
                 let mut slots = inner.slots.lock().await;
                 if let Some(slot) = slots.get_mut(&id) {
-                    if slot.entry.parts_dir.is_empty() {
-                        slot.entry_mut().parts_dir = own_parts.display().to_string();
-                    }
-                    options.parts_dir = PathBuf::from(&slot.entry.parts_dir);
-                    if slot.entry.began_in.is_empty() {
-                        slot.entry_mut().began_in = options.dest_dir.display().to_string();
-                    }
-                    options.dest_dir = PathBuf::from(&slot.entry.began_in);
-                    // The browser's cookies for this site, where handed
-                    // over: this download's alone, for its own server.
-                    options.sign_in = crate::cookies::SignIn::with_headers(
-                        &slot.entry.url,
-                        &slot.entry.cookies,
-                        &slot.entry.headers,
-                    );
-                    // A form's answer goes with its form, sent again.
-                    if let Some(post) = slot.entry.post.clone() {
-                        options.sign_in =
-                            crate::cookies::SignIn::posting(options.sign_in.take(), post);
-                    } else if slot.entry.posted {
-                        form_lost = true;
-                    }
-                    options.checksum = slot.entry.checksum.clone();
-                    /* Whether a checksum file found beside the file passed is said by the run
-                     * that checked it (`Update::Note`): a run fetching the file again, which may
-                     * check a typed digest instead or fail its check, does not carry an earlier
-                     * run's word. */
-                    if slot.entry.said == crate::download::CHECKED_BESIDE {
-                        slot.entry_mut().said.clear();
-                    }
-                    options.torrent.only = crate::torrent::only_files(&slot.entry.torrent_files);
-                    // Files of different priorities: the first tier asked for alone.
-                    let tiers = crate::torrent::tiers(&slot.entry.torrent_files);
-                    if tiers.len() > 1 {
-                        options.torrent.only = tiers.first().cloned();
-                        options.torrent.tiers = tiers;
-                    } else {
-                        options.torrent.tiers = Vec::new();
-                    }
-                    options.save_name = slot.entry.save_name.clone();
-                    options.title_hint = slot.entry.title_hint.clone();
-                    options.accept_page = slot.entry.accept_page;
-                    // Its own limit as well as the one every download shares.
-                    options.limiter = options.limiter.chained(&slot.own_limit);
-                    // Sent as Referer where the row carries one, which is the
-                    // downloads a browser handed over.
-                    options.referrer =
-                        (!slot.entry.referrer.is_empty()).then(|| slot.entry.referrer.clone());
-                    // For categories a person limited to sites.
-                    options.categories.site = crate::category::host_of(&slot.entry.url);
-                    options.sound = slot.entry.sound.clone();
-                    options.span = slot.entry.span;
-                    options.shape = slot.entry.shape;
-                    options.mp3 = slot.entry.mp3;
-                    options.gif = slot.entry.gif;
-                    // The quality picked in the browser's panel, over the setting.
-                    if let Some(quality) = &slot.entry.quality {
-                        options.quality = crate::stream::Quality::named(quality);
-                        options.container = crate::stream::Quality::container_of(quality);
-                        options.frame_rate = crate::stream::Quality::frame_rate_of(quality);
-                        // The picture the line was listed from, by its format number (gaps row Y9).
-                        options.format = crate::stream::Quality::format_of(quality);
-                        // A caption line: the caption file alone, in no container.
-                        options.caption = crate::stream::Quality::caption_of(quality);
-                        if options.caption.is_some() {
-                            options.container = None;
-                        }
-                        // MP3: the M4A sound fetched, then made an MP3 by dm.
-                        if options.container.as_deref() == Some("mp3") {
-                            options.container = Some("m4a".into());
-                            options.mp3 = true;
-                        }
-                        // Media was asked for, from the panel or the media
-                        // menu: never the page's own HTML instead.
-                        options.media = true;
-                    }
-                    // A folder a person chose is where it goes, unsorted:
-                    // they picked the place, not a category.
-                    if let Some(dir) = slot.entry.save_dir.as_ref().filter(|d| !d.is_empty()) {
-                        options.dest_dir = PathBuf::from(dir);
-                        options.categories.enabled = false;
-                    }
+                    form_lost = options_from_row(slot, &mut options, &own_parts);
                 }
             }
 
@@ -370,90 +289,8 @@ impl Queue {
             // first report: a small file can be whole by its first report,
             // and then nothing it fetched was counted at all.
             let staged = staged_bytes(&options.parts_dir).await;
-            let (tx, mut rx) = tokio::sync::mpsc::channel(32);
-            let watcher = {
-                let queue = queue.clone();
-                let this_run = ran_with.clone();
-                tokio::spawn(async move {
-                    // What this run has reported so far, from what it found.
-                    let mut reported: Option<u64> = staged;
-                    while let Some(update) = rx.recv().await {
-                        let mut slots = queue.inner.slots.lock().await;
-                        let Some(slot) = slots.get_mut(&id) else {
-                            continue;
-                        };
-                        match update {
-                            // Named once, as soon as the probe knows, so the
-                            // row stops showing a URL people cannot read.
-                            crate::download::Update::Named { name, category } => {
-                                slot.entry_mut().filename = name;
-                                slot.entry_mut().category = Some(category);
-                            }
-                            crate::download::Update::Progress(progress) => {
-                                // What arrived since the last sample counts
-                                // against the download limit.
-                                let arrived = reported
-                                    .map_or(0, |before| progress.downloaded.saturating_sub(before));
-                                // Bytes again: the retry is over.
-                                if progress.downloaded > slot.entry.progress.downloaded {
-                                    slot.retrying = None;
-                                }
-                                reported = Some(progress.downloaded);
-                                crate::lock(&queue.inner.quota)
-                                    .add(arrived, std::time::SystemTime::now());
-                                slot.entry_mut().progress = progress;
-                                // A report that arrives after a pause or a
-                                // cancel (what was in flight) counts its bytes
-                                // but is not a speed.
-                                if slot.entry.state != State::Running {
-                                    slot.stopped_moving();
-                                }
-                                drop(slots);
-                                queue.save_quota_now_and_then().await;
-                                continue;
-                            }
-                            crate::download::Update::Validator(validator) => {
-                                slot.entry_mut().validator = Some(validator);
-                            }
-                            crate::download::Update::Note(said) => {
-                                if slot.entry.said != said {
-                                    slot.entry_mut().said = said;
-                                }
-                            }
-                            crate::download::Update::Files(files) => {
-                                let merged =
-                                    crate::torrent::merged_files(&slot.entry.torrent_files, files);
-                                if merged != *slot.entry.torrent_files {
-                                    slot.entry_mut().torrent_files = Arc::new(merged);
-                                }
-                            }
-                            // Kept for the window, not saved: a stopped
-                            // torrent has no swarm.
-                            crate::download::Update::Swarm(swarm) => {
-                                slot.swarm = Some(swarm);
-                                drop(slots);
-                                continue;
-                            }
-                            // The highest attempt of any range is the row's.
-                            crate::download::Update::Retrying {
-                                attempt,
-                                of,
-                                why,
-                                wait,
-                            } => {
-                                let now = slot.retrying.as_ref().map_or(0, |(a, _, _, _)| *a);
-                                // Not a run the row has been put back in
-                                // line since: its retry is not the row's.
-                                if attempt >= now && slot.control.is(&this_run) {
-                                    slot.retrying =
-                                        Some((attempt, of, why, std::time::Instant::now() + wait));
-                                }
-                            }
-                        }
-                    }
-                    reported
-                })
-            };
+            let (tx, rx) = tokio::sync::mpsc::channel(32);
+            let watcher = tokio::spawn(watch_run(queue.clone(), id, ran_with.clone(), staged, rx));
 
             let client = crate::lock(&inner.client).clone();
             // A dial-up or VPN connection the person chose is up before the first request, and
@@ -486,243 +323,12 @@ impl Queue {
                 download_reporting(&client, &url, &options, Some(tx)).await
             };
             let reported = watcher.await.ok().flatten();
-            if let Some(slot) = inner.slots.lock().await.get_mut(&id) {
-                slot.swarm = None;
-            }
-            /* Reports are samples: a file whole before the next one was
-             * sent had bytes no report carried, and a small download could
-             * go uncounted by the download limit altogether. What a
-             * finished file holds past the last report counts now. */
-            if let (Ok(finished), Some(reported)) = (&outcome, reported) {
-                let unreported = finished.bytes.saturating_sub(reported);
-                if unreported > 0 {
-                    crate::lock(&inner.quota).add(unreported, std::time::SystemTime::now());
-                }
-            }
-
-            let mut slots = inner.slots.lock().await;
-            let Some(slot) = slots.get_mut(&id) else {
-                /* Deleted while it ran. Its parts were removed while this
-                 * run still held some (on Windows an open file cannot be
-                 * deleted), and a file it finished meanwhile is one nobody
-                 * asked to keep: both go, as for a cancelled row. */
-                drop(slots);
-                if let Ok(finished) = &outcome {
-                    let _ = tokio::fs::remove_file(&finished.path).await;
-                }
-                let _ = tokio::fs::remove_dir_all(&options.parts_dir).await;
-                return;
-            };
-
-            /* Cancelled while it ran: the row already says so and its parts
-             * are gone. Whatever the task made of that — a join that failed
-             * on the missing parts, or a file it had finished a moment
-             * before — must not turn the row back into Failed or Completed,
-             * and a file it did produce is not one anybody asked to keep. */
-            if slot.entry.state == State::Cancelled {
-                // The cancel removed the parts while this run still held
-                // some open — a helper's — and on Windows an
-                // open file cannot be deleted. Now the run has let go,
-                // whatever is left goes.
-                let leftover = PathBuf::from(&slot.entry.parts_dir);
-                // Let go of before the disk is asked anything: every read of
-                // the list waits for this lock (gaps row 184).
-                drop(slots);
-                if let Ok(finished) = outcome {
-                    if let Err(e) = tokio::fs::remove_file(&finished.path).await {
-                        queue.note(format!(
-                            "a cancelled download finished first and its file could not be \
-                             removed from {}: {e}",
-                            finished.path.display()
-                        ));
-                    }
-                }
-                if !leftover.as_os_str().is_empty() {
-                    let _ = tokio::fs::remove_dir_all(&leftover).await;
-                }
-                return;
-            }
-
-            /* Stopped and already put back in line: the row carries a fresh
-             * control, and this task's word on how its run ended — Paused,
-             * usually, seen at the read timeout — is about a run the row has
-             * moved past. Writing it would turn a Queued row back into a
-             * Paused one that nothing restarts. A run that finished is still
-             * finished, whoever asked for it. */
-            if !slot.control.is(&ran_with) && outcome.is_err() {
-                return;
-            }
-
-            // A name a person chose replaces the server's once the file is
-            // whole, the same way any other name is placed: never over a
-            // file already there.
-            let wanted = slot
-                .entry
-                .save_name
-                .clone()
-                .filter(|n| !n.trim().is_empty());
-            let replaces = slot.entry.replaces.clone().filter(|p| !p.is_empty());
-            drop(slots);
-            let outcome = match (outcome, wanted) {
-                (Ok(mut finished), Some(name)) => {
-                    match rename_free(&finished.path, &name).await {
-                        Ok(path) => finished.path = path,
-                        Err(e) => queue.note(format!(
-                            "{} could not be renamed to {name}: {e}",
-                            finished.path.display()
-                        )),
-                    }
-                    Ok(finished)
-                }
-                (outcome, _) => outcome,
-            };
-            // A recheck's new version, whole now: it takes the old one's
-            // place, which was kept until this moment so that a fetch that
-            // failed left the old file rather than nothing.
-            let outcome = match (outcome, &replaces) {
-                (Ok(mut finished), Some(old)) => {
-                    let old = PathBuf::from(old);
-                    if finished.path != old {
-                        match tokio::fs::rename(&finished.path, &old).await {
-                            Ok(()) => finished.path = old,
-                            Err(e) => queue.note(format!(
-                                "the new version of {} could not replace it, and is at {}: {e}",
-                                old.display(),
-                                finished.path.display()
-                            )),
-                        }
-                    }
-                    Ok(finished)
-                }
-                (outcome, _) => outcome,
-            };
-            if let Ok(crate::download::Finished {
-                left_behind: Some(note),
-                ..
-            }) = &outcome
+            if !queue
+                .finish_run(id, &url, &options, &ran_with, outcome, reported)
+                .await
             {
-                queue.note(note.clone());
-            }
-            // Finished, its parts are spent: the folder they were staged in
-            // goes too, when nothing else is left in it.
-            if outcome.is_ok() {
-                let _ = tokio::fs::remove_dir(&options.parts_dir).await;
-                // And the folder that held it in a place a person chose,
-                // once nothing else is staged there.
-                if let Some(holder) = options
-                    .parts_dir
-                    .parent()
-                    .filter(|p| p.file_name().is_some_and(|n| n == UNFINISHED))
-                {
-                    let _ = tokio::fs::remove_dir(holder).await;
-                }
-            }
-            // From the internet, as a browser's download says: marked here,
-            // before the queue's lock and on a thread of its own. On Windows
-            // the mark is a stream of the file's own, which the virus checker
-            // reads as it is written: about 16 ms a file on a Windows 11
-            // computer (2026-11-03), during which the lock would hold every
-            // other look at the queue, the window's included. Still before the row
-            // says Completed, so a file is never opened unmarked.
-            if let Ok(finished) = &outcome {
-                let path = finished.path.clone();
-                let from = url.clone();
-                let referrer = options.referrer.clone().unwrap_or_default();
-                let _ = tokio::task::spawn_blocking(move || {
-                    crate::motw::mark(&path, &from, &referrer);
-                })
-                .await;
-                // Put on the disk from here, not waited for, once the renames and the mark are
-                // done (`download::sync_after`).
-                crate::download::sync_after(finished.path.clone());
-            }
-            // Out of room, or the folder's drive gone: paused, its parts
-            // kept, rather than failed, to go on once there is room or
-            // from another folder. Worked out before the queue's lock is
-            // taken, off the runtime's threads: the folder is looked for on
-            // the disk, and on a drive just taken out that can take seconds,
-            // which every read of the list waited out (gaps row 184).
-            let (outcome, stalled) = match outcome {
-                Err(error) if replaces.is_none() => {
-                    let dirs = [options.parts_dir.clone(), options.dest_dir.clone()];
-                    let looked = tokio::task::spawn_blocking(move || {
-                        let why = out_of_room(&error, [&dirs[0], &dirs[1]]);
-                        (error, why)
-                    })
-                    .await;
-                    match looked {
-                        Ok((error, why)) => (Err(error), why),
-                        Err(e) => (Err(Error::Internal(e.to_string())), None),
-                    }
-                }
-                other => (other, None),
-            };
-            let mut slots = inner.slots.lock().await;
-            let Some(slot) = slots.get_mut(&id) else {
                 return;
-            };
-
-            slot.retrying = None;
-            slot.entry_mut().stalled.clear();
-            let outcome = match (outcome, stalled) {
-                (Err(_), Some(why)) => {
-                    slot.entry_mut().stalled = why;
-                    Err(Error::Paused)
-                }
-                (outcome, _) => outcome,
-            };
-            slot.entry_mut().state = match outcome {
-                Ok(finished) => {
-                    // Usually the name the probe already reported, but
-                    // assembly has the last word: it is what avoided a
-                    // collision with a file already on disk.
-                    if let Some(name) = finished.path.file_name() {
-                        slot.entry_mut().filename = name.to_string_lossy().into_owned();
-                    }
-                    slot.entry_mut().path = finished.path.to_string_lossy().into_owned();
-                    slot.entry_mut().category = Some(finished.category);
-                    slot.entry_mut().verified = finished.verified;
-                    slot.entry_mut().mirrors = finished.mirrors;
-                    slot.entry_mut().replaces = None;
-                    if std::mem::take(&mut slot.entry_mut().cookies_once) {
-                        slot.entry_mut().cookies.clear();
-                        slot.entry_mut().headers.clear();
-                    }
-                    State::Completed
-                }
-                // Both were asked for, and the queue has already recorded
-                // them; overwriting would undo a pause the moment it landed.
-                Err(Error::Paused) => State::Paused,
-                Err(Error::Cancelled) => State::Cancelled,
-                // The row still points at the old file, which is still
-                // there; said, so a failed recheck does not read as a lost
-                // file. Retry fetches the new version again.
-                Err(error) => match &replaces {
-                    Some(old) => State::Failed(format!(
-                        "the new version could not be fetched, so the old one is kept at {old}: \
-                         {error}"
-                    )),
-                    None if error.link_expired()
-                        && (!slot.entry.referrer.is_empty()
-                            || !slot.entry.cookies.is_empty()
-                            || !slot.entry.headers.is_empty()) =>
-                    {
-                        slot.entry_mut().fresh_link = true;
-                        State::Failed(format!("{LINK_EXPIRED} ({error})"))
-                    }
-                    None => State::Failed(error.to_string()),
-                },
-            };
-            // What turns a settled row into history.
-            if slot.entry.state.settled() {
-                slot.entry_mut().finished_at = Some(now_seconds());
             }
-            // However the run ended, it is not running now.
-            slot.stopped_moving();
-            // Dropped before saving: save() reads the queue back through
-            // this same lock, so holding it here would deadlock the task
-            // that just finished a download.
-            drop(slots);
             // This download's place is free: the next in line starts now,
             // not at the next tick. A small file is over in a few
             // milliseconds, and its place sat empty for the rest of the
@@ -738,4 +344,458 @@ impl Queue {
             queue.save().await;
         })
     }
+
+    /// What a run that ended leaves on its row: its files placed or cleared away, and its
+    /// outcome recorded. Whether the row was written and a save is owed: not for a row
+    /// deleted or cancelled while it ran, or put back in line since.
+    async fn finish_run(
+        &self,
+        id: Id,
+        url: &str,
+        options: &Options,
+        ran_with: &Control,
+        outcome: Result<crate::download::Finished, Error>,
+        reported: Option<u64>,
+    ) -> bool {
+        if let Some(slot) = self.inner.slots.lock().await.get_mut(&id) {
+            slot.swarm = None;
+        }
+        /* Reports are samples: a file whole before the next one was
+         * sent had bytes no report carried, and a small download could
+         * go uncounted by the download limit altogether. What a
+         * finished file holds past the last report counts now. */
+        if let (Ok(finished), Some(reported)) = (&outcome, reported) {
+            let unreported = finished.bytes.saturating_sub(reported);
+            if unreported > 0 {
+                crate::lock(&self.inner.quota).add(unreported, std::time::SystemTime::now());
+            }
+        }
+
+        let mut slots = self.inner.slots.lock().await;
+        let Some(slot) = slots.get_mut(&id) else {
+            /* Deleted while it ran. Its parts were removed while this
+             * run still held some (on Windows an open file cannot be
+             * deleted), and a file it finished meanwhile is one nobody
+             * asked to keep: both go, as for a cancelled row. */
+            drop(slots);
+            if let Ok(finished) = &outcome {
+                let _ = tokio::fs::remove_file(&finished.path).await;
+            }
+            let _ = tokio::fs::remove_dir_all(&options.parts_dir).await;
+            return false;
+        };
+
+        /* Cancelled while it ran: the row already says so and its parts
+         * are gone. Whatever the task made of that — a join that failed
+         * on the missing parts, or a file it had finished a moment
+         * before — must not turn the row back into Failed or Completed,
+         * and a file it did produce is not one anybody asked to keep. */
+        if slot.entry.state == State::Cancelled {
+            // The cancel removed the parts while this run still held
+            // some open — a helper's — and on Windows an
+            // open file cannot be deleted. Now the run has let go,
+            // whatever is left goes.
+            let leftover = PathBuf::from(&slot.entry.parts_dir);
+            // Let go of before the disk is asked anything: every read of
+            // the list waits for this lock (gaps row 184).
+            drop(slots);
+            if let Ok(finished) = outcome {
+                if let Err(e) = tokio::fs::remove_file(&finished.path).await {
+                    self.note(format!(
+                        "a cancelled download finished first and its file could not be \
+                         removed from {}: {e}",
+                        finished.path.display()
+                    ));
+                }
+            }
+            if !leftover.as_os_str().is_empty() {
+                let _ = tokio::fs::remove_dir_all(&leftover).await;
+            }
+            return false;
+        }
+
+        /* Stopped and already put back in line: the row carries a fresh
+         * control, and this task's word on how its run ended — Paused,
+         * usually, seen at the read timeout — is about a run the row has
+         * moved past. Writing it would turn a Queued row back into a
+         * Paused one that nothing restarts. A run that finished is still
+         * finished, whoever asked for it. */
+        if !slot.control.is(ran_with) && outcome.is_err() {
+            return false;
+        }
+
+        // A name a person chose replaces the server's once the file is
+        // whole, the same way any other name is placed: never over a
+        // file already there.
+        let wanted = slot
+            .entry
+            .save_name
+            .clone()
+            .filter(|n| !n.trim().is_empty());
+        let replaces = slot.entry.replaces.clone().filter(|p| !p.is_empty());
+        drop(slots);
+        let outcome = self
+            .place_finished(outcome, wanted, replaces.as_deref(), url, options)
+            .await;
+        // Out of room, or the folder's drive gone: paused, its parts
+        // kept, rather than failed, to go on once there is room or
+        // from another folder. Worked out before the queue's lock is
+        // taken, off the runtime's threads: the folder is looked for on
+        // the disk, and on a drive just taken out that can take seconds,
+        // which every read of the list waited out (gaps row 184).
+        let (outcome, stalled) = match outcome {
+            Err(error) if replaces.is_none() => {
+                let dirs = [options.parts_dir.clone(), options.dest_dir.clone()];
+                let looked = tokio::task::spawn_blocking(move || {
+                    let why = out_of_room(&error, [&dirs[0], &dirs[1]]);
+                    (error, why)
+                })
+                .await;
+                match looked {
+                    Ok((error, why)) => (Err(error), why),
+                    Err(e) => (Err(Error::Internal(e.to_string())), None),
+                }
+            }
+            other => (other, None),
+        };
+        self.record_outcome(id, outcome, stalled, replaces.as_deref())
+            .await
+    }
+
+    /// A finished file under the name a person chose, in place of the old version it
+    /// replaces, marked as from the internet; its parts' folders gone.
+    async fn place_finished(
+        &self,
+        outcome: Result<crate::download::Finished, Error>,
+        wanted: Option<String>,
+        replaces: Option<&str>,
+        url: &str,
+        options: &Options,
+    ) -> Result<crate::download::Finished, Error> {
+        let outcome = match (outcome, wanted) {
+            (Ok(mut finished), Some(name)) => {
+                match rename_free(&finished.path, &name).await {
+                    Ok(path) => finished.path = path,
+                    Err(e) => self.note(format!(
+                        "{} could not be renamed to {name}: {e}",
+                        finished.path.display()
+                    )),
+                }
+                Ok(finished)
+            }
+            (outcome, _) => outcome,
+        };
+        // A recheck's new version, whole now: it takes the old one's
+        // place, which was kept until this moment so that a fetch that
+        // failed left the old file rather than nothing.
+        let outcome = match (outcome, replaces) {
+            (Ok(mut finished), Some(old)) => {
+                let old = PathBuf::from(old);
+                if finished.path != old {
+                    match tokio::fs::rename(&finished.path, &old).await {
+                        Ok(()) => finished.path = old,
+                        Err(e) => self.note(format!(
+                            "the new version of {} could not replace it, and is at {}: {e}",
+                            old.display(),
+                            finished.path.display()
+                        )),
+                    }
+                }
+                Ok(finished)
+            }
+            (outcome, _) => outcome,
+        };
+        if let Ok(crate::download::Finished {
+            left_behind: Some(note),
+            ..
+        }) = &outcome
+        {
+            self.note(note.clone());
+        }
+        // Finished, its parts are spent: the folder they were staged in
+        // goes too, when nothing else is left in it.
+        if outcome.is_ok() {
+            let _ = tokio::fs::remove_dir(&options.parts_dir).await;
+            // And the folder that held it in a place a person chose,
+            // once nothing else is staged there.
+            if let Some(holder) = options
+                .parts_dir
+                .parent()
+                .filter(|p| p.file_name().is_some_and(|n| n == UNFINISHED))
+            {
+                let _ = tokio::fs::remove_dir(holder).await;
+            }
+        }
+        // From the internet, as a browser's download says: marked here,
+        // before the queue's lock and on a thread of its own. On Windows
+        // the mark is a stream of the file's own, which the virus checker
+        // reads as it is written: about 16 ms a file on a Windows 11
+        // computer (2026-11-03), during which the lock would hold every
+        // other look at the queue, the window's included. Still before the row
+        // says Completed, so a file is never opened unmarked.
+        if let Ok(finished) = &outcome {
+            let path = finished.path.clone();
+            let from = url.to_owned();
+            let referrer = options.referrer.clone().unwrap_or_default();
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::motw::mark(&path, &from, &referrer);
+            })
+            .await;
+            // Put on the disk from here, not waited for, once the renames and the mark are
+            // done (`download::sync_after`).
+            crate::download::sync_after(finished.path.clone());
+        }
+        outcome
+    }
+
+    /// The row's state, as the run ended: Completed with its file, Paused (asked for, or out
+    /// of room), Cancelled, or Failed with why. Whether the row was there to write.
+    async fn record_outcome(
+        &self,
+        id: Id,
+        outcome: Result<crate::download::Finished, Error>,
+        stalled: Option<String>,
+        replaces: Option<&str>,
+    ) -> bool {
+        let mut slots = self.inner.slots.lock().await;
+        let Some(slot) = slots.get_mut(&id) else {
+            return false;
+        };
+
+        slot.retrying = None;
+        slot.entry_mut().stalled.clear();
+        let outcome = match (outcome, stalled) {
+            (Err(_), Some(why)) => {
+                slot.entry_mut().stalled = why;
+                Err(Error::Paused)
+            }
+            (outcome, _) => outcome,
+        };
+        slot.entry_mut().state = match outcome {
+            Ok(finished) => {
+                // Usually the name the probe already reported, but
+                // assembly has the last word: it is what avoided a
+                // collision with a file already on disk.
+                if let Some(name) = finished.path.file_name() {
+                    slot.entry_mut().filename = name.to_string_lossy().into_owned();
+                }
+                slot.entry_mut().path = finished.path.to_string_lossy().into_owned();
+                slot.entry_mut().category = Some(finished.category);
+                slot.entry_mut().verified = finished.verified;
+                slot.entry_mut().mirrors = finished.mirrors;
+                slot.entry_mut().replaces = None;
+                if std::mem::take(&mut slot.entry_mut().cookies_once) {
+                    slot.entry_mut().cookies.clear();
+                    slot.entry_mut().headers.clear();
+                }
+                State::Completed
+            }
+            // Both were asked for, and the queue has already recorded
+            // them; overwriting would undo a pause the moment it landed.
+            Err(Error::Paused) => State::Paused,
+            Err(Error::Cancelled) => State::Cancelled,
+            // The row still points at the old file, which is still
+            // there; said, so a failed recheck does not read as a lost
+            // file. Retry fetches the new version again.
+            Err(error) => match replaces {
+                Some(old) => State::Failed(format!(
+                    "the new version could not be fetched, so the old one is kept at {old}: \
+                     {error}"
+                )),
+                None if error.link_expired()
+                    && (!slot.entry.referrer.is_empty()
+                        || !slot.entry.cookies.is_empty()
+                        || !slot.entry.headers.is_empty()) =>
+                {
+                    slot.entry_mut().fresh_link = true;
+                    State::Failed(format!("{LINK_EXPIRED} ({error})"))
+                }
+                None => State::Failed(error.to_string()),
+            },
+        };
+        // What turns a settled row into history.
+        if slot.entry.state.settled() {
+            slot.entry_mut().finished_at = Some(now_seconds());
+        }
+        // However the run ended, it is not running now.
+        slot.stopped_moving();
+        // Dropped before saving: save() reads the queue back through
+        // this same lock, so holding it here would deadlock the task
+        // that just finished a download.
+        drop(slots);
+        true
+    }
+}
+
+/// Fills a run's options from its row: where it stages and lands, its cookies and form,
+/// its digest, files, name, limit, referrer and media choices. Whether the row is a form's
+/// answer whose form is gone (dm was closed since).
+fn options_from_row(slot: &mut Slot, options: &mut Options, own_parts: &std::path::Path) -> bool {
+    let mut form_lost = false;
+    if slot.entry.parts_dir.is_empty() {
+        slot.entry_mut().parts_dir = own_parts.display().to_string();
+    }
+    options.parts_dir = PathBuf::from(&slot.entry.parts_dir);
+    if slot.entry.began_in.is_empty() {
+        slot.entry_mut().began_in = options.dest_dir.display().to_string();
+    }
+    options.dest_dir = PathBuf::from(&slot.entry.began_in);
+    // The browser's cookies for this site, where handed
+    // over: this download's alone, for its own server.
+    options.sign_in = crate::cookies::SignIn::with_headers(
+        &slot.entry.url,
+        &slot.entry.cookies,
+        &slot.entry.headers,
+    );
+    // A form's answer goes with its form, sent again.
+    if let Some(post) = slot.entry.post.clone() {
+        options.sign_in = crate::cookies::SignIn::posting(options.sign_in.take(), post);
+    } else if slot.entry.posted {
+        form_lost = true;
+    }
+    options.checksum = slot.entry.checksum.clone();
+    /* Whether a checksum file found beside the file passed is said by the run
+     * that checked it (`Update::Note`): a run fetching the file again, which may
+     * check a typed digest instead or fail its check, does not carry an earlier
+     * run's word. */
+    if slot.entry.said == crate::download::CHECKED_BESIDE {
+        slot.entry_mut().said.clear();
+    }
+    options.torrent.only = crate::torrent::only_files(&slot.entry.torrent_files);
+    // Files of different priorities: the first tier asked for alone.
+    let tiers = crate::torrent::tiers(&slot.entry.torrent_files);
+    if tiers.len() > 1 {
+        options.torrent.only = tiers.first().cloned();
+        options.torrent.tiers = tiers;
+    } else {
+        options.torrent.tiers = Vec::new();
+    }
+    options.save_name = slot.entry.save_name.clone();
+    options.title_hint = slot.entry.title_hint.clone();
+    options.accept_page = slot.entry.accept_page;
+    // Its own limit as well as the one every download shares.
+    options.limiter = options.limiter.chained(&slot.own_limit);
+    // Sent as Referer where the row carries one, which is the
+    // downloads a browser handed over.
+    options.referrer = (!slot.entry.referrer.is_empty()).then(|| slot.entry.referrer.clone());
+    // For categories a person limited to sites.
+    options.categories.site = crate::category::host_of(&slot.entry.url);
+    options.sound = slot.entry.sound.clone();
+    options.span = slot.entry.span;
+    options.shape = slot.entry.shape;
+    options.mp3 = slot.entry.mp3;
+    options.gif = slot.entry.gif;
+    // The quality picked in the browser's panel, over the setting.
+    if let Some(quality) = &slot.entry.quality {
+        options.quality = crate::stream::Quality::named(quality);
+        options.container = crate::stream::Quality::container_of(quality);
+        options.frame_rate = crate::stream::Quality::frame_rate_of(quality);
+        // The picture the line was listed from, by its format number (gaps row Y9).
+        options.format = crate::stream::Quality::format_of(quality);
+        // A caption line: the caption file alone, in no container.
+        options.caption = crate::stream::Quality::caption_of(quality);
+        if options.caption.is_some() {
+            options.container = None;
+        }
+        // MP3: the M4A sound fetched, then made an MP3 by dm.
+        if options.container.as_deref() == Some("mp3") {
+            options.container = Some("m4a".into());
+            options.mp3 = true;
+        }
+        // Media was asked for, from the panel or the media
+        // menu: never the page's own HTML instead.
+        options.media = true;
+    }
+    // A folder a person chose is where it goes, unsorted:
+    // they picked the place, not a category.
+    if let Some(dir) = slot.entry.save_dir.as_ref().filter(|d| !d.is_empty()) {
+        options.dest_dir = PathBuf::from(dir);
+        options.categories.enabled = false;
+    }
+    form_lost
+}
+
+/// Writes what a run reports on its row as it comes, until the run lets go of its sender:
+/// what it reported last, counted from what an earlier run had already `staged`.
+async fn watch_run(
+    queue: Queue,
+    id: Id,
+    this_run: Control,
+    staged: Option<u64>,
+    mut rx: tokio::sync::mpsc::Receiver<crate::download::Update>,
+) -> Option<u64> {
+    // What this run has reported so far, from what it found.
+    let mut reported: Option<u64> = staged;
+    while let Some(update) = rx.recv().await {
+        let mut slots = queue.inner.slots.lock().await;
+        let Some(slot) = slots.get_mut(&id) else {
+            continue;
+        };
+        match update {
+            // Named once, as soon as the probe knows, so the
+            // row stops showing a URL people cannot read.
+            crate::download::Update::Named { name, category } => {
+                slot.entry_mut().filename = name;
+                slot.entry_mut().category = Some(category);
+            }
+            crate::download::Update::Progress(progress) => {
+                // What arrived since the last sample counts
+                // against the download limit.
+                let arrived =
+                    reported.map_or(0, |before| progress.downloaded.saturating_sub(before));
+                // Bytes again: the retry is over.
+                if progress.downloaded > slot.entry.progress.downloaded {
+                    slot.retrying = None;
+                }
+                reported = Some(progress.downloaded);
+                crate::lock(&queue.inner.quota).add(arrived, std::time::SystemTime::now());
+                slot.entry_mut().progress = progress;
+                // A report that arrives after a pause or a
+                // cancel (what was in flight) counts its bytes
+                // but is not a speed.
+                if slot.entry.state != State::Running {
+                    slot.stopped_moving();
+                }
+                drop(slots);
+                queue.save_quota_now_and_then().await;
+                continue;
+            }
+            crate::download::Update::Validator(validator) => {
+                slot.entry_mut().validator = Some(validator);
+            }
+            crate::download::Update::Note(said) => {
+                if slot.entry.said != said {
+                    slot.entry_mut().said = said;
+                }
+            }
+            crate::download::Update::Files(files) => {
+                let merged = crate::torrent::merged_files(&slot.entry.torrent_files, files);
+                if merged != *slot.entry.torrent_files {
+                    slot.entry_mut().torrent_files = Arc::new(merged);
+                }
+            }
+            // Kept for the window, not saved: a stopped
+            // torrent has no swarm.
+            crate::download::Update::Swarm(swarm) => {
+                slot.swarm = Some(swarm);
+                drop(slots);
+                continue;
+            }
+            // The highest attempt of any range is the row's.
+            crate::download::Update::Retrying {
+                attempt,
+                of,
+                why,
+                wait,
+            } => {
+                let now = slot.retrying.as_ref().map_or(0, |(a, _, _, _)| *a);
+                // Not a run the row has been put back in
+                // line since: its retry is not the row's.
+                if attempt >= now && slot.control.is(&this_run) {
+                    slot.retrying = Some((attempt, of, why, std::time::Instant::now() + wait));
+                }
+            }
+        }
+    }
+    reported
 }
