@@ -30,6 +30,8 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+mod pointer;
+
 /// The header's height, in points.
 pub const HEADER_HEIGHT: f32 = 24.0;
 
@@ -792,7 +794,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                     // handlers below act on this row wherever a sort or a
                     // new row has put it by the time they run.
                     let id = row.id;
-                    div()
+                    let drawn = div()
                         .id(("row", id as usize))
                         .role(Role::Row)
                         // What a screen reader says of it: its file and how
@@ -806,66 +808,8 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .px_1()
                         .flex()
                         .when(chosen, |r| r.bg(background).text_color(theme.text))
-                        .when(!chosen && i % 2 == 1, |r| r.bg(theme.stripe))
-                        .on_mouse_down(
-                            gpui::MouseButton::Right,
-                            cx.listener(move |view, event: &gpui::MouseDownEvent, _, cx| {
-                                view.open_menu(id, event.position);
-                                cx.notify();
-                            }),
-                        )
-                        .on_click(cx.listener(move |view, event: &gpui::ClickEvent, _, cx| {
-                            // The primary button's alone: GPUI hands the
-                            // right button's click here too, after its press
-                            // opens the menu above, and taken, it would choose
-                            // the row by itself, so Move/Rename for two chosen
-                            // rows would rename one (Linux, real input).
-                            if !event.standard_click() {
-                                return;
-                            }
-                            // A Control-click is a right-click on macOS.
-                            if event.modifiers().control && cfg!(target_os = "macos") {
-                                if let Some(at) = event.mouse_position() {
-                                    view.open_menu(id, at);
-                                    cx.notify();
-                                    return;
-                                }
-                            }
-                            let held = event.modifiers();
-                            view.click_row(id, held.platform || held.control, held.shift);
-                            if event.click_count() == 2 {
-                                view.double_click(id, cx);
-                            }
-                            cx.notify();
-                        }))
-                        // A finished row's file dragged out of the window
-                        // (`dragout`); a click without moving still chooses
-                        // the row, and a double-click opens it.
-                        .when_some(dragged, |r, dragged| {
-                            r.on_drag(dragged, |dragged, _, _, cx| dragged.picture(cx))
-                                .external_drag_payload(
-                                    |dragged: &crate::platform::dragout::DraggedRow, _, cx| {
-                                        dragged.payload(cx)
-                                    },
-                                )
-                        })
-                        // A row dropped here takes this row's place (gaps row U39).
-                        .when(reorders, |r| {
-                            r.drag_over::<crate::platform::dragout::DraggedRow>(
-                                move |style, _, _, _| {
-                                    style.border_t_2().border_color(original.accent)
-                                },
-                            )
-                            .on_drop(cx.listener(
-                                move |view,
-                                      dragged: &crate::platform::dragout::DraggedRow,
-                                      _,
-                                      cx| {
-                                    view.move_row(dragged.id, id);
-                                    cx.notify();
-                                },
-                            ))
-                        })
+                        .when(!chosen && i % 2 == 1, |r| r.bg(theme.stripe));
+                    pointer::row_handlers(drawn, id, dragged, reorders, original, cx)
                         // Its own buttons at the name's right end, where
                         // the pointer is on it or it is chosen (gaps row U13).
                         .group(ROW_GROUP)

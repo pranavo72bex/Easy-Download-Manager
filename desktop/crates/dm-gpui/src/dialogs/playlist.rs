@@ -124,15 +124,6 @@ impl Render for PlaylistWindow {
         self.screen.begin();
         let screen = self.screen.clone();
         let ready = matches!(&self.read, Some(Ok(_)));
-        let all = !self.picked.is_empty() && self.picked.iter().all(|p| *p);
-        let quality_at = file_info::QUALITIES
-            .iter()
-            .position(|(v, _)| *v == self.quality)
-            .unwrap_or(0);
-        let qualities: Vec<SharedString> = file_info::QUALITIES
-            .iter()
-            .map(|(_, words)| SharedString::from(t(words)))
-            .collect();
         let body = match &self.read {
             None => div()
                 .text_color(theme.muted)
@@ -144,114 +135,7 @@ impl Render for PlaylistWindow {
                 &screen,
             )
             .into_any_element(),
-            Some(Ok(list)) => {
-                let entries = list.entries.clone();
-                let count = entries.len();
-                div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(native::ROW_GAP))
-                        .child(
-                            div()
-                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .child(screen.label(list.title.clone())),
-                        )
-                        .child(native::note(
-                            file_info::playlist_count_words(list),
-                            theme.muted,
-                            &screen,
-                        ))
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(native::BUTTON_GAP))
-                                .child(
-                                    native::checkbox(
-                                        "all",
-                                        t("Select all").into(),
-                                        all,
-                                        theme,
-                                        &screen,
-                                    )
-                                    .on_click(cx.listener(
-                                        move |this, _, _, cx| {
-                                            this.picked.fill(!all);
-                                            cx.notify();
-                                        },
-                                    )),
-                                )
-                                .child(div().flex_1())
-                                .child(screen.label(t("Video quality")))
-                                .child(popup::button(
-                                    "quality",
-                                    qualities[quality_at].clone(),
-                                    qualities.clone(),
-                                    Some(quality_at),
-                                    theme,
-                                    &screen,
-                                )),
-                        )
-                        // Each video with its number and length, ticked to be
-                        // taken; only the rows in view are drawn.
-                        .child(
-                            div()
-                                .h(px(ROW * SHOWN.min(count.max(1)) as f32 + 8.0))
-                                .rounded(px(native::RADIUS))
-                                .border_1()
-                                .border_color(theme.separator)
-                                .bg(theme.background)
-                                .p(px(space::XS))
-                                .child(
-                                    uniform_list(
-                                        "videos",
-                                        count,
-                                        cx.processor(
-                                            move |this, range: std::ops::Range<usize>, _, cx| {
-                                                let screen = this.screen.clone();
-                                                range
-                                                    .filter_map(|i| {
-                                                        let entry = entries.get(i)?;
-                                                        let ticked = this
-                                                            .picked
-                                                            .get(i)
-                                                            .copied()
-                                                            .unwrap_or(false);
-                                                        Some(
-                                                    div().w_full().h(px(ROW)).flex().items_center().child(
-                                                        native::checkbox(
-                                                            ("video", i),
-                                                            file_info::playlist_entry_words(
-                                                                i, entry,
-                                                            )
-                                                            .into(),
-                                                            ticked,
-                                                            theme,
-                                                            &screen,
-                                                        )
-                                                        .on_click(cx.listener(
-                                                            move |this, _, _, cx| {
-                                                                if let Some(p) =
-                                                                    this.picked.get_mut(i)
-                                                                {
-                                                                    *p = !*p;
-                                                                    cx.notify();
-                                                                }
-                                                            },
-                                                        )),
-                                                    ),
-                                                )
-                                                    })
-                                                    .collect::<Vec<_>>()
-                                            },
-                                        ),
-                                    )
-                                    .track_scroll(&self.scroll)
-                                    .size_full(),
-                                ),
-                        )
-                        .into_any_element()
-            }
+            Some(Ok(list)) => self.listed(list, theme, &screen, cx),
         };
         let button = |id: &'static str, words: &'static str, default: bool| {
             let greyed = !ready && id != "cancel";
@@ -300,6 +184,114 @@ impl Render for PlaylistWindow {
                         ],
                     )),
             ))
+    }
+}
+
+impl PlaylistWindow {
+    /// The playlist as read: its title, how many videos it has, Select all, Video quality,
+    /// and its videos, each ticked to be taken.
+    fn listed(
+        &self,
+        list: &Playlist,
+        theme: Theme,
+        screen: &Screen,
+        cx: &Context<Self>,
+    ) -> gpui::AnyElement {
+        let all = !self.picked.is_empty() && self.picked.iter().all(|p| *p);
+        let quality_at = file_info::QUALITIES
+            .iter()
+            .position(|(v, _)| *v == self.quality)
+            .unwrap_or(0);
+        let qualities: Vec<SharedString> = file_info::QUALITIES
+            .iter()
+            .map(|(_, words)| SharedString::from(t(words)))
+            .collect();
+        let entries = list.entries.clone();
+        let count = entries.len();
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(native::ROW_GAP))
+            .child(
+                div()
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .child(screen.label(list.title.clone())),
+            )
+            .child(native::note(
+                file_info::playlist_count_words(list),
+                theme.muted,
+                screen,
+            ))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(native::BUTTON_GAP))
+                    .child(
+                        native::checkbox("all", t("Select all").into(), all, theme, screen)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.picked.fill(!all);
+                                cx.notify();
+                            })),
+                    )
+                    .child(div().flex_1())
+                    .child(screen.label(t("Video quality")))
+                    .child(popup::button(
+                        "quality",
+                        qualities[quality_at].clone(),
+                        qualities.clone(),
+                        Some(quality_at),
+                        theme,
+                        screen,
+                    )),
+            )
+            // Each video with its number and length, ticked to be
+            // taken; only the rows in view are drawn.
+            .child(
+                div()
+                    .h(px(ROW * SHOWN.min(count.max(1)) as f32 + 8.0))
+                    .rounded(px(native::RADIUS))
+                    .border_1()
+                    .border_color(theme.separator)
+                    .bg(theme.background)
+                    .p(px(space::XS))
+                    .child(
+                        uniform_list(
+                            "videos",
+                            count,
+                            cx.processor(move |this, range: std::ops::Range<usize>, _, cx| {
+                                let screen = this.screen.clone();
+                                range
+                                    .filter_map(|i| {
+                                        let entry = entries.get(i)?;
+                                        let ticked = this.picked.get(i).copied().unwrap_or(false);
+                                        Some(
+                                            div().w_full().h(px(ROW)).flex().items_center().child(
+                                                native::checkbox(
+                                                    ("video", i),
+                                                    file_info::playlist_entry_words(i, entry)
+                                                        .into(),
+                                                    ticked,
+                                                    theme,
+                                                    &screen,
+                                                )
+                                                .on_click(cx.listener(move |this, _, _, cx| {
+                                                    if let Some(p) = this.picked.get_mut(i) {
+                                                        *p = !*p;
+                                                        cx.notify();
+                                                    }
+                                                })),
+                                            ),
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                            }),
+                        )
+                        .track_scroll(&self.scroll)
+                        .size_full(),
+                    ),
+            )
+            .into_any_element()
     }
 }
 

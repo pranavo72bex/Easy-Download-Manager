@@ -217,6 +217,19 @@ pub fn note_in(said: &str, words: fn(&'static str) -> &'static str) -> Option<St
 /// The row's own state in words, without its note.
 fn state_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     match &row.state {
+        State::Running => running_in(row, words),
+        State::Queued => words("Queued").into(),
+        State::Paused => paused_in(row, words),
+        State::Completed => completed_in(row, words),
+        State::Failed(_) => failed_in(row, words),
+        State::Cancelled => words("Cancelled").into(),
+    }
+}
+
+/// A download under way in words: retrying, how far it is, or what it waits for; empty for
+/// one that is not under way.
+fn running_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
+    match &row.state {
         // Said while a range waits to be tried again: the bar drops back
         // and climbs, which read as a fault.
         // With why, where dm can say it plainly: "Retrying (attempt 5 of
@@ -288,7 +301,14 @@ fn state_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             None if dm_core::is_torrent(&row.url) => words("Finding peers…").into(),
             None => words("Starting…").into(),
         },
-        State::Queued => words("Queued").into(),
+        _ => String::new(),
+    }
+}
+
+/// A paused download in words: what holds it, or how far it got; empty for one that is not
+/// paused.
+fn paused_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
+    match &row.state {
         // Held by the schedule or the download limit, not by a person: it
         // goes on by itself, which "Stopped" would not say.
         // Saying what for: "Waiting" alone read as stuck.
@@ -305,7 +325,9 @@ fn state_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
                 }
             } else {
                 match opens {
-                    Some(at) => crate::i18n::fill(words("Waiting for the schedule · starts {}"), &[&at]),
+                    Some(at) => {
+                        crate::i18n::fill(words("Waiting for the schedule · starts {}"), &[&at])
+                    }
                     None => words("Waiting for the schedule").into(),
                 }
             }
@@ -323,6 +345,14 @@ fn state_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             Some(f) if f > 0.0 => format!("{} · {}%", words("Stopped"), whole_percent(f)),
             _ => words("Stopped").into(),
         },
+        _ => String::new(),
+    }
+}
+
+/// A finished download in words: its file missing, its time left, or its sharing; empty for
+/// one that is not finished.
+fn completed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
+    match &row.state {
         // Its file moved or deleted since: said so in Properties and to the
         // control protocol too, as the list says it (Properties
         // said "Complete").
@@ -342,11 +372,25 @@ fn state_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             }
         }
         // A finished torrent kept shared says so, and how much it has sent (gaps row 147).
-        State::Completed if !row.path.is_empty() && dm_core::sharing(std::path::Path::new(&row.path)).is_some() => {
+        State::Completed
+            if !row.path.is_empty()
+                && dm_core::sharing(std::path::Path::new(&row.path)).is_some() =>
+        {
             let sent = dm_core::sharing(std::path::Path::new(&row.path)).map_or(0, |s| s.sent);
-            crate::i18n::fill(words("Complete · sharing, {} sent"), &[&format::bytes(sent)])
+            crate::i18n::fill(
+                words("Complete · sharing, {} sent"),
+                &[&format::bytes(sent)],
+            )
         }
         State::Completed => words("Complete").into(),
+        _ => String::new(),
+    }
+}
+
+/// A failed download in words, plainly where dm knows them; empty for one that has not
+/// failed.
+fn failed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
+    match &row.state {
         // A server that wants a sign-in says where to give one: the plain
         // sentences for 401 and 403 do (`format::REASONS`); anything else
         // with that status is said as the engine said it, with where. The
@@ -383,7 +427,7 @@ fn state_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             words("Error: {}"),
             &[&format::reason(reason).map_or(reason.as_str(), words)],
         ),
-        State::Cancelled => words("Cancelled").into(),
+        _ => String::new(),
     }
 }
 
