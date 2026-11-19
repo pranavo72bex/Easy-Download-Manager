@@ -1308,7 +1308,7 @@ pub fn allowed_ids(home: &Path) -> Vec<String> {
 /// installed, release dm — not a development build or a test's dm
 /// (`DM_HOME`), which must not take the browsers from the installed one.
 pub fn may_claim() -> bool {
-    !cfg!(debug_assertions) && std::env::var_os("DM_HOME").is_none()
+    !cfg!(debug_assertions) && dm_core::env::get_os("DM_HOME").is_none()
 }
 
 /// [`ensure_this_copy`] when this copy [`may_claim`] the browsers, and
@@ -1390,7 +1390,7 @@ pub fn from_args(args: &[String]) -> Option<i32> {
                     return Some(2);
                 }
             };
-            let exe = match std::env::var_os("DM_ENGINE") {
+            let exe = match dm_core::env::get_os("DM_ENGINE") {
                 Some(named) => PathBuf::from(named),
                 None => match std::env::current_exe()
                     .and_then(|e| e.canonicalize())

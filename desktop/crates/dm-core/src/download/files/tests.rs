@@ -78,7 +78,7 @@ fn a_resume_keeps_the_layout_its_bytes_are_in() {
 /// With nothing staged, a file a range only where the download folder is on another disk.
 #[test]
 fn a_file_a_range_only_where_the_folder_is_on_another_disk() {
-    if std::env::var_os("DM_STAGE_BY_RANGE").is_some() {
+    if crate::env::get_os("DM_STAGE_BY_RANGE").is_some() {
         return; // the switch decides instead, as it is meant to
     }
     let dir = tempfile::tempdir().unwrap();

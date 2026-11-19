@@ -21,7 +21,7 @@ impl Drop for Scratch {
 }
 
 fn scratch() -> Option<Scratch> {
-    if std::env::var_os("DM_SECRET_STORE_TEST").is_none_or(|v| v.is_empty()) {
+    if crate::env::get_os("DM_SECRET_STORE_TEST").is_none_or(|v| v.is_empty()) {
         eprintln!("not run: DM_SECRET_STORE_TEST is not set");
         return None;
     }

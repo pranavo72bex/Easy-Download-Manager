@@ -477,8 +477,7 @@ fn signed_in_clients(page: &str) -> Vec<PlayerClient> {
 
 /// Where YouTube is: its own host, or a test's stand-in.
 fn origin() -> String {
-    std::env::var("DM_YOUTUBE_HOST")
-        .ok()
+    crate::env::get("DM_YOUTUBE_HOST")
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| "https://www.youtube.com".to_string())
 }
@@ -1588,8 +1587,7 @@ fn caption_address(base: &str, format: &str) -> Result<String, &'static str> {
         .or_else(|_| url::Url::parse(&format!("https://www.youtube.com{base}")))
         .map_err(|_| "the captions' address is not one")?;
     let youtube = url.host_str() == Some("www.youtube.com") && url.scheme() == "https";
-    let stand_in = std::env::var("DM_YOUTUBE_HOST")
-        .ok()
+    let stand_in = crate::env::get("DM_YOUTUBE_HOST")
         .filter(|v| !v.is_empty())
         .and_then(|v| url::Url::parse(&v).ok())
         .is_some_and(|o| o.origin() == url.origin());

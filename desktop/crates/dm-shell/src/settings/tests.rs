@@ -1348,7 +1348,7 @@ fn a_proxy_or_a_list_read_in_parts_names_what_it_left_out() {
 /// settings through the backend wrote over the person's own.
 #[test]
 fn a_test_of_this_crate_keeps_its_settings_out_of_the_real_home() {
-    if std::env::var_os("DM_HOME").is_none() {
+    if dm_core::env::get_os("DM_HOME").is_none() {
         assert!(Settings::path().starts_with(std::env::temp_dir()));
         assert_ne!(
             home(),

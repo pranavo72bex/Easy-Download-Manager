@@ -162,9 +162,7 @@ fn is_id(id: &str) -> bool {
 
 /// The test's stand-in for every service, if one is named.
 fn stand_in() -> Option<Url> {
-    std::env::var("DM_FILE_HOST_STAND_IN")
-        .ok()
-        .and_then(|v| Url::parse(&v).ok())
+    crate::env::get("DM_FILE_HOST_STAND_IN").and_then(|v| Url::parse(&v).ok())
 }
 
 /// `url` as it is asked: on the stand-in where there is one.

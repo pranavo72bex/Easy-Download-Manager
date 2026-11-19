@@ -36,6 +36,7 @@
 #[cfg(test)]
 mod baseline;
 mod check;
+mod env_check;
 mod headers;
 mod help;
 mod i18n;
@@ -630,6 +631,8 @@ fn layers() -> Result<(), String> {
             }
         }
     }
+    // Every `DM_` switch is read through `dm_core::env`'s table (gaps row A11).
+    wrong.extend(env_check::problems(&root));
     if wrong.is_empty() {
         Ok(())
     } else {

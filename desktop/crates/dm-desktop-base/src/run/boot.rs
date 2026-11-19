@@ -176,7 +176,7 @@ pub fn start(
         .position(|a| a == "--control")
         .and_then(|i| args.get(i + 1))
         .cloned()
-        .or_else(|| std::env::var("DM_CONTROL").ok())
+        .or_else(|| dm_core::env::get("DM_CONTROL"))
         .and_then(|p| p.parse().ok())
         // Or the person's own setting (Options › General): the command line.
         .or_else(|| (saved.allow_command_line || saved.allow_mcp).then_some(0));
@@ -185,7 +185,7 @@ pub fn start(
     // answers assistants and nothing else, so the default does not hand the
     // command line to people who never turned it on.
     let assistants_only = !args.iter().any(|a| a == "--control")
-        && std::env::var_os("DM_CONTROL").is_none()
+        && dm_core::env::get_os("DM_CONTROL").is_none()
         && !saved.allow_command_line;
 
     // The login item follows the saved setting, so a reinstall lands in the
@@ -195,7 +195,7 @@ pub fn start(
     // portable copy): starting at login is on for a new install, and every
     // test's fresh home would otherwise put a login item on the computer
     // running it. Turning the setting on in Options still registers one.
-    let own_home = std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty());
+    let own_home = dm_core::env::get_os("DM_HOME").is_some_and(|h| !h.is_empty());
     // Only whether it was turned off outside dm is asked here (a read of the
     // registry on Windows, nothing elsewhere), since the setting must say so
     // before the window reads it; the item itself is put in step after the
