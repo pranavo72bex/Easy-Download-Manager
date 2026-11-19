@@ -166,6 +166,51 @@ async fn packets_are_padded_to_the_headers_size_and_others_left_out() {
     assert_eq!(written, data.len() as u64);
 }
 
+/// A server that describes its stream and, asked to play it, answers and then sends nothing,
+/// with the connection held open.
+async fn serve_silent() -> String {
+    let described = chunk(b'H', &asf_header(true));
+    let app = axum::Router::new().fallback(move |headers: axum::http::HeaderMap| {
+        let described = described.clone();
+        async move {
+            let playing = headers
+                .get_all("pragma")
+                .iter()
+                .any(|p| p.to_str().is_ok_and(|p| p.contains("xPlayStrm=1")));
+            if playing {
+                let nothing = futures_util::stream::pending::<Result<Vec<u8>, std::io::Error>>();
+                axum::body::Body::from_stream(nothing)
+            } else {
+                axum::body::Body::from(described)
+            }
+        }
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("mms://{addr}/live/clip.asf")
+}
+
+/// The silence is counted from the last bytes, not from the stop check's last look: a server
+/// silent for longer than it is said to be (it was once waited on for ever).
+#[tokio::test]
+async fn a_server_that_goes_silent_is_said_to_have() {
+    let url = serve_silent().await;
+    let dir = tempfile::tempdir().unwrap();
+    let recording = record_within(
+        &url,
+        &dir.path().join("clip.part"),
+        &Control::new(),
+        &Arc::new(AtomicU64::new(0)),
+        Duration::from_millis(900),
+    );
+    let got = tokio::time::timeout(Duration::from_secs(20), recording)
+        .await
+        .expect("the silence was waited on for ever");
+    let why = got.unwrap_err().to_string();
+    assert_eq!(why, "the MMS server sent nothing for 30 seconds");
+}
+
 proptest::proptest! {
     #[test]
     fn any_bytes_are_read_without_a_panic(data in proptest::collection::vec(proptest::num::u8::ANY, 0..800)) {

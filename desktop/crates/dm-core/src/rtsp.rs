@@ -36,7 +36,7 @@ const CONNECT_WITHIN: Duration = Duration::from_secs(15);
 const DESCRIBE_WITHIN: Duration = Duration::from_secs(20);
 
 /// How long one wait for the stream's next frame is given before it counts as the stream gone
-/// quiet ("sent nothing for 30 seconds").
+/// quiet ("sent nothing for 30 seconds"); the stop check's looks meanwhile do not start it again.
 const SILENT_FOR: Duration = Duration::from_secs(30);
 
 /// How long frames are held for the streams that have not yet said what they are, before the
@@ -132,6 +132,18 @@ pub async fn record(
     control: &Control,
     downloaded: &Arc<AtomicU64>,
 ) -> Result<u64, Error> {
+    record_within(url, part, control, downloaded, SILENT_FOR).await
+}
+
+/// [`record`], with the stream counted as gone quiet after `silent_for` without a frame (a
+/// test's stand-in server is given less than [`SILENT_FOR`]).
+async fn record_within(
+    url: &str,
+    part: &Path,
+    control: &Control,
+    downloaded: &Arc<AtomicU64>,
+    silent_for: Duration,
+) -> Result<u64, Error> {
     let (mut address, creds) = split_credentials(url)?;
     // rtsps://: retina speaks plain RTSP only, so it is given a loopback
     // address that dm carries over TLS to the server. Held for the run.
@@ -188,15 +200,22 @@ pub async fn record(
     let mut held: Vec<Frame> = Vec::new();
     let started = std::time::Instant::now();
     let mut stop = None;
-    loop {
-        let next = tokio::select! {
-            item = tokio::time::timeout(SILENT_FOR, frames.next()) => item,
-            _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
-                if let Err(e) = control.check() {
-                    stop = Some(e);
-                    break;
+    'stream: loop {
+        // One wait for the next frame, kept across the stop check's looks so that they do not
+        // start its `silent_for` again.
+        let next = {
+            let wait = tokio::time::timeout(silent_for, frames.next());
+            tokio::pin!(wait);
+            loop {
+                tokio::select! {
+                    item = &mut wait => break item,
+                    _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
+                        if let Err(e) = control.check() {
+                            stop = Some(e);
+                            break 'stream;
+                        }
+                    }
                 }
-                continue;
             }
         };
         let item = match next {
