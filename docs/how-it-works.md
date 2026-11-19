@@ -404,7 +404,10 @@ allowed dm's own folder and outgoing connections (`desktop/assets/macos/safari/e
 a dm the host must start is opened through `open`, outside it. Safari has no `downloads` API:
 what Safari itself downloads stays with Safari, and the menu, Alt-click, "Download all links",
 the popup and the panel are the ways in. Signed ad hoc, it runs only with Safari's Develop ›
-Allow Unsigned Extensions.
+Allow Unsigned Extensions. cargo-packager makes dm.app and the .dmg in one run, so the release's
+.dmg is opened again afterwards (`safari-extension.sh --dmg`, the desktop workflow's "The Safari
+extension" step): its dm.app replaced by the one with the extension, compressed and signed again
+as the packager left it. With a Developer ID (R1) the extension must go in before notarisation.
 
 The toolbar popup lists what dm is fetching (`downloads.list`, gaps row U18). The host is a
 process per message with no line to the window, and the control port is open only where a person

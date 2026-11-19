@@ -338,6 +338,26 @@ jobs:
           SECRET_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      # dm's Safari extension into dm.app, and that dm.app into the .dmg in
+      # place of the packager's (gaps row R4): cargo-packager makes both in
+      # one run, so the .dmg is opened again (scripts/safari-extension.sh
+      # --dmg). Built for the job's target, as dm.app is.
+      - name: The Safari extension, in dm.app and the dmg
+        if: runner.os == 'macOS'
+        working-directory: .
+        shell: bash
+        run: |
+          CARGO_BUILD_RUSTFLAGS="$(sh scripts/release-flags.sh)"
+          export CARGO_BUILD_RUSTFLAGS
+          if [ -n "${{ matrix.target }}" ]; then export CARGO_BUILD_TARGET=${{ matrix.target }}; fi
+          dmg=$(find desktop/target/release/bundle -maxdepth 1 -name '*.dmg' | head -1)
+          test -n "$dmg"
+          sh scripts/safari-extension.sh desktop/target/release/bundle/dm.app --dmg "$dmg"
+          program="desktop/target/release/bundle/dm.app/Contents/PlugIns/dm Safari Extension.appex/Contents/MacOS/dm-safari"
+          found=$(strings "$program" | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
+          echo "paths of this runner in dm-safari: $found"
+          test "$found" = 0
+
       - name: No build paths in what ships
         if: runner.os != 'Windows'
         working-directory: desktop
@@ -553,6 +573,11 @@ jobs:
           if [ "${{ matrix.rosetta }}" = true ]; then
             test "$(lipo -archs "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-gpui")" = x86_64
           fi
+          # The Safari extension came with it, for the same machine (gaps row R4).
+          appex="$RUNNER_TEMP/dm.app/Contents/PlugIns/dm Safari Extension.appex"
+          test -f "$appex/Contents/Resources/manifest.json"
+          test "$(lipo -archs "$appex/Contents/MacOS/dm-safari")" = "$(lipo -archs "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-gpui")"
+          codesign --verify --deep --strict "$RUNNER_TEMP/dm.app"
           python3 scripts/smoke.py "$RUNNER_TEMP/dm.app/Contents/MacOS/dm-gpui"
           rm -rf "$RUNNER_TEMP/dm.app"
 

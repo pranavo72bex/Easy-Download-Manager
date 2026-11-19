@@ -7879,6 +7879,11 @@ and then dm.app around it (not `--deep`, which would sign the extension again wi
 - **Signed ad hoc**, as dm.app is: Safari runs it only with Develop › Allow Unsigned Extensions,
   which asks for the person's password and is forgotten when Safari quits. A Developer ID (R1)
   or the App Store (the maintainer's developer account) is what removes that.
-- Not done: the .dmg and the release workflow do not carry the extension yet (cargo-packager
-  makes the app and the .dmg in one run, and this Mac has no cargo-packager to try a step
-  between them); `make build-safari` puts it into the dm.app `make build-macos` made.
+- In the .dmg (2026-11-19): **the .dmg is opened again after the packager**, its dm.app
+  replaced by the one with the extension, compressed (UDZO) and signed under its own name as the
+  packager signed it (`safari-extension.sh --dmg`). Rejected: cargo-packager's
+  `beforeEachPackageCommand`, which runs before the .dmg with dm.app made and would have needed no
+  second pass, but is one setting for every system: on Windows it runs through `cmd`, where the
+  maintainer's laptop has no `sh` (`cargo xtask package`), and through `cargo xtask` the Intel
+  build would have made an x86_64 xtask the Apple silicon runner cannot run without Rosetta.
+  With a Developer ID (R1), the extension must go in before notarisation, not after.

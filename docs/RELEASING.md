@@ -99,7 +99,8 @@ git tag desktop-v0.2.0
 git push origin main --tags
 ```
 
-The tag is what runs the `bundle` job. It builds a `.dmg`, a Windows
+The tag is what runs the `bundle` job. It builds a `.dmg` (its dm.app with the
+Safari extension, `scripts/safari-extension.sh --dmg`), a Windows
 installer, a `.deb` and an `.AppImage`, writes `latest.json`, signs it
 (`latest.json.sig`, step 3 above), writes the crate list (`crates.txt`) and
 the signed digests of every file (`SHA256SUMS`, `SHA256SUMS.sig`; "Checking

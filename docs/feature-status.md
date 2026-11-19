@@ -129,7 +129,11 @@ and is not carried over.
       from inside the extension's sandbox (its entitlements) opened dm through
       `open` and the file landed byte-exact (SHA-256 checked). Not checked: the
       extension run in Safari itself, which waits on Develop › Allow Unsigned
-      Extensions (a person's password); not in the .dmg yet
+      Extensions (a person's password). In the .dmg (2026-11-19,
+      `safari-extension.sh --dmg`, `make build-safari`, the desktop
+      workflow's step): a release .dmg's dm.app verified, held the arm64
+      extension with its sandbox and passed `smoke.py` on the Mac; a CI run
+      at a tag not yet
 - [x] Firefox extension — `dist/firefox` (Firefox MV3, `background.scripts`,
       `wasm-unsafe-eval`), driven in Firefox 157 by `scripts/firefox-check.py
       native`, which fetches Firefox into `~/.cache/dm-firefox` rather than

@@ -110,7 +110,7 @@ help:
 	@echo "  make run-release     the same, optimised"
 	@echo "  $(BOLD)make build$(OFF)           installers for every platform this computer can build"
 	@echo "  make build-macos     dm.app and the .dmg                   (on a Mac)"
-	@echo "  make build-safari    the Safari extension into that dm.app (on a Mac)"
+	@echo "  make build-safari    the Safari extension into that dm.app and .dmg (on a Mac)"
 	@echo "  make build-linux     .deb, AppImage and .rpm               (on Linux, or with Docker)"
 	@echo "  make build-windows   how the installer and .zip are built  (on Windows)"
 	@echo "  make build-extension the browser extension's zips"
@@ -345,14 +345,14 @@ endif
 	@cp desktop/target/release/bundle/*.dmg $(BUILD)/macos/
 	@ls $(BUILD)/macos | sed 's|^|  $(BUILD)/macos/|'
 
-# dm's Safari extension, put into the dm.app build-macos made (scripts/safari-extension.sh,
-# gaps row R4). Not in the .dmg yet: cargo-packager makes the app and the .dmg in one run.
+# dm's Safari extension, put into the dm.app build-macos made and into its .dmg
+# (scripts/safari-extension.sh, gaps row R4).
 build-safari:
 ifneq ($(UNAME),Darwin)
 	@echo "Safari's extension is built on a Mac"; exit 1
 endif
 	@test -d $(BUILD)/macos/dm.app || { echo "make build-macos first"; exit 1; }
-	@sh scripts/safari-extension.sh $(BUILD)/macos/dm.app
+	@sh scripts/safari-extension.sh $(BUILD)/macos/dm.app --dmg $(firstword $(wildcard $(BUILD)/macos/*.dmg))
 
 build-linux:
 	@rm -rf $(BUILD)/linux && mkdir -p $(BUILD)/linux
