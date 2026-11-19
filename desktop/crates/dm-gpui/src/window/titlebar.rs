@@ -89,9 +89,9 @@ pub fn titlebar(
     window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let words = view.filter.read(cx).value().to_string();
+    let words = view.list.filter.read(cx).value().to_string();
     let searching = !words.trim().is_empty();
-    let shown = view.shown.len();
+    let shown = view.list.shown.len();
     // As wide as two fifths of the window, between a field's least and the
     // widest a title bar's box goes, centred on the window whatever stands
     // at its sides.
@@ -120,7 +120,7 @@ pub fn titlebar(
         .border_b_1()
         .border_color(theme.separator)
         .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none())
-        .child(sidebar_button(view.show_sidebar, theme, cx))
+        .child(sidebar_button(view.layout.show_sidebar, theme, cx))
         .child(
             div()
                 .id("menu-titles")
@@ -222,7 +222,7 @@ fn search_box(
         .child(
             div().flex_1().min_w_0().child(
                 gpui::Styled::h(
-                    Input::new(&view.filter)
+                    Input::new(&view.list.filter)
                         .appearance(false)
                         .aria_label(t("Filter")),
                     px(BOX_HEIGHT - 2.0),
@@ -325,14 +325,14 @@ impl Downloads {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let ticks = self.menu_ticks.clone().unwrap_or_default();
+        let ticks = self.menus.menu_ticks.clone().unwrap_or_default();
         let Some(menu) = crate::window::menus::window_menus(&ticks)
             .into_iter()
             .nth(index)
         else {
             return;
         };
-        self.bar_menu_opened = Some(index);
+        self.menus.bar_menu_opened = Some(index);
         // The test platform has no menus of the system's to show.
         if cfg!(test) {
             return;

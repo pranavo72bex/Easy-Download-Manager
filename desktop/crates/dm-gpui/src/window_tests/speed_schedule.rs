@@ -69,7 +69,7 @@ fn wakes(h: &mut Harness) {
 
 /// Exit was carried out.
 fn quit(h: &mut Harness) -> bool {
-    h.view(|view| view.quit_asked)
+    h.view(|view| view.questions.quit_asked)
 }
 
 /// How many downloads run.
@@ -187,7 +187,8 @@ fn a_sleep_the_system_refuses_is_said_in_the_problems() {
     h.view(|view| view.session.countdown = Some((WhenDone::Sleep, Instant::now())));
     h.until("the refusal in the problems", |h| {
         h.view(|view| {
-            view.problems
+            view.status
+                .problems
                 .iter()
                 .any(|p| p.contains("could not put the computer to sleep"))
         })
@@ -275,12 +276,12 @@ fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
 fn the_weekly_update_check_asks_nothing_when_off_or_not_yet_due() {
     let world = world();
     let asked = |h: &mut Harness| {
-        let checked = h.view(|view| view.checked.clone());
+        let checked = h.view(|view| view.threads.checked.clone());
         let not_asked = matches!(
             *dm_core::lock(&checked),
             dm_shell::app::update::Update::NotAsked
         );
-        !not_asked || h.view(|view| view.weekly_pending)
+        !not_asked || h.view(|view| view.threads.weekly_pending)
     };
     let mut h = world.harness();
     wakes(&mut h);
@@ -334,7 +335,7 @@ fn exit_while_downloading_asks_first() {
     h.click("Exit");
     h.until("Exit in the question", quit);
 
-    h.view(|view| view.quit_asked = false);
+    h.view(|view| view.questions.quit_asked = false);
     h.command("program.exit");
     assert!(quit(&mut h), "a script cannot answer a question");
 }
@@ -450,7 +451,7 @@ fn the_scheduler_hangs_up_the_dial_up_connection_when_its_downloads_are_done() {
     h.command("downloads.stop_all");
     h.until("the word that nothing was hung up", |h| {
         h.view(|view| {
-            view.said.as_ref().is_some_and(|(said, _)| {
+            view.status.said.as_ref().is_some_and(|(said, _)| {
                 said == "Hang up modem when done: no connection is set in Options › Advanced › Dial Up / VPN."
             })
         })
@@ -571,7 +572,13 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     let last_day = format!("{}-12-31", dm_desktop_base::scheduler::today().0);
     // Start now acts on the queue chosen in the list, not the list's.
     h.click("Start now");
-    let said = h.view(|view| view.said.clone().map(|(said, _)| said).unwrap_or_default());
+    let said = h.view(|view| {
+        view.status
+            .said
+            .clone()
+            .map(|(said, _)| said)
+            .unwrap_or_default()
+    });
     assert!(said.contains("Night"), "Start now: {said:?}");
     h.click("OK");
     h.until("OK to keep them", |h| !h.dialog_open("Scheduler"));

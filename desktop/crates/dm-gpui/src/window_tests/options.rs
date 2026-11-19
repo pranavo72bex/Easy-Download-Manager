@@ -186,8 +186,8 @@ fn a_category_made_in_options_takes_its_files_into_its_own_folder() {
     h.click("Lectures");
     h.until("the category's one row", |h| {
         h.view(|view| {
-            view.place == dm_shell::app::places::Place::Custom("Lectures".into())
-                && view.shown.len() == 1
+            view.list.place == dm_shell::app::places::Place::Custom("Lectures".into())
+                && view.list.shown.len() == 1
         })
     });
 
@@ -516,14 +516,14 @@ fn the_sort_survives_a_restart_and_options_keeps_its_place() {
     // The next launch, from what was saved.
     let mut again = world.harness_with(kept(&mut h));
     assert_eq!(
-        again.view(|view| view.sort),
+        again.view(|view| view.list.sort),
         Some((Column::Size, false)),
         "not remembered"
     );
     drop(again);
     // A third click puts the list back in the queue's order.
     h.click("Size");
-    h.until("no sort", |h| h.view(|view| view.sort).is_none());
+    h.until("no sort", |h| h.view(|view| view.list.sort).is_none());
     assert_eq!(kept(&mut h).sort_column, "");
 
     open_options(&mut h);

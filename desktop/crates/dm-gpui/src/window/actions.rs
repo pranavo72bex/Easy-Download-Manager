@@ -36,7 +36,7 @@ impl Downloads {
             command,
             Command::OpenFile | Command::OpenWith | Command::Preview
         ) {
-            if let Some(why) = self.scripted.run_refused() {
+            if let Some(why) = self.port.scripted.run_refused() {
                 self.say(why.to_string());
                 cx.notify();
                 return;
@@ -101,7 +101,7 @@ impl Downloads {
 
     /// Select all: every row the list shows.
     pub(crate) fn select_all(&mut self, cx: &mut Context<Self>) {
-        self.selected = self.shown.iter().map(|&i| self.rows[i].id).collect();
+        self.list.selected = self.list.shown.iter().map(|&i| self.rows[i].id).collect();
         cx.notify();
     }
 

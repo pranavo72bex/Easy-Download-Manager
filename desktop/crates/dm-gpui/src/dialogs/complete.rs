@@ -47,6 +47,7 @@ struct Finished {
 /// What the window lists of `view`, the newest first, where the eye lands.
 fn finished(view: &Downloads) -> Vec<Finished> {
     let mut listed: Vec<Finished> = view
+        .windows
         .complete
         .iter()
         .filter_map(|id| view.rows.iter().find(|r| r.id == *id))
@@ -78,7 +79,7 @@ impl Complete {
     fn act(&mut self, id: Id, path: String, how: u8, cx: &mut Context<Self>) {
         let _ = self.view.update(cx, |view, cx| {
             if how < 2 {
-                if let Some(why) = view.scripted.run_refused() {
+                if let Some(why) = view.port.scripted.run_refused() {
                     view.say(why.to_string());
                     cx.notify();
                     return;

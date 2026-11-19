@@ -54,7 +54,7 @@ impl Downloads {
                 .map(IntoElement::into_any_element),
         );
         // Problems from outside the list, each until dismissed.
-        bars.extend(self.problems.iter().enumerate().map(|(i, problem)| {
+        bars.extend(self.status.problems.iter().enumerate().map(|(i, problem)| {
             gpui::div()
                 .flex()
                 .items_center()
@@ -78,8 +78,8 @@ impl Downloads {
                         screen,
                     )
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        if i < this.problems.len() {
-                            this.problems.remove(i);
+                        if i < this.status.problems.len() {
+                            this.status.problems.remove(i);
                         }
                         cx.notify();
                     })),
@@ -93,19 +93,19 @@ impl Downloads {
         bars.extend(browser_bar.map(IntoElement::into_any_element));
         if bars.len() <= 1 {
             // Asked for all, they stand together until one or none is left.
-            self.bars.all = false;
+            self.layout.bars.all = false;
         }
-        let more_bars = if self.bars.all {
+        let more_bars = if self.layout.bars.all {
             0
         } else {
             bars.len().saturating_sub(1)
         };
-        let shown_bars: Vec<gpui::AnyElement> = if self.bars.all {
+        let shown_bars: Vec<gpui::AnyElement> = if self.layout.bars.all {
             bars
         } else {
             bars.into_iter().take(1).collect()
         };
-        let empty = self.shown.is_empty();
+        let empty = self.list.shown.is_empty();
         Shown {
             bars: shown_bars,
             more: more_bars,
@@ -230,7 +230,7 @@ impl Downloads {
                 // Return in the search box is the box's own (Find next): passed on to its field,
                 // whose binding comes after this one. Taken here, it opened the chosen row's
                 // progress window and never found the next.
-                if gpui::Focusable::focus_handle(this.filter.read(cx), cx)
+                if gpui::Focusable::focus_handle(this.list.filter.read(cx), cx)
                     .contains_focused(window, cx)
                 {
                     cx.propagate();
@@ -245,7 +245,7 @@ impl Downloads {
         )
         .on_action(
             cx.listener(|this, _: &crate::window::menus::Dismiss, _, cx| {
-                if this.menu_open() || this.place_menu.is_some() {
+                if this.menu_open() || this.menus.place_menu.is_some() {
                     this.close_menu();
                     this.close_place_menu();
                     cx.notify();
@@ -314,7 +314,7 @@ impl Downloads {
             .flex()
             .flex_1()
             .min_h_0()
-            .when(self.show_sidebar, |row| {
+            .when(self.layout.show_sidebar, |row| {
                 row.child(crate::window::sidebar::sidebar(
                     self, theme, screen, window, cx,
                 ))
@@ -357,7 +357,7 @@ impl Downloads {
                         .text_color(theme.selection)
                         .cursor_pointer()
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.bars.all = true;
+                            this.layout.bars.all = true;
                             cx.notify();
                         }))
                         .child(screen.label(dm_desktop_base::i18n::tn(
@@ -405,7 +405,7 @@ impl Downloads {
                     .min_w_0()
                     .overflow_x_scroll()
                     .restrict_scroll_to_axis()
-                    .track_scroll(&self.sideways)
+                    .track_scroll(&self.list.sideways)
                     .child(
                         div()
                             .flex()
@@ -442,7 +442,7 @@ impl Downloads {
                             .bottom_0()
                             .w(gpui_base::Scrollbar::width())
                             .child(
-                                gpui_base::Scrollbar::vertical(&self.scroll)
+                                gpui_base::Scrollbar::vertical(&self.list.scroll)
                                     .viewport_from_layout()
                                     .mode(scrollbar_mode()),
                             ),
@@ -455,7 +455,7 @@ impl Downloads {
                             .bottom_0()
                             .h(gpui_base::Scrollbar::width())
                             .child(
-                                gpui_base::Scrollbar::horizontal(&self.sideways)
+                                gpui_base::Scrollbar::horizontal(&self.list.sideways)
                                     .viewport_from_layout()
                                     .mode(scrollbar_mode()),
                             ),

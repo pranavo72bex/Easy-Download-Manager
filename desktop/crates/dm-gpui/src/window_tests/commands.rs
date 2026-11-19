@@ -216,18 +216,18 @@ fn every_menu_item_clicked_does_what_it_says() {
     // View
     press(&mut h, &["View", "Categories"]);
     assert!(
-        !h.view(|v| v.show_sidebar),
+        !h.view(|v| v.layout.show_sidebar),
         "View › Categories did not hide the side panel"
     );
     press(&mut h, &["View", "Categories"]);
-    assert!(h.view(|v| v.show_sidebar));
+    assert!(h.view(|v| v.layout.show_sidebar));
     press(&mut h, &["View", "Toolbar"]);
     assert!(
-        !h.view(|v| v.show_toolbar),
+        !h.view(|v| v.layout.show_toolbar),
         "View › Toolbar did not hide it"
     );
     press(&mut h, &["View", "Toolbar"]);
-    assert!(h.view(|v| v.show_toolbar));
+    assert!(h.view(|v| v.layout.show_toolbar));
     for (item, column) in [
         ("Sort by name", Command::SortByName),
         ("Sort by size", Command::SortBySize),
@@ -237,7 +237,7 @@ fn every_menu_item_clicked_does_what_it_says() {
         ("Sort by date", Command::SortByDate),
         ("Sort by note", Command::SortByDescription),
     ] {
-        h.view(|v| v.sort = None);
+        h.view(|v| v.list.sort = None);
         press(&mut h, &["View", "Sort by", item]);
         let sorted = sort(&mut h);
         assert!(
@@ -375,20 +375,26 @@ fn every_menu_item_clicked_does_what_it_says() {
     h.until("Resume all", |h| !is(h, "stalled.bin", State::Paused));
     press(&mut h, &["File", "Select all"]);
     let shown: std::collections::BTreeSet<_> =
-        h.view(|v| v.shown.iter().map(|&i| v.rows[i].id).collect());
-    assert_eq!(h.view(|v| v.selected.clone()), shown, "File › Select all");
+        h.view(|v| v.list.shown.iter().map(|&i| v.rows[i].id).collect());
+    assert_eq!(
+        h.view(|v| v.list.selected.clone()),
+        shown,
+        "File › Select all"
+    );
     // Find puts the keys in the top bar's search box; Find next steps to the next row whose
     // name holds its words.
     press(&mut h, &["Downloads", "Find"]);
     h.type_text("file.zip");
-    h.view(|v| v.selected.clear());
+    h.view(|v| v.list.selected.clear());
     press(&mut h, &["Downloads", "Find next"]);
     h.until("Downloads › Find next", |h| {
-        h.view(|v| v.selected.contains(&done.id))
+        h.view(|v| v.list.selected.contains(&done.id))
     });
     // The box emptied by its ✕, and every row shown again.
     h.click("✕");
-    h.until("the search box emptied", |h| h.view(|v| v.shown.len()) == 3);
+    h.until("the search box emptied", |h| {
+        h.view(|v| v.list.shown.len()) == 3
+    });
     press(&mut h, &["Downloads", "Scheduler"]);
     h.until("Downloads › Scheduler", |h| h.dialog_open("Scheduler"));
     h.close_dialogs();

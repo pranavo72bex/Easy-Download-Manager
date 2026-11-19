@@ -30,7 +30,7 @@ impl Downloads {
     /// `false` always, they would be greyed and refuse whatever was typed (found by the window's
     /// tests).
     fn finding(&self) -> bool {
-        !self.filter_text.trim().is_empty()
+        !self.list.filter_text.trim().is_empty()
     }
 
     /// Why `command` is greyed, in the language in force, where it is: none is chosen and one would do, the

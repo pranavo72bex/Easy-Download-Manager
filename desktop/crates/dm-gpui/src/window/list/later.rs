@@ -40,12 +40,12 @@ impl Downloads {
         then: impl FnOnce(&mut Self, R, &mut Context<Self>) + 'static,
         cx: &mut Context<Self>,
     ) {
-        self.errands.count += 1;
+        self.threads.errands.count += 1;
         let answer = self.backend.later(work);
         cx.spawn(async move |this, cx| {
             let answer = answer.await;
             let _ = this.update(cx, |this, cx| {
-                this.errands.count -= 1;
+                this.threads.errands.count -= 1;
                 if let Some(answer) = answer {
                     then(this, answer, cx);
                 }
@@ -63,8 +63,8 @@ impl Downloads {
     /// window waited for it. Other asks (`ui.texts`) are answered at once
     /// meanwhile, on their own connections.
     pub(super) fn reply(&mut self, method: &str, reply: Reply) {
-        if method == "command.run" && self.errands.count > 0 {
-            self.errands.replies.push(reply);
+        if method == "command.run" && self.threads.errands.count > 0 {
+            self.threads.errands.replies.push(reply);
             return;
         }
         let (to, answer) = reply;
@@ -73,11 +73,11 @@ impl Downloads {
 
     /// Sends the held answers once nothing handed off is left.
     fn release_replies(&mut self) {
-        if self.errands.count > 0 {
+        if self.threads.errands.count > 0 {
             return;
         }
-        let said = self.said.as_ref().map(|(said, _)| said.clone());
-        for (to, mut answer) in self.errands.replies.drain(..) {
+        let said = self.status.said.as_ref().map(|(said, _)| said.clone());
+        for (to, mut answer) in self.threads.errands.replies.drain(..) {
             if let (Ok(Value::Object(ran)), Some(said)) = (&mut answer, &said) {
                 if ran.contains_key("said") {
                     ran.insert("said".into(), Value::String(said.clone()));

@@ -217,7 +217,7 @@ impl Probe<'_, '_> {
 
     /// The rows on screen, with where each line is: (index, top, left, width).
     fn on_screen(&self) -> Vec<(usize, f32, f32, f32)> {
-        let state = self.view.scroll.0.borrow();
+        let state = self.view.list.scroll.0.borrow();
         let bounds = state.base_handle.bounds();
         let offset = state.base_handle.offset();
         let (top, left) = (f32::from(bounds.origin.y), f32::from(bounds.origin.x));
@@ -227,7 +227,7 @@ impl Probe<'_, '_> {
         let row = crate::window::zoom::of(ROW_HEIGHT);
         let first = (scrolled / row).floor().max(0.0) as usize;
         let count = (height / row).ceil() as usize + 1;
-        (first..(first + count).min(self.view.shown.len()))
+        (first..(first + count).min(self.view.list.shown.len()))
             .map(|i| (i, top + i as f32 * row - scrolled, left, width))
             .filter(|(_, y, _, _)| *y + row > top && *y < top + height)
             .collect()
@@ -265,7 +265,7 @@ impl Probe<'_, '_> {
                         return Some(clicked());
                     }
                     gpui::OwnedMenuItem::Action { name, action, .. } if same(name) => {
-                        self.view.scripted.acted();
+                        self.view.port.scripted.acted();
                         let action = action.boxed_clone();
                         let main = self.view.main_window();
                         self.cx.defer(move |cx| {
@@ -294,7 +294,7 @@ impl Probe<'_, '_> {
                 .any(|(d, _, dialog)| *dialog && d.text.to_lowercase() == lower)
         };
         if let Some(index) = title.filter(|_| !in_a_dialog()) {
-            let ticks = self.view.menu_ticks.clone().unwrap_or_default();
+            let ticks = self.view.menus.menu_ticks.clone().unwrap_or_default();
             if let Some(menu) = crate::window::menus::window_menus(&ticks)
                 .into_iter()
                 .nth(index)
@@ -354,7 +354,7 @@ impl WindowProbe for Probe<'_, '_> {
     fn may_step(&mut self) -> Result<(), String> {
         // A click or a key on a window parked in the tray would act on what no one sees, so
         // it is refused.
-        if self.view.hidden {
+        if self.view.system.hidden {
             return Err(
                 "dm's window is hidden in the tray: launch dm again, or choose Show in the tray, first"
                     .into(),
@@ -418,7 +418,7 @@ impl WindowProbe for Probe<'_, '_> {
                 .position(|c| c.as_ref() == click.text || c.to_lowercase() == lower)
             {
                 Some(index) => {
-                    self.view.scripted.acted();
+                    self.view.port.scripted.acted();
                     let pick = crate::widgets::popup::Pick {
                         field: held.field,
                         item: held.item,
@@ -449,7 +449,7 @@ impl WindowProbe for Probe<'_, '_> {
             return Err(format!("{} is done by a person", target.text));
         }
         // The moment a click is given to the window is a script's.
-        self.view.scripted.acted();
+        self.view.port.scripted.acted();
         let at = target.bounds.center();
         let button = match click.button {
             probe::Button::Primary => MouseButton::Left,
@@ -507,7 +507,7 @@ impl WindowProbe for Probe<'_, '_> {
             .find_in(&scroll.text, 0)
             .map_err(|_| format!("nothing on screen says {:?}", scroll.text))?;
         let at = over.bounds.center();
-        self.view.scripted.acted();
+        self.view.port.scripted.acted();
         // A line is 40 points; down is a negative delta, as the system
         // gives it. In the window the words are in: a dialog's page scrolls
         // in its own.
@@ -545,7 +545,7 @@ impl WindowProbe for Probe<'_, '_> {
             })
             .collect();
         let typed = keystrokes.len();
-        self.view.scripted.acted();
+        self.view.port.scripted.acted();
         self.in_front(move |window, cx| {
             for keystroke in &keystrokes {
                 window.dispatch_keystroke(keystroke.clone(), cx);
@@ -573,7 +573,7 @@ impl WindowProbe for Probe<'_, '_> {
             key,
             key_char: None,
         };
-        self.view.scripted.acted();
+        self.view.port.scripted.acted();
         self.in_front(move |window, cx| {
             window.dispatch_keystroke(keystroke, cx);
         });
@@ -641,7 +641,7 @@ impl WindowProbe for Probe<'_, '_> {
             // As the close button does where Options says to keep dm in the
             // tray; refused where there is no tray to keep it in.
             probe::WindowTo::Tray => {
-                if self.view.tray.is_none() {
+                if self.view.system.tray.is_none() {
                     return Err("there is no tray to keep dm in here".into());
                 }
                 self.view.hide_window(self.window);
@@ -677,9 +677,9 @@ impl WindowProbe for Probe<'_, '_> {
 
     fn select(&mut self, ids: Vec<u64>) -> Result<Vec<u64>, String> {
         let listed: std::collections::HashSet<u64> = self.view.rows.iter().map(|r| r.id).collect();
-        self.view.selected = ids.into_iter().filter(|id| listed.contains(id)).collect();
+        self.view.list.selected = ids.into_iter().filter(|id| listed.contains(id)).collect();
         self.cx.notify();
-        Ok(self.view.selected.iter().copied().collect())
+        Ok(self.view.list.selected.iter().copied().collect())
     }
 
     fn place(&mut self, place: &str) -> Result<(), String> {
@@ -704,13 +704,14 @@ impl WindowProbe for Probe<'_, '_> {
             .collect();
         let rows = self
             .view
+            .list
             .shown
             .iter()
             .filter_map(|&r| self.view.rows.get(r))
             .enumerate()
             .map(|(i, row)| {
                 // As the list shows the row, its status in English.
-                let name = match self.view.shown_names.get(&row.id) {
+                let name = match self.view.known.shown_names.get(&row.id) {
                     Some(name) => name.clone(),
                     None => line(row).0.to_string(),
                 };
@@ -733,26 +734,27 @@ impl WindowProbe for Probe<'_, '_> {
             })
             .collect();
         Ok(probe::Inspect {
-            place: format!("{:?}", self.view.place),
-            selected: self.view.selected.iter().copied().collect(),
-            sort: self.view.sort.map(|(c, up)| probe::Sort {
+            place: format!("{:?}", self.view.list.place),
+            selected: self.view.list.selected.iter().copied().collect(),
+            sort: self.view.list.sort.map(|(c, up)| probe::Sort {
                 column: c.english().to_string(),
                 ascending: up,
             }),
-            categories: self.view.show_sidebar,
-            toolbar: self.view.show_toolbar,
+            categories: self.view.layout.show_sidebar,
+            toolbar: self.view.layout.show_toolbar,
             dark: matches!(
                 self.window.appearance(),
                 gpui::WindowAppearance::Dark | gpui::WindowAppearance::VibrantDark
             ),
-            hidden: self.view.hidden,
+            hidden: self.view.system.hidden,
             said: self
                 .view
+                .status
                 .said
                 .as_ref()
                 .map(|(said, _)| said.clone())
                 .unwrap_or_default(),
-            problems: self.view.problems.clone(),
+            problems: self.view.status.problems.clone(),
             // The dialogs' windows open, by title, the oldest first.
             dialogs: self.dialog_titles(),
             rows,
@@ -804,6 +806,7 @@ impl WindowProbe for Probe<'_, '_> {
             ran: id.to_string(),
             said: self
                 .view
+                .status
                 .said
                 .as_ref()
                 .map(|(said, _)| said.clone())

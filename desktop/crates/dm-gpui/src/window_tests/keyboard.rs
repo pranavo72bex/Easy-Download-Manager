@@ -43,7 +43,7 @@ fn picked(h: &mut Harness) -> Vec<String> {
 /// The name of the row the keyboard is on.
 fn cursor(h: &mut Harness) -> Option<String> {
     h.view(|view| {
-        let id = view.cursor?;
+        let id = view.list.cursor?;
         view.rows
             .iter()
             .find(|r| r.id == id)
@@ -54,7 +54,8 @@ fn cursor(h: &mut Harness) -> Option<String> {
 /// The words the main window's list shows, in its order.
 fn shown(h: &mut Harness) -> Vec<String> {
     h.view(|view| {
-        view.shown
+        view.list
+            .shown
             .iter()
             .filter_map(|&i| view.rows.get(i))
             .map(|r| dm_shell::app::names::name_of(r))
@@ -78,11 +79,11 @@ fn the_category_tree_has_right_click_menus() {
     // toolbar's Start Queue, so its item is the first of that name.
     h.right_click("Recheck queue");
     h.until("the place menu", |h| {
-        h.view(|view| view.place_menu.is_some())
+        h.view(|view| view.menus.place_menu.is_some())
     });
     h.click("Start Queue");
     assert_eq!(
-        h.view(|view| view.place.clone()),
+        h.view(|view| view.list.place.clone()),
         Place::Queue(dm_core::RECHECK_QUEUE.into()),
         "a right-click selects the place"
     );
@@ -91,7 +92,7 @@ fn the_category_tree_has_right_click_menus() {
     // Done: Clear finished, from the menu (the toolbar has one too).
     h.right_click("Finished");
     h.until("the place menu", |h| {
-        h.view(|view| view.place_menu.is_some())
+        h.view(|view| view.menus.place_menu.is_some())
     });
     h.click("Delete Completed");
     h.until("the finished row gone", |h| h.rows().is_empty());
@@ -99,7 +100,7 @@ fn the_category_tree_has_right_click_menus() {
     // A kind: categories are edited in Options › Save to.
     h.right_click("Videos");
     h.until("the place menu", |h| {
-        h.view(|view| view.place_menu.is_some())
+        h.view(|view| view.menus.place_menu.is_some())
     });
     h.click("Add or edit categories…");
     h.until("Options", |h| h.dialog_open("Options"));
@@ -195,7 +196,7 @@ fn closing_a_dialog_gives_the_keyboard_back_to_its_opener() {
     h.until("Add URL to close", |h| !h.dialog_open("Add URL"));
     h.type_text("c");
     h.until("the box to have the keyboard again", |h| {
-        h.view(|view| view.filter_text.clone()) == "abc"
+        h.view(|view| view.list.filter_text.clone()) == "abc"
     });
 }
 
@@ -230,7 +231,7 @@ fn menus_open_from_the_keyboard() {
     });
     h.key("f10", &[]);
     h.until("the first of the window's menus", |h| {
-        h.view(|view| view.bar_menu_opened == Some(0))
+        h.view(|view| view.menus.bar_menu_opened == Some(0))
     });
 }
 
@@ -293,7 +294,7 @@ fn f3_finds_the_next_one_while_find_is_open() {
     h.key("right", &[]);
     h.type_text("bet");
     h.until("the box to read alphabet", |h| {
-        h.view(|view| view.filter_text.clone()) == "alphabet"
+        h.view(|view| view.list.filter_text.clone()) == "alphabet"
     });
     h.key("f3", &[]);
     assert_eq!(picked(&mut h), ["alphabet.bin"], "F3 with the box open");
@@ -320,7 +321,7 @@ fn a_dialog_is_typed_in_at_once_and_enter_presses_its_default_button() {
     h.key("f", &["cmd"]);
     h.type_text("file");
     h.until("the search box's words", |h| {
-        h.view(|view| view.filter_text.clone()) == "file"
+        h.view(|view| view.list.filter_text.clone()) == "file"
     });
 
     h.command("program.add_series");
@@ -574,7 +575,7 @@ fn a_right_click_moves_the_keyboards_place() {
     );
     let three = h.row("three.zip").id;
     assert_eq!(
-        h.view(|view| view.anchor),
+        h.view(|view| view.list.anchor),
         Some(three),
         "Shift would extend from elsewhere"
     );
@@ -620,7 +621,7 @@ fn page_keys_move_a_page_and_end_shows_the_last_row_whole() {
     let names: Vec<String> = (0..40).map(|i| format!("stalled-{i:02}.bin")).collect();
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     add_later(&mut h, &world, &names);
-    let at = |h: &mut Harness| h.view(|view| view.cursor.and_then(|c| view.position_of(c)));
+    let at = |h: &mut Harness| h.view(|view| view.list.cursor.and_then(|c| view.position_of(c)));
     h.key("home", &[]);
     assert_eq!(at(&mut h), Some(0));
     let page = h.view(|view| view.page());
@@ -635,7 +636,7 @@ fn page_keys_move_a_page_and_end_shows_the_last_row_whole() {
     let last = shown(&mut h)[39].clone();
     h.until_shown(&last);
     let row = h.bounds_of(&last);
-    let list = h.view(|view| view.scroll.0.borrow().base_handle.bounds());
+    let list = h.view(|view| view.list.scroll.0.borrow().base_handle.bounds());
     assert!(
         row.bottom() <= list.bottom() + gpui::px(0.5) && row.top() >= list.top(),
         "the last row {row:?} is not wholly in the list {list:?}"
@@ -654,7 +655,8 @@ fn remove_says_one_thing_enter_keeps_and_the_next_row_is_selected() {
         &["stalled-a.bin", "stalled-b.bin", "stalled-c.bin"],
     );
     let ids: Vec<dm_core::Id> = h.view(|view| {
-        view.shown
+        view.list
+            .shown
             .iter()
             .filter_map(|&i| view.rows.get(i))
             .map(|r| r.id)
@@ -675,7 +677,7 @@ fn remove_says_one_thing_enter_keeps_and_the_next_row_is_selected() {
     // The next row is chosen once the removal is read back, a wake after the row went on a
     // slow computer (on Windows CI, checked at once, the selection is still empty).
     h.until("the next row chosen", |h| {
-        h.view(|view| view.selected.clone()) == [ids[2]].into()
+        h.view(|view| view.list.selected.clone()) == [ids[2]].into()
     });
 }
 
@@ -699,7 +701,7 @@ fn enter_shows_the_row_when_already_listed() {
     assert!(!h.dialog_open("Download details"));
     assert_eq!(h.rows().len(), 1);
     assert_eq!(
-        h.view(|view| view.selected.len()),
+        h.view(|view| view.list.selected.len()),
         1,
         "the row is not shown"
     );
@@ -754,11 +756,11 @@ fn escape_closes_the_window_in_front() {
         h.until("the progress window", |h| h.dialogs().len() == 1);
         let progress = front(&mut h).unwrap();
         let list = h.update(|view, cx| {
-            view.complete.insert(id);
+            view.windows.complete.insert(id);
             cx.entity().downgrade()
         });
         let complete = h.cx.update(|cx| crate::dialogs::complete::open(list, cx));
-        h.view(|view| view.complete_window = complete);
+        h.view(|view| view.windows.complete_window = complete);
         h.until("Download complete", |h| h.dialog_open("Download complete"));
         if progress_in_front {
             h.cx.update(|cx| {
@@ -775,6 +777,6 @@ fn escape_closes_the_window_in_front() {
             "the window behind closed"
         );
         h.close_dialogs();
-        h.view(|view| view.complete.clear());
+        h.view(|view| view.windows.complete.clear());
     }
 }

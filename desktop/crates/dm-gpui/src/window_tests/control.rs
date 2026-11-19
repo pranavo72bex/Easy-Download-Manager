@@ -38,13 +38,13 @@ fn the_command_line_pauses_resumes_and_cancels_by_number_and_leaves_the_selectio
     let state_is =
         |h: &mut Harness, wanted: State| h.rows().iter().any(|r| r.id == id && r.state == wanted);
 
-    let chosen = h.view(|view| view.selected.clone());
+    let chosen = h.view(|view| view.list.selected.clone());
     let said = h.call("downloads.pause", ids.clone()).unwrap();
     assert_eq!(said["done"], json!([id]));
     assert_eq!(said["skipped"][0]["why"], "no such download");
     h.until("the pause", |h| state_is(h, State::Paused));
     assert_eq!(
-        h.view(|view| view.selected.clone()),
+        h.view(|view| view.list.selected.clone()),
         chosen,
         "the selection is the person's"
     );
@@ -267,9 +267,9 @@ fn the_window_is_put_in_the_tray_and_shown_again_over_the_control_protocol() {
         "{tray:?}"
     );
     // Parked in the tray, as the close button leaves it, and shown again.
-    h.view(|view| view.hidden = true);
+    h.view(|view| view.system.hidden = true);
     assert!(to(&mut h, "shown").is_ok());
-    assert!(!h.view(|view| view.hidden), "not shown again");
+    assert!(!h.view(|view| view.system.hidden), "not shown again");
     assert!(to(&mut h, "away").is_err());
 }
 
@@ -312,7 +312,7 @@ fn steps_waiting_for_frames_are_capped_and_refused_while_hidden() {
     let world = world();
     let mut h = world.harness();
     assert!(h.call("ui.key", json!({ "key": "A" })).is_ok());
-    h.view(|view| view.hidden = true);
+    h.view(|view| view.system.hidden = true);
     for (method, params) in [
         ("ui.click", json!({ "text": "Add URL" })),
         ("ui.key", json!({ "key": "A" })),
@@ -464,7 +464,7 @@ fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
     let world = world();
     let mut h = world.harness();
     h.key("escape", &[]);
-    assert!(h.view(|view| view.scripted.by_script()));
+    assert!(h.view(|view| view.port.scripted.by_script()));
     let hours = dm_core::Schedule {
         enabled: true,
         run_when_done: "sh -c 'evil'".into(),

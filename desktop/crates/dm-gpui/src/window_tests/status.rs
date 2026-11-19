@@ -57,7 +57,7 @@ fn the_bars_above_the_list_stand_one_at_a_time() {
     let world = world();
     let mut h = world.harness();
     h.until_shown("Add dm to your browser:");
-    h.view(|view| view.problems.push("the disk said no".into()));
+    h.view(|view| view.status.problems.push("the disk said no".into()));
     h.until_shown("The disk said no");
     assert!(!h.shows("Add dm to your browser:"), "two bars stacked");
     assert!(h.shows("+1 more"));

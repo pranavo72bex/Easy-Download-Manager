@@ -20,12 +20,12 @@ use dm_core::{Entry, State};
 use dm_desktop_base::boot::Wake;
 use dm_desktop_base::session::Session;
 use dm_shell::app::backend::Backend;
-use gpui::{div, prelude::*, Context, FocusHandle, Role, UniformListScrollHandle, Window};
+use gpui::{div, prelude::*, Context, FocusHandle, Role, Window};
 
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use dm_desktop_base::columns::Column;
-use dm_shell::app::places::{Place, Places};
+use dm_shell::app::places::Place;
 
 /// Runs `update` on the view in the window the loop was started in, the
 /// main window: not `WeakEntity::update_in`, which runs in whichever window
@@ -120,6 +120,7 @@ mod removal;
 mod rowline;
 mod sections;
 mod sorting;
+mod state;
 
 use questions::countdown_question;
 use refresh::clicked;
@@ -127,226 +128,38 @@ use refresh::needs_drawing;
 pub(crate) use rowline::{kind_picture, line};
 use sorting::sort_command;
 
-/// The main window's view: the application, and the rows it last read.
+/// The main window's view: the application, the rows it last read, and what
+/// the window keeps, a struct per concern (`list/state.rs`).
 pub struct Downloads {
     pub(crate) backend: Backend,
     pub(crate) session: Session,
     pub(crate) rows: Vec<Arc<Entry>>,
-    /// The control port's requests, answered on this thread.
-    requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
-    /// The port was opened only for AI assistants.
-    pub(crate) assistants_only: bool,
-    /// Where the list is scrolled, and where it is on screen.
-    pub(crate) scroll: UniformListScrollHandle,
     /// The words on screen, where the last frame laid them out.
     pub(crate) screen: Screen,
     /// The window's focus: where keys and the menu bar's commands arrive.
     pub(crate) focus: FocusHandle,
-    /// The place chosen in the side panel.
-    pub(crate) place: Place,
-    /// Each row's place and the places' counts (`dm_shell::app::places`).
-    pub(crate) places: Places,
-    /// The rows the list shows, in the place chosen: their indices in `rows`.
-    pub(crate) shown: Vec<usize>,
-    /// The column the list is sorted by, and whether up; none: as added.
-    pub(crate) sort: Option<(Column, bool)>,
-    /// The rows chosen, by id: they stay chosen as the list is read again
-    /// and sorted, as a person expects of a selection.
-    pub(crate) selected: std::collections::BTreeSet<dm_core::Id>,
-    /// Where a ⇧-click's range starts: the row last clicked alone.
-    pub(crate) anchor: Option<dm_core::Id>,
-    /// A column's width as its heading's edge is dragged, and when the drag's width was last
-    /// kept (`table.rs`).
-    pub(crate) resizing: Option<(Column, f32)>,
-    pub(crate) resize_kept: Option<std::time::Instant>,
-    /// The side panel's width as its edge is dragged (`sidebar.rs`), kept as `resize_kept` says.
-    pub(crate) panel_resizing: Option<f32>,
-    /// The keyboard's place: the row last clicked or moved to, which the
-    /// arrows, Home, End and the page keys move from (`keys.rs`).
-    pub(crate) cursor: Option<dm_core::Id>,
-    /// The row menu, open where it was asked for.
-    menu: Option<gpui::Point<gpui::Pixels>>,
-    /// The keyboard's place in the open row menu, by entry (`rowmenu::entries`).
-    pub(crate) menu_at: Option<usize>,
-    /// A place's right-click menu, open where it was asked for (`placemenu`).
-    pub(crate) place_menu: Option<(Place, gpui::Point<gpui::Pixels>)>,
-    /// What was typed over the list to find a row by its name, and when last (`keys.rs`).
-    pub(crate) typed: (String, Option<std::time::Instant>),
-    /// A sentence for the status bar, and when it was said: it stands for
-    /// a while.
-    pub(crate) said: Option<(String, std::time::Instant)>,
-    /// Where the list stands sideways, for its sideways bar (gaps row U43).
-    pub(crate) sideways: gpui::ScrollHandle,
-    /// Whether `said` says a queue waits for the schedule, so the status bar does not say it
-    /// twice (`statusbar::parts`).
-    pub(crate) said_schedule_wait: bool,
-    /// What finished or failed last, said aloud to a screen reader from the status bar and not
-    /// drawn (`a11y::heard`, gaps row U23), and when.
-    pub(crate) heard: Option<(String, std::time::Instant)>,
-    /// Finished rows Remove took off, kept a moment for Undo.
-    pub(crate) undo: dm_shell::app::backend::Undo,
-    /// The questions the rows raise as they run (B39 to B41), asked one at
-    /// a time in the order they came.
-    asks: dm_shell::app::questions::Questions,
-    /// Names a person chose for rows still downloading, given as each
-    /// finishes.
-    renames: dm_shell::app::names::PendingRenames,
-    /// A question is being asked: the next waits for its answer.
-    asking: bool,
-    /// The main window: a sheet is opened on it alone.
-    main: gpui::AnyWindowHandle,
-    /// Questions waiting to be asked as sheets, one at a time.
-    sheets: std::collections::VecDeque<(
-        crate::dialogs::question::Asked,
-        Option<crate::dialogs::question::Reword>,
-        Option<crate::dialogs::question::Live>,
-        crate::dialogs::question::Answer,
-    )>,
-    /// A sheet is open on the main window.
-    sheet_open: bool,
-    /// The open question's window: on Linux it holds the main window as
-    /// Options does (`holder`), since GPUI's X11 and Wayland windows hold
-    /// their parent only for a `Dialog`, which a question is not there.
-    question_window: Option<gpui::AnyWindowHandle>,
-    /// "Exit dm?" is being asked: Exit again does not ask twice.
-    pub(crate) exit_asked: bool,
-    /// Exit was carried out (`quit`): what the window's tests read, as GPUI's test platform
-    /// ends nothing.
-    pub(crate) quit_asked: bool,
-    /// Problems to show above the list, each until dismissed.
-    pub(crate) problems: Vec<String>,
-    /// Finished rows' sizes, read once from their files.
-    pub(crate) saved: dm_shell::app::snapshot::SavedSizes,
-    /// The size a dialog learned of a row it added (Download links asks each link's server),
-    /// shown until the row knows its own.
-    pub(crate) sizes_told: std::collections::HashMap<dm_core::Id, u64>,
-    /// A browser's hand-off is being asked about (Download details or
-    /// Download links): the next waits for it.
-    pub(crate) handed_open: bool,
-    /// Hand-offs cancelled, by site (`handoff::Cancels`): the second asks
-    /// whether to leave that site's downloads to the browser.
-    cancelled_hand_offs: dm_shell::app::handoff::Cancels,
-    /// When done's countdown is being shown.
-    countdown_shown: bool,
-    /// The top bar's search box: the words that narrow the list.
-    pub(crate) filter: gpui::Entity<gpui_component::input::InputState>,
-    /// Its words, as last typed.
-    pub(crate) filter_text: String,
     /// The speed limit before the limiter was turned off, for turning it on.
     last_limit: u64,
-    /// The Recheck queue's counts, once a check of it is done.
-    rechecked: std::sync::Arc<std::sync::Mutex<Option<(usize, usize)>>>,
-    /// What the menu bar was last built with (its queues and ticks); none
-    /// builds it again.
-    pub(crate) menu_ticks: Option<crate::window::menus::Ticks>,
-    /// The window menu last opened, by its place in the bar: what a test reads, as the
-    /// system's menu itself is not the window's to see.
-    pub(crate) bar_menu_opened: Option<usize>,
-    /// The main window's frame as it last stood, kept as dm quits for the
-    /// next start (`frame.rs`).
-    frame: gpui::WindowBounds,
-    /// The display it stood on, by its id.
-    display: Option<u64>,
-    /// What saved searches found, as each run ends, by the search's name.
-    #[allow(clippy::type_complexity)]
-    search_results:
-        std::sync::Arc<std::sync::Mutex<Vec<(String, Result<dm_shell::lists::Crawled, String>)>>>,
-    /// When the saved searches were last looked at.
-    pub(crate) searches_checked: Option<std::time::Instant>,
-    /// Each progress window open, by its download.
-    pub(crate) progress_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
-    /// Progress windows a person closed: not opened again by themselves.
-    progress_closed: std::collections::HashSet<dm_core::Id>,
-    /// The downloads "Download complete" lists.
-    pub(crate) complete: std::collections::BTreeSet<dm_core::Id>,
-    /// "Download complete", while it is open.
-    pub(crate) complete_window: Option<gpui::AnyWindowHandle>,
-    /// Each download's File properties window, while open.
-    pub(crate) properties_windows: std::collections::BTreeMap<dm_core::Id, gpui::AnyWindowHandle>,
-    /// When a control client last acted: a file is not run, nor the update
-    /// installed, by a script's click a moment ago (gaps row 159 f).
-    pub(crate) scripted: dm_shell::app::control_api::ScriptGuard,
-    /// What the update check has found.
-    pub(crate) checked: crate::dialogs::about::Checked,
-    /// dm's update being downloaded, offered to install once verified.
-    pub(crate) update_row: Option<dm_core::Id>,
-    /// The weekly check asked: About opens if it finds a newer dm.
-    pub(crate) weekly_pending: bool,
-    /// About dm, while open.
-    pub(crate) about_window: Option<gpui::AnyWindowHandle>,
-    /// Tip of the day, while open.
-    pub(crate) tip_window: Option<gpui::AnyWindowHandle>,
-    /// Options, while open.
-    pub(crate) options_window: Option<gpui::AnyWindowHandle>,
-    /// The clipboard, watched where Options says (`clipwatch.rs`).
-    pub(crate) clipboard: dm_shell::app::links::Clipboard,
-    /// The status item in the menu bar (`tray.rs`); `None` where the system
-    /// would not make one, and closing the window then ends dm.
-    pub(crate) tray: Option<crate::platform::tray::Tray>,
-    /// The window is put away in the tray.
-    pub(crate) hidden: bool,
-    /// The floating drop target, while shown (`droptarget.rs`).
-    pub(crate) drop_window: Option<gpui::AnyWindowHandle>,
-    /// What the bars above the list remember (`bars.rs`).
-    pub(crate) bars: crate::window::bars::Bars,
-    /// The name each row is shown by: the one its file will get, a waiting
-    /// second copy's "name (1)", worked out at each read.
-    pub(crate) shown_names: std::collections::HashMap<dm_core::Id, String>,
-    /// The settings a frame is drawn with, read once as it begins (and at
-    /// each read): its parts read them a dozen times a frame, each a copy
-    /// of the whole under its lock (gaps row 180).
-    pub(crate) drawn: std::rc::Rc<dm_shell::Settings>,
-    /// `drawn` was just read, by a read for the frame about to be drawn.
-    drawn_fresh: bool,
-    /// The queues, as the last read found them: Start Queue's and Stop
-    /// Queue's arrows list them, and asking the engine as each frame was
-    /// drawn held the window up behind the queue's lock.
-    pub(crate) queue_list: Vec<String>,
-    /// When the finished rows' files were last looked for, and whether a
-    /// look is under way (`look_for_files`).
-    files_looked: Option<Instant>,
-    looking_for_files: bool,
-    /// Work handed off the window's thread and not answered yet, and the
-    /// control port's `command.run` answers held until it is
-    /// (`list/later.rs`).
-    errands: later::Pending,
-    /// The clipboard is being read off the window's thread (`clipwatch`).
-    pub(crate) clipboard_reading: bool,
-    /// The rows on screen, as the list last laid them out.
-    pub(crate) visible: std::ops::Range<usize>,
-    /// Where each row shown is in the list, by id (`reshow`).
-    positions: std::collections::HashMap<dm_core::Id, usize>,
-    /// When the names and places were last worked out (`read`).
-    named_at: Option<Instant>,
-    /// How many earlier rows of the same name bound for the same folder
-    /// take a free name before each row, as the last whole read counted
-    /// them (`names::earlier_of_the_same_name`).
-    earlier: std::collections::HashMap<dm_core::Id, usize>,
-    /// The next read works everything out again (the settings changed).
-    pub(crate) read_all: bool,
-    /// How many rows move with the clock (running, or a file's days
-    /// before the Trash), kept by the read (`moves_with_time`).
-    timed_rows: usize,
-    /// How many times the window was built: a wake that changed nothing
-    /// builds it no more (gaps row 181).
-    pub(crate) renders: u64,
-    /// When each row finished, in words, kept by the read (`keep_whens`).
-    pub(crate) whens: dm_desktop_base::format::Whens,
-    /// Set when a second launch, the browser or the Dock asks for the window.
-    show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    /// What an opener said went wrong, from its thread.
-    opener_said: std::sync::Arc<std::sync::Mutex<Option<String>>>,
-    /// What Scheduler › Hang up modem when done came to, from its thread.
-    pub(crate) hung_up: std::sync::Arc<std::sync::Mutex<Option<dm_shell::dialup::HungUp>>>,
-    /// View › Categories: the side panel shown.
-    pub(crate) show_sidebar: bool,
-    /// View › Toolbar: the toolbar shown.
-    pub(crate) show_toolbar: bool,
-    /// The progress on the taskbar button (Windows; nothing elsewhere).
-    taskbar: dm_desktop_base::taskbar::Taskbar,
-    /// Windows' High Contrast palette as last drawn (`tick.rs`): GPUI tells
-    /// the window of light and dark only.
-    pub(crate) contrast: Option<dm_desktop_base::contrast::Palette>,
+    /// The list as it is seen: scrolled, the place, sorted, chosen, searched.
+    pub(crate) list: state::ListView,
+    /// What the last read worked out for drawing.
+    pub(crate) known: state::Known,
+    /// The questions asked, and those waiting.
+    pub(crate) questions: state::Questions,
+    /// The windows open beside this one, and its own frame.
+    pub(crate) windows: state::OpenWindows,
+    /// The row menu, a place's menu and the menu bar.
+    pub(crate) menus: state::Menus,
+    /// What of the window is shown, and how wide.
+    pub(crate) layout: state::Layout,
+    /// The status bar's words, the problems and Undo.
+    pub(crate) status: state::Status,
+    /// The tray, the taskbar button and the clipboard.
+    pub(crate) system: state::System,
+    /// The control port, and the window asked for from outside.
+    pub(crate) port: state::Port,
+    /// Work off the window's thread and what it brought back.
+    pub(crate) threads: state::Threads,
 }
 
 impl Downloads {
@@ -364,114 +177,55 @@ impl Downloads {
         cx: &mut Context<Self>,
     ) -> Downloads {
         let last_limit = dm_shell::app::commands::remembered_limit(&backend.settings());
+        let focus = cx.focus_handle();
+        let list = state::ListView::new(window, cx);
+        let windows = state::OpenWindows::new(
+            window.window_bounds(),
+            window.display(cx).map(|d| u64::from(d.id())),
+        );
         let mut this = Downloads {
             backend,
             session: Session::default(),
             rows: Vec::new(),
-            requests,
-            assistants_only,
-            scroll: UniformListScrollHandle::new(),
             screen: Screen::default(),
-            focus: cx.focus_handle(),
-            place: Place::All,
-            places: Places::default(),
-            shown: Vec::new(),
-            sort: None,
-            selected: Default::default(),
-            anchor: None,
-            cursor: None,
-            menu_at: None,
-            place_menu: None,
-            typed: (String::new(), None),
-            resizing: None,
-            resize_kept: None,
-            panel_resizing: None,
-            menu: None,
-            said: None,
-            sideways: gpui::ScrollHandle::new(),
-            said_schedule_wait: false,
-            heard: None,
-            undo: Default::default(),
-            asks: Default::default(),
-            renames: Default::default(),
-            asking: false,
-            main: window.window_handle(),
-            sheets: Default::default(),
-            sheet_open: false,
-            question_window: None,
-            exit_asked: false,
-            quit_asked: false,
-            problems: Vec::new(),
-            saved: Default::default(),
-            sizes_told: Default::default(),
-            handed_open: false,
-            cancelled_hand_offs: Default::default(),
-            countdown_shown: false,
-            filter: cx.new(|cx| {
-                gpui_component::input::InputState::new(window, cx)
-                    .placeholder(dm_desktop_base::i18n::t("Name, address or note"))
-            }),
-            filter_text: String::new(),
+            focus,
             // Limit speed turns back on at the limit last in force, kept across a restart:
             // from 0 it came back on at 1 KB/s.
             last_limit,
-            rechecked: Default::default(),
-            menu_ticks: None,
-            bar_menu_opened: None,
-            frame: window.window_bounds(),
-            display: window.display(cx).map(|d| u64::from(d.id())),
-            search_results: Default::default(),
-            searches_checked: None,
-            progress_windows: Default::default(),
-            progress_closed: Default::default(),
-            complete: Default::default(),
-            complete_window: None,
-            properties_windows: Default::default(),
-            scripted: Default::default(),
-            checked: std::sync::Arc::new(std::sync::Mutex::new(
-                dm_shell::app::update::Update::NotAsked,
-            )),
-            update_row: None,
-            weekly_pending: false,
-            about_window: None,
-            tip_window: None,
-            options_window: None,
-            clipboard: Default::default(),
-            tray: None,
-            hidden,
-            drop_window: None,
-            bars: Default::default(),
-            shown_names: Default::default(),
-            drawn: Default::default(),
-            drawn_fresh: false,
-            queue_list: Vec::new(),
-            files_looked: None,
-            looking_for_files: false,
-            errands: Default::default(),
-            clipboard_reading: false,
-            visible: 0..0,
-            positions: Default::default(),
-            named_at: None,
-            earlier: Default::default(),
-            // The first read works it all out: an empty list's queues too.
-            read_all: true,
-            timed_rows: 0,
-            renders: 0,
-            whens: Default::default(),
-            show_asked,
-            opener_said: Default::default(),
-            hung_up: Default::default(),
-            show_sidebar: true,
-            show_toolbar: true,
-            taskbar: Default::default(),
-            contrast: dm_desktop_base::contrast::system(),
+            list,
+            known: state::Known {
+                // The first read works it all out: an empty list's queues too.
+                read_all: true,
+                ..Default::default()
+            },
+            questions: state::Questions::new(window.window_handle()),
+            windows,
+            menus: Default::default(),
+            layout: state::Layout {
+                show_sidebar: true,
+                show_toolbar: true,
+                contrast: dm_desktop_base::contrast::system(),
+                ..Default::default()
+            },
+            status: Default::default(),
+            system: state::System {
+                hidden,
+                ..Default::default()
+            },
+            port: state::Port {
+                requests,
+                assistants_only,
+                show_asked,
+                ..Default::default()
+            },
+            threads: Default::default(),
         };
         // The sort the person left the list in.
         let settings = this.backend.settings();
-        this.sort = dm_desktop_base::columns::kept_sort(&settings);
+        this.list.sort = dm_desktop_base::columns::kept_sort(&settings);
         // And the side panel and toolbar as they were left (gaps row U29).
-        this.show_sidebar = settings.show_categories;
-        this.show_toolbar = settings.show_toolbar;
+        this.layout.show_sidebar = settings.show_categories;
+        this.layout.show_toolbar = settings.show_toolbar;
         // The taskbar button's jump list (Windows): Add URL and the folder.
         dm_desktop_base::jumplist::publish(
             dm_desktop_base::i18n::t("Add URL"),
@@ -510,11 +264,11 @@ impl Downloads {
         // The list narrowed as one types in the top bar's search box;
         // Return there chooses the first row it leaves.
         cx.subscribe_in(
-            &this.filter,
+            &this.list.filter,
             window,
             |this: &mut Downloads, field, event, window, cx| match event {
                 gpui_component::input::InputEvent::Change => {
-                    this.filter_text = field.read(cx).value().to_string();
+                    this.list.filter_text = field.read(cx).value().to_string();
                     this.reshow();
                     cx.notify();
                 }
@@ -533,7 +287,7 @@ impl Downloads {
             if window.is_window_active() {
                 this.show_sheets(cx);
                 // Back from a file manager, a file deleted there is said.
-                this.files_looked = None;
+                this.known.files_looked = None;
                 this.look_for_files(cx);
             }
         })
@@ -551,7 +305,7 @@ impl Downloads {
             cx.spawn_in(window, async move |this, cx| {
                 cx.background_executor().timer(HIDDEN_WAIT).await;
                 let _ = this.update(cx, |this, cx| {
-                    if this.tray.is_none() || !dm_desktop_base::tray::host_showing() {
+                    if this.system.tray.is_none() || !dm_desktop_base::tray::host_showing() {
                         this.show_main(cx);
                     }
                 });
@@ -560,8 +314,8 @@ impl Downloads {
         }
         // Its frame as it moves and is resized, kept as dm quits.
         cx.observe_window_bounds(window, |this, window, cx| {
-            this.frame = window.window_bounds();
-            this.display = window.display(cx).map(|d| u64::from(d.id()));
+            this.windows.frame = window.window_bounds();
+            this.windows.display = window.display(cx).map(|d| u64::from(d.id()));
         })
         .detach();
         // GPUI ending dm without Exit: on Windows, the session ending (a
@@ -569,9 +323,9 @@ impl Downloads {
         // ends the process as soon as this returns. The downloads are stopped
         // and awaited here first, as Exit stops them (gaps row 186).
         cx.on_app_quit(|this, _| {
-            if !this.quit_asked {
+            if !this.questions.quit_asked {
                 this.wind_down();
-                this.quit_asked = true;
+                this.questions.quit_asked = true;
             }
             async {}
         })
@@ -671,11 +425,12 @@ impl Downloads {
         let mode = taskbar::mode_of(&self.rows, now);
         #[cfg(windows)]
         if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(window) {
-            self.taskbar.show(handle.as_raw(), mode);
+            self.system.taskbar.show(handle.as_raw(), mode);
         }
         #[cfg(not(windows))]
         let _ = window;
-        self.taskbar
+        self.system
+            .taskbar
             .show_outside(taskbar::outside_of(mode, taskbar::running_of(&self.rows)));
     }
 
@@ -687,7 +442,7 @@ impl Downloads {
     fn clock_every(&self) -> Duration {
         clock(
             self.rows.iter().any(|r| r.state == State::Running),
-            self.session.countdown.is_some() || self.clipboard.on,
+            self.session.countdown.is_some() || self.system.clipboard.on,
         )
     }
 
@@ -695,7 +450,7 @@ impl Downloads {
     /// application says, the window's methods through its `WindowProbe`,
     /// the rest through the application (`control_api`).
     fn answer_requests(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        let asked: Vec<_> = match &self.requests {
+        let asked: Vec<_> = match &self.port.requests {
             Some(requests) => requests.try_iter().collect(),
             None => return false,
         };
@@ -706,7 +461,7 @@ impl Downloads {
         for request in asked {
             let answer = match dm_shell::app::control_api::refused(
                 request.via_mcp,
-                self.assistants_only,
+                self.port.assistants_only,
                 allow_mcp,
             ) {
                 Some(why) => Err(why),
@@ -736,6 +491,7 @@ impl Downloads {
         // question (Linux, `holder`) holds the window's own clicks and keys
         // only, not what the tray, `--when-done` or the control port asks.
         let options_open = self
+            .windows
             .options_window
             .is_some_and(|w| cx.windows().contains(&w));
         if command != Command::Quit
@@ -799,13 +555,13 @@ impl Downloads {
                 return;
             }
             Command::ToggleCategories => {
-                self.show_sidebar = !self.show_sidebar;
+                self.layout.show_sidebar = !self.layout.show_sidebar;
                 self.keep_shown(cx);
                 cx.notify();
                 return;
             }
             Command::ToggleToolbar => {
-                self.show_toolbar = !self.show_toolbar;
+                self.layout.show_toolbar = !self.layout.show_toolbar;
                 self.keep_shown(cx);
                 cx.notify();
                 return;
@@ -837,7 +593,7 @@ impl Downloads {
                     .map(|r| r.id)
                     .collect();
                 for id in ids {
-                    self.progress_closed.remove(&id);
+                    self.windows.progress_closed.remove(&id);
                     self.show_progress(id, cx);
                 }
                 return;
@@ -953,7 +709,7 @@ impl Downloads {
         }
         if dm_shell::app::commands::is_verb(command) {
             // Undo stands until the next command that changes the list (gaps row U14).
-            self.undo.forget();
+            self.status.undo.forget();
             // What Delete Completed takes off, kept for its Undo (B24).
             let kept = (command == Command::DeleteCompleted).then(|| self.backend.clearable_rows());
             // Off the window's thread: Stop on ten thousand chosen rows is
@@ -985,7 +741,7 @@ impl Downloads {
         self.read();
         if let Some(dm_shell::app::commands::Ran::Cleared(n)) = ran {
             // Undo puts them back, as it does what Remove took off (B24, gaps row U14).
-            if n > 0 && self.undo.keep(kept.unwrap_or_default()) > 0 {
+            if n > 0 && self.status.undo.keep(kept.unwrap_or_default()) > 0 {
                 self.undo_expires(cx);
             }
             self.say(dm_desktop_base::i18n::tn(
@@ -999,7 +755,7 @@ impl Downloads {
         // times over the list. Show progress still opens it.
         if command == Command::DownloadNow && self.backend.settings().show_progress {
             for id in chosen {
-                if !self.progress_closed.contains(id) {
+                if !self.windows.progress_closed.contains(id) {
                     self.show_progress(*id, cx);
                 }
             }
@@ -1026,8 +782,8 @@ impl Downloads {
         if let Some(id) = added.rows.first().map(|(id, _, _)| *id) {
             // The new row is the one chosen, as the person expects of a row
             // just added.
-            self.selected.clear();
-            self.selected.insert(id);
+            self.list.selected.clear();
+            self.list.selected.insert(id);
         }
         if let Some((failed, e)) = added.partly() {
             // The rest went in; the ones that did not are said, not lost.
@@ -1138,7 +894,7 @@ impl Downloads {
         let added = self.session.add(&self.backend, items);
         for (id, url, _) in &added.rows {
             if let Some(size) = sizes.get(url) {
-                self.sizes_told.insert(*id, *size);
+                self.known.sizes_told.insert(*id, *size);
             }
         }
         if let Some((failed, e)) = added.partly() {
@@ -1159,6 +915,7 @@ impl Downloads {
     pub fn hand_off_cancelled(&mut self, site: &str, cx: &mut Context<Self>) {
         let settings = self.backend.settings();
         if !self
+            .questions
             .cancelled_hand_offs
             .cancelled(site, &settings.catch.skip_hosts)
         {
@@ -1194,7 +951,7 @@ impl Downloads {
                     wanted.catch.skip_hosts.push(site);
                 }
                 if let Err(e) = view.backend.set_settings(wanted) {
-                    view.problems.push(e);
+                    view.status.problems.push(e);
                 }
             });
         });
@@ -1206,20 +963,20 @@ impl Downloads {
     /// is over or cancelled.
     pub(crate) fn show_countdown(&mut self, cx: &mut Context<Self>) {
         if self.session.countdown.is_none() {
-            self.countdown_shown = false;
+            self.questions.countdown_shown = false;
             return;
         }
-        if self.countdown_shown {
+        if self.questions.countdown_shown {
             return;
         }
-        self.countdown_shown = true;
+        self.questions.countdown_shown = true;
         let Some(asked) = countdown_question(self) else {
             return;
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
             let _ = view.update(cx, |view, cx| {
-                view.countdown_shown = false;
+                view.questions.countdown_shown = false;
                 match (button, view.session.countdown) {
                     // Now: the action at once.
                     (1, Some((action, _))) => {
@@ -1237,8 +994,10 @@ impl Downloads {
 
     /// Clears the search box: every row of the place shown again.
     pub fn clear_filter(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.filter.update(cx, |f, cx| f.set_value("", window, cx));
-        self.filter_text.clear();
+        self.list
+            .filter
+            .update(cx, |f, cx| f.set_value("", window, cx));
+        self.list.filter_text.clear();
         self.reshow();
         cx.notify();
     }
@@ -1246,7 +1005,7 @@ impl Downloads {
     /// Find (⌘F): the keyboard to the top bar's search box, its words
     /// chosen, as a code editor's ⌘P puts it in its command centre.
     pub fn find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.filter.update(cx, |f, cx| {
+        self.list.filter.update(cx, |f, cx| {
             f.focus(window, cx);
             f.select_all(window, cx);
         });
@@ -1256,22 +1015,25 @@ impl Downloads {
     /// address or note), going round the list, chosen and brought into view (gaps row U30, B48).
     pub fn find_step(&mut self, forward: bool) {
         use dm_desktop_base::i18n::tf;
-        if self.filter_text.trim().is_empty() {
+        if self.list.filter_text.trim().is_empty() {
             return;
         }
         let from = self
+            .list
             .shown
             .iter()
-            .position(|&i| self.selected.contains(&self.rows[i].id));
-        match dm_desktop_base::find::step(self.shown.len(), from, forward) {
+            .position(|&i| self.list.selected.contains(&self.rows[i].id));
+        match dm_desktop_base::find::step(self.list.shown.len(), from, forward) {
             Some(at) => {
-                let row = &self.rows[self.shown[at]];
+                let row = &self.rows[self.list.shown[at]];
                 let name = dm_shell::app::names::name_of(row);
-                self.selected = std::collections::BTreeSet::from([row.id]);
-                self.scroll.scroll_to_item(at, gpui::ScrollStrategy::Center);
+                self.list.selected = std::collections::BTreeSet::from([row.id]);
+                self.list
+                    .scroll
+                    .scroll_to_item(at, gpui::ScrollStrategy::Center);
                 self.say(tf("Found {}.", &[&name]));
             }
-            None => self.say(tf("Nothing is called “{}”.", &[&self.filter_text])),
+            None => self.say(tf("Nothing is called “{}”.", &[&self.list.filter_text])),
         }
     }
 
@@ -1342,9 +1104,9 @@ impl Downloads {
                         &[&n, &name],
                     )
                 });
-                self.said_schedule_wait = n > 0 && !lets;
+                self.status.said_schedule_wait = n > 0 && !lets;
                 if queue == dm_core::RECHECK_QUEUE {
-                    dm_shell::app::commands::recheck(&self.backend, self.rechecked.clone());
+                    dm_shell::app::commands::recheck(&self.backend, self.threads.rechecked.clone());
                 }
             }
             (_, ran) => {
@@ -1383,11 +1145,11 @@ impl Downloads {
     pub(crate) fn refresh_menus(&mut self, cx: &mut Context<Self>) {
         let settings = self.backend.settings();
         let ticks = crate::window::menus::Ticks {
-            queues: self.queue_list.clone(),
+            queues: self.known.queue_list.clone(),
             when_done: self.session.when_done,
             speed_limit: settings.speed_limit,
-            sidebar: self.show_sidebar,
-            toolbar: self.show_toolbar,
+            sidebar: self.layout.show_sidebar,
+            toolbar: self.layout.show_toolbar,
             drop_target: settings.drop_target,
             column_order: settings.column_order.clone(),
             columns_hidden: settings.columns_hidden.clone(),
@@ -1396,19 +1158,19 @@ impl Downloads {
             toolbar_hidden: settings.toolbar_hidden.clone(),
             text_size: settings.text_size,
             language: settings.language.clone(),
-            sorted_by: self.sort.and_then(|(column, _)| sort_command(column)),
+            sorted_by: self.list.sort.and_then(|(column, _)| sort_command(column)),
             resume: dm_desktop_base::rows::resume_word(&self.chosen()),
             off: self.commands_off(),
         };
-        if self.menu_ticks.as_ref() != Some(&ticks) {
+        if self.menus.menu_ticks.as_ref() != Some(&ticks) {
             crate::window::menus::set(cx, &ticks);
-            self.menu_ticks = Some(ticks);
+            self.menus.menu_ticks = Some(ticks);
         }
     }
 
     /// The Recheck queue's counts, once its check is done.
     pub(crate) fn say_rechecked(&mut self) {
-        let done = dm_core::lock(&self.rechecked).take();
+        let done = dm_core::lock(&self.threads.rechecked).take();
         if let Some((checked, changed)) = done {
             self.say(dm_desktop_base::i18n::tn(
                 "Checked {} finished file with its server. Changed since, and downloaded again: {}.||Checked {} finished files with their servers. Changed since, and downloaded again: {}.",
@@ -1450,7 +1212,7 @@ impl Downloads {
         let mut search = search;
         // The login Options › Sign-ins keeps for the site, where it keeps one.
         search.page = self.backend.settings().with_login(&search.page);
-        let results = self.search_results.clone();
+        let results = self.threads.search_results.clone();
         let name = search.name.clone();
         dm_shell::app::search::crawl_later(&self.backend, search, move |found| {
             dm_core::lock(&results).push((name, found));
@@ -1463,7 +1225,7 @@ impl Downloads {
     /// search whose time has come, looked at once a minute.
     pub(crate) fn take_searches(&mut self, cx: &mut Context<Self>) {
         use dm_desktop_base::i18n::{tf, tn};
-        let done: Vec<_> = std::mem::take(&mut *dm_core::lock(&self.search_results));
+        let done: Vec<_> = std::mem::take(&mut *dm_core::lock(&self.threads.search_results));
         for (name, found) in done {
             let settings = self.backend.settings();
             match found {
@@ -1497,7 +1259,7 @@ impl Downloads {
                                 n as u64,
                                 &[&n, &dm_desktop_base::i18n::name(dm_core::MAIN_QUEUE)],
                             )),
-                            Err(e) => self.problems.push(tf(
+                            Err(e) => self.status.problems.push(tf(
                                 "the search {} found files that could not be added: {}",
                                 &[&name, &e],
                             )),
@@ -1508,7 +1270,7 @@ impl Downloads {
                         dm_shell::app::search::seen_saved(&settings, &name, remember)
                     {
                         if let Err(e) = self.backend.set_settings(wanted) {
-                            self.problems.push(tf(
+                            self.status.problems.push(tf(
                                 "what the search {} has seen could not be saved: {}",
                                 &[&name, &e],
                             ));
@@ -1516,18 +1278,20 @@ impl Downloads {
                     }
                 }
                 Err(e) => self
+                    .status
                     .problems
                     .push(tf("the search {} failed: {}", &[&name, &e])),
             }
         }
         let now = std::time::Instant::now();
         if self
+            .threads
             .searches_checked
             .is_some_and(|at| now.duration_since(at) < SEARCHES_EVERY)
         {
             return;
         }
-        self.searches_checked = Some(now);
+        self.threads.searches_checked = Some(now);
         let epoch = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
@@ -1538,7 +1302,7 @@ impl Downloads {
         if let Err(e) = self.backend.set_settings(wanted) {
             // Still run, and not again for a minute; but said, since an
             // unsaved last run means the search runs again at every launch.
-            self.problems.push(dm_desktop_base::i18n::tf(
+            self.status.problems.push(dm_desktop_base::i18n::tf(
                 "when the saved searches last ran could not be saved: {}",
                 &[&e],
             ));
@@ -1550,7 +1314,7 @@ impl Downloads {
 
     /// The progress window of `id`, opened (or brought forward).
     pub fn show_progress(&mut self, id: dm_core::Id, cx: &mut Context<Self>) {
-        if let Some(handle) = self.progress_windows.get(&id) {
+        if let Some(handle) = self.windows.progress_windows.get(&id) {
             if handle
                 .update(cx, |_, window, _| window.activate_window())
                 .is_ok()
@@ -1558,13 +1322,13 @@ impl Downloads {
                 return;
             }
         }
-        let nth = self.progress_windows.len();
+        let nth = self.windows.progress_windows.len();
         let me = cx.entity().downgrade();
-        let main = self.main;
+        let main = self.questions.main;
         cx.defer(move |cx| {
             if let Some(handle) = crate::dialogs::progress::open(me.clone(), id, nth, main, cx) {
                 let _ = me.update(cx, |view, _| {
-                    view.progress_windows.insert(id, handle);
+                    view.windows.progress_windows.insert(id, handle);
                 });
             }
         });
@@ -1572,13 +1336,13 @@ impl Downloads {
 
     /// Where an opener says what went wrong, from its thread.
     pub(crate) fn opener_said(&self) -> std::sync::Arc<std::sync::Mutex<Option<String>>> {
-        self.opener_said.clone()
+        self.threads.opener_said.clone()
     }
 
     /// The row of download `moved` put where the row of `onto` stands, in the queue's order
     /// (gaps row U39): what a row dragged onto another does while the list is in its own order.
     pub(crate) fn move_row(&mut self, moved: dm_core::Id, onto: dm_core::Id) {
-        if moved == onto || self.sort.is_some() {
+        if moved == onto || self.list.sort.is_some() {
             return;
         }
         let at = |id| self.rows.iter().position(|r| r.id == id);
@@ -1596,14 +1360,14 @@ impl Downloads {
         command: dm_shell::app::commands::Command,
         cx: &mut Context<Self>,
     ) {
-        self.selected = [id].into();
-        self.anchor = Some(id);
+        self.list.selected = [id].into();
+        self.list.anchor = Some(id);
         self.run(command, cx);
     }
 
     /// Opens a file with its usual app, off the window's thread.
     pub fn open_path(&self, path: &str) {
-        let said = self.opener_said.clone();
+        let said = self.threads.opener_said.clone();
         self.backend
             .platform
             .open_later(path, Box::new(move |why| *dm_core::lock(&said) = Some(why)));
@@ -1611,7 +1375,7 @@ impl Downloads {
 
     /// Shows a file in the file manager, off the window's thread.
     pub fn reveal_path(&self, path: &str) {
-        let said = self.opener_said.clone();
+        let said = self.threads.opener_said.clone();
         self.backend
             .platform
             .reveal_later(path, Box::new(move |why| *dm_core::lock(&said) = Some(why)));
@@ -1644,7 +1408,7 @@ impl Downloads {
 
     /// What an opener said went wrong, from its thread.
     pub(crate) fn say_opener(&mut self) {
-        let said = dm_core::lock(&self.opener_said).take();
+        let said = dm_core::lock(&self.threads.opener_said).take();
         if let Some(why) = said {
             self.say(why);
         }
@@ -1667,13 +1431,13 @@ impl Downloads {
     /// dialog's window. Progress windows and "Download complete" stand
     /// beside it, not in front.
     pub(crate) fn dialog_in_front(&self, cx: &gpui::App) -> bool {
-        self.sheet_open
+        self.questions.sheet_open
             || crate::window::screen::Screens::all(cx)
                 .iter()
                 .any(|(w, _, dialog)| {
                     *dialog
-                        && !self.progress_windows.values().any(|p| p == w)
-                        && self.complete_window.as_ref() != Some(w)
+                        && !self.windows.progress_windows.values().any(|p| p == w)
+                        && self.windows.complete_window.as_ref() != Some(w)
                 })
     }
 
@@ -1684,7 +1448,8 @@ impl Downloads {
         cx: &gpui::App,
     ) -> Option<gpui::AnyWindowHandle> {
         let open = cx.windows();
-        self.properties_windows
+        self.windows
+            .properties_windows
             .get(&id)
             .filter(|w| open.contains(w))
             .copied()
@@ -1693,7 +1458,8 @@ impl Downloads {
     /// How many File properties windows are open.
     pub(crate) fn properties_open(&self, cx: &gpui::App) -> usize {
         let open = cx.windows();
-        self.properties_windows
+        self.windows
+            .properties_windows
             .values()
             .filter(|w| open.contains(w))
             .count()
@@ -1702,7 +1468,7 @@ impl Downloads {
     /// Row `id`'s File properties window opened; those since closed are
     /// forgotten.
     pub(crate) fn properties_opened(&mut self, id: dm_core::Id, window: gpui::AnyWindowHandle) {
-        self.properties_windows.insert(id, window);
+        self.windows.properties_windows.insert(id, window);
     }
 
     /// The dialog that keeps the clicks to itself and so holds this window
@@ -1713,9 +1479,10 @@ impl Downloads {
     pub(crate) fn holder(&self, cx: &gpui::App) -> Option<gpui::AnyWindowHandle> {
         let open = cx.windows();
         let question = self
+            .questions
             .question_window
             .filter(|_| cfg!(not(any(target_os = "macos", windows))));
-        [self.options_window, question]
+        [self.windows.options_window, question]
             .into_iter()
             .flatten()
             .find(|w| open.contains(w))
@@ -1734,14 +1501,14 @@ impl Downloads {
 
     /// The main window.
     pub(crate) fn main_window(&self) -> gpui::AnyWindowHandle {
-        self.main
+        self.questions.main
     }
 
     /// The main window back in front, from the tray or wherever it is, after
     /// the update that asked.
     pub(crate) fn show_main(&mut self, cx: &mut Context<Self>) {
-        self.hidden = false;
-        let main = self.main;
+        self.system.hidden = false;
+        let main = self.questions.main;
         cx.defer(move |cx| {
             let _ = main.update(cx, |_, window, _| {
                 crate::platform::syswindow::show(window);
@@ -1762,7 +1529,8 @@ impl Downloads {
     /// Whether a second launch, the browser or the Dock asked for the
     /// window since the last look.
     pub(crate) fn take_show_asked(&self) -> bool {
-        self.show_asked
+        self.port
+            .show_asked
             .swap(false, std::sync::atomic::Ordering::Relaxed)
     }
 
@@ -1771,11 +1539,12 @@ impl Downloads {
         // From the choice, not from every row shown: the toolbar asks for
         // each of its buttons, a dozen times a frame (gaps row 180).
         let mut chosen: Vec<(usize, &Entry)> = self
+            .list
             .selected
             .iter()
             .filter_map(|id| {
-                let at = *self.positions.get(id)?;
-                let row = self.shown.get(at).and_then(|&r| self.rows.get(r))?;
+                let at = *self.list.positions.get(id)?;
+                let row = self.list.shown.get(at).and_then(|&r| self.rows.get(r))?;
                 (row.id == *id).then_some((at, &**row))
             })
             .collect();
@@ -1786,7 +1555,7 @@ impl Downloads {
     /// The queue Start and Stop Queue act on: the one shown, else the Main
     /// queue.
     pub fn current_queue(&self) -> String {
-        match &self.place {
+        match &self.list.place {
             Place::Queue(name) => name.clone(),
             _ => dm_core::MAIN_QUEUE.to_string(),
         }
@@ -1809,7 +1578,7 @@ impl Downloads {
 
     /// Shows the rows of `place`.
     pub fn choose(&mut self, place: Place) {
-        self.place = place;
+        self.list.place = place;
         self.reshow();
     }
 
@@ -1822,7 +1591,7 @@ impl Downloads {
         use dm_shell::app::commands::Command;
         let Some(row) = self
             .position_of(id)
-            .and_then(|at| self.shown.get(at))
+            .and_then(|at| self.list.shown.get(at))
             .and_then(|&r| self.rows.get(r))
         else {
             return;
@@ -1836,17 +1605,18 @@ impl Downloads {
             _ if going => Command::ShowProgress,
             _ => Command::Properties,
         };
-        self.selected = [id].into();
-        self.anchor = Some(id);
+        self.list.selected = [id].into();
+        self.list.anchor = Some(id);
         self.run(command, cx);
     }
 
     /// The row of download `id`, found by where the list shows it, else
     /// by a look over every row (a row the place chosen does not show).
     pub(crate) fn row_of(&self, id: dm_core::Id) -> Option<&Arc<Entry>> {
-        self.positions
+        self.list
+            .positions
             .get(&id)
-            .and_then(|&at| self.shown.get(at))
+            .and_then(|&at| self.list.shown.get(at))
             .and_then(|&r| self.rows.get(r))
             .filter(|r| r.id == id)
             .or_else(|| self.rows.iter().find(|r| r.id == id))
@@ -1854,21 +1624,21 @@ impl Downloads {
 
     /// Says `sentence` in the status bar.
     pub fn say(&mut self, sentence: String) {
-        self.said = Some((sentence, std::time::Instant::now()));
-        self.said_schedule_wait = false;
+        self.status.said = Some((sentence, std::time::Instant::now()));
+        self.status.said_schedule_wait = false;
     }
 }
 
 impl Render for Downloads {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.renders += 1;
+        self.known.renders += 1;
         if crate::port::FRAMES.fetch_add(1, Ordering::Relaxed) == 0 {
             dm_core::finish_trace::mark("start: first frame drawn");
         }
         // Its waits, copies and disk calls, counted in a debug build (row 180).
         let _drawing = dm_shell::app::costs::drawing();
-        if !std::mem::take(&mut self.drawn_fresh) {
-            self.drawn = std::rc::Rc::new(self.backend.settings());
+        if !std::mem::take(&mut self.known.drawn_fresh) {
+            self.known.drawn = std::rc::Rc::new(self.backend.settings());
         }
         // Resume's words in the menu bar follow the rows chosen (Retry,
         // Start now), however they were chosen: built again after this
@@ -1877,6 +1647,7 @@ impl Render for Downloads {
         let resume = dm_desktop_base::rows::resume_word(&self.chosen());
         let off = self.commands_off();
         if self
+            .menus
             .menu_ticks
             .as_ref()
             .is_some_and(|t| t.resume != resume || t.off != off)
@@ -1912,7 +1683,7 @@ impl Render for Downloads {
             .child(crate::window::titlebar::titlebar(
                 self, theme, &screen, window, cx,
             ))
-            .when(self.show_toolbar, |root| {
+            .when(self.layout.show_toolbar, |root| {
                 root.child(crate::window::toolbar::toolbar(
                     self, theme, &screen, window, cx,
                 ))
@@ -1921,10 +1692,10 @@ impl Render for Downloads {
             .child(crate::window::statusbar::statusbar(
                 self, theme, &screen, cx,
             ))
-            .when_some(self.menu, |root, at| {
+            .when_some(self.menus.menu, |root, at| {
                 root.child(crate::window::rowmenu::menu(self, at, theme, &screen, cx))
             })
-            .when_some(self.place_menu.clone(), |root, (place, at)| {
+            .when_some(self.menus.place_menu.clone(), |root, (place, at)| {
                 root.child(crate::window::placemenu::menu(
                     &place, at, theme, &screen, cx,
                 ))

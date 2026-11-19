@@ -290,12 +290,12 @@ impl Downloads {
             self.check_for_updates(cx);
         }
         let open = cx.windows();
-        if let Some(about) = self.about_window.filter(|w| open.contains(w)) {
+        if let Some(about) = self.windows.about_window.filter(|w| open.contains(w)) {
             let _ = about.update(cx, |_, window, _| window.activate_window());
             return;
         }
         let view = cx.entity().downgrade();
-        let checked = self.checked.clone();
+        let checked = self.threads.checked.clone();
         let me = cx.entity().downgrade();
         cx.defer(move |cx| {
             let handle = open_small("About dm", 420.0, cx, move |focus, screen| About {
@@ -304,7 +304,7 @@ impl Downloads {
                 focus,
                 screen,
             });
-            let _ = me.update(cx, |me, _| me.about_window = handle);
+            let _ = me.update(cx, |me, _| me.windows.about_window = handle);
         });
     }
 
@@ -315,7 +315,7 @@ impl Downloads {
         dm_shell::app::update::check(
             &self.backend,
             env!("CARGO_PKG_VERSION"),
-            self.checked.clone(),
+            self.threads.checked.clone(),
             move || {
                 let _ = tell.try_send(());
             },
@@ -332,7 +332,7 @@ impl Downloads {
 
     /// About drawn again, where it is open.
     fn refresh_about(&self, cx: &mut Context<Self>) {
-        if let Some(about) = self.about_window {
+        if let Some(about) = self.windows.about_window {
             let _ = about.update(cx, |_, window, _| window.refresh());
         }
     }
@@ -341,7 +341,7 @@ impl Downloads {
     /// against the digest it published (one that does not match fails and
     /// is removed); offered to install once verified.
     pub(crate) fn download_update(&mut self, cx: &mut Context<Self>) {
-        let Update::Newer(_, Some(installer)) = dm_core::lock(&self.checked).clone() else {
+        let Update::Newer(_, Some(installer)) = dm_core::lock(&self.threads.checked).clone() else {
             return;
         };
         let with = AddOptions {
@@ -350,7 +350,7 @@ impl Downloads {
         };
         match self.backend.add_with(&installer.url, with) {
             Ok(id) => {
-                self.update_row = Some(id);
+                self.threads.update_row = Some(id);
                 self.say(
                     t("Downloading the update. dm will offer to install it when it's verified.")
                         .into(),
@@ -372,7 +372,7 @@ impl Downloads {
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
         if let Some(wanted) = dm_shell::app::update::weekly(&self.backend.settings(), now) {
-            self.weekly_pending = true;
+            self.threads.weekly_pending = true;
             self.check_for_updates(cx);
             if let Err(e) = self.backend.set_settings(wanted) {
                 self.say(e);
@@ -385,8 +385,10 @@ impl Downloads {
         {
             dm_shell::app::update::fresh_rules(&self.backend);
         }
-        if self.weekly_pending && matches!(*dm_core::lock(&self.checked), Update::Newer(..)) {
-            self.weekly_pending = false;
+        if self.threads.weekly_pending
+            && matches!(*dm_core::lock(&self.threads.checked), Update::Newer(..))
+        {
+            self.threads.weekly_pending = false;
             self.open_about(false, cx);
         }
     }
@@ -401,14 +403,14 @@ impl Downloads {
         screen: &Screen,
         cx: &mut Context<Self>,
     ) -> Option<gpui::Div> {
-        let id = self.update_row?;
+        let id = self.threads.update_row?;
         // Not in the list yet, the moment it is added: waited for.
         let row = self.rows.iter().find(|r| r.id == id)?;
         match row.state {
             State::Completed if row.verified && !row.path.is_empty() => {}
             // Its own row says why it failed; nothing to offer.
             State::Failed(_) | State::Cancelled => {
-                self.update_row = None;
+                self.threads.update_row = None;
                 return None;
             }
             _ => return None,
@@ -437,7 +439,7 @@ impl Downloads {
                 .child(
                     native::button("update-later", t("Later").into(), false, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.update_row = None;
+                            this.threads.update_row = None;
                             cx.notify();
                         })),
                 )
@@ -446,11 +448,11 @@ impl Downloads {
                         cx.listener(move |this, _, _, cx| {
                             if appimage {
                                 this.reveal_path(&path);
-                                this.update_row = None;
+                                this.threads.update_row = None;
                             } else {
                                 // A script's click a moment ago does not run
                                 // the installer.
-                                if this.scripted.by_script() {
+                                if this.port.scripted.by_script() {
                                     this.say(
                                         t("Not installed: a script was driving the window a moment ago; click again")
                                             .to_string(),
@@ -459,7 +461,7 @@ impl Downloads {
                                     return;
                                 }
                                 this.open_path(&path);
-                                this.update_row = None;
+                                this.threads.update_row = None;
                                 this.ask_quit(cx);
                             }
                             cx.notify();
@@ -473,7 +475,7 @@ impl Downloads {
     /// is open.
     pub(crate) fn tip_of_the_day(&mut self, cx: &mut Context<Self>) {
         let open = cx.windows();
-        if let Some(tip) = self.tip_window.filter(|w| open.contains(w)) {
+        if let Some(tip) = self.windows.tip_window.filter(|w| open.contains(w)) {
             let _ = tip.update(cx, |_, window, _| window.activate_window());
             return;
         }
@@ -484,7 +486,7 @@ impl Downloads {
                 focus,
                 screen,
             });
-            let _ = me.update(cx, |me, _| me.tip_window = handle);
+            let _ = me.update(cx, |me, _| me.windows.tip_window = handle);
         });
     }
 }

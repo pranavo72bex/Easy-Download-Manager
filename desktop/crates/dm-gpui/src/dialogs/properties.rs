@@ -158,7 +158,7 @@ impl Properties {
     /// click a moment ago, which is said here.
     fn open_file(&mut self, path: String, cx: &mut Context<Self>) {
         let refused = self.view.update(cx, |view, _| {
-            let refused = view.scripted.run_refused();
+            let refused = view.port.scripted.run_refused();
             if refused.is_none() {
                 view.open_path(&path);
             }

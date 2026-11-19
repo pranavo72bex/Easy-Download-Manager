@@ -76,11 +76,12 @@ pub(crate) fn may_carry(row: &Entry) -> bool {
 /// finished ones whose file is still where dm saved it.
 pub(crate) fn carried(view: &Downloads, id: Id) -> Vec<PathBuf> {
     files_of(
-        view.shown
+        view.list
+            .shown
             .iter()
             .filter_map(|&r| view.rows.get(r))
             .map(|r| &**r),
-        &view.selected,
+        &view.list.selected,
         id,
         dm_desktop_base::rows::gone,
     )

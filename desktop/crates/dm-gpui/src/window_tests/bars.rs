@@ -50,7 +50,7 @@ fn a_problem_above_the_list_is_dismissed() {
     // As the queue reports one, in its own words.
     let problem = String::from("the disk said no to something");
     h.update(|view, cx| {
-        view.problems.push(problem);
+        view.status.problems.push(problem);
         cx.notify();
     });
     h.until("the problem to be shown", |h| {
@@ -58,7 +58,7 @@ fn a_problem_above_the_list_is_dismissed() {
     });
     h.click("Dismiss");
     h.until("the problem to go", |h| {
-        h.view(|view| view.problems.is_empty())
+        h.view(|view| view.status.problems.is_empty())
     });
 }
 

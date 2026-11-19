@@ -196,7 +196,7 @@ impl Downloads {
     pub(crate) fn follow_drop_target(&mut self, cx: &mut Context<Self>) {
         let wanted = self.backend.settings().drop_target;
         let open = cx.windows();
-        let shown = self.drop_window.filter(|w| open.contains(w));
+        let shown = self.windows.drop_window.filter(|w| open.contains(w));
         match (wanted, shown) {
             (true, None) => {
                 let view = cx.entity().downgrade();
@@ -204,13 +204,13 @@ impl Downloads {
                 let me = view.clone();
                 cx.defer(move |cx| {
                     let handle = open_window(view, main, cx);
-                    let _ = me.update(cx, |me, _| me.drop_window = handle);
+                    let _ = me.update(cx, |me, _| me.windows.drop_window = handle);
                 });
                 // Not again until it has opened.
-                self.drop_window = Some(self.main_window());
+                self.windows.drop_window = Some(self.main_window());
             }
             (false, Some(window)) if window != self.main_window() => {
-                self.drop_window = None;
+                self.windows.drop_window = None;
                 cx.defer(move |cx| {
                     let _ = window.update(cx, |_, window, _| window.remove_window());
                 });

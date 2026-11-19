@@ -23,12 +23,12 @@ impl Downloads {
     pub fn open_place_menu(&mut self, place: Place, at: Point<Pixels>) {
         self.close_menu();
         self.choose(place.clone());
-        self.place_menu = Some((place, at));
+        self.menus.place_menu = Some((place, at));
     }
 
     /// Closes the place menu.
     pub fn close_place_menu(&mut self) {
-        self.place_menu = None;
+        self.menus.place_menu = None;
     }
 
     /// Carries out what the place menu asked for.
