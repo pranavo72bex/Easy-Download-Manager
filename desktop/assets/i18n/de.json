@@ -966,5 +966,9 @@
  "Worked out from the finished downloads in the list; nothing new is kept.": "Aus den fertigen Downloads der Liste berechnet; nichts Neues wird gespeichert.",
  "Busiest day: {}, {}": "Stärkster Tag: {}, {}",
  "Speed over the last 5 minutes": "Geschwindigkeit der letzten 5 Minuten",
- "no site": "keine Website"
+ "no site": "keine Website",
+ "The same file is already here": "Dieselbe Datei ist schon da",
+ "A finished download in the list has this name and size.": "Ein fertiger Download in der Liste hat diesen Namen und diese Größe.",
+ "A file of this name and size is already in the folder.": "Eine Datei mit diesem Namen und dieser Größe ist schon im Ordner.",
+ "When the same file is already here": "Wenn dieselbe Datei schon da ist"
 }

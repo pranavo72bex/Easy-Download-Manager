@@ -966,5 +966,9 @@
  "Worked out from the finished downloads in the list; nothing new is kept.": "根据列表中已完成的下载计算；不会保存任何新内容。",
  "Busiest day: {}, {}": "最多的一天：{}，{}",
  "Speed over the last 5 minutes": "最近 5 分钟的速度",
- "no site": "无网站"
+ "no site": "无网站",
+ "The same file is already here": "相同的文件已存在",
+ "A finished download in the list has this name and size.": "列表中已完成的下载有相同的名称和大小。",
+ "A file of this name and size is already in the folder.": "文件夹中已有相同名称和大小的文件。",
+ "When the same file is already here": "相同的文件已存在时"
 }

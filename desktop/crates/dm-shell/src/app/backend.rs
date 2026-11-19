@@ -312,6 +312,13 @@ impl Backend {
         self.retry(id);
     }
 
+    /// A person said Download again to the same file as one already here (gaps row W18): the
+    /// row is tried again, not asked about again.
+    pub fn accept_same(&self, id: Id) {
+        self.block_on(self.queue.accept_same(id));
+        self.retry(id);
+    }
+
     /// Cancels a download.
     pub fn cancel(&self, id: Id) {
         self.block_on(self.queue.cancel(id));

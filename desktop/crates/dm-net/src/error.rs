@@ -137,6 +137,10 @@ pub enum FailKind {
     /// dm's own look before writing found no room: too little free space for the file, or a
     /// download folder that cannot be written to.
     NoRoom,
+    /// The same file, by its name, size and (where both have one) entity tag or digest, is a
+    /// finished download in the list or a file already in the folder: asked about before its
+    /// body is fetched (gaps row W18).
+    SameFile,
 }
 
 impl FailKind {
@@ -148,6 +152,7 @@ impl FailKind {
             FailKind::WebPage => "web page".into(),
             FailKind::DiskFull => "disk full".into(),
             FailKind::NoRoom => "no room".into(),
+            FailKind::SameFile => "same file".into(),
         }
     }
 
@@ -158,6 +163,7 @@ impl FailKind {
             "web page" => FailKind::WebPage,
             "disk full" => FailKind::DiskFull,
             "no room" => FailKind::NoRoom,
+            "same file" => FailKind::SameFile,
             _ => word
                 .strip_prefix("refused ")
                 .and_then(|status| status.parse().ok())

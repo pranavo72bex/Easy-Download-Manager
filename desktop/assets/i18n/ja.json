@@ -966,5 +966,9 @@
  "Worked out from the finished downloads in the list; nothing new is kept.": "リスト内の完了したダウンロードから算出しています。新たに保存されるものはありません。",
  "Busiest day: {}, {}": "最も多かった日: {}、{}",
  "Speed over the last 5 minutes": "過去 5 分間の速度",
- "no site": "サイトなし"
+ "no site": "サイトなし",
+ "The same file is already here": "同じファイルがすでにあります",
+ "A finished download in the list has this name and size.": "一覧の完了したダウンロードに同じ名前とサイズのものがあります。",
+ "A file of this name and size is already in the folder.": "同じ名前とサイズのファイルがすでにフォルダーにあります。",
+ "When the same file is already here": "同じファイルがすでにあるとき"
 }

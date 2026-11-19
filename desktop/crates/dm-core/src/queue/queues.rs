@@ -62,6 +62,23 @@ impl DownloadList {
         .await
     }
 
+    /// Whether a download of the same file as one already here (a finished row's, or a file in
+    /// its folder) stops before its body for a person to be asked (gaps row W18). Off unless a
+    /// window turns it on: where nobody is asked, the file is fetched as before.
+    pub fn ask_about_same_files(&self, on: bool) {
+        self.inner.asks_same.store(on, Ordering::SeqCst);
+    }
+
+    /// A person said Download again to the same file as one already here: the row goes on from
+    /// the next try without being asked again (gaps row W18).
+    pub async fn accept_same(&self, id: Id) -> bool {
+        self.edit(id, |slot| {
+            slot.entry_mut().accept_same = true;
+            true
+        })
+        .await
+    }
+
     /// "Move/Rename" for a finished file: renamed where it lies, never
     /// over another file.
     pub async fn rename(&self, id: Id, name: &str) -> Result<(), String> {

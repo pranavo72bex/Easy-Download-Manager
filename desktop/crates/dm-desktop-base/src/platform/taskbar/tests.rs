@@ -57,6 +57,7 @@ fn row(state: State, downloaded: u64, total: Option<u64>, finished_at: Option<u6
         posted: false,
         fail_kind: None,
         keep_no_record: false,
+        accept_same: false,
     }
 }
 

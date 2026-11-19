@@ -47,6 +47,7 @@ mod page_stream;
 mod per_site;
 mod plain;
 mod ranged;
+pub(crate) mod same;
 mod sidecar;
 mod space;
 
@@ -186,6 +187,9 @@ pub struct Options {
     /// it and keeps what it has, as it does when the server ends the stream;
     /// `None` records until the server ends it or the person stops it.
     pub record_limit: Option<std::time::Duration>,
+    /// The finished files the same file is asked about before its body is fetched (gaps row
+    /// W18, `same::already_here`); `None` asks nothing.
+    pub same_files: Option<Arc<same::SameFiles>>,
 }
 
 /// Fewer connections for one site: its host, or a suffix of it

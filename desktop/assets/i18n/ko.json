@@ -966,5 +966,9 @@
  "Worked out from the finished downloads in the list; nothing new is kept.": "목록의 완료된 다운로드로 계산했습니다. 새로 저장되는 것은 없습니다.",
  "Busiest day: {}, {}": "가장 많은 날: {}, {}",
  "Speed over the last 5 minutes": "최근 5분간 속도",
- "no site": "사이트 없음"
+ "no site": "사이트 없음",
+ "The same file is already here": "같은 파일이 이미 있습니다",
+ "A finished download in the list has this name and size.": "목록의 완료된 다운로드 중에 이 이름과 크기의 파일이 있습니다.",
+ "A file of this name and size is already in the folder.": "이 이름과 크기의 파일이 이미 폴더에 있습니다.",
+ "When the same file is already here": "같은 파일이 이미 있을 때"
 }

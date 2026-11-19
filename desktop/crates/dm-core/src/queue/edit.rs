@@ -169,6 +169,7 @@ impl DownloadList {
                 && !(slot.entry.cookies.is_empty() && slot.entry.headers.is_empty());
             slot.entry_mut().replaces = with.replaces.filter(|p| !p.trim().is_empty());
             slot.entry_mut().keep_no_record = with.keep_no_record;
+            slot.entry_mut().accept_same = with.accept_same;
             // A form's answer: the form for its own address only.
             if let Some(post) = with.post.filter(|p| p.url == url) {
                 slot.entry_mut().posted = true;

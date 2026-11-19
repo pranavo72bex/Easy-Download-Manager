@@ -286,6 +286,7 @@ FILES = {
     "kind.zip": (len(PACK), 0, "plain"),          # unpacked when done for its kind (B71)
     "own.zip": (len(PACK), 0, "plain"),           # unpacked when done for itself, then trashed (B71)
     "graph.bin": (48 * MiB, 512 * 1024, "plain"),     # running while its speed line is looked at (B74)
+    "same.bin": (1 * MiB, 0, "plain"),            # the same file from a second address (B73)
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
@@ -1645,6 +1646,7 @@ def walk(dm, origin):
     check("B69", "and none of dm's own files names it, settings.json's Recent list included",
           same and not left, f"named in {left}")
     unpack_when_done(dm, files)
+    same_file_again(dm, files)
 
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
@@ -1845,6 +1847,60 @@ def unpack_when_done(dm, files):
     dm.click("Keep the archive")
     dm.click("OK")
     pause(0.8)
+
+
+def same_file_again(dm, files):
+    """B73 (gaps row W18): the same file from a second address (the server's same bytes under
+    the same name, the address another by its query), once the first is finished, is asked
+    about before it is fetched: Show it takes the new row off and fetches nothing; Download
+    again, with Remember my choice ticked, fetches it beside the first and keeps the answer in
+    Options › General."""
+    dm.add(f"{files}/same.bin")
+    first = dm.wait("/same.bin", ("completed",), 60)
+    title = "The same file is already here"
+
+    def copies():
+        return sorted(p.name for p in (dm.home / "downloads").rglob("same*.bin"))
+
+    dm.add(f"{files}/same.bin?mirror=2")
+    said = answer(dm, title, "Show it")
+    pause(1.5)
+    check("B73", "a second address of a finished file asks first, with Show it, Download again and "
+          "Remember my choice; Show it fetches nothing and takes the new row off",
+          first and first["state"]["kind"] == "completed" and said is not None
+          and "A finished download in the list has this name and size." in said
+          and all(w in said for w in ("Show it", "Download again", "Remember my choice"))
+          and dm.row("mirror=2") is None and copies() == ["same.bin"],
+          f"first {first and first['state']}; words {said}; row {dm.row('mirror=2')}; files {copies()}")
+
+    dm.add(f"{files}/same.bin?mirror=3")
+    end = time.time() + 40
+    while time.time() < end and title not in dm.dialogs():
+        time.sleep(0.25)
+    pause(0.5)
+    ticked = dm.click("Remember my choice")
+    dm.click("Download again")
+    r = dm.wait("mirror=3", ("completed",), 60)
+    saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("same_file_choice")
+    exact = whole(r, "same.bin")
+    check("B73", "Download again with Remember my choice fetches it beside the first, and the answer is kept",
+          ticked and r and r["state"]["kind"] == "completed" and exact[0]
+          and copies() == ["same (1).bin", "same.bin"] and saved == "again",
+          f"row {r and r['state']}; {exact[1]}; files {copies()}; kept {saved!r}")
+
+    dm.click("Options")
+    for _ in range(40):
+        if "Options" in dm.dialogs():
+            break
+        time.sleep(0.1)
+    pause(0.8)
+    dm.click("General")
+    pause(0.8)
+    general = dm.dialog_texts() + dm.scrolled_texts("Theme")
+    check("B73", "Options › General has the row that undoes the remembered answer",
+          "When the same file is already here" in general, f"{general}")
+    dm.click("Cancel")
+    pause(0.6)
 
 
 def new_install(origin):

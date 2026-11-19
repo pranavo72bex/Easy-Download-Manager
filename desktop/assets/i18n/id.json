@@ -966,5 +966,9 @@
  "Worked out from the finished downloads in the list; nothing new is kept.": "Dihitung dari unduhan selesai di daftar; tidak ada yang baru disimpan.",
  "Busiest day: {}, {}": "Hari tersibuk: {}, {}",
  "Speed over the last 5 minutes": "Kecepatan 5 menit terakhir",
- "no site": "tanpa situs"
+ "no site": "tanpa situs",
+ "The same file is already here": "File yang sama sudah ada",
+ "A finished download in the list has this name and size.": "Unduhan selesai di daftar memiliki nama dan ukuran ini.",
+ "A file of this name and size is already in the folder.": "File dengan nama dan ukuran ini sudah ada di folder.",
+ "When the same file is already here": "Saat file yang sama sudah ada"
 }

@@ -966,5 +966,9 @@
  "Worked out from the finished downloads in the list; nothing new is kept.": "Berekend uit de voltooide downloads in de lijst; er wordt niets nieuws bewaard.",
  "Busiest day: {}, {}": "Drukste dag: {}, {}",
  "Speed over the last 5 minutes": "Snelheid in de laatste 5 minuten",
- "no site": "geen site"
+ "no site": "geen site",
+ "The same file is already here": "Hetzelfde bestand is er al",
+ "A finished download in the list has this name and size.": "Een voltooide download in de lijst heeft deze naam en grootte.",
+ "A file of this name and size is already in the folder.": "Er staat al een bestand met deze naam en grootte in de map.",
+ "When the same file is already here": "Als hetzelfde bestand er al is"
 }

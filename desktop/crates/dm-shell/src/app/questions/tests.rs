@@ -150,3 +150,31 @@ fn a_batch_a_copy_number_and_a_gone_row_raise_no_question() {
     )]);
     assert_eq!(questions.next(|id| id != 4), None, "its row is gone");
 }
+
+/// A download stopped as the same file as one already here (gaps row W18) is asked about once,
+/// and only that: its name, given for the question, raises no "Name sent by the server"; one a
+/// person let through is not asked about again.
+#[test]
+fn the_same_file_is_asked_about_once_and_not_its_name() {
+    let mut questions = Questions::default();
+    questions.watch(&[]);
+    let same = |id: Id, accepted: bool| {
+        let mut entry = (*row(
+            id,
+            "http://mirror.example/get?id=9",
+            "setup.exe",
+            State::Failed(dm_core::SAME_FILE.into()),
+        ))
+        .clone();
+        entry.fail_kind = Some(FailKind::SameFile);
+        entry.accept_same = accepted;
+        Arc::new(entry)
+    };
+    questions.watch(&[same(1, false)]);
+    assert_eq!(questions.next(|_| true), Some(Question::SameFile(1)));
+    assert_eq!(questions.next(|_| true), None);
+    questions.watch(&[same(1, false)]);
+    assert_eq!(questions.next(|_| true), None);
+    questions.watch(&[same(1, false), same(2, true)]);
+    assert_eq!(questions.next(|_| true), None);
+}

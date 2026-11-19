@@ -289,6 +289,11 @@ pub struct Entry {
     /// browser window. Left out of the queue file when false, so an older dm reads it as before.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub keep_no_record: bool,
+    /// The same file as one already here was let through (gaps row W18): a person answered
+    /// Download again, or it was added where nobody is asked (the control port). Not asked about
+    /// again; left out of the queue file when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub accept_same: bool,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -433,6 +438,8 @@ pub struct AddOptions {
     pub post: Option<crate::cookies::Posted>,
     /// "Keep no record": the row goes once the file is whole (`Entry::keep_no_record`).
     pub keep_no_record: bool,
+    /// Not asked about as the same file as one already here (`Entry::accept_same`).
+    pub accept_same: bool,
 }
 
 /// Named queues that start on their own each day: each with its minute of
@@ -582,6 +589,9 @@ struct Inner {
     scheduling: AtomicBool,
     /// Set as dm ends (`DownloadList::shut_down`): nothing starts after it.
     closing: AtomicBool,
+    /// Whether a download of the same file as one already here stops before its body for a
+    /// person to be asked (gaps row W18): set by a window, never where nobody is asked.
+    asks_same: AtomicBool,
     /// Wakes a scheduler between its ticks, so a download added while
     /// others run starts now rather than at the next tick.
     kick: tokio::sync::Notify,

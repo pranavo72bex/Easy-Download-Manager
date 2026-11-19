@@ -215,5 +215,55 @@ pub fn tally(rows: &[Arc<Entry>]) -> Tally {
     tally
 }
 
+/// What a download stopped as the same file as one already here (gaps row W18) is the same
+/// as, for "Show it": a finished row, or a file in the folder it would have gone to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SameAs {
+    /// A finished row of that name whose file is still there.
+    Row(Id),
+    /// A file of that name in the folder.
+    File(std::path::PathBuf),
+}
+
+/// What row `id`, stopped as the same file as one already here, is the same as: a finished
+/// row of its name whose file is there (the engine compared their sizes and entity tags), else
+/// the file of its name in the folder it would have gone to, sorted by `categories` as the
+/// engine sorts it. `None` where neither is there any more.
+pub fn same_file_as(
+    rows: &[Arc<Entry>],
+    id: Id,
+    categories: &dm_core::Categories,
+) -> Option<SameAs> {
+    let row = rows.iter().find(|r| r.id == id)?;
+    let name = row
+        .save_name
+        .as_deref()
+        .map(dm_core::sanitize_name)
+        .filter(|n| !n.trim().is_empty())
+        .unwrap_or_else(|| row.filename.clone());
+    if name.trim().is_empty() {
+        return None;
+    }
+    let finished = rows.iter().find(|r| {
+        r.id != id
+            && r.state == State::Completed
+            && r.filename == name
+            && !r.path.is_empty()
+            && std::path::Path::new(&r.path).is_file()
+    });
+    if let Some(r) = finished {
+        return Some(SameAs::Row(r.id));
+    }
+    // The folder as the run had it: a chosen one, unsorted; else the one it began in, sorted.
+    let chosen = row.save_dir.as_deref().filter(|d| !d.trim().is_empty());
+    let root = std::path::PathBuf::from(chosen.unwrap_or(&row.began_in));
+    let mut sorting = categories.clone();
+    sorting.enabled &= chosen.is_none();
+    sorting.site = dm_core::host_of(&row.url);
+    let kind = dm_core::classify(&name, None);
+    let path = sorting.place(&root, kind, &name).join(&name);
+    path.is_file().then_some(SameAs::File(path))
+}
+
 #[cfg(test)]
 mod tests;

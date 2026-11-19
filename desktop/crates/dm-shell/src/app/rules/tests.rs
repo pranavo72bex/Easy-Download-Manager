@@ -145,3 +145,33 @@ fn the_status_bar_counts_fetching_finishing_and_waiting_rows() {
         }
     );
 }
+
+/// "Show it" for a download stopped as the same file (gaps row W18): the finished row of its
+/// name whose file is there, else the file of its name in the folder it began in, else nothing.
+#[test]
+fn the_same_file_is_a_finished_row_or_a_file_in_the_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let kept = dir.path().join("setup.exe");
+    std::fs::write(&kept, b"bytes").unwrap();
+    let named = |id: Id, state: State, path: &str, began_in: &str| {
+        let mut entry = (*row(id, &format!("http://e.com/{id}/setup.exe"), state, path)).clone();
+        entry.filename = "setup.exe".into();
+        entry.began_in = began_in.into();
+        Arc::new(entry)
+    };
+    let folder = dir.path().display().to_string();
+    let stopped = named(2, State::Failed("same".into()), "", &folder);
+    let finished = named(1, State::Completed, &kept.display().to_string(), &folder);
+    let categories = dm_core::Categories::default();
+    assert_eq!(
+        same_file_as(&[finished.clone(), stopped.clone()], 2, &categories),
+        Some(SameAs::Row(1))
+    );
+    // Only in the folder, from before dm.
+    assert_eq!(
+        same_file_as(&[stopped.clone()], 2, &categories),
+        Some(SameAs::File(kept.clone()))
+    );
+    std::fs::remove_file(&kept).unwrap();
+    assert_eq!(same_file_as(&[finished, stopped], 2, &categories), None);
+}

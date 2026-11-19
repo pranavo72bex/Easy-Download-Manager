@@ -297,6 +297,8 @@ impl Downloads {
             } => asks::name_sent(address_name, server_name),
             Question::Page(_) => asks::page_for_file(),
             Question::NotFound(_) => asks::not_found(),
+            // With "Remember my choice", as "Already in the list" is (gaps row W18).
+            Question::SameFile(id) => return self.ask_same_file(*id, cx),
         };
         let asked = crate::dialogs::question::Asked {
             title: ask.title.into(),

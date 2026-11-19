@@ -966,5 +966,9 @@
  "Worked out from the finished downloads in the list; nothing new is kept.": "Рассчитано по завершённым загрузкам из списка; ничего нового не сохраняется.",
  "Busiest day: {}, {}": "Самый загруженный день: {}, {}",
  "Speed over the last 5 minutes": "Скорость за последние 5 минут",
- "no site": "без сайта"
+ "no site": "без сайта",
+ "The same file is already here": "Такой же файл уже есть",
+ "A finished download in the list has this name and size.": "В списке есть завершённая загрузка с таким именем и размером.",
+ "A file of this name and size is already in the folder.": "Файл с таким именем и размером уже есть в папке.",
+ "When the same file is already here": "Если такой же файл уже есть"
 }
