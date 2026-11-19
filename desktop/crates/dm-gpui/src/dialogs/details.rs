@@ -722,7 +722,8 @@ fn open_now(
     let (gone_with, gone_view, was_handed) = (backend.clone(), view.clone(), handed.handed);
     // What the server calls the file and how big it is, asked now too,
     // before the window is made; the dialog hears the answer once it is.
-    let told = ask_server(&backend, &first, urls.len(), settings.remux_ts, &handed);
+    let remux = settings.downloads.remux_ts;
+    let told = ask_server(&backend, &first, urls.len(), remux, &handed);
     let height = if urls.len() == 1 { 360.0 } else { 300.0 };
     let bounds = Bounds::centered(None, size(px(600.0), px(height)), cx);
     let opened = crate::window::screen::open_window(
@@ -737,7 +738,6 @@ fn open_now(
         },
         move |window, cx| {
             let hint = file_info::default_folder_words(&settings);
-            let remux = settings.remux_ts;
             let titled = handed.quality.is_some();
             let folder = cx.new(|cx| InputState::new(window, cx).placeholder(hint));
             let name = cx.new(|cx| {

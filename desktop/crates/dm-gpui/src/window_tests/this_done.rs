@@ -64,11 +64,10 @@ fn when_this_download_is_done_opens_it() {
 #[test]
 fn a_progress_window_becomes_download_complete() {
     let world = world();
-    let mut h = world.harness_with(dm_shell::Settings {
-        show_progress: true,
-        show_complete: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| {
+        s.general.show_progress = true;
+        s.general.show_complete = true;
+    }));
     h.call(
         "downloads.add",
         json!({ "urls": [world.url("file.zip")], "later": true }),

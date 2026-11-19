@@ -57,10 +57,7 @@ fn password() -> String {
 #[test]
 fn add_url_downloads_the_file_announces_it_once_and_says_it_is_complete() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        show_complete: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.general.show_complete = true));
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("the download to complete", |h| completed(h) == 1);
     let row = h.rows()[0].clone();
@@ -143,7 +140,7 @@ fn a_newer_release_offers_its_installer_as_a_download_in_dm() {
     });
     let row = h.rows().into_iter().find(|r| r.url == other).unwrap();
     assert!(row.path.is_empty() || !std::path::Path::new(&row.path).exists());
-    let left: Vec<_> = walk(&world.settings().download_dir)
+    let left: Vec<_> = walk(&world.settings().folders.download_dir)
         .into_iter()
         .filter(|p| p.ends_with("other.pdf"))
         .collect();
@@ -277,11 +274,10 @@ fn a_finished_file_deleted_since_says_so_and_is_not_offered_to_open() {
 #[test]
 fn a_caught_download_asks_where_to_save_by_its_own_setting() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        ask_panel_downloads: false,
-        ask_caught_downloads: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| {
+        s.general.ask_panel_downloads = false;
+        s.general.ask_caught_downloads = true;
+    }));
     let caught = |h: &mut Harness, name: &str| {
         h.hand_over(dm_shell::host::Request {
             url: world.url(name),
@@ -298,8 +294,8 @@ fn a_caught_download_asks_where_to_save_by_its_own_setting() {
     h.until("the row", |h| h.rows().len() == 1);
 
     h.apply(|s| {
-        s.ask_panel_downloads = true;
-        s.ask_caught_downloads = false;
+        s.general.ask_panel_downloads = true;
+        s.general.ask_caught_downloads = false;
     });
     caught(&mut h, "other.pdf");
     h.until("it to start at once", |h| h.rows().len() == 2);
@@ -429,10 +425,7 @@ fn renaming_onto_a_taken_name_says_what_it_is_called() {
 #[test]
 fn a_pages_link_already_listed_is_offered_unticked_and_said() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        ask_panel_downloads: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.general.ask_panel_downloads = true));
     h.add_url(&world.url("file.zip"), "Add for later");
     h.until("the row", |h| h.rows().len() == 1);
     h.hand_over(dm_shell::host::Request {
@@ -539,10 +532,7 @@ fn a_batch_adds_every_address_the_star_makes() {
 #[test]
 fn a_failed_download_plays_the_failure_sound_when_asked() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        sound_on_failure: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.general.sound_on_failure = true));
     // Nothing is served at this name: a 404, failed and not retried.
     h.add_url(&world.url("missing.bin"), "Start now");
     h.until("the row failed", failed);
@@ -678,9 +668,9 @@ fn add_url_remembers_addresses_without_their_login_and_clears_them() {
 fn settings_are_saved_to_a_file_without_passwords_and_loaded_back() {
     let world = world();
     let mut settings = world.settings();
-    settings.connections = 5;
-    settings.proxy.username = "someone".into();
-    settings.proxy.password = "not-in-the-file".into();
+    settings.downloads.connections = 5;
+    settings.advanced.proxy.username = "someone".into();
+    settings.advanced.proxy.password = "not-in-the-file".into();
     let mut h = world.harness_with(settings);
     h.run(Command::Options);
     h.until("Options", |h| h.dialog_open("Options"));
@@ -697,7 +687,7 @@ fn settings_are_saved_to_a_file_without_passwords_and_loaded_back() {
     );
     h.click("Cancel");
     h.until("Options to close", |h| !h.dialog_open("Options"));
-    h.apply(|s| s.connections = 2);
+    h.apply(|s| s.downloads.connections = 2);
     h.run(Command::Options);
     h.until("Options", |h| h.dialog_open("Options"));
     h.scroll_to("Load settings from a file…");
@@ -709,9 +699,9 @@ fn settings_are_saved_to_a_file_without_passwords_and_loaded_back() {
     h.click("OK");
     h.until("Options to close", |h| !h.dialog_open("Options"));
     let now = h.view(|view| view.backend.settings());
-    assert_eq!(now.connections, 5);
+    assert_eq!(now.downloads.connections, 5);
     assert_eq!(
-        now.proxy.password, "not-in-the-file",
+        now.advanced.proxy.password, "not-in-the-file",
         "this computer's password was lost"
     );
 }
@@ -743,10 +733,7 @@ fn cancel_download_in_the_progress_window_asks_first() {
 #[test]
 fn a_progress_window_shows_each_connection() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        show_progress: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.general.show_progress = true));
     h.add_url(&world.url("stalled.bin"), "Start now");
     // Running comes a moment before the plan is written; until then the window says "Unknown
     // until the server answers", which is right.
@@ -792,10 +779,9 @@ fn a_finished_download_is_handed_to_the_command_set_to_run_after() {
     )
     .unwrap();
     std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let mut h = world.harness_with(Settings {
-        on_complete: format!("'{}' --scan", script.display()),
-        ..world.settings()
-    });
+    let mut h = world.harness_with(
+        world.settings_with(|s| s.downloads.on_complete = format!("'{}' --scan", script.display())),
+    );
     // Added as a person adds it: a script's click a moment before it finished holds the
     // command back.
     h.view(|view| view.backend.add(&world.url("file.zip")).unwrap());
@@ -818,10 +804,7 @@ fn a_finished_download_is_handed_to_the_command_set_to_run_after() {
 #[test]
 fn downloads_finishing_together_share_one_complete_window() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        show_complete: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.general.show_complete = true));
     let urls = vec![
         world.url("file.zip"),
         world.url("other.pdf"),
@@ -937,12 +920,11 @@ fn a_drop_with_no_link_says_how_to_add_one() {
 #[test]
 fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        attempts: 3,
-        retry_wait: 0,
-        record_minutes: 0,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| {
+        s.advanced.attempts = 3;
+        s.advanced.retry_wait = 0;
+        s.downloads.record_minutes = 0;
+    }));
     h.view(|view| view.backend.add(&world.url("expires.bin")).unwrap());
     h.until("the expired link to fail", failed);
     let row = h.rows()[0].clone();
@@ -972,10 +954,8 @@ fn an_unreachable_folder_pauses_and_another_folder_finishes_it() {
     let blocker = world.dir.path().join("not-a-drive");
     std::fs::write(&blocker, b"a file where the folder should be").unwrap();
     let download_dir = blocker.join("out");
-    let mut h = world.harness_with(Settings {
-        download_dir: download_dir.clone(),
-        ..world.settings()
-    });
+    let mut h =
+        world.harness_with(world.settings_with(|s| s.folders.download_dir = download_dir.clone()));
     h.view(|view| view.backend.add(&world.url("file.zip")).unwrap());
     h.until("the download to pause by itself", |h| {
         h.rows()
@@ -1007,10 +987,7 @@ fn an_unreachable_folder_pauses_and_another_folder_finishes_it() {
 #[test]
 fn a_cut_connection_is_said_plainly() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        attempts: 1,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.advanced.attempts = 1));
     h.view(|view| view.backend.add(&world.url("drops.bin")).unwrap());
     h.until("the cut download to fail", failed);
     let row = h.rows()[0].clone();
@@ -1035,10 +1012,7 @@ fn a_cut_connection_is_said_plainly() {
 #[test]
 fn a_retry_says_its_attempt() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        attempts: 5,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.advanced.attempts = 5));
     h.view(|view| view.backend.add(&world.url("drops.bin")).unwrap());
     // With when it tries next, in the words themselves (gaps row U7).
     h.until("the row to say it retries", |h| {
@@ -1201,10 +1175,7 @@ fn a_failed_download_is_announced_with_why() {
 #[test]
 fn download_complete_offers_open_with_and_not_again() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        show_complete: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.general.show_complete = true));
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("the download to complete", |h| completed(h) == 1);
     h.until("Download complete", |h| h.dialog_open("Download complete"));
@@ -1216,7 +1187,7 @@ fn download_complete_offers_open_with_and_not_again() {
     }
     assert!(h.dialog_open("Download complete"));
     assert!(
-        h.view(|view| view.backend.settings()).show_complete,
+        h.view(|view| view.backend.settings()).general.show_complete,
         "saved before it was closed"
     );
     // Closing the window saves it.
@@ -1225,7 +1196,7 @@ fn download_complete_offers_open_with_and_not_again() {
         !h.dialog_open("Download complete")
     });
     assert!(
-        !h.view(|view| view.backend.settings()).show_complete,
+        !h.view(|view| view.backend.settings()).general.show_complete,
         "the setting stays on"
     );
     // The next download that finishes opens nothing.
@@ -1277,7 +1248,7 @@ fn a_link_saved_in_the_watched_folder_is_added_and_its_file_put_aside() {
     }
     assert!(h.rows().is_empty(), "nothing is read while it is off");
     let folder = dir.display().to_string();
-    h.apply(|s| s.watch_folder = folder);
+    h.apply(|s| s.downloads.watch_folder = folder);
 
     h.until("both links to be added", |h| {
         let rows = h.rows();
@@ -1434,10 +1405,7 @@ fn a_caught_download_of_a_listed_address_asks_before_fetching_again() {
 #[test]
 fn escape_keeps_a_ticked_dont_show_again_as_close_does() {
     let world = world();
-    let mut h = world.harness_with(Settings {
-        show_complete: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.general.show_complete = true));
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("the download to complete", |h| completed(h) == 1);
     h.until("Download complete", |h| h.dialog_open("Download complete"));
@@ -1445,12 +1413,12 @@ fn escape_keeps_a_ticked_dont_show_again_as_close_does() {
     for _ in 0..3 {
         h.until("a wake", |_| true);
     }
-    assert!(h.view(|view| view.backend.settings()).show_complete);
+    assert!(h.view(|view| view.backend.settings()).general.show_complete);
     h.key("escape", &[]);
     h.until("the window to close", |h| {
         !h.dialog_open("Download complete")
     });
-    assert!(!h.view(|view| view.backend.settings()).show_complete);
+    assert!(!h.view(|view| view.backend.settings()).general.show_complete);
 }
 
 /// A download handed over and waiting for an answer has left the browser: a window comes
@@ -1474,7 +1442,7 @@ fn a_hand_over_that_asks_brings_the_window_forward_and_one_that_starts_does_not(
         !h.dialog_open("Download details"),
         "raised for a download that started"
     );
-    h.apply(|s| s.ask_caught_downloads = true);
+    h.apply(|s| s.general.ask_caught_downloads = true);
     handed(&mut h, "asks.zip");
     // Its own window, which the system puts in front as it opens (GPUI's windows open
     // focused); the test platform does not stack windows, so that part is the system's.
@@ -1495,7 +1463,7 @@ fn time_left_says_calculating_until_there_is_a_rate() {
 /// A double-click opens a finished file, as a file manager's does.
 #[test]
 fn a_new_install_opens_a_finished_file_on_a_double_click() {
-    assert_eq!(Settings::default().double_click, "open");
+    assert_eq!(Settings::default().general.double_click, "open");
 }
 
 /// Taking a finished download off the list asks nothing, offers Undo, and Undo puts it back
@@ -1664,7 +1632,7 @@ fn the_progress_window_of_a_finished_download_closes() {
     let world = world();
     let mut h = world.harness();
     assert!(
-        !world.settings().show_complete,
+        !world.settings().general.show_complete,
         "this checks the default, where there is no complete window"
     );
     h.view(|view| view.backend.add(&world.url("stalled.bin")).unwrap());
@@ -1768,26 +1736,25 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
 fn the_small_things_of_round_eight() {
     let world = world();
     // The limiter: 500 typed over 64 is 500, not 64500.
-    let mut h = world.harness_with(Settings {
-        speed_limit: 64,
-        show_progress: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| {
+        s.advanced.speed_limit = 64;
+        s.general.show_progress = true;
+    }));
     h.run(Command::SpeedLimiterSettings);
     h.until("the limiter", |h| h.dialogs().len() == 1);
     h.type_text("500");
     h.key("enter", &[]);
     h.until("the limit", |h| {
-        h.view(|view| view.backend.settings()).speed_limit == 500
+        h.view(|view| view.backend.settings()).advanced.speed_limit == 500
     });
-    h.apply(|s| s.speed_limit = 0);
+    h.apply(|s| s.advanced.speed_limit = 0);
 
     // The toolbar: one refused, one finished.
     h.add_url(&world.url("secret.zip"), "Start now");
     h.until("the refusal", failed);
     // The server answered, with a refusal: said as one.
     h.until_shown("No — the server refused it");
-    h.apply(|s| s.show_progress = false);
+    h.apply(|s| s.general.show_progress = false);
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("it to finish", |h| completed(h) == 1);
     let delete_at = |h: &mut Harness| {

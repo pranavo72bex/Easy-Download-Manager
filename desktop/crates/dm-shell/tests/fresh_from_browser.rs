@@ -71,7 +71,10 @@ async fn site() -> std::net::SocketAddr {
 
 fn queue(dir: &std::path::Path) -> (DownloadList, Settings) {
     let saved = Settings {
-        download_dir: dir.join("out"),
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: dir.join("out"),
+            ..Default::default()
+        },
         ..Settings::default()
     };
     let mut options = saved.options(dir.join("parts"), dm_core::Limiter::unlimited());

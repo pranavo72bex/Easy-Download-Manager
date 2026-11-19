@@ -114,7 +114,7 @@ fn ask_exit(h: &mut Harness) {
 fn when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen() {
     let world = world();
     let mut settings = world.settings();
-    settings.sound_on_complete = true;
+    settings.general.sound_on_complete = true;
     let mut h = world.harness_with(settings);
     let opened = |world: &World| world.fake.opened.lock().unwrap().clone();
     h.command("downloads.when_done.sleep");
@@ -357,7 +357,7 @@ fn a_column_turned_off_is_gone_and_comes_back() {
 fn a_row_added_for_later_shows_its_folder_without_owning_it() {
     let world = world();
     let mut settings = world.settings();
-    settings.categorize = true;
+    settings.folders.categorize = true;
     let mut h = world.harness_with(settings);
     add_later(&mut h, &world, "file.zip");
     add_later(&mut h, &world, "download.php?id=5");
@@ -511,7 +511,7 @@ fn the_status_bars_folder_never_covers_what_it_says() {
     let world = world();
     let deep = world.dir.path().join("a-long-folder-name-".repeat(12));
     let mut settings = world.settings();
-    settings.download_dir = deep;
+    settings.folders.download_dir = deep;
     let mut h = world.harness_with(settings);
     h.view(|view| {
         view.status.said = Some((
@@ -690,7 +690,7 @@ fn a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder() {
         dm_desktop_base::rows::shown_size(&row),
         Some(PAYLOAD as u64)
     );
-    let out = kept(&mut h).download_dir.display().to_string();
+    let out = kept(&mut h).folders.download_dir.display().to_string();
     h.until("the folder shown", |h| h.shows(&out));
     h.until_shown("Waiting for Start queue");
     h.until_shown("· 1 waiting for Start queue");
@@ -796,11 +796,8 @@ fn each_queue_has_at_most_one_limit() {
         h.click("Add a queue limit");
     }
     let limits: Vec<String> = h.dialog(|o: &mut crate::options::Options, _, _| {
-        o.draft
-            .queue_limits
-            .iter()
-            .map(|l| l.queue.clone())
-            .collect()
+        let limits = &o.draft.downloads.queue_limits;
+        limits.iter().map(|l| l.queue.clone()).collect()
     });
     let mut unique = limits.clone();
     unique.sort();
@@ -855,8 +852,8 @@ fn the_tray_says_how_many_downloads_run_and_how_fast() {
 #[test]
 fn new_installs_sort_by_kind_and_start_at_login() {
     let fresh = dm_shell::Settings::default();
-    assert!(fresh.categorize);
-    assert!(fresh.start_on_login);
+    assert!(fresh.folders.categorize);
+    assert!(fresh.general.start_on_login);
 }
 
 /// What a command acts on is the selection as the table shows it: the same rows in the same

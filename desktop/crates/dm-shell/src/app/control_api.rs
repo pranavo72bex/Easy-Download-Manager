@@ -108,11 +108,11 @@ pub fn speed_limit(applied: &Settings, params: &Value) -> Result<(Settings, Opti
     }
     let mut wanted = applied.clone();
     let mut replaced = None;
-    if wanted.speed_limit > 0 {
-        replaced = Some(wanted.speed_limit);
-        wanted.last_speed_limit = wanted.speed_limit;
+    if wanted.advanced.speed_limit > 0 {
+        replaced = Some(wanted.advanced.speed_limit);
+        wanted.last_speed_limit = wanted.advanced.speed_limit;
     }
-    wanted.speed_limit = kb;
+    wanted.advanced.speed_limit = kb;
     Ok((wanted, replaced))
 }
 
@@ -175,14 +175,14 @@ pub fn add_asked(
     if let Some(folder) = text("folder") {
         let full = crate::settings::full_folder(&folder, None)
             .ok_or("`folder` must be a full path, such as ~/Downloads")?;
-        let inside = full.starts_with(&applied.download_dir)
+        let inside = full.starts_with(&applied.folders.download_dir)
             && !full
                 .components()
                 .any(|c| matches!(c, std::path::Component::ParentDir));
         if !inside {
             return Err(format!(
                 "`folder` must be inside the download folder, {}",
-                applied.download_dir.display()
+                applied.folders.download_dir.display()
             ));
         }
     }

@@ -84,7 +84,8 @@ impl Limiter {
             return;
         }
         let mut wanted = now.clone();
-        wanted.speed_limit = number(&self.limit, 0..=1024 * 1024, now.speed_limit, cx);
+        wanted.advanced.speed_limit =
+            number(&self.limit, 0..=1024 * 1024, now.advanced.speed_limit, cx);
         wanted.limit_mb = number(&self.mb, 0..=1024 * 1024 * 1024, now.limit_mb, cx);
         wanted.limit_hours = number(&self.hours, 1..=24 * 31, now.limit_hours, cx);
         wanted.slow_hours = self.slow.clone();
@@ -300,7 +301,7 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
                     s
                 })
             };
-            let limit = field(settings.speed_limit.to_string(), window, cx);
+            let limit = field(settings.advanced.speed_limit.to_string(), window, cx);
             let mb = field(settings.limit_mb.to_string(), window, cx);
             let hours = field(settings.limit_hours.to_string(), window, cx);
             let slow_limit = field(settings.slow_hours.limit.to_string(), window, cx);

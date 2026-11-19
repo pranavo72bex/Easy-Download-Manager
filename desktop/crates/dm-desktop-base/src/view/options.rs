@@ -204,10 +204,10 @@ impl Typed {
     /// The lists of `settings`, as Options shows them.
     pub fn of(settings: &Settings) -> Typed {
         Typed {
-            types: settings.catch.extensions.join(" "),
-            skip: settings.catch.skip_hosts.join(" "),
-            once: settings.catch.once_hosts.join(" "),
-            bypass: settings.proxy.bypass.join(" "),
+            types: settings.browser.catch.extensions.join(" "),
+            skip: settings.browser.catch.skip_hosts.join(" "),
+            once: settings.browser.catch.once_hosts.join(" "),
+            bypass: settings.advanced.proxy.bypass.join(" "),
             custom: settings
                 .custom_categories
                 .iter()
@@ -258,10 +258,10 @@ pub fn ok(
     now: &Settings,
 ) -> Result<Settings, Refused> {
     let mut wanted = draft.clone();
-    wanted.catch.extensions = words(&typed.types);
-    wanted.catch.skip_hosts = sites(&words(&typed.skip));
-    wanted.catch.once_hosts = sites(&words(&typed.once));
-    wanted.proxy.bypass = words(&typed.bypass);
+    wanted.browser.catch.extensions = words(&typed.types);
+    wanted.browser.catch.skip_hosts = sites(&words(&typed.skip));
+    wanted.browser.catch.once_hosts = sites(&words(&typed.once));
+    wanted.advanced.proxy.bypass = words(&typed.bypass);
     // A sign-in's host as the rules read it: an address pasted whole
     // matched nothing.
     for login in &mut wanted.site_logins {
@@ -281,7 +281,7 @@ pub fn ok(
         .collect();
     // A proxy turned on with nowhere to connect to was taken, and every
     // download then went out directly without a word.
-    if let Some(says) = proxy_refused(&wanted.proxy) {
+    if let Some(says) = proxy_refused(&wanted.advanced.proxy) {
         return Err(Refused {
             says,
             tab: Some(Tab::Advanced),
@@ -300,12 +300,13 @@ pub fn ok(
         .map(|c| c.name.clone())
         .filter(|name| !opened.custom_categories.iter().any(|o| o.name == *name));
     let renamed_kinds = wanted
+        .folders
         .category_folders
         .iter()
         .enumerate()
         .filter(|(i, name)| {
             !name.trim().is_empty()
-                && opened.category_folders.get(*i).map(|o| o.trim()) != Some(name.trim())
+                && opened.folders.category_folders.get(*i).map(|o| o.trim()) != Some(name.trim())
         })
         .map(|(_, name)| name.trim().to_string());
     if let Some(bad) = new_custom

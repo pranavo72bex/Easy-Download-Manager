@@ -73,7 +73,7 @@ pub(super) fn browser(
     // the browser.
     #[cfg(windows)]
     handlers(o, p, cx);
-    let c = o.draft.catch.clone();
+    let c = o.draft.browser.catch.clone();
     // The items dm adds to the browser's right-click menu, each chosen.
     p.words(t("Items dm adds to the browser's right-click menu"));
     for (id, _) in dm_protocol::MENU_ITEMS {
@@ -91,7 +91,7 @@ pub(super) fn browser(
             &screen,
         )
         .on_click(cx.listener(move |o, _, _, cx| {
-            let c = &mut o.draft.catch;
+            let c = &mut o.draft.browser.catch;
             let on = c.shows_menu(id);
             c.hidden_menus.retain(|h| h != id);
             if on {
@@ -108,7 +108,7 @@ pub(super) fn browser(
         t("Take these file types from the browser"),
         c.enabled,
         true,
-        |s| s.catch.enabled = !s.catch.enabled,
+        |s| s.browser.catch.enabled = !s.browser.catch.enabled,
     );
     p.hint(t(
         "Off: the browser keeps every download it starts. Its right-click menu still sends links to dm.",
@@ -143,7 +143,7 @@ pub(super) fn browser(
         NUMBER,
         on,
         false,
-        |o| o.draft.catch.min_size_kb.to_string(),
+        |o| o.draft.browser.catch.min_size_kb.to_string(),
     );
     p.labelled(t("Ignore files smaller than (KB)"), on, min);
     // The browsers it takes downloads from, each ticked or not; an
@@ -166,7 +166,7 @@ pub(super) fn browser(
             &screen,
         )
         .on_click(cx.listener(move |o, _, _, cx| {
-            let c = &mut o.draft.catch;
+            let c = &mut o.draft.browser.catch;
             let taking = c.takes_from(browser);
             c.off_browsers.retain(|b| !b.eq_ignore_ascii_case(browser));
             if taking {
@@ -270,7 +270,7 @@ pub(super) fn browser(
         t("Show Download video on web videos"),
         c.video_panel,
         true,
-        |s| s.catch.video_panel = !s.catch.video_panel,
+        |s| s.browser.catch.video_panel = !s.browser.catch.video_panel,
     );
     p.hint(t(
         "A button over a video on a web page, to download it with dm.",
@@ -282,7 +282,7 @@ pub(super) fn browser(
         t("Send the browser's sign-in with downloads"),
         c.sign_in_everywhere,
         true,
-        |s| s.catch.sign_in_everywhere = !s.catch.sign_in_everywhere,
+        |s| s.browser.catch.sign_in_everywhere = !s.browser.catch.sign_in_everywhere,
     );
     p.hint(t("Files that need you signed in come to dm too. Your sign-in goes with that one download and is forgotten after it. Off: only the sites you turn on in the extension's menu send it."));
     p.note(t("Your browser picks this up the next time it sends dm a download. Its right-click menu sends any link either way."));

@@ -486,7 +486,7 @@ pub fn bind_keys(cx: &mut App) {
     cx.on_action(|_: &OpenDownloadFolder, _| {
         let settings =
             dm_shell::settings::Settings::read_only(&dm_shell::settings::Settings::path());
-        let folder = settings.download_dir.display().to_string();
+        let folder = settings.folders.download_dir.display().to_string();
         if let Err(e) = dm_shell::shell::open_file(&folder) {
             dm_core::note!(warn, "dm: the download folder could not be opened: {e}");
         }

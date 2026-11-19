@@ -39,7 +39,7 @@ impl Hint {
             }
             Hint::Details => {
                 !settings.hinted_details
-                    && !settings.show_progress
+                    && !settings.general.show_progress
                     && line_free
                     && rows.iter().any(|r| r.state == State::Running)
             }
@@ -88,7 +88,10 @@ mod tests {
     #[test]
     fn the_details_hint_waits_for_a_free_line_and_not_where_progress_opens_by_itself() {
         let mut settings = Settings {
-            show_progress: false,
+            general: crate::settings::GeneralSettings {
+                show_progress: false,
+                ..Default::default()
+            },
             ..Settings::default()
         };
         let running = [row(State::Running, None)];
@@ -98,12 +101,12 @@ mod tests {
             "something else is said"
         );
         assert!(!Hint::Details.due(&settings, &[row(State::Queued, None)], true));
-        settings.show_progress = true;
+        settings.general.show_progress = true;
         assert!(
             !Hint::Details.due(&settings, &running, true),
             "progress opens by itself"
         );
-        settings.show_progress = false;
+        settings.general.show_progress = false;
         Hint::Details.mark(&mut settings);
         assert!(!Hint::Details.due(&settings, &running, true), "given once");
     }

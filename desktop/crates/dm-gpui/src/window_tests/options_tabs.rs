@@ -12,6 +12,8 @@ use crate::harness::world::world;
 use crate::harness::Harness;
 use crate::options::Options;
 
+use super::options::{open_options, tab};
+
 /// Options opened at the page `tab`.
 fn options_at(h: &mut Harness, tab: &str) {
     h.run(Command::Options);
@@ -90,13 +92,13 @@ fn the_browser_page_offers_the_extension_and_warns_of_one_key_for_both() {
 
     let same = "The two keys are the same; holding it leaves the download with the browser.";
     h.dialog(|o: &mut Options, _, cx| {
-        o.draft.catch.keep_key = "alt".into();
-        o.draft.catch.take_key = "ctrl".into();
+        o.draft.browser.catch.keep_key = "alt".into();
+        o.draft.browser.catch.take_key = "ctrl".into();
         cx.notify();
     });
     assert!(!h.shows(same));
     h.dialog(|o: &mut Options, _, cx| {
-        o.draft.catch.take_key = "alt".into();
+        o.draft.browser.catch.take_key = "alt".into();
         cx.notify();
     });
     h.reveal(same);
@@ -144,4 +146,39 @@ fn ctrl_tab_moves_from_page_to_page() {
     h.until("round to the last", |h| {
         page(h) == dm_desktop_base::options::Tab::SiteLogins
     });
+}
+
+/// Every setting a tab's Restore defaults names exists, and putting a tab back changes what
+/// the tab edits and nothing else.
+#[test]
+fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
+    use dm_desktop_base::options::{tab_settings, TABS};
+    let fresh = serde_json::to_value(dm_shell::Settings::default()).unwrap();
+    for (tab, _) in TABS {
+        for key in tab_settings(tab) {
+            assert!(fresh.get(*key).is_some(), "{key} is no setting");
+        }
+    }
+    let world = world();
+    let mut changed = world.settings();
+    changed.downloads.connections = 9;
+    changed.general.theme = "dark".into();
+    changed.browser.catch.extensions = vec!["zzz".into()];
+    let mut h = world.harness_with(changed);
+    open_options(&mut h);
+    tab(&mut h, "Downloads");
+    h.click("Restore defaults");
+    let defaults = dm_shell::Settings::default();
+    let draft = h.dialog(|o: &mut Options, _, _| o.draft.clone());
+    let (general, catch) = (&draft.general, &draft.browser.catch);
+    assert_eq!(draft.downloads.connections, defaults.downloads.connections);
+    assert_eq!(general.theme, "dark", "General's setting was put back");
+    assert_eq!(catch.extensions, ["zzz"], "Browser's was put back");
+    tab(&mut h, "Browser");
+    h.click("Restore defaults");
+    let (draft, types) = h.dialog(|o: &mut Options, _, _| (o.draft.clone(), o.typed.types.clone()));
+    let restored = defaults.browser.catch.extensions;
+    assert_eq!(draft.browser.catch.extensions, restored);
+    assert_eq!(types, restored.join(" "));
+    h.click("Cancel");
 }

@@ -117,7 +117,7 @@ pub fn statusbar(
         .cursor_pointer()
         .hover(|s| s.text_color(theme.selection))
         .on_click(cx.listener(|view, event: &gpui::ClickEvent, window, cx| {
-            let speed_limit = view.backend.settings().speed_limit;
+            let speed_limit = view.backend.settings().advanced.speed_limit;
             crate::window::menus::speed_limiter_popup(speed_limit).show(
                 event.position(),
                 window,

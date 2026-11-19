@@ -473,14 +473,14 @@ pub async fn start(orders: &Orders) -> Started {
     let (mut saved, unreadable) = Settings::load();
     let mut notices: Vec<String> = unreadable.into_iter().collect();
 
-    let client = match dm_core::client_with_timeout(&saved.proxy, saved.read_timeout()) {
+    let client = match saved.client() {
         Ok(client) => client,
         Err(why) => {
             notices.push(format!(
                 "the saved proxy could not be used ({why}), so it is turned off and downloads \
                  go out directly. Fix it under Options › Advanced and tick it again."
             ));
-            saved.proxy.enabled = false;
+            saved.advanced.proxy.enabled = false;
             // Saved turned off, as the notice says: the browser's native
             // host reads the settings file, and still finding the proxy on
             // there it left every caught download with the browser while
@@ -507,7 +507,7 @@ pub async fn start(orders: &Orders) -> Started {
             saved.parts_dir(),
             dm_core::Limiter::new(saved.speed_limit_bytes()),
         ),
-        saved.concurrency,
+        saved.downloads.concurrency,
     );
     // Before anything can serve the queue: applying it from a spawned task
     // raced the scheduler, and a scheduled queue ran at launch.
@@ -534,7 +534,7 @@ pub async fn start(orders: &Orders) -> Started {
             )
             .await;
     }
-    if orders.start_queue || saved.start_queue_on_launch {
+    if orders.start_queue || saved.downloads.start_queue_on_launch {
         queue.start_queue(dm_core::MAIN_QUEUE).await;
     }
 
@@ -567,11 +567,11 @@ fn engine_config(settings: &Settings) -> dm_core::EngineConfig {
         // The language a dubbed video's sound is taken in (gaps row Y10).
         sound_language: settings.sound_language.clone(),
         // A dial-up or VPN connection every download waits for (`dialup.rs`).
-        connect_first: crate::dialup::set(&settings.dialup),
+        connect_first: crate::dialup::set(&settings.advanced.dialup),
         // The second network, where one is chosen and no proxy is on: through
         // a proxy every connection must go by it, and one that did not would
         // be seen by the site from this computer's own address.
-        second_path: (!settings.proxy.enabled).then(|| settings.second_path.clone()),
+        second_path: (!settings.advanced.proxy.enabled).then(|| settings.second_path.clone()),
         // YouTube's cut players, kept between sessions under dm's home (gaps row Y13).
         kept_players: Some(crate::settings::home().join(dm_core::paths::PLAYERS)),
     }
@@ -579,8 +579,8 @@ fn engine_config(settings: &Settings) -> dm_core::EngineConfig {
 
 /// Whether the client must be built again for a change from `previous`.
 fn new_client(settings: &Settings, previous: Option<&Settings>) -> bool {
-    previous.is_none_or(|held| {
-        held.proxy != settings.proxy || held.read_timeout != settings.read_timeout
+    previous.map(|held| &held.advanced).is_none_or(|was| {
+        was.proxy != settings.advanced.proxy || was.read_timeout != settings.advanced.read_timeout
     })
 }
 
@@ -593,7 +593,7 @@ pub fn check(settings: &Settings, previous: Option<&Settings>) -> Result<(), Str
         return Err(why);
     }
     if new_client(settings, previous) {
-        dm_core::client_with_timeout(&settings.proxy, settings.read_timeout())?;
+        settings.client()?;
     }
     Ok(())
 }
@@ -607,7 +607,7 @@ pub fn check(settings: &Settings, previous: Option<&Settings>) -> Result<(), Str
 /// it, since this runs on every change.
 pub fn use_cookies(settings: &Settings) -> Option<String> {
     static SAID: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-    let outcome = dm_core::cookies::use_file(Path::new(settings.cookies_file.trim()));
+    let outcome = dm_core::cookies::use_file(Path::new(settings.advanced.cookies_file.trim()));
     let mut said = dm_core::lock(&SAID);
     match outcome {
         Ok(_) => {
@@ -641,7 +641,7 @@ pub async fn apply(
     check(settings, previous)?;
     if new_client(settings, previous) {
         queue
-            .set_client(&settings.proxy, settings.read_timeout())
+            .set_client(&settings.advanced.proxy, settings.read_timeout())
             .await?;
     }
     let mut problems: Vec<String> = use_cookies(settings).into_iter().collect();
@@ -655,7 +655,7 @@ pub async fn apply(
         .set_options(settings.options(settings.parts_dir(), current.limiter))
         .await;
 
-    queue.set_concurrency(settings.concurrency);
+    queue.set_concurrency(settings.downloads.concurrency);
     // The slow hours' limit where they are in force now.
     queue
         .set_speed_limit(settings.speed_limit_bytes_now())

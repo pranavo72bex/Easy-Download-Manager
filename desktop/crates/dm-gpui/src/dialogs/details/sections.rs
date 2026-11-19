@@ -62,7 +62,7 @@ impl Details {
             .is_none_or(|(asked, _)| *asked != folder_now)
         {
             let dir = if folder_now.is_empty() {
-                self.settings.download_dir.clone()
+                self.settings.folders.download_dir.clone()
             } else {
                 dm_shell::settings::full_path(&folder_now)
                     .unwrap_or_else(|| std::path::PathBuf::from(&folder_now))
@@ -114,7 +114,7 @@ impl Details {
                     .child(screen.label("—"))
                     .into_any_element(),
                 Some(list) => {
-                    let setting = dm_core::Quality::named(&self.settings.stream_quality);
+                    let setting = dm_core::Quality::named(&self.settings.downloads.stream_quality);
                     let picked = self
                         .quality
                         .clone()

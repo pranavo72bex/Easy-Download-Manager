@@ -423,7 +423,7 @@ fn keep_pipes_from_children() {}
 /// did so. An unreadable or missing file means the defaults, which is what
 /// the app itself would be running with.
 pub fn catch_rules(home: &Path) -> CatchRules {
-    let mut rules = saved(home).catch;
+    let mut rules = saved(home).browser.catch;
     // The app brings a saved list up to date as it starts; the browser asks
     // for it whether or not the app has.
     rules.bring_up_to_date();
@@ -532,11 +532,11 @@ impl World for Here<'_> {
         let settings = saved(self.home);
         // The same cookies the app sends, so a download they make possible
         // is taken rather than left with the browser.
-        let _ = dm_core::cookies::use_file(std::path::Path::new(settings.cookies_file.trim()));
+        let _ = dm_core::cookies::use_file(Path::new(settings.advanced.cookies_file.trim()));
         // Never around the proxy: a proxy that cannot be built here must
         // not turn into a direct request, which is the server seeing the
         // address the person set a proxy to hide. The browser keeps it.
-        let client = dm_core::client_with(&settings.proxy).map_err(|e| {
+        let client = dm_core::client_with(&settings.advanced.proxy).map_err(|e| {
             format!("dm's proxy setting cannot be used ({e}), so it did not ask the server")
         })?;
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -584,7 +584,7 @@ impl World for Here<'_> {
         if let Some(listed) = recalled_formats(self.home, &key, now_secs()) {
             return Ok(listed);
         }
-        let proxy = saved(self.home).proxy.url_for_tools();
+        let proxy = saved(self.home).advanced.proxy.url_for_tools();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -1054,7 +1054,7 @@ fn take(home: &Path, start: Start, world: &mut dyn World) -> Reply {
             "dm downloads http(s) and ftp links, magnets and .torrent files only",
         )
     } else if let Some(why) = caught
-        .then(|| unwritable(&saved(home).download_dir))
+        .then(|| unwritable(&saved(home).folders.download_dir))
         .flatten()
     {
         // A download the browser holds is left with it when dm could
@@ -1066,7 +1066,7 @@ fn take(home: &Path, start: Start, world: &mut dyn World) -> Reply {
         // links work once (Options › Browser): the asking spent the
         // link before dm's own download could use it.
         // Nor a form's answer: asking would send the form again.
-        caught && post.is_none() && !saved(home).catch.works_once(&url, &referrer),
+        caught && post.is_none() && !saved(home).browser.catch.works_once(&url, &referrer),
         Asking {
             url: &url,
             referrer: &referrer,
@@ -1084,7 +1084,7 @@ fn take(home: &Path, start: Start, world: &mut dyn World) -> Reply {
         Reply::failed(&id, why)
     } else {
         // A caught download asks too, where Options says so; a renewal never does.
-        let asks = !renews && (ask || (caught && saved(home).ask_caught_downloads));
+        let asks = !renews && (ask || (caught && saved(home).general.ask_caught_downloads));
         match deposit(
             home,
             &id,

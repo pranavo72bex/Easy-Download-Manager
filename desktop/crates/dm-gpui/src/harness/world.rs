@@ -347,25 +347,42 @@ impl World {
         // Without the progress and complete windows unless a test asks: most tests are about
         // the list, not about windows over it.
         Settings {
-            download_dir: self.dir.path().join("out"),
-            connections: 1,
-            show_progress: false,
-            show_complete: false,
-            // Nor Download details before a caught or a panel download, which a new install
-            // shows as reference A does, unless a test asks for it.
-            ask_caught_downloads: false,
-            ask_panel_downloads: false,
-            // The tests find controls by their English names, whatever the machine running
-            // them is set to.
-            language: "en".into(),
-            // Files straight into the folder and no login item, as the tests were written.
-            categorize: false,
-            start_on_login: false,
+            general: dm_shell::settings::GeneralSettings {
+                show_progress: false,
+                show_complete: false,
+                // Nor Download details before a caught or a panel download, which a new install
+                // shows as reference A does, unless a test asks for it.
+                ask_caught_downloads: false,
+                ask_panel_downloads: false,
+                // The tests find controls by their English names, whatever the machine running
+                // them is set to.
+                language: "en".into(),
+                // No login item, as the tests were written.
+                start_on_login: false,
+                ..Default::default()
+            },
+            folders: dm_shell::settings::FolderSettings {
+                download_dir: self.dir.path().join("out"),
+                // Files straight into the folder, as the tests were written.
+                categorize: false,
+                ..Default::default()
+            },
+            downloads: dm_shell::settings::DownloadSettings {
+                connections: 1,
+                ..Default::default()
+            },
             // The hint that Details shows a download's progress taken as given (gaps row 174).
             hinted_details: true,
             // The browsers' bar, which a new install shows, out of the way.
             ..Settings::default()
         }
+    }
+
+    /// [`World::settings`] with `change` made to them: a test's own settings.
+    pub(crate) fn settings_with(&self, change: impl FnOnce(&mut Settings)) -> Settings {
+        let mut settings = self.settings();
+        change(&mut settings);
+        settings
     }
 
     /// The window over [`World::settings`].

@@ -179,7 +179,7 @@ fn the_series_error_waits_for_both_ends_and_speaks_german() {
     let _file = settings_file();
     let world = world();
     let mut settings = world.settings();
-    settings.language = "de".into();
+    settings.general.language = "de".into();
     let mut h = world.harness_with(settings);
     dm_desktop_base::i18n::set("de");
     h.command("program.add_series");
@@ -229,7 +229,7 @@ fn view_language_puts_the_window_in_another_language_and_back() {
         h.click(item);
     }
     h.until("German", |h| {
-        h.view(|view| view.backend.settings().language) == "de"
+        h.view(|view| view.backend.settings().general.language) == "de"
     });
     h.until("the list's headings in German", |h| {
         h.shows("Übertragungsrate") && !h.shows("Transfer rate")
@@ -238,7 +238,10 @@ fn view_language_puts_the_window_in_another_language_and_back() {
         h.click(item);
     }
     h.until("not back in English", |h| h.shows("Transfer rate"));
-    assert_eq!(h.view(|view| view.backend.settings().language), "en");
+    assert_eq!(
+        h.view(|view| view.backend.settings().general.language),
+        "en"
+    );
 }
 
 #[test]
@@ -349,7 +352,7 @@ fn long_status_text_wraps_and_stays_on_screen() {
     let _file = settings_file();
     let world = world();
     let mut settings = world.settings();
-    settings.show_progress = true;
+    settings.general.show_progress = true;
     let mut h = world.harness_with(settings);
     h.resize(720.0, 600.0);
     let long = format!("{}secret.zip", "a-long-path/".repeat(12));
@@ -498,7 +501,7 @@ fn windows_a_download_opens_keep_clear_of_the_toolbar_and_questions() {
     );
 
     h.close_dialogs();
-    h.apply(|s| s.show_complete = true);
+    h.apply(|s| s.general.show_complete = true);
     h.click("Tasks");
     h.click("Exit");
     h.until("the Exit question", |h| {

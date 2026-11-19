@@ -105,8 +105,8 @@ proptest! {
     fn a_settings_file_of_anything_reads_as_settings(value in any_json()) {
         if let Ok(settings) = serde_json::from_value::<Settings>(value) {
             let settings = settings.clamped();
-            prop_assert!((1..=32).contains(&settings.connections));
-            prop_assert!((1..=10).contains(&settings.concurrency));
+            prop_assert!((1..=32).contains(&settings.downloads.connections));
+            prop_assert!((1..=10).contains(&settings.downloads.concurrency));
             let _ = settings.with_login("https://e.com/f");
         }
     }

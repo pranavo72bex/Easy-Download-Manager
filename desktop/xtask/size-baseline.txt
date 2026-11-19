@@ -48,5 +48,5 @@ desktop/crates/dm-shell/src/app/session.rs 824
 desktop/crates/dm-shell/src/host.rs 1340
 desktop/crates/dm-shell/src/lists.rs 847
 desktop/crates/dm-shell/src/register.rs 1531
-desktop/crates/dm-shell/src/settings.rs 1871
+desktop/crates/dm-shell/src/settings.rs 1689
 desktop/crates/dm-shell/src/shell.rs 1259

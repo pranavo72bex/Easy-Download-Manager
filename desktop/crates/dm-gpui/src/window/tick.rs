@@ -333,7 +333,7 @@ impl Downloads {
     /// The watched folder (Options › Downloads): each file's links added as
     /// the window's own adds go in (`Session::look_at_watched`).
     fn take_watched(&mut self, cx: &mut Context<Self>) {
-        let folder = self.backend.settings().watch_folder.clone();
+        let folder = self.backend.settings().downloads.watch_folder.clone();
         for links in self
             .session
             .look_at_watched(&folder, &self.rows, &self.backend)

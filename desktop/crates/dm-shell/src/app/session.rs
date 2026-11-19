@@ -284,7 +284,7 @@ impl Session {
                 crate::host::browser_seen(&home)
             });
         let mut problems = Vec::new();
-        let command = settings.on_complete.trim();
+        let command = settings.downloads.on_complete.trim();
         if !command.is_empty() && !detected.finished.is_empty() {
             for row in snapshot
                 .rows

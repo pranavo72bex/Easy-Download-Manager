@@ -380,7 +380,7 @@ impl Downloads {
         }
         // A YouTube player whose checks were not answered: fresh site rules asked for at once,
         // once for each such player, where the person lets dm look for updates (gaps row Y3).
-        if self.backend.settings().check_updates
+        if self.backend.settings().general.check_updates
             && dm_core::youtube::take_unsolved_player().is_some()
         {
             dm_shell::app::update::fresh_rules(&self.backend);

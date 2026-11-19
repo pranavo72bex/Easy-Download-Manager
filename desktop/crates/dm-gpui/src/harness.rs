@@ -213,12 +213,11 @@ impl Harness {
     ) -> Harness {
         // The client as a launch builds it (`shell::start`): through the settings' proxy and
         // with their read timeout, which `dm_core::client()` left at its fixed 30 s.
-        let client = dm_core::client_with_timeout(&settings.proxy, settings.read_timeout())
-            .unwrap_or_else(|_| dm_core::client());
+        let client = settings.client().unwrap_or_else(|_| dm_core::client());
         let queue = dm_core::DownloadList::new(
             client,
             settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
-            settings.concurrency,
+            settings.downloads.concurrency,
         );
         // The schedules and limits as a launch puts them on the queue (`shell::start`).
         queue.set_schedule(settings.schedule.clone());

@@ -739,7 +739,7 @@ pub fn when_done_command(wanted: WhenDone) -> Command {
 /// else the one last turned off (kept in the settings, so it survives a
 /// restart), else [`DEFAULT_LIMIT`]. [`limited`] keeps it from then on.
 pub fn remembered_limit(settings: &Settings) -> u64 {
-    [settings.speed_limit, settings.last_speed_limit]
+    [settings.advanced.speed_limit, settings.last_speed_limit]
         .into_iter()
         .find(|kb| *kb > 0)
         .unwrap_or(DEFAULT_LIMIT)
@@ -756,15 +756,15 @@ pub const DEFAULT_LIMIT: u64 = 512;
 pub fn limited(command: Command, now: &Settings, last: &mut u64) -> Option<Settings> {
     let mut wanted = now.clone();
     let to = match command {
-        Command::SpeedLimiterToggle if now.speed_limit > 0 => 0,
+        Command::SpeedLimiterToggle if now.advanced.speed_limit > 0 => 0,
         Command::SpeedLimiterToggle => (*last).max(1),
         _ => command.speed_preset()?,
     };
-    if wanted.speed_limit > 0 {
-        *last = wanted.speed_limit;
-        wanted.last_speed_limit = wanted.speed_limit;
+    if wanted.advanced.speed_limit > 0 {
+        *last = wanted.advanced.speed_limit;
+        wanted.last_speed_limit = wanted.advanced.speed_limit;
     }
-    wanted.speed_limit = to;
+    wanted.advanced.speed_limit = to;
     Some(wanted)
 }
 

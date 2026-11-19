@@ -205,22 +205,25 @@ fn what_the_presentation_sees_decides_the_rest() {
 fn the_speed_commands_ask_for_their_limit_and_keep_the_last() {
     let mut last = 0;
     let off = Settings {
-        speed_limit: 0,
+        advanced: crate::settings::AdvancedSettings {
+            speed_limit: 0,
+            ..Default::default()
+        },
         ..Settings::default()
     };
     // Back on with nothing kept: at least 1 KB/s.
     let on = limited(Command::SpeedLimiterToggle, &off, &mut last).unwrap();
-    assert_eq!(on.speed_limit, 1);
+    assert_eq!(on.advanced.speed_limit, 1);
     let preset = limited(Command::SpeedMedium, &on, &mut last).unwrap();
     assert_eq!(
-        (preset.speed_limit, preset.last_speed_limit, last),
+        (preset.advanced.speed_limit, preset.last_speed_limit, last),
         (SPEED_MEDIUM, 1, 1)
     );
     // Off keeps the limit it turned off, and on brings it back.
     let off_again = limited(Command::SpeedLimiterToggle, &preset, &mut last).unwrap();
-    assert_eq!((off_again.speed_limit, last), (0, SPEED_MEDIUM));
+    assert_eq!((off_again.advanced.speed_limit, last), (0, SPEED_MEDIUM));
     let back = limited(Command::SpeedLimiterToggle, &off_again, &mut last).unwrap();
-    assert_eq!(back.speed_limit, SPEED_MEDIUM);
+    assert_eq!(back.advanced.speed_limit, SPEED_MEDIUM);
     assert!(limited(Command::Find, &back, &mut last).is_none());
 }
 
@@ -280,12 +283,15 @@ fn the_applications_verbs_act_on_the_queue_and_the_rest_are_not_its() {
 #[test]
 fn limit_speed_comes_back_at_the_limit_in_force_else_the_last_one_else_512() {
     let mut settings = Settings {
-        speed_limit: 300,
         last_speed_limit: 80,
+        advanced: crate::settings::AdvancedSettings {
+            speed_limit: 300,
+            ..Default::default()
+        },
         ..Settings::default()
     };
     assert_eq!(remembered_limit(&settings), 300);
-    settings.speed_limit = 0;
+    settings.advanced.speed_limit = 0;
     assert_eq!(remembered_limit(&settings), 80);
     settings.last_speed_limit = 0;
     assert_eq!(remembered_limit(&settings), DEFAULT_LIMIT);

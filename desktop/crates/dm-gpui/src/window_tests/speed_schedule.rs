@@ -243,11 +243,11 @@ fn the_speed_limiter_turns_off_and_back_on_to_its_last_value() {
     let world = world();
     let mut h = world.harness();
     h.command("downloads.speed_limiter.toggle");
-    assert_eq!(kept(&mut h).speed_limit, 512);
+    assert_eq!(kept(&mut h).advanced.speed_limit, 512);
     h.command("downloads.speed_limiter.toggle");
-    assert_eq!(kept(&mut h).speed_limit, 0);
+    assert_eq!(kept(&mut h).advanced.speed_limit, 0);
     h.command("downloads.speed_limiter.toggle");
-    assert_eq!(kept(&mut h).speed_limit, 512);
+    assert_eq!(kept(&mut h).advanced.speed_limit, 512);
 }
 
 #[test]
@@ -288,7 +288,7 @@ fn the_weekly_update_check_asks_nothing_when_off_or_not_yet_due() {
     assert!(!asked(&mut h), "off by default: nothing is asked");
     // On, but checked a moment ago: not due for a week.
     let mut wanted = world.settings();
-    wanted.check_updates = true;
+    wanted.general.check_updates = true;
     wanted.update_checked = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -305,15 +305,18 @@ fn the_speed_limit_last_turned_off_comes_back_after_a_restart() {
     let _file = settings_file();
     let world = world();
     let mut wanted = world.settings();
-    wanted.speed_limit = 300;
+    wanted.advanced.speed_limit = 300;
     let mut h = world.harness_with(wanted);
     h.command("downloads.speed_limiter.toggle");
     let (saved, _) = dm_shell::Settings::load();
-    assert_eq!((saved.speed_limit, saved.last_speed_limit), (0, 300));
+    assert_eq!(
+        (saved.advanced.speed_limit, saved.last_speed_limit),
+        (0, 300)
+    );
     // The next launch, from what was saved.
     let mut next = world.harness_with(saved);
     next.command("downloads.speed_limiter.toggle");
-    assert_eq!(kept(&mut next).speed_limit, 300);
+    assert_eq!(kept(&mut next).advanced.speed_limit, 300);
 }
 
 /// Exit while downloading asks first; a script's exit does not.
@@ -409,7 +412,7 @@ fn the_speed_limiter_item_shows_whether_it_is_on() {
     assert!(ticked(&mut h));
     h.command("downloads.speed_limiter.toggle");
     assert!(!ticked(&mut h));
-    assert_eq!(kept(&mut h).speed_limit, 0);
+    assert_eq!(kept(&mut h).advanced.speed_limit, 0);
 }
 
 /// Reference A's "Hang up modem when done", in the Scheduler on Windows after the program to
@@ -490,7 +493,7 @@ fn the_speed_presets_set_and_lift_the_limit() {
         h.click("Downloads");
         h.click("Speed limiter");
         h.click(item);
-        h.until(item, |h| kept(h).speed_limit == kb);
+        h.until(item, |h| kept(h).advanced.speed_limit == kb);
         let in_force = world.runtime.block_on(queue.speed_limit());
         assert_eq!(in_force, kb * dm_core::KB, "{item} not in force");
     }

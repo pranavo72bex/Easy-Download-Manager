@@ -22,8 +22,14 @@ async fn the_cookies_file_is_read_at_launch_and_its_loss_blocks_nothing() {
     )
     .unwrap();
     let saved = Settings {
-        download_dir: home.path().join("out"),
-        cookies_file: cookies.display().to_string(),
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: home.path().join("out"),
+            ..Default::default()
+        },
+        advanced: dm_shell::settings::AdvancedSettings {
+            cookies_file: cookies.display().to_string(),
+            ..Default::default()
+        },
         ..Settings::default()
     };
     saved.save().unwrap();
@@ -37,7 +43,7 @@ async fn the_cookies_file_is_read_at_launch_and_its_loss_blocks_nothing() {
     // missing file is said, once.
     std::fs::remove_file(&cookies).unwrap();
     let mut next = held.clone();
-    next.language = "de".into();
+    next.general.language = "de".into();
     let problems = shell::apply(&next, Some(&held), &queue)
         .await
         .expect("a missing cookies file refused an unrelated change");
@@ -52,17 +58,17 @@ async fn the_cookies_file_is_read_at_launch_and_its_loss_blocks_nothing() {
     // a proxy that cannot be built stay as they were.
     let before = queue.options().await.connections;
     let mut broken = again.clone();
-    broken.connections = before + 1;
-    broken.proxy.enabled = true;
-    broken.proxy.kind = dm_core::ProxyKind::Http;
-    broken.proxy.host = "not a host name".into();
+    broken.downloads.connections = before + 1;
+    broken.advanced.proxy.enabled = true;
+    broken.advanced.proxy.kind = dm_core::ProxyKind::Http;
+    broken.advanced.proxy.host = "not a host name".into();
     assert!(shell::apply(&broken, Some(&again), &queue).await.is_err());
     assert_eq!(queue.options().await.connections, before);
 
     // And a change that refuses itself: a relative download folder.
     let mut relative = again.clone();
-    relative.connections = before + 1;
-    relative.download_dir = "Downloads".into();
+    relative.downloads.connections = before + 1;
+    relative.folders.download_dir = "Downloads".into();
     assert!(shell::apply(&relative, Some(&again), &queue).await.is_err());
     assert_eq!(queue.options().await.connections, before);
 }

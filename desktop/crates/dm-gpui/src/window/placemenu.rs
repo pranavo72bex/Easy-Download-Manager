@@ -47,7 +47,11 @@ impl Downloads {
             }
             PlaceAction::OpenFolder => {
                 let settings = self.backend.settings();
-                let folder = folder_of(&place, &settings.download_dir, &settings.categories());
+                let folder = folder_of(
+                    &place,
+                    &settings.folders.download_dir,
+                    &settings.categories(),
+                );
                 // Made where it is not there yet: a category nothing has gone to has no folder.
                 let _ = std::fs::create_dir_all(&folder);
                 self.open_path(&folder.to_string_lossy());

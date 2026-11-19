@@ -334,7 +334,7 @@ impl Downloads {
 
     /// The tray's tooltip and ticks, as the window has them now.
     pub(crate) fn tray_follow(&mut self) {
-        let speed_limit = self.backend.settings().speed_limit;
+        let speed_limit = self.backend.settings().advanced.speed_limit;
         let tip = dm_desktop_base::tray::activity(&self.rows)
             .unwrap_or_else(|| dm_desktop_base::tray::words()[4].to_string());
         if let Some(tray) = self.system.tray.as_mut() {
@@ -358,7 +358,7 @@ impl Downloads {
             self.ask_quit(cx);
             return false;
         }
-        match self.backend.settings().on_close.as_str() {
+        match self.backend.settings().general.on_close.as_str() {
             "exit" => self.ask_quit(cx),
             "tray" => self.hide_window(window),
             _ => self.ask_close(cx),
@@ -388,7 +388,7 @@ impl Downloads {
             let keep = button == 1;
             let _ = view.update(cx, |view, cx| {
                 let mut wanted = view.backend.settings();
-                wanted.on_close = if keep { "tray" } else { "exit" }.into();
+                wanted.general.on_close = if keep { "tray" } else { "exit" }.into();
                 if let Err(e) = view.backend.set_settings(wanted) {
                     view.say(e);
                 }

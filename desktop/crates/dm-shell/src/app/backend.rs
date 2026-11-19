@@ -138,7 +138,7 @@ impl Backend {
     /// S16); what the system refuses comes back in its words.
     pub fn login_item_follows_setting(&self) -> Result<(), String> {
         let _changing = dm_core::lock(&self.login);
-        let wanted = self.settings().start_on_login;
+        let wanted = self.settings().general.start_on_login;
         self.platform.set_login_item(wanted)
     }
 
@@ -383,7 +383,7 @@ impl Backend {
     /// moved there, and started again.
     pub fn relocate(&self, id: Id, dir: std::path::PathBuf) -> Result<(), String> {
         if let Some(why) =
-            crate::app::control_api::folder_refused(&dir, &self.settings().download_dir)
+            crate::app::control_api::folder_refused(&dir, &self.settings().folders.download_dir)
         {
             return Err(why);
         }
@@ -419,8 +419,7 @@ impl Backend {
     #[must_use]
     pub fn client(&self) -> dm_core::reqwest::Client {
         let settings = dm_core::lock(&self.settings);
-        dm_core::client_with_timeout(&settings.proxy, settings.read_timeout())
-            .unwrap_or_else(|_| dm_core::client())
+        settings.client().unwrap_or_else(|_| dm_core::client())
     }
 
     /// How long downloads stay held where the download limit (the day's or
@@ -487,17 +486,18 @@ impl Backend {
         }
         let settings = settings.clamped();
         shell::check(&settings, Some(&previous))?;
-        let login_changed = previous.start_on_login != settings.start_on_login;
+        let was_at_login = previous.general.start_on_login;
+        let login_changed = was_at_login != settings.general.start_on_login;
         if login_changed {
             self.platform
-                .set_login_item(settings.start_on_login)
+                .set_login_item(settings.general.start_on_login)
                 .map_err(|e| format!("could not change start-on-login: {e}"))?;
         }
         let problems = match self.block_on(shell::apply(&settings, Some(&previous), &self.queue)) {
             Ok(problems) => problems,
             Err(e) => {
                 if login_changed {
-                    if let Err(back) = self.platform.set_login_item(previous.start_on_login) {
+                    if let Err(back) = self.platform.set_login_item(was_at_login) {
                         self.note(format!(
                             "start-on-login could not be put back as it was: {back}"
                         ));
@@ -585,13 +585,13 @@ impl Backend {
     /// it off from the dialog itself.
     pub fn set_ask_caught_downloads(&self, ask: bool) -> Result<Settings, String> {
         let (mut on_disk, _) = Settings::load();
-        on_disk.ask_caught_downloads = ask;
+        on_disk.general.ask_caught_downloads = ask;
         on_disk
             .clamped()
             .save()
             .map_err(|e| format!("settings could not be saved: {e}"))?;
         let mut settings = dm_core::lock(&self.settings);
-        settings.ask_caught_downloads = ask;
+        settings.general.ask_caught_downloads = ask;
         Ok(settings.clone())
     }
 
@@ -772,7 +772,7 @@ impl Backend {
     pub fn move_to(&self, id: Id, dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
         let dir = full_folder(&dir.to_string_lossy())?;
         if let Some(why) =
-            crate::app::control_api::folder_refused(&dir, &self.settings().download_dir)
+            crate::app::control_api::folder_refused(&dir, &self.settings().folders.download_dir)
         {
             return Err(why);
         }
@@ -791,9 +791,8 @@ impl Backend {
         let dir = match dir {
             Some(dir) => {
                 let dir = full_folder(&dir.to_string_lossy())?;
-                if let Some(why) =
-                    crate::app::control_api::folder_refused(&dir, &self.settings().download_dir)
-                {
+                let root = self.settings().folders.download_dir;
+                if let Some(why) = crate::app::control_api::folder_refused(&dir, &root) {
                     return Err(why);
                 }
                 Some(dir)
@@ -933,7 +932,7 @@ fn held_to_downloads(with: &AddOptions, settings: &crate::Settings) -> Result<()
     match with.save_dir.as_deref() {
         Some(folder) => crate::app::control_api::folder_refused(
             std::path::Path::new(folder),
-            &settings.download_dir,
+            &settings.folders.download_dir,
         )
         .map_or(Ok(()), Err),
         None => Ok(()),
@@ -1093,13 +1092,13 @@ mod settings_from_tests {
         let dir = tempfile::tempdir().unwrap();
         let backend = backend(&runtime, dir.path());
         let mut wanted = backend.settings();
-        wanted.on_complete = "echo done".into();
+        wanted.downloads.on_complete = "echo done".into();
         let (now, kept) = backend.set_settings_from(wanted.clone(), true);
         assert!(kept.command);
-        assert_eq!(now.unwrap().on_complete, "");
+        assert_eq!(now.unwrap().downloads.on_complete, "");
         let (now, kept) = backend.set_settings_from(wanted, false);
         assert!(!kept.command);
-        assert_eq!(now.unwrap().on_complete, "echo done");
+        assert_eq!(now.unwrap().downloads.on_complete, "echo done");
     }
 
     /// Where downloads go is a person's to set too: a script moving the download folder into a
@@ -1110,20 +1109,20 @@ mod settings_from_tests {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let backend = backend(&runtime, dir.path());
-        let before = backend.settings().download_dir;
+        let before = backend.settings().folders.download_dir;
         let elsewhere = dir.path().join("LaunchAgents");
         std::fs::create_dir_all(&elsewhere).unwrap();
         let mut wanted = backend.settings();
-        wanted.download_dir = elsewhere.clone();
-        wanted.categorize = !wanted.categorize;
+        wanted.folders.download_dir = elsewhere.clone();
+        wanted.folders.categorize = !wanted.folders.categorize;
         let (now, kept) = backend.set_settings_from(wanted.clone(), true);
         assert!(kept.folders);
         let now = now.unwrap();
-        assert_eq!(now.download_dir, before);
-        assert_ne!(now.categorize, wanted.categorize);
+        assert_eq!(now.folders.download_dir, before);
+        assert_ne!(now.folders.categorize, wanted.folders.categorize);
         let (now, kept) = backend.set_settings_from(wanted, false);
         assert!(!kept.folders);
-        assert_eq!(now.unwrap().download_dir, elsewhere);
+        assert_eq!(now.unwrap().folders.download_dir, elsewhere);
     }
 }
 
@@ -1375,14 +1374,12 @@ pub(crate) mod testing {
         dir: &std::path::Path,
         settings: crate::Settings,
     ) -> super::Backend {
-        let settings = crate::Settings {
-            download_dir: dir.join("out"),
-            ..settings
-        };
+        let mut settings = settings;
+        settings.folders.download_dir = dir.join("out");
         let queue = dm_core::DownloadList::new(
             dm_core::client(),
             settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
-            settings.concurrency,
+            settings.downloads.concurrency,
         );
         super::Backend::new(
             runtime.handle().clone(),

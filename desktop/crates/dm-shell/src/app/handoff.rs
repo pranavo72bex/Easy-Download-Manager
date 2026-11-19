@@ -143,9 +143,9 @@ impl Hands {
             && !quiet
             && (part
                 || if caught {
-                    settings.ask_caught_downloads
+                    settings.general.ask_caught_downloads
                 } else {
-                    settings.ask_panel_downloads
+                    settings.general.ask_panel_downloads
                 });
         if ask && asking == Asking::Busy {
             return Route::Nothing;

@@ -86,7 +86,7 @@ impl Downloads {
         self.session.note_dry(&self.rows);
         // Every row's finishing words where the rows are placed again, else
         // those of the rows that changed.
-        self.keep_whens(&settings.language, moved, taken.finished_at);
+        self.keep_whens(&settings.general.language, moved, taken.finished_at);
         if moved {
             self.known.named_at = Some(Instant::now());
             // The queues the rows name, for Start Queue's and Stop Queue's
@@ -290,7 +290,7 @@ impl Downloads {
             let name = dm_shell::app::names::name_it_will_get_after(
                 &self.rows,
                 row,
-                &settings.download_dir,
+                &settings.folders.download_dir,
                 &mut categories,
                 Some(self.known.earlier.get(&row.id).copied().unwrap_or(0)),
             );

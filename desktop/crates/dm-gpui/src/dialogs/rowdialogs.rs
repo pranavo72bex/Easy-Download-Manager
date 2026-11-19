@@ -665,7 +665,7 @@ impl Downloads {
         let Some(id) = expired else {
             return;
         };
-        if self.backend.settings().offer_new_link && !self.dialog_in_front(cx) {
+        if self.backend.settings().general.offer_new_link && !self.dialog_in_front(cx) {
             update_link(cx.entity().downgrade(), id, cx);
         }
     }

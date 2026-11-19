@@ -59,7 +59,7 @@ impl ClipLinks {
         // that cannot be is said here, the dialog left open.
         let save_dir = match self
             .chosen(cx)
-            .ready(&settings.download_dir, &settings.categories())
+            .ready(&settings.folders.download_dir, &settings.categories())
         {
             Ok(dir) => dir,
             Err(words) => {

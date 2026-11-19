@@ -249,86 +249,84 @@ impl Options {
                     }
                 }
             }
-            ["download_dir"] => s.download_dir = text.into(),
-            ["parts_dir"] => s.parts_dir = text.into(),
+            ["download_dir"] => s.folders.download_dir = text.into(),
+            ["parts_dir"] => s.folders.parts_dir = text.into(),
             ["category_folders", i] => {
-                if let Some(folder) = at(i).and_then(|i| s.category_folders.get_mut(i)) {
+                if let Some(folder) = at(i).and_then(|i| s.folders.category_folders.get_mut(i)) {
                     *folder = text.into();
                 }
             }
             ["min_size_kb"] => {
                 if let Some(n) = n(0, 1024 * 1024) {
-                    s.catch.min_size_kb = n;
+                    s.browser.catch.min_size_kb = n;
                 }
             }
             ["connections"] => {
                 if let Some(n) = n(1, 32) {
-                    s.connections = n as usize;
+                    s.downloads.connections = n as usize;
                 }
             }
             ["concurrency"] => {
                 if let Some(n) = n(1, 10) {
-                    s.concurrency = n as usize;
+                    s.downloads.concurrency = n as usize;
                 }
             }
             ["queue_limits", i, "files"] => {
-                if let (Some(limit), Some(n)) =
-                    (at(i).and_then(|i| s.queue_limits.get_mut(i)), n(1, 10))
-                {
+                let limit = at(i).and_then(|i| s.downloads.queue_limits.get_mut(i));
+                if let (Some(limit), Some(n)) = (limit, n(1, 10)) {
                     limit.files = n as usize;
                 }
             }
             ["queue_starts", i, "at"] => {
-                if let Some(start) = at(i).and_then(|i| s.queue_starts.get_mut(i)) {
+                if let Some(start) = at(i).and_then(|i| s.downloads.queue_starts.get_mut(i)) {
                     start.at = text.into();
                 }
             }
-            ["watch_folder"] => s.watch_folder = text.into(),
+            ["watch_folder"] => s.downloads.watch_folder = text.into(),
             ["record_minutes"] => {
                 if let Some(n) = n(0, 1440) {
-                    s.record_minutes = n;
+                    s.downloads.record_minutes = n;
                 }
             }
             ["recheck_hours"] => {
                 if let Some(n) = n(0, 24 * 31) {
-                    s.recheck_hours = n;
+                    s.downloads.recheck_hours = n;
                 }
             }
-            ["on_complete"] => s.on_complete = text.into(),
+            ["on_complete"] => s.downloads.on_complete = text.into(),
             ["speed_limit"] => {
                 if let Some(n) = n(0, 1024 * 1024) {
-                    s.speed_limit = n;
+                    s.advanced.speed_limit = n;
                 }
             }
             ["attempts"] => {
                 if let Some(n) = n(0, 100) {
-                    s.attempts = n as u32;
+                    s.advanced.attempts = n as u32;
                 }
             }
             ["retry_wait"] => {
                 if let Some(n) = n(0, 3600) {
-                    s.retry_wait = n;
+                    s.advanced.retry_wait = n;
                 }
             }
             ["read_timeout"] => {
                 if let Some(n) = n(5, 600) {
-                    s.read_timeout = n;
+                    s.advanced.read_timeout = n;
                 }
             }
             ["host_limits", i, "host"] => {
-                if let Some(limit) = at(i).and_then(|i| s.host_limits.get_mut(i)) {
+                if let Some(limit) = at(i).and_then(|i| s.advanced.host_limits.get_mut(i)) {
                     limit.host = text.into();
                 }
             }
             ["host_limits", i, "connections"] => {
-                if let (Some(limit), Some(n)) =
-                    (at(i).and_then(|i| s.host_limits.get_mut(i)), n(1, 32))
-                {
+                let limit = at(i).and_then(|i| s.advanced.host_limits.get_mut(i));
+                if let (Some(limit), Some(n)) = (limit, n(1, 32)) {
                     limit.connections = n as usize;
                 }
             }
             ["site_rules", i, field] => {
-                if let Some(rule) = at(i).and_then(|i| s.site_rules.get_mut(i)) {
+                if let Some(rule) = at(i).and_then(|i| s.advanced.site_rules.get_mut(i)) {
                     match *field {
                         "host" => rule.host = text.into(),
                         "folder" => rule.folder = text.into(),
@@ -344,13 +342,13 @@ impl Options {
             }
             ["cookies_file"] => {
                 // What was said about the file goes with it.
-                let before = std::mem::replace(&mut s.cookies_file, text.into());
+                let before = std::mem::replace(&mut s.advanced.cookies_file, text.into());
                 if !before.is_empty() && self.says.as_ref().is_some_and(|w| w.contains(&before)) {
                     self.says = None;
                 }
             }
             ["proxy", field] => {
-                let p = &mut s.proxy;
+                let p = &mut s.advanced.proxy;
                 match *field {
                     "host" => p.host = text.into(),
                     "username" => p.username = text.into(),
@@ -364,7 +362,7 @@ impl Options {
                 }
             }
             ["per_scheme", scheme, field] => {
-                if let Some(entry) = s.proxy.per_scheme.get_mut(*scheme) {
+                if let Some(entry) = s.advanced.proxy.per_scheme.get_mut(*scheme) {
                     if *field == "host" {
                         entry.host = text.into();
                     } else if let Some(n) = n(1, 65535) {
@@ -373,7 +371,7 @@ impl Options {
                 }
             }
             ["dialup", field] => {
-                let d = &mut s.dialup;
+                let d = &mut s.advanced.dialup;
                 match *field {
                     "username" => d.username = text.into(),
                     "password" => d.password = text.into(),
@@ -767,33 +765,35 @@ impl Downloads {
             self.say(said.to_string());
         }
         let now = outcome?;
-        dm_desktop_base::i18n::set(dm_desktop_base::i18n::chosen(&now.language));
+        dm_desktop_base::i18n::set(dm_desktop_base::i18n::chosen(&now.general.language));
         if before.site_searches != now.site_searches {
             self.threads.searches_checked = None;
         }
-        if before.watch_clipboard != now.watch_clipboard {
-            self.watch_clipboard(now.watch_clipboard);
+        if before.general.watch_clipboard != now.general.watch_clipboard {
+            self.watch_clipboard(now.general.watch_clipboard);
         }
-        if before.theme != now.theme {
-            crate::window::theme::follow(&now.theme, cx);
+        if before.general.theme != now.general.theme {
+            crate::window::theme::follow(&now.general.theme, cx);
         }
         // Every window at the text size chosen, at once; the View menu's
         // percentage with it.
         if crate::window::zoom::set(now.text_size, cx) {
             self.menus.menu_ticks = None;
         }
-        if before.language != now.language {
+        if before.general.language != now.general.language {
             // The menus and every window in the language picked.
             self.menus.menu_ticks = None;
             cx.refresh_windows();
         }
-        if before.language != now.language || before.download_dir != now.download_dir {
+        if before.general.language != now.general.language
+            || before.folders.download_dir != now.folders.download_dir
+        {
             // The taskbar button's jump list (Windows) in those words, its
             // folder the one downloads now go to.
             dm_desktop_base::jumplist::publish(
                 dm_desktop_base::i18n::t("Add URL"),
                 dm_desktop_base::i18n::t("Open downloads folder"),
-                &now.download_dir,
+                &now.folders.download_dir,
             );
         }
         // The names and places follow the settings (the download folder,

@@ -200,7 +200,7 @@ pub fn read_playlist_later(
     done: impl FnOnce(Result<dm_core::youtube::Playlist, String>) + Send + 'static,
 ) {
     let client = backend.client();
-    let proxy = backend.settings().proxy.url_for_tools();
+    let proxy = backend.settings().advanced.proxy.url_for_tools();
     backend.runtime.spawn(async move {
         let got = if dm_core::youtube::is_list(&url) {
             dm_core::youtube::read_playlist(&client, &url, None)
@@ -231,7 +231,7 @@ pub fn list_choices_later(
         + Send
         + 'static,
 ) {
-    let proxy = backend.settings().proxy.url_for_tools();
+    let proxy = backend.settings().advanced.proxy.url_for_tools();
     backend.runtime.spawn(async move {
         let listed = tokio::time::timeout(
             CHOICES_WITHIN,

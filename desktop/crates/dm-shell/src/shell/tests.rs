@@ -51,7 +51,10 @@ fn a_relative_save_folder_is_the_callers_and_never_kept_relative() {
 async fn a_pasted_list_skips_the_link_it_cannot_use_and_adds_the_rest() {
     let dir = tempfile::tempdir().unwrap();
     let settings = crate::settings::Settings {
-        download_dir: dir.path().join("out"),
+        folders: crate::settings::FolderSettings {
+            download_dir: dir.path().join("out"),
+            ..Default::default()
+        },
         ..Default::default()
     };
     let queue = dm_core::DownloadList::new(

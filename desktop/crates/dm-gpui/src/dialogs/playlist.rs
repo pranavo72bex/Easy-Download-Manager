@@ -316,7 +316,7 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
         return;
     };
     let backend = downloads.read(cx).backend.clone();
-    let quality = backend.settings().stream_quality.clone();
+    let quality = backend.settings().downloads.stream_quality.clone();
     let (width, height) = crate::widgets::native::WindowSize::Playlist.here();
     let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     let opened = crate::window::screen::open_window(

@@ -72,10 +72,10 @@ fn network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
             true,
             false,
             move |o| match key {
-                "speed_limit" => o.draft.speed_limit.to_string(),
-                "attempts" => o.draft.attempts.to_string(),
-                "retry_wait" => o.draft.retry_wait.to_string(),
-                _ => o.draft.read_timeout.to_string(),
+                "speed_limit" => o.draft.advanced.speed_limit.to_string(),
+                "attempts" => o.draft.advanced.attempts.to_string(),
+                "retry_wait" => o.draft.advanced.retry_wait.to_string(),
+                _ => o.draft.advanced.read_timeout.to_string(),
             },
         );
         p.labelled(t(words), true, field);
@@ -161,7 +161,7 @@ fn site_limits(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
     let screen = p.screen.clone();
     // Sites with their own connection limit (B57).
     p.words(t("Sites with their own connection limit:"));
-    for i in 0..o.draft.host_limits.len() {
+    for i in 0..o.draft.advanced.host_limits.len() {
         let host = input(
             o,
             window,
@@ -171,7 +171,7 @@ fn site_limits(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
             200.0,
             true,
             false,
-            move |o| o.draft.host_limits[i].host.clone(),
+            move |o| o.draft.advanced.host_limits[i].host.clone(),
         );
         let count = input(
             o,
@@ -182,12 +182,12 @@ fn site_limits(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
             NUMBER,
             true,
             false,
-            move |o| o.draft.host_limits[i].connections.to_string(),
+            move |o| o.draft.advanced.host_limits[i].connections.to_string(),
         );
         let delete = button(p, ("delete-site-limit", i), t("Delete site limit")).on_click(
             cx.listener(move |o, _, _, cx| {
-                if i < o.draft.host_limits.len() {
-                    o.draft.host_limits.remove(i);
+                if i < o.draft.advanced.host_limits.len() {
+                    o.draft.advanced.host_limits.remove(i);
                     o.forget("host_limits");
                 }
                 cx.notify();
@@ -208,7 +208,7 @@ fn site_limits(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
     }
     let add_limit =
         button(p, "add-site-limit", t("Add a site limit")).on_click(cx.listener(|o, _, _, cx| {
-            o.draft.host_limits.push(dm_core::HostLimit {
+            o.draft.advanced.host_limits.push(dm_core::HostLimit {
                 host: String::new(),
                 connections: 1,
             });
@@ -223,7 +223,7 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
     let screen = p.screen.clone();
     // Sites with their own folder, speed, User-Agent and request headers (gaps row F1).
     p.words(t("Sites with their own folder, speed and headers:"));
-    for i in 0..o.draft.site_rules.len() {
+    for i in 0..o.draft.advanced.site_rules.len() {
         let host = input(
             o,
             window,
@@ -233,7 +233,7 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
             160.0,
             true,
             false,
-            move |o| o.draft.site_rules[i].host.clone(),
+            move |o| o.draft.advanced.site_rules[i].host.clone(),
         );
         let rule_folder = input(
             o,
@@ -244,12 +244,12 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
             200.0,
             true,
             false,
-            move |o| o.draft.site_rules[i].folder.clone(),
+            move |o| o.draft.advanced.site_rules[i].folder.clone(),
         );
         let browse = button(p, ("site-rule-browse", i), t("Browse…")).on_click(cx.listener(
             move |o, _, _, cx| {
                 o.choose_folder(cx, move |o, folder, cx| {
-                    if let Some(rule) = o.draft.site_rules.get_mut(i) {
+                    if let Some(rule) = o.draft.advanced.site_rules.get_mut(i) {
                         rule.folder = folder;
                     }
                     o.forget_field(&format!("site_rules.{i}.folder"));
@@ -266,7 +266,7 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
             NUMBER,
             true,
             false,
-            move |o| o.draft.site_rules[i].speed.to_string(),
+            move |o| o.draft.advanced.site_rules[i].speed.to_string(),
         );
         let agent = input(
             o,
@@ -277,7 +277,7 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
             260.0,
             true,
             false,
-            move |o| o.draft.site_rules[i].agent.clone(),
+            move |o| o.draft.advanced.site_rules[i].agent.clone(),
         );
         let headers = input(
             o,
@@ -288,12 +288,12 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
             260.0,
             true,
             false,
-            move |o| o.draft.site_rules[i].headers.clone(),
+            move |o| o.draft.advanced.site_rules[i].headers.clone(),
         );
         let delete = button(p, ("delete-site-rule", i), t("Delete site rule")).on_click(
             cx.listener(move |o, _, _, cx| {
-                if i < o.draft.site_rules.len() {
-                    o.draft.site_rules.remove(i);
+                if i < o.draft.advanced.site_rules.len() {
+                    o.draft.advanced.site_rules.remove(i);
                     o.forget("site_rules");
                 }
                 cx.notify();
@@ -330,6 +330,7 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
     let add_rule =
         button(p, "add-site-rule", t("Add a site rule")).on_click(cx.listener(|o, _, _, cx| {
             o.draft
+                .advanced
                 .site_rules
                 .push(dm_shell::settings::SiteRule::default());
             cx.notify();
@@ -351,7 +352,7 @@ fn cookies(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
         260.0,
         true,
         false,
-        |o| o.draft.cookies_file.clone(),
+        |o| o.draft.advanced.cookies_file.clone(),
     );
     let choose = button(p, "cookies-choose", t("Choose…")).on_click(cx.listener(|_, _, _, cx| {
         crate::platform::services::ask_then(
@@ -367,7 +368,7 @@ fn cookies(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
             },
         );
     }));
-    let has_cookies = !o.draft.cookies_file.is_empty();
+    let has_cookies = !o.draft.advanced.cookies_file.is_empty();
     let clear = button(p, "cookies-clear", t("Clear")).on_click(cx.listener(|o, _, _, cx| {
         o.put("cookies_file", "");
         o.forget_field("cookies_file");
@@ -481,7 +482,7 @@ fn bittorrent(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
 fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
     use dm_core::ProxyKind as Kind;
     let (theme, screen) = (p.theme, p.screen.clone());
-    let proxy = o.draft.proxy.clone();
+    let proxy = o.draft.advanced.proxy.clone();
     check(
         p,
         cx,
@@ -489,7 +490,7 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
         t("Connect through a proxy"),
         proxy.enabled,
         true,
-        |s| s.proxy.enabled = !s.proxy.enabled,
+        |s| s.advanced.proxy.enabled = !s.advanced.proxy.enabled,
     );
     p.hint(t("For a network that reaches the internet through a proxy server. Whoever runs the network can give you its address."));
     let on = proxy.enabled;
@@ -517,7 +518,7 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
         ("proxy.password", "Password", 200.0, true),
     ] {
         let field = input(o, window, cx, key, words, width, own, masked, move |o| {
-            let p = &o.draft.proxy;
+            let p = &o.draft.advanced.proxy;
             match key {
                 "proxy.host" => p.host.clone(),
                 "proxy.port" => p.port.to_string(),
@@ -554,7 +555,7 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
             &screen,
         )
         .on_click(cx.listener(move |o, _, _, cx| {
-            let p = &mut o.draft.proxy;
+            let p = &mut o.draft.advanced.proxy;
             if p.per_scheme.remove(scheme).is_none() {
                 p.per_scheme.insert(
                     scheme.to_string(),
@@ -582,12 +583,8 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
                 own,
                 false,
                 move |o| {
-                    o.draft
-                        .proxy
-                        .per_scheme
-                        .get(scheme)
-                        .map(|e| e.host.clone())
-                        .unwrap_or_default()
+                    let entry = o.draft.advanced.proxy.per_scheme.get(scheme);
+                    entry.map(|e| e.host.clone()).unwrap_or_default()
                 },
             );
             let port = input(
@@ -600,12 +597,8 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
                 own,
                 false,
                 move |o| {
-                    o.draft
-                        .proxy
-                        .per_scheme
-                        .get(scheme)
-                        .map(|e| e.port.to_string())
-                        .unwrap_or_default()
+                    let entry = o.draft.advanced.proxy.per_scheme.get(scheme);
+                    entry.map(|e| e.port.to_string()).unwrap_or_default()
                 },
             );
             p.add(native::enabled(
@@ -632,7 +625,7 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
         WIDE,
         on,
         false,
-        |o| o.draft.proxy.script.clone(),
+        |o| o.draft.advanced.proxy.script.clone(),
     );
     p.add(native::enabled(
         on,

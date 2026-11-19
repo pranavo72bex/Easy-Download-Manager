@@ -309,11 +309,14 @@ fn an_update_check_the_way_out_refuses_fails_with_why() {
     // the application's own client (`Backend::client`).
     let dir = tempfile::tempdir().unwrap();
     let settings = crate::Settings {
-        proxy: dm_core::Proxy {
-            enabled: true,
-            host: "127.0.0.1".into(),
-            port,
-            ..dm_core::Proxy::default()
+        advanced: crate::settings::AdvancedSettings {
+            proxy: dm_core::Proxy {
+                enabled: true,
+                host: "127.0.0.1".into(),
+                port,
+                ..dm_core::Proxy::default()
+            },
+            ..Default::default()
         },
         ..crate::Settings::default()
     };
@@ -355,8 +358,11 @@ fn an_update_check_the_way_out_refuses_fails_with_why() {
 #[test]
 fn the_weekly_check_is_stamped_when_due_and_wanted() {
     let settings = crate::Settings {
-        check_updates: true,
         update_checked: 1_000,
+        general: crate::settings::GeneralSettings {
+            check_updates: true,
+            ..Default::default()
+        },
         ..crate::Settings::default()
     };
     assert!(
@@ -367,7 +373,10 @@ fn the_weekly_check_is_stamped_when_due_and_wanted() {
     assert_eq!(wanted.update_checked, 1_000 + WEEK);
     assert!(weekly(&wanted, 1_000 + WEEK + 60).is_none(), "stamped");
     let off = crate::Settings {
-        check_updates: false,
+        general: crate::settings::GeneralSettings {
+            check_updates: false,
+            ..settings.general
+        },
         ..settings
     };
     assert!(weekly(&off, 1_000 + 2 * WEEK).is_none(), "not wanted");

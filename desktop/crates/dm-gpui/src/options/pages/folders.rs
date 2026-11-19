@@ -22,8 +22,8 @@ pub(super) fn folders(
         "download_dir",
         "Download folder",
         true,
-        |o| o.draft.download_dir.display().to_string(),
-        |o, folder| o.draft.download_dir = folder.into(),
+        |o| o.draft.folders.download_dir.display().to_string(),
+        |o, folder| o.draft.folders.download_dir = folder.into(),
     );
     folder(
         o,
@@ -33,11 +33,11 @@ pub(super) fn folders(
         "parts_dir",
         "Folder for unfinished downloads",
         true,
-        |o| o.draft.parts_dir.clone(),
-        |o, folder| o.draft.parts_dir = folder,
+        |o| o.draft.folders.parts_dir.clone(),
+        |o, folder| o.draft.folders.parts_dir = folder,
     );
     p.note(t("A download already begun keeps the folder it began in."));
-    let on = o.draft.categorize;
+    let on = o.draft.folders.categorize;
     check(
         p,
         cx,
@@ -45,7 +45,7 @@ pub(super) fn folders(
         t("Sort finished files into folders by kind"),
         on,
         true,
-        |s| s.categorize = !s.categorize,
+        |s| s.folders.categorize = !s.folders.categorize,
     );
     // Why what follows is greyed.
     if !on {
@@ -72,7 +72,7 @@ pub(super) fn folders(
                 170.0,
                 on,
                 false,
-                move |o| o.draft.category_folders.get(i).cloned().unwrap_or_default(),
+                move |o| kind_folder(o, i),
             );
             row = row.child(
                 div()
@@ -161,4 +161,10 @@ pub(super) fn folders(
         }));
     p.add(native::enabled(on, div().flex().child(add)));
     let _ = theme;
+}
+
+/// The folder the draft names for the kind at `i` in `Category::ALL`, empty for none.
+fn kind_folder(o: &Options, i: usize) -> String {
+    let folders = &o.draft.folders.category_folders;
+    folders.get(i).cloned().unwrap_or_default()
 }

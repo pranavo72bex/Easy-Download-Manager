@@ -65,24 +65,24 @@ impl Links {
         if let Err(words) = self
             .d
             .save
-            .ready(&settings.download_dir, &settings.categories())
+            .ready(&settings.folders.download_dir, &settings.categories())
         {
             self.says = Some(words.into());
             cx.notify();
             return;
         }
-        let (items, sizes) =
-            match self
-                .d
-                .adds(later, &settings.download_dir, &settings.categories())
-            {
-                Ok(adds) => adds,
-                Err(words) => {
-                    self.says = Some(words.into());
-                    cx.notify();
-                    return;
-                }
-            };
+        let (items, sizes) = match self.d.adds(
+            later,
+            &settings.folders.download_dir,
+            &settings.categories(),
+        ) {
+            Ok(adds) => adds,
+            Err(words) => {
+                self.says = Some(words.into());
+                cx.notify();
+                return;
+            }
+        };
         let queue = self.d.queue_or_main();
         self.done = true;
         let _ = self.view.update(cx, |view, cx| {
@@ -203,7 +203,7 @@ impl Render for Links {
             .upgrade()
             .map(|v| v.read(cx).backend.settings())
             .unwrap_or_default();
-        let root = settings.download_dir.clone();
+        let root = settings.folders.download_dir.clone();
         let cats = settings.categories();
         let visible = self.d.visible();
         let listed: Vec<usize> = visible

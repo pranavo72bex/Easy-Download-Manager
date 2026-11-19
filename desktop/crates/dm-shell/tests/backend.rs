@@ -123,16 +123,25 @@ impl World {
     /// A backend over settings that keep its files in the test's folder.
     fn backend(&self) -> Backend {
         let settings = Settings {
-            download_dir: self.dir.path().join("out"),
-            connections: 1,
-            categorize: false,
-            start_on_login: false,
+            general: dm_shell::settings::GeneralSettings {
+                start_on_login: false,
+                ..Default::default()
+            },
+            folders: dm_shell::settings::FolderSettings {
+                download_dir: self.dir.path().join("out"),
+                categorize: false,
+                ..Default::default()
+            },
+            downloads: dm_shell::settings::DownloadSettings {
+                connections: 1,
+                ..Default::default()
+            },
             ..Settings::default()
         };
         let queue = DownloadList::new(
             dm_core::client(),
             settings.options(self.dir.path().join("parts"), dm_core::Limiter::unlimited()),
-            settings.concurrency,
+            settings.downloads.concurrency,
         );
         Backend::new(
             self.runtime.handle().clone(),
@@ -187,15 +196,16 @@ fn the_backends_verbs_on_rows_that_cannot_take_them_say_why() {
         .settings_handle()
         .lock()
         .unwrap()
+        .folders
         .download_dir
         .clone();
-    assert_eq!(shared, backend.settings().download_dir);
+    assert_eq!(shared, backend.settings().folders.download_dir);
     // "Always save here without asking", from the dialog: kept alone.
     let now = backend.set_ask_caught_downloads(true).unwrap();
-    assert!(now.ask_caught_downloads);
-    assert!(Settings::load().0.ask_caught_downloads);
+    assert!(now.general.ask_caught_downloads);
+    assert!(Settings::load().0.general.ask_caught_downloads);
     backend.set_ask_caught_downloads(false).unwrap();
-    assert!(!Settings::load().0.ask_caught_downloads);
+    assert!(!Settings::load().0.general.ask_caught_downloads);
 
     // A finished row's address cannot be changed.
     let done = backend

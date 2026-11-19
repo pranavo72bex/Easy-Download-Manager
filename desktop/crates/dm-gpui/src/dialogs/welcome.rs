@@ -65,10 +65,10 @@ impl Welcome {
         let _ = self.view.update(cx, |view, cx| {
             let mut wanted = view.backend.settings();
             let chosen = std::path::PathBuf::from(&folder);
-            if !folder.is_empty() && chosen != wanted.download_dir {
-                wanted.download_dir = chosen;
+            if !folder.is_empty() && chosen != wanted.folders.download_dir {
+                wanted.folders.download_dir = chosen;
             }
-            wanted.start_on_login = at_login;
+            wanted.general.start_on_login = at_login;
             if let Err(e) = view.apply_settings(wanted, cx) {
                 view.say(e);
             }
@@ -268,14 +268,18 @@ fn open(
             window.focus(&focus, cx);
             let folder = cx.new(|cx| {
                 let mut f = InputState::new(window, cx);
-                f.set_value(settings.download_dir.display().to_string(), window, cx);
+                f.set_value(
+                    settings.folders.download_dir.display().to_string(),
+                    window,
+                    cx,
+                );
                 f
             });
             let welcome = cx.new(|_| Welcome {
                 view,
                 found,
                 folder,
-                at_login: settings.start_on_login,
+                at_login: settings.general.start_on_login,
                 focus,
                 done: false,
                 screen,

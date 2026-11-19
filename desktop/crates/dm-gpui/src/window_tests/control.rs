@@ -15,7 +15,7 @@ use crate::harness::{settings_file, Harness};
 
 /// Options › General › Let AI assistants use dm over MCP, set as Options' OK sets it.
 fn allow_mcp(h: &mut Harness, on: bool) {
-    h.apply(|s| s.allow_mcp = on);
+    h.apply(|s| s.general.allow_mcp = on);
 }
 
 /// Steps the window until `client`'s thread is done, as frames are drawn while a client
@@ -337,7 +337,7 @@ fn ai_assistants_are_answered_only_while_the_setting_is_on() {
     let world = world();
     let mut h = world.harness();
     assert!(
-        !dm_shell::Settings::default().allow_mcp,
+        !dm_shell::Settings::default().general.allow_mcp,
         "off in a new install"
     );
     allow_mcp(&mut h, true);
@@ -472,7 +472,7 @@ fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
     };
     h.apply(|wanted| {
         wanted.queue_schedules.insert("Main queue".into(), hours);
-        wanted.proxy.script = "http://evil.example/p.pac".into();
+        wanted.advanced.proxy.script = "http://evil.example/p.pac".into();
     });
     let saved = h.view(|view| view.backend.settings());
     let kept = saved
@@ -480,5 +480,8 @@ fn a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run() {
         .get("Main queue")
         .map(|s| s.run_when_done.as_str());
     assert_eq!(kept, Some(""), "{kept:?}");
-    assert_eq!(saved.proxy.script, "", "a script set the proxy script");
+    assert_eq!(
+        saved.advanced.proxy.script, "",
+        "a script set the proxy script"
+    );
 }
