@@ -11,6 +11,34 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## Resume here (2026-11-19)
+
+**Nothing of 2026-11-19 is compiled or pushed.** `main` is about 80 commits ahead of
+`origin/main` (8b890718, pushed from the Mac); the maintainer's word on the laptop is to code and
+commit only, no build and no push. Coded that day, three agents at a time, each on a branch of
+its own in `D:\dm-wt` and merged when it reported (each row's Status says what it waits for):
+P8 (`dm_shell::registry`), Y10 (`dm_core::sound_language`), Y20 (DASH and HLS subtitles), Y21
+(room before a join; the HLS remux from its segments), Y5 (a stream just ended), A20 (comments),
+A5 (dm-desktop-base folders, one `Mode`), A11 (`dm_core::env`, `EngineConfig`), A19 (`note!`,
+named timings), A12 (long functions split; the size gate and its baselines), A8 (`dm_core::paths`,
+format numbers, a struct per Options page), A17 and X5 (the GPUI copies as patches, `cargo xtask
+vendor`, the weekly job), X7 (`cargo xtask build`, `test`, `package`, `qa`), A7 (`Session`'s tick,
+`Downloads`' state), A9 (`FailKind`), A14 (no waiting on files on the window's thread), A21
+(`DownloadList`), the streams' silence fix, rows 215 and 216 (CI). D5, D6, X3 and X6 closed at
+the maintainer's word (no developer pages).
+
+**Next, in this order:**
+1. On the Mac, step 8 on this tree, starting with `cargo check` and clippy on every crate: two
+   days of rows were merged uncompiled. The size gate's baselines (`desktop/xtask/size-baseline.txt`,
+   `fn-baseline.txt`) were counted by a Python copy of the Rust count after each merge: if xtask's
+   count differs by a line, lower or recount the entry with `cargo xtask size-baseline`.
+2. Push at the maintainer's word, then CI (row 216): the contract coverage file and actionlint's
+   finding are named only in the jobs' logs, which this laptop cannot read.
+3. Step 0's questions to the maintainer in one message: the approvals and decisions listed under
+   "Work order" below, and the day's own: Y10's Options line, Y8's codec words, A9's MMS refusal,
+   A7's two headless differences (Hang up when done ignored; the queue running dry missed between
+   ticks), X5's Theme on Linux (to be seen first).
+
 ## Resume here (2026-11-18)
 
 **Pushed to `origin/main` on 2026-11-18, evening** at the maintainer's word ("testing work will
