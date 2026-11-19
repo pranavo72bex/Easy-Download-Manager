@@ -458,37 +458,46 @@ impl Interp {
                     }
                 }
             }
-            Stmt::Switch(value, cases) => {
-                let v = self.eval(value, scope)?;
-                let inner = Interp::scope_in(scope);
-                for (_, body) in cases {
-                    self.hoist(body, &inner, false)?;
-                }
-                let mut matched = None;
-                for (i, (test, _)) in cases.iter().enumerate() {
-                    if let Some(test) = test {
-                        if self.eval(test, &inner)?.strict_equals(&v) {
-                            matched = Some(i);
-                            break;
-                        }
-                    }
-                }
-                let start = matched.or_else(|| cases.iter().position(|(t, _)| t.is_none()));
-                let Some(start) = start else {
-                    return Ok(Flow::Normal);
-                };
-                for (_, body) in &cases[start..] {
-                    match self.exec_all(body, &inner)? {
-                        Flow::Normal => {}
-                        Flow::Break(None) => return Ok(Flow::Normal),
-                        Flow::Break(Some(l)) if labels.contains(&l) => return Ok(Flow::Normal),
-                        other => return Ok(other),
-                    }
-                }
-                Ok(Flow::Normal)
-            }
+            Stmt::Switch(value, cases) => self.switched(value, cases, labels, scope),
             _ => self.exec(st, scope),
         }
+    }
+
+    /// A `switch` statement, with its labels: whether a `break` is its.
+    fn switched(
+        &mut self,
+        value: &Expr,
+        cases: &[(Option<Expr>, Vec<Stmt>)],
+        labels: &[Name],
+        scope: &Scope,
+    ) -> Res<Flow> {
+        let v = self.eval(value, scope)?;
+        let inner = Interp::scope_in(scope);
+        for (_, body) in cases {
+            self.hoist(body, &inner, false)?;
+        }
+        let mut matched = None;
+        for (i, (test, _)) in cases.iter().enumerate() {
+            if let Some(test) = test {
+                if self.eval(test, &inner)?.strict_equals(&v) {
+                    matched = Some(i);
+                    break;
+                }
+            }
+        }
+        let start = matched.or_else(|| cases.iter().position(|(t, _)| t.is_none()));
+        let Some(start) = start else {
+            return Ok(Flow::Normal);
+        };
+        for (_, body) in &cases[start..] {
+            match self.exec_all(body, &inner)? {
+                Flow::Normal => {}
+                Flow::Break(None) => return Ok(Flow::Normal),
+                Flow::Break(Some(l)) if labels.contains(&l) => return Ok(Flow::Normal),
+                other => return Ok(other),
+            }
+        }
+        Ok(Flow::Normal)
     }
 }
 
