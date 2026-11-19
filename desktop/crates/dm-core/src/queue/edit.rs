@@ -13,7 +13,7 @@ use super::*;
  * a fresh address for an expired link, a download started again from
  * nothing, the order rows wait in, and how each connection is getting on.
  */
-impl Queue {
+impl DownloadList {
     /// Adds a download with what the "Download details" dialog chose.
     pub async fn add_with(&self, url: &str, with: AddOptions) -> Option<Id> {
         if with.fresh_link_ok {

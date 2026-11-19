@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use axum::body::Body;
 use axum::http::HeaderMap;
 use axum::response::Response;
-use dm_core::{client, AddOptions, Id, Queue, State};
+use dm_core::{client, AddOptions, DownloadList, Id, State};
 
 use common::{serve, tempdir};
 
@@ -67,7 +67,7 @@ async fn server() -> String {
 }
 
 /// How far each of `ids` has got, as the list says.
-async fn fetched(queue: &Queue, ids: &[Id]) -> Vec<u64> {
+async fn fetched(queue: &DownloadList, ids: &[Id]) -> Vec<u64> {
     let rows = queue.list_shared().await;
     ids.iter()
         .map(|id| {
@@ -83,7 +83,7 @@ async fn a_slow_write_of_the_queue_holds_back_no_read_no_download_and_no_change(
     let base = server().await;
     let dir = tempdir();
     let store = dir.path().join("queue.json");
-    let queue = Queue::new(
+    let queue = DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,
@@ -173,7 +173,7 @@ async fn a_slow_write_of_the_queue_holds_back_no_read_no_download_and_no_change(
     let row = rows.iter().find(|r| r.id == c).unwrap();
     assert_eq!(row.description, "two");
     assert_eq!(row.state, State::Paused);
-    let kept = Queue::new(client(), common::options(dir.path()), 1);
+    let kept = DownloadList::new(client(), common::options(dir.path()), 1);
     kept.persist_to(store).await;
     let rows = kept.list().await;
     let row = rows

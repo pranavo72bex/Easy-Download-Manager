@@ -13,7 +13,7 @@ mod common;
 use axum::body::Body;
 use axum::http::Uri;
 use axum::response::Response;
-use dm_core::{client, AddOptions, Queue, State, MAIN_QUEUE};
+use dm_core::{client, AddOptions, DownloadList, State, MAIN_QUEUE};
 
 use common::tempdir;
 
@@ -35,8 +35,8 @@ async fn serve() -> std::net::SocketAddr {
     common::serve(axum::Router::new().fallback(handler)).await
 }
 
-fn queue(dir: &std::path::Path) -> Queue {
-    Queue::new(
+fn queue(dir: &std::path::Path) -> DownloadList {
+    DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,
@@ -49,7 +49,7 @@ fn queue(dir: &std::path::Path) -> Queue {
 /// `persist_to`, and its first write waited for: it is made in the background (gaps row S16),
 /// so a test that counts saves would otherwise count it, or find it had already written the
 /// change the test is about.
-async fn persisted(q: &Queue, path: std::path::PathBuf) {
+async fn persisted(q: &DownloadList, path: std::path::PathBuf) {
     let before = q.saves_written();
     q.persist_to(path).await;
     let asked = std::time::Instant::now();

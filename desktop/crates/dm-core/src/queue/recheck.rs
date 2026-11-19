@@ -5,7 +5,7 @@
 
 use super::*;
 
-impl Queue {
+impl DownloadList {
     /// The recheck queue: asks the server about every finished row
     /// of `queue` again and downloads afresh each one whose file changed
     /// there: a different ETag or Last-Modified, or a different length.

@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::response::Response;
-use dm_core::{AddOptions, Id, Queue, State};
+use dm_core::{AddOptions, DownloadList, Id, State};
 use dm_shell::app::backend::Backend;
 use dm_shell::app::platform::Platform;
 use dm_shell::app::power::{Report, WhenDone};
@@ -129,7 +129,7 @@ impl World {
             start_on_login: false,
             ..Settings::default()
         };
-        let queue = Queue::new(
+        let queue = DownloadList::new(
             dm_core::client(),
             settings.options(self.dir.path().join("parts"), dm_core::Limiter::unlimited()),
             settings.concurrency,

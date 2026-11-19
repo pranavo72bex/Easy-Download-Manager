@@ -11,7 +11,7 @@
 
 use std::path::{Path, PathBuf};
 
-use dm_core::{Checksum, Id, Queue};
+use dm_core::{Checksum, DownloadList, Id};
 
 use crate::host;
 
@@ -458,7 +458,7 @@ pub fn hand_off(
 /// routes disagreeing about one setting.
 pub struct Started {
     /// The queue, its saved downloads read back and the settings applied.
-    pub queue: Queue,
+    pub queue: DownloadList,
     /// The settings it was started with, as read (or the defaults).
     pub settings: Settings,
     /// What went wrong on the way and was put right, in words for the window.
@@ -499,7 +499,7 @@ pub async fn start(orders: &Orders) -> Started {
     // The served rules' YouTube clients, asked before the engine's own (gaps row Y1).
     crate::host::served::apply(&crate::settings::home());
 
-    let queue = Queue::new(
+    let queue = DownloadList::new(
         client,
         // Part files go under dm's own directory unless a folder was chosen:
         // they are not files anyone wants to find in their downloads folder.
@@ -636,7 +636,7 @@ pub fn use_cookies(settings: &Settings) -> Option<String> {
 pub async fn apply(
     settings: &Settings,
     previous: Option<&Settings>,
-    queue: &Queue,
+    queue: &DownloadList,
 ) -> Result<Vec<String>, String> {
     check(settings, previous)?;
     if new_client(settings, previous) {
@@ -679,7 +679,7 @@ const RULES_EVERY: std::time::Duration = std::time::Duration::from_secs(2);
 /// The scheduler runs only while something is queued or running, and a held
 /// row is neither: without this, a window opening at one in the morning
 /// would start nothing until a person touched the queue.
-pub fn watch_rules(queue: &Queue) {
+pub fn watch_rules(queue: &DownloadList) {
     let queue = queue.clone();
     tokio::spawn(async move {
         loop {
@@ -707,7 +707,7 @@ pub fn watch_rules(queue: &Queue) {
 /// It runs until the queue empties, so a new arrival while it is idle needs
 /// it started again. Starting a second one is harmless: the first returns
 /// as soon as it finds nothing to do. Must be called inside the runtime.
-pub fn wake(queue: &Queue) {
+pub fn wake(queue: &DownloadList) {
     let queue = queue.clone();
     tokio::spawn(async move { queue.run().await });
 }
@@ -781,7 +781,7 @@ fn magnet_names_a_torrent(url: &str) -> bool {
 ///
 /// A link in the list that cannot be used is skipped, not the whole paste:
 /// the rest are added, and what was skipped comes back with the reason.
-pub async fn add(queue: &Queue, text: &str) -> Result<Added, String> {
+pub async fn add(queue: &DownloadList, text: &str) -> Result<Added, String> {
     let mut skipped = Vec::new();
     let urls: Vec<&str> = text
         .split_whitespace()
@@ -963,7 +963,7 @@ pub fn ask_running_to_quit(home: &Path) -> std::io::Result<bool> {
 /// and another set of platform differences, for a directory that sees a
 /// handful of files a day.
 pub async fn watch_inbox(
-    queue: Queue,
+    queue: DownloadList,
     show: impl Fn() + Send + 'static,
     ask: impl Fn(host::Request) + Send + 'static,
     quit: impl Fn() + Send + 'static,
@@ -1092,11 +1092,11 @@ pub enum Taken {
 /// A hand-off from the browser's extension. One the window asks about
 /// (`asks`) is asked about first, as contract row B63 has it. Otherwise it
 /// is first offered to a row whose signed address ran out and that waits for
-/// the browser's next one for the same file (`Queue::adopt_fresh_link`), and
+/// the browser's next one for the same file (`DownloadList::adopt_fresh_link`), and
 /// added where none takes it; a renewal (`Request::renews`) never asks and is
 /// nothing more.
 pub async fn take_from_browser(
-    queue: &Queue,
+    queue: &DownloadList,
     saved: &Settings,
     request: host::Request,
     asks: bool,

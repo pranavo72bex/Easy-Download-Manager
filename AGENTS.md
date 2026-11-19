@@ -329,8 +329,8 @@ say:
 ## Glossary
 
 The code names some things several ways. This says what each word means, and which name is
-the one to use in new code. (Gaps row A21: the names themselves are left as they are
-until the queue/queues rename.)
+the one to use in new code. The names in the right-hand column are the ones in the code
+(gaps row A21).
 
 ### The list
 
@@ -339,8 +339,8 @@ until the queue/queues rename.)
 | **download** | One file dm is fetching or has fetched, as a person thinks of it. | The word for the person: menus, docs, messages. |
 | **row** | The same thing as the list stores it: one download's address, state, progress, folder and options. | `dm_core::Entry` (`queue/mod.rs`, "One row"). Code says "row" for an `Entry`; prefer it in new code over "entry" or "item". |
 | **id** | A row's number, stable for as long as the list keeps the row. | `dm_core::Id` (`u64`). |
-| **the list** / **the queue** | Every row dm knows, and the runner that starts them. | `dm_core::Queue` (`queue/mod.rs`, "A queue of downloads"): one per program, cheap to clone. |
-| **a queue** (named) | A line rows wait in to be started later: "Main queue", "Recheck queue", or one a person makes. | A row's `queue: String` field; the Scheduler's queues. Not a `Queue`. This clash is the rename row A21 leaves for later. |
+| **the list** / **the queue** | Every row dm knows, and the runner that starts them. | `dm_core::DownloadList` (`queue.rs`, "A queue of downloads"): one per program, cheap to clone. |
+| **a queue** (named) | A line rows wait in to be started later: "Main queue", "Recheck queue", or one a person makes. | A row's `queue: String` field; the Scheduler's queues. Not the `DownloadList`. |
 | **place** | An entry in the side panel: All, a kind, a person's category, Unfinished, Finished, a named queue. A filter over the one list. | `dm_shell::app::places::Place`. |
 | **state** | Where a row has got to: Queued, Running, Paused, Completed, Failed (with its reason), Cancelled. | `dm_core::State`. "Settled" means Completed, Failed or Cancelled. |
 

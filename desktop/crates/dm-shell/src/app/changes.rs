@@ -5,7 +5,7 @@
 
 //! That the queue changed, told to every presentation that draws it.
 //!
-//! The queue tells one callback (`Queue::on_change`); [`connect`] makes that
+//! The queue tells one callback (`DownloadList::on_change`); [`connect`] makes that
 //! callback this module's [`changed`], which marks [`CHANGED`] and then calls
 //! every subscriber, so several presentations (a window, a headless loop, a
 //! second front end) are each told. What changed is not carried: a
@@ -23,7 +23,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use dm_core::Queue;
+use dm_core::DownloadList;
 
 /// Set whenever the queue changes, cleared by [`take`] before a read of it.
 /// The window decides when to look again from the list it last read, which
@@ -39,8 +39,8 @@ static SUBSCRIBERS: Mutex<Vec<Subscriber>> = Mutex::new(Vec::new());
 
 /// Makes the queue's change callback this module's: from now on every change
 /// marks [`CHANGED`] and tells each subscriber. Once per queue; a second call
-/// replaces the first, as `Queue::on_change` does.
-pub fn connect(queue: &Queue) {
+/// replaces the first, as `DownloadList::on_change` does.
+pub fn connect(queue: &DownloadList) {
     queue.on_change(changed);
 }
 

@@ -32,7 +32,7 @@ in [EVENT_FLOW.md](EVENT_FLOW.md); where new code goes is in
 │   host, inbox, lists, register: the glue it coordinates)     │
 │   no window toolkit, ever (`cargo xtask layers`)             │
 └───────────────────────────┬──────────────────────────────────┘
-                            │ dm_core::Queue, Entry, State, Id, …
+                            │ dm_core::DownloadList, Entry, State, Id, …
 ┌───────────────────────────▼──────────────────────────────────┐
 │ Domain and engine: dm-core                                   │
 │   the queue and its rows (domain), the downloaders (HTTP,    │
@@ -54,7 +54,7 @@ rows, and asks the application to act.
 ## Where the engine's code is, by concern
 
 So that work on the engine knows which files are its own; the window never
-reaches past `dm_core::Queue` (and the control port the same queue serves).
+reaches past `dm_core::DownloadList` (and the control port the same queue serves).
 
 | Concern | Where |
 |---|---|
@@ -129,7 +129,7 @@ cost at 10,000 rows are in [EVENT_FLOW.md](EVENT_FLOW.md).
 
 ## Known coupling left in dm-core
 
-- `Queue::new` takes a `reqwest::Client` and dm-core re-exports `reqwest`;
+- `DownloadList::new` takes a `reqwest::Client` and dm-core re-exports `reqwest`;
   `Error::Network` wraps `reqwest::Error`. A presentation never needs to name
   them; the shell does, and the window does not (the update check and a ZIP's
   listing moved to `dm_shell::app`, step 17; `pub use reqwest` kept,

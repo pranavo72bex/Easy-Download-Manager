@@ -6,7 +6,7 @@ From the engine to whatever presentation draws it, as the code does it today.
 engine (dm-core runner)            application (dm_shell::app)         presentation (the GPUI window, dm-gpui)
 ───────────────────────            ───────────────────────────         ───────────────────────────────────────
 progress bytes ──► row's Slot (no signal; read on the next look)
-state change ──► Queue::save ──► Queue::on_change ──► changes::changed()
+state change ──► DownloadList::save ──► on_change ──► changes::changed()
                                                        │ CHANGED = true
                                                        └─► each subscriber ──► wake(Wake::Soon) (boot.rs)
                                                                               │

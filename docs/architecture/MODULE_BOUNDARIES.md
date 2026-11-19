@@ -47,7 +47,7 @@ makes sense with a screen.
 
 ## Rules that hold everywhere
 
-- Domain types (`dm_core::Entry`, `State`, `Id`, `Queue`) carry no GUI type
+- Domain types (`dm_core::Entry`, `State`, `Id`, `DownloadList`) carry no GUI type
   and no presentation's wording.
 - The application never names `egui` (or any toolkit). A trait it declares
   (`Platform`) is how it asks the presentation for what only a desktop does.

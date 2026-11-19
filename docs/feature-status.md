@@ -16,7 +16,7 @@ turn (`web/listen.rs`); only the two page scripts (`content.js`,
 in-browser downloader) was removed on 2026-10-12 and is in git history.
 
 ## Core downloader
-- [x] A browser download whose signed address expired waits for a fresh one (`Entry::fresh_link`, saved with the row) and the browser's next hand-over of the same file, matched by name, exact size and family of servers, takes its place and resumes from the staged parts (`Queue::adopt_fresh_link`; `fresh_link.rs`)
+- [x] A browser download whose signed address expired waits for a fresh one (`Entry::fresh_link`, saved with the row) and the browser's next hand-over of the same file, matched by name, exact size and family of servers, takes its place and resumes from the staged parts (`DownloadList::adopt_fresh_link`; `fresh_link.rs`)
 - [x] Every seam between ranges is fetched again over a fresh request and compared, 512 bytes a side, once, by whichever of its two ranges is whole second, while the download goes on, and the file's last 512 bytes once; so each range's end is looked at in the same request as the next range's start (ENG-D12, clean-room). A range's own checks, two at most, are asked at once, so the range whole last waits one round trip for them, not two. Bytes that differ, or the whole file answered under the validator, restart the file on one connection and the row says why (`download/assemble.rs` `check_seams`; `seam_check.rs`, `each_seam_is_asked_for_once_across_it_and_the_files_end_once`, `a_ranges_own_checks_are_asked_at_once`)
 - [x] A connection with nothing left halves only a range its own connection would take longer than a request is worth to finish (a tenth of a second, or twice the wait for a first byte), at its pace over its last 20 ms, judged 40 ms after a range ends; one about to end, or whose answer is on its way, is left be (`download/ranged.rs` `split_largest`; `tests/halving.rs`, `speed.rs`)
 - [x] A server that limits how many requests it serves at once and how often it takes one (nginx's `limit_conn` and `limit_req`, as Hetzner's mirrors answer) is kept to, once it turns a request away while it serves others: no more connections at work than it has served at once, the others waiting for a place rather than ending; a new request no sooner than its pace allows after a refusal that was not for want of a place; an answer that brings its range whole read on into the ranges after it that nobody has, so one request fetches several; a halving's back half fetched by the range it was cut from where the server refuses the halving's request; the seams checked once no range is asked for, one at a time; and the next file from the same server opens that many connections. The ranges after the first are asked for from the file's end backwards, so the probe's answer can run on through those a server turns away (`download/ranged/limits.rs`; `tests/limits.rs` `a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection`, `connections_a_server_turns_away_step_aside_at_once`; gaps row 197)
@@ -39,7 +39,7 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
 - [x] A YouTube channel's address or tab, and a YouTube Music playlist, open the Playlist dialog with the channel's uploads or the list's videos (`youtube::channel_of`, `youtube::is_list`; `youtube_cover.rs` `a_channels_uploads_and_a_music_playlist_are_read_as_playlists`; contract row B02)
 - [x] The video bar below a fixed header and compact on narrow videos (`decide::visible_box`, `panel_size`, `show::bar_over_top`)
 - [x] Help menu with reference A's items and a Tip of the day dialog; a user guide (`docs/user-guide.md`)
-- [x] Start downloading while Download details is open (`Settings::start_while_asking`, `Queue::settle_early`)
+- [x] Start downloading while Download details is open (`Settings::start_while_asking`, `DownloadList::settle_early`)
 - [x] Edge checks for the seven magnet variants and a master playlist's line (`DM_NO_SWARM` keeps the check's torrents off the network)
 - [x] Served site rules name a title element (`SiteProfile::title`, `Rules::title_for`, `content.js` `dmTitleRule`)
 - [x] "Download links" as reference A's: Save to column and choice, Hide images, Hide repeated files, Edit (`dialogs/links.rs`, `LinksImport::visible`, `SaveTo`)
@@ -559,7 +559,7 @@ of them.
       on macOS in Edge, 2026-11-19; gaps row 214)
 - [x] Move/Rename on one download that failed or is stopped: the name and
       folder typed are its own, its parts go with it, and a failed or stalled
-      one is tried again (`Queue::place_unfinished`, `commands::applies`;
+      one is tried again (`DownloadList::place_unfinished`, `commands::applies`;
       `tests/queue.rs`
       `an_unfinished_download_given_another_folder_and_name_lands_there`;
       contract row B54, 2026-11-18)

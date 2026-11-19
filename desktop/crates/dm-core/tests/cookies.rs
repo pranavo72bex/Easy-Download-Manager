@@ -89,7 +89,7 @@ async fn a_handed_over_sign_in_is_its_downloads_alone_and_for_its_server_alone()
 
     // Through the queue, as a hand-off arrives: the row carries them and
     // its download sends them.
-    let q = dm_core::Queue::new(client(), options(dir.path()), 1);
+    let q = dm_core::DownloadList::new(client(), options(dir.path()), 1);
     let id = q
         .add_with(
             &url,

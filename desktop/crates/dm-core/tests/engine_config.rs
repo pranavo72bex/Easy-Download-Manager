@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use axum::body::Body;
 use axum::response::Response;
-use dm_core::{client, configure, EngineConfig, Queue, State};
+use dm_core::{client, configure, DownloadList, EngineConfig, State};
 
 /// A download of one small file through a queue, as the window's go; its row's state at the end.
 async fn a_download(dir: &std::path::Path) -> State {
@@ -32,7 +32,7 @@ async fn a_download(dir: &std::path::Path) -> State {
         connections: 1,
         ..common::options(dir)
     };
-    let q = Queue::new(client(), options, 1);
+    let q = DownloadList::new(client(), options, 1);
     let id = q.add(&format!("http://{addr}/f.bin")).await.unwrap();
     tokio::time::timeout(Duration::from_secs(20), q.run())
         .await

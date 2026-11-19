@@ -6,7 +6,7 @@
 //! What dm does as it opens: the Main queue starts when the setting says
 //! so, with nobody clicking "Start queue".
 
-use dm_core::{AddOptions, Queue, State};
+use dm_core::{AddOptions, DownloadList, State};
 use dm_shell::settings::{self, Settings};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -23,7 +23,7 @@ async fn the_main_queue_starts_at_launch_when_the_setting_says_so() {
     saved.save().unwrap();
 
     // A row added for later, as the last run left it.
-    let queue = Queue::new(
+    let queue = DownloadList::new(
         dm_core::client(),
         saved.options(home.path().join("parts"), dm_core::Limiter::unlimited()),
         1,

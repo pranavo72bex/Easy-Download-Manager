@@ -5,7 +5,7 @@
 
 use super::*;
 
-impl Queue {
+impl DownloadList {
     /// What to call whenever the queue changes. One at a time: a second
     /// replaces the first.
     pub fn on_change(&self, tell: impl Fn() + Send + Sync + 'static) {

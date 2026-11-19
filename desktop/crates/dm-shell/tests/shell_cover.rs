@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use dm_core::{Queue, State};
+use dm_core::{DownloadList, State};
 use dm_shell::host::{self, Request};
 use dm_shell::settings::Settings;
 use dm_shell::shell;
@@ -49,14 +49,14 @@ fn home() -> &'static Path {
     .path()
 }
 
-fn queue(dir: &Path) -> Queue {
+fn queue(dir: &Path) -> DownloadList {
     let saved = Settings {
         download_dir: dir.join("out"),
         ..Settings::default()
     };
     let mut options = saved.options(dir.join("parts"), dm_core::Limiter::unlimited());
     options.attempts = 1;
-    Queue::new(dm_core::client(), options, 1)
+    DownloadList::new(dm_core::client(), options, 1)
 }
 
 async fn until(what: &str, mut done: impl AsyncFnMut() -> bool) {

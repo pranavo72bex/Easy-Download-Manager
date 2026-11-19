@@ -54,7 +54,7 @@ async fn a_pasted_list_skips_the_link_it_cannot_use_and_adds_the_rest() {
         download_dir: dir.path().join("out"),
         ..Default::default()
     };
-    let queue = dm_core::Queue::new(
+    let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.path().join("parts"), dm_core::Limiter::unlimited()),
         1,

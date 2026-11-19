@@ -290,7 +290,7 @@ impl Error {
     /// Whether this says the address itself has run out: the server refused it
     /// (403, or 410 Gone), or a web page answered where the file should be. A
     /// signed address from a browser stops working after a while, and what
-    /// is staged under it is still good (`Queue::adopt_fresh_link`).
+    /// is staged under it is still good (`DownloadList::adopt_fresh_link`).
     pub fn link_expired(&self) -> bool {
         matches!(
             self.fail_kind(),

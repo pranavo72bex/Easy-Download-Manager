@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use dm_core::Quality;
-use dm_core::{client, Categories, Control, Limiter, Options, Queue};
+use dm_core::{client, Categories, Control, DownloadList, Limiter, Options};
 
 #[tokio::main]
 async fn main() {
@@ -35,7 +35,7 @@ async fn main() {
         std::process::exit(2);
     }
 
-    let queue = Queue::new(
+    let queue = DownloadList::new(
         client(),
         Options {
             connections: 4,

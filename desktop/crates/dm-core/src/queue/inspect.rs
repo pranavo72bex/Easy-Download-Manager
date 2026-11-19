@@ -5,7 +5,7 @@
 
 use super::*;
 
-impl Queue {
+impl DownloadList {
     /// How each connection of a download is getting on, from the plan and
     /// the part files on disk. Empty for one with nothing staged.
     pub async fn connections(&self, id: Id) -> Vec<Connection> {
