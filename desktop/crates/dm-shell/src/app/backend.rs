@@ -1041,7 +1041,7 @@ mod settings_from_tests {
 
     /// Where downloads go is a person's to set too: a script moving the download folder into a
     /// startup folder keeps the one in force and says it did; a person's change sets it
-    /// (security audit, 2026-11-12).
+    /// (security audit).
     #[test]
     fn a_scripts_settings_change_keeps_the_folders_a_persons_sets_them() {
         let runtime = tokio::runtime::Runtime::new().unwrap();

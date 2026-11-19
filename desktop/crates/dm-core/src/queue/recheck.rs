@@ -15,8 +15,8 @@ impl Queue {
     /// playlist has nothing to compare and is not counted as checked.
     pub async fn synchronize(&self, queue: &str) -> (usize, Vec<Id>) {
         // One at a time: a second check over the same rows, from a click
-        // while the timer's runs, held the old validators and fetched again
-        // what the first had just fetched.
+        // while the timer's runs, would hold the old validators and fetch
+        // again what the first had just fetched.
         if self.inner.rechecking.swap(true, Ordering::SeqCst) {
             return (0, Vec::new());
         }

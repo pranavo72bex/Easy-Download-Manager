@@ -48,7 +48,7 @@ pub const SHOWN_IN_TAB: &[&str] = &[
 ];
 
 /// How long after a person's own click or key press a magnet a page opens with script counts as
-/// theirs (security review, 2026-11-07).
+/// theirs (security review).
 pub const GESTURE_FOR_MS: u32 = 1500;
 
 /// The page's own answers about media kept in `content.js` for the panel's list: the newest,

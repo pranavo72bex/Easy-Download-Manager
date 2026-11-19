@@ -743,9 +743,9 @@ async fn the_zoo_holds_its_floor() {
 }
 
 /// A server that compresses unasked and states the compressed length (Apache's `AddEncoding
-/// x-gzip` on a .tar.gz): fetched once. The decoded bytes never matched the stated, encoded,
-/// length, so every answer was taken as short and the whole file fetched again for about 16 s
-/// (engine review, 2026-11-08).
+/// x-gzip` on a .tar.gz): fetched once. The decoded bytes never match the stated, encoded,
+/// length: held to it, every answer would be taken as short and the whole file fetched again
+/// for about 16 s (engine review).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_compressed_answer_with_its_length_is_fetched_once() {
     use std::io::Write;

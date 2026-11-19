@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! A magnet link Windows opens through dm's key becomes a row in the dm that
-//! is running (gaps T6; done by hand on 2026-11-02).
+//! is running (gaps T6; also checked by hand).
 //!
 //! On Windows it writes the real `HKCU\Software\Classes\magnet` key, so it runs
 //! only when asked: `DM_REGISTRY_TEST=1 cargo test -p dm-gpui --test
@@ -158,7 +158,7 @@ fn a_magnet_opened_through_dms_key_becomes_a_row_in_the_running_dm() {
     // Spelled as the running dm finds itself (`register::ensure_this_copy`). Cargo
     // keeps a `CARGO_TARGET_DIR` as given, so `D:/dm-target` makes the path
     // `D:/dm-target\debug\…`, and Windows' shell refuses a key whose command
-    // names its program with a forward slash: "Access is denied" (2026-11-10).
+    // names its program with a forward slash: "Access is denied".
     let exe = Path::new(env!("CARGO_BIN_EXE_dm-gpui"))
         .canonicalize()
         .map(dm_core::plain_path)

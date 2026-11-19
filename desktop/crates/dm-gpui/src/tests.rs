@@ -25,8 +25,8 @@ fn this_window_carries_the_version_dm_is_released_under() {
 }
 
 /// The language chosen is in force before the window and the tray are
-/// made: set only by Options' OK, every word was English after each start
-/// (review of 2026-11-11).
+/// made: set only by Options' OK, every word would be English after each
+/// start (review).
 #[test]
 fn the_language_chosen_is_in_force_before_the_window_opens() {
     let source = include_str!("main.rs");
@@ -67,8 +67,8 @@ fn the_login_item_follows_the_setting_after_the_window_is_made() {
 /// download, the scheduled hours' program, the proxy script) save
 /// through `Downloads::apply_settings`, which keeps those programs when
 /// a script was driving the window a moment ago. A direct
-/// `backend.set_settings` there let a control-port client set the
-/// Scheduler's program (security review, 2026-11-11).
+/// `backend.set_settings` there would let a control-port client set the
+/// Scheduler's program (security review).
 #[test]
 fn windows_that_set_a_program_save_through_the_guard() {
     // Split so this test's own source does not match it.

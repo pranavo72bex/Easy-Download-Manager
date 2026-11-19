@@ -5,7 +5,7 @@
 
 //! A dial-up or VPN connection connected before a download goes out (Options ›
 //! Advanced › Dial Up / VPN, Windows), as reference A's last Options tab offers
-//! (gaps row 93, G84; the maintainer's word of 2026-11-07: "If reference A has
+//! (gaps row 93, G84; the maintainer's word: "If reference A has
 //! then implement it").
 //!
 //! As reference A's, measured beside it on 2026-11-08 with a VPN to this

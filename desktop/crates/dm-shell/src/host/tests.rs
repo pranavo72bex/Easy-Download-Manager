@@ -123,8 +123,8 @@ fn a_browser_does_not_get_to_choose_where_a_request_is_written() {
 
 #[test]
 fn two_hand_offs_never_share_one_file() {
-    /* Ids that come to one name once made plain used to be written over
-     * each other: the first download lost, both reported taken. */
+    /* Ids that come to one name once made plain must not be written over
+     * each other: the first download would be lost, both reported taken. */
     let dir = tempfile::tempdir().unwrap();
     let long = "X".repeat(64);
     let ids = ["a.1", "a1", "a1", &format!("{long}A"), &format!("{long}B")];
@@ -1486,7 +1486,7 @@ fn a_forms_answer_is_taken_without_asking_and_its_form_goes_with_it() {
 
 /// A page's links are taken without logins written into them, and none inside this computer or
 /// its network where the page is public; an inside page's own inside links are kept (security
-/// audit, 2026-11-12).
+/// audit).
 #[test]
 fn a_public_pages_links_inside_are_dropped_and_logins_taken_out() {
     let page = "https://evil.example/list.html";

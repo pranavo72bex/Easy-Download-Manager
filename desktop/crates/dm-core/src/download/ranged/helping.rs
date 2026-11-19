@@ -19,7 +19,7 @@ pub(in crate::download) const HELP_WATCH: Duration = Duration::from_millis(80);
 /// range to halve. Whether it then opens a connection is the range's to say
 /// (`Job::split_worth`: a connection costs a round trip before its first byte,
 /// so one opened for what the others finish sooner only slows the end), so
-/// this is no longer that guard. At 0.3 s, a 2 MiB file fetched at 2 MiB/s a
+/// this is not that guard. At 0.3 s, a 2 MiB file fetched at 2 MiB/s a
 /// connection was seen with 0.29 to 0.34 s left when its helpers looked, and was
 /// helped or not by how its bytes fell into the 80 ms watched: 0.32 s with help,
 /// 0.52 s without (`bench` batch, macOS, 2026-11-11).

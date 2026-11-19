@@ -471,9 +471,9 @@ pub async fn download_torrent(
 
     /* Staged like every other download, under its own parts directory, and
      * moved into the download folder only when whole. Written straight into
-     * the download folder, a paused torrent's half-fetched files sat there
-     * looking finished, and removing the row left them: the queue clears a
-     * row's parts directory, and a torrent had nothing in it. */
+     * the download folder, a paused torrent's half-fetched files would sit
+     * there looking finished, and removing the row would leave them: the
+     * queue clears a row's parts directory, and a torrent's would be empty. */
     let output = options.parts_dir.clone();
     tokio::fs::create_dir_all(&output)
         .await

@@ -360,8 +360,8 @@ fn a_queues_own_file_limit_and_the_parts_folder_are_set_in_options() {
 
 #[test]
 fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
-    /* A failed OK used to reopen Options on the settings in force, which threw away every
-     * edit in the dialog to say what was wrong with one. The edits stay, with the reason,
+    /* A failed OK does not reopen Options on the settings in force, which would throw away
+     * every edit in the dialog to say what was wrong with one. The edits stay, with the reason,
      * and OK again once the cause is gone puts them in force. */
     let _file = settings_file();
     let world = world();

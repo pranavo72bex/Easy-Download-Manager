@@ -810,9 +810,9 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .on_click(cx.listener(move |view, event: &gpui::ClickEvent, _, cx| {
                             // The primary button's alone: GPUI hands the
                             // right button's click here too, after its press
-                            // opened the menu above, and that chose the row
-                            // by itself, so Move/Rename for two chosen rows
-                            // renamed one (Linux, real input, 2026-11-11).
+                            // opens the menu above, and taken, it would choose
+                            // the row by itself, so Move/Rename for two chosen
+                            // rows would rename one (Linux, real input).
                             if !event.standard_click() {
                                 return;
                             }

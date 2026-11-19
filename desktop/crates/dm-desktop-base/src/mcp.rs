@@ -241,8 +241,8 @@ pub type Finder = Box<dyn Fn() -> Result<(u16, String), String> + Send>;
 /// A connection to the running dm's control protocol, made again when dm
 /// has gone and come back.
 ///
-/// It used to be made once: after dm restarted, every call failed until
-/// the AI client restarted `dm mcp` too — and dm's port is a new one each
+/// Made once, every call would fail after dm restarted until the AI
+/// client restarted `dm mcp` too — and dm's port is a new one each
 /// start, so the port and token are read again rather than reused.
 pub struct Control {
     link: Option<(TcpStream, BufReader<TcpStream>)>,
@@ -467,7 +467,7 @@ pub fn finder(home: &Path, port: Option<String>, token_file: Option<String>) -> 
     Box::new(move || {
         // The token before the port: dm removes the port file before it writes a new token and
         // writes the port once bound, so a token read first is never sent to a port left by a
-        // crash that someone else may now hold (security audit, 2026-11-12).
+        // crash that someone else may now hold (security audit).
         let token = token_file
             .clone()
             .map(std::path::PathBuf::from)

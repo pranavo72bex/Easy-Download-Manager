@@ -978,9 +978,9 @@ fn choose(
                 })
         })?;
     // A picture with its own sound (the formats with both in one file, which
-    // name two codecs) needs none beside it: asking for one failed every
+    // name two codecs) needs none beside it: asking for one would fail every
     // video offered only that way with "no stream at that quality"
-    // (coverage tests, 2026-11-08).
+    // (coverage tests).
     if picture.video && picture.codec.contains(',') {
         return Some(vec![(*picture).clone()]);
     }

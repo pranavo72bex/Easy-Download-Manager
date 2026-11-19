@@ -59,8 +59,7 @@ impl Seen {
 /// that came from that very host, `from` (the page that loaded a playlist,
 /// or the playlist that named a rendition). Otherwise any page could load a
 /// "playlist" from a router's or a printer's address and have the extension
-/// ask it again with no CORS and no private-network check (security review,
-/// 2026-11-07).
+/// ask it again with no CORS and no private-network check (security review).
 pub fn may_reread(target: &str, from: &str) -> bool {
     let host = dm_protocol::host_of(target);
     !inside(&host) || dm_protocol::host_of(from) == host

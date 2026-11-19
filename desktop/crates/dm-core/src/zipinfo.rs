@@ -312,9 +312,9 @@ pub async fn zip_take_one(
     if entry.is_folder() {
         return Err("a folder is not a file to take out".into());
     }
-    // Unpacked as well as packed: deflated zeros said to unpack to more than the cap were
-    // unpacked into memory up to what the archive claimed, a thousand times the packed bytes
-    // (security audit, 2026-11-12).
+    // Unpacked as well as packed: deflated zeros said to unpack to more than the cap would
+    // otherwise be unpacked into memory up to what the archive claims, a thousand times the
+    // packed bytes (security audit).
     if entry.packed > MOST_TAKEN || entry.size > MOST_TAKEN {
         return Err("this file is too large to take out alone; download the archive".into());
     }

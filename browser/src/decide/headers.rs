@@ -246,7 +246,7 @@ impl RequestHeaders {
     /// byte-range parameter (a piece is not the file). A signed address runs out; the newest one
     /// is the one that will still be good when the app asks for it. Only `tab`'s own requests
     /// count: another tab's video on the same host is another person's choice, not this one's
-    /// renewal (security review, 2026-11-07). `None` when `url` is already the newest, nothing
+    /// renewal (security review). `None` when `url` is already the newest, nothing
     /// newer was seen in that tab, or the hand-off came from no tab.
     pub fn renewed(&self, url: &str, tab: Option<i64>) -> Option<String> {
         let tab = tab?;
@@ -278,7 +278,7 @@ impl RequestHeaders {
         };
         // What says which stream it is, as against how it is signed: YouTube's `itag`, and its
         // `id` and `mime`, which another video's address on the same edge host does not share
-        // (security review, 2026-11-07: another tab's video with the same itag was a "renewal").
+        // (security review: else another tab's video with the same itag would be a "renewal").
         let same = |p: &[(String, String)], q: &[(String, String)]| {
             ["itag", "id", "mime"].iter().all(|name| {
                 let value = |x: &[(String, String)]| {

@@ -3,8 +3,8 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The questions the rows raise, as reference A asks them (maintainer,
-//! 2026-11-01; contract rows B39 to B41): a name the server sent that is not
+//! The questions the rows raise, as reference A asks them (maintainer;
+//! contract rows B39 to B41): a name the server sent that is not
 //! the address's, a web page where a file was asked for, a 404. Found by
 //! comparing each read with the last, and kept until the presentation is free
 //! to ask, one at a time. How each is asked is the presentation's.

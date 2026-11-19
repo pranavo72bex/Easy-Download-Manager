@@ -145,7 +145,7 @@ pub fn without_window(args: &[String]) -> Option<i32> {
     }
 
     // A word that is no link, file or option is a typo, not a request to
-    // open the window: say so and stop (`dm lst` used to open dm silently).
+    // open the window: say so and stop (`dm lst` would otherwise open dm silently).
     let strays = shell::unrecognised(args);
     if !strays.is_empty() {
         attach_console();

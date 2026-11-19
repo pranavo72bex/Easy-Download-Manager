@@ -227,8 +227,8 @@ impl Options {
     /// Why a connection of dm's own (FTP, a torrent's swarm) to `url` may
     /// not be made: the computer's proxy is in force and names no address
     /// such a connection could use, and the site is not on the bypass list.
-    /// A computer with no proxy at all goes direct (it refused every FTP
-    /// download and torrent until 2026-11-06).
+    /// A computer with no proxy at all goes direct, so its FTP downloads
+    /// and torrents are not refused.
     pub fn no_route_through_system_proxy(&self, url: &str, what: &str) -> Option<String> {
         let bypassed = crate::proxy::Proxy {
             bypass: self.proxy_bypass.clone(),
@@ -401,7 +401,7 @@ struct Job {
 /// more is opened only while the last ones added raised the total rate, and given back when they
 /// did not (`ranged::grow`): reference A treats its number as a ceiling in the same way. Allowed 16,
 /// on a server that shares 8 MiB/s among all of them and cuts each, opening every one took 10.1
-/// and 11.1 s where reference A's 8 took 8.4 and 8.2 s (gaps row 168, 2026-11-09).
+/// and 11.1 s where reference A's 8 took 8.4 and 8.2 s (gaps row 168).
 pub(super) const OPENED_AT_ONCE: usize = 8;
 
 /// Where a range under way has got to, and where it now ends.
@@ -1224,7 +1224,7 @@ async fn fetch_reporting(
         first_response = None;
         let mut listed = fetch_metalink(client, &info.final_url, options).await?;
         // A public mirror list's mirrors inside are passed over, as a redirect there would be
-        // refused (`redirects::named_inside`, security audit 2026-11-12).
+        // refused (`redirects::named_inside`, security audit).
         listed
             .mirrors
             .retain(|mirror| !crate::redirects::named_inside(&info.final_url, mirror));

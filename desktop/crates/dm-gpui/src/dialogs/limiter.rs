@@ -248,9 +248,9 @@ fn labels() -> [&'static str; 3] {
 
 /// The window's width, in points of dm's design: the label column and the
 /// widest control beside it, the slower hours' two rows included, measured
-/// as `native::label_width` measures words. At a fixed 560 those rows ran
-/// past the right edge in English, Stop at's field and the speed in those
-/// hours out of sight (found by a screenshot, 2026-11-11).
+/// as `native::label_width` measures words. At a fixed 560 those rows would
+/// run past the right edge in English, Stop at's field and the speed in
+/// those hours out of sight.
 fn width() -> f32 {
     let words = |w: &str| w.chars().count() as f32 * native::TEXT * 0.55;
     let gap = native::LABEL_GAP;

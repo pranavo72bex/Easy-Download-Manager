@@ -673,7 +673,7 @@ fn remove_says_one_thing_enter_keeps_and_the_next_row_is_selected() {
     h.click("Yes, remove");
     h.until("the row gone", |h| h.rows().len() == 2);
     // The next row is chosen once the removal is read back, a wake after the row went on a
-    // slow computer (Windows CI, 2026-11-13: checked at once, the selection was still empty).
+    // slow computer (on Windows CI, checked at once, the selection is still empty).
     h.until("the next row chosen", |h| {
         h.view(|view| view.selected.clone()) == [ids[2]].into()
     });

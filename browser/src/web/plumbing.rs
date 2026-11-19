@@ -134,7 +134,7 @@ pub(super) async fn fetch_start(
 /// network is fetched only for one on that very host (`decide::may_reread`). A redirect is an
 /// error, never followed, as the address it leads to was never checked: a public server would
 /// otherwise send the worker on to a router or a printer, with the browser's session (security
-/// review, 2026-11-08). A playlist behind a redirect is left undescribed.
+/// review). A playlist behind a redirect is left undescribed.
 async fn fetch_bytes(
     url: &str,
     from: &str,

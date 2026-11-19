@@ -119,7 +119,7 @@ fn a_lock_that_cannot_be_opened_is_an_error_not_a_running_dm() {
 #[test]
 fn a_dm_starting_while_the_host_probes_waits_the_probe_out() {
     /* The host's probe takes the lock and lets it go. A claim landing
-     * in between used to give up at once, and that dm exited believing
+     * in between must not give up at once, or that dm would exit believing
      * another was running. Held here for a little longer than a probe
      * would, which a claim must outlast. */
     let home = tempfile::tempdir().unwrap();

@@ -207,8 +207,8 @@ fn a_saved_category_that_works_here_is_kept_and_a_new_one_is_portable() {
 fn one_odd_entry_costs_that_entry_and_not_every_setting() {
     /* A file edited by hand, or written by a later dm: a proxy type this
      * one does not know, a schedule and limits missing fields, a login
-     * with no password, and a number written as a word. Each of these
-     * used to move the whole file aside and start from the defaults. */
+     * with no password, and a number written as a word. None of these
+     * moves the whole file aside and starts from the defaults. */
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("settings.json");
     let text = r#"{
@@ -925,7 +925,7 @@ fn a_file_with_clear_passwords_is_moved_into_the_store_on_its_first_read() {
 
 /// An empty password is forgotten in the store when the person cleared it, and kept when this
 /// run never read it back: a settings file read in part, or a store that would not answer at
-/// start (security review, 2026-11-07).
+/// start (security review).
 #[test]
 fn a_password_this_run_did_not_read_back_is_not_forgotten_by_the_next_save() {
     let store = dm_core::secretstore::MemoryStore::default();
@@ -1359,7 +1359,7 @@ fn a_test_of_this_crate_keeps_its_settings_out_of_the_real_home() {
     }
 }
 
-/// The window's scale (issue #32, the maintainer's slider of 2026-11-11):
+/// The window's scale (issue #32, the maintainer's slider):
 /// four stops, 100% for a new install and for an older file, kept through a
 /// save and a load, any other value read as the nearest stop, an older
 /// file's names read as 80, 100 and 120, and View's steps held at 60 and

@@ -269,7 +269,7 @@ fn main() {
 
     let application = gpui_platform::application().with_assets(assets::Assets);
     // A click on the Dock icon with the window put away in the tray asks
-    // for it back; without this the click did nothing.
+    // for it back; without this the click would do nothing.
     {
         let (flag, wake) = (Arc::clone(&show_asked), Arc::clone(&wake));
         application.on_reopen(move |_| {
@@ -310,8 +310,8 @@ fn main() {
         let (window_bounds, display_id) = kept.unwrap_or_else(|| {
             // The first start's size: on Windows as reference A's window and
             // the system's own programs open, not most of a laptop's screen
-            // (900 by 600 took two thirds of 1366 by 768, the maintainer's
-            // word of 2026-11-11), as wide as the toolbar's buttons need;
+            // (900 by 600 takes two thirds of 1366 by 768, the maintainer's
+            // word), as wide as the toolbar's buttons need;
             // macOS's as it was.
             let (width, height) = widgets::native::WindowSize::Main.here();
             let first = size(px(width), px(height));
@@ -370,8 +370,8 @@ fn main() {
                 *made.borrow_mut() = Some(view.clone());
                 // In gpui-component's root, as each dialog's window is: on
                 // Linux the top bar's menus are drawn in the overlay it holds,
-                // and without it a click on Tasks or Downloads opened nothing
-                // (real input, 2026-11-11).
+                // and without it a click on Tasks or Downloads would open
+                // nothing (real input).
                 cx.new(|cx| gpui_component::Root::new(view, window, cx))
             },
         );

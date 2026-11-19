@@ -86,10 +86,10 @@ fn staged(dir: &std::path::Path) -> u64 {
 
 #[tokio::test]
 async fn a_file_republished_between_runs_is_not_spliced_into_the_old_parts() {
-    /* If-Range guards one run. Across a pause, the second run probed the new
-     * file, sent its new ETag as the condition, and the server — rightly —
-     * served the new bytes as a range, appended to parts of the old file.
-     * The result matched neither version and was reported Completed. */
+    /* If-Range guards one run. Across a pause, a second run that probed the
+     * new file and sent its new ETag as the condition would be served —
+     * rightly — the new bytes as a range, appended to parts of the old file:
+     * a result matching neither version, reported Completed. */
     let old = Arc::new(body(4 * 1024 * 1024, 1));
     let new = Arc::new(body(4 * 1024 * 1024, 99));
     let dir = tempdir();
@@ -1006,9 +1006,9 @@ async fn after_a_redirect_every_piece_asks_the_address_it_landed_on() {
 #[tokio::test]
 async fn a_server_with_no_version_that_answers_ranges_whole_is_fetched_on_one() {
     /* The test above, from a server that names no version (no ETag, no Last-Modified), as a
-     * script-served download often does: its 200 to a range was taken for "the file changed on
-     * the server", the second try on as many connections met the same, and the download failed
-     * where one connection would have fetched it (engine review, 2026-11-08). */
+     * script-served download often does: its 200 to a range taken for "the file changed on the
+     * server", the second try on as many connections would meet the same, and the download would
+     * fail where one connection would have fetched it (engine review). */
     let data = Arc::new(body(8_000_000, 13));
     let in_flight = Arc::new(AtomicUsize::new(0));
     let whole = Arc::new(AtomicUsize::new(0));
@@ -1057,7 +1057,7 @@ async fn a_server_with_no_version_that_answers_ranges_whole_is_fetched_on_one() 
 async fn a_file_that_grows_under_the_same_etag_is_never_saved_as_a_mix() {
     /* Republished mid-download as a longer file under the same ETag, as a server that ignores
      * If-Range or reuses its tags does: the ranges' Content-Range names another total than the
-     * one planned on, which is another file (engine review, 2026-11-08). Saved whole as one
+     * one planned on, which is another file (engine review). Saved whole as one
      * version, or refused; never a mix of both. */
     let v1 = Arc::new(body(3_000_000, 21));
     let v2 = Arc::new(body(4_000_000, 22));
@@ -1121,12 +1121,12 @@ async fn the_download_a_process_is_ended_in_the_middle_of() {
 #[tokio::test]
 async fn a_process_ended_in_the_middle_of_a_download_has_written_down_nearly_all_it_had() {
     /* What a range had on disk past its ledger is fetched again after a crash. Each range's
-     * ledger is written every 512 KiB or quarter second, where it was every 4 MiB or second:
-     * killed at 40% of a 120 MiB file, dm fetched 16.5 MB again, where reference A fetched
-     * 3.2 MB (gaps row 65, 2026-11-08). Here the process downloading is ended outright, as a
+     * ledger is written every 512 KiB or quarter second: at every 4 MiB or second, killed at
+     * 40% of a 120 MiB file, dm fetched 16.5 MB again, where reference A fetched 3.2 MB (gaps
+     * row 65). Here the process downloading is ended outright, as a
      * crash ends it, about two seconds into two connections at some 800 KB/s each: what its
      * ledgers say trails what the server sent by well under a second of both (by a second of
-     * each, about 1.4 MB, the old way). */
+     * each, about 1.4 MB, at every 4 MiB or second). */
     if std::env::var_os(RUN_ONE).is_some() {
         return;
     }

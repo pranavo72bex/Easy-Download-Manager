@@ -143,7 +143,7 @@ async fn quitting_with_twenty_downloads_running_stops_them_within_two_seconds_an
     let left = first.shut_down(Duration::from_secs(2)).await;
     let took = asked.elapsed();
     // What each row was doing when the deadline came, said with the failure:
-    // on Windows CI all 20 were once still going after 2 s (2026-11-14).
+    // on Windows CI all 20 can still be going after 2 s.
     let at_deadline: Vec<_> = first
         .list()
         .await

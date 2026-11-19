@@ -118,7 +118,7 @@ pub fn set_second_path(name: Option<&str>) -> Result<(), String> {
     let Some(name) = name else {
         // None chosen: the path a name set goes. One given outright (a test's,
         // `set_second_client`) is not a setting's to take away: every save of the
-        // settings came here, and took it from under that test (2026-11-13).
+        // settings comes here, and would take it from under that test.
         if NAMED.swap(false, std::sync::atomic::Ordering::SeqCst) {
             put(None);
         }

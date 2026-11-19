@@ -8,10 +8,10 @@
 //!
 //! dm's own interpreter runs it (`dm_js`, gaps row F15): Rust, in dm's own process, with
 //! nothing of the computer in its reach (no files, programs, network, clock or page) and a time
-//! limit, on a thread of its own. Nothing of the computer's is used for it any more: before, the
-//! computer's own engine ran it (Chakra on Windows, JavaScriptCore on macOS and Linux) in a
-//! process of its own behind the system's sandbox (gaps row 201); dm-js gives the same answers
-//! on YouTube's live player and reads live videos on each system (2026-11-13).
+//! limit, on a thread of its own. Nothing of the computer's is used for it, not the computer's
+//! own engine (Chakra on Windows, JavaScriptCore on macOS and Linux) in a process of its own
+//! behind the system's sandbox (gaps row 201): dm-js gives the same answers as those engines on
+//! YouTube's live player and reads live videos on each system.
 //!
 //! A test may put a stand-in in its place (`set_host`): a program that takes a request on its
 //! standard input and answers on its output, so a test of what dm does with an answer runs on

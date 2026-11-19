@@ -186,7 +186,8 @@ pub fn ring(home: &Path) {
 /// can download, with no login written into it, and not one inside this computer or its
 /// network where the page is out on the internet. The dialog asks each link's server for its
 /// name and size as it opens, so a public page listing a router's address with a login written
-/// into it had dm send that request, signed in, from the person's computer (security audit, 2026-11-12).
+/// into it would have dm send that request, signed in, from the person's computer (security
+/// audit).
 /// `None` for a link not taken.
 pub fn page_link(page: &str, link: &str) -> Option<String> {
     let link = link.trim();
@@ -1291,8 +1292,8 @@ fn detach(command: &mut Command, breakaway: bool) {
     }
 }
 
-/// What `--warm-reading` does: no longer needed since YouTube is read by
-/// dm itself and non-YouTube sites have no page reader.
+/// What `--warm-reading` does: nothing, since YouTube is read by dm itself
+/// and non-YouTube sites have no page reader.
 pub fn warm_main(_home: &Path) {}
 
 /// Runs as the browser's native messaging host until the browser closes it.

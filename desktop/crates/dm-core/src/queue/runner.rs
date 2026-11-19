@@ -198,8 +198,8 @@ impl Queue {
             let mut held = false;
             for slot in slots.values_mut() {
                 // One that already has every byte is only putting its file
-                // together: held there, it was paused at 100 % and left for
-                // the next window, for bytes it no longer needed to fetch.
+                // together: held there, it would be paused at 100 % and left
+                // for the next window, for bytes it does not need to fetch.
                 let fetched = slot
                     .entry
                     .progress
@@ -621,8 +621,8 @@ impl Queue {
             // before the queue's lock and on a thread of its own. On Windows
             // the mark is a stream of the file's own, which the virus checker
             // reads as it is written: about 16 ms a file on a Windows 11
-            // computer (2026-11-03), during which the lock held every other
-            // look at the queue, the window's included. Still before the row
+            // computer (2026-11-03), during which the lock would hold every
+            // other look at the queue, the window's included. Still before the row
             // says Completed, so a file is never opened unmarked.
             if let Ok(finished) = &outcome {
                 let path = finished.path.clone();
@@ -732,7 +732,7 @@ impl Queue {
             // The save is owed before the scheduler is woken: it may find
             // nothing left to run and return, and a `flush` right after
             // would otherwise see nothing waiting and write nothing, the
-            // last state lost (the tick's delay used to hide this).
+            // last state lost.
             queue.inner.unwritten.store(true, Ordering::SeqCst);
             queue.kick();
             queue.save().await;

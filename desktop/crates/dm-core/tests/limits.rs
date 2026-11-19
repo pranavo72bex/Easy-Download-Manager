@@ -330,9 +330,9 @@ async fn two_at_a_time(State(b): State<Arc<Busy>>, headers: HeaderMap) -> Respon
 
 /// A server that takes only two connections at once, with no limit of its
 /// own set for it: the connections it turns away step aside at once and
-/// the two it serves fetch the file. They used to wait each refusal out
-/// with backoff, ten times over, which made a 100 MB file take minutes at
-/// a seventh of curl's speed. The next file from it opens two connections,
+/// the two it serves fetch the file. Waiting each refusal out with
+/// backoff, ten times over, would make a 100 MB file take minutes at a
+/// seventh of curl's speed. The next file from it opens two connections,
 /// and none is turned away.
 #[tokio::test]
 async fn connections_a_server_turns_away_step_aside_at_once() {
@@ -610,7 +610,7 @@ async fn a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_on
     // Two connections at once take half as long as one; refusals and the answers' 100 ms
     // allowed for, about 0.6 of it alone, and up to 0.65 beside a whole workspace's tests (4.85
     // to 5.2 s of 8 in four runs beside four copies of the queue tests, 2026-11-12): held to 0.7.
-    // Before row 197 it took 1.6 times one connection's.
+    // Without what gaps row 197 changed, it takes 1.6 times one connection's.
     assert!(
         took < one_connection.mul_f64(0.7),
         "took {took:?} where one connection takes {one_connection:?}"

@@ -11,9 +11,9 @@
 //!
 //! dm takes both events itself, from the Apple event manager. Adding
 //! `application:openURLs:` to winit's delegate (the way `dock.rs` adds the
-//! Dock's method) was tried first and never heard a link (gaps row 105,
-//! 2026-11-07), most likely because AppKit reads which methods its delegate
-//! answers when the delegate is set, and winit sets it before dm adds one. The handlers
+//! Dock's method) never hears a link (gaps row 105), most likely because
+//! AppKit reads which methods its delegate answers when the delegate is
+//! set, and winit sets it before dm adds one. The handlers
 //! are put in when AppKit says the app will finish launching, as Apple
 //! documents: after AppKit's own defaults, which would otherwise replace
 //! them, and before the launch's own events are read, so the link or file

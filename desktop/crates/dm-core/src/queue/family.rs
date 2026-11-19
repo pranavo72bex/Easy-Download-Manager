@@ -25,8 +25,8 @@ pub(super) fn same_path(a: &str, b: &str) -> bool {
 /// Names under which each customer of a host has a name of their own (a bucket, a site, an
 /// app), so that two names under one of them are two customers, not one site's servers: from
 /// the private part of the public suffix list, the hosts files are served from. Under these a
-/// host is its own family (security review, 2026-11-07: `victim.s3.amazonaws.com` and
-/// `evil.s3.amazonaws.com` were one family, and a waiting row could take a file from the
+/// host is its own family (security review: otherwise `victim.s3.amazonaws.com` and
+/// `evil.s3.amazonaws.com` would be one family, and a waiting row could take a file from the
 /// second). The extension has the same names, and the same rule for one site, in
 /// `decide::sites` (`SHARED_HOSTING`, `registered_name`): dm-core may not depend on
 /// dm-protocol, where one copy for both would go. A name added here is added there.

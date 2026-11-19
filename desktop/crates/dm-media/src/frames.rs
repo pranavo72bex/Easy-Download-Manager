@@ -93,9 +93,9 @@ fn shrink(
 /// The part of a picture track that plays, in seconds of its own time: what its first edit names,
 /// or, with no edit list or an edit of no length, every picture from the first shown to the end of
 /// the last (by when each is shown, its decode time and its composition offset: a stream with
-/// B-frames shows its first picture after its first decode). Taken as "to the end of time" before,
-/// every such video was longer than a GIF may be and refused, a one-second one too (coverage
-/// tests, 2026-11-08).
+/// B-frames shows its first picture after its first decode). Taken as "to the end of time", every
+/// such video would be longer than a GIF may be and refused, a one-second one too (coverage
+/// tests).
 pub(crate) fn played(video: &crate::mp4mux::Track) -> (f64, f64) {
     let scale = f64::from(video.timescale.max(1));
     let mut decoded = i64::try_from(video.start.unwrap_or(0)).unwrap_or(i64::MAX);
@@ -486,8 +486,8 @@ mod mac {
         // Hundredths of a second each, rounded so the whole keeps time
         // (12 a second is 8, 8, 9, ...), and held until the next picture's
         // tick: a video with fewer pictures a second than asked skips ticks,
-        // and timed by its place in the list it played fast (a second of 10
-        // a second asked at 12 lasted 0.83 s; coverage tests, 2026-11-08).
+        // and timed by its place in the list it would play fast (a second of
+        // 10 a second asked at 12 would last 0.83 s; coverage tests).
         let ticks: Vec<_> = std::mem::take(&mut held.ticks).into_iter().collect();
         let at = |n: u64| (n * 100 + u64::from(fps) / 2) / u64::from(fps);
         // The last is held to the end of the part it plays, not one tick.

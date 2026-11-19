@@ -93,7 +93,7 @@ pub fn fresh_token(home: &Path) -> std::io::Result<String> {
     std::fs::create_dir_all(home)?;
     // A port file a crash left names a port anyone on this computer may now hold: gone before
     // the new token is written, so a client never reads the new token beside the old port and
-    // hands it to whoever holds it (security audit, 2026-11-12). The port is written again once
+    // hands it to whoever holds it (security audit). The port is written again once
     // it is bound (`write_port`); a client reads the token first (`mcp::finder`). This dm is the
     // only one (`dm_shell::instance`), so the file is no other's.
     match std::fs::remove_file(home.join("control.port")) {
@@ -132,10 +132,10 @@ pub fn token(home: &Path) -> std::io::Result<String> {
 /// Connections that have not presented the token yet, oldest first, each
 /// with when it came and a handle to close it by.
 ///
-/// They used to share the sixteen slots with everyone, held for the
-/// five-minute read timeout: sixteen idle connections from any program on
-/// the machine kept the owner out, and a line that was not JSON was
-/// answered and the connection kept.
+/// Kept apart from the sixteen slots, so sixteen idle connections from any
+/// program on the machine, held for the five-minute read timeout, cannot
+/// keep the owner out; before the token, a line that is not JSON is
+/// answered once and the connection closed.
 #[derive(Default)]
 struct Waiting {
     next: u64,

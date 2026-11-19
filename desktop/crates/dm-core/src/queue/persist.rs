@@ -189,9 +189,9 @@ impl Queue {
     /// The first change after a quiet moment is written before this returns.
     /// Changes that follow within [`SAVE_EVERY`] of a write are folded into
     /// one more write, made when that time is up, so the cost of a long list
-    /// is paid once per interval and not once per change: every state change
-    /// used to rewrite and sync the whole list, which held 20 000 links to
-    /// 13 small files a second and took a minute to cancel 2 000 of them.
+    /// is paid once per interval and not once per change: a rewrite and sync
+    /// of the whole list on every state change would hold 20 000 links to
+    /// 13 small files a second and take a minute to cancel 2 000 of them.
     /// [`Queue::flush`] writes what is waiting at once, for a program that
     /// is about to end.
     ///

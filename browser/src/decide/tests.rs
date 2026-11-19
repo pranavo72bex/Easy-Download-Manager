@@ -1080,8 +1080,8 @@ fn what_dm_restarted_itself_is_never_caught_again() {
 
 /// A PDF Chromium 155 (Debian) finished before the extension could hold
 /// it, as `chrome-check.py` logged it: 300 KB served at full speed with
-/// `Content-Disposition: attachment`. It used to be left with the
-/// browser as "already finished, usually from the cache".
+/// `Content-Disposition: attachment`. It is not left with the browser as
+/// "already finished, usually from the cache".
 #[test]
 fn a_pdf_chromium_finished_before_it_could_be_held_is_still_handed_over() {
     let pdf = item(json!({

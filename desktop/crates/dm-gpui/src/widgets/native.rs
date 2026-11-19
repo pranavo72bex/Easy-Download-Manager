@@ -101,7 +101,7 @@ pub(crate) enum WindowSize {
 impl WindowSize {
     /// The table: each window's size as it opens, width by height in
     /// points, on each system. Smaller on Windows where a laptop's screen
-    /// asked for it (the maintainer, 2026-11-11); Windows' sizes are to be
+    /// asked for it (the maintainer); Windows' sizes are to be
     /// set again.
     pub(crate) const fn each(self) -> Each<(f32, f32)> {
         match self {
@@ -244,8 +244,8 @@ pub fn field_if(input: &Entity<InputState>, name: &'static str, on: bool, theme:
         .w_full()
         // A press anywhere in the box takes the keyboard, as the system's
         // fields do: the field itself answers only inside its padding, and
-        // a click near its left edge typed nowhere (an Options number, on
-        // Linux with real input, 2026-11-11).
+        // a click near its left edge would type nowhere (an Options number,
+        // on Linux with real input).
         .when(on, |d| {
             d.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                 let focus = gpui::Focusable::focus_handle(pressed.read(cx), cx);

@@ -705,8 +705,8 @@ fn the_queue_arrows_start_and_stop_the_queue_chosen() {
     // the list of queues is Night.
     h.call("ui.place", serde_json::json!({ "place": "all" }))
         .unwrap();
-    // Each line waited for, not read at once: a slow runner says it a moment after the click
-    // (Windows', 2026-11-14, read it empty).
+    // Each line waited for, not read at once: a slow runner (Windows') says it a moment after
+    // the click, and read at once it is empty.
     press(&mut h, &["Downloads", "Start Queue", "Night"]);
     h.until("the list to start the queue chosen", |h| {
         h.said() == "Started 1 download in Night."

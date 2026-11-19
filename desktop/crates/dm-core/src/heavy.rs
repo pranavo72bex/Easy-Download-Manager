@@ -8,10 +8,10 @@
 //!
 //! It runs on tokio's blocking pool, a few pieces of it at a time: as many at once as half the
 //! computer's cores, at least one, however many downloads and connections the settings let run.
-//! Ten downloads finishing together used to hash and copy ten files at once, each on a thread of
-//! the pool every file write also waits for, with nothing to say how many. The work itself looks
-//! at its download's control between pieces (`stopped`), so a Cancel ends it within a piece, not
-//! at the file's end.
+//! Without this, ten downloads finishing together would hash and copy ten files at once, each on
+//! a thread of the pool every file write also waits for, with nothing to say how many. The work
+//! itself looks at its download's control between pieces (`stopped`), so a Cancel ends it within
+//! a piece, not at the file's end.
 
 use std::sync::{Condvar, LazyLock, Mutex};
 

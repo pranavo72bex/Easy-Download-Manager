@@ -71,7 +71,7 @@ pub const MOST_FORM: usize = 64 * 1024;
 /// What of a request's body is kept for a download that is its answer: a POST's form fields,
 /// encoded as the browser encodes them, or else its raw body in base64, each at most
 /// [`MOST_FORM`]; nothing for another method, a body that is empty or too large. The browser
-/// hands `background.js` the fields as lists of values under each name, in the page's order.
+/// hands the background the fields as lists of values under each name, in the page's order.
 /// Decided here, not in the loader (gaps row 169).
 pub fn posted_body(
     method: &str,

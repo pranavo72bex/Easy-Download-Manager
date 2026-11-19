@@ -378,8 +378,8 @@ pub enum AtLaunch {
     Follow(bool),
     /// The setting is on, but the person turned the item off outside dm
     /// (Task Manager): left off, and the setting turned off to say so.
-    /// `auto-launch` reads such an item as not enabled, and dm used to
-    /// enable it again at every launch, over the person's choice.
+    /// `auto-launch` reads such an item as not enabled, and enabling it
+    /// again at every launch would go over the person's choice.
     TurnedOffOutside,
 }
 

@@ -734,9 +734,9 @@ async fn a_paused_download_stops_and_keeps_what_it_had() {
 /// Ranges are written in place, into one staged file, and finishing is a
 /// rename: a download on many connections stages no part files to copy
 /// from, writes down how far each range got, and leaves nothing staged once
-/// it is whole. The copy it replaced took longer than the fetch on a fast
-/// link (2 GB on 8 connections: about 3.6 s end to end against 2.0 s now,
-/// `qa/after.md`).
+/// it is whole. A copy of part files at the end takes longer than the fetch
+/// on a fast link (2 GB on 8 connections: about 3.6 s end to end, where
+/// written in place it is 2.0 s).
 #[tokio::test]
 async fn ranges_are_written_in_place_and_finishing_copies_nothing() {
     // On one disk, as here; `DM_STAGE_BY_RANGE=1` takes the layout of a download going to
@@ -985,10 +985,10 @@ fn bytes_under_once(
 
 #[tokio::test]
 async fn a_download_never_needs_twice_its_own_size_on_disk() {
-    /* Assembly used to copy every part into the finished file and only then
-     * delete them, so at the moment it finished, the parts and the file both
-     * existed in full: a four gigabyte download needed eight gigabytes free,
-     * and failed on a disk that had six.
+    /* Assembly that copied every part into the finished file and only then
+     * deleted them would, at the moment it finished, have the parts and the
+     * file both in full: a four gigabyte download would need eight gigabytes
+     * free, and fail on a disk that had six.
      *
      * Measured by watching the directory rather than by reading the code,
      * because the property is about what is on the disk at one instant and
@@ -1090,9 +1090,9 @@ async fn a_referer_is_sent_so_a_hotlink_protected_file_downloads() {
 /// A single-connection download must not double disk at assembly either.
 ///
 /// A server that will not serve ranges is fetched as one part, and that one
-/// part IS the file — joining it used to mean copying it, so for the length of
-/// the copy the part and the growing copy both existed in full: 2x the disk
-/// for a file that needed none of it. Moved rather than copied, the peak stays
+/// part IS the file — joined by a copy, for the length of the copy the part
+/// and the growing copy would both exist in full: 2x the disk for a file
+/// that needed none of it. Moved rather than copied, the peak stays
 /// at one file's worth. Watched on the disk, because that is where the
 /// property lives.
 #[tokio::test]
@@ -1901,7 +1901,7 @@ async fn a_download_with_no_page_names_its_own_folder_as_the_referer() {
 }
 
 // G95: small files must split across several connections even when each piece
-// is well under the old 1 MiB minimum.
+// is well under 1 MiB.
 
 #[tokio::test]
 #[ignore = "gaps row 95: small-file pieces wait for the maintainer's word (they break contract row B36)"]

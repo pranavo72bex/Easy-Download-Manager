@@ -141,8 +141,8 @@ pub(crate) fn linux_open_in(target: &Path, path: Option<&std::ffi::OsStr>) -> Re
 ///
 /// In dm's own home, which only this account can enter, made new (never a file or link already
 /// there) and handed to the opener as the same open file: in the shared temporary folder,
-/// another account could have put a link at its name first, and dm truncated what it pointed at
-/// and wrote the opener's words into it (security audit, 2026-11-12).
+/// another account could put a link at its name first, and dm would truncate what it pointed at
+/// and write the opener's words into it (security audit).
 struct OpenerSays(PathBuf, std::fs::File);
 
 impl OpenerSays {

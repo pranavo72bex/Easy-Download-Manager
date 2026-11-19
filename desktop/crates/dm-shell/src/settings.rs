@@ -30,7 +30,7 @@ const LIMIT_HOURS: u64 = 24 * 31;
 
 /// The window's scale (Options › General › Appearance's slider, View ›
 /// Larger and Smaller): four stops, 60, 80, 100 and 120 percent, 100 the
-/// default (the maintainer's word of 2026-11-11, docs/decisions.md).
+/// default (the maintainer's word, docs/decisions.md 2026-11-11).
 pub struct TextSizes {
     /// The window as it is designed.
     pub default: f32,
@@ -245,7 +245,7 @@ pub struct Settings {
     /// Set when this run could not read its passwords back (the store refused, or the file
     /// was read only in part or not at all, so its defaults stand in): an empty password then
     /// says nothing about what the person wants, and the one in the store is not forgotten on
-    /// the next save (security review, 2026-11-07). Never written to the file.
+    /// the next save (security review). Never written to the file.
     #[serde(skip)]
     pub keep_stored_passwords: bool,
     /// A link copied while the clipboard is watched is taken at once, its
@@ -597,11 +597,10 @@ fn yes() -> bool {
     true
 }
 
-/// The edition of the pop-up defaults now. 1 (2026-10-26): the progress and
-/// finished windows off. 2 (2026-11-04): the progress and finished windows
-/// on, and Download details before a caught or a panel download, as
-/// reference A does them (`docs/decisions.md`, "dm works exactly like
-/// reference A").
+/// The edition of the pop-up defaults now. 1: the progress and finished
+/// windows off. 2: the progress and finished windows on, and Download
+/// details before a caught or a panel download, as reference A does them
+/// (`docs/decisions.md`, "dm works exactly like reference A").
 pub const POPUPS_VERSION: u32 = 2;
 
 impl Settings {
@@ -655,8 +654,8 @@ impl Settings {
     /// after each download, the program at the end of the shared schedule's hours and of each
     /// queue's own (a queue `mine` does not have runs none), and the proxy script, which is a
     /// program dm runs (in a sandbox) and decides where every request goes. One list, for a
-    /// settings file imported and for a script driving the window (security reviews,
-    /// 2026-11-07 and 08). Says which of them were changed back.
+    /// settings file imported and for a script driving the window (security reviews). Says
+    /// which of them were changed back.
     pub fn keep_programs_of(&mut self, mine: &Settings) -> KeptPrograms {
         let mut kept = KeptPrograms::default();
         if self.on_complete != mine.on_complete {
@@ -689,10 +688,10 @@ impl Settings {
 
     /// Puts back `mine`'s value of every setting that says where a download is written: the
     /// download folder, the parts folder, sorting by kind and each kind's folder, and each
-    /// site's own folder. For a script driving the window: an assistant set the download folder
-    /// to `~/Library/LaunchAgents` or a Startup folder in Options, then added a download, which
-    /// the control port's rule (a download "into the download folder or below it") let through
-    /// against the new folder (security audit, 2026-11-12). Not for a settings file imported: a
+    /// site's own folder. For a script driving the window: an assistant that set the download
+    /// folder to `~/Library/LaunchAgents` or a Startup folder in Options, then added a download,
+    /// would be let through by the control port's rule (a download "into the download folder or
+    /// below it") against the new folder (security audit). Not for a settings file imported: a
     /// person moving dm to another computer brings their folders. Says whether any was put back.
     pub fn keep_places_of(&mut self, mine: &Settings) -> bool {
         let folders = |s: &Settings| -> Vec<(String, String)> {
@@ -856,7 +855,7 @@ impl Default for Settings {
             schedule: Schedule::default(),
             queue_schedules: std::collections::BTreeMap::new(),
             // The computer's proxy settings, as a browser takes them: with none set it goes
-            // direct as before; behind one, a new dm works where the browser does
+            // direct; behind one, a new dm works where the browser does
             // (docs/decisions.md, 2026-11-06, in place of gaps row 80).
             dialup: crate::dialup::DialUp::default(),
             proxy: Proxy {
@@ -1265,9 +1264,9 @@ impl Settings {
     /// A settings file that cannot be read is not worth failing to start
     /// over: the defaults are a working configuration, and refusing to open
     /// leaves someone with no way to fix the file through the app. But it is
-    /// not overwritten either: the next save used to replace a file with one
+    /// not overwritten either, or the next save would replace a file with one
     /// stray comma — a folder, a proxy, a schedule — with the defaults, and
-    /// nothing said why they had all gone. It is kept aside, as the queue
+    /// nothing would say why they had all gone. It is kept aside, as the queue
     /// file is, and the window is told.
     pub fn load() -> (Self, Option<String>) {
         Self::load_from(&Self::path())

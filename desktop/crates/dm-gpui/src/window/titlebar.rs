@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The window's top bar, as a code editor's title bar holds its menus and
-//! command centre (the maintainer's words of 2026-11-10: "take reference
+//! command centre (the maintainer's words: "take reference
 //! from vscode", "make the search bar and options like Tasks File Downloads
 //! View Help to top bar", on macOS, Windows and Linux): the system's traffic
 //! lights at the left on macOS; the button that shows or hides the

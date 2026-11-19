@@ -1223,8 +1223,8 @@ pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, String> {
     let browsers = ensure(&home, &exe, &Programs::here(&home));
     // Windows' magnet and .torrent handlers, whatever the browsers' manifests needed: `ensure`
     // registers only when a manifest is stale, and a dm installed over an older one at the
-    // same path finds its manifests current, so the handlers that version never wrote were
-    // never written (a torrent site's button then did nothing, 2026-11-03). Two queries a
+    // same path finds its manifests current, so the handlers that version never wrote would
+    // never be written (a torrent site's button would do nothing). Two queries a
     // start; written only where dm's marker is missing, and never over another program's.
     // Here, not in `ensure`, so tests of `ensure` never touch the real keys.
     if cfg!(target_os = "windows") {

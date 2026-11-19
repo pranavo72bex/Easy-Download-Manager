@@ -6,8 +6,8 @@
 //! What the saved settings put in force across the engine is in force from the
 //! start, not first after Options' OK: "Identify as dm only" (contract row B51:
 //! "the change applies at once and is kept") and a dial-up or VPN connection
-//! (gaps row 93, G84). Both were left as the engine began until a setting
-//! changed (found 2026-11-08, beside reference A).
+//! (gaps row 93, G84). Neither is left as the engine began until a setting
+//! changes (compared beside reference A).
 
 use std::time::Duration;
 
