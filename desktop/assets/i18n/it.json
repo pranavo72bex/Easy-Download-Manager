@@ -929,5 +929,15 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "estratto in una cartella con il suo nome, e l'archivio spostato nel cestino",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "estratto in una cartella con il suo nome, ma l'archivio non è stato spostato nel cestino",
  "not unpacked: the archive has a password": "non estratto: l'archivio ha una password",
- "not unpacked: Extract here on its menu says why": "non estratto: «Estrai qui» nel suo menu dice perché"
+ "not unpacked: Extract here on its menu says why": "non estratto: «Estrai qui» nel suo menu dice perché",
+ "Check again every": "Controlla di nuovo ogni",
+ "hours, adding what is new to": "ore, aggiungendo le novità a",
+ "Followed": "Seguito",
+ "Checked again every {} hours; what is new goes to {}.": "Controllato di nuovo ogni {} ore; le novità vanno in {}.",
+ "Stop following": "Smetti di seguire",
+ "{} has nothing new.": "{} non ha nulla di nuovo.",
+ "the followed {} could not be read: {}": "impossibile leggere {} (seguito): {}",
+ "the items {} gained could not be added: {}": "impossibile aggiungere le novità di {}: {}",
+ "what is followed could not be saved: {}": "impossibile salvare ciò che è seguito: {}",
+ "Following {}, checked again every {} hours.": "Segui {}, controllato di nuovo ogni {} ore."
 }

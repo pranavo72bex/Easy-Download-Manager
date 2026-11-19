@@ -929,5 +929,15 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "diekstrak ke folder bernama sama, dan arsipnya dipindahkan ke Tempat Sampah",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "diekstrak ke folder bernama sama, tetapi arsipnya tidak dapat dipindahkan ke Tempat Sampah",
  "not unpacked: the archive has a password": "tidak diekstrak: arsipnya memiliki kata sandi",
- "not unpacked: Extract here on its menu says why": "tidak diekstrak: \"Ekstrak di sini\" di menunya memberi tahu alasannya"
+ "not unpacked: Extract here on its menu says why": "tidak diekstrak: \"Ekstrak di sini\" di menunya memberi tahu alasannya",
+ "Check again every": "Periksa lagi setiap",
+ "hours, adding what is new to": "jam, menambahkan yang baru ke",
+ "Followed": "Diikuti",
+ "Checked again every {} hours; what is new goes to {}.": "Diperiksa lagi setiap {} jam; yang baru masuk ke {}.",
+ "Stop following": "Berhenti mengikuti",
+ "{} has nothing new.": "{} tidak punya yang baru.",
+ "the followed {} could not be read: {}": "{} yang diikuti tidak dapat dibaca: {}",
+ "the items {} gained could not be added: {}": "item baru dari {} tidak dapat ditambahkan: {}",
+ "what is followed could not be saved: {}": "yang diikuti tidak dapat disimpan: {}",
+ "Following {}, checked again every {} hours.": "Mengikuti {}, diperiksa lagi setiap {} jam."
 }

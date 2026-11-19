@@ -67,6 +67,7 @@ impl Downloads {
         self.take_watched(cx);
         self.say_rechecked();
         self.take_searches(cx);
+        self.take_follows(cx);
         self.weekly_update(cx);
         self.check_clipboard(cx);
         // A second launch, the browser's button or the Dock asked for the

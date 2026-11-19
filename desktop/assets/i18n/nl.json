@@ -929,5 +929,15 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "uitgepakt in een map met zijn naam, en het archief naar de prullenbak verplaatst",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "uitgepakt in een map met zijn naam, maar het archief kon niet naar de prullenbak",
  "not unpacked: the archive has a password": "niet uitgepakt: het archief heeft een wachtwoord",
- "not unpacked: Extract here on its menu says why": "niet uitgepakt: 'Hier uitpakken' in zijn menu zegt waarom"
+ "not unpacked: Extract here on its menu says why": "niet uitgepakt: 'Hier uitpakken' in zijn menu zegt waarom",
+ "Check again every": "Opnieuw controleren elke",
+ "hours, adding what is new to": "uur, nieuwe items toevoegen aan",
+ "Followed": "Gevolgd",
+ "Checked again every {} hours; what is new goes to {}.": "Elke {} uur opnieuw gecontroleerd; nieuwe items gaan naar {}.",
+ "Stop following": "Niet meer volgen",
+ "{} has nothing new.": "{} heeft niets nieuws.",
+ "the followed {} could not be read: {}": "{} (gevolgd) kon niet worden gelezen: {}",
+ "the items {} gained could not be added: {}": "wat {} erbij kreeg kon niet worden toegevoegd: {}",
+ "what is followed could not be saved: {}": "wat gevolgd wordt kon niet worden opgeslagen: {}",
+ "Following {}, checked again every {} hours.": "{} wordt gevolgd, elke {} uur opnieuw gecontroleerd."
 }

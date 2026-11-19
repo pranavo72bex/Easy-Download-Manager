@@ -929,5 +929,15 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "同じ名前のフォルダーに展開済み、アーカイブはゴミ箱へ移動",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "同じ名前のフォルダーに展開済み、ただしアーカイブをゴミ箱へ移動できませんでした",
  "not unpacked: the archive has a password": "展開されていません: アーカイブにパスワードがあります",
- "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります"
+ "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります",
+ "Check again every": "次の間隔で再確認:",
+ "hours, adding what is new to": "時間ごと、新しいものの追加先:",
+ "Followed": "フォロー中",
+ "Checked again every {} hours; what is new goes to {}.": "{} 時間ごとに再確認し、新しいものは {} に追加します。",
+ "Stop following": "フォローをやめる",
+ "{} has nothing new.": "{} に新しいものはありません。",
+ "the followed {} could not be read: {}": "フォロー中の {} を読み込めませんでした: {}",
+ "the items {} gained could not be added: {}": "{} の新しい項目を追加できませんでした: {}",
+ "what is followed could not be saved: {}": "フォローの内容を保存できませんでした: {}",
+ "Following {}, checked again every {} hours.": "{} をフォローしました。{} 時間ごとに再確認します。"
 }

@@ -285,12 +285,24 @@ FILES = {
     "private.bin": (1 * MiB, 0, "plain"),             # Keep no record (B69)
     "kind.zip": (len(PACK), 0, "plain"),          # unpacked when done for its kind (B71)
     "own.zip": (len(PACK), 0, "plain"),           # unpacked when done for itself, then trashed (B71)
+    "ep1.mp3": (1 * MiB, 0, "plain"),             # a followed feed's items (B75)
+    "ep2.mp3": (1 * MiB, 0, "plain"),
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
 DATA["pack.zip"] = PACK
 DATA["kind.zip"] = DATA["own.zip"] = PACK
 LOG, LOCK, ACTIVE, CONNS = [], threading.Lock(), {}, [0]
+# B75's feed (`/files/podcast.rss`): the items it lists now, each an episode's file beside it.
+FEED = ["ep1"]
+
+
+def podcast_feed():
+    """The stand-in podcast's RSS, its items as FEED has them, their files relative to it."""
+    items = "".join(f"<item><title>Episode {n[2:]}</title><guid>{n}</guid>"
+                    f"<enclosure url=\"{n}.mp3\" type=\"audio/mpeg\"/></item>" for n in FEED)
+    return ('<?xml version="1.0"?><rss version="2.0"><channel><title>Stand-in podcast</title>'
+            + items + "</channel></rss>")
 T0 = time.time()
 
 
@@ -317,6 +329,11 @@ def serve(c, n):
             log(ev="req", conn=n, name=name, method=method, range=rng)
             if path == "/go/target":
                 c.sendall(b"HTTP/1.1 302 Found\r\nLocation: /files/target.bin\r\nContent-Length: 0\r\n\r\n")
+                continue
+            if name == "podcast.rss":
+                feed = podcast_feed().encode()
+                c.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/rss+xml\r\nContent-Length: "
+                          + str(len(feed)).encode() + b"\r\n\r\n" + (b"" if method == "HEAD" else feed))
                 continue
             if name not in FILES:
                 c.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
@@ -1644,6 +1661,7 @@ def walk(dm, origin):
     check("B69", "and none of dm's own files names it, settings.json's Recent list included",
           same and not left, f"named in {left}")
     unpack_when_done(dm, files)
+    follow_feed(dm, files)
 
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
@@ -1844,6 +1862,86 @@ def unpack_when_done(dm, files):
     dm.click("Keep the archive")
     dm.click("OK")
     pause(0.8)
+
+
+def follow_feed(dm, files):
+    """B75 (gaps row W10): a feed's address in Add URL opens the Playlist dialog, its item
+    listed; "Check again every" ticked with Add for later follows it, listed under Grabber
+    projects; the feed gains an item, and its row's Check now adds only that one, to the queue
+    chosen (the Main queue); Stop following forgets it."""
+    def follows():
+        try:
+            saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return saved.get("follows")
+
+    def waited(part, within=30):
+        end = time.time() + within
+        while time.time() < end:
+            r = dm.row(part)
+            if r:
+                return r
+            time.sleep(0.25)
+        return None
+
+    def asked(title, within=20):
+        end = time.time() + within
+        while time.time() < end:
+            if title in dm.dialogs():
+                pause(0.5)
+                return True
+            time.sleep(0.25)
+        return False
+
+    FEED[:] = ["ep1"]
+    address = f"{files}/podcast.rss"
+    dm.open_add_url()
+    dm.call("ui.type", text=address)
+    pause(0.4)
+    dm.click("OK")
+    opened = asked("Playlist")
+    words, end = [], time.time() + 30
+    while time.time() < end:
+        words = dm.dialog_texts()
+        if any("Episode 1" in w for w in words):
+            break
+        time.sleep(0.25)
+    check("B75", "a feed's address opens the Playlist dialog, its item listed, with Check again every … hours",
+          opened and any("Episode 1" in w for w in words) and "Check again every" in words
+          and "hours, adding what is new to" in words, f"{dm.dialogs()} {words}")
+    dm.click("Check again every")
+    dm.click("Add for later")
+    first = waited("/ep1.mp3")
+    kept = follows() or []
+    one = kept[0] if len(kept) == 1 else {}
+    shown = dm.texts()
+    check("B75", "Add for later adds the item and follows the feed: every 24 hours, to the Main queue, "
+          "listed under Grabber projects",
+          bool(first) and one.get("address") == address and one.get("every_hours") == 24
+          and one.get("queue") == "Main queue" and any(u.endswith("/ep1.mp3") for u in one.get("seen", []))
+          and "Stand-in podcast" in shown and "Grabber projects" in shown,
+          f"row {bool(first)}; follows {kept}; side panel has it {'Stand-in podcast' in shown}")
+
+    FEED.append("ep2")
+    dm.click("Stand-in podcast")
+    followed = asked("Followed")
+    said = dm.dialog_texts()
+    dm.click("Check now")
+    second = waited("/ep2.mp3")
+    pause(1.0)
+    ones = [r for r in dm.rows() if r.get("url", "").endswith("/ep1.mp3")]
+    check("B75", "the feed gains an item: Check now adds only that one, for later, to the queue chosen",
+          followed and any("Checked again every 24 hours" in w for w in said) and bool(second)
+          and (second or {}).get("queue") == "Main queue" and len(ones) == 1,
+          f"asked {followed} {said}; new row {second}; the first {len(ones)} times")
+
+    dm.click("Stand-in podcast")
+    asked("Followed")
+    dm.click("Stop following")
+    pause(1.0)
+    check("B75", "Stop following forgets it, its rows kept", follows() == [] and bool(dm.row("/ep2.mp3")),
+          f"follows {follows()}")
 
 
 def new_install(origin):

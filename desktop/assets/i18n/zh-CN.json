@@ -929,5 +929,15 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "已解压到同名文件夹，压缩包已移到废纸篓",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "已解压到同名文件夹，但压缩包未能移到废纸篓",
  "not unpacked: the archive has a password": "未解压：压缩包有密码",
- "not unpacked: Extract here on its menu says why": "未解压：其菜单中的“解压到此处”会说明原因"
+ "not unpacked: Extract here on its menu says why": "未解压：其菜单中的“解压到此处”会说明原因",
+ "Check again every": "每隔",
+ "hours, adding what is new to": "小时再次检查，新内容添加到",
+ "Followed": "已关注",
+ "Checked again every {} hours; what is new goes to {}.": "每 {} 小时再次检查；新内容进入 {}。",
+ "Stop following": "取消关注",
+ "{} has nothing new.": "{} 没有新内容。",
+ "the followed {} could not be read: {}": "无法读取关注的 {}：{}",
+ "the items {} gained could not be added: {}": "无法添加 {} 的新项目：{}",
+ "what is followed could not be saved: {}": "无法保存关注内容：{}",
+ "Following {}, checked again every {} hours.": "已关注 {}，每 {} 小时再次检查。"
 }

@@ -114,6 +114,7 @@ mod adding;
 mod carry;
 mod commands;
 mod complete;
+mod following;
 mod in_front;
 mod keys;
 mod later;

@@ -407,6 +407,13 @@ a new dm with **Help › Check for updates**.
 - `the playlist page lists no videos (private, removed, or a sign-in wanted)`
   The playlist or channel could not be read for the reasons given. Check it
   opens in your browser.
+- `that address is not an RSS or Atom feed`
+  The address looked like a feed's (it ends in `.rss`, or is named `feed`),
+  but what came back is not a feed. Check the address in your browser.
+- `the feed took too long to read`
+  The feed's server did not answer within dm's time limit. Try again later.
+- `the feed is larger than any feed`
+  What came back was far larger than a feed is, so dm stopped reading it.
 
 ## Parts of a video ("Only a part of the video")
 

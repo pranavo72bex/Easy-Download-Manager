@@ -143,3 +143,35 @@ fn enter_starts_a_playlist_and_a_refusal_is_said_in_it() {
     assert!(h.dialog_open("Playlist"), "the refusal closed it");
     assert!(h.rows().is_empty());
 }
+
+/// gaps row W10: "Check again every" ticked follows the playlist once its videos are added,
+/// every 24 hours at first, to the Main queue, every video it lists seen; it is listed under
+/// Grabber projects, and its row's Stop following forgets it.
+#[test]
+fn a_playlist_ticked_to_be_checked_again_is_followed_and_listed() {
+    let _file = crate::harness::settings_file();
+    let world = world();
+    let mut h = world.harness();
+    open(&mut h, world.url("talks"), Some(three_videos(&world)));
+    h.until_shown("Check again every");
+    h.click("Check again every");
+    h.click("Add for later");
+    h.until("the window to close", |h| !h.dialog_open("Playlist"));
+    assert_eq!(
+        h.said(),
+        "Following Autumn talks, checked again every 24 hours."
+    );
+    let follows = h.view(|v| v.backend.settings().follows);
+    assert_eq!(follows.len(), 1, "{follows:?}");
+    assert_eq!(follows[0].every_hours, 24);
+    assert_eq!(follows[0].queue, dm_core::MAIN_QUEUE);
+    assert_eq!(follows[0].seen.len(), 3);
+
+    h.until_shown("Grabber projects");
+    h.click("Autumn talks");
+    h.until("the question", |h| h.dialog_open("Followed"));
+    h.click("Stop following");
+    h.until("it is forgotten", |h| {
+        h.view(|v| v.backend.settings().follows.is_empty())
+    });
+}

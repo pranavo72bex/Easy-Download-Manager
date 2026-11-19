@@ -929,5 +929,15 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "décompressée dans un dossier à son nom, et l'archive envoyée à la corbeille",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "décompressée dans un dossier à son nom, mais l'archive n'a pas pu être envoyée à la corbeille",
  "not unpacked: the archive has a password": "non décompressée : l'archive a un mot de passe",
- "not unpacked: Extract here on its menu says why": "non décompressée : « Extraire ici » dans son menu dit pourquoi"
+ "not unpacked: Extract here on its menu says why": "non décompressée : « Extraire ici » dans son menu dit pourquoi",
+ "Check again every": "Vérifier à nouveau toutes les",
+ "hours, adding what is new to": "heures, en ajoutant les nouveautés à",
+ "Followed": "Suivi",
+ "Checked again every {} hours; what is new goes to {}.": "Vérifié à nouveau toutes les {} heures ; les nouveautés vont dans {}.",
+ "Stop following": "Ne plus suivre",
+ "{} has nothing new.": "{} n'a rien de nouveau.",
+ "the followed {} could not be read: {}": "{} (suivi) n'a pas pu être lu : {}",
+ "the items {} gained could not be added: {}": "les nouveautés de {} n'ont pas pu être ajoutées : {}",
+ "what is followed could not be saved: {}": "ce qui est suivi n'a pas pu être enregistré : {}",
+ "Following {}, checked again every {} hours.": "{} est suivi, vérifié à nouveau toutes les {} heures."
 }

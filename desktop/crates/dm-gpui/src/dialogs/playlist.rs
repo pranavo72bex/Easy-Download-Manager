@@ -7,15 +7,20 @@
 //! another site's, read by dm itself as it opens; its videos listed with a
 //! tick each (only the rows in view drawn), Select all, one Video quality,
 //! and Start now or Add for later. What it adds is dm's
-//! (`dm_desktop_base::file_info::playlist_adds`).
+//! (`dm_desktop_base::file_info::playlist_adds`). A feed (RSS, Atom, a
+//! podcast) is listed the same way, its items for videos; and "Check again
+//! every … hours" follows the playlist or feed once its videos are added,
+//! what it gains added to the queue chosen (gaps row W10,
+//! `dm_shell::app::follow`).
 
 use dm_core::youtube::Playlist;
 use dm_desktop_base::file_info;
 use dm_desktop_base::i18n::{t, tf};
 use gpui::{
-    div, prelude::*, size, uniform_list, App, Bounds, Context, FocusHandle, KeyDownEvent,
+    div, prelude::*, size, uniform_list, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
     SharedString, UniformListScrollHandle, WeakEntity, Window, WindowBounds, WindowOptions,
 };
+use gpui_component::input::InputState;
 
 use crate::widgets::native;
 use crate::widgets::popup::{self, Pick};
@@ -30,6 +35,8 @@ use crate::window::zoom::px;
 const ROW: f32 = 22.0;
 /// How many rows the list shows before it scrolls.
 const SHOWN: usize = 10;
+/// The hours "Check again every" starts at: once a day.
+const DEFAULT_HOURS: u64 = 24;
 
 /// The Playlist window's view.
 pub struct PlaylistWindow {
@@ -44,6 +51,13 @@ pub struct PlaylistWindow {
     says: Option<SharedString>,
     /// Answered: a second Return in the same moment adds nothing.
     done: bool,
+    /// "Check again every": followed once its videos are added (gaps row W10).
+    follow: bool,
+    /// The hours between its checks, as typed.
+    every: Entity<InputState>,
+    /// The queues what it gains can go to, and the one chosen.
+    queues: Vec<String>,
+    queue: String,
     focus: FocusHandle,
     screen: Screen,
     scroll: UniformListScrollHandle,
@@ -92,6 +106,10 @@ impl PlaylistWindow {
                     ));
                     cx.notify();
                 });
+                // Said after what was added: "Following …" is the last word.
+                if self.follow {
+                    self.follow_it(cx);
+                }
                 window.remove_window();
             }
             Err(e) => {
@@ -107,8 +125,36 @@ impl PlaylistWindow {
         window.remove_window();
     }
 
-    /// A choice from the quality pop-up.
+    /// "Check again every" ticked: the playlist followed, every so many
+    /// hours (one at least), what it gains to the queue chosen.
+    fn follow_it(&self, cx: &mut Context<Self>) {
+        let Some(Ok(list)) = &self.read else {
+            return;
+        };
+        let hours = self.every.read(cx).value().trim().parse::<u64>();
+        let hours = hours.unwrap_or(DEFAULT_HOURS).max(1);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let follow = dm_shell::app::follow::following(
+            list,
+            &self.url,
+            hours,
+            &self.queue,
+            &self.quality,
+            now,
+        );
+        let _ = self.view.update(cx, |view, cx| view.follow(follow, cx));
+    }
+
+    /// A choice from the quality pop-up, or the queue's.
     fn pick(&mut self, pick: &Pick, cx: &mut Context<Self>) {
+        if pick.field == "follow-queue" {
+            if let Some(queue) = self.queues.get(pick.index) {
+                self.queue.clone_from(queue);
+                cx.notify();
+            }
+        }
         if pick.field == "quality" {
             if let Some((value, _)) = file_info::QUALITIES.get(pick.index) {
                 self.quality = value.to_string();
@@ -291,7 +337,52 @@ impl PlaylistWindow {
                         .size_full(),
                     ),
             )
+            .child(self.follow_row(theme, screen, cx))
             .into_any_element()
+    }
+
+    /// "Check again every [24] hours, adding what is new to [queue]" (gaps row W10).
+    fn follow_row(&self, theme: Theme, screen: &Screen, cx: &Context<Self>) -> gpui::Div {
+        let queues: Vec<SharedString> = self
+            .queues
+            .iter()
+            .map(|q| dm_desktop_base::i18n::name(q).into())
+            .collect();
+        let queue_at = self.queues.iter().position(|q| *q == self.queue);
+        let queue_words = SharedString::from(dm_desktop_base::i18n::name(&self.queue));
+        let follow = self.follow;
+        div()
+            .flex()
+            .items_center()
+            .gap(px(native::LABEL_GAP))
+            .child(
+                native::checkbox(
+                    "follow",
+                    t("Check again every").into(),
+                    follow,
+                    theme,
+                    screen,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.follow = !follow;
+                    cx.notify();
+                })),
+            )
+            .child(div().w(px(48.0)).child(native::field_if(
+                &self.every,
+                "Check again every",
+                follow,
+                theme,
+            )))
+            .child(screen.label(t("hours, adding what is new to")))
+            .child(popup::button(
+                "follow-queue",
+                queue_words,
+                queues,
+                queue_at,
+                theme,
+                screen,
+            ))
     }
 }
 
@@ -309,6 +400,7 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
     };
     let backend = downloads.read(cx).backend.clone();
     let quality = backend.settings().downloads.stream_quality.clone();
+    let queues = backend.queues();
     let (width, height) = crate::widgets::native::WindowSize::Playlist.here();
     let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
     let opened = crate::window::screen::open_window(
@@ -325,6 +417,11 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
             let screen = Screen::default();
             Screens::register(window.window_handle(), screen.clone(), true, cx);
             let known = read.is_some();
+            let every = cx.new(|cx| {
+                let mut s = InputState::new(window, cx);
+                s.set_value(DEFAULT_HOURS.to_string(), window, cx);
+                s
+            });
             let playlist = cx.new(|cx| {
                 let focus = cx.focus_handle();
                 let mut this = PlaylistWindow {
@@ -335,6 +432,10 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
                     quality,
                     says: None,
                     done: false,
+                    follow: false,
+                    every,
+                    queues,
+                    queue: dm_core::MAIN_QUEUE.to_string(),
                     focus,
                     screen,
                     scroll: UniformListScrollHandle::new(),

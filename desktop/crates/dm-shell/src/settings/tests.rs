@@ -1702,6 +1702,7 @@ const A_FULL_FILE: &str = r#"{
     "second_path": "en5",
     "sounds": {"complete": "/srv/done.wav"},
     "site_searches": [],
+    "follows": [],
     "drop_target": true,
 
     "watch_clipboard": true,

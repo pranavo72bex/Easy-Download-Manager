@@ -929,5 +929,15 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "kendi adını taşıyan bir klasöre açıldı ve arşiv çöp kutusuna gönderildi",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "kendi adını taşıyan bir klasöre açıldı, ancak arşiv çöp kutusuna gönderilemedi",
  "not unpacked: the archive has a password": "açılmadı: arşivin parolası var",
- "not unpacked: Extract here on its menu says why": "açılmadı: menüsündeki \"Buraya çıkar\" nedenini söyler"
+ "not unpacked: Extract here on its menu says why": "açılmadı: menüsündeki \"Buraya çıkar\" nedenini söyler",
+ "Check again every": "Şu aralıkla yeniden denetle:",
+ "hours, adding what is new to": "saatte bir, yenileri şuraya ekle:",
+ "Followed": "Takip ediliyor",
+ "Checked again every {} hours; what is new goes to {}.": "{} saatte bir yeniden denetlenir; yeniler {} kuyruğuna gider.",
+ "Stop following": "Takibi bırak",
+ "{} has nothing new.": "{} içinde yeni bir şey yok.",
+ "the followed {} could not be read: {}": "takip edilen {} okunamadı: {}",
+ "the items {} gained could not be added: {}": "{} içindeki yeni öğeler eklenemedi: {}",
+ "what is followed could not be saved: {}": "takip edilenler kaydedilemedi: {}",
+ "Following {}, checked again every {} hours.": "{} takip ediliyor, {} saatte bir yeniden denetlenecek."
 }

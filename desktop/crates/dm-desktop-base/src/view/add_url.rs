@@ -42,7 +42,7 @@ pub enum Next {
         /// The choice.
         how: Dup,
     },
-    /// A YouTube playlist: its videos listed to be ticked.
+    /// A YouTube playlist, or a feed: its videos or items listed to be ticked.
     Playlist(String),
 }
 
@@ -170,9 +170,10 @@ pub fn decide(
             Some(how) => Next::Answered { address, id, how },
             None => Next::Duplicate { address, id },
         }
-    } else if dm_core::youtube::is_list(&address) {
+    } else if dm_core::youtube::is_list(&address) || dm_core::feed::looks_like_feed(&address) {
         // A playlist, or a channel's uploads, is its videos, each a download: listed to be
-        // ticked.
+        // ticked. A feed (RSS, Atom, a podcast) is its items, listed the same way, and can be
+        // followed from there (gaps row W10).
         Next::Playlist(address)
     } else {
         Next::Details(vec![address])

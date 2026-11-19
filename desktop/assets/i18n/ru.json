@@ -929,5 +929,15 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "распакован в папку с его именем, архив отправлен в корзину",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "распакован в папку с его именем, но архив не удалось отправить в корзину",
  "not unpacked: the archive has a password": "не распакован: у архива есть пароль",
- "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему"
+ "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему",
+ "Check again every": "Проверять снова каждые",
+ "hours, adding what is new to": "ч, добавляя новое в",
+ "Followed": "Отслеживается",
+ "Checked again every {} hours; what is new goes to {}.": "Проверяется снова каждые {} ч; новое попадает в {}.",
+ "Stop following": "Перестать отслеживать",
+ "{} has nothing new.": "В {} нет ничего нового.",
+ "the followed {} could not be read: {}": "не удалось прочитать отслеживаемый {}: {}",
+ "the items {} gained could not be added: {}": "не удалось добавить новое из {}: {}",
+ "what is followed could not be saved: {}": "не удалось сохранить отслеживаемое: {}",
+ "Following {}, checked again every {} hours.": "{} отслеживается, проверка каждые {} ч."
 }
