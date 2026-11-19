@@ -34,7 +34,7 @@ mod pointer;
 pub(crate) use heading::moved_onto;
 #[cfg(test)]
 use heading::{as_table, told_heading};
-pub use heading::{header, told_table, DraggedColumn, ResizingColumn};
+pub use heading::{header, told_table};
 use heading::{maybe_told, told_cell};
 
 /// The header's height, in points.

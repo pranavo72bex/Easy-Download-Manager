@@ -131,7 +131,9 @@ mod formats;
 mod seen;
 pub use answer::answer;
 #[cfg(test)]
-use answer::{menu_start, unwritable};
+use answer::menu_start;
+#[cfg(all(test, unix))]
+use answer::unwritable;
 #[cfg(test)]
 use formats::{formats_file, Remembered, FORMATS_KEPT_PAGES, FORMATS_KEPT_SECS};
 use formats::{formats_key, now_secs, recalled_formats, remember_formats};

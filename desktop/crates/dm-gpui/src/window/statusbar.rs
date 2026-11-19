@@ -84,7 +84,7 @@ pub fn parts(view: &Downloads) -> Vec<String> {
             },
         );
     }
-    let limit = view.known.drawn.speed_limit;
+    let limit = view.known.drawn.advanced.speed_limit;
     parts.push(if limit > 0 {
         tf("· limited to {} KB/s", &[&limit])
     } else {

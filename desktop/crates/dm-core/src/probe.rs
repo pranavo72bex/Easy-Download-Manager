@@ -109,7 +109,23 @@ pub(crate) const FIRST_ASK: u64 = 8 * 1024 * 1024;
 /// names no total, or comes encoded, says nothing a plan can be made on, and
 /// its body is no more than `first` bytes of a file of unknown length: the
 /// whole file is asked for instead, as without `first`.
-pub async fn probe_get(
+///
+/// Its future is boxed and named `Send`: it is made inside a retry's closure, and an async
+/// call taking several references there leaves rustc unable to prove the download's spawned
+/// task `Send` ("implementation of `Send` is not general enough").
+pub fn probe_get<'a>(
+    client: &'a reqwest::Client,
+    url: &'a str,
+    referrer: Option<&'a str>,
+    sign_in: Option<&'a crate::cookies::SignIn>,
+    first: Option<u64>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ProbeWithBody, Error>> + Send + 'a>>
+{
+    Box::pin(probe_get_now(client, url, referrer, sign_in, first))
+}
+
+/// [`probe_get`]'s work.
+async fn probe_get_now(
     client: &reqwest::Client,
     url: &str,
     referrer: Option<&str>,

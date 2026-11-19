@@ -314,13 +314,15 @@ async fn rendition(
     // Which stretch of the clock each segment is on, where every segment is counted.
     let stretches = Some(stretches_of(&text)).filter(|s| s.len() == playlist.parts.len());
     let mut total = got.body.len();
-    let mut pieces = futures_util::stream::iter(
-        playlist
-            .parts
-            .iter()
-            .map(|part| piece(client, &part.url, part.range, options)),
-    )
-    .buffered(options.connections.clamp(1, AT_ONCE));
+    // Owned addresses, so each fetch's future borrows nothing of the closure's argument.
+    let asked: Vec<(String, Option<(u64, u64)>)> = playlist
+        .parts
+        .iter()
+        .map(|part| (part.url.clone(), part.range))
+        .collect();
+    let mut pieces = futures_util::stream::iter(asked)
+        .map(|(url, range)| async move { piece(client, &url, range, options).await })
+        .buffered(options.connections.clamp(1, AT_ONCE));
     let mut segments = Vec::new();
     while let Some(body) = pieces.next().await {
         let body = body?;
@@ -338,21 +340,27 @@ async fn rendition(
 }
 
 /// One WebVTT segment's bytes: of `url`, or the bytes `range` of it (first and last).
-pub(super) async fn piece(
-    client: &reqwest::Client,
-    url: &str,
+///
+/// Its future is boxed and named `Send`: made in a stream's closure (`buffered`), an async
+/// call taking references there leaves rustc unable to prove a download's spawned task `Send`
+/// ("implementation of `Send` is not general enough").
+pub(super) fn piece<'a>(
+    client: &'a reqwest::Client,
+    url: &'a str,
     range: Option<(u64, u64)>,
-    options: &Options,
-) -> Result<Vec<u8>, Error> {
-    match range {
-        Some(_) => {
-            retry::run_up_to(&options.control, options.tries(), || {
-                hls::fetch_segment_range(client, url, range, options)
-            })
-            .await
+    options: &'a Options,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, Error>> + Send + 'a>> {
+    Box::pin(async move {
+        match range {
+            Some(_) => {
+                retry::run_up_to(&options.control, options.tries(), || {
+                    hls::fetch_segment_range(client, url, range, options)
+                })
+                .await
+            }
+            None => Ok(fetch_capped(client, url, TEXT_MOST, options).await?.body),
         }
-        None => Ok(fetch_capped(client, url, TEXT_MOST, options).await?.body),
-    }
+    })
 }
 
 #[cfg(test)]

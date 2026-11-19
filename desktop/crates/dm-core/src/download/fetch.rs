@@ -471,7 +471,7 @@ async fn fetch_found(
         };
         // Its own claim is made again by the run on one connection.
         drop(claimed);
-        return Box::pin(download_reporting(client, url, &one, again)).await;
+        return once_more(client, url, &one, again).await;
     }
     outcome?;
 
@@ -489,7 +489,7 @@ async fn fetch_found(
             ..options.clone()
         };
         drop(claimed);
-        return Box::pin(download_reporting(client, url, &one, again)).await;
+        return once_more(client, url, &one, again).await;
     }
 
     let (checksum, from_beside) =
@@ -519,7 +519,7 @@ async fn fetch_found(
             ..options.clone()
         };
         drop(claimed);
-        return Box::pin(download_reporting(client, url, &one, again)).await;
+        return once_more(client, url, &one, again).await;
     }
     let (path, bytes, category) = assembled?;
     // Said on the row only once the file has passed: a mismatch fails it as a typed one does.
@@ -761,4 +761,16 @@ fn set_server_date(options: &Options, info: &Probe, path: &Path) {
                 .and_then(|file| file.set_modified(when));
         }
     }
+}
+
+/// [`download_reporting`] again, boxed as a `Send` future: the download asks for itself
+/// (`fetch_found` going on from a changed file or a bad checksum), and a recursive async call
+/// needs its future's type and its `Send` named, or rustc cannot prove the spawned run `Send`.
+pub(crate) fn once_more<'a>(
+    client: &'a reqwest::Client,
+    url: &'a str,
+    options: &'a Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Finished, Error>> + Send + 'a>> {
+    Box::pin(download_reporting(client, url, options, report))
 }

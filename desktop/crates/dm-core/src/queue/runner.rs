@@ -290,7 +290,7 @@ impl DownloadList {
             // counted then. Read off the disk rather than taken as the run's
             // first report: a small file can be whole by its first report,
             // and then nothing it fetched was counted at all.
-            let staged = staged_bytes(&options.parts_dir).await;
+            let staged = sent(staged_bytes(&options.parts_dir)).await;
             let (tx, rx) = tokio::sync::mpsc::channel(32);
             let watcher = tokio::spawn(watch_run(queue.clone(), id, ran_with.clone(), staged, rx));
 
@@ -301,14 +301,17 @@ impl DownloadList {
                 Ok(())
             } else {
                 let told = tx.clone();
-                crate::connect_first::before_download(&options.control, move |redial| {
-                    let _ = told.try_send(crate::download::Update::Retrying {
-                        attempt: redial.attempt,
-                        of: redial.of,
-                        why: redial.why,
-                        wait: redial.wait,
-                    });
-                })
+                sent(crate::connect_first::before_download(
+                    &options.control,
+                    move |redial| {
+                        let _ = told.try_send(crate::download::Update::Retrying {
+                            attempt: redial.attempt,
+                            of: redial.of,
+                            why: redial.why,
+                            wait: redial.wait,
+                        });
+                    },
+                ))
                 .await
             };
             let outcome = if form_lost {
@@ -322,17 +325,14 @@ impl DownloadList {
                 drop(tx);
                 Err(not_connected)
             } else {
-                download_reporting(&client, &url, &options, Some(tx)).await
+                sent(download_reporting(&client, &url, &options, Some(tx))).await
             };
             let reported = watcher.await.ok().flatten();
-            if !queue
-                .finish_run(id, &url, &options, &ran_with, outcome, reported)
-                .await
-            {
+            if !sent(queue.finish_run(id, &url, &options, &ran_with, outcome, reported)).await {
                 return;
             }
             // Whole, a row that keeps no record goes (gaps row W17); its file stays.
-            queue.forget_if_no_record(id).await;
+            sent(queue.forget_if_no_record(id)).await;
             // This download's place is free: the next in line starts now,
             // not at the next tick. A small file is over in a few
             // milliseconds, and its place sat empty for the rest of the
@@ -345,7 +345,7 @@ impl DownloadList {
             // last state lost.
             queue.inner.unwritten.store(true, Ordering::SeqCst);
             queue.kick();
-            queue.save().await;
+            sent(queue.save()).await;
         })
     }
 }
@@ -524,4 +524,13 @@ async fn watch_run(
         }
     }
     reported
+}
+
+/// `future`, boxed with `Send` named where it is made: awaited inside `tokio::spawn`, an async
+/// call that borrows (`&self`, `&Options`, `&str`) otherwise leaves rustc unable to prove the
+/// spawned task `Send` for every lifetime ("implementation of `Send` is not general enough").
+fn sent<'a, T>(
+    future: impl std::future::Future<Output = T> + Send + 'a,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>> {
+    Box::pin(future)
 }

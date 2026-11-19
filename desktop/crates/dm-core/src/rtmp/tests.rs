@@ -506,13 +506,10 @@ async fn a_quiet_server_is_left_when_the_row_is_stopped() {
 async fn a_server_that_goes_silent_is_said_to_have() {
     let (url, _server) = scripted(3, Vec::new(), true).await;
     let dir = tempfile::tempdir().unwrap();
-    let recording = session::record_within(
-        &url,
-        &dir.path().join("show.part"),
-        &Control::new(),
-        &Arc::new(AtomicU64::new(0)),
-        Duration::from_millis(900),
-    );
+    let path = dir.path().join("show.part");
+    let (control, bytes) = (Control::new(), Arc::new(AtomicU64::new(0)));
+    let recording =
+        session::record_within(&url, &path, &control, &bytes, Duration::from_millis(900));
     let got = tokio::time::timeout(Duration::from_secs(20), recording)
         .await
         .expect("the silence was waited on for ever");

@@ -75,10 +75,7 @@ pub async fn download_page(
             .filter(|u| u.starts_with("https://"))
             .filter(|_| read.info.single.protocol.as_deref() == Some("m3u8_native"))
         {
-            return Box::pin(crate::download::download_reporting(
-                client, live, options, report,
-            ))
-            .await;
+            return crate::download::once_more(client, live, options, report).await;
         }
     }
     let Some(plan) = read.plan(staging) else {

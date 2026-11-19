@@ -52,6 +52,7 @@ mod space;
 
 pub(crate) use assemble::*;
 use fetch::fetch_reporting;
+pub(crate) use fetch::once_more;
 pub use files::*;
 pub(crate) use hls::*;
 pub use http::*;

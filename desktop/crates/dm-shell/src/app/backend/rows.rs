@@ -88,7 +88,7 @@ impl Backend {
 
     /// Addresses added keeping no record (`AddOptions::keep_no_record`, gaps row W17) are not
     /// kept in Add URL's Recent list either: taken out where Add URL put them as they were typed.
-    fn forget_recent(&self, urls: impl IntoIterator<Item = &str>) {
+    fn forget_recent<'a>(&self, urls: impl IntoIterator<Item = &'a str>) {
         let gone: Vec<String> = urls.into_iter().map(lists::bare).collect();
         let recent = self.settings().recent_urls;
         if !recent.iter().any(|u| gone.contains(u)) {

@@ -80,12 +80,15 @@ async fn rendition(
     text: &crate::dash::Text,
     options: &Options,
 ) -> Result<Option<Rendition>, Error> {
-    let mut pieces = futures_util::stream::iter(
-        text.pieces
-            .iter()
-            .map(|p| hls_text::piece(client, &p.url, p.range, options)),
-    )
-    .buffered(options.connections.clamp(1, hls_text::AT_ONCE));
+    // Owned addresses, so each fetch's future borrows nothing of the closure's argument.
+    let asked: Vec<(String, Option<(u64, u64)>)> = text
+        .pieces
+        .iter()
+        .map(|p| (p.url.clone(), p.range))
+        .collect();
+    let mut pieces = futures_util::stream::iter(asked)
+        .map(|(url, range)| async move { hls_text::piece(client, &url, range, options).await })
+        .buffered(options.connections.clamp(1, hls_text::AT_ONCE));
     let mut total = 0usize;
     let mut segments: Vec<VttSegment> = Vec::new();
     while let Some(body) = pieces.next().await {

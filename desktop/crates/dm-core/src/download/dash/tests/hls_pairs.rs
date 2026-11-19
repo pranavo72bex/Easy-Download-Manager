@@ -68,7 +68,7 @@ async fn an_hls_picture_and_its_separate_sound_are_joined_into_one_mp4() {
 /// with both tracks — with no video helper to fall back on.
 #[tokio::test]
 async fn an_hls_transport_stream_picture_and_packed_aac_sound_are_joined_into_one_mp4() {
-    let picture = include_bytes!("../../tests/fixtures/media/hls/h264/seg0.ts").to_vec();
+    let picture = include_bytes!("../../../../tests/fixtures/media/hls/h264/seg0.ts").to_vec();
     // 44.1 kHz stereo AAC-LC frames of 300 bytes behind an ID3 tag that
     // starts the sound with the picture.
     let mut sound = b"ID3\x04\x00\x00\x00\x00\x00\x4f".to_vec();
