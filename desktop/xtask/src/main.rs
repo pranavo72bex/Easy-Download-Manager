@@ -32,6 +32,9 @@
 //! - `package` makes this system's installers with cargo-packager, run where its settings are
 //!   (`package.rs`); it and the others work from the repository's root too
 //!   (`.cargo/config.toml` there).
+//! - `build`, `test` and `qa` build dm and its extension, run the tests and run
+//!   `scripts/human-qa.py`, the same on every system, as `package` makes the installers
+//!   (`tasks.rs`, gaps row X7).
 
 #[cfg(test)]
 mod baseline;
@@ -42,6 +45,7 @@ mod help;
 mod i18n;
 mod package;
 mod release;
+mod tasks;
 mod update_key;
 mod vendor_marks;
 
@@ -54,6 +58,9 @@ fn main() {
         "help-check" => help::run(&root()),
         "i18n" => i18n::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "package" => package::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
+        "build" => tasks::build(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
+        "test" => tasks::test(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
+        "qa" => tasks::qa(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "scorecard" => write_scorecard(),
         "layers" => layers().map(|()| "the crates are layered as they should be".to_string()),
         "privacy" => privacy().map(|()| "nothing phones home".to_string()),
@@ -71,10 +78,7 @@ fn main() {
         "headers" => {
             licence_headers().map(|()| "every source file carries its licence header".to_string())
         }
-        _ => Err(
-            "usage: cargo xtask <check|package [packager options]|i18n [<code>|--issue <code>]|help-check|scorecard|layers|privacy|parity|secrets|headers [fix]|update-key|sign-manifest <latest.json>|crates-list <file>|sign-release <dir>|verify-release <dir>>"
-                .to_string(),
-        ),
+        _ => Err(tasks::USAGE.to_string()),
     };
     match result {
         Ok(said) => println!("{said}"),

@@ -339,7 +339,7 @@ endif
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)macOS$(OFF): dm.app and the .dmg"
-	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW) --formats app,dmg
+	@cd desktop && cargo xtask package --out-dir "$(CURDIR)/desktop/target/release/bundle"
 	@rm -rf $(BUILD)/macos && mkdir -p $(BUILD)/macos
 	@cp -R desktop/target/release/bundle/dm.app $(BUILD)/macos/
 	@cp desktop/target/release/bundle/*.dmg $(BUILD)/macos/
@@ -360,8 +360,7 @@ ifeq ($(UNAME),Linux)
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF): .deb, AppImage and .rpm"
-	@cd desktop/crates/$(WINDOW) && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW) --formats deb,appimage
-	@sh scripts/linux/nfpm.sh $(BINARY) $(APP_VERSION) desktop/target/release/bundle
+	@cd desktop && cargo xtask package --out-dir "$(CURDIR)/desktop/target/release/bundle"
 	@for f in desktop/target/release/bundle/*.deb desktop/target/release/bundle/*.AppImage \
 	          desktop/target/release/bundle/*.rpm; do \
 	  [ -e "$$f" ] || continue; n=$$(basename "$$f"); \
@@ -380,7 +379,7 @@ endif
 build-windows:
 	@echo "the Windows installer and portable .zip are built on Windows: CI's desktop"
 	@echo "workflow, or on a Windows computer with cargo-packager, from the checkout's root:"
-	@echo "  cargo xtask package"
+	@echo "  cargo xtask package     (cargo xtask build, test and qa work there too)"
 	@exit 1
 
 build-extension:
@@ -415,18 +414,17 @@ format:
 	@cd desktop && cargo fmt --all
 	@cd browser && cargo fmt
 
-# The behaviour contract, every row, in sight (docs/behaviour-contract.md).
+# The behaviour contract, every row, in sight (docs/behaviour-contract.md): the debug build,
+# the extension where dist/ has none, then python3 scripts/human-qa.py, as on every system.
 qa:
-	@cd desktop && cargo build -p $(WINDOW)
-	@test -f $(STAGED)/chrome/manifest.json || sh scripts/package.sh
-	@python3 scripts/human-qa.py
+	@cd desktop && cargo xtask qa
 
 qa-docker:
 	@sh qa/run.sh
 
+# Every test of the workspace, the extension's crate among them, as CI runs them.
 test:
-	@cd browser && cargo test
-	@cd desktop && cargo test --workspace
+	@cd desktop && cargo xtask test
 
 # What the extension and the app say to each other, each file held to
 # docs/contract-coverage-floor.txt (needs cargo-llvm-cov).
