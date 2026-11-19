@@ -231,8 +231,11 @@ the frozen standard that reference A was measured against.
    telemetry. `cargo xtask privacy` enforces it; do not weaken it.
 7. Shipped code does not `unwrap`, `expect` or `panic`; a new reader of
    outside input gets a property test in its crate's `tests/fuzz.rs`.
-8. Keep modules small and by concern: a source file over 2500 lines fails
-   `cargo xtask layers`. One layout: a module with children is `foo.rs`
+8. Keep modules small and by concern: a source file over 800 lines, or a
+   function over 150, fails `cargo xtask layers`, but for those over when the
+   gate came in, named in `desktop/xtask/size-baseline.txt` and
+   `fn-baseline.txt`, which may only shrink (`cargo xtask size-baseline`
+   lowers them); no file passes 2,500. One layout: a module with children is `foo.rs`
    beside `foo/`, never `foo/mod.rs`. A module's tests go in `tests.rs`
    beside it (`foo.rs` with `foo/tests.rs`), or a `<what>_tests.rs` there
    for a second set; an inline `#[cfg(test)] mod` of over 100 lines fails

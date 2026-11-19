@@ -9,3 +9,9 @@ msrv = "1.98"
 disallowed-macros = [
     { path = "std::dbg", reason = "a debugging print left in; use eprintln! with a reason, or remove it" },
 ]
+
+# The size gate's function limit (gaps row A12). `clippy::too_many_lines` is pedantic and not
+# enabled, so this alone changes nothing: `cargo xtask layers` holds functions to 150 lines
+# (xtask/src/sizes.rs, from the `fn` line to the closing brace), with a baseline of those longer
+# that may only shrink. Said here so a crate that turns the lint on measures against the same.
+too-many-lines-threshold = 150

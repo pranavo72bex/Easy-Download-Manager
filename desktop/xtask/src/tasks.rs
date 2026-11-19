@@ -40,6 +40,7 @@ usage: cargo xtask <job>, from the repository's root or desktop/
   qa [human-qa options]       scripts/human-qa.py, whole, in sight (Windows: PowerShell or cmd)
   check                       everything that needs no window
   i18n [<code>|--issue <code>] | help-check | scorecard | layers | privacy | parity | secrets
+  size-baseline               lowers the size gate's baselines to the lengths now
   headers [fix] | update-key | sign-manifest <latest.json> | crates-list <file>
   sign-release <dir> | verify-release <dir>
 build, test, package and qa do the same on Windows, macOS and Linux (xtask/src/tasks.rs).";

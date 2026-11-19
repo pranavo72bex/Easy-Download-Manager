@@ -1,0 +1,60 @@
+# The size gate's function baseline (gaps row A12; `cargo xtask layers`, xtask/src/sizes.rs).
+# Each product function that was over 150 lines when the gate came in, from the line of its
+# `fn` to the line of its closing brace, with its lines then: `<path> <name> <lines>`. A
+# function named here may not grow past its entry, any other may not pass 150 lines. An
+# entry is only ever lowered or removed: `cargo xtask size-baseline` does both.
+browser/src/content/build.rs build 151
+browser/src/web/downloads.rs on_download_created 260
+browser/src/web/page.rs on_page_message 323
+desktop/crates/dm-core/src/dash.rs pieces_of 216
+desktop/crates/dm-core/src/download/dash.rs join_tracks 189
+desktop/crates/dm-core/src/download/dash_live.rs record 251
+desktop/crates/dm-core/src/download/hls.rs download_stream 224
+desktop/crates/dm-core/src/download/hls.rs record_live 164
+desktop/crates/dm-core/src/download/ranged.rs fetch_segment 185
+desktop/crates/dm-core/src/download/ranged.rs run 400
+desktop/crates/dm-core/src/download/ranged/limits.rs pick_limited 157
+desktop/crates/dm-core/src/ftp/transfer.rs download_ftp 177
+desktop/crates/dm-core/src/probe.rs probe_get 223
+desktop/crates/dm-core/src/rtmp/session.rs record 216
+desktop/crates/dm-core/src/rtsp.rs record 186
+desktop/crates/dm-core/src/stream.rs media_playlist 207
+desktop/crates/dm-core/src/youtube.rs read_within 294
+desktop/crates/dm-core/src/youtube/player.rs tokens 155
+desktop/crates/dm-desktop-base/src/run/boot.rs start 170
+desktop/crates/dm-desktop-base/src/view/rows.rs state_in 171
+desktop/crates/dm-gpui/src/dialogs/details.rs open_now 190
+desktop/crates/dm-gpui/src/dialogs/grabber.rs render 338
+desktop/crates/dm-gpui/src/dialogs/links.rs render 336
+desktop/crates/dm-gpui/src/dialogs/playlist.rs render 182
+desktop/crates/dm-gpui/src/dialogs/properties.rs render 448
+desktop/crates/dm-gpui/src/dialogs/scheduler.rs render 331
+desktop/crates/dm-gpui/src/dialogs/series.rs render 160
+desktop/crates/dm-gpui/src/harness/world.rs world 253
+desktop/crates/dm-gpui/src/main.rs main 284
+desktop/crates/dm-gpui/src/options.rs put 192
+desktop/crates/dm-gpui/src/options.rs render 164
+desktop/crates/dm-gpui/src/options/pages/advanced.rs proxy 174
+desktop/crates/dm-gpui/src/options/pages/browser.rs browser 279
+desktop/crates/dm-gpui/src/options/pages/folders.rs folders 155
+desktop/crates/dm-gpui/src/window/list.rs carry_out 244
+desktop/crates/dm-gpui/src/window/list.rs new 224
+desktop/crates/dm-gpui/src/window/menus.rs bar 281
+desktop/crates/dm-gpui/src/window/menus.rs bind_keys 160
+desktop/crates/dm-gpui/src/window/table.rs row_cells 155
+desktop/crates/dm-gpui/src/window/table.rs rows 169
+desktop/crates/dm-gpui/src/window/toolbar.rs toolbar 162
+desktop/crates/dm-gpui/src/window_tests/commands.rs every_menu_item_clicked_does_what_it_says 328
+desktop/crates/dm-js/src/builtins/array.rs install 413
+desktop/crates/dm-js/src/builtins/date.rs install 157
+desktop/crates/dm-js/src/builtins/number.rs install 364
+desktop/crates/dm-js/src/builtins/object.rs install 719
+desktop/crates/dm-js/src/builtins/string.rs install 379
+desktop/crates/dm-js/src/builtins/typed.rs install 292
+desktop/crates/dm-js/src/interp.rs looped 155
+desktop/crates/dm-js/src/interp/call.rs make_class 166
+desktop/crates/dm-js/src/regexp.rs run 168
+desktop/crates/dm-media/src/frames.rs read 183
+desktop/crates/dm-media/src/mkvmux.rs mp4_tracks 162
+desktop/crates/dm-media/src/mkvmux.rs write 189
+desktop/crates/dm-shell/src/host.rs answer 184
