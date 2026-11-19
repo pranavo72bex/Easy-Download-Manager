@@ -9,7 +9,7 @@ browser/src/web/page.rs on_page_message 323
 desktop/crates/dm-core/src/dash.rs pieces_of 216
 desktop/crates/dm-core/src/download/dash.rs join_tracks 189
 desktop/crates/dm-core/src/download/dash_live.rs record 251
-desktop/crates/dm-core/src/download/hls.rs download_stream 224
+desktop/crates/dm-core/src/download/hls.rs download_stream 229
 desktop/crates/dm-core/src/download/hls.rs record_live 164
 desktop/crates/dm-core/src/download/ranged.rs fetch_segment 185
 desktop/crates/dm-core/src/download/ranged.rs run 400
@@ -21,7 +21,7 @@ desktop/crates/dm-core/src/rtsp.rs record 186
 desktop/crates/dm-core/src/stream.rs media_playlist 207
 desktop/crates/dm-core/src/youtube.rs read_within 294
 desktop/crates/dm-core/src/youtube/player.rs tokens 155
-desktop/crates/dm-desktop-base/src/run/boot.rs start 170
+desktop/crates/dm-desktop-base/src/run/boot.rs start 169
 desktop/crates/dm-desktop-base/src/view/rows.rs state_in 171
 desktop/crates/dm-gpui/src/dialogs/details.rs open_now 190
 desktop/crates/dm-gpui/src/dialogs/grabber.rs render 338
