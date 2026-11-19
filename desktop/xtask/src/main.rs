@@ -10,7 +10,8 @@
 //!   tests.
 //! - `layers` holds the crates to the shape they are meant to have: the
 //!   engine knows no window, the extension has no sockets, nothing leans on
-//!   the window.
+//!   the window; and no file or function grows past its size (`sizes.rs`), which
+//!   `size-baseline` lowers the baselines to as they shrink.
 //! - `privacy` holds dm to being free and private: no analytics or crash
 //!   reporting crate anywhere in the build, and no address in shipped code
 //!   but the project's own release page, which is fetched only when asked.
@@ -45,6 +46,7 @@ mod help;
 mod i18n;
 mod package;
 mod release;
+mod sizes;
 mod tasks;
 mod update_key;
 mod vendor_marks;
@@ -63,6 +65,7 @@ fn main() {
         "qa" => tasks::qa(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "scorecard" => write_scorecard(),
         "layers" => layers().map(|()| "the crates are layered as they should be".to_string()),
+        "size-baseline" => sizes::lower(&root()),
         "privacy" => privacy().map(|()| "nothing phones home".to_string()),
         "parity" => {
             parity_evidence().map(|()| "every test docs/parity.md cites exists".to_string())
@@ -497,25 +500,9 @@ fn layers() -> Result<(), String> {
             }
         }
     }
-    // A file that grows into a monolith is split before it is changed again:
-    // `dialogs/`, `app/`, `download/` and `queue/` were each one file of
-    // thousands of lines. Tests live in `tests.rs` or under `tests/`, and are
-    // not counted.
-    for dir in [
-        "desktop/crates/dm-assets/src",
-        "desktop/crates/dm-js/src",
-        "desktop/crates/dm-media/src",
-        "desktop/crates/dm-torrent/src",
-        "desktop/crates/dm-net/src",
-        "desktop/crates/dm-protocol/src",
-        "desktop/crates/dm-safari/src",
-        "desktop/crates/dm-core/src",
-        "desktop/crates/dm-shell/src",
-        "desktop/crates/dm-test-support/src",
-        "desktop/crates/dm-desktop-base/src",
-        "desktop/crates/dm-gpui/src",
-        "browser/src",
-    ] {
+    // Each product source file's layout and inline tests; then, test files (`tests.rs`,
+    // `*_tests.rs`) aside, what it may write.
+    for dir in sizes::PRODUCT_SOURCES {
         for file in walk(&root.join(dir)) {
             if file.extension().is_none_or(|e| e != "rs") {
                 continue;
@@ -555,14 +542,12 @@ fn layers() -> Result<(), String> {
                     ));
                 }
             }
-            let lines = text.lines().count();
-            if lines > MAX_SOURCE_LINES {
-                wrong.push(format!(
-                    "{shown} is {lines} lines: split it into modules (the limit is {MAX_SOURCE_LINES})"
-                ));
-            }
         }
     }
+    // A file that grows into a monolith, or a function into a page, is split before it is
+    // changed again (gaps row A12, `sizes.rs`): `dialogs/`, `app/`, `download/` and `queue/`
+    // were each one file of thousands of lines.
+    wrong.extend(sizes::check(&root)?);
     // No `#[path]` out of a crate's folder (gaps row X10): what tests share is the
     // `dm-test-support` crate, named in `[dev-dependencies]`.
     for krate in [
@@ -816,10 +801,6 @@ fn long_inline_tests(text: &str) -> Vec<(String, usize)> {
     }
     found
 }
-
-/// The most lines a source file may have before `cargo xtask layers` asks for
-/// it to be split.
-const MAX_SOURCE_LINES: usize = 2500;
 
 /* --------------------------------------------------------------- privacy */
 
