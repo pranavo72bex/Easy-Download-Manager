@@ -55,18 +55,18 @@ pub(super) async fn clear(
     options.control.check()?;
     let joined = options.parts_dir.join(JOINED);
     let _ = fs::remove_file(&joined).await;
-    join_parts_copy(parts, &joined).await?;
     let stopped = |e: tokio::task::JoinError| Error::Internal(format!("clearing stopped: {e}"));
     match listed.container.as_str() {
+        // Read from the segments where they lie, with no joined copy of them beside the MP4
+        // (gaps row Y21); they stay until the stream is placed.
         "ts" => {
             let out = options.parts_dir.join(CLEARED);
-            let (from, into) = (joined.clone(), out.clone());
+            let (from, into) = (parts.to_vec(), out.clone());
             let made = tokio::task::spawn_blocking(move || {
-                crate::tsmux::to_mp4_clear(&from, &into, &locks)
+                crate::tsmux::to_mp4_from_clear(&from, &into, &locks)
             })
             .await
             .map_err(stopped)?;
-            let _ = fs::remove_file(&joined).await;
             if let Err(why) = made {
                 let _ = fs::remove_file(&out).await;
                 return Err(Error::Internal(format!(
@@ -77,6 +77,7 @@ pub(super) async fn clear(
             Ok((vec![out], format!("{}.mp4", ts_stem(&listed.filename))))
         }
         "mp4" | "m4a" => {
+            join_parts_copy(parts, &joined).await?;
             let at = joined.clone();
             let made = tokio::task::spawn_blocking(move || crate::mp4mux::clear_cbcs(&at, &locks))
                 .await
@@ -90,13 +91,10 @@ pub(super) async fn clear(
             }
             Ok((vec![joined], listed.filename.clone()))
         }
-        _ => {
-            let _ = fs::remove_file(&joined).await;
-            Err(Error::Internal(
-                "this stream's sound is scrambled (SAMPLE-AES) in packed audio, which dm does \
+        _ => Err(Error::Internal(
+            "this stream's sound is scrambled (SAMPLE-AES) in packed audio, which dm does \
                  not put in the clear yet"
-                    .into(),
-            ))
-        }
+                .into(),
+        )),
     }
 }

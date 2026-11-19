@@ -17,6 +17,23 @@ pub async fn to_mp4_async(input: PathBuf, out: PathBuf) -> Result<u64, String> {
         .map_err(|e| format!("the remux stopped: {e}"))?
 }
 
+/// [`to_mp4_from_with_text`], off the async runtime: a stream put into an MP4 from its segments
+/// where they lie (gaps row Y21), `place` timing its subtitles as [`to_mp4_with_text_async`]'s
+/// does.
+pub async fn to_mp4_from_async<F>(
+    inputs: Vec<PathBuf>,
+    out: PathBuf,
+    segments: Segments,
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || to_mp4_from_with_text(&inputs, &out, segments, place))
+        .await
+        .map_err(|e| format!("the remux stopped: {e}"))?
+}
+
 /// [`to_mp4_with_text`], off the async runtime: `place` times the subtitles from when the MP4
 /// starts on the stream's 90 kHz clock (gaps row Y20).
 pub async fn to_mp4_with_text_async<F>(

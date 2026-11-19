@@ -825,6 +825,7 @@ async fn finish_held(
             crate::paths::PLAN,
             "rendition",
             "joined.ts.partial",
+            "joined.mp4.partial",
             REMUXED,
         ] {
             let _ = std::fs::remove_file(dir.join(note));

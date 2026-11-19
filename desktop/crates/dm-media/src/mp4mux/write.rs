@@ -494,10 +494,11 @@ pub(crate) fn write_output(
     write_output_tagged(tracks, files, out, cut, &super::Tags::default())
 }
 
-/// [`write_output`], with the file's own words about itself (`Tags`).
-pub(crate) fn write_output_tagged(
+/// [`write_output`], with the file's own words about itself (`Tags`), the samples read from any
+/// source read in order (`Source`).
+pub(crate) fn write_output_tagged<S: Read + Seek>(
     tracks: &[Track],
-    files: &mut [File],
+    files: &mut [S],
     out: &Path,
     cut: Option<(u64, u64)>,
     tags: &super::Tags,

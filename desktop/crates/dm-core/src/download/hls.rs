@@ -112,10 +112,11 @@ pub(super) async fn download_stream(
     fs::create_dir_all(&options.dest_dir).await?;
 
     /* Stopped after every segment had arrived — paused during the remux, or
-     * dm quit or killed then — the segments are in the gathered stream, and
-     * once remuxed, in the MP4: neither is fetched again. The gathered
-     * stream is named only once whole (it is joined under `.partial`), and
-     * removed only once the MP4 is, so whichever is here is complete. */
+     * dm quit or killed then — the segments are still there, or in the gathered
+     * stream (kept as `.ts`), and once remuxed, in the MP4: none is fetched
+     * again. The gathered stream and the MP4 are each named only once whole
+     * (each is written under `.partial`), and the segments are removed only
+     * once the MP4 is, so whichever is here is complete. */
     let gathered = options.parts_dir.join(GATHERED);
     let remuxed = options.parts_dir.join(REMUXED);
     // Only where the remux would run now: turned off since, or with a
@@ -132,6 +133,10 @@ pub(super) async fn download_stream(
         let stem = ts_stem(&listed.filename);
         let (path, bytes, category) =
             finish(&format!("{stem}.mp4"), None, &[remuxed], options).await?;
+        // Segments the remux had not yet removed when it was stopped (gaps row Y21).
+        for i in 0..listed.parts.len() {
+            let _ = fs::remove_file(part_path(&options.parts_dir, i)).await;
+        }
         return Ok(Finished {
             left_behind: None,
             path,
@@ -201,7 +206,7 @@ pub(super) async fn download_stream(
     let (parts, filename) = if sealed {
         super::hls_sealed::clear(&listed, &keys, &parts, options).await?
     } else {
-        match remux_ts_with(&listed.filename, &parts, &texts, options).await {
+        match remux_ts_with(&listed.filename, &parts, &texts, options).await? {
             Some((mp4, name)) => (vec![mp4], name),
             None => (parts, listed.filename.clone()),
         }
@@ -395,7 +400,7 @@ pub(super) async fn record_live(
         }
         None => {
             let parts = vec![picture_at];
-            match remux_ts(&filename, &parts, &placing).await {
+            match remux_ts(&filename, &parts, &placing).await? {
                 Some((mp4, name)) => (vec![mp4], name),
                 None => (parts, filename),
             }
@@ -782,12 +787,13 @@ pub(super) const REMUXED: &str = "joined.mp4";
 /// that is not a `.ts`) or the segments could not be gathered, in which case
 /// the parts are left for the ordinary join; the gathered `.ts` where dm
 /// could not make an MP4 of it: a stream a person can play as `.ts` beats no
-/// stream.
+/// stream. An error only where a remux that freed segments as it went failed part-way: what is
+/// left is not the stream, and a retry fetches the rest again.
 pub(super) async fn remux_ts(
     name: &str,
     parts: &[PathBuf],
     options: &Options,
-) -> Option<(PathBuf, String)> {
+) -> Result<Option<(PathBuf, String)>, Error> {
     remux_ts_with(name, parts, &super::hls_text::HlsTexts::default(), options).await
 }
 
@@ -798,20 +804,64 @@ pub(super) async fn remux_ts_with(
     parts: &[PathBuf],
     texts: &super::hls_text::HlsTexts,
     options: &Options,
-) -> Option<(PathBuf, String)> {
-    if !remux_wanted(name, options) {
-        return None;
+) -> Result<Option<(PathBuf, String)>, Error> {
+    if !remux_wanted(name, options) || options.control.check().is_err() {
+        return Ok(None);
     }
-    options.control.check().ok()?;
-    let joined = options.parts_dir.join(GATHERED);
+    /* Put into the MP4 from the segments where they lie (gaps row Y21): no gathered `.ts`,
+     * and no scratch file of each track's samples, which the stream, its samples and the MP4
+     * side by side made near three times the file. The segments stay until the MP4 is whole
+     * and named, so a remux cut short (dm quit, the computer off) has lost none of them and is
+     * made again from them; the MP4 is written under `.partial`, and a resume that finds
+     * `joined.mp4` finds it whole. The peak is the segments and the MP4. A disk without room
+     * for both has each segment freed once read into the MP4 instead, the peak a little over
+     * the stream, at the cost of fetching again what was freed if that remux is cut short;
+     * one without room even for that keeps the stream as its `.ts`, gathered as before. A
+     * stream gathered by an older dm (`joined.ts`) is the one segment. */
+    let segments = if room_to_join(parts, &options.parts_dir, options).is_ok() {
+        crate::tsmux::Segments::Kept
+    } else if room_to_free(parts, options) {
+        crate::tsmux::Segments::Freed
+    } else {
+        return Ok(kept_as_ts(name, parts, options).await);
+    };
     let mp4 = options.parts_dir.join(REMUXED);
-    /* The segments are gathered into one stream with each freed as it is
-     * consumed, as the ordinary join does: segments, a joined copy and the
-     * MP4 side by side needed three times the file at the end. Now the peak
-     * is the stream and its MP4. Joined under `.partial` and named only once
-     * whole, so a resume that finds the name finds every segment in it; a
-     * join cut short leaves the segments it had not reached, and the ones it
-     * had are fetched again. Already gathered (a resume), it is used as is. */
+    let partial = options.parts_dir.join(format!("{REMUXED}.partial"));
+    let texts = texts.clone();
+    let place = move |zero| texts.timed(zero);
+    /* Not raced against a pause: it runs at the disk's speed, and a blocking task cut loose would
+     * go on writing the file a resume makes afresh. */
+    let made =
+        crate::tsmux::to_mp4_from_async(parts.to_vec(), partial.clone(), segments, place).await;
+    let whole = made.is_ok() && fs::metadata(&partial).await.is_ok_and(|m| m.len() > 0);
+    if whole && fs::rename(&partial, &mp4).await.is_ok() {
+        for part in parts {
+            let _ = fs::remove_file(part).await;
+        }
+        return Ok(Some((mp4, format!("{}.mp4", ts_stem(name)))));
+    }
+    let _ = fs::remove_file(&partial).await;
+    if segments == crate::tsmux::Segments::Freed && !every_one_is_there(parts).await {
+        let why = made
+            .err()
+            .unwrap_or_else(|| "the MP4 could not be named".into());
+        return Err(Error::Internal(format!(
+            "the stream could not be put into an MP4: {why}"
+        )));
+    }
+    // A stream dm cannot put into an MP4 (an MPEG-2 picture) is kept as
+    // the transport stream it came as, which plays as it is.
+    Ok(kept_as_ts(name, parts, options).await)
+}
+
+/// The segments gathered into one `.ts`, the stream as it came, each freed as it is consumed, as
+/// the ordinary join does: what is placed where dm does not put the stream into an MP4. Joined
+/// under `.partial` and named only once whole, so a resume that finds the name finds every
+/// segment in it; a join cut short leaves the segments it had not reached, and the ones it had
+/// are fetched again. Already gathered (a resume), it is used as is. `None` where it could not
+/// be gathered: the parts are left for the ordinary join.
+async fn kept_as_ts(name: &str, parts: &[PathBuf], options: &Options) -> Option<(PathBuf, String)> {
+    let joined = options.parts_dir.join(GATHERED);
     if parts != [joined.clone()] {
         let partial = options.parts_dir.join(format!("{GATHERED}.partial"));
         let gathered = join_parts(parts, None, &partial, &options.control).await;
@@ -823,37 +873,37 @@ pub(super) async fn remux_ts_with(
             return None;
         }
     }
-    let ts_name = name.to_string();
-    let keep_ts = || async {
-        // The stream, whole, as the one part to place: what not remuxing
-        // would have saved.
-        Some((joined.clone(), ts_name.clone()))
-    };
-    if options.control.check().is_err() {
-        return keep_ts().await;
+    // The stream, whole, as the one part to place: what not remuxing would have saved.
+    Some((joined, name.to_string()))
+}
+
+/// Room to put a stream into an MP4 while freeing each segment once read into it (gaps row
+/// Y21): what the MP4 holds beyond the segments freed, its index and the few segments between
+/// where its picture and its sound are read, put at a sixteenth of the stream and three of its
+/// largest segments.
+fn room_to_free(parts: &[PathBuf], options: &Options) -> bool {
+    let sizes: Vec<u64> = parts
+        .iter()
+        .filter_map(|part| std::fs::metadata(part).ok())
+        .map(|m| m.len())
+        .collect();
+    let stream: u64 = sizes.iter().sum();
+    let largest = sizes.iter().copied().max().unwrap_or(0);
+    let need = stream / 16 + largest.saturating_mul(3);
+    options
+        .room
+        .free_space(&options.parts_dir)
+        .is_some_and(|free| free >= need)
+}
+
+/// Whether every one of `parts` is still on the disk.
+async fn every_one_is_there(parts: &[PathBuf]) -> bool {
+    for part in parts {
+        if fs::metadata(part).await.is_err() {
+            return false;
+        }
     }
-    // No room for the MP4 beside the stream: the stream is kept, whole, as it would be where dm
-    // cannot remux it (gaps row Y21), rather than the remux failing part-way on a full disk.
-    if room_to_join(std::slice::from_ref(&joined), &options.parts_dir, options).is_err() {
-        return keep_ts().await;
-    }
-    /* Not raced against a pause: it runs at the disk's speed, and a blocking task cut loose would go on writing the file a
-     * resume makes afresh. */
-    let ours = if texts.is_empty() {
-        crate::tsmux::to_mp4_async(joined.clone(), mp4.clone()).await
-    } else {
-        let texts = texts.clone();
-        let place = move |zero| texts.timed(zero);
-        crate::tsmux::to_mp4_with_text_async(joined.clone(), mp4.clone(), place).await
-    };
-    if ours.is_ok() && fs::metadata(&mp4).await.is_ok_and(|m| m.len() > 0) {
-        let _ = fs::remove_file(&joined).await;
-        return Some((mp4, format!("{}.mp4", ts_stem(name))));
-    }
-    // A stream dm cannot put into an MP4 (an MPEG-2 picture) is kept as
-    // the transport stream it came as, which plays as it is.
-    let _ = fs::remove_file(&mp4).await;
-    keep_ts().await
+    true
 }
 
 /// Whether a stream of this name is put into an MP4: asked for, a `.ts`,
@@ -1424,6 +1474,10 @@ pub(super) async fn join_parts_copy(parts: &[PathBuf], into: &Path) -> Result<()
     Ok(())
 }
 
+/// The remux from a stream's segments where they lie, by the room the disk has (gaps row Y21).
+#[cfg(test)]
+mod remux_tests;
+
 /// What only this module reaches: a remux whose segments cannot be gathered,
 /// and a part's name for a file with no extension.
 #[cfg(test)]
@@ -1431,7 +1485,7 @@ mod coverage_tests {
     use super::*;
     use crate::{Categories, Limiter};
 
-    fn options(dir: &Path) -> Options {
+    pub(super) fn options(dir: &Path) -> Options {
         Options {
             connections: 1,
             control: Control::new(),
@@ -1479,7 +1533,7 @@ mod coverage_tests {
         // A segment that is not there: nothing is gathered, and the
         // half-gathered stream is not left behind.
         let gone = options.parts_dir.join("part-0000");
-        assert_eq!(remux_ts("show.ts", &[gone], &options).await, None);
+        assert_eq!(remux_ts("show.ts", &[gone], &options).await.unwrap(), None);
         assert!(!options.parts_dir.join("joined.ts.partial").exists());
         assert!(!options.parts_dir.join(GATHERED).exists());
 
@@ -1490,21 +1544,25 @@ mod coverage_tests {
         let taken = options.parts_dir.join(GATHERED);
         fs::create_dir_all(taken.join("inside")).await.unwrap();
         assert_eq!(
-            remux_ts("show.ts", std::slice::from_ref(&part), &options).await,
+            remux_ts("show.ts", std::slice::from_ref(&part), &options)
+                .await
+                .unwrap(),
             None
         );
         assert!(taken.is_dir());
 
         // Not a transport stream, or not asked: never touched.
         assert_eq!(
-            remux_ts("show.mp4", std::slice::from_ref(&part), &options).await,
+            remux_ts("show.mp4", std::slice::from_ref(&part), &options)
+                .await
+                .unwrap(),
             None
         );
         let off = Options {
             remux: false,
             ..options.clone()
         };
-        assert_eq!(remux_ts("show.ts", &[part], &off).await, None);
+        assert_eq!(remux_ts("show.ts", &[part], &off).await.unwrap(), None);
     }
 
     #[test]
