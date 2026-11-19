@@ -478,11 +478,11 @@ pub fn finder(home: &Path, port: Option<String>, token_file: Option<String>) -> 
         let token = token_file
             .clone()
             .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| home.join("control.token"));
+            .unwrap_or_else(|| home.join(dm_core::paths::CONTROL_TOKEN));
         let token = std::fs::read_to_string(&token);
         let port = port
             .clone()
-            .or_else(|| std::fs::read_to_string(home.join("control.port")).ok())
+            .or_else(|| std::fs::read_to_string(home.join(dm_core::paths::CONTROL_PORT)).ok())
             .and_then(|p| p.trim().parse::<u16>().ok());
         match (port, token) {
             (Some(port), Ok(token)) => Ok((port, token.trim().to_string())),

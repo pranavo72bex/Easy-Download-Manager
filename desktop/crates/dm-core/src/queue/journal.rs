@@ -62,14 +62,23 @@ enum Change {
     Gone(Id),
 }
 
+/// The queue's format number (`dm_core::saved`), in its journal's first line. The queue file
+/// and `secrets.json` carry none: they stay bare lists, so an older dm still reads them (a
+/// downgrade must never set the queue aside). 0, before the numbers: the line named the base
+/// alone.
+const JOURNAL_FORMAT: u32 = 1;
+
 /// The journal's first line.
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Header {
     base: String,
+    /// The journal's format number; none (0) in one from before the numbers.
+    #[serde(default)]
+    format: u32,
 }
 
 pub(super) fn journal_file(queue_file: &Path) -> PathBuf {
-    queue_file.with_extension("journal")
+    crate::paths::journal(queue_file)
 }
 
 /// What names a queue file's contents: its length and a hash of its bytes
@@ -212,6 +221,7 @@ fn append(
             &mut lines,
             &Header {
                 base: previous.base.clone(),
+                format: JOURNAL_FORMAT,
             },
         )?;
         lines.push(b'\n');

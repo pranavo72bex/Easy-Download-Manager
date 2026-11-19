@@ -48,9 +48,12 @@ pub struct Published {
     pub failed: Option<LastFailure>,
 }
 
+/// The file's format number (`dm_core::saved`): 1, [`Published`]'s fields beside `format`.
+const FORMAT: u32 = 1;
+
 /// Where it is kept.
 pub fn file(home: &Path) -> PathBuf {
-    home.join("going.json")
+    home.join(dm_core::paths::GOING)
 }
 
 /// The name a row is shown by.
@@ -210,7 +213,11 @@ impl Publisher {
 /// Writes `published` whole: into a file beside it, then moved over, so a reader never finds
 /// half of it.
 fn write(home: &Path, published: &Published) -> std::io::Result<()> {
-    let bytes = serde_json::to_vec(published).map_err(std::io::Error::other)?;
+    let bytes = serde_json::to_vec(&dm_core::saved::Stamped {
+        format: FORMAT,
+        body: published,
+    })
+    .map_err(std::io::Error::other)?;
     let path = file(home);
     let beside = path.with_extension("json.new");
     std::fs::write(&beside, bytes)?;

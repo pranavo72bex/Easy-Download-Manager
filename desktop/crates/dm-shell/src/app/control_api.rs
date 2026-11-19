@@ -321,7 +321,8 @@ pub fn screenshot_path(home: &std::path::Path, params: &Value) -> std::path::Pat
     let name = params.get("name").and_then(|n| n.as_str()).unwrap_or("dm");
     let name = dm_core::sanitize_name(name);
     let name = if name.is_empty() { "dm".into() } else { name };
-    home.join("screenshots").join(format!("{name}.png"))
+    home.join(dm_core::paths::SCREENSHOTS)
+        .join(format!("{name}.png"))
 }
 
 /// How long after a control client clicked, typed or pressed a key what is

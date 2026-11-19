@@ -101,6 +101,9 @@ pub use dm_net::ntlm;
 
 pub use dm_net::pac;
 
+// The name of every file dm keeps in its home (gaps row A8).
+pub mod paths;
+
 mod plan;
 
 mod probe;
@@ -120,6 +123,9 @@ pub mod retry;
 pub mod rtmp;
 
 pub mod rtsp;
+
+// The format number in each file dm saves (gaps row A8).
+pub mod saved;
 
 mod schedule;
 

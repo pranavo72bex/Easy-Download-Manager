@@ -171,10 +171,10 @@ fn routed_to_window() -> bool {
 }
 
 /// The file in the inbox that carries `--when-done` to the window.
-pub const WHEN_DONE_FILE: &str = "when-done";
+pub const WHEN_DONE_FILE: &str = dm_core::paths::INBOX_WHEN_DONE;
 
 /// The file in the inbox that carries `--new-download` to the window.
-pub const NEW_DOWNLOAD_FILE: &str = "new-download";
+pub const NEW_DOWNLOAD_FILE: &str = dm_core::paths::INBOX_NEW_DOWNLOAD;
 
 fn is_link(arg: &str) -> bool {
     arg.starts_with("http://")
@@ -365,12 +365,12 @@ pub fn hand_to_running(home: &Path, orders: &Orders) {
         }
     }
     if orders.start_queue {
-        let _ = leave(home, "start-queue", b"");
+        let _ = leave(home, dm_core::paths::INBOX_START_QUEUE, b"");
     }
     leave_when_done(home, orders);
     leave_new_download(home, orders);
     // Last, and rung: the requests filed above are found with it.
-    let _ = leave(home, "show", b"");
+    let _ = leave(home, dm_core::paths::INBOX_SHOW, b"");
 }
 
 /// Leaves `name` in the running dm's inbox, saying `said`, and rings its bell (`host::ring`):
@@ -399,7 +399,7 @@ pub fn opened_by_system(home: &Path, opened: &[String]) -> usize {
 
 /// The start of the inbox file that asks the running dm to try a failed
 /// download again: its row's id follows.
-pub const RETRY_PREFIX: &str = "retry-";
+pub const RETRY_PREFIX: &str = dm_core::paths::INBOX_RETRY_PREFIX;
 
 /// Asks the running dm to try row `id` again, through its inbox: a
 /// notification's Retry, whose click is heard on a thread that has no queue
@@ -522,7 +522,9 @@ pub async fn start(orders: &Orders) -> Started {
     // the command line below, the inbox watcher and the window all number
     // new rows, and a row numbered before the store was read collided with
     // a restored one.
-    queue.persist_to(settings::home().join("queue.json")).await;
+    queue
+        .persist_to(settings::home().join(dm_core::paths::QUEUE))
+        .await;
     for request in &orders.downloads {
         // With a site's saved sign-in, as the window adds a link.
         queue
@@ -931,7 +933,7 @@ pub fn open_with(path: &str, app: &Path) -> Result<(), String> {
 }
 
 /// The inbox file that asks a running dm to end.
-pub const QUIT: &str = "quit";
+pub const QUIT: &str = dm_core::paths::INBOX_QUIT;
 
 /// Asks a running dm to end, through its inbox; nothing when none runs, so
 /// that a later launch does not read the request and end at once.
@@ -972,11 +974,11 @@ pub async fn watch_inbox(
         }
         // Left by a second launch instead of opening a second window, and
         // by the browser's toolbar button.
-        if std::fs::remove_file(dir.join("show")).is_ok() {
+        if std::fs::remove_file(dir.join(dm_core::paths::INBOX_SHOW)).is_ok() {
             show();
         }
         // A second launch with `--start-queue`.
-        if std::fs::remove_file(dir.join("start-queue")).is_ok() {
+        if std::fs::remove_file(dir.join(dm_core::paths::INBOX_START_QUEUE)).is_ok() {
             queue.start_queue(dm_core::MAIN_QUEUE).await;
         }
 

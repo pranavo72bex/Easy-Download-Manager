@@ -102,17 +102,17 @@ pub fn fresh_token(home: &Path) -> std::io::Result<String> {
     // hands it to whoever holds it (security audit). The port is written again once
     // it is bound (`write_port`); a client reads the token first (`mcp::finder`). This dm is the
     // only one (`dm_shell::instance`), so the file is no other's.
-    match std::fs::remove_file(home.join("control.port")) {
+    match std::fs::remove_file(home.join(dm_core::paths::CONTROL_PORT)) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
         _ => {}
     }
-    dm_core::write_atomic(&home.join("control.token"), token.as_bytes())?;
+    dm_core::write_atomic(&home.join(dm_core::paths::CONTROL_TOKEN), token.as_bytes())?;
     Ok(token)
 }
 
 /// The token a client must present, made on first use.
 pub fn token(home: &Path) -> std::io::Result<String> {
-    let path = home.join("control.token");
+    let path = home.join(dm_core::paths::CONTROL_TOKEN);
     if let Ok(text) = std::fs::read_to_string(&path) {
         let text = text.trim().to_string();
         if text.len() == 64 && text.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -471,7 +471,7 @@ static WRITTEN: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new
 
 /// Says where the protocol is listening, for `dm mcp` and scripts to find.
 pub fn write_port(home: &Path, port: u16) -> std::io::Result<()> {
-    std::fs::write(home.join("control.port"), port.to_string())?;
+    std::fs::write(home.join(dm_core::paths::CONTROL_PORT), port.to_string())?;
     WRITTEN.store(port, Ordering::Relaxed);
     Ok(())
 }
@@ -481,7 +481,7 @@ pub fn write_port(home: &Path, port: u16) -> std::io::Result<()> {
 /// taken. Only the port this dm wrote: one another dm wrote since is its.
 pub fn forget_port(home: &Path) {
     let port = WRITTEN.swap(0, Ordering::Relaxed);
-    let file = home.join("control.port");
+    let file = home.join(dm_core::paths::CONTROL_PORT);
     let ours = std::fs::read_to_string(&file)
         .ok()
         .and_then(|text| text.trim().parse::<u16>().ok())

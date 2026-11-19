@@ -1500,3 +1500,45 @@ fn a_folder_in_home_is_written_with_a_tilde_and_read_back() {
     assert_eq!(home_short(&beside), beside);
     assert_eq!(home_short("/tmp/x"), "/tmp/x");
 }
+
+/// The settings file carries its format number (gaps row A8); one from before the numbers, and
+/// one from a later dm with a higher number and a field this one does not know, read the same.
+#[test]
+fn the_settings_file_carries_its_format_and_reads_the_same_without_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let chosen = Settings {
+        connections: 5,
+        speed_limit: 300,
+        ..Settings::default()
+    };
+    let stamped = dir.path().join("settings.json");
+    chosen.save_with(&stamped, None).unwrap();
+    let text = std::fs::read(&stamped).unwrap();
+    assert_eq!(dm_core::saved::format_of(&text), SETTINGS_FORMAT);
+    let (read, notice) = Settings::load_from(&stamped);
+    assert_eq!(notice, None);
+    let read = serde_json::to_value(&read).unwrap();
+
+    let mut fields = serde_json::to_value(&chosen).unwrap();
+    let old = dir.path().join("old.json");
+    std::fs::write(&old, serde_json::to_string_pretty(&fields).unwrap()).unwrap();
+    assert_eq!(dm_core::saved::format_of(&std::fs::read(&old).unwrap()), 0);
+    let (from_old, notice) = Settings::load_from(&old);
+    assert_eq!(notice, None);
+    assert_eq!(serde_json::to_value(&from_old).unwrap(), read);
+
+    fields["format"] = 99.into();
+    fields["a_later_field"] = true.into();
+    let newer = dir.path().join("newer.json");
+    std::fs::write(&newer, fields.to_string()).unwrap();
+    let (from_newer, notice) = Settings::load_from(&newer);
+    assert_eq!(notice, None, "nothing of it was left out");
+    assert_eq!(serde_json::to_value(&from_newer).unwrap(), read);
+
+    let carried = chosen.exported();
+    assert_eq!(
+        dm_core::saved::format_of(carried.as_bytes()),
+        SETTINGS_FORMAT
+    );
+    assert_eq!(chosen.imported(&carried).unwrap().connections, 5);
+}

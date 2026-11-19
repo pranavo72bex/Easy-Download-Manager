@@ -125,8 +125,9 @@ fn the_host_reads_what_was_written_and_nothing_running_once_stale_or_dm_is_gone(
     assert!(!file(home.path()).exists());
     let mut publisher = Publisher::default();
     publisher.publish(home.path(), &rows, &Changes::Every, &[], || true);
-    let written: Published =
-        serde_json::from_slice(&std::fs::read(file(home.path())).unwrap()).unwrap();
+    let bytes = std::fs::read(file(home.path())).unwrap();
+    assert_eq!(dm_core::saved::format_of(&bytes), FORMAT);
+    let written: Published = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(written.running, 1);
     let at = written.at_ms;
     assert_eq!(read(home.path(), at + 10, true), written);

@@ -33,7 +33,7 @@ impl Queue {
         let recheck = self.recheck_file().await;
         let (quota, last) = tokio::task::spawn_blocking(move || {
             (
-                std::fs::read_to_string(path.with_file_name("quota")).ok(),
+                std::fs::read_to_string(crate::paths::quota(&path)).ok(),
                 recheck.and_then(|at| std::fs::read_to_string(at).ok()),
             )
         })
@@ -74,7 +74,7 @@ impl Queue {
         let parsed = read.and_then(|text| {
             // Without the mark some editors put before UTF-8, which is not JSON.
             let json = text.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&text);
-            serde_json::from_slice::<Vec<Entry>>(json)
+            crate::saved::rows_from_slice::<Entry>(json)
                 .map(|entries| (text, entries))
                 .map_err(|e| e.to_string())
         });
@@ -83,7 +83,7 @@ impl Queue {
             // this very file (`journal`).
             Ok((text, entries)) => super::journal::replayed(path, &text, entries),
             Err(e) => {
-                let aside = path.with_extension("json.unreadable");
+                let aside = crate::paths::unreadable(path);
                 return match std::fs::rename(path, &aside) {
                     Ok(()) => Err(format!(
                         "the saved queue could not be read ({e}); it was kept as {} and the \
@@ -301,7 +301,7 @@ impl Queue {
                 std::thread::sleep(slow);
             }
             let wrote = super::journal::write(&target, rows, previous);
-            let _ = crate::write_atomic_unsynced(&target.with_file_name("quota"), quota.as_bytes());
+            let _ = crate::write_atomic_unsynced(&crate::paths::quota(&target), quota.as_bytes());
             wrote
         })
         .await;
@@ -375,7 +375,7 @@ impl Queue {
                 return HashMap::new();
             }
         };
-        match serde_json::from_str::<Vec<Secret>>(&text) {
+        match crate::saved::rows_from_slice::<Secret>(text.as_bytes()) {
             Ok(secrets) => {
                 // A file written in clear moves into the store on its first read where there
                 // is one: written again, it is sealed.
@@ -422,7 +422,7 @@ impl Queue {
         };
         let kept = crate::lock(&self.inner.quota).kept();
         let _ = tokio::task::spawn_blocking(move || {
-            crate::write_atomic_unsynced(&path.with_file_name("quota"), kept.as_bytes())
+            crate::write_atomic_unsynced(&crate::paths::quota(&path), kept.as_bytes())
         })
         .await;
     }
@@ -555,7 +555,7 @@ impl Secret {
 /// store that was locked for a moment, or not yet running at login, must not cost every row's
 /// sign-in for good. Said as the end of the note.
 fn kept_aside(kept: &std::path::Path) -> String {
-    let aside = kept.with_extension("json.unopened");
+    let aside = kept.with_extension(crate::paths::UNOPENED_EXTENSION);
     match std::fs::rename(kept, &aside) {
         Ok(()) => format!(" (the file was kept as {})", aside.display()),
         Err(e) => format!(" (it could not be moved aside: {e})"),
@@ -564,5 +564,5 @@ fn kept_aside(kept: &std::path::Path) -> String {
 
 /// Where the secrets of the queue at `queue_file` are kept.
 pub(super) fn secrets_file(queue_file: &std::path::Path) -> PathBuf {
-    queue_file.with_file_name("secrets.json")
+    crate::paths::secrets(queue_file)
 }

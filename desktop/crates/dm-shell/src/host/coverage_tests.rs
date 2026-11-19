@@ -391,6 +391,46 @@ fn the_real_world_lists_qualities_from_a_reading_kept_or_none_for_a_site_without
     );
 }
 
+/// The formats cache stays a bare list, read in either shape, and the extension's file carries
+/// its format number (gaps row A8).
+#[test]
+fn the_formats_cache_stays_a_list_and_the_extension_file_carries_its_format() {
+    let home = tempfile::tempdir().unwrap();
+    let key = formats_key("https://video.example/watch/2", "");
+    let kept = Choice {
+        label: "MP4 640×360".into(),
+        quality: "360".into(),
+        size: None,
+    };
+    remember_formats(home.path(), &key, std::slice::from_ref(&kept), 1000);
+    let written = std::fs::read(formats_file(home.path())).unwrap();
+    assert_eq!(
+        written.first(),
+        Some(&b'['),
+        "a bare list, as an older dm reads it"
+    );
+    assert_eq!(
+        recalled_formats(home.path(), &key, 1001),
+        Some(vec![kept.clone()])
+    );
+    // The object shape an early build of this change wrote.
+    let rows = serde_json::to_value([Remembered {
+        key: key.clone(),
+        at: 1000,
+        choices: vec![kept.clone()],
+    }])
+    .unwrap();
+    let object = serde_json::json!({ "format": 1, "rows": rows }).to_string();
+    std::fs::write(formats_file(home.path()), object).unwrap();
+    assert_eq!(recalled_formats(home.path(), &key, 1001), Some(vec![kept]));
+
+    let greeting = dm_protocol::Greeting::default();
+    note_extension(home.path(), &greeting);
+    let written = std::fs::read(extension_file(home.path())).unwrap();
+    assert_eq!(dm_core::saved::format_of(&written), EXTENSION_FORMAT);
+    assert_eq!(extension_heard(home.path()), Some(greeting));
+}
+
 #[test]
 fn the_warm_reading_does_nothing() {
     let home = tempfile::tempdir().unwrap();

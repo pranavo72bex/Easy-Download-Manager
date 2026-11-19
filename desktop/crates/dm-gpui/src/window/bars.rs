@@ -25,7 +25,7 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 /// Written once "Not now" is chosen on the add-to-browser bar.
-const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
+const BROWSER_HINT_HIDDEN: &str = dm_core::paths::BROWSER_HINT_HIDDEN;
 
 /// How long what was found about the browser's extension is believed before the add-to-browser
 /// bar looks into it again.

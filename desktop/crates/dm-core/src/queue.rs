@@ -798,7 +798,7 @@ impl Queue {
 
     /// Where the recheck queue's last run is kept: beside the queue file.
     async fn recheck_file(&self) -> Option<PathBuf> {
-        Some(self.store_path()?.with_file_name("recheck-at"))
+        Some(crate::paths::recheck_at(&self.store_path()?))
     }
 }
 
@@ -980,7 +980,7 @@ async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
             if let Ok(index) = done.parse::<usize>() {
                 total += crate::download::read_ledger(dir, index).unwrap_or(0);
             }
-        } else if name != "plan.json"
+        } else if name != crate::paths::PLAN
             && name != crate::download::STAGED
             // A range's own file: its ledger above says what of it is on disk.
             && !name.starts_with(crate::download::RANGE)

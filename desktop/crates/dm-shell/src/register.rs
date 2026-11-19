@@ -821,12 +821,12 @@ pub fn give_back_torrent_windows(
 
 /// Where what another program had for magnet links is kept while dm has them.
 pub fn magnet_backup(home: &Path) -> PathBuf {
-    home.join("magnet-before-dm.reg")
+    home.join(dm_core::paths::MAGNET_BACKUP)
 }
 
 /// Where what another program had for `.torrent` files is kept while dm has them.
 pub fn torrent_backup(home: &Path) -> PathBuf {
-    home.join("torrent-before-dm.reg")
+    home.join(dm_core::paths::TORRENT_BACKUP)
 }
 
 /// Registers on Windows: both manifests written under `data`, then a key

@@ -20,7 +20,7 @@ mod owner_only;
 
 /// The file whose lock says dm is running.
 fn lock_path(home: &Path) -> std::path::PathBuf {
-    home.join("instance.lock")
+    home.join(dm_core::paths::INSTANCE_LOCK)
 }
 
 /// How long a claim keeps trying a lock held by someone else before it

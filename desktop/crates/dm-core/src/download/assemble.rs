@@ -821,7 +821,12 @@ async fn finish_held(
     // to the blocking pool, and a small file made seven or more of them.
     let dir = options.parts_dir.clone();
     let _ = tokio::task::spawn_blocking(move || {
-        for note in ["plan.json", "rendition", "joined.ts.partial", REMUXED] {
+        for note in [
+            crate::paths::PLAN,
+            "rendition",
+            "joined.ts.partial",
+            REMUXED,
+        ] {
             let _ = std::fs::remove_file(dir.join(note));
         }
         // And each range's ledger, which the bytes they spoke for have left,
