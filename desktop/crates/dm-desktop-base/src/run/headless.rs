@@ -90,13 +90,14 @@ pub struct Headless {
 
 /// Runs dm with no window until it is asked to end (Exit over the port,
 /// When done's Exit, a signal): woken by the engine and the control port
-/// (`woken`), and by its clock once a second. The queue is written down
-/// and the port forgotten before it returns.
+/// (`woken`, the window's own wake channel), and by its clock once a
+/// second. The queue is written down and the port forgotten before it
+/// returns.
 pub fn run(
     backend: Backend,
     requests: Option<mpsc::Receiver<Request>>,
     assistants_only: bool,
-    woken: &mpsc::Receiver<Wake>,
+    woken: &crate::wakes::Woken,
 ) {
     let mut dm = Headless::new(backend, requests, assistants_only);
     while !crate::signals::SIGNALLED.load(Ordering::SeqCst) {
@@ -104,11 +105,19 @@ pub fn run(
         if dm.quit_asked {
             break;
         }
-        match woken.recv_timeout(CLOCK) {
+        // Waited for on the runtime, from this thread, which draws nothing
+        // (`Backend`'s rule).
+        let next = dm
+            .backend
+            .runtime
+            .block_on(tokio::time::timeout(CLOCK, woken.recv()));
+        match next {
             // Wakes within the quarter are one.
-            Ok(Wake::Soon) => std::thread::sleep(SOON),
-            Ok(Wake::Now) | Err(mpsc::RecvTimeoutError::Timeout) => {}
-            Err(mpsc::RecvTimeoutError::Disconnected) => std::thread::sleep(CLOCK),
+            Ok(Ok(Wake::Soon)) => std::thread::sleep(SOON),
+            // A wake to act on now, or the clock.
+            Ok(Ok(Wake::Now)) | Err(_) => {}
+            // Every sender gone: the clock alone.
+            Ok(Err(_)) => std::thread::sleep(CLOCK),
         }
         while woken.try_recv().is_ok() {}
     }

@@ -10,7 +10,8 @@
 //! `control` (the control port's server) and `probe` (the window methods it asks, as a
 //! contract any window answers), `cli` (the command line, a client of the
 //! control port) and `mcp` (the MCP server an AI assistant talks to, over
-//! the control port too). Each is reached from the crate's root as before
+//! the control port too), and `wakes` (the one channel that wakes the window
+//! or the loop with none). Each is reached from the crate's root as before
 //! (`dm_desktop_base::boot`).
 
 pub mod boot;
@@ -21,3 +22,4 @@ pub mod mcp;
 pub mod modes;
 pub mod probe;
 pub mod session;
+pub mod wakes;

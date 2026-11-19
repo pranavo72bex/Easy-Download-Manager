@@ -156,10 +156,15 @@ impl Downloads {
                     })
                     .map(|r| r.id)
                     .collect();
-                for id in targets {
-                    self.backend.set_delete_after(id, seconds);
-                }
-                self.read();
+                // Off the window's thread: each writes the queue.
+                self.later_then_read(
+                    move |backend| {
+                        for id in targets {
+                            backend.set_delete_after(id, seconds);
+                        }
+                    },
+                    cx,
+                );
             }
         }
         cx.notify();

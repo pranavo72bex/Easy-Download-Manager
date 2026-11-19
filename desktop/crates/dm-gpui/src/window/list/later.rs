@@ -56,6 +56,46 @@ impl Downloads {
         .detach();
     }
 
+    /// A command on a row (Resume, Retry, another folder, its queue)
+    /// carried out off the window's thread, after the work asked for
+    /// before it, and the list read again once it is done: each waits on
+    /// the queue file being written, and a cancel on its parts being
+    /// removed, which a frame must not (`Backend`'s rule).
+    pub(crate) fn later_then_read(
+        &mut self,
+        work: impl FnOnce(&Backend) + Send + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        self.later(
+            work,
+            |view, (), _| {
+                view.read();
+            },
+            cx,
+        );
+    }
+
+    /// Choose another folder…'s answer: download `id` sent on to `dir`, its
+    /// unfinished parts moved there off the window's thread (gigabytes,
+    /// perhaps to another disk), then the list read again, or why not said.
+    pub(crate) fn relocate_later(
+        &mut self,
+        id: dm_core::Id,
+        dir: std::path::PathBuf,
+        cx: &mut Context<Self>,
+    ) {
+        self.later(
+            move |backend| backend.relocate(id, dir),
+            |view, moved, _| match moved {
+                Ok(()) => {
+                    view.read();
+                }
+                Err(e) => view.say(e),
+            },
+            cx,
+        );
+    }
+
     /// The control port's answer to `method`, sent now, or held where it
     /// is `command.run` and work it handed off is not done: a script that
     /// runs Stop and then reads the list finds every row stopped, and the

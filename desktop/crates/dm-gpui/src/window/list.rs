@@ -53,7 +53,7 @@ enum Woke {
 }
 
 /// The next wake, or the timer's end, whichever comes first.
-async fn woke(woken: &crate::window::wakes::Woken, timer: gpui::Task<()>) -> Woke {
+async fn woke(woken: &dm_desktop_base::wakes::Woken, timer: gpui::Task<()>) -> Woke {
     futures_lite::future::or(
         async { woken.recv().await.map_or(Woke::Gone, Woke::By) },
         async {
@@ -168,7 +168,7 @@ impl Downloads {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         backend: Backend,
-        woken: crate::window::wakes::Woken,
+        woken: dm_desktop_base::wakes::Woken,
         requests: Option<std::sync::mpsc::Receiver<dm_desktop_base::control::Request>>,
         assistants_only: bool,
         show_asked: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -861,11 +861,16 @@ impl Downloads {
             if button != 0 {
                 return;
             }
-            let _ = view.update(cx, |view, cx| {
-                for id in &ids {
-                    view.backend.start_outside_schedule(*id);
-                }
-                view.read();
+            let _ = view.update(cx, move |view, cx| {
+                // Off the window's thread, as the toolbar's Resume is.
+                view.later_then_read(
+                    move |backend| {
+                        for id in &ids {
+                            backend.start_outside_schedule(*id);
+                        }
+                    },
+                    cx,
+                );
                 cx.notify();
             });
         });

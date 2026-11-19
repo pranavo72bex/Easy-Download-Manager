@@ -86,17 +86,10 @@ fn main() {
     // `--headless`: no window and no GPUI at all, so it runs where there is
     // no display (`dm_desktop_base::headless`).
     let headless = mode == Mode::Headless;
-    // Woken from any thread; read on the window's own, in `window::list::Downloads`,
-    // or by the headless loop.
-    let (wakes, woken) = window::wakes::pair();
-    let (headless_wakes, headless_woken) = std::sync::mpsc::channel::<Wake>();
-    let wake: Arc<dyn Fn(Wake) + Send + Sync> = if headless {
-        Arc::new(move |wake: Wake| {
-            let _ = headless_wakes.send(wake);
-        })
-    } else {
-        Arc::new(move |wake: Wake| wakes.send(wake))
-    };
+    // Woken from any thread, through the one wake channel; read on the window's own, in
+    // `window::list::Downloads`, or by the headless loop.
+    let (wakes, woken) = dm_desktop_base::wakes::pair();
+    let wake: Arc<dyn Fn(Wake) + Send + Sync> = Arc::new(move |wake: Wake| wakes.send(wake));
     let platform: Arc<dyn dm_shell::app::backend::Platform> =
         Arc::new(dm_desktop_base::desktop::Desktop {
             window: platform::services::GpuiServices,
@@ -174,10 +167,9 @@ fn main() {
         if let Some(item) = login_item {
             item.follow(&backend, Arc::clone(&wake));
         }
-        dm_desktop_base::headless::run(backend, requests, assistants_only, &headless_woken);
+        dm_desktop_base::headless::run(backend, requests, assistants_only, &woken);
         return;
     }
-    drop(headless_woken);
 
     // An installed dm tells the browsers where it is, so the extension works without a
     // terminal and no browser is left pointing at an old copy of dm (not a development build

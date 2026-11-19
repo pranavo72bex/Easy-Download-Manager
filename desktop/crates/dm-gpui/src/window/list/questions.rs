@@ -99,10 +99,18 @@ impl Downloads {
                 return;
             }
             let _ = view.update(cx, |view, cx| {
-                view.backend.cancel(id);
-                view.close_progress(id, cx);
-                view.windows.progress_closed.insert(id);
-                view.read();
+                // Off the window's thread: its staged parts are thrown away,
+                // many files for a big download. Its progress window closes
+                // as the row reads cancelled.
+                view.later(
+                    move |backend| backend.cancel(id),
+                    move |view, (), cx| {
+                        view.close_progress(id, cx);
+                        view.windows.progress_closed.insert(id);
+                        view.read();
+                    },
+                    cx,
+                );
                 cx.notify();
             });
         });
@@ -219,9 +227,12 @@ impl Downloads {
             Carried::Show { id, go_on } => {
                 self.list.selected.clear();
                 self.list.selected.insert(id);
+                // Off the window's thread, as the toolbar's Resume is.
                 match go_on {
-                    Some(GoOn::Retry) => self.backend.retry(id),
-                    Some(GoOn::Resume) => self.backend.resume(id),
+                    Some(GoOn::Retry) => self.later_then_read(move |backend| backend.retry(id), cx),
+                    Some(GoOn::Resume) => {
+                        self.later_then_read(move |backend| backend.resume(id), cx)
+                    }
                     _ => {}
                 }
                 self.read();
@@ -248,8 +259,16 @@ impl Downloads {
             .questions
             .renames
             .due(|id| rows.iter().find(|r| r.id == id).map(|r| r.state.clone()));
-        for (id, name) in due {
-            let _ = self.backend.rename(id, &name);
+        // Off the window's thread: a file renamed on its disk.
+        if !due.is_empty() {
+            self.later_then_read(
+                move |backend| {
+                    for (id, name) in &due {
+                        let _ = backend.rename(*id, name);
+                    }
+                },
+                cx,
+            );
         }
         self.promote_asks(cx);
     }
@@ -299,7 +318,7 @@ impl Downloads {
                 if let (Question::NotFound(id), 1) = (&question, button) {
                     view.run_on(*id, dm_shell::app::commands::Command::UpdateLink, cx);
                 }
-                view.answered(question, button == 0);
+                view.answered(question, button == 0, cx);
                 view.read();
                 view.promote_asks(cx);
                 cx.notify();
@@ -310,8 +329,14 @@ impl Downloads {
     }
 
     /// Carries out the answer to a question a download raised: `yes` the
-    /// default (Yes, or OK).
-    pub(super) fn answered(&mut self, question: dm_shell::app::questions::Question, yes: bool) {
+    /// default (Yes, or OK). Carried out off the window's thread, and the
+    /// list read again once it is: each renames a file or writes the queue.
+    pub(super) fn answered(
+        &mut self,
+        question: dm_shell::app::questions::Question,
+        yes: bool,
+        cx: &mut Context<Self>,
+    ) {
         use dm_shell::app::questions::Question;
         match question {
             // No: the file is given the address's name, at once if it has
@@ -329,11 +354,18 @@ impl Downloads {
                     .renames
                     .ask(id, state.as_ref(), &address_name)
                 {
-                    let _ = self.backend.rename(id, &now);
+                    self.later_then_read(
+                        move |backend| {
+                            let _ = backend.rename(id, &now);
+                        },
+                        cx,
+                    );
                 }
             }
-            Question::Page(id) if yes => self.backend.accept_page(id),
-            Question::Page(id) => self.backend.remove(id),
+            Question::Page(id) if yes => {
+                self.later_then_read(move |backend| backend.accept_page(id), cx)
+            }
+            Question::Page(id) => self.later_then_read(move |backend| backend.remove(id), cx),
             _ => {}
         }
     }

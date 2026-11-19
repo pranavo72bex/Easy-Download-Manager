@@ -195,7 +195,7 @@ pub(crate) struct Harness {
     #[allow(dead_code)]
     pub(crate) fake: Arc<Fake>,
     asks: mpsc::Sender<dm_desktop_base::control::Request>,
-    wakes: crate::window::wakes::Wakes,
+    wakes: dm_desktop_base::wakes::Wakes,
     /// When GPUI's clock was last moved on (`step`).
     clock: std::time::Instant,
     /// The windows open at the last step: one opened since is put in front (`step`).
@@ -235,7 +235,7 @@ impl Harness {
             Arc::clone(&fake) as Arc<dyn dm_shell::app::platform::Platform>,
         );
         let (asks, asked) = mpsc::channel();
-        let (wakes, woken) = crate::window::wakes::pair();
+        let (wakes, woken) = dm_desktop_base::wakes::pair();
         let mut cx = TestAppContext::single();
         cx.update(gpui_component::init);
         crate::window::screen::record();

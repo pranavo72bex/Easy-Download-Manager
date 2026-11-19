@@ -7,6 +7,62 @@
 //!
 //! The window calls the queue directly, on the app's own runtime: a
 //! command the window needs and the backend lacks is a compile error.
+//!
+//! # Which thread may wait on what
+//!
+//! Most calls here wait for the engine (`block_on`, on the engine's
+//! runtime) on the caller's thread. Who may make them:
+//!
+//! * **The window's thread** (the one that draws: its frames, its
+//!   listeners, its tick, its dialogs' answers) never waits on the disk,
+//!   the network or a download stopping. It calls only the reads that are
+//!   one of the queue's locks and a copy from memory: [`Backend::snapshot`]
+//!   (each wake's read), [`Backend::row`], [`Backend::list_shared`],
+//!   [`Backend::queues`], [`Backend::finished_rows`],
+//!   [`Backend::clearable_rows`], [`Backend::retrying`],
+//!   [`Backend::swarms`], and those with no wait at all
+//!   ([`Backend::settings`], [`Backend::allowance_spent`],
+//!   [`Backend::problems`]). They stay because the frame drawn next is drawn
+//!   from their answer, and the queue lets go of its locks before it writes
+//!   a file or asks a server, so the wait is as long as a copy of the rows.
+//!   Anything else it hands off: to [`Backend::later`] (the errands' thread,
+//!   in the order asked) or [`Backend::on_runtime`] (beside the downloads),
+//!   and what came of it is said, and the list read again, when the
+//!   [`crate::app::errands::Answer`] comes back to its own executor.
+//!   Still made on it, each a known wait left for later: the settings
+//!   changed ([`Backend::set_settings`] and its kin: in force or refused,
+//!   said at once and read by the next line, with the settings file
+//!   written); a download added ([`Backend::add`], [`Backend::add_with`],
+//!   [`Backend::add_each`], [`Backend::settle_early`]: the new row chosen and
+//!   what came of it said at once); a row dragged to another place
+//!   ([`Backend::shift`]: it lands there in the next frame); the tick's own
+//!   (the schedules' speed limit, "Delete file after"'s removal, a
+//!   hand-off's add); and Exit's [`Backend::shut_down`], which waits for
+//!   the downloads to stop, up to [`SHUT_DOWN_WITHIN`], as the window ends.
+//!   A debug build counts the waits made while drawing
+//!   (`crate::app::costs`).
+//! * **The errands' thread** (`dm-errands`, [`Backend::later`]) may wait on
+//!   anything the engine does: a file moved, the queue written, a running
+//!   download stopped (a new address waits up to five seconds for it). One
+//!   errand at a time, in the order asked, so two commands keep their order.
+//! * **The runtime's workers** never block: no call here (a `block_on`
+//!   inside the runtime would panic), and no file or socket but tokio's.
+//! * **The runtime's blocking pool** (`spawn_blocking`) is where the engine
+//!   reads and writes files it awaits: the queue file, a plan, a preview.
+//! * **Threads of their own** (the control port's, the loop with no
+//!   window, the login item's, the session's end) may wait on the engine
+//!   through these calls; they draw nothing.
+//!
+//! # The one wake channel
+//!
+//! What tells the window (or the loop with no window) to look again is one
+//! channel, `dm_desktop_base::wakes`: an `async_channel` holding at most
+//! one wake of each kind, sent from any thread through the `wake` the app
+//! is started with, and read on the window's own executor (or by that loop,
+//! waiting on the runtime with its clock beside it). The answer to work
+//! handed off is not a wake: it is the [`crate::app::errands::Answer`]
+//! awaited where it is shown. The control port's requests are data, on a
+//! channel of their own, which a wake tells the window to read.
 
 use std::sync::{Arc, Mutex};
 
@@ -1126,6 +1182,21 @@ mod undo_tests {
         assert_eq!(undo.keep(Vec::new()), 0, "nothing to keep");
         assert!(!undo.is_kept());
     }
+
+    /// Undo's rows are given once, while it is on offer, for a window to put
+    /// back off its own thread; none after its time.
+    #[test]
+    fn undo_gives_its_rows_once_while_on_offer() {
+        let mut undo = Undo::default();
+        assert!(undo.take().is_none(), "nothing kept");
+        assert_eq!(undo.keep(vec![(0, finished(7))]), 1);
+        let rows = undo.take().unwrap();
+        assert_eq!(rows.iter().map(|(_, e)| e.id).collect::<Vec<_>>(), [7]);
+        assert!(undo.take().is_none() && !undo.is_kept(), "once");
+        assert_eq!(undo.keep(vec![(0, finished(8))]), 1);
+        undo.backdate(UNDO_FOR);
+        assert!(undo.take().is_none(), "its time over");
+    }
 }
 
 #[cfg(test)]
@@ -1233,13 +1304,22 @@ impl Undo {
     /// Puts the rows back through `backend` while Undo is on offer: their
     /// ids, or `None` (nothing kept, or its time over). Once only.
     pub fn put_back(&mut self, backend: &Backend) -> Option<Vec<Id>> {
+        let rows = self.take()?;
+        let ids = rows.iter().map(|(_, e)| e.id).collect();
+        backend.put_back(rows);
+        Some(ids)
+    }
+
+    /// The rows kept, while Undo is on offer, for the caller to put back
+    /// (`Backend::put_back`) where it may wait: the window hands that off
+    /// its thread. `None` where nothing is kept or its time is over. Once
+    /// only.
+    pub fn take(&mut self) -> Option<Vec<(usize, Entry)>> {
         let (at, rows) = self.0.take()?;
         if at.elapsed() >= UNDO_FOR || rows.is_empty() {
             return None;
         }
-        let ids = rows.iter().map(|(_, e)| e.id).collect();
-        backend.put_back(rows);
-        Some(ids)
+        Some(rows)
     }
 }
 

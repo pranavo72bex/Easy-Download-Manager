@@ -14,6 +14,21 @@ use super::Downloads;
 const UNDO_DRAWN_AFTER: std::time::Duration = std::time::Duration::from_millis(50);
 
 impl Downloads {
+    /// Finished rows taken off the list (`rows`, where each stood): kept for
+    /// Undo and said, and the list read again.
+    fn took_finished(&mut self, rows: Vec<(usize, Entry)>, cx: &mut Context<Self>) {
+        let n = self.status.undo.keep(rows);
+        if n > 0 {
+            self.undo_expires(cx);
+            self.say(dm_desktop_base::i18n::tn(
+                "Removed {} download from the list.||Removed {} downloads from the list.",
+                n as u64,
+                &[&n],
+            ));
+        }
+        self.read();
+    }
+
     /// Remove (or Delete file, `deleting_files`) on the rows chosen. Finished
     /// rows only leave the list, nothing lost, Undo on offer for a moment; any
     /// other is asked about first.
@@ -25,18 +40,17 @@ impl Downloads {
     ) {
         let ids: Vec<dm_core::Id> = chosen.iter().map(|r| r.id).collect();
         if !deleting_files && chosen.iter().all(|r| r.state == State::Completed) {
-            let rows = self.backend.finished_rows(&ids);
-            self.backend.remove_many(&ids);
-            let n = self.status.undo.keep(rows);
-            if n > 0 {
-                self.undo_expires(cx);
-                self.say(dm_desktop_base::i18n::tn(
-                    "Removed {} download from the list.||Removed {} downloads from the list.",
-                    n as u64,
-                    &[&n],
-                ));
-            }
-            self.read();
+            // Off the window's thread, as the rows asked about below are:
+            // taking them out writes the queue file.
+            self.later(
+                move |backend| {
+                    let rows = backend.finished_rows(&ids);
+                    backend.remove_many(&ids);
+                    rows
+                },
+                |view, rows, cx| view.took_finished(rows, cx),
+                cx,
+            );
             return;
         }
         // The finished files still on disk that could go with their rows.
@@ -159,17 +173,27 @@ impl Downloads {
         .detach();
     }
 
-    /// Puts back the rows the last Remove took off, while Undo is on offer.
-    pub fn undo_remove(&mut self) {
-        if let Some(ids) = self.status.undo.put_back(&self.backend) {
-            let n = ids.len();
-            self.read();
-            self.list.selected = ids.into_iter().collect();
-            self.say(dm_desktop_base::i18n::tn(
-                "Put back {} download.||Put back {} downloads.",
-                n as u64,
-                &[&n],
-            ));
-        }
+    /// Puts back the rows the last Remove took off, while Undo is on offer:
+    /// off the window's thread, as putting them back writes the queue file,
+    /// and said once they are back.
+    pub fn undo_remove(&mut self, cx: &mut Context<Self>) {
+        let Some(rows) = self.status.undo.take() else {
+            return;
+        };
+        let ids: Vec<dm_core::Id> = rows.iter().map(|(_, e)| e.id).collect();
+        self.later(
+            move |backend| backend.put_back(rows),
+            move |view, (), _| {
+                let n = ids.len();
+                view.read();
+                view.list.selected = ids.into_iter().collect();
+                view.say(dm_desktop_base::i18n::tn(
+                    "Put back {} download.||Put back {} downloads.",
+                    n as u64,
+                    &[&n],
+                ));
+            },
+            cx,
+        );
     }
 }

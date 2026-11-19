@@ -46,14 +46,23 @@ impl Downloads {
             Command::OpenFile => self.open_path(&row.path),
             Command::OpenWith => self.open_path_with(&row.path, |_, _| {}, cx),
             Command::OpenFolder => self.reveal_path(&row.path),
-            Command::Preview => match self.backend.preview(row.id) {
-                Ok(path) => self.open_path(&path.to_string_lossy()),
-                // Nothing on disk yet is the usual answer, and one to word.
-                Err(e) if e.starts_with("nothing") => {
-                    self.say(t("Nothing of it is on disk to preview yet.").into())
-                }
-                Err(e) => self.say(e),
-            },
+            // Off the window's thread: where the disk takes no hard link the
+            // preview is a copy of what is fetched so far.
+            Command::Preview => {
+                let id = row.id;
+                self.later(
+                    move |backend| backend.preview(id),
+                    |view, made, _| match made {
+                        Ok(path) => view.open_path(&path.to_string_lossy()),
+                        // Nothing on disk yet is the usual answer, and one to word.
+                        Err(e) if e.starts_with("nothing") => {
+                            view.say(t("Nothing of it is on disk to preview yet.").into())
+                        }
+                        Err(e) => view.say(e),
+                    },
+                    cx,
+                );
+            }
             Command::ExtractHere => self.extract(&row.path, &row.url, None),
             Command::ExtractTo => {
                 let (path, url) = (row.path.clone(), row.url.clone());

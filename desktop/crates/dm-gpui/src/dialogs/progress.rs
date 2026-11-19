@@ -143,18 +143,24 @@ impl Progress {
             let Some(row) = view.rows.iter().find(|r| r.id == id).cloned() else {
                 return;
             };
+            // Off the window's thread, as the toolbar's Stop and Resume are;
+            // the list is read again once it is done.
             if stop {
-                view.backend.pause(id);
+                view.later_then_read(move |backend| backend.pause(id), cx);
             } else {
                 match dm_shell::app::rules::go_on(&row.state, row.paused_by_schedule) {
-                    GoOn::Retry => view.backend.retry(id),
+                    GoOn::Retry => view.later_then_read(move |backend| backend.retry(id), cx),
                     // Held by the schedule: asked whether to start it
                     // outside it.
-                    GoOn::Held => view.ask_outside(vec![id], cx),
-                    GoOn::Resume | GoOn::Settled | GoOn::NotStopped => view.backend.resume(id),
+                    GoOn::Held => {
+                        view.ask_outside(vec![id], cx);
+                        view.read();
+                    }
+                    GoOn::Resume | GoOn::Settled | GoOn::NotStopped => {
+                        view.later_then_read(move |backend| backend.resume(id), cx)
+                    }
                 }
             }
-            view.read();
             cx.notify();
         });
     }
@@ -191,12 +197,7 @@ impl Progress {
             StepButton::ChooseFolder => crate::platform::services::ask_then(
                 crate::platform::services::Asked::folder(),
                 cx,
-                move |view: &mut Downloads, dir, _| match view.backend.relocate(id, dir) {
-                    Ok(()) => {
-                        view.read();
-                    }
-                    Err(e) => view.say(e),
-                },
+                move |view: &mut Downloads, dir, cx| view.relocate_later(id, dir, cx),
             ),
             StepButton::UpdateLink => view.run_on(id, Command::UpdateLink, cx),
             StepButton::MoveRename => view.run_on(id, Command::MoveRename, cx),
@@ -245,8 +246,8 @@ impl Progress {
             .clamp(1, 10_000_000);
         let id = self.id;
         let _ = self.view.update(cx, |view, cx| {
-            view.backend.set_own_limit(id, if on { typed } else { 0 });
-            view.read();
+            let kb_per_second = if on { typed } else { 0 };
+            view.later_then_read(move |backend| backend.set_own_limit(id, kb_per_second), cx);
             cx.notify();
         });
     }
