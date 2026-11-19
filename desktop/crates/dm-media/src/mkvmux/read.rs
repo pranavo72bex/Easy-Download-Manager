@@ -9,7 +9,7 @@
 use super::*;
 
 impl Reader {
-    pub(super) fn read_at(&mut self, at: u64, len: usize) -> Result<Vec<u8>, String> {
+    pub(super) fn read_at(&mut self, at: u64, len: usize) -> Result<Vec<u8>, Error> {
         let mut buf = vec![0u8; len];
         self.file
             .read_into(at, &mut buf)
@@ -23,7 +23,7 @@ impl Reader {
         &mut self,
         at: u64,
         within: u64,
-    ) -> Result<(u32, u64, Option<u64>), String> {
+    ) -> Result<(u32, u64, Option<u64>), Error> {
         let take = (within.min(self.length).saturating_sub(at)).min(12) as usize;
         let head = self.read_at(at, take)?;
         let (id, id_len) = read_id(&head).ok_or("a damaged element")?;
@@ -34,13 +34,13 @@ impl Reader {
     }
 }
 
-pub(super) fn read_input(path: &Path, input: usize) -> Result<Input, String> {
+pub(super) fn read_input(path: &Path, input: usize) -> Result<Input, Error> {
     read_webm(path, input, false)
 }
 
 /// A WebM input: its tracks, and its blocks unless `tracks_only`, where
 /// the reading stops at the first cluster.
-pub(super) fn read_webm(path: &Path, input: usize, tracks_only: bool) -> Result<Input, String> {
+pub(super) fn read_webm(path: &Path, input: usize, tracks_only: bool) -> Result<Input, Error> {
     let length = std::fs::metadata(path)
         .map_err(|e| format!("{} could not be read: {e}", path.display()))?
         .len();
@@ -151,7 +151,7 @@ fn read_cluster(
     end: Option<u64>,
     segment_end: u64,
     blocks: &mut Vec<Block>,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     let limit = end.unwrap_or(segment_end).min(segment_end);
     let mut cluster_time = 0i64;
     let mut at = start;

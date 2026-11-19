@@ -324,7 +324,7 @@ impl WindowProbe for Probe<'_, '_> {
         let [x, y] = to.to;
         handle
             .update(self.cx, |_, window, _| {
-                crate::platform::syswindow::move_to(window, x, y)
+                crate::platform::syswindow::move_to(window, x, y).map_err(String::from)
             })
             .map_err(|e| e.to_string())??;
         Ok(probe::Moved {

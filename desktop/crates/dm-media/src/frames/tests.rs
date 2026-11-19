@@ -76,7 +76,7 @@ fn a_part_that_is_not_av1_is_refused_in_words() {
     let Err(said) = av1::read(&h264, 12, 480) else {
         panic!("an H.264 part was decoded as AV1");
     };
-    assert!(said.contains("AV1"), "{said}");
+    assert!(said.to_string().contains("AV1"), "{said}");
     assert!(av1::read(Path::new("/nowhere/at/all.mp4"), 12, 480).is_err());
 }
 

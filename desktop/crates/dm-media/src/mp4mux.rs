@@ -26,6 +26,8 @@ use std::fs::File;
 use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+use crate::Error;
+
 /// The output's movie timescale: milliseconds, which every player reads.
 const MOVIE_TIMESCALE: u32 = 1000;
 /// How much of a track goes in one chunk before the other track's turn.
@@ -103,13 +105,13 @@ struct Defaults {
 /// The tracks of the MP4 at `path`, as the muxer reads them (for the
 /// system's video decoder, `frames`; macOS so far).
 #[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
-pub(crate) fn tracks_in_file(path: &Path) -> Result<Vec<Track>, String> {
+pub(crate) fn tracks_in_file(path: &Path) -> Result<Vec<Track>, Error> {
     tracks_of_input(path, 0)
 }
 
 /// The tracks of the MP4 at `path`, as input `input` of a join, refused
 /// where its index points past its end (for the MKV writer, `mkvmux`).
-pub(crate) fn tracks_of_input(path: &Path, input: usize) -> Result<Vec<Track>, String> {
+pub(crate) fn tracks_of_input(path: &Path, input: usize) -> Result<Vec<Track>, Error> {
     let mut file =
         File::open(path).map_err(|e| format!("{} could not be read: {e}", path.display()))?;
     let length = file
@@ -123,14 +125,14 @@ pub(crate) fn tracks_of_input(path: &Path, input: usize) -> Result<Vec<Track>, S
 
 /// Refuses tracks whose index points past the end of the file they were
 /// read from: every reader seeks and sizes its buffers by those numbers.
-fn within(tracks: &[Track], length: u64, path: &Path) -> Result<(), String> {
+fn within(tracks: &[Track], length: u64, path: &Path) -> Result<(), Error> {
     let past = tracks.iter().flat_map(|t| &t.samples).any(|s| {
         s.offset
             .checked_add(u64::from(s.size))
             .is_none_or(|end| end > length)
     });
     if past {
-        return Err(format!("{} is cut short", path.display()));
+        return Err(format!("{} is cut short", path.display()).into());
     }
     Ok(())
 }
@@ -323,7 +325,7 @@ pub fn join_cut_tagged(
     tags: &Tags,
 ) -> Result<u64, String> {
     let (tracks, files) = read_inputs(inputs, shape)?;
-    write_with_text(tracks, files, texts, out, cut, None, tags)
+    write_with_text(tracks, files, texts, out, cut, None, tags).map_err(String::from)
 }
 
 /// [`join_cut`], with subtitles timed once the inputs are read (an HLS stream's WebVTT
@@ -364,6 +366,7 @@ where
         earliest_ms,
         &Tags::default(),
     )
+    .map_err(String::from)
 }
 
 /// Every track of `inputs` that has samples, each input's file open, reshaped where `shape`
@@ -371,7 +374,7 @@ where
 fn read_inputs(
     inputs: &[PathBuf],
     shape: Option<crate::shape::Shape>,
-) -> Result<(Vec<Track>, Vec<File>), String> {
+) -> Result<(Vec<Track>, Vec<File>), Error> {
     let mut tracks = Vec::new();
     let mut files = Vec::new();
     for (index, path) in inputs.iter().enumerate() {
@@ -419,7 +422,7 @@ pub(crate) fn write_with_text(
     cut: Option<(u64, u64)>,
     start: Option<u64>,
     tags: &Tags,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     let files = files
         .into_iter()
         .map(|file| Box::new(file) as Box<dyn Source>)
@@ -443,7 +446,7 @@ pub(crate) fn write_with_text_from(
     cut: Option<(u64, u64)>,
     start: Option<u64>,
     tags: &Tags,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     if texts.is_empty() {
         return write::write_output_tagged(&tracks, files.as_mut_slice(), out, cut, tags);
     }

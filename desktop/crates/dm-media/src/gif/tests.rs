@@ -107,6 +107,9 @@ fn frames_of_other_sizes_are_refused_in_words() {
         rgb: vec![0; 3],
         delay: 1,
     }];
-    assert!(encode(2, 2, &frames).unwrap_err().contains("size"));
+    assert!(encode(2, 2, &frames)
+        .unwrap_err()
+        .to_string()
+        .contains("size"));
     assert!(encode(2, 2, &[]).is_err());
 }

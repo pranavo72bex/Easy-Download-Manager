@@ -9,7 +9,7 @@ use super::*;
 
 /// An HEVC picture's sample entry: `hvc1`, its parameter sets in `hvcC`
 /// (and none in the samples), and its size.
-pub(super) fn hevc_entry(stream: &Elementary) -> Result<(Vec<u8>, u32, u32), String> {
+pub(super) fn hevc_entry(stream: &Elementary) -> Result<(Vec<u8>, u32, u32), Error> {
     let (Some(vps), Some(sps), Some(pps)) = (&stream.vps, &stream.sps, &stream.pps) else {
         return Err("its pictures have no parameter sets".into());
     };
@@ -32,7 +32,7 @@ pub(super) fn hevc_entry(stream: &Elementary) -> Result<(Vec<u8>, u32, u32), Str
     Ok((boxed(b"hvcC", &[&hvcc]), info.width, info.height))
 }
 
-pub(super) fn video_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, String> {
+pub(super) fn video_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, Error> {
     let (config, codec, width, height) = if stream.kind == HEVC {
         let (hvcc, width, height) = hevc_entry(stream)?;
         (hvcc, *b"hvc1", width, height)
@@ -63,7 +63,7 @@ pub(super) fn video_track(stream: &Elementary, input: usize, lead: i64) -> Resul
 }
 
 /// An H.264 picture's `avcC` and size.
-pub(super) fn avc_entry(stream: &Elementary) -> Result<(Vec<u8>, u32, u32), String> {
+pub(super) fn avc_entry(stream: &Elementary) -> Result<(Vec<u8>, u32, u32), Error> {
     let (Some(sps), Some(pps)) = (&stream.sps, &stream.pps) else {
         return Err("its pictures have no parameter sets".into());
     };
@@ -91,7 +91,7 @@ pub(super) fn picture_track(
     stsd: Vec<u8>,
     width: u32,
     height: u32,
-) -> Result<Track, String> {
+) -> Result<Track, Error> {
     let first_dts = stream.samples.first().map_or(0, |s| s.3);
     let mut durations: Vec<u32> = stream
         .samples
@@ -169,7 +169,7 @@ pub(super) fn descriptor(tag: u8, body: &[u8]) -> Vec<u8> {
     out
 }
 
-pub(super) fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, String> {
+pub(super) fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Result<Track, Error> {
     let shape = stream.sound.ok_or("its sound has no frames")?;
     let es = |object: u8, specific: Option<&[u8]>| {
         let mut decoder = vec![object, 0x15, 0, 0, 0];
@@ -285,11 +285,11 @@ pub(super) fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Resul
 /// from) with how far the picture's clock was moved at each discontinuity ([`Clock`]), and
 /// gives back the subtitles to carry, timed from there; asked only where there is a picture to
 /// show them over (gaps row Y20).
-pub(super) fn build<F>(streams: &mut [Elementary], out: &Path, place: F) -> Result<u64, String>
+pub(super) fn build<F>(streams: &mut [Elementary], out: &Path, place: F) -> Result<u64, Error>
 where
     F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
-    let mut scratch = |stream: &Elementary| -> Result<Box<dyn Source>, String> {
+    let mut scratch = |stream: &Elementary| -> Result<Box<dyn Source>, Error> {
         let file = File::open(&stream.path)
             .map_err(|e| format!("a scratch file could not be read: {e}"))?;
         Ok(Box::new(file))
@@ -299,7 +299,7 @@ where
 
 /// What a track's samples are read from as the MP4 is written: its scratch file, or the stream
 /// read again (`replay`).
-pub(super) type Sources<'a> = dyn FnMut(&Elementary) -> Result<Box<dyn Source>, String> + 'a;
+pub(super) type Sources<'a> = dyn FnMut(&Elementary) -> Result<Box<dyn Source>, Error> + 'a;
 
 /// [`build`], each track's samples read from what `source` gives for its stream.
 pub(super) fn build_from<F>(
@@ -307,7 +307,7 @@ pub(super) fn build_from<F>(
     out: &Path,
     place: F,
     source: &mut Sources<'_>,
-) -> Result<u64, String>
+) -> Result<u64, Error>
 where
     F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
@@ -332,7 +332,7 @@ where
     for (index, make) in [
         (
             video,
-            video_track as fn(&Elementary, usize, i64) -> Result<Track, String>,
+            video_track as fn(&Elementary, usize, i64) -> Result<Track, Error>,
         ),
         (audio, audio_track),
     ] {

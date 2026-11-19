@@ -21,6 +21,7 @@ use windows::Win32::Media::MediaFoundation::{
 
 use super::Pcm;
 use crate::mf;
+use crate::Error;
 
 /// The rate MP3 has that a sound of `native` Hz is made at: 32, 44.1 or 48
 /// kHz; the reader's resampler does the change.
@@ -32,7 +33,7 @@ fn mp3_rate(native: u32) -> u32 {
     }
 }
 
-pub(super) fn read(path: &Path) -> Result<Pcm, String> {
+pub(super) fn read(path: &Path) -> Result<Pcm, Error> {
     let _on = mf::Started::new()?;
     let sorry = |e: windows::core::Error| format!("the sound could not be read ({e})");
     let none = || "the file has no sound to save as MP3".to_string();
@@ -89,7 +90,7 @@ pub(super) fn read(path: &Path) -> Result<Pcm, String> {
             .GetUINT32(&MF_MT_AUDIO_SAMPLES_PER_SECOND)
             .unwrap_or(rate);
         if !matches!(rate, 32000 | 44100 | 48000) {
-            return Err(format!("MP3 is made at 32, 44.1 or 48 kHz, not {rate} Hz"));
+            return Err(format!("MP3 is made at 32, 44.1 or 48 kHz, not {rate} Hz").into());
         }
 
         let mut samples: Vec<i16> = Vec::new();

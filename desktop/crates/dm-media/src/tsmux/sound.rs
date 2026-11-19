@@ -11,7 +11,7 @@ pub(super) fn take_sound(
     stream: &mut Elementary,
     data: &[u8],
     pts: Option<i64>,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     if stream.first_pts.is_none() {
         stream.first_pts = pts;
     }

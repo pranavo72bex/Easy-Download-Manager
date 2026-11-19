@@ -32,6 +32,7 @@ use windows::Win32::Media::MediaFoundation::{
 
 use super::{shrink, Frame};
 use crate::mf;
+use crate::Error;
 
 /// `MFT_OUTPUT_STREAM_PROVIDES_SAMPLES` and `..._CAN_PROVIDE_SAMPLES`: the
 /// decoder makes the buffers its pictures are in.
@@ -69,7 +70,7 @@ struct Run<'a> {
     held: Collected,
 }
 
-pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<Frame>), String> {
+pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<Frame>), Error> {
     let tracks = crate::mp4mux::tracks_in_file(path)?;
     let video = tracks
         .into_iter()
@@ -171,7 +172,7 @@ pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<F
                     Ok(()) => break,
                     // Its pictures are to be taken before it takes more.
                     Err(e) if e.code() == MF_E_NOTACCEPTING => run.pictures()?,
-                    Err(e) => return Err(sorry(e)),
+                    Err(e) => return Err(sorry(e).into()),
                 }
             }
             run.pictures()?;
@@ -220,7 +221,7 @@ impl Run<'_> {
     /// # Safety
     ///
     /// The decoder must be live and its types set, as `read` leaves them.
-    unsafe fn pictures(&mut self) -> Result<(), String> {
+    unsafe fn pictures(&mut self) -> Result<(), Error> {
         let sorry = |e: windows::core::Error| format!("the system's video decoder failed ({e})");
         loop {
             let mut made: Option<IMFSample> = None;
@@ -257,7 +258,7 @@ impl Run<'_> {
                     self.buffer_size = info.cbSize;
                     self.provides = info.dwFlags & PROVIDES_SAMPLES != 0;
                 }
-                Err(e) => return Err(sorry(e)),
+                Err(e) => return Err(sorry(e).into()),
             }
         }
     }
@@ -318,7 +319,7 @@ impl Run<'_> {
 /// # Safety
 ///
 /// The decoder must be live with its input type set.
-unsafe fn output_type(decoder: &IMFTransform) -> Result<Geometry, String> {
+unsafe fn output_type(decoder: &IMFTransform) -> Result<Geometry, Error> {
     let sorry = |e: windows::core::Error| format!("the system's video decoder failed ({e})");
     let mut index = 0;
     loop {
@@ -382,7 +383,7 @@ unsafe fn output_type(decoder: &IMFTransform) -> Result<Geometry, String> {
 /// # Safety
 ///
 /// Calls into Media Foundation, started by the caller.
-unsafe fn input_sample(data: &[u8], time: i64, long: i64) -> Result<IMFSample, String> {
+unsafe fn input_sample(data: &[u8], time: i64, long: i64) -> Result<IMFSample, Error> {
     let sorry = |e: windows::core::Error| format!("the system's video decoder failed ({e})");
     let sample = MFCreateSample().map_err(sorry)?;
     let buffer = MFCreateMemoryBuffer(data.len() as u32).map_err(sorry)?;
@@ -466,14 +467,15 @@ fn to_bgra(data: &[u8], g: &Geometry) -> Option<Vec<u8>> {
 
 /// The SPS and PPS of an `avc1`/`avc3` sample description (`stsd`, a
 /// whole box), and how many bytes each sample's NAL lengths take.
-fn parameter_sets(stsd: &[u8]) -> Result<(Vec<Vec<u8>>, usize), String> {
+fn parameter_sets(stsd: &[u8]) -> Result<(Vec<Vec<u8>>, usize), Error> {
     let entry = stsd.get(16..).ok_or("no picture description")?;
     let kind = entry.get(4..8).ok_or("no picture description")?;
     if kind != b"avc1" && kind != b"avc3" {
         return Err(format!(
             "only an H.264 picture can be made a GIF; this one is {}",
             String::from_utf8_lossy(kind)
-        ));
+        )
+        .into());
     }
     let size = u32::from_be_bytes(
         entry

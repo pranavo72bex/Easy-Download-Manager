@@ -28,6 +28,8 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
+use crate::Error;
+
 const EBML: u32 = 0x1A45_DFA3;
 const SEGMENT: u32 = 0x1853_8067;
 const SEEK_HEAD: u32 = 0x114D_9B74;
@@ -327,7 +329,7 @@ pub fn join_tagged(
     out: &Path,
     tags: &crate::mp4mux::Tags,
 ) -> Result<u64, String> {
-    placed::join_tagged_placed(inputs, |_| texts.to_vec(), out, tags)
+    placed::join_tagged_placed(inputs, |_| texts.to_vec(), out, tags).map_err(String::from)
 }
 
 /// Moves the MP4 inputs whose fragments say when they start together, so
@@ -372,7 +374,7 @@ fn join_read(
     inputs: &[PathBuf],
     out: &Path,
     tags: &crate::mp4mux::Tags,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     // Pictures first, then sound, then subtitles; each numbered afresh.
     let mut order: Vec<(usize, &TrackIn)> = read
         .iter()
@@ -477,7 +479,7 @@ fn write(
     webm: bool,
     has_video: bool,
     tags: &crate::mp4mux::Tags,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     let wrote = |e: std::io::Error| format!("{} could not be written: {e}", out.display());
     let mut w = BufWriter::with_capacity(1 << 20, File::create(out).map_err(wrote)?);
     let header = [

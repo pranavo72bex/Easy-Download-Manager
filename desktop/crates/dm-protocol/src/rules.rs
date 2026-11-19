@@ -14,6 +14,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::Error;
+
 /// The format of the rules document this side reads.
 pub const RULES_FORMAT: u64 = 1;
 
@@ -168,9 +170,9 @@ impl Rules {
     /// The rules of a document, or why it is not one. Reads JSON only, nothing over
     /// [`MAX_RULES_BYTES`], and only the format this side reads; the lists are tidied (see
     /// [`Rules::tidied`]).
-    pub fn parse(text: &str) -> Result<Rules, String> {
+    pub fn parse(text: &str) -> Result<Rules, Error> {
         if text.len() > MAX_RULES_BYTES {
-            return Err(format!("more than {MAX_RULES_BYTES} bytes"));
+            return Err(format!("more than {MAX_RULES_BYTES} bytes").into());
         }
         // An object only: serde would read an array as the struct's fields in order,
         // and `[1, 2]` as a format and a revision.
@@ -185,7 +187,8 @@ impl Rules {
             return Err(format!(
                 "format {} is not one this side reads (it reads {RULES_FORMAT})",
                 rules.format
-            ));
+            )
+            .into());
         }
         Ok(rules.tidied())
     }

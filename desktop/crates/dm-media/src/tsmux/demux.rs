@@ -10,14 +10,14 @@ use super::*;
 pub(super) fn read_ts(
     input: &Path,
     scratch: &dyn Fn(&str) -> PathBuf,
-) -> Result<Vec<Elementary>, String> {
+) -> Result<Vec<Elementary>, Error> {
     read_ts_locked(input, scratch, &crate::sealed::Locks::default())
 }
 
 /// The stream type a PMT names, as this reads it: a scrambled one (SAMPLE-AES) as what it holds,
 /// and whether it is scrambled. A scrambled kind this does not clear, or one with no key to
 /// clear it with, is refused.
-fn kind_of(kind: u8, locks: &crate::sealed::Locks) -> Result<(u8, bool), String> {
+fn kind_of(kind: u8, locks: &crate::sealed::Locks) -> Result<(u8, bool), Error> {
     let (plain, sealed) = match kind {
         SEALED_H264 => (H264, true),
         SEALED_AAC => (AAC, true),
@@ -38,7 +38,7 @@ pub(super) fn read_ts_locked(
     input: &Path,
     scratch: &dyn Fn(&str) -> PathBuf,
     locks: &crate::sealed::Locks,
-) -> Result<Vec<Elementary>, String> {
+) -> Result<Vec<Elementary>, Error> {
     let input = Joined::new(vec![input.to_path_buf()], None);
     let mut demux = Demux::new(input, Mode::Scratch(scratch), locks);
     loop {
@@ -111,7 +111,7 @@ impl<'a> Demux<'a> {
     }
 
     /// The whole stream read: its picture and sound.
-    pub(super) fn finish(mut self) -> Result<Vec<Elementary>, String> {
+    pub(super) fn finish(mut self) -> Result<Vec<Elementary>, Error> {
         while self.step()? {}
         Ok(self.into_streams())
     }
@@ -146,7 +146,7 @@ impl<'a> Demux<'a> {
 
     /// Reads the next packet: `false` once the stream is read to its end and each stream's last
     /// PES taken.
-    pub(super) fn step(&mut self) -> Result<bool, String> {
+    pub(super) fn step(&mut self) -> Result<bool, Error> {
         if self.ended {
             return Ok(false);
         }
@@ -156,7 +156,7 @@ impl<'a> Demux<'a> {
                 self.end()?;
                 return Ok(false);
             }
-            Err(e) => return Err(format!("the stream could not be read: {e}")),
+            Err(e) => return Err(format!("the stream could not be read: {e}").into()),
         }
         if self.packet[0] != 0x47 && !self.resync()? {
             return Ok(true);
@@ -167,7 +167,7 @@ impl<'a> Demux<'a> {
 
     /// Out of step: finds the next sync byte and carries on from it. `false` where the packet
     /// in hand is still not one.
-    fn resync(&mut self) -> Result<bool, String> {
+    fn resync(&mut self) -> Result<bool, Error> {
         self.lost_sync += 1;
         if self.lost_sync > 1000 {
             return Err("it is not a transport stream".into());
@@ -187,7 +187,7 @@ impl<'a> Demux<'a> {
     }
 
     /// The packet in hand: a table, or part of a stream's PES.
-    fn take_packet(&mut self) -> Result<(), String> {
+    fn take_packet(&mut self) -> Result<(), Error> {
         let packet = self.packet;
         let start = packet[1] & 0x40 != 0;
         let pid = (u16::from(packet[1] & 0x1f) << 8) | u16::from(packet[2]);
@@ -223,7 +223,7 @@ impl<'a> Demux<'a> {
     }
 
     /// A program's table: the first picture and the first sound it names are read out.
-    fn take_pmt(&mut self, payload: &[u8]) -> Result<(), String> {
+    fn take_pmt(&mut self, payload: &[u8]) -> Result<(), Error> {
         for (kind, es_pid) in read_pmt(payload) {
             let (kind, sealed) = match kind_of(kind, &self.locks) {
                 Ok(read) => read,
@@ -237,7 +237,8 @@ impl<'a> Demux<'a> {
                 return Err(format!(
                     "it carries a kind of picture or sound (stream type {kind:#04x}) dm does not \
                      put into an MP4"
-                ));
+                )
+                .into());
             }
             let picture = PICTURES.contains(&kind);
             if !self.streams.iter().any(|(p, _)| *p == es_pid)
@@ -258,7 +259,7 @@ impl<'a> Demux<'a> {
     }
 
     /// A stream newly named, its samples going where the mode says.
-    fn open(&self, kind: u8, sealed: bool, picture: bool) -> Result<Elementary, String> {
+    fn open(&self, kind: u8, sealed: bool, picture: bool) -> Result<Elementary, Error> {
         let mut stream = Elementary {
             kind,
             sealed,
@@ -285,7 +286,7 @@ impl<'a> Demux<'a> {
     }
 
     /// The end of the stream: each stream's last PES taken, its scratch file written out.
-    fn end(&mut self) -> Result<(), String> {
+    fn end(&mut self) -> Result<(), Error> {
         self.ended = true;
         for (_, stream) in &mut self.streams {
             if !stream.pes.is_empty() {
@@ -385,7 +386,7 @@ pub(super) fn unwrap(value: i64, last: Option<i64>) -> i64 {
 }
 
 /// One whole PES packet: its timestamps, and its payload as samples.
-pub(super) fn take_pes(stream: &mut Elementary, pes: &[u8]) -> Result<(), String> {
+pub(super) fn take_pes(stream: &mut Elementary, pes: &[u8]) -> Result<(), Error> {
     if pes.get(..3) != Some(&[0, 0, 1]) {
         return Ok(());
     }

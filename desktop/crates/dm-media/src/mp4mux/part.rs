@@ -149,7 +149,7 @@ pub fn write_plain_part(
     out: &Path,
     cut: (u64, u64),
     shape: Option<crate::shape::Shape>,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     if let Some(shape) = shape {
         for track in &mut plan.tracks {
             crate::shape::apply(track, shape)?;

@@ -40,7 +40,7 @@ struct Index {
 /// the key of the segment it came in (`locks`, by where each segment starts in the file).
 /// A sample in a segment with no key is left as it is. An error where the file is scrambled
 /// some other way, or says too little to put it right.
-pub fn clear_cbcs(path: &Path, locks: &Locks) -> Result<(), String> {
+pub fn clear_cbcs(path: &Path, locks: &Locks) -> Result<(), Error> {
     let failed = |e: std::io::Error| format!("{} could not be read: {e}", path.display());
     let mut file = File::options()
         .read(true)
@@ -92,7 +92,7 @@ pub fn clear_cbcs(path: &Path, locks: &Locks) -> Result<(), String> {
         file.seek(SeekFrom::Start(offset)).map_err(failed)?;
         file.write_all(&name).map_err(failed)?;
     }
-    file.sync_all().map_err(failed)
+    file.sync_all().map_err(|e| Error::from(failed(e)))
 }
 
 /// Where `part` starts within `whole`, which holds it.
@@ -101,7 +101,7 @@ fn offset_in(whole: &[u8], part: &[u8]) -> u64 {
 }
 
 /// An index's protection, its body read from `body_at` in the file.
-fn protection_of(moov: Vec<u8>, body_at: u64) -> Result<Index, String> {
+fn protection_of(moov: Vec<u8>, body_at: u64) -> Result<Index, Error> {
     let mut tracks = Vec::new();
     let mut renames = Vec::new();
     for (kind, trak, _) in boxes(&moov) {
@@ -147,7 +147,8 @@ fn protection_of(moov: Vec<u8>, body_at: u64) -> Result<Index, String> {
                 let named = scheme.map(String::from_utf8_lossy).unwrap_or_default();
                 return Err(format!(
                     "its samples are scrambled by the \"{named}\" scheme, which dm does not clear"
-                ));
+                )
+                .into());
             }
             let tenc = child(sinf, b"schi")
                 .and_then(|s| child(s, b"tenc"))
@@ -165,8 +166,8 @@ fn protection_of(moov: Vec<u8>, body_at: u64) -> Result<Index, String> {
 }
 
 /// A `tenc`'s pattern and vectors.
-fn protection(tenc: &[u8]) -> Result<Protection, String> {
-    let short = || "a track's key information is short".to_string();
+fn protection(tenc: &[u8]) -> Result<Protection, Error> {
+    let short = || Error::from("a track's key information is short");
     let version = *tenc.first().ok_or_else(short)?;
     let pattern = if version == 0 {
         0
@@ -207,8 +208,8 @@ fn padded(iv: &[u8]) -> [u8; 16] {
 type Scrambled = (Option<[u8; 16]>, Vec<(u32, u32)>);
 
 /// A `senc`'s entries, each sample's vector of `iv_size` bytes and its subsamples.
-fn sample_encryption(senc: &[u8], iv_size: u8) -> Result<Vec<Scrambled>, String> {
-    let short = || "a fragment's encryption map is short".to_string();
+fn sample_encryption(senc: &[u8], iv_size: u8) -> Result<Vec<Scrambled>, Error> {
+    let short = || Error::from("a fragment's encryption map is short");
     let flags = u32_at(senc, 0).ok_or_else(short)? & 0x00ff_ffff;
     let count = u32_at(senc, 4).ok_or_else(short)? as usize;
     let mut at = 8usize;
@@ -244,7 +245,7 @@ fn clear_fragment(
     moof: &[u8],
     index: &Index,
     locks: &Locks,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let mut tracks = tracks_of(&index.moov, 0)?;
     for track in &mut tracks {
         track.samples.clear();
@@ -300,7 +301,7 @@ fn clear_samples(
     map: &[Scrambled],
     protection: &Protection,
     locks: &Locks,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let (Some(first), Some(end)) = (
         samples.iter().map(|s| s.offset).min(),
         samples.iter().map(|s| s.offset + u64::from(s.size)).max(),
@@ -357,7 +358,7 @@ fn clear_run(
     iv: &[u8; 16],
     crypt: u8,
     skip: u8,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let mut chain = Chain::new(key, iv).ok_or("a stream key is not usable")?;
     if crypt == 0 && skip == 0 {
         chain.blocks(run);

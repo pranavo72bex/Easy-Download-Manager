@@ -24,9 +24,11 @@ fn other_object_types_and_channel_counts_are_refused_with_a_reason() {
     // HE-AAC (object 5), 6 channels (config 6).
     assert!(parse_config(&[0x2b, 0x11])
         .unwrap_err()
+        .to_string()
         .contains("only AAC-LC"));
     assert!(parse_config(&[0x11, 0xb0])
         .unwrap_err()
+        .to_string()
         .contains("mono and stereo"));
     assert!(parse_config(&[0x12]).is_err());
 }

@@ -420,11 +420,17 @@ fn an_esds_is_read_past_its_flags_and_long_lengths() {
 #[test]
 fn what_an_mkv_cannot_name_is_refused_in_words() {
     let entry = vec![0u8; 100];
-    let said = describe(b"mp4v", &entry, 1, 90_000, &[]).unwrap_err();
+    let said = describe(b"mp4v", &entry, 1, 90_000, &[])
+        .unwrap_err()
+        .to_string();
     assert!(said.contains("mp4v"), "{said}");
-    let said = describe(b"avc1", &entry, 1, 90_000, &[]).unwrap_err();
+    let said = describe(b"avc1", &entry, 1, 90_000, &[])
+        .unwrap_err()
+        .to_string();
     assert!(said.contains("no configuration"), "{said}");
-    let said = describe(b"alac", &entry, 2, 44_100, &[]).unwrap_err();
+    let said = describe(b"alac", &entry, 2, 44_100, &[])
+        .unwrap_err()
+        .to_string();
     assert!(said.contains("alac"), "{said}");
     // AC-3's rate and channels from its entry; its timescale where the
     // entry gives no rate.

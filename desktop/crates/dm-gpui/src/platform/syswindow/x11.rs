@@ -22,8 +22,8 @@ pub(super) fn x_window(window: &Window) -> Option<u32> {
 /// `act` on the X server, through a connection of dm's own, made for it
 /// and closed after.
 pub(super) fn on_x<T>(
-    act: impl FnOnce(&x11rb::rust_connection::RustConnection) -> Result<T, String>,
-) -> Result<T, String> {
+    act: impl FnOnce(&x11rb::rust_connection::RustConnection) -> Result<T, Error>,
+) -> Result<T, Error> {
     use x11rb::connection::Connection;
     let (connection, _) =
         x11rb::connect(None).map_err(|e| format!("the X server could not be reached: {e}"))?;
@@ -36,10 +36,10 @@ pub(super) fn on_x<T>(
 /// left in the connection's buffer as it closed, an unmap was lost.
 pub(super) fn done<C: x11rb::connection::RequestConnection>(
     sent: Result<x11rb::cookie::VoidCookie<'_, C>, x11rb::errors::ConnectionError>,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     sent.map_err(|e| e.to_string())?
         .check()
-        .map_err(|e| e.to_string())
+        .map_err(|e| Error::from(e.to_string()))
 }
 
 /// On X11 the window is unmapped: off the screen and the taskbar, the way
@@ -55,7 +55,7 @@ pub fn hide(window: &Window) {
 }
 
 /// X11 counts in the screen's pixels: points times the window's scale.
-pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
+pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), Error> {
     place(window, x, y)
 }
 
@@ -67,7 +67,7 @@ pub fn move_to(window: &Window, x: f32, y: f32) -> Result<(), String> {
 /// the screen's bottom-left corner) rather than over dm's window. Asked
 /// before the window manager has taken the window, the hint places it; after,
 /// the move does. The hints GPUI set (the smallest and largest sizes) stay.
-pub fn place(window: &Window, x: f32, y: f32) -> Result<(), String> {
+pub fn place(window: &Window, x: f32, y: f32) -> Result<(), Error> {
     use x11rb::properties::{WmSizeHints, WmSizeHintsSpecification};
     use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt, Gravity};
     let id = x_window(window).ok_or("Wayland does not let a program place its own window")?;
@@ -89,7 +89,7 @@ pub fn place(window: &Window, x: f32, y: f32) -> Result<(), String> {
 
 /// The window's pixels as the X server holds them (`GetImage`), saved as
 /// a PNG.
-pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), String> {
+pub fn picture(window: &Window, path: &std::path::Path) -> Result<(), Error> {
     use x11rb::protocol::xproto::{ConnectionExt, ImageFormat};
     let id = x_window(window).ok_or("Wayland gives a program no picture of its own window")?;
     let (width, height, bgrx) = on_x(|x| {

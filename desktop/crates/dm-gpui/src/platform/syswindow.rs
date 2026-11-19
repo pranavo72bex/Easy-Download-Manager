@@ -14,6 +14,8 @@
 
 use gpui::Window;
 
+use crate::error::Error;
+
 // Each system's own way, in a file of its own.
 #[cfg(target_os = "macos")]
 mod macos;
@@ -35,10 +37,10 @@ pub fn frames(_: &Window) -> Option<(gpui::Bounds<gpui::Pixels>, gpui::Bounds<gp
 }
 
 /// The folder `path` goes in, made where it is not there.
-fn folder_for(path: &std::path::Path) -> Result<(), String> {
+fn folder_for(path: &std::path::Path) -> Result<(), Error> {
     match path.parent() {
         Some(folder) => std::fs::create_dir_all(folder)
-            .map_err(|e| format!("{} could not be made: {e}", folder.display())),
+            .map_err(|e| Error::from(format!("{} could not be made: {e}", folder.display()))),
         None => Ok(()),
     }
 }
@@ -47,7 +49,7 @@ fn folder_for(path: &std::path::Path) -> Result<(), String> {
 /// and X11 both hand a window's pixels back), `width` by `height`, saved as
 /// an opaque PNG at `path`.
 #[cfg(not(target_os = "macos"))]
-fn save_png(path: &std::path::Path, width: u32, height: u32, bgrx: Vec<u8>) -> Result<(), String> {
+fn save_png(path: &std::path::Path, width: u32, height: u32, bgrx: Vec<u8>) -> Result<(), Error> {
     folder_for(path)?;
     let mut rgba = bgrx;
     for pixel in rgba.as_chunks_mut::<4>().0 {
@@ -61,5 +63,5 @@ fn save_png(path: &std::path::Path, width: u32, height: u32, bgrx: Vec<u8>) -> R
     encoder
         .write_header()
         .and_then(|mut writer| writer.write_image_data(&rgba))
-        .map_err(|e| format!("the picture could not be saved: {e}"))
+        .map_err(|e| Error::from(format!("the picture could not be saved: {e}")))
 }

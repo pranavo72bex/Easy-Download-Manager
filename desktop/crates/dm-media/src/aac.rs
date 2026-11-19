@@ -17,6 +17,7 @@ mod tables;
 
 use crate::mp3::decode::Pcm;
 use crate::mp4mux::{tracks_in_file, Track};
+use crate::Error;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
@@ -35,16 +36,14 @@ struct Config {
 }
 
 /// The AudioSpecificConfig of AAC-LC, 2 bytes or more.
-fn parse_config(bytes: &[u8]) -> Result<Config, String> {
+fn parse_config(bytes: &[u8]) -> Result<Config, Error> {
     let mut bits = bits::Bits::new(bytes);
     let mut object = bits.bits(5)?;
     if object == 31 {
         object = 32 + bits.bits(6)?;
     }
     if object != 2 {
-        return Err(format!(
-            "AAC object type {object} (only AAC-LC is converted to MP3)"
-        ));
+        return Err(format!("AAC object type {object} (only AAC-LC is converted to MP3)").into());
     }
     let rate_index = bits.bits(4)? as usize;
     let rate = if rate_index == 15 {
@@ -114,7 +113,7 @@ fn sample_entry(stsd: &[u8]) -> Option<([u8; 4], &[u8])> {
     Some((name, &[]))
 }
 
-fn audio_track(path: &Path) -> Result<(Track, Config, Vec<u8>), String> {
+fn audio_track(path: &Path) -> Result<(Track, Config, Vec<u8>), Error> {
     let tracks = tracks_in_file(path)?;
     let track = tracks
         .into_iter()
@@ -123,10 +122,7 @@ fn audio_track(path: &Path) -> Result<(Track, Config, Vec<u8>), String> {
     let (name, esds) =
         sample_entry(&track.stsd).ok_or("the sound track's description is unreadable")?;
     if &name != b"mp4a" {
-        return Err(format!(
-            "sound coded as {}, not AAC",
-            String::from_utf8_lossy(&name)
-        ));
+        return Err(format!("sound coded as {}, not AAC", String::from_utf8_lossy(&name)).into());
     }
     let info = descriptor_info(esds).ok_or("an AAC track with no decoder configuration")?;
     let config = parse_config(info)?;
@@ -135,7 +131,7 @@ fn audio_track(path: &Path) -> Result<(Track, Config, Vec<u8>), String> {
 }
 
 /// `path`'s sound (an M4A, or an MP4's sound track) as 16-bit samples.
-pub fn read(path: &Path) -> Result<Pcm, String> {
+pub fn read(path: &Path) -> Result<Pcm, Error> {
     let (track, config, info) = audio_track(path)?;
     let mut params = AudioCodecParameters::new();
     params

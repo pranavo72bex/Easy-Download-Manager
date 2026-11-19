@@ -58,7 +58,7 @@ type Described = (Vec<Sample>, Vec<(usize, u32)>);
 
 /// The top-level boxes of a file too big to read whole: `moov` and each
 /// `moof` read into memory with where it starts, the rest skipped.
-pub(super) fn read_input(file: &mut File, length: u64, input: usize) -> Result<Vec<Track>, String> {
+pub(super) fn read_input(file: &mut File, length: u64, input: usize) -> Result<Vec<Track>, Error> {
     let mut at = 0u64;
     /* Each index with the fragments after it: one, in a file as any writer makes it; more where
      * an HLS stream's initialisation segment changes part-way (an advert break) and its runs
@@ -139,7 +139,7 @@ pub(super) fn movie_timescale(moov: &[u8]) -> u32 {
         .unwrap_or(MOVIE_TIMESCALE)
 }
 
-pub(super) fn tracks_of(moov: &[u8], input: usize) -> Result<Vec<Track>, String> {
+pub(super) fn tracks_of(moov: &[u8], input: usize) -> Result<Vec<Track>, Error> {
     let movie_scale = movie_timescale(moov);
     let mut tracks = Vec::new();
     for (kind, trak, _) in boxes(moov) {
@@ -225,7 +225,7 @@ pub(super) fn entries<T>(
     full: &[u8],
     width: usize,
     entry: impl Fn(&[u8]) -> Option<T>,
-) -> Result<Vec<T>, String> {
+) -> Result<Vec<T>, Error> {
     let count = u32_at(full, 4).ok_or("a sample table is short")? as usize;
     if count.saturating_mul(width) > full.len().saturating_sub(8) {
         return Err("a sample table is short".into());
@@ -234,7 +234,7 @@ pub(super) fn entries<T>(
         .map(|i| {
             full.get(8 + i * width..8 + (i + 1) * width)
                 .and_then(&entry)
-                .ok_or_else(|| "a sample table is short".to_string())
+                .ok_or_else(|| Error::from("a sample table is short"))
         })
         .collect()
 }
@@ -246,13 +246,13 @@ const MOST_SAMPLES: usize = 1 << 24;
 /// A plain MP4's samples, from its `stbl`. Empty for a fragmented one,
 /// whose tables are empty and whose samples are in its fragments.
 #[cfg(test)]
-pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, String> {
+pub(super) fn plain_samples(stbl: &[u8]) -> Result<Vec<Sample>, Error> {
     described_samples(stbl).map(|(samples, _)| samples)
 }
 
 /// [`plain_samples`], with which sample description each run of them uses, from the chunk map
 /// (`Track::descriptions`), where any is not the first.
-pub(super) fn described_samples(stbl: &[u8]) -> Result<Described, String> {
+pub(super) fn described_samples(stbl: &[u8]) -> Result<Described, Error> {
     let Some(stsz) = child(stbl, b"stsz") else {
         return Ok((Vec::new(), Vec::new()));
     };
@@ -373,8 +373,8 @@ pub(super) fn read_fragment(
     moof: &[u8],
     defaults: &[(u32, Defaults)],
     tracks: &mut [Track],
-) -> Result<(), String> {
-    let short = || "a fragment is short".to_string();
+) -> Result<(), Error> {
+    let short = || Error::from("a fragment is short");
     // Where a fragment's data is counted from when its header says nothing:
     // the moof for the first, then the end of the one before.
     let mut follows = moof_at;
@@ -521,7 +521,7 @@ mod tests {
         let mut file = tempfile::tempfile().unwrap();
         file.write_all(&bytes).unwrap();
         let length = bytes.len() as u64;
-        let said = read_input(&mut file, length, 0).unwrap_err();
+        let said = read_input(&mut file, length, 0).unwrap_err().to_string();
         assert!(said.contains("no index"), "{said}");
     }
 
@@ -533,7 +533,7 @@ mod tests {
         stsz.extend_from_slice(&0u32.to_be_bytes());
         stsz.extend_from_slice(&1u32.to_be_bytes());
         stsz.extend_from_slice(&u32::MAX.to_be_bytes());
-        let said = plain_samples(&stsz).unwrap_err();
+        let said = plain_samples(&stsz).unwrap_err().to_string();
         assert!(said.contains("too many samples"), "{said}");
     }
 }

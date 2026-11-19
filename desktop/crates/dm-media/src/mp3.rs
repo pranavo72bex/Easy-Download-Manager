@@ -22,6 +22,7 @@ pub mod decode;
 mod huffman;
 mod tables;
 
+use crate::Error;
 use huffman::{quantize, write_granule};
 
 /// Whether dm can make an MP3 here: a decoder dm reads AAC with
@@ -76,7 +77,7 @@ pub fn takes(path: &std::path::Path) -> bool {
 /// The sound of `source` (an M4A, an MP4's sound, or a WebM's Opus) as an MP3's bytes at `kbps`
 /// kbit/s (`None`: [`default_kbps`]): read by the system's decoder ([`decode::read`]) and
 /// encoded here, its tags first. dm-core's `mp3::convert` writes them to the file.
-pub fn convert_bytes(source: &std::path::Path, kbps: Option<u32>) -> Result<Vec<u8>, String> {
+pub fn convert_bytes(source: &std::path::Path, kbps: Option<u32>) -> Result<Vec<u8>, Error> {
     if crate::mkvmux::is_webm(source) {
         match crate::mkvmux::sound_codec(source).as_deref() {
             Some("A_OPUS") if opus_possible() => {}
@@ -87,7 +88,8 @@ pub fn convert_bytes(source: &std::path::Path, kbps: Option<u32>) -> Result<Vec<
                 return Err(format!(
                     "an MP3 is made from AAC or Opus sound, not {}",
                     other.trim_start_matches("A_")
-                ))
+                )
+                .into())
             }
             None => return Err("the file has no sound to save as MP3".into()),
         }
@@ -117,7 +119,7 @@ pub fn encode_all(
     channels: usize,
     rate: u32,
     kbps: Option<u32>,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, Error> {
     let probe = Encoder::at(channels, rate, kbps)?;
     let whole = FRAME * channels;
     let frames = samples.len().div_ceil(whole);
@@ -138,11 +140,11 @@ pub fn encode_all(
         .collect();
     let slots = 144 * u64::from(probe.bitrate) * 1000;
     let rate_hz = u64::from(probe.rate);
-    let pieces: Vec<Result<Vec<u8>, String>> = std::thread::scope(|scope| {
+    let pieces: Vec<Result<Vec<u8>, Error>> = std::thread::scope(|scope| {
         let handles: Vec<_> = runs
             .iter()
             .map(|&(first, last)| {
-                scope.spawn(move || -> Result<Vec<u8>, String> {
+                scope.spawn(move || -> Result<Vec<u8>, Error> {
                     let mut encoder = Encoder::at(channels, rate, kbps)?;
                     let lead = LEAD.min(first);
                     let from = first - lead;
@@ -293,27 +295,28 @@ pub struct Encoder {
 impl Encoder {
     /// An encoder for `channels` (1 or 2) at `rate` (32000, 44100 or 48000), at the bit rate
     /// dm makes an MP3 at when none is asked for ([`default_kbps`]).
-    pub fn new(channels: usize, rate: u32) -> Result<Encoder, String> {
+    pub fn new(channels: usize, rate: u32) -> Result<Encoder, Error> {
         Encoder::at(channels, rate, None)
     }
 
     /// [`Encoder::new`] at `kbps` kbit/s, one of [`KBPS`] (`None`: [`default_kbps`]).
-    pub fn at(channels: usize, rate: u32, kbps: Option<u32>) -> Result<Encoder, String> {
+    pub fn at(channels: usize, rate: u32, kbps: Option<u32>) -> Result<Encoder, Error> {
         let rate_index = match rate {
             44100 => 0,
             48000 => 1,
             32000 => 2,
-            _ => return Err(format!("MP3 is made at 32, 44.1 or 48 kHz, not {rate} Hz")),
+            _ => return Err(format!("MP3 is made at 32, 44.1 or 48 kHz, not {rate} Hz").into()),
         };
         if !(1..=2).contains(&channels) {
-            return Err(format!("MP3 holds one or two channels, not {channels}"));
+            return Err(format!("MP3 holds one or two channels, not {channels}").into());
         }
         let bitrate = kbps.unwrap_or(default_kbps(channels));
         let Some(bitrate_index) = BITRATES.iter().skip(1).position(|b| *b == bitrate) else {
             return Err(format!(
                 "an MP3 is made at 32 to 320 kbit/s ({}), not {bitrate}",
                 KBPS.map(|k| k.to_string()).join(", ")
-            ));
+            )
+            .into());
         };
         let bitrate_index = bitrate_index as u32 + 1;
         let mut matrix = Box::new([[0.0; 64]; 32]);

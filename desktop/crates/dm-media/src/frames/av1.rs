@@ -27,6 +27,7 @@ use rav1d::src::lib::{
 };
 
 use crate::gif::Frame;
+use crate::Error;
 
 /// Whether the MP4's picture is AV1 (`av01`), the only kind read here.
 pub(super) fn is_av1(stsd: &[u8]) -> bool {
@@ -72,7 +73,7 @@ struct Held {
 
 /// Pictures `fps` a second of the AV1 MP4 at `path`, at most `width` wide,
 /// within the part its edit list plays.
-pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<Frame>), String> {
+pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<Frame>), Error> {
     let tracks = crate::mp4mux::tracks_in_file(path)?;
     let video = tracks
         .into_iter()
@@ -266,7 +267,7 @@ fn again(result: i32) -> bool {
 }
 
 impl Decoder {
-    fn open() -> Result<Decoder, String> {
+    fn open() -> Result<Decoder, Error> {
         let mut settings = std::mem::MaybeUninit::<Dav1dSettings>::uninit();
         let mut context: Option<Dav1dContext> = None;
         // SAFETY: `dav1d_default_settings` writes every field of the settings
@@ -297,7 +298,7 @@ impl Decoder {
         bytes: &[u8],
         timestamp: i64,
         mut keep: impl FnMut(&Picture<'_>),
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let mut data = Dav1dData::default();
         // SAFETY: `dav1d_data_create` makes a buffer of `bytes.len()` bytes
         // owned by `data` and returns where it starts (null on failure), which
@@ -319,7 +320,7 @@ impl Decoder {
                 break Ok(());
             }
             if result.0 < 0 && !again(result.0) {
-                break Err("the AV1 decoder could not read the part".to_string());
+                break Err(Error::from("the AV1 decoder could not read the part"));
             }
             // Full: pictures out before more goes in.
             if let Err(e) = self.pictures(&mut keep) {
@@ -335,7 +336,7 @@ impl Decoder {
     }
 
     /// Takes every picture the decoder has ready.
-    fn pictures(&mut self, keep: &mut impl FnMut(&Picture<'_>)) -> Result<(), String> {
+    fn pictures(&mut self, keep: &mut impl FnMut(&Picture<'_>)) -> Result<(), Error> {
         loop {
             let mut picture = Dav1dPicture::default();
             // SAFETY: the context is open, and `picture` is valid to write.
@@ -360,7 +361,7 @@ impl Decoder {
     }
 
     /// Takes the pictures still held once every sample is in.
-    fn drain(&mut self, mut keep: impl FnMut(&Picture<'_>)) -> Result<(), String> {
+    fn drain(&mut self, mut keep: impl FnMut(&Picture<'_>)) -> Result<(), Error> {
         self.pictures(&mut keep)
     }
 }

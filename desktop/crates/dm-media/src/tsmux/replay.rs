@@ -264,7 +264,7 @@ pub(super) struct Reading<'a> {
 
 /// The stream `reading` names put into an MP4 at `out`, read twice and written once: the index
 /// first, then each track's samples as the writer copies them. Returns its length.
-pub(super) fn remux<F>(reading: Reading<'_>, out: &Path, place: F) -> Result<u64, String>
+pub(super) fn remux<F>(reading: Reading<'_>, out: &Path, place: F) -> Result<u64, Error>
 where
     F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
@@ -281,7 +281,7 @@ where
         let freer = Freer::new(inputs.to_vec(), &streams, Rc::clone(&copied), watch);
         Rc::new(RefCell::new(freer))
     });
-    let mut source = |stream: &Elementary| -> Result<Box<dyn Source>, String> {
+    let mut source = |stream: &Elementary| -> Result<Box<dyn Source>, Error> {
         let reader = freer.as_ref().map(|f| (Rc::clone(f), reader_of(stream)));
         let input = Joined::new(inputs.to_vec(), reader);
         let picture = PICTURES.contains(&stream.kind);

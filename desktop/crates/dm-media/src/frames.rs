@@ -24,15 +24,15 @@ mod win;
 pub fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<Frame>), String> {
     #[cfg(target_os = "macos")]
     {
-        mac::read(path, fps.max(1), width.max(16))
+        mac::read(path, fps.max(1), width.max(16)).map_err(String::from)
     }
     #[cfg(windows)]
     {
-        win::read(path, fps.max(1), width.max(16))
+        win::read(path, fps.max(1), width.max(16)).map_err(String::from)
     }
     #[cfg(target_os = "linux")]
     {
-        av1::read(path, fps.max(1), width.max(16))
+        av1::read(path, fps.max(1), width.max(16)).map_err(String::from)
     }
     #[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]
     {
@@ -131,6 +131,7 @@ pub(crate) fn played(video: &crate::mp4mux::Track) -> (f64, f64) {
 #[cfg(target_os = "macos")]
 mod mac {
     use super::{shrink, Frame};
+    use crate::Error;
     use std::collections::BTreeMap;
     use std::ffi::c_void;
     use std::io::{Read, Seek, SeekFrom};
@@ -328,11 +329,7 @@ mod mac {
         }
     }
 
-    pub(super) fn read(
-        path: &Path,
-        fps: u32,
-        width: u32,
-    ) -> Result<(u16, u16, Vec<Frame>), String> {
+    pub(super) fn read(path: &Path, fps: u32, width: u32) -> Result<(u16, u16, Vec<Frame>), Error> {
         let tracks = crate::mp4mux::tracks_in_file(path)?;
         let video = tracks
             .into_iter()
@@ -370,7 +367,7 @@ mod mac {
                 &mut format,
             );
             if status != 0 {
-                return Err(format!("the picture's settings were not taken ({status})"));
+                return Err(format!("the picture's settings were not taken ({status})").into());
             }
             let bgra = u32::from_be_bytes(*b"BGRA");
             let number = CFNumberCreate(std::ptr::null(), 3, (&bgra as *const u32).cast());
@@ -400,9 +397,9 @@ mod mac {
             CFRelease(attributes);
             if status != 0 {
                 CFRelease(format);
-                return Err(format!(
-                    "the system's video decoder would not start ({status})"
-                ));
+                return Err(
+                    format!("the system's video decoder would not start ({status})").into(),
+                );
             }
             let failure = decode_samples(session, format, &video, &mut file, scale, end);
             VTDecompressionSessionWaitForAsynchronousFrames(session);
@@ -410,7 +407,7 @@ mod mac {
             CFRelease(session);
             CFRelease(format);
             if let Some(why) = failure {
-                return Err(why);
+                return Err(why.into());
             }
         }
         let (w, h) = held.size.ok_or("no picture of the part could be decoded")?;
@@ -534,14 +531,15 @@ mod mac {
 
     /// The SPS and PPS of an `avc1`/`avc3` sample description (`stsd`, a
     /// whole box), and how many bytes each sample's NAL lengths take.
-    fn parameter_sets(stsd: &[u8]) -> Result<(Vec<Vec<u8>>, i32), String> {
+    fn parameter_sets(stsd: &[u8]) -> Result<(Vec<Vec<u8>>, i32), Error> {
         let entry = stsd.get(16..).ok_or("no picture description")?;
         let kind = entry.get(4..8).ok_or("no picture description")?;
         if kind != b"avc1" && kind != b"avc3" {
             return Err(format!(
                 "only an H.264 picture can be made a GIF; this one is {}",
                 String::from_utf8_lossy(kind)
-            ));
+            )
+            .into());
         }
         let size = u32::from_be_bytes(
             entry

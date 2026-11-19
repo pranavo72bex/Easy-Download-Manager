@@ -18,7 +18,7 @@ pub fn join_placed<F>(inputs: &[PathBuf], place: F, out: &Path) -> Result<u64, S
 where
     F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
 {
-    join_tagged_placed(inputs, place, out, &crate::mp4mux::Tags::default())
+    join_tagged_placed(inputs, place, out, &crate::mp4mux::Tags::default()).map_err(String::from)
 }
 
 /// [`join_tagged`], its subtitles timed as [`join_placed`] times them.
@@ -27,7 +27,7 @@ pub(super) fn join_tagged_placed<F>(
     place: F,
     out: &Path,
     tags: &crate::mp4mux::Tags,
-) -> Result<u64, String>
+) -> Result<u64, Error>
 where
     F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
 {
@@ -49,7 +49,7 @@ where
                 .is_none_or(|end| end > length)
         });
         if past {
-            return Err(format!("{} is cut short", path.display()));
+            return Err(format!("{} is cut short", path.display()).into());
         }
         read.push(input);
     }

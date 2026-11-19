@@ -10,6 +10,8 @@
 //! frame is dithered to it (Floyd–Steinberg) and compressed with GIF's LZW,
 //! and the frames are written as a GIF89a that loops for ever.
 
+use crate::Error;
+
 /// Whether dm can make a GIF here: the system has a video decoder dm
 /// reads H.264 with (VideoToolbox on macOS; on Windows Media Foundation's,
 /// which a Windows "N" edition lacks until the Media Feature Pack is added).
@@ -40,7 +42,7 @@ const WIDTH: u32 = 480;
 /// The part of a video at `mp4` (an H.264 MP4) as a GIF's bytes: its pictures read by the
 /// system's decoder (`crate::frames`), twelve a second at most 480 wide, then encoded here.
 /// dm-core's `gif::from_video` writes them to the file.
-pub fn from_video_bytes(mp4: &std::path::Path) -> Result<Vec<u8>, String> {
+pub fn from_video_bytes(mp4: &std::path::Path) -> Result<Vec<u8>, Error> {
     let (width, height, frames) = crate::frames::read(mp4, FPS, WIDTH)?;
     encode(width, height, &frames)
 }
@@ -54,7 +56,7 @@ pub struct Frame {
 }
 
 /// The GIF of `frames`, each `width` by `height`.
-pub fn encode(width: u16, height: u16, frames: &[Frame]) -> Result<Vec<u8>, String> {
+pub fn encode(width: u16, height: u16, frames: &[Frame]) -> Result<Vec<u8>, Error> {
     let pixels = usize::from(width) * usize::from(height);
     if frames.is_empty() || pixels == 0 {
         return Err("there are no pictures to make a GIF of".into());
