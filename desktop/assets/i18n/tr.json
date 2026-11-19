@@ -929,5 +929,21 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "kendi adını taşıyan bir klasöre açıldı ve arşiv çöp kutusuna gönderildi",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "kendi adını taşıyan bir klasöre açıldı, ancak arşiv çöp kutusuna gönderilemedi",
  "not unpacked: the archive has a password": "açılmadı: arşivin parolası var",
- "not unpacked: Extract here on its menu says why": "açılmadı: menüsündeki \"Buraya çıkar\" nedenini söyler"
+ "not unpacked: Extract here on its menu says why": "açılmadı: menüsündeki \"Buraya çıkar\" nedenini söyler",
+ "Statistics…": "İstatistikler…",
+ "Statistics": "İstatistikler",
+ "Files finished": "Biten dosyalar",
+ "Downloaded in all": "Toplam indirilen",
+ "By day, the last 30 days": "Güne göre, son 30 gün",
+ "By site, the 10 largest": "Siteye göre, en büyük 10",
+ "By category": "Kategoriye göre",
+ "Average speed": "Ortalama hız",
+ "Best speed": "En yüksek hız",
+ "not measured yet": "henüz ölçülmedi",
+ "Nothing has finished yet.": "Henüz hiçbir şey bitmedi.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "Hızlar dm açıkken ölçülür ve kapandığında unutulur.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "Listedeki biten indirmelerden hesaplandı; yeni hiçbir şey saklanmaz.",
+ "Busiest day: {}, {}": "En yoğun gün: {}, {}",
+ "Speed over the last 5 minutes": "Son 5 dakikadaki hız",
+ "no site": "site yok"
 }

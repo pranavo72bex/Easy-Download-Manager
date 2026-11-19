@@ -60,3 +60,5 @@ pub use view::{
     options, progress, project, row_edits, rows, save_to, scheduler, selection, toolbar, tray,
     zip_list,
 };
+// View › Statistics and a progress window's speed line (gaps row W15).
+pub use view::statistics;

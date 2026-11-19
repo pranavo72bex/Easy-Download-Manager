@@ -929,5 +929,21 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "已解压到同名文件夹，压缩包已移到废纸篓",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "已解压到同名文件夹，但压缩包未能移到废纸篓",
  "not unpacked: the archive has a password": "未解压：压缩包有密码",
- "not unpacked: Extract here on its menu says why": "未解压：其菜单中的“解压到此处”会说明原因"
+ "not unpacked: Extract here on its menu says why": "未解压：其菜单中的“解压到此处”会说明原因",
+ "Statistics…": "统计…",
+ "Statistics": "统计",
+ "Files finished": "已完成文件",
+ "Downloaded in all": "总下载量",
+ "By day, the last 30 days": "按天，最近 30 天",
+ "By site, the 10 largest": "按网站，前 10 名",
+ "By category": "按类别",
+ "Average speed": "平均速度",
+ "Best speed": "最高速度",
+ "not measured yet": "尚未测量",
+ "Nothing has finished yet.": "还没有完成的下载。",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "速度仅在 dm 打开时测量，关闭后即被遗忘。",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "根据列表中已完成的下载计算；不会保存任何新内容。",
+ "Busiest day: {}, {}": "最多的一天：{}，{}",
+ "Speed over the last 5 minutes": "最近 5 分钟的速度",
+ "no site": "无网站"
 }

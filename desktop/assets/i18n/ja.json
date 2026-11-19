@@ -929,5 +929,21 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "同じ名前のフォルダーに展開済み、アーカイブはゴミ箱へ移動",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "同じ名前のフォルダーに展開済み、ただしアーカイブをゴミ箱へ移動できませんでした",
  "not unpacked: the archive has a password": "展開されていません: アーカイブにパスワードがあります",
- "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります"
+ "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります",
+ "Statistics…": "統計…",
+ "Statistics": "統計",
+ "Files finished": "完了したファイル",
+ "Downloaded in all": "合計ダウンロード量",
+ "By day, the last 30 days": "日別（過去 30 日）",
+ "By site, the 10 largest": "サイト別（上位 10）",
+ "By category": "カテゴリ別",
+ "Average speed": "平均速度",
+ "Best speed": "最高速度",
+ "not measured yet": "まだ測定されていません",
+ "Nothing has finished yet.": "まだ完了したものはありません。",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "速度は dm が開いている間に測定され、閉じると消去されます。",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "リスト内の完了したダウンロードから算出しています。新たに保存されるものはありません。",
+ "Busiest day: {}, {}": "最も多かった日: {}、{}",
+ "Speed over the last 5 minutes": "過去 5 分間の速度",
+ "no site": "サイトなし"
 }

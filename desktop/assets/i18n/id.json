@@ -929,5 +929,21 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "diekstrak ke folder bernama sama, dan arsipnya dipindahkan ke Tempat Sampah",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "diekstrak ke folder bernama sama, tetapi arsipnya tidak dapat dipindahkan ke Tempat Sampah",
  "not unpacked: the archive has a password": "tidak diekstrak: arsipnya memiliki kata sandi",
- "not unpacked: Extract here on its menu says why": "tidak diekstrak: \"Ekstrak di sini\" di menunya memberi tahu alasannya"
+ "not unpacked: Extract here on its menu says why": "tidak diekstrak: \"Ekstrak di sini\" di menunya memberi tahu alasannya",
+ "Statistics…": "Statistik…",
+ "Statistics": "Statistik",
+ "Files finished": "Berkas selesai",
+ "Downloaded in all": "Total diunduh",
+ "By day, the last 30 days": "Per hari, 30 hari terakhir",
+ "By site, the 10 largest": "Per situs, 10 terbesar",
+ "By category": "Per kategori",
+ "Average speed": "Kecepatan rata-rata",
+ "Best speed": "Kecepatan terbaik",
+ "not measured yet": "belum diukur",
+ "Nothing has finished yet.": "Belum ada yang selesai.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "Kecepatan diukur selama dm terbuka, dan dilupakan saat ditutup.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "Dihitung dari unduhan selesai di daftar; tidak ada yang baru disimpan.",
+ "Busiest day: {}, {}": "Hari tersibuk: {}, {}",
+ "Speed over the last 5 minutes": "Kecepatan 5 menit terakhir",
+ "no site": "tanpa situs"
 }

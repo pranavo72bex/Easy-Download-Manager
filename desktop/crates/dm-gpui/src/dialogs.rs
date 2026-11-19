@@ -21,4 +21,5 @@ pub(crate) mod question;
 pub(crate) mod rowdialogs;
 pub(crate) mod scheduler;
 pub(crate) mod series;
+pub(crate) mod statistics;
 pub(crate) mod welcome;

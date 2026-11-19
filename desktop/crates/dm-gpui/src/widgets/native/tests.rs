@@ -88,6 +88,12 @@ fn window_sizes_are_as_they_were() {
             (480.0, 300.0),
             (480.0, 300.0),
         ),
+        (
+            WindowSize::Statistics,
+            (560.0, 560.0),
+            (560.0, 560.0),
+            (560.0, 560.0),
+        ),
     ];
     for (window, macos, windows, gnome) in rows {
         assert_eq!(

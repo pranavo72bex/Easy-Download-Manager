@@ -929,5 +929,21 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "같은 이름의 폴더에 압축 풀림, 압축 파일은 휴지통으로 보냄",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "같은 이름의 폴더에 압축 풀림, 하지만 압축 파일을 휴지통으로 보내지 못함",
  "not unpacked: the archive has a password": "압축 풀지 않음: 압축 파일에 암호가 있음",
- "not unpacked: Extract here on its menu says why": "압축 풀지 않음: 메뉴의 '여기에 압축 풀기'에서 이유를 알려 줌"
+ "not unpacked: Extract here on its menu says why": "압축 풀지 않음: 메뉴의 '여기에 압축 풀기'에서 이유를 알려 줌",
+ "Statistics…": "통계…",
+ "Statistics": "통계",
+ "Files finished": "완료된 파일",
+ "Downloaded in all": "총 다운로드량",
+ "By day, the last 30 days": "일별, 최근 30일",
+ "By site, the 10 largest": "사이트별, 상위 10개",
+ "By category": "카테고리별",
+ "Average speed": "평균 속도",
+ "Best speed": "최고 속도",
+ "not measured yet": "아직 측정되지 않음",
+ "Nothing has finished yet.": "아직 완료된 항목이 없습니다.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "속도는 dm이 열려 있는 동안 측정되며 닫으면 잊혀집니다.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "목록의 완료된 다운로드로 계산했습니다. 새로 저장되는 것은 없습니다.",
+ "Busiest day: {}, {}": "가장 많은 날: {}, {}",
+ "Speed over the last 5 minutes": "최근 5분간 속도",
+ "no site": "사이트 없음"
 }

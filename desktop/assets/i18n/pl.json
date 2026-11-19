@@ -929,5 +929,21 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "rozpakowano do folderu o jego nazwie, a archiwum przeniesiono do kosza",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "rozpakowano do folderu o jego nazwie, ale archiwum nie udało się przenieść do kosza",
  "not unpacked: the archive has a password": "nie rozpakowano: archiwum ma hasło",
- "not unpacked: Extract here on its menu says why": "nie rozpakowano: „Wypakuj tutaj” w jego menu mówi dlaczego"
+ "not unpacked: Extract here on its menu says why": "nie rozpakowano: „Wypakuj tutaj” w jego menu mówi dlaczego",
+ "Statistics…": "Statystyki…",
+ "Statistics": "Statystyki",
+ "Files finished": "Ukończone pliki",
+ "Downloaded in all": "Pobrano łącznie",
+ "By day, the last 30 days": "Według dni, ostatnie 30 dni",
+ "By site, the 10 largest": "Według witryn, 10 największych",
+ "By category": "Według kategorii",
+ "Average speed": "Średnia prędkość",
+ "Best speed": "Najwyższa prędkość",
+ "not measured yet": "jeszcze nie zmierzono",
+ "Nothing has finished yet.": "Nic jeszcze nie zostało ukończone.",
+ "Speeds are measured while dm is open, and forgotten when it closes.": "Prędkości są mierzone, gdy dm jest otwarty, i zapominane po jego zamknięciu.",
+ "Worked out from the finished downloads in the list; nothing new is kept.": "Obliczone z ukończonych pobrań na liście; nic nowego nie jest zapisywane.",
+ "Busiest day: {}, {}": "Najbardziej pracowity dzień: {}, {}",
+ "Speed over the last 5 minutes": "Prędkość z ostatnich 5 minut",
+ "no site": "brak witryny"
 }

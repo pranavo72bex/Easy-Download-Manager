@@ -28,6 +28,7 @@ mod properties;
 mod second_network;
 mod sidebar;
 mod speed_schedule;
+mod statistics;
 mod status;
 mod this_done;
 mod undo;

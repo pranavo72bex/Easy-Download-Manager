@@ -111,5 +111,21 @@
  "unpacked into a folder of its name, and the archive sent to the Trash",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash",
  "not unpacked: the archive has a password",
- "not unpacked: Extract here on its menu says why"
+ "not unpacked: Extract here on its menu says why",
+ "Statistics…",
+ "Statistics",
+ "Files finished",
+ "Downloaded in all",
+ "By day, the last 30 days",
+ "By site, the 10 largest",
+ "By category",
+ "Average speed",
+ "Best speed",
+ "not measured yet",
+ "Nothing has finished yet.",
+ "Speeds are measured while dm is open, and forgotten when it closes.",
+ "Worked out from the finished downloads in the list; nothing new is kept.",
+ "Busiest day: {}, {}",
+ "Speed over the last 5 minutes",
+ "no site"
 ]

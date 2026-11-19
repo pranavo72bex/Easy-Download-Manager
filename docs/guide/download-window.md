@@ -34,6 +34,9 @@ right of the last. A window you closed is not opened again by itself;
   was cancelled.
 - The bar: one bar, or a piece for each connection where the file's size is
   known and it is fetched in several pieces.
+- "Speed over the last 5 minutes": a bar for each five seconds of its
+  speed, the latest at the right, while it has not finished, failed or been
+  cancelled (see [Statistics](statistics.md)).
 
 ## Choices
 

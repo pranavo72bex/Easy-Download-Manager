@@ -208,6 +208,8 @@ pub(crate) struct OpenWindows {
     pub(crate) options_window: Option<AnyWindowHandle>,
     /// The floating drop target, while shown (`droptarget.rs`).
     pub(crate) drop_window: Option<AnyWindowHandle>,
+    /// View › Statistics, while open (gaps row W15).
+    pub(crate) statistics_window: Option<AnyWindowHandle>,
     /// The main window's frame as it last stood, kept as dm quits for the
     /// next start (`frame.rs`).
     pub(super) frame: gpui::WindowBounds,
@@ -228,6 +230,7 @@ impl OpenWindows {
             tip_window: None,
             options_window: None,
             drop_window: None,
+            statistics_window: None,
             frame,
             display,
         }
@@ -289,6 +292,9 @@ pub(crate) struct Status {
     pub(crate) problems: Vec<String>,
     /// Finished rows Remove took off, kept a moment for Undo.
     pub(crate) undo: dm_shell::app::backend::Undo,
+    /// The downloads' speeds together since dm opened, for View › Statistics's average and
+    /// best (gaps row W15): in memory only.
+    pub(crate) speeds: dm_desktop_base::statistics::SpeedsSeen,
 }
 
 /// The system's parts the window works with: the tray, the taskbar button

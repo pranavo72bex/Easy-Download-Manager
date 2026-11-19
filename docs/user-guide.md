@@ -28,7 +28,8 @@ extension, see the [README](../README.md).
   [Update download link](guide/update-link.md),
   [Move to queue](guide/move-to-queue.md),
   [Move/Rename](guide/move-rename.md), [Scheduler](guide/scheduler.md),
-  [Questions dm asks](guide/questions.md), [About dm](guide/about.md).
+  [Questions dm asks](guide/questions.md), [About dm](guide/about.md),
+  [Statistics](guide/statistics.md).
 
 ## Queues and the Scheduler
 
