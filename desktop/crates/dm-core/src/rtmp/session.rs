@@ -8,7 +8,8 @@
 use super::*;
 
 /// How long one wait for the server's next message is given before it counts as the stream
-/// gone quiet ("sent nothing for 30 seconds").
+/// gone quiet ("sent nothing for 30 seconds"); the stop check's looks meanwhile do not start it
+/// again, nor break off a message half read.
 const SILENT_FOR: Duration = Duration::from_secs(30);
 
 /// How a session ended.
@@ -27,6 +28,18 @@ pub async fn record(
     part: &Path,
     control: &Control,
     downloaded: &Arc<AtomicU64>,
+) -> Result<u64, Error> {
+    record_within(url, part, control, downloaded, SILENT_FOR).await
+}
+
+/// [`record`], with the stream counted as gone quiet after `silent_for` without a message (a
+/// test's stand-in server is given less than [`SILENT_FOR`]).
+pub(super) async fn record_within(
+    url: &str,
+    part: &Path,
+    control: &Control,
+    downloaded: &Arc<AtomicU64>,
+    silent_for: Duration,
 ) -> Result<u64, Error> {
     let target = target(url).map_err(Error::Internal)?;
     let mut io = open(&target).await?;
@@ -66,14 +79,21 @@ pub async fn record(
     let mut recorder = Recorder::new(part);
     let mut window: Option<u64> = None;
     let mut acked = 0u64;
-    let ended = loop {
-        let next = tokio::select! {
-            m = tokio::time::timeout(SILENT_FOR, reader.message()) => m,
-            _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
-                if let Err(stop) = control.check() {
-                    break Ended::Stopped(stop);
+    let ended = 'session: loop {
+        // One wait for the next message, kept across the stop check's looks: they neither start
+        // its `silent_for` again nor drop a message half read (the reader keeps no partial read).
+        let next = {
+            let wait = tokio::time::timeout(silent_for, reader.message());
+            tokio::pin!(wait);
+            loop {
+                tokio::select! {
+                    m = &mut wait => break m,
+                    _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
+                        if let Err(stop) = control.check() {
+                            break 'session Ended::Stopped(stop);
+                        }
+                    }
                 }
-                continue;
             }
         };
         let message = match next {

@@ -197,6 +197,27 @@ async fn a_silent_stream_is_stopped_by_its_control() {
     assert!(started.elapsed() < Duration::from_secs(10));
 }
 
+/// The silence is counted from the last frame, not from the stop check's last look: a server
+/// silent for longer than it is said to be (it was once waited on for ever).
+#[tokio::test]
+async fn a_server_that_goes_silent_is_said_to_have() {
+    let port = serve(Some(PICTURE), After::Silent).await;
+    let dir = tempfile::tempdir().unwrap();
+    let recording = record_within(
+        &format!("rtsp://127.0.0.1:{port}/cam"),
+        &dir.path().join("cam.part"),
+        &Control::new(),
+        &Arc::new(AtomicU64::new(0)),
+        Duration::from_millis(900),
+    );
+    let got = tokio::time::timeout(Duration::from_secs(20), recording)
+        .await
+        .expect("the silence was waited on for ever");
+    let why = got.unwrap_err().to_string();
+    assert_eq!(why, "the RTSP server sent nothing for 30 seconds");
+    assert!(!dir.path().join("cam.part").exists());
+}
+
 #[tokio::test]
 async fn an_rtsps_server_that_does_not_answer_is_an_error() {
     // A port nothing listens on: taken, then let go.

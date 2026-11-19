@@ -36,7 +36,7 @@ use crate::Error;
 const PLAYING_FOR: Duration = Duration::from_secs(60 * 60 * 24);
 
 /// How long one wait for the stream's next bytes is given before it counts as the stream gone
-/// quiet ("sent nothing for 30 seconds").
+/// quiet ("sent nothing for 30 seconds"); the stop check's looks meanwhile do not start it again.
 const SILENT_FOR: Duration = Duration::from_secs(30);
 
 const FILE_PROPERTIES: [u8; 16] = guid(
@@ -204,6 +204,18 @@ pub async fn record(
     control: &Control,
     downloaded: &Arc<AtomicU64>,
 ) -> Result<u64, Error> {
+    record_within(url, part, control, downloaded, SILENT_FOR).await
+}
+
+/// [`record`], with the stream counted as gone quiet after `silent_for` without bytes (a
+/// test's stand-in server is given less than [`SILENT_FOR`]).
+async fn record_within(
+    url: &str,
+    part: &Path,
+    control: &Control,
+    downloaded: &Arc<AtomicU64>,
+    silent_for: Duration,
+) -> Result<u64, Error> {
     let address =
         http_address(url).ok_or_else(|| Error::Internal("not an mms:// address".into()))?;
     let client = crate::builder()
@@ -245,30 +257,38 @@ pub async fn record(
     let mut buffer = Vec::new();
     let mut stop = None;
     'stream: loop {
-        let next = tokio::select! {
-            next = tokio::time::timeout(SILENT_FOR, body.next()) => next,
-            _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
-                if let Err(e) = control.check() {
-                    stop = Some(e);
-                    break;
+        // One wait for the next bytes, kept across the stop check's looks so that they do not
+        // start its `silent_for` again.
+        let next = {
+            let wait = tokio::time::timeout(silent_for, body.next());
+            tokio::pin!(wait);
+            loop {
+                tokio::select! {
+                    next = &mut wait => break next,
+                    _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
+                        if let Err(e) = control.check() {
+                            stop = Some(e);
+                            break 'stream;
+                        }
+                    }
                 }
-                continue;
             }
         };
         let bytes = match next {
             Ok(Some(Ok(bytes))) => bytes,
-            Ok(Some(Err(e))) if written == 0 => {
+            Ok(Some(Err(e))) if written == 0 && !e.is_timeout() => {
                 stop = Some(Error::Internal(format!("the MMS server: {e}")));
                 break;
             }
-            Ok(None) | Ok(Some(Err(_))) => break,
-            Err(_) if written == 0 => {
+            Ok(None) => break,
+            // The client's own read timeout (as long as `SILENT_FOR`) is the same silence.
+            Ok(Some(Err(_))) | Err(_) if written == 0 => {
                 stop = Some(Error::Internal(
                     "the MMS server sent nothing for 30 seconds".into(),
                 ));
                 break;
             }
-            Err(_) => break,
+            Ok(Some(Err(_))) | Err(_) => break,
         };
         buffer.extend_from_slice(&bytes);
         for chunk in take_chunks(&mut buffer) {

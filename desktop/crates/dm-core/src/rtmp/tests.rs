@@ -500,6 +500,26 @@ async fn a_quiet_server_is_left_when_the_row_is_stopped() {
     assert!(matches!(got, Err(Error::Cancelled)), "{got:?}");
 }
 
+/// The silence is counted from the last message, not from the stop check's last look: a
+/// server silent for longer than it is said to be (it was once waited on for ever).
+#[tokio::test]
+async fn a_server_that_goes_silent_is_said_to_have() {
+    let (url, _server) = scripted(3, Vec::new(), true).await;
+    let dir = tempfile::tempdir().unwrap();
+    let recording = session::record_within(
+        &url,
+        &dir.path().join("show.part"),
+        &Control::new(),
+        &Arc::new(AtomicU64::new(0)),
+        Duration::from_millis(900),
+    );
+    let got = tokio::time::timeout(Duration::from_secs(20), recording)
+        .await
+        .expect("the silence was waited on for ever");
+    let why = got.unwrap_err().to_string();
+    assert_eq!(why, "the server sent nothing for 30 seconds");
+}
+
 #[tokio::test]
 async fn a_server_that_does_not_speak_plain_rtmp_is_refused() {
     let (url, _server) = scripted(6, Vec::new(), false).await;
