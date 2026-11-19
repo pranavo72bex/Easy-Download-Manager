@@ -66,6 +66,10 @@ extension that hands it the browser's downloads.
   `crates/dm-assets` compiles in what the program reads of it. The older
   egui window (`crates/dm-desktop`) was removed with its
   fonts and vendored patches on 2026-11-13 (gaps row G9).
+  `crates/dm-safari` is the program of dm's Safari extension (macOS), in
+  `dm Safari Extension.appex` inside dm.app (`scripts/safari-extension.sh`):
+  it starts dm's own host for each message Safari sends it and links
+  nothing of dm's.
   `crates/dm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
   by both sides. A newer app must never stop an older extension: replies

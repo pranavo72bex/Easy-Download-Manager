@@ -121,6 +121,15 @@ and is not carried over.
       starts, the WebAssembly loads, all seven listeners are registered on the
       first turn, the id is the one the manifest key fixes, and the worker
       logs no errors. Also in CI under Xvfb (written, not yet run there)
+- [ ] Safari extension (gaps row R4, 2026-11-18) — `dist/safari` inside
+      `dm Safari Extension.appex` in dm.app (`scripts/safari-extension.sh`), its
+      program Rust (`desktop/crates/dm-safari`) starting `dm --native-host` per
+      message. Checked: `pluginkit -m -i com.dm.desktop.safari-extension` lists
+      it from a dm.app in /Applications; a `download.start` handed to the host
+      from inside the extension's sandbox (its entitlements) opened dm through
+      `open` and the file landed byte-exact (SHA-256 checked). Not checked: the
+      extension run in Safari itself, which waits on Develop › Allow Unsigned
+      Extensions (a person's password); not in the .dmg yet
 - [x] Firefox extension — `dist/firefox` (Firefox MV3, `background.scripts`,
       `wasm-unsafe-eval`), driven in Firefox 157 by `scripts/firefox-check.py
       native`, which fetches Firefox into `~/.cache/dm-firefox` rather than

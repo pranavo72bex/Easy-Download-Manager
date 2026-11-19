@@ -31,6 +31,16 @@ pub fn greeting() -> dm_protocol::Greeting {
     }
 }
 
+/// Whether the extension whose own pages are at `base` (`runtime.getURL("")`) talks to the app
+/// one message at a time (`runtime.sendNativeMessage`) rather than on a port: Safari's, whose
+/// pages are `safari-web-extension://`. Safari gives a message to dm's extension inside dm.app
+/// (desktop/crates/dm-safari), which answers each on its own; a port's messages get no answer
+/// there.
+pub fn one_message_at_a_time(base: &str) -> bool {
+    base.get(..23)
+        .is_some_and(|s| s.eq_ignore_ascii_case("safari-web-extension://"))
+}
+
 /// How a reason for "no app" starts when there is an app, of a protocol
 /// version this extension cannot talk to: its fix is updating one side,
 /// not installing or registering anything.

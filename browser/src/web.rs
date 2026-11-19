@@ -15,7 +15,7 @@
 use std::cell::RefCell;
 
 use dm_protocol::{CatchRules, Request, Start, NATIVE_HOST};
-use futures_channel::mpsc::{unbounded, UnboundedReceiver};
+use futures_channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures_util::future::{select, Either};
 use futures_util::StreamExt;
 use js_sys::{Array, Function, Promise, Reflect, JSON};

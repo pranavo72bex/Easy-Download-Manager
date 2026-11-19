@@ -392,6 +392,20 @@ at once rather than at the next half-second poll), answers, and exits with
 the port the browser owns. It is one-way past `download.started`: the app's
 window is where the download is.
 
+**Safari** (macOS, gaps row R4) loads a web extension only from inside an app, and sends its
+native messages to that app's extension program rather than to a host. `scripts/safari-extension.sh`
+(`make build-safari`) puts `dm Safari Extension.appex` into dm.app/Contents/PlugIns: its
+Resources are `dist/safari` (`extension/manifest.safari.json`), and its program is Rust
+(`desktop/crates/dm-safari`), which starts dm's own program as the host (`dm --native-host`) for
+each message, with the person's own `HOME`, and gives Safari its answer. Safari keeps no port
+open for answers, so there the extension sends each request with `runtime.sendNativeMessage`
+(`decide::one_message_at_a_time`). The extension and the host it starts run in macOS's sandbox,
+allowed dm's own folder and outgoing connections (`desktop/assets/macos/safari/entitlements.plist`);
+a dm the host must start is opened through `open`, outside it. Safari has no `downloads` API:
+what Safari itself downloads stays with Safari, and the menu, Alt-click, "Download all links",
+the popup and the panel are the ways in. Signed ad hoc, it runs only with Safari's Develop ›
+Allow Unsigned Extensions.
+
 The toolbar popup lists what dm is fetching (`downloads.list`, gaps row U18). The host is a
 process per message with no line to the window, and the control port is open only where a person
 asked for it, so the window writes what runs into `going.json` in dm's home as it reads the queue
@@ -573,6 +587,7 @@ desktop/
                           files, a .torrent's trackers. What a download means to dm stays in
                           dm-core's torrent.rs
   crates/dm-protocol/     what the extension and the host say, and the catch rule
+  crates/dm-safari/       Safari's extension's program (macOS): each message to `dm --native-host`
   crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup;
                           app/ the application layer every window drives
   crates/dm-desktop-base/ the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,

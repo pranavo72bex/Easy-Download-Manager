@@ -279,6 +279,7 @@ fn the_manifests_name_the_extension_from_the_catalogs() {
     for manifest in [
         include_str!("../../../extension/manifest.json"),
         include_str!("../../../extension/manifest.firefox.json"),
+        include_str!("../../../extension/manifest.safari.json"),
     ] {
         let manifest: Value = serde_json::from_str(manifest).unwrap();
         assert_eq!(manifest["default_locale"], "en");

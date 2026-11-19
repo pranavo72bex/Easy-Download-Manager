@@ -7834,3 +7834,51 @@ no cookie and read at most 2 MiB of a page. OneDrive, MEGA, iCloud and the wait 
 stay hand-overs. Tried and dropped: OneDrive's documented
 `api.onedrive.com/v1.0/shares/u!…/root/content` (404 for a public link in 2026). Written with no
 build on the Windows laptop: compiled and run on the Mac, then `sites-check.py --file-hosts`.
+
+## 2026-11-18: Safari's extension is an app extension made without Xcode, whose Rust program starts dm's own host (gaps row R4)
+
+Asked by the maintainer on 2026-11-18: "if possible add browser extension for safari as well.
+and test on safari." Safari loads a web extension only from inside an app: an app extension
+(`com.apple.Safari.web-extension`) whose Resources are the extension's files, and Safari sends
+the extension's native messages to that extension's program (`NSExtensionRequestHandling`), not
+to a native messaging host. This Mac has the command line tools and no Xcode, so neither Xcode's
+converter nor its template is used: `scripts/safari-extension.sh` lays the bundle out, writes its
+Info.plist (`desktop/assets/macos/safari/`), and signs it, the extension with its sandbox first
+and then dm.app around it (not `--deep`, which would sign the extension again without one).
+
+- **The program is Rust, with no Swift or Objective-C file** (`desktop/crates/dm-safari`): its
+  `main` makes the handler class the Info.plist names (`DMSafariHandler`) through the
+  Objective-C runtime with `objc2`, already in Cargo.lock through GPUI (no crate added), and
+  hands the program to Foundation's `NSExtensionMain`. Foundation's objects are reached by
+  name (`AnyClass::get`, `msg_send!`), so no `objc2-foundation` feature changes for the rest
+  of the workspace.
+- **It links nothing of dm's: it starts `dm --native-host` for each message** (the app's own
+  program, found through dm.app's Info.plist) and gives Safari the answer, so what the host says
+  is the host's alone and the extension cannot drift from it; the price is a process per
+  message, as Chrome's and Firefox's hosts already are. Rejected: linking dm-shell's host into
+  the extension (the engine twice in dm.app, and a second copy to keep in step).
+- **The sandbox.** macOS runs an app extension only sandboxed, and the host it starts is in the
+  same sandbox. The entitlements give it what the host needs: dm's own folder (a home-relative
+  temporary exception for `Library/Application Support/dm-engine/`) and `network.client` (the
+  one probe of the server, the running dm's doorbell on loopback). `HOME` inside the sandbox is
+  the extension's container, so the program gives the host the person's own home from the user
+  database. A dm the host must start is opened through `/usr/bin/open` when the host finds
+  itself sandboxed (`APP_SANDBOX_CONTAINER_ID`): started directly it would have been sandboxed
+  too. A portable dm (its data beside the app) is outside the exception and is not served.
+- **One message at a time.** In Safari a port's messages (`connectNative`) reach the program
+  but its answers do not come back on the port, so the extension's `Port` sends each request
+  with `runtime.sendNativeMessage` there and hears the answer as a port's frame
+  (`decide::one_message_at_a_time`, by the `safari-web-extension://` address of the extension's
+  own pages); the program answers an error by refusing the request, which the extension hears
+  as the port going away. Chrome, Edge and Firefox keep their port.
+- **What Safari cannot do.** Safari has no `downloads` API, so a download Safari itself starts
+  is never caught; the extension's other ways in work there: the right-click menu, Alt-click and
+  "Download all links", the popup, the panel where the page allows it. `manifest.safari.json` is
+  Firefox's with a non-persistent background page (`persistent: false`) and without the
+  `downloads` and `notifications` permissions Safari does not know.
+- **Signed ad hoc**, as dm.app is: Safari runs it only with Develop › Allow Unsigned Extensions,
+  which asks for the person's password and is forgotten when Safari quits. A Developer ID (R1)
+  or the App Store (the maintainer's developer account) is what removes that.
+- Not done: the .dmg and the release workflow do not carry the extension yet (cargo-packager
+  makes the app and the .dmg in one run, and this Mac has no cargo-packager to try a step
+  between them); `make build-safari` puts it into the dm.app `make build-macos` made.

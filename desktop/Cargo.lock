@@ -2210,6 +2210,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dm-safari"
+version = "0.10.0"
+dependencies = [
+ "libc",
+ "objc2 0.6.4",
+]
+
+[[package]]
 name = "dm-shell"
 version = "0.10.0"
 dependencies = [
