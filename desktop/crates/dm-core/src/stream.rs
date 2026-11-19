@@ -306,7 +306,8 @@ pub fn beyond_dm(
     // tracks without addresses is sound carried in the picture's segments;
     // a commentary track elsewhere in the master is not this rendition's.
     if let (Some(master), Some(group)) = (master, audio_group) {
-        if audio_uri(master, group).is_some() {
+        let want = crate::sound_language::wanted();
+        if audio_uri(master, group, want.as_deref()).is_some() {
             return Some("this stream carries its sound separately from its picture");
         }
     }
@@ -342,15 +343,25 @@ pub fn sample_scrambled(media: &str) -> bool {
 }
 
 /// The playlist of the sound a rendition plays with, where its audio group
-/// keeps the sound apart from the picture: the group's default track, else
-/// its first, joined onto `base`. `None` for sound carried in the picture's
-/// own segments (a track with no address).
+/// keeps the sound apart from the picture: the group's track in the sound
+/// language asked for (Options, gaps row Y10) where one speaks it, else its
+/// default track, else its first, joined onto `base`. `None` for sound
+/// carried in the picture's own segments (a track with no address).
 pub fn audio_playlist(master: &str, group: &str, base: &str) -> Option<String> {
-    join(base, &audio_uri(master, group)?).ok()
+    let want = crate::sound_language::wanted();
+    join(base, &audio_uri(master, group, want.as_deref())?).ok()
 }
 
-/// The address a rendition's separate sound is listed under, as written.
-fn audio_uri(master: &str, group: &str) -> Option<String> {
+/// Whether an `#EXT-X-MEDIA` track describes the picture for those who cannot see it.
+fn describes_video(track: &str) -> bool {
+    attribute(track, "CHARACTERISTICS")
+        .is_some_and(|c| c.contains("public.accessibility.describes-video"))
+}
+
+/// The address a rendition's separate sound is listed under, as written. With a language
+/// `want`ed, the group's track speaking it (`LANGUAGE`) comes first: a plain one before one
+/// describing the picture, the default among them before the rest.
+fn audio_uri(master: &str, group: &str, want: Option<&str>) -> Option<String> {
     let rows = lines(master);
     let tracks: Vec<&str> = rows
         .iter()
@@ -362,9 +373,21 @@ fn audio_uri(master: &str, group: &str) -> Option<String> {
                 && attribute(l, "GROUP-ID").as_deref() == Some(group)
         })
         .collect();
-    let chosen = tracks
-        .iter()
-        .find(|l| attribute(l, "DEFAULT").is_some_and(|d| d.eq_ignore_ascii_case("YES")))
+    let default = |l: &&str| attribute(l, "DEFAULT").is_some_and(|d| d.eq_ignore_ascii_case("YES"));
+    let spoken = want.and_then(|want| {
+        tracks
+            .iter()
+            .filter(|l| {
+                attribute(l, "LANGUAGE")
+                    .is_some_and(|lang| crate::sound_language::speaks(&lang, want))
+            })
+            // The first of the best: `max_by_key` keeps the last of equals, so the order is
+            // turned round first.
+            .rev()
+            .max_by_key(|l| (!describes_video(l), default(l)))
+    });
+    let chosen = spoken
+        .or_else(|| tracks.iter().find(|l| default(l)))
         .or(tracks.first())?;
     attribute(chosen, "URI")
 }

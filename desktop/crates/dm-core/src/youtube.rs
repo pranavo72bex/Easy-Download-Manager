@@ -611,6 +611,11 @@ struct Format {
     secondary: bool,
     /// Which of the video's sound tracks this is, where it has more than one.
     voice: Voice,
+    /// The language a sound track speaks (`xtags`' `lang`, else its track id's `es-US` of
+    /// `es-US.4`), where it names one; for a sound-language choice (gaps row Y10).
+    lang: Option<String>,
+    /// A described track (`acont=descriptive`), taken in its language only where no plain one is.
+    described: bool,
     /// Where the stream's first boxes and its index of pieces are
     /// (`initRange`, `indexRange`), for cutting a part of it (`clip`).
     init: Option<(u64, u64)>,
@@ -663,8 +668,32 @@ impl Voice {
 
 /// Sets every sound track but the video's own aside: the original where one
 /// is named, else the one the player would play. Where that would leave no
-/// sound at all, nothing is set aside.
-fn set_dubs_aside(formats: &mut [Format]) {
+/// sound at all, nothing is set aside. With a language `want`ed (Options, gaps
+/// row Y10) the tracks speaking it are kept instead (the original before a
+/// dub, a plain one before a described one), where any does; where none does,
+/// the video's own as above.
+fn set_dubs_aside(formats: &mut [Format], want: Option<&str>) {
+    if let Some(want) = want {
+        let speaks = |f: &Format| {
+            !f.video
+                && !f.secondary
+                && f.lang
+                    .as_deref()
+                    .is_some_and(|lang| crate::sound_language::speaks(lang, want))
+        };
+        // Among them the video's own original first, then a plain track before a described one.
+        let rank = |f: &Format| (f.voice == Voice::Original, !f.described);
+        if let Some(best) = formats.iter().filter(|f| speaks(f)).map(rank).max() {
+            let keep: Vec<bool> = formats
+                .iter()
+                .map(|f| f.video || (speaks(f) && rank(f) == best))
+                .collect();
+            for (f, keep) in formats.iter_mut().zip(keep) {
+                f.secondary |= !keep;
+            }
+            return;
+        }
+    }
     let named_original = formats.iter().any(|f| f.voice == Voice::Original);
     let own = |voice: Voice| match voice {
         Voice::Only | Voice::Original => true,
@@ -743,6 +772,12 @@ impl Format {
         let tags = xtags(url.as_deref(), cipher.as_deref());
         let tag = |key: &str| tags.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str());
         let voice = Voice::of(f, tag("acont"));
+        let lang = tag("lang").map(str::to_string).or_else(|| {
+            let id = f.pointer("/audioTrack/id")?.as_str()?;
+            let lang = id.split('.').next()?.trim();
+            (!lang.is_empty()).then(|| lang.to_string())
+        });
+        let described = tag("acont") == Some("descriptive");
         // The loudness-evened copy, and the voice-boosted one (`vb=1`), of a
         // track: the same bitrate as the plain one at times, so taken by
         // the highest-bitrate pick unless set aside.
@@ -792,6 +827,8 @@ impl Format {
                 .unwrap_or(0),
             secondary: drc || boosted,
             voice,
+            lang: lang.filter(|_| !video),
+            described,
             init: range("initRange"),
             index: range("indexRange"),
             numbered,
@@ -1270,7 +1307,7 @@ async fn read_within(
         if muxed {
             formats = streams_at("/streamingData/formats");
         }
-        set_dubs_aside(&mut formats);
+        set_dubs_aside(&mut formats, crate::sound_language::wanted().as_deref());
         if formats.is_empty() {
             failed = Some(Error::Internal(
                 "the player names no stream dm can fetch".into(),

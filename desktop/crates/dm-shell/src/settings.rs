@@ -214,6 +214,12 @@ pub struct Settings {
     /// Which rendition to take from an adaptive stream: `best`, `audio`, or
     /// a height.
     pub stream_quality: String,
+    /// The language a video's sound is taken in where it offers several (a
+    /// dub): a language tag (`es`, `pt-BR`); empty takes each video's own, as
+    /// before (gaps row Y10). Read by YouTube, HLS and DASH alike; kept in
+    /// `settings.json` only until Options has a line for it.
+    #[serde(default)]
+    pub sound_language: String,
 
     /// When the queue may run.
     #[serde(deserialize_with = "lenient::schedule")]
@@ -846,6 +852,7 @@ impl Default for Settings {
             category_folders: default_folders(),
             custom_categories: Vec::new(),
             stream_quality: default_quality(),
+            sound_language: String::new(),
             schedule: Schedule::default(),
             queue_schedules: std::collections::BTreeMap::new(),
             // The computer's proxy settings, as a browser takes them: with none set it goes

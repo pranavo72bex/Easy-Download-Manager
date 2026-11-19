@@ -647,3 +647,68 @@ fn a_live_timeline_runs_to_its_last_whole_piece_and_a_period_not_begun_is_not_li
     assert_eq!(read.periods[0].video.as_ref().unwrap().pieces.len(), 2);
     assert!(read.periods[0].audio.is_some());
 }
+
+/// A film's sound in its own English and two Spanish dubs, one describing the picture (gaps row
+/// Y10).
+const DUBBED: &str = r#"<Period>
+  <AdaptationSet contentType="video" mimeType="video/mp4">
+    <SegmentTemplate timescale="1000" duration="4000" initialization="v/init.mp4" media="v/$Number$.m4s"/>
+    <Representation id="v720" bandwidth="2500000" width="1280" height="720"/>
+  </AdaptationSet>
+  <AdaptationSet contentType="audio" mimeType="audio/mp4" lang="en">
+    <Role schemeIdUri="urn:mpeg:dash:role:2011" value="main"/>
+    <SegmentTemplate timescale="1000" duration="4000" initialization="en/init.mp4" media="en/$Number$.m4s"/>
+    <Representation id="en" bandwidth="128000"/>
+  </AdaptationSet>
+  <AdaptationSet contentType="audio" mimeType="audio/mp4" lang="es-419">
+    <Role schemeIdUri="urn:mpeg:dash:role:2011" value="dub"/>
+    <Accessibility schemeIdUri="urn:tva:metadata:cs:AudioPurposeCS:2007" value="1"/>
+    <SegmentTemplate timescale="1000" duration="4000" initialization="ad/init.mp4" media="ad/$Number$.m4s"/>
+    <Representation id="es-described" bandwidth="256000"/>
+  </AdaptationSet>
+  <AdaptationSet contentType="audio" mimeType="audio/mp4" lang="es-419">
+    <Role schemeIdUri="urn:mpeg:dash:role:2011" value="dub"/>
+    <SegmentTemplate timescale="1000" duration="4000" initialization="es/init.mp4" media="es/$Number$.m4s"/>
+    <Representation id="es" bandwidth="96000"/>
+  </AdaptationSet>
+</Period>"#;
+
+#[test]
+fn a_sound_language_asked_for_picks_its_dub_or_else_the_main_sound() {
+    let text = mpd(DUBBED);
+    let root = parse(&text).unwrap();
+    let listed = periods::periods_of(&root, None);
+    let picked = |want: Option<&str>| {
+        let audios = candidates(&root, &listed[0], URL)
+            .unwrap()
+            .into_iter()
+            .filter(|c| c.track.medium == Medium::Audio)
+            .collect();
+        pick_audio(audios, false, want).map(|c| c.track.id)
+    };
+    assert_eq!(
+        picked(None).as_deref(),
+        Some("en"),
+        "nothing asked: the main"
+    );
+    assert_eq!(
+        picked(Some("es")).as_deref(),
+        Some("es"),
+        "the plain dub, not the described one of more bandwidth"
+    );
+    assert_eq!(
+        picked(Some("en-US")).as_deref(),
+        Some("en"),
+        "none speaks it"
+    );
+    assert_eq!(picked(Some("de")).as_deref(), Some("en"));
+    // Nothing asked of the whole plan in this test: the main sound, as before.
+    assert_eq!(
+        plan(&text, URL, Quality::Best, None)
+            .unwrap()
+            .audio
+            .unwrap()
+            .id,
+        "en"
+    );
+}

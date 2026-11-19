@@ -658,3 +658,30 @@ fn a_key_of_the_wrong_length_is_refused() {
         .to_string();
     assert!(why.contains("16 bytes; this one is 8"), "{why}");
 }
+
+/// A master playlist with its sound in three languages, the Spanish twice (one describing the
+/// picture), as a broadcaster's stream lists them (gaps row Y10).
+const DUBBED_MASTER: &str = "#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"English\",LANGUAGE=\"en\",DEFAULT=YES,AUTOSELECT=YES,URI=\"en.m3u8\"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"Español (AD)\",LANGUAGE=\"es-419\",CHARACTERISTICS=\"public.accessibility.describes-video\",URI=\"es-ad.m3u8\"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aac\",NAME=\"Español\",LANGUAGE=\"es-419\",URI=\"es.m3u8\"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"other\",NAME=\"Deutsch\",LANGUAGE=\"de\",URI=\"de.m3u8\"
+#EXT-X-STREAM-INF:BANDWIDTH=2000000,RESOLUTION=1280x720,AUDIO=\"aac\"
+720.m3u8
+";
+
+#[test]
+fn a_sound_language_asked_for_picks_its_rendition_or_else_the_default() {
+    let uri = |want| audio_uri(DUBBED_MASTER, "aac", want);
+    assert_eq!(uri(None).as_deref(), Some("en.m3u8"), "nothing asked");
+    assert_eq!(
+        uri(Some("es")).as_deref(),
+        Some("es.m3u8"),
+        "the plain Spanish, not the described"
+    );
+    assert_eq!(uri(Some("es-419")).as_deref(), Some("es.m3u8"));
+    assert_eq!(uri(Some("en")).as_deref(), Some("en.m3u8"));
+    // German is only another group's: this rendition plays its own default.
+    assert_eq!(uri(Some("de")).as_deref(), Some("en.m3u8"));
+    assert_eq!(uri(Some("fr")).as_deref(), Some("en.m3u8"));
+}

@@ -544,13 +544,16 @@ pub async fn start(orders: &Orders) -> Started {
 }
 
 /// What the settings put in force across the engine rather than on the queue:
-/// the name dm gives itself, the dial-up or VPN connection every download
-/// waits for, and the second network. At the start and at every change: only
+/// the name dm gives itself, the language of a dubbed video's sound, the
+/// dial-up or VPN connection every download waits for, and the second
+/// network. At the start and at every change: only
 /// the changes did it before, so a saved "Identify as dm only", second network
 /// or dial-up connection was not in force until Options' OK (2026-11-08).
 /// What went wrong, in words.
 fn engine_wide(settings: &Settings) -> Option<String> {
     dm_core::set_identify_as_dm(settings.identify_as_dm);
+    // The language a dubbed video's sound is taken in (gaps row Y10).
+    dm_core::set_sound_language(&settings.sound_language);
     // A dial-up or VPN connection every download waits for (`dialup.rs`).
     crate::dialup::set(&settings.dialup);
     // The second network, where one is chosen and no proxy is on: through

@@ -123,6 +123,8 @@ pub mod secretstore;
 
 pub use dm_media::shape;
 
+pub mod sound_language;
+
 mod stream;
 
 pub use dm_media::subtitles;
@@ -212,6 +214,8 @@ pub use stream::{
     kind_of, media_playlist, pick as pick_quality, titled as stream_titled,
     variants as stream_variants, Kind as StreamKind, Quality, Stream, Variant,
 };
+
+pub use sound_language::set_sound_language;
 
 pub use torrent::{
     download_torrent, file_url, is_torrent, local_file, merged_files, only_files, sharing,

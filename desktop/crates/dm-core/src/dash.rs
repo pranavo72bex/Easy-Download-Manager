@@ -694,6 +694,12 @@ struct Candidate {
     track: Track,
     /// A main-role (or role-less) sound is preferred over a commentary.
     main: bool,
+    /// The language its sound speaks (`lang`), where it names one: for a sound language asked
+    /// for (gaps row Y10).
+    lang: Option<String>,
+    /// A sound describing the picture (`Role` `description`, or the TV-Anytime purpose `1`):
+    /// taken in its language only where no plain track speaks it.
+    described: bool,
     /// What a later period's track must say alike to be joined after this
     /// one: its medium, container, codec, picture size and sound rate. `None`
     /// where it is not joined to another period at all: a WebM, whose times
@@ -719,6 +725,14 @@ fn candidates(root: &Node, period: &periods::PeriodAt, url: &str) -> Result<Vec<
         let main = set
             .children("Role")
             .all(|r| r.attr("value").is_none_or(|v| v == "main"));
+        let described = set
+            .children("Role")
+            .any(|r| r.attr("value") == Some("description"))
+            || set.children("Accessibility").any(|a| {
+                a.attr("schemeIdUri")
+                    .is_some_and(|s| s.contains("AudioPurposeCS"))
+                    && a.attr("value") == Some("1")
+            });
         for rep in set.children("Representation") {
             if rep.child("ContentProtection").is_some() {
                 continue;
@@ -771,6 +785,11 @@ fn candidates(root: &Node, period: &periods::PeriodAt, url: &str) -> Result<Vec<
                     seams: Vec::new(),
                 },
                 main,
+                lang: rep
+                    .attr("lang")
+                    .or_else(|| set.attr("lang"))
+                    .map(str::to_string),
+                described,
                 shape,
                 init,
             });
@@ -818,12 +837,23 @@ fn pick_video(
         .max_by_key(|c| (c.track.height, c.track.webm == want_webm, c.track.bandwidth))
 }
 
-/// The sound to take: a main track's, in the picture's container where
-/// there is one, the best bandwidth.
-fn pick_audio(audios: Vec<Candidate>, with_webm: bool) -> Option<Candidate> {
-    audios
-        .into_iter()
-        .max_by_key(|c| (c.main, c.track.webm == with_webm, c.track.bandwidth))
+/// The sound to take: one speaking the language `want`ed (Options, gaps row Y10) where any
+/// does, a plain one before one describing the picture; then a main track's, in the picture's
+/// container where there is one, the best bandwidth.
+fn pick_audio(audios: Vec<Candidate>, with_webm: bool, want: Option<&str>) -> Option<Candidate> {
+    let speaks = |c: &Candidate| {
+        want.zip(c.lang.as_deref())
+            .is_some_and(|(want, lang)| crate::sound_language::speaks(lang, want))
+    };
+    audios.into_iter().max_by_key(|c| {
+        (
+            speaks(c),
+            speaks(c) && !c.described,
+            c.main,
+            c.track.webm == with_webm,
+            c.track.bandwidth,
+        )
+    })
 }
 
 /// The picture and the sound to take of one period's representations.
@@ -840,7 +870,12 @@ fn choose(
     } else {
         pick_video(videos, quality, container)
     };
-    let audio = pick_audio(audios, video.as_ref().is_some_and(|v| v.track.webm));
+    let want = crate::sound_language::wanted();
+    let audio = pick_audio(
+        audios,
+        video.as_ref().is_some_and(|v| v.track.webm),
+        want.as_deref(),
+    );
     (video, audio)
 }
 

@@ -7928,3 +7928,22 @@ crate added (`windows-sys` was already dm-shell's).
   `.torrent` key is a `.reg` file a person can open or double-click; writing and reading that
   format whole (every value type, escapes, UTF-16) is `reg.exe`'s, and is done once per click.
 * Errors keep their shape, `reg <verb>: <Windows' words>`.
+
+## A sound language, one for every kind of stream (2026-11-19, gaps row Y10)
+
+A video offered in several languages kept only its own sound: YouTube's original, HLS's
+`DEFAULT` rendition, DASH's `main` set. `dm_core::sound_language` now holds one language asked
+for, process-wide like Identify as dm (`set_sound_language`, from the setting `sound_language` in
+`shell::engine_wide`, at the start and at each change), and each reader asks it as it picks:
+
+* **Matched by its parts, in order.** `es` is spoken by `es`, `es-US` and `es_419`; `pt-BR` by
+  `pt-BR` alone, not by `pt` or `pt-PT`; case does not matter. Rejected: matching the first two
+  letters, which takes Estonian (`est`) for Spanish.
+* **A plain track before a described one,** in every reader (YouTube's `acont=descriptive`, HLS's
+  `CHARACTERISTICS="public.accessibility.describes-video"`, DASH's `description` role or
+  TV-Anytime purpose 1), and on YouTube the original before a dub of the same language.
+* **None speaking it is not an error:** the video's own sound is taken, as before. A setting
+  that fails a video for want of a dub would be a dead end.
+* **No Options line yet.** A new line changes the window and its pictures, which waits for the
+  maintainer's word; until then the setting is `settings.json`'s alone, empty by default, so
+  nothing a person sees or gets changes.

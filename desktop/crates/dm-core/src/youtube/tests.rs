@@ -354,6 +354,12 @@ fn a_picture_listed_by_its_format_number_alone_is_read_from_the_table() {
 /// play, the original not, and the original in three copies (plain,
 /// loudness-evened, voice-boosted) at one bitrate.
 fn dubbed_video(with_xtags: bool) -> Vec<Format> {
+    dubbed_video_wanting(with_xtags, None)
+}
+
+/// [`dubbed_video`] with a sound language asked for (gaps row Y10), and a described Spanish
+/// track beside the original.
+fn dubbed_video_wanting(with_xtags: bool, want: Option<&str>) -> Vec<Format> {
     let sound = |track: &str, name: &str, default: bool, tags: &str, extra: &str| {
         let address = if with_xtags {
             format!(
@@ -376,11 +382,13 @@ fn dubbed_video(with_xtags: bool) -> Vec<Format> {
         sound("es-US.4", "Spanish (US) original", false, "acont=original:drc=1:lang=es-US", r#","isDrc":true"#),
         sound("es-US.4", "Spanish (US) original", false, "acont=original:lang=es-US", ""),
         sound("es-US.4", "Spanish (US) original", false, "acont=original:lang=es-US:vb=1", ""),
+        sound("es-US.7", "Spanish (US) descriptive", false, "acont=descriptive:lang=es-US", ""),
+        sound("fr-FR.10", "French (France)", false, "acont=dubbed-auto:lang=fr-FR", ""),
     ]
     .iter()
     .filter_map(|j| Format::of(&serde_json::from_str(j).unwrap()))
     .collect();
-    set_dubs_aside(&mut formats);
+    set_dubs_aside(&mut formats, want);
     formats
 }
 
@@ -406,6 +414,30 @@ fn a_dubbed_videos_own_language_is_chosen_not_the_dub_marked_to_play() {
 }
 
 #[test]
+fn a_sound_language_asked_for_picks_its_dub_or_else_the_videos_own() {
+    for with_xtags in [true, false] {
+        let dub = sound_chosen(&dubbed_video_wanting(with_xtags, Some("fr")), Quality::Best);
+        assert!(dub.contains("fr"), "{with_xtags}: {dub}");
+        let english = sound_chosen(
+            &dubbed_video_wanting(with_xtags, Some("en")),
+            Quality::Audio,
+        );
+        assert!(
+            english.contains("dubbed-auto") && english.contains("en-US"),
+            "{english}"
+        );
+        // Spanish asked for: the original, not its described track or a copy set aside.
+        let own = sound_chosen(&dubbed_video_wanting(with_xtags, Some("es")), Quality::Best);
+        assert!(own.contains("original"), "{with_xtags}: {own}");
+        // Only the address tells the voice-boosted copy (as with nothing asked).
+        assert!(!with_xtags || !own.contains("vb"), "{own}");
+        // No track speaks German: the video's own, as with nothing asked.
+        let none = sound_chosen(&dubbed_video_wanting(with_xtags, Some("de")), Quality::Best);
+        assert_eq!(none, sound_chosen(&dubbed_video(with_xtags), Quality::Best));
+    }
+}
+
+#[test]
 fn without_xtags_the_track_id_names_the_original() {
     let formats = dubbed_video(false);
     assert_eq!(
@@ -426,7 +458,7 @@ fn where_no_original_is_named_the_track_marked_to_play_is_the_videos_own() {
     .iter()
     .filter_map(|j| Format::of(&serde_json::from_str(j).unwrap()))
     .collect();
-    set_dubs_aside(&mut formats);
+    set_dubs_aside(&mut formats, None);
     assert_eq!(
         sound_chosen(&formats, Quality::Audio),
         "https://r1.example/a?d=en"
@@ -442,7 +474,7 @@ fn tracks_none_of_which_is_the_videos_own_are_all_kept() {
     .iter()
     .filter_map(|j| Format::of(&serde_json::from_str(j).unwrap()))
     .collect();
-    set_dubs_aside(&mut formats);
+    set_dubs_aside(&mut formats, None);
     assert!(
         formats.iter().all(|f| !f.secondary),
         "a video is not left without sound"
