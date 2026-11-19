@@ -97,8 +97,7 @@ impl Downloads {
                 .child(
                     native::button("stalled-resume", t("Resume").into(), false, theme, screen)
                         .on_click(cx.listener(move |view, _, _, cx| {
-                            view.backend.resume(id);
-                            view.read();
+                            view.later_then_read(move |backend| backend.resume(id), cx);
                             cx.notify();
                         })),
                 )
@@ -114,12 +113,7 @@ impl Downloads {
                         crate::platform::services::ask_then(
                             crate::platform::services::Asked::folder(),
                             cx,
-                            move |view: &mut Self, dir, _| match view.backend.relocate(id, dir) {
-                                Ok(()) => {
-                                    view.read();
-                                }
-                                Err(e) => view.say(e),
-                            },
+                            move |view: &mut Self, dir, cx| view.relocate_later(id, dir, cx),
                         );
                     })),
                 ),
@@ -169,10 +163,16 @@ impl Downloads {
                 .child(
                     native::button("failed-retry", t("Retry all").into(), false, theme, screen)
                         .on_click(cx.listener(move |view, _, _, cx| {
-                            for id in &retried {
-                                view.backend.retry(*id);
-                            }
-                            view.read();
+                            // Off the window's thread, as the toolbar's Resume is.
+                            let ids = retried.clone();
+                            view.later_then_read(
+                                move |backend| {
+                                    for id in &ids {
+                                        backend.retry(*id);
+                                    }
+                                },
+                                cx,
+                            );
                             cx.notify();
                         })),
                 ),

@@ -3,16 +3,20 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The window's wake-ups, from any thread: at most one of each kind waits
-//! to be read (gaps row 181). A wake says only "look again", so a second
-//! of the same kind before the first is read adds nothing; the channel
-//! they went through had no bound, and a burst of queue changes while the
-//! window was busy queued one each.
+//! The one way the engine, the control port, the system and dm's own
+//! threads tell the presentation to look again: the window, on its
+//! executor (`Woken::recv`), or the loop with no window (`headless`), on
+//! the runtime with its clock beside it. Sent from any thread through
+//! `boot::start`'s `wake`; at most one of each kind waits to be read (gaps
+//! row 181). A wake says only "look again", so a second of the same kind
+//! before the first is read adds nothing; the channel they went through had
+//! no bound, and a burst of queue changes while the window was busy queued
+//! one each.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use dm_desktop_base::boot::Wake;
+use crate::boot::Wake;
 
 /// Whether a wake of each kind waits: `Soon`'s, then `Now`'s.
 type Waiting = Arc<[AtomicBool; 2]>;
@@ -31,7 +35,7 @@ pub struct Wakes {
     waiting: Waiting,
 }
 
-/// Where the window reads them.
+/// Where the presentation reads them.
 pub struct Woken {
     receiver: async_channel::Receiver<Wake>,
     waiting: Waiting,
@@ -52,7 +56,7 @@ pub fn pair() -> (Wakes, Woken) {
 }
 
 impl Wakes {
-    /// Wakes the window, unless a wake of this kind already waits.
+    /// Wakes the presentation, unless a wake of this kind already waits.
     pub fn send(&self, wake: Wake) {
         if !self.waiting[slot(wake)].swap(true, Ordering::AcqRel) {
             let _ = self.sender.try_send(wake);
@@ -99,5 +103,26 @@ mod tests {
         // Once read, the next is sent.
         wakes.send(Wake::Now);
         assert_eq!(woken.try_recv(), Ok(Wake::Now));
+    }
+
+    /// The loop with no window waits on the runtime for the next wake, with
+    /// its clock beside it: a wake sent from another thread ends the wait,
+    /// and none ends it at the clock.
+    #[test]
+    fn a_wake_from_another_thread_ends_a_wait_on_the_runtime() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let (wakes, woken) = pair();
+        let within = std::time::Duration::from_secs(10);
+        let sent = std::thread::spawn(move || {
+            wakes.send(Wake::Now);
+            wakes
+        });
+        let next = runtime.block_on(tokio::time::timeout(within, woken.recv()));
+        assert_eq!(next.ok().and_then(Result::ok), Some(Wake::Now));
+        let _wakes = sent.join().unwrap();
+        let short = std::time::Duration::from_millis(20);
+        assert!(runtime
+            .block_on(tokio::time::timeout(short, woken.recv()))
+            .is_err());
     }
 }

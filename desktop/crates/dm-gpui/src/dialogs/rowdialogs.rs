@@ -305,11 +305,16 @@ impl MoveToQueue {
         self.done = true;
         window.remove_window();
         let ids = self.ids.clone();
-        let _ = self.view.update(cx, |view, cx| {
-            for id in ids {
-                view.backend.set_queue(id, &queue);
-            }
-            view.read();
+        let _ = self.view.update(cx, move |view, cx| {
+            // Off the window's thread: each writes the queue.
+            view.later_then_read(
+                move |backend| {
+                    for id in ids {
+                        backend.set_queue(id, &queue);
+                    }
+                },
+                cx,
+            );
             cx.notify();
         });
     }

@@ -22,5 +22,4 @@ pub(crate) mod tick;
 pub(crate) mod titlebar;
 pub(crate) mod toolbar;
 pub(crate) mod viewmenu;
-pub(crate) mod wakes;
 pub(crate) mod zoom;

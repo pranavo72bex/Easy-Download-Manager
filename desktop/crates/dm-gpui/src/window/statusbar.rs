@@ -181,7 +181,7 @@ pub fn statusbar(
                     .hover(|s| s.bg(theme.stripe))
                     .text_color(theme.selection)
                     .on_click(cx.listener(|view, _, _, cx| {
-                        view.undo_remove();
+                        view.undo_remove(cx);
                         cx.notify();
                     }))
                     .child(screen.label(t("Undo"))),

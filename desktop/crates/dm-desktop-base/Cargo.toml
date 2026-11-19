@@ -38,8 +38,12 @@ auto-launch.workspace = true
 trash.workspace = true
 # The window's native handle, for Windows' taskbar progress (taskbar.rs).
 raw-window-handle.workspace = true
-# A logout or `kill` quits dm as Exit does (signals.rs).
-tokio = { workspace = true, features = ["rt-multi-thread", "signal"] }
+# A logout or `kill` quits dm as Exit does (signals.rs); the loop with no
+# window waits for a wake with its clock beside it (headless.rs).
+tokio = { workspace = true, features = ["rt-multi-thread", "signal", "time"] }
+# The one channel that wakes the presentation, the window or the loop with
+# none (wakes.rs).
+async-channel.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # What VoiceOver is given of each window, read from inside (a11y_tree.rs).

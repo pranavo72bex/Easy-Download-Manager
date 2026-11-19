@@ -184,7 +184,7 @@ impl Downloads {
         // first, in its context): Undo puts back what Remove took off, Copy copies the chosen
         // downloads' links, and Paste takes the links on the clipboard (gaps row U9).
         .on_action(cx.listener(|this, _: &gpui_base::input::Undo, _, cx| {
-            this.undo_remove();
+            this.undo_remove(cx);
             cx.notify();
         }))
         .on_action(cx.listener(|this, _: &gpui_base::input::Copy, _, cx| {
