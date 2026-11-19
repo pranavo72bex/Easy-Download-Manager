@@ -929,5 +929,18 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "in einen Ordner mit seinem Namen entpackt, das Archiv in den Papierkorb verschoben",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "in einen Ordner mit seinem Namen entpackt, aber das Archiv konnte nicht in den Papierkorb verschoben werden",
  "not unpacked: the archive has a password": "nicht entpackt: das Archiv hat ein Passwort",
- "not unpacked: Extract here on its menu says why": "nicht entpackt: „Hier entpacken“ in seinem Menü sagt, warum"
+ "not unpacked: Extract here on its menu says why": "nicht entpackt: „Hier entpacken“ in seinem Menü sagt, warum",
+ "Waiting: {}": "Wartet: {}",
+ "the connection is metered": "die Verbindung ist getaktet",
+ "the battery is low": "der Akku ist schwach",
+ "On a metered connection": "Bei einer getakteten Verbindung",
+ "Go on": "Weiter",
+ "Ask": "Fragen",
+ "Wait": "Warten",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Wo das System die Verbindung als getaktet kennzeichnet: der Hotspot eines Telefons, ein begrenzter Tarif. Wartende Downloads gehen von selbst weiter, sobald sie es nicht mehr ist.",
+ "On battery: wait below (%, 0 for never)": "Im Akkubetrieb: warten unter (%, 0 für nie)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Downloads warten, solange der Computer unter diesem Stand mit Akku läuft, und gehen weiter, sobald er lädt oder wieder darüber liegt.",
+ "The connection is metered": "Die Verbindung ist getaktet",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Darüber herunterzuladen kann Geld kosten oder ein Datenvolumen aufbrauchen. Jeder Download wartet, bis Sie wählen.",
+ "Download anyway": "Trotzdem herunterladen"
 }

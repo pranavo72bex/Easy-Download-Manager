@@ -101,6 +101,26 @@ pub fn sound_language_of(index: usize) -> Option<&'static str> {
     }
 }
 
+/// Options › Downloads' "On a metered connection" pop-up (gaps row W11): the setting's words,
+/// in the pop-up's order.
+pub const ON_METERED: [&str; 3] = [
+    dm_shell::settings::METERED_GO,
+    dm_shell::settings::METERED_ASK,
+    dm_shell::settings::METERED_WAIT,
+];
+
+/// What the pop-up says for each of [`ON_METERED`], in English.
+pub const ON_METERED_WORDS: [&str; 3] = ["Go on", "Ask", "Wait"];
+
+/// Where `on_metered` stands in the pop-up: a word it lacks is read as going on, as the
+/// downloads read it.
+pub fn on_metered_at(on_metered: &str) -> usize {
+    ON_METERED
+        .iter()
+        .position(|w| *w == on_metered)
+        .unwrap_or(0)
+}
+
 /// The events a sound file can be chosen for, by the settings' key.
 pub const SOUND_EVENTS: [&str; 4] = ["complete", "failed", "queue_started", "queue_done"];
 
@@ -149,10 +169,12 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
             "unpack_trash",
         ],
         Tab::Downloads => &[
+            "battery_below",
             "concurrency",
             "connections",
             "forget_after_days",
             "on_complete",
+            "on_metered",
             "queue_limits",
             "queue_starts",
             "recheck_hours",

@@ -929,5 +929,18 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "同じ名前のフォルダーに展開済み、アーカイブはゴミ箱へ移動",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "同じ名前のフォルダーに展開済み、ただしアーカイブをゴミ箱へ移動できませんでした",
  "not unpacked: the archive has a password": "展開されていません: アーカイブにパスワードがあります",
- "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります"
+ "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります",
+ "Waiting: {}": "待機中：{}",
+ "the connection is metered": "従量制課金接続です",
+ "the battery is low": "バッテリー残量が少なくなっています",
+ "On a metered connection": "従量制課金接続のとき",
+ "Go on": "続ける",
+ "Ask": "確認する",
+ "Wait": "待つ",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "システムが接続を従量制課金としている場合（スマートフォンのテザリング、上限のあるプランなど）。待機中のダウンロードは、従量制でなくなると自動的に再開します。",
+ "On battery: wait below (%, 0 for never)": "バッテリー駆動時：この値未満で待つ（%、0 で待たない）",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "コンピューターがこの残量未満でバッテリー駆動している間はダウンロードを待ち、充電されるか残量が上回ると再開します。",
+ "The connection is metered": "従量制課金接続です",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "この接続でダウンロードすると料金がかかったり、データ通信量を使い切ったりすることがあります。選ぶまですべてのダウンロードが待機します。",
+ "Download anyway": "それでもダウンロード"
 }

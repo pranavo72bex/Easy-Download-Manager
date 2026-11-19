@@ -929,5 +929,18 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "распакован в папку с его именем, архив отправлен в корзину",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "распакован в папку с его именем, но архив не удалось отправить в корзину",
  "not unpacked: the archive has a password": "не распакован: у архива есть пароль",
- "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему"
+ "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему",
+ "Waiting: {}": "Ждёт: {}",
+ "the connection is metered": "подключение лимитное",
+ "the battery is low": "заряд батареи низкий",
+ "On a metered connection": "При лимитном подключении",
+ "Go on": "Продолжать",
+ "Ask": "Спрашивать",
+ "Wait": "Ждать",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Когда система отмечает подключение как лимитное: точка доступа телефона, тариф с ограничением. Ждущие загрузки продолжатся сами, как только оно перестанет быть лимитным.",
+ "On battery: wait below (%, 0 for never)": "От батареи: ждать ниже (%, 0 — никогда)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Загрузки ждут, пока компьютер работает от батареи ниже этого уровня, и продолжаются, как только он заряжается или заряд снова выше.",
+ "The connection is metered": "Подключение лимитное",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Загрузка через него может стоить денег или израсходовать пакет трафика. Все загрузки ждут вашего выбора.",
+ "Download anyway": "Всё равно загрузить"
 }

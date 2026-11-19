@@ -929,5 +929,18 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "rozpakowano do folderu o jego nazwie, a archiwum przeniesiono do kosza",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "rozpakowano do folderu o jego nazwie, ale archiwum nie udało się przenieść do kosza",
  "not unpacked: the archive has a password": "nie rozpakowano: archiwum ma hasło",
- "not unpacked: Extract here on its menu says why": "nie rozpakowano: „Wypakuj tutaj” w jego menu mówi dlaczego"
+ "not unpacked: Extract here on its menu says why": "nie rozpakowano: „Wypakuj tutaj” w jego menu mówi dlaczego",
+ "Waiting: {}": "Czeka: {}",
+ "the connection is metered": "połączenie jest taryfowe",
+ "the battery is low": "bateria jest słaba",
+ "On a metered connection": "Przy połączeniu taryfowym",
+ "Go on": "Kontynuuj",
+ "Ask": "Pytaj",
+ "Wait": "Czekaj",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Gdy system oznacza połączenie jako taryfowe: hotspot telefonu, plan z limitem. Czekające pobierania same ruszą dalej, gdy przestanie nim być.",
+ "On battery: wait below (%, 0 for never)": "Na baterii: czekaj poniżej (%, 0 – nigdy)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Pobierania czekają, dopóki komputer działa na baterii poniżej tego poziomu, i ruszają dalej, gdy się ładuje lub znów jest powyżej.",
+ "The connection is metered": "Połączenie jest taryfowe",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Pobieranie przez nie może kosztować lub zużyć pakiet danych. Każde pobieranie czeka, aż wybierzesz.",
+ "Download anyway": "Pobierz mimo to"
 }

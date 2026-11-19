@@ -24,6 +24,8 @@ use std::path::PathBuf;
 pub use pages::{
     AdvancedSettings, BrowserSettings, DownloadSettings, FolderSettings, GeneralSettings,
 };
+// What downloading does on a metered connection (gaps row W11).
+pub use pages::{METERED_ASK, METERED_GO, METERED_WAIT};
 pub use paths::{enter_portable, full_folder, full_path, home, home_short, portable_home_in};
 pub use paths::{PORTABLE_DATA, PORTABLE_MARKER};
 pub use scale::{PanelWidths, TextSizes, SIDEBAR_WIDTH, TEXT_SIZE};

@@ -152,9 +152,10 @@ impl DownloadList {
         crate::lock(&self.inner.quota).set(allowance);
     }
 
-    /// Whether the schedule and the download limit both let downloads run.
+    /// Whether the schedule and the download limit both let downloads run, and nothing of the
+    /// computer's state holds them (`hold_for`, gaps row W11).
     pub fn may_run(&self) -> bool {
-        self.window_open() && self.allowance_spent().is_none()
+        self.window_open() && self.allowance_spent().is_none() && self.held_by().is_none()
     }
 
     /// Whether any row is held by the schedule or the download limit, and

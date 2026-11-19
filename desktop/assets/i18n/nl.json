@@ -929,5 +929,18 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "uitgepakt in een map met zijn naam, en het archief naar de prullenbak verplaatst",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "uitgepakt in een map met zijn naam, maar het archief kon niet naar de prullenbak",
  "not unpacked: the archive has a password": "niet uitgepakt: het archief heeft een wachtwoord",
- "not unpacked: Extract here on its menu says why": "niet uitgepakt: 'Hier uitpakken' in zijn menu zegt waarom"
+ "not unpacked: Extract here on its menu says why": "niet uitgepakt: 'Hier uitpakken' in zijn menu zegt waarom",
+ "Waiting: {}": "Wacht: {}",
+ "the connection is metered": "de verbinding is een verbinding met datalimiet",
+ "the battery is low": "de accu is bijna leeg",
+ "On a metered connection": "Bij een verbinding met datalimiet",
+ "Go on": "Doorgaan",
+ "Ask": "Vragen",
+ "Wait": "Wachten",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "Waar het systeem de verbinding markeert als verbinding met datalimiet: de hotspot van een telefoon, een begrensd abonnement. Wachtende downloads gaan vanzelf verder zodra dat niet meer zo is.",
+ "On battery: wait below (%, 0 for never)": "Op accu: wachten onder (%, 0 voor nooit)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "Downloads wachten zolang de computer onder dit niveau op zijn accu werkt, en gaan verder zodra hij oplaadt of er weer boven zit.",
+ "The connection is metered": "De verbinding is een verbinding met datalimiet",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "Erover downloaden kan geld kosten of een databundel opmaken. Elke download wacht tot u kiest.",
+ "Download anyway": "Toch downloaden"
 }

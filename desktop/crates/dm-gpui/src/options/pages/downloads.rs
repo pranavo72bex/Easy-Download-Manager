@@ -23,6 +23,7 @@ pub(super) fn downloads(
     queue_starts(o, p, cx, &s);
     watching_and_after(o, p, window, cx);
     forgetting(o, p, window, cx);
+    metered_and_battery(o, p, window, cx);
 }
 
 /// Connections per file, and its presets.
@@ -430,4 +431,46 @@ fn forgetting(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
         days,
     );
     p.note(t("A finished download leaves the list once it is that many days old. Its file stays where it was saved."));
+}
+
+/// Every download waits on a metered connection or a low battery, as chosen here (gaps row W11):
+/// go on, ask or wait on a metered connection, and the battery's level to wait below.
+fn metered_and_battery(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+) {
+    let (theme, screen) = (p.theme, p.screen.clone());
+    let at = options::on_metered_at(&o.draft.downloads.on_metered);
+    let words: Vec<SharedString> = options::ON_METERED_WORDS
+        .iter()
+        .map(|w| SharedString::from(t(*w)))
+        .collect();
+    p.labelled(
+        t("On a metered connection"),
+        true,
+        popup::button(
+            "on-metered",
+            words[at].clone(),
+            words,
+            Some(at),
+            theme,
+            &screen,
+        ),
+    );
+    p.note(t("Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not."));
+    let level = input(
+        o,
+        window,
+        cx,
+        "battery_below",
+        "On battery: wait below (%, 0 for never)",
+        NUMBER,
+        true,
+        false,
+        |o| o.draft.downloads.battery_below.to_string(),
+    );
+    p.labelled(t("On battery: wait below (%, 0 for never)"), true, level);
+    p.note(t("Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again."));
 }

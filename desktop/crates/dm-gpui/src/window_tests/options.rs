@@ -590,3 +590,30 @@ fn forgetting_finished_downloads_after_some_days_is_set_in_options() {
     h.click("Cancel");
     h.until("Options to close", |h| !h.dialog_open("Options"));
 }
+
+/// "On a metered connection" and "On battery: wait below" are set on Options › Downloads, kept
+/// on OK and written down: Go on and 0 at first, which hold nothing (contract row B76, gaps row
+/// W11).
+#[test]
+fn waiting_on_a_metered_connection_or_a_low_battery_is_set_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    let first = kept(&mut h).downloads;
+    assert_eq!((first.on_metered.as_str(), first.battery_below), ("go", 0));
+    open_options(&mut h);
+    tab(&mut h, "Downloads");
+    h.reveal("On a metered connection");
+    h.click("Go on");
+    h.click("Wait");
+    h.until_shown("Wait");
+    h.fill("On battery: wait below (%, 0 for never)", "25");
+    ok(&mut h);
+    let downloads = kept(&mut h).downloads;
+    assert_eq!(
+        (downloads.on_metered.as_str(), downloads.battery_below),
+        ("wait", 25)
+    );
+    assert_eq!(saved_settings()["on_metered"], "wait");
+    assert_eq!(saved_settings()["battery_below"], 25);
+}

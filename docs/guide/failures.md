@@ -99,6 +99,16 @@ it made of a finished archive:
   **Resume download** goes on from it.
 - `cancelled`
   The download was cancelled. It is not tried again.
+- "Waiting: the connection is metered"
+  Options › Downloads › On a metered connection says to wait (or to ask,
+  and **Wait** was chosen, or no window is open to ask in), and the system
+  marks the connection as metered. It is not a failure: the download goes
+  on by itself once the connection is not metered. See
+  [Options › Downloads](options-downloads.md).
+- "Waiting: the battery is low"
+  The computer runs on its battery below the level set in Options ›
+  Downloads › On battery: wait below. The download goes on by itself once
+  the computer charges or the battery is above that level again.
 
 ## The server's answer
 

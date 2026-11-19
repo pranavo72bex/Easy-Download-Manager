@@ -363,3 +363,116 @@ fn with_no_window_a_queue_run_dry_at_a_read_between_ticks_takes_when_done() {
     assert_eq!(effects.last(), Some(&Effect::Quit), "{effects:?}");
     assert_eq!(session.when_done, WhenDone::Nothing, "taken");
 }
+
+/// The computer's state as a test sets it, in place of the computer's own calls (gaps row W11).
+#[derive(Clone, Default)]
+struct Fake(Arc<std::sync::Mutex<crate::metered::Reading>>);
+
+impl crate::metered::Source for Fake {
+    fn read(&self) -> crate::metered::Reading {
+        *self.0.lock().unwrap()
+    }
+}
+
+impl Fake {
+    /// The state from now on, read at the session's next tick.
+    fn set(&self, session: &mut Session, metered: Option<bool>, battery: Option<(bool, u8)>) {
+        *self.0.lock().unwrap() = crate::metered::Reading {
+            metered,
+            battery: battery.map(|(discharging, percent)| crate::metered::Battery {
+                discharging,
+                percent: Some(percent),
+            }),
+        };
+        session.read_state_from(Box::new(self.clone()));
+    }
+}
+
+/// Settings whose Downloads page says `on_metered` and `battery_below`.
+fn waiting(on_metered: &str, battery_below: u32) -> dm_shell::Settings {
+    dm_shell::Settings {
+        downloads: dm_shell::settings::DownloadSettings {
+            on_metered: on_metered.into(),
+            battery_below,
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// On a metered connection with Options' "Wait", every download is held, its reason said on
+/// the row; once the connection is not metered they go on. Nothing is asked.
+#[test]
+fn a_metered_connection_holds_the_downloads_until_it_ends() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let backend = backend(&runtime, dir.path(), waiting("wait", 0));
+    let (mut session, fake) = (Session::default(), Fake::default());
+    fake.set(&mut session, Some(true), None);
+    let effects = session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), Some(dm_core::Hold::Metered));
+    assert!(!effects.contains(&Effect::AskMetered));
+    crate::rows::set_held_by(backend.held_by());
+    let mut held = (*row(1, State::Paused)).clone();
+    held.paused_by_schedule = true;
+    assert_eq!(
+        crate::rows::status_in_english(&held),
+        "Waiting: the connection is metered"
+    );
+    crate::rows::set_held_by(None);
+    fake.set(&mut session, Some(false), None);
+    session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), None);
+}
+
+/// "Ask": the window asks once while the connection stays metered, the downloads waiting
+/// meanwhile; Download anyway lets them go on; the next metered period is asked again. With no
+/// window nobody is asked, and they wait.
+#[test]
+fn ask_asks_once_a_metered_period_and_waits_with_no_window() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let headless = backend(&runtime, dir.path(), waiting("ask", 0));
+    let backend = backend(&runtime, dir.path(), waiting("ask", 0));
+    let (mut session, fake) = (Session::default(), Fake::default());
+    fake.set(&mut session, Some(true), None);
+    let asked = |effects: Vec<Effect>| effects.contains(&Effect::AskMetered);
+    assert!(asked(session.tick(&backend, &[], window())));
+    assert_eq!(backend.held_by(), Some(dm_core::Hold::Metered));
+    assert!(!asked(session.tick(&backend, &[], window())), "asked twice");
+    session.answer_metered(true);
+    session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), None, "Download anyway");
+    // Off the metered connection and back on it: asked again.
+    fake.set(&mut session, Some(false), None);
+    session.tick(&backend, &[], window());
+    fake.set(&mut session, Some(true), None);
+    assert!(asked(session.tick(&backend, &[], window())));
+    session.answer_metered(false);
+    session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), Some(dm_core::Hold::Metered), "Wait");
+
+    let mut alone = Session::default();
+    fake.set(&mut alone, Some(true), None);
+    assert!(!asked(alone.tick(&headless, &[], Driver::HEADLESS)));
+    assert_eq!(headless.held_by(), Some(dm_core::Hold::Metered));
+}
+
+/// On its battery below Options' level the downloads wait; charging, they go on. A state the
+/// system does not say holds nothing.
+#[test]
+fn a_low_battery_holds_and_an_unknown_state_goes_on() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let backend = backend(&runtime, dir.path(), waiting("wait", 30));
+    let (mut session, fake) = (Session::default(), Fake::default());
+    fake.set(&mut session, Some(false), Some((true, 12)));
+    session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), Some(dm_core::Hold::Battery));
+    fake.set(&mut session, Some(false), Some((false, 12)));
+    session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), None, "charging");
+    fake.set(&mut session, None, None);
+    session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), None, "unknown");
+}

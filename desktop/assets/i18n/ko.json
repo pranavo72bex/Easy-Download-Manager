@@ -929,5 +929,18 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "같은 이름의 폴더에 압축 풀림, 압축 파일은 휴지통으로 보냄",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "같은 이름의 폴더에 압축 풀림, 하지만 압축 파일을 휴지통으로 보내지 못함",
  "not unpacked: the archive has a password": "압축 풀지 않음: 압축 파일에 암호가 있음",
- "not unpacked: Extract here on its menu says why": "압축 풀지 않음: 메뉴의 '여기에 압축 풀기'에서 이유를 알려 줌"
+ "not unpacked: Extract here on its menu says why": "압축 풀지 않음: 메뉴의 '여기에 압축 풀기'에서 이유를 알려 줌",
+ "Waiting: {}": "대기 중: {}",
+ "the connection is metered": "데이터 통신 연결입니다",
+ "the battery is low": "배터리가 부족합니다",
+ "On a metered connection": "데이터 통신 연결일 때",
+ "Go on": "계속",
+ "Ask": "묻기",
+ "Wait": "대기",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.": "시스템이 연결을 데이터 통신 연결로 표시한 경우: 휴대폰 핫스팟, 사용량 제한 요금제. 대기 중인 다운로드는 그렇지 않게 되면 저절로 계속됩니다.",
+ "On battery: wait below (%, 0 for never)": "배터리 사용 시: 다음 미만이면 대기 (%, 0은 대기 안 함)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.": "컴퓨터가 이 수준 미만의 배터리로 실행되는 동안 다운로드는 대기하고, 충전되거나 다시 그 이상이 되면 계속됩니다.",
+ "The connection is metered": "데이터 통신 연결입니다",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.": "이 연결로 다운로드하면 요금이 들거나 데이터 요금제를 소진할 수 있습니다. 선택할 때까지 모든 다운로드가 대기합니다.",
+ "Download anyway": "그래도 다운로드"
 }

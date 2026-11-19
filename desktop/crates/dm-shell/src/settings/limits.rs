@@ -87,6 +87,8 @@ impl Settings {
         self.advanced.attempts = self.advanced.attempts.clamp(ATTEMPTS.0, ATTEMPTS.1);
         self.downloads.recheck_hours = self.downloads.recheck_hours.min(LIMIT_HOURS);
         self.downloads.forget_after_days = self.downloads.forget_after_days.min(FORGET_DAYS);
+        // A percent of the battery (gaps row W11).
+        self.downloads.battery_below = self.downloads.battery_below.min(100);
         self.advanced.read_timeout = self
             .advanced
             .read_timeout

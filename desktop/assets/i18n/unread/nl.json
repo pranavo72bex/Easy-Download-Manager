@@ -111,5 +111,18 @@
  "unpacked into a folder of its name, and the archive sent to the Trash",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash",
  "not unpacked: the archive has a password",
- "not unpacked: Extract here on its menu says why"
+ "not unpacked: Extract here on its menu says why",
+ "Waiting: {}",
+ "the connection is metered",
+ "the battery is low",
+ "On a metered connection",
+ "Go on",
+ "Ask",
+ "Wait",
+ "Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not.",
+ "On battery: wait below (%, 0 for never)",
+ "Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.",
+ "The connection is metered",
+ "Downloading over it may cost money or use up a data plan. Every download waits until you choose.",
+ "Download anyway"
 ]

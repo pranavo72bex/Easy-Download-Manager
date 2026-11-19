@@ -41,6 +41,9 @@ pub struct Session {
     /// When the finished downloads were last looked at for those to forget, and the days
     /// Options › Downloads said then ([`Session::forget_old`]).
     forgot: Option<(Instant, u32)>,
+    /// The connection and the battery as last read, and this metered period's question
+    /// ([`Session::answer_metered`], gaps row W11).
+    waits: waits::Waits,
 }
 
 /// How often the finished downloads are looked at for those older than Options › Downloads'
@@ -175,6 +178,11 @@ pub enum Effect {
     Reveal(String),
     /// dm ends now; the tick asks nothing after it.
     Quit,
+    /// The connection has become metered and Options › Downloads says to ask (gaps row W11):
+    /// every download waits until the person answers, go on or wait
+    /// ([`Session::answer_metered`]). Asked once each time it becomes metered; never with no
+    /// window, where the downloads wait.
+    AskMetered,
 }
 
 impl Effect {
@@ -247,6 +255,7 @@ impl Session {
         self.schedules(backend, rows, &mut effects);
         self.this_done(rows, &mut effects);
         self.forget_old(backend);
+        self.waits(backend, driver, &mut effects);
         if self.queue_dry(backend, driver, &mut effects) {
             effects.push(Effect::Quit);
         }
@@ -406,6 +415,8 @@ fn chosen_sound(settings: &dm_shell::Settings, event: &str) -> Option<String> {
         .map(|p| p.trim().to_string())
         .filter(|p| !p.is_empty())
 }
+
+mod waits;
 
 #[cfg(test)]
 mod tests;
