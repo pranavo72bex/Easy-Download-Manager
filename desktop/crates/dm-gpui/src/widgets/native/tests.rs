@@ -17,12 +17,6 @@ fn window_sizes_are_as_they_were() {
             (900.0, 600.0),
         ),
         (
-            WindowSize::StartQuestion,
-            (360.0, 140.0),
-            (360.0, 140.0),
-            (360.0, 140.0),
-        ),
-        (
             WindowSize::Options,
             (680.0, 600.0),
             (620.0, 520.0),

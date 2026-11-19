@@ -17,7 +17,7 @@
 # It does not run them: that is for a Windows computer.
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
-src="$root/desktop/crates/dm-desktop-base/src"
+src="$root/desktop/crates/dm-desktop-base/src/platform"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/src"
