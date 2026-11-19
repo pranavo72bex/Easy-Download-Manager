@@ -27,6 +27,10 @@ use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+mod sections;
+
+use sections::Row;
+
 /// A link's row, in points.
 const ROW: f32 = 24.0;
 /// The rows shown before the list scrolls.
@@ -223,7 +227,7 @@ impl Render for Links {
         };
         let found = dm_core::lock(&self.d.found).clone();
         // Each listed row's words, worked out once for this frame.
-        let rows: Vec<(usize, String, bool, String, String, String, String)> = listed
+        let rows: Vec<Row> = listed
             .iter()
             .map(|&i| {
                 let (url, on) = &self.d.items[i];
@@ -262,18 +266,70 @@ impl Render for Links {
         let check = |id: &'static str, words: &'static str, on: bool| {
             native::checkbox(id, t(words).into(), on, theme, &screen)
         };
-        let column = |words: &'static str, width: Option<f32>| {
-            let d = div()
-                .px(px(space::XS))
-                .whitespace_nowrap()
-                .overflow_hidden()
-                .text_ellipsis();
-            match width {
-                Some(w) => d.w(px(w)).flex_none(),
-                None => d.flex_1().min_w_0(),
-            }
-            .child(screen.label(t(words)))
-        };
+        let body = native::body(theme)
+            .child(screen.label(tf(
+                "{} links on {}",
+                &[&count, &format::shown_url(&self.d.page)],
+            )))
+            .when(pages > 0, |d| {
+                d.child(native::note(
+                    dm_desktop_base::i18n::tn(
+                        "{} web page hidden||{} web pages hidden",
+                        pages as u64,
+                        &[&pages],
+                    ),
+                    theme.muted,
+                    &screen,
+                ))
+            });
+        let body = self
+            .filters(theme, &screen, &check, body, cx)
+            // The links: a heading row, then only the rows in view.
+            .child(self.link_list(theme, &screen, rows, count, cx))
+            // The row being edited: its name and its address.
+            .when_some(self.editing.clone(), |d, (_, name, address)| {
+                d.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(native::LABEL_GAP))
+                        .child(screen.label(t("File name")))
+                        .child(
+                            div()
+                                .w(px(180.0))
+                                .child(native::field(&name, "File name", theme)),
+                        )
+                        .child(screen.label(t("Address")))
+                        .child(
+                            div()
+                                .flex_1()
+                                .child(native::field(&address, "Address", theme)),
+                        )
+                        .child(
+                            native::button("done", t("Done").into(), false, theme, &screen)
+                                .on_click(cx.listener(|this, _, _, cx| this.finish_editing(cx))),
+                        ),
+                )
+            })
+            .child(
+                check(
+                    "use-texts",
+                    "Use link texts as descriptions",
+                    self.d.use_texts,
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.d.use_texts = !this.d.use_texts;
+                    cx.notify();
+                })),
+            )
+            // Where the ticked links go, as reference A offers it.
+            .child(save_to)
+            .when_some(self.says.clone(), |d, says| {
+                d.child(native::note(says, theme.warning, &screen))
+            })
+            // As on a Mac: Add for later, to a queue, at the leading
+            // side; Cancel, then Start now (the default) at the end.
+            .child(self.buttons(theme, &screen, queues, queue_at, cx));
         crate::widgets::native::dialog("links", t("Download links"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
@@ -282,249 +338,7 @@ impl Render for Links {
                     this.add(false, window, cx);
                 }
             }))
-            .child(crate::widgets::fit::fitted(
-                native::body(theme)
-                    .child(screen.label(tf(
-                        "{} links on {}",
-                        &[&count, &format::shown_url(&self.d.page)],
-                    )))
-                    .when(pages > 0, |d| {
-                        d.child(native::note(
-                            dm_desktop_base::i18n::tn(
-                                "{} web page hidden||{} web pages hidden",
-                                pages as u64,
-                                &[&pages],
-                            ),
-                            theme.muted,
-                            &screen,
-                        ))
-                    })
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(native::LABEL_GAP))
-                            .child(screen.label(t("Only these types")))
-                            .child(
-                                div()
-                                    .w(px(200.0))
-                                    .child(native::field(&self.types, "Only these types", theme)),
-                            )
-                            .child(div().flex_1())
-                            .child(
-                                native::button("check-all", t("Check all").into(), false, theme, &screen)
-                                    .on_click(cx.listener(|this, _, _, cx| this.check_all(true, cx))),
-                            )
-                            .child(
-                                native::button(
-                                    "uncheck-all",
-                                    t("Uncheck all").into(),
-                                    false,
-                                    theme,
-                                    &screen,
-                                )
-                                .on_click(cx.listener(|this, _, _, cx| this.check_all(false, cx))),
-                            ),
-                    )
-                    // What is left out, as reference A offers it.
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(native::BUTTON_GAP))
-                            .child(check("hide-html", "Hide HTML files", self.d.hide_html).on_click(
-                                cx.listener(|this, _, _, cx| {
-                                    this.d.hide_html = !this.d.hide_html;
-                                    cx.notify();
-                                }),
-                            ))
-                            .child(check("hide-images", "Hide images", self.d.hide_images).on_click(
-                                cx.listener(|this, _, _, cx| {
-                                    this.d.hide_images = !this.d.hide_images;
-                                    cx.notify();
-                                }),
-                            ))
-                            .child(
-                                check("hide-repeats", "Hide repeated files", self.d.hide_repeats)
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.d.hide_repeats = !this.d.hide_repeats;
-                                        cx.notify();
-                                    })),
-                            ),
-                    )
-                    // The links: a heading row, then only the rows in view.
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .rounded(px(native::RADIUS))
-                            .border_1()
-                            .border_color(theme.separator)
-                            .bg(theme.background)
-                            .child(
-                                div()
-                                    .flex()
-                                    .h(px(ROW))
-                                    .items_center()
-                                    .px(px(space::XS))
-                                    .border_b_1()
-                                    .border_color(theme.separator)
-                                    .text_size(px(native::SMALL_TEXT))
-                                    .text_color(theme.muted)
-                                    .child(column("File name", None))
-                                    .child(column("Type", Some(80.0)))
-                                    .child(column("Size", Some(72.0)))
-                                    .child(column("Save to", Some(96.0)))
-                                    .child(column("Link text", Some(110.0)))
-                                    .child(div().w(px(52.0)).flex_none()),
-                            )
-                            .child(
-                                div().h(px(ROW * SHOWN.min(count.max(1)) as f32)).child(
-                                    uniform_list(
-                                        "link-rows",
-                                        count,
-                                        cx.processor(
-                                            move |this, range: std::ops::Range<usize>, _, cx| {
-                                                let screen = this.screen.clone();
-                                                range
-                                                    .filter_map(|k| {
-                                                        let (i, name, on, kind, size, last, words) =
-                                                            rows.get(k)?.clone();
-                                                        let cell = |text: String, w: f32| {
-                                                            div()
-                                                                .w(px(w))
-                                                                .flex_none()
-                                                                .px(px(space::XS))
-                                                                .whitespace_nowrap()
-                                                                .overflow_hidden()
-                                                                .text_ellipsis()
-                                                                .text_color(theme.muted)
-                                                                .child(screen.label(text))
-                                                        };
-                                                        Some(
-                                                            div()
-                                                                .w_full()
-                                                                .h(px(ROW))
-                                                                .flex()
-                                                                .items_center()
-                                                                .px(px(space::XS))
-                                                                .when(k % 2 == 1, |d| {
-                                                                    d.bg(theme.stripe)
-                                                                })
-                                                                .child(
-                                                                    div()
-                                                                        .flex_1()
-                                                                        .min_w_0()
-                                                                        .overflow_hidden()
-                                                                        .child(
-                                                                            native::checkbox(
-                                                                                ("link", i),
-                                                                                name.into(),
-                                                                                on,
-                                                                                theme,
-                                                                                &screen,
-                                                                            )
-                                                                            .on_click(cx.listener(
-                                                                                move |this, _, _, cx| {
-                                                                                    if let Some(l) =
-                                                                                        this.d
-                                                                                            .items
-                                                                                            .get_mut(i)
-                                                                                    {
-                                                                                        l.1 = !l.1;
-                                                                                        cx.notify();
-                                                                                    }
-                                                                                },
-                                                                            )),
-                                                                        ),
-                                                                )
-                                                                .child(cell(kind, 80.0))
-                                                                .child(cell(size, 72.0))
-                                                                .child(cell(last, 96.0))
-                                                                .child(cell(words, 110.0))
-                                                                .child(
-                                                                    div()
-                                                                        .id(("edit", i))
-                                                                        .w(px(52.0))
-                                                                        .flex_none()
-                                                                        .text_color(theme.accent)
-                                                                        .child(screen.label(t("Edit")))
-                                                                        .on_click(cx.listener(
-                                                                            move |this, _, window, cx| {
-                                                                                this.edit(i, window, cx)
-                                                                            },
-                                                                        )),
-                                                                ),
-                                                        )
-                                                    })
-                                                    .collect::<Vec<_>>()
-                                            },
-                                        ),
-                                    )
-                                    .track_scroll(&self.scroll)
-                                    .size_full(),
-                                ),
-                            ),
-                    )
-                    // The row being edited: its name and its address.
-                    .when_some(self.editing.clone(), |d, (_, name, address)| {
-                        d.child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(native::LABEL_GAP))
-                                .child(screen.label(t("File name")))
-                                .child(div().w(px(180.0)).child(native::field(&name, "File name", theme)))
-                                .child(screen.label(t("Address")))
-                                .child(div().flex_1().child(native::field(&address, "Address", theme)))
-                                .child(
-                                    native::button("done", t("Done").into(), false, theme, &screen)
-                                        .on_click(cx.listener(|this, _, _, cx| this.finish_editing(cx))),
-                                ),
-                        )
-                    })
-                    .child(
-                        check("use-texts", "Use link texts as descriptions", self.d.use_texts)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.d.use_texts = !this.d.use_texts;
-                                cx.notify();
-                            })),
-                    )
-                    // Where the ticked links go, as reference A offers it.
-                    .child(save_to)
-                    .when_some(self.says.clone(), |d, says| {
-                        d.child(native::note(says, theme.warning, &screen))
-                    })
-                    // As on a Mac: Add for later, to a queue, at the leading
-                    // side; Cancel, then Start now (the default) at the end.
-                    .child(native::buttons(
-                        vec![
-                            native::button("later", t("Add for later").into(), false, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
-                                .into_any_element(),
-                            screen
-                                .label(t("queue:to").trim_start_matches("queue:").to_string())
-                                .into_any_element(),
-                            popup::button(
-                                "links-queue",
-                                dm_desktop_base::i18n::name(&self.d.queue).into(),
-                                queues,
-                                queue_at,
-                                theme,
-                                &screen,
-                            )
-                            .into_any_element(),
-                        ],
-                        vec![
-                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, cx| this.cancel(window, cx)))
-                                .into_any_element(),
-                            native::button("start", t("Start now").into(), true, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, cx| this.add(false, window, cx)))
-                                .into_any_element(),
-                        ],
-                    )),
-            ))
+            .child(crate::widgets::fit::fitted(body))
     }
 }
 

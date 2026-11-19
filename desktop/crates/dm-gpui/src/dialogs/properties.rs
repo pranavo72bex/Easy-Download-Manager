@@ -33,6 +33,10 @@ use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+mod sections;
+
+use sections::{placed, Look};
+
 /// How often a digest or a ZIP's reading still under way is looked at.
 const POLL: Duration = Duration::from_millis(200);
 
@@ -318,34 +322,7 @@ impl Render for Properties {
         let size = dm_desktop_base::rows::shown_size(&row)
             .map(format::bytes)
             .unwrap_or_default();
-        // As the tree places it: a person's own category, the kind, or
-        // Other for a kind not yet known.
-        let mut categories = settings.categories();
-        let kind = match (
-            dm_shell::app::places::custom_of(&row, &categories),
-            dm_shell::app::names::kind_of(&row),
-        ) {
-            (Some(own), _) => own,
-            (None, kind) => dm_desktop_base::i18n::name(&format::titled(
-                &dm_shell::app::names::category_word(kind.unwrap_or(dm_core::Category::Other)),
-            )),
-        };
-        let saved_to = if row.path.is_empty() {
-            row.save_dir
-                .clone()
-                .filter(|d| !d.trim().is_empty())
-                .or_else(|| {
-                    dm_shell::app::names::planned_folder(
-                        &row,
-                        &settings.download_dir,
-                        &mut categories,
-                    )
-                })
-                .map(|f| std::path::Path::new(&f).join(&named).display().to_string())
-                .unwrap_or_default()
-        } else {
-            row.path.clone()
-        };
+        let (kind, saved_to) = placed(&row, &settings, &named);
         let failed = matches!(row.state, State::Failed(_));
         let finished = row.state == State::Completed && !dm_desktop_base::rows::gone(&row);
         // Also while it waits to try again: a wrong address is what it most
@@ -358,223 +335,15 @@ impl Render for Properties {
         };
         let raw_failure = dm_desktop_base::rows::failure_as_said(&row).map(str::to_string);
 
-        let labels = [
-            t("File name"),
-            t("Status"),
-            t("Size"),
-            t("Category"),
-            t("Will be saved to"),
-            t("Saved to"),
-            t("Referrer"),
-            t("Address"),
-            t("Login"),
-            t("Password"),
-            t("Note"),
-            t("Delete file after"),
-            t("Files"),
-            "SHA-256",
-            t("Check against"),
-            t("Contents"),
-        ];
-        let width = native::label_width(&labels);
-
-        // A torrent's files, each with a tick (and, beside others, when
-        // it is fetched): ticks only while it is stopped.
-        if self.files.len() != row.torrent_files.len() {
-            self.files = row.torrent_files.iter().map(|f| f.wanted).collect();
-        }
-        if self.priorities.len() != row.torrent_files.len() {
-            self.priorities = row.torrent_files.iter().map(|f| f.priority).collect();
-        }
-        let torrent = (!row.torrent_files.is_empty()).then(|| {
-            let can = !matches!(row.state, State::Running | State::Queued | State::Completed);
-            let several = row.torrent_files.len() > 1;
-            let files = row.torrent_files.iter().enumerate().map(|(i, file)| {
-                let on = self.files.get(i).copied().unwrap_or(file.wanted);
-                let priority = self.priorities.get(i).copied().unwrap_or(file.priority);
-                let words: SharedString =
-                    format!("{} ({})", file.name, format::bytes(file.size)).into();
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(native::LABEL_GAP))
-                    .child(
-                        native::checkbox(("torrent-file", i), words, on, theme, &screen).on_click(
-                            cx.listener(move |this, _, _, cx| {
-                                if let Some(w) = this.files.get_mut(i) {
-                                    *w = !*w;
-                                }
-                                cx.notify();
-                            }),
-                        ),
-                    )
-                    .when(several, |d| {
-                        let choices = PRIORITIES
-                            .iter()
-                            .map(|p| SharedString::from(row_edits::priority_words(*p)))
-                            .collect();
-                        let at = PRIORITIES.iter().position(|p| *p == priority);
-                        d.child(native::enabled(
-                            on,
-                            popup::button_of(
-                                "priority",
-                                i,
-                                row_edits::priority_words(priority).into(),
-                                choices,
-                                at,
-                                theme,
-                                &screen,
-                            ),
-                        ))
-                    })
-            });
-            line(
-                t("Files"),
-                width,
-                &screen,
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(space::XS))
-                    .child(native::enabled(
-                        can,
-                        div()
-                            .id("torrent-files")
-                            .max_h(px(160.0))
-                            .overflow_y_scroll()
-                            .flex()
-                            .flex_col()
-                            .gap(px(space::XS))
-                            .children(files),
-                    ))
-                    .when(matches!(row.state, State::Running | State::Queued), |d| {
-                        d.child(native::note(
-                            t("Stop the download to change which files are fetched."),
-                            theme.muted,
-                            &screen,
-                        ))
-                    }),
-            )
-        });
+        let look = Look::new(theme, screen.clone());
+        let width = look.width;
+        let torrent = self.torrent(&look, &row, cx);
 
         // A finished file's digest, worked out beside the window, and a
         // box to check it against one the person was given.
         let mut waiting = false;
-        let digest = finished.then(|| {
-            use dm_core::{Algorithm, Checksum};
-            dm_shell::app::files::hash_later(&backend, &self.sums, &row.path, Algorithm::Sha256);
-            let sha = match dm_shell::app::files::sum_of(&self.sums, Algorithm::Sha256) {
-                None => {
-                    waiting = true;
-                    native::note(t("Working it out…"), theme.muted, &screen).into_any_element()
-                }
-                // Text to select and copy, as the system's labels can be,
-                // in a fixed-width face, which a digest reads best in.
-                Some(Ok(hex)) => div()
-                    // Held to the values' column, so it wraps rather than
-                    // running past the window's edge.
-                    .w_full()
-                    .min_w_0()
-                    .font_family(crate::widgets::native::mono(cx))
-                    .text_size(px(native::SMALL_TEXT))
-                    // Recorded as drawn, as a label is: read and found by
-                    // its words like the rest of the window's.
-                    .child(screen.mark(hex.clone(), gpui_base::SelectableText::new("sha-256", hex)))
-                    .into_any_element(),
-                Some(Err(why)) => native::note(why, theme.warning, &screen).into_any_element(),
-            };
-            let checked = Checksum::parse(&self.check.read(cx).value()).map(|given| {
-                dm_shell::app::files::hash_later(&backend, &self.sums, &row.path, given.algorithm);
-                match dm_shell::app::files::sum_of(&self.sums, given.algorithm) {
-                    None => {
-                        waiting = true;
-                        native::note(t("Working it out…"), theme.muted, &screen)
-                    }
-                    Some(Ok(found)) if found.eq_ignore_ascii_case(&given.expected) => div()
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .child(screen.label(t("It matches."))),
-                    Some(Ok(_)) => native::note(t("It does not match."), theme.warning, &screen),
-                    Some(Err(why)) => native::note(why, theme.warning, &screen),
-                }
-            });
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(native::ROW_GAP))
-                .child(native::row(Some("SHA-256"), width, &screen, sha))
-                .child(native::row(
-                    Some(t("Check against")),
-                    width,
-                    &screen,
-                    native::field(&self.check, "Check against", theme),
-                ))
-                .when_some(checked, |d, checked| {
-                    d.child(native::row(None, width, &screen, checked))
-                })
-        });
-
-        // A finished ZIP's files, by name and size, read from the file
-        // beside the window: text only, never opened.
-        if finished && self.zip.is_none() && zip_list::is_zip_address(&row.path) {
-            self.zip = Some(dm_shell::app::files::list_zip_file(
-                &backend,
-                std::path::PathBuf::from(&row.path),
-                || {},
-            ));
-        }
-        let contents = match zip_list::listing(&self.zip) {
-            Listing::Nothing => None,
-            Listing::Reading => {
-                waiting = true;
-                Some(line(
-                    t("Contents"),
-                    width,
-                    &screen,
-                    native::note(zip_list::reading_words(), theme.muted, &screen),
-                ))
-            }
-            Listing::Files(files, more) => Some(line(
-                t("Contents"),
-                width,
-                &screen,
-                div()
-                    .id("zip-contents")
-                    .max_h(px(140.0))
-                    .overflow_y_scroll()
-                    .rounded(px(native::RADIUS))
-                    .border_1()
-                    .border_color(theme.separator)
-                    .bg(theme.background)
-                    .p(px(space::XS))
-                    .children(files.into_iter().map(|file| {
-                        let size = (!file.is_folder()).then(|| format::bytes(file.size));
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(space::M))
-                            .h(px(20.0))
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .overflow_hidden()
-                                    .whitespace_nowrap()
-                                    .text_ellipsis()
-                                    .child(screen.label(file.name.clone())),
-                            )
-                            .when_some(size, |d, size| {
-                                d.child(div().text_color(theme.muted).child(screen.label(size)))
-                            })
-                    }))
-                    .when(more > 0, |d| {
-                        d.child(native::note(
-                            tf("and {} more", &[&more.to_string()]),
-                            theme.muted,
-                            &screen,
-                        ))
-                    }),
-            )),
-        };
+        let digest = finished.then(|| self.digest(&look, &row, &backend, &mut waiting, cx));
+        let contents = self.contents(&look, &row, finished, &backend, &mut waiting);
         if waiting {
             self.poll(cx);
         }
@@ -589,155 +358,59 @@ impl Render for Properties {
                     gpui_component::tooltip::Tooltip::new(raw.clone()).build(window, cx)
                 })
             });
-        let path = row.path.clone();
-        let row_for_details = row.clone();
+        let body = native::body(theme)
+            .child(line(
+                t("File name"),
+                width,
+                &screen,
+                said(&named, theme, &screen),
+            ))
+            .child(line(t("Status"), width, &screen, status_value))
+            .when_some(next_step, |d, step| {
+                d.child(line("", width, &screen, said(step, theme, &screen)))
+            })
+            .child(line(t("Size"), width, &screen, said(&size, theme, &screen)))
+            .child(line(
+                t("Category"),
+                width,
+                &screen,
+                said(&kind, theme, &screen),
+            ))
+            // Not yet, for one not yet placed.
+            .child(line(
+                if row.path.is_empty() {
+                    t("Will be saved to")
+                } else {
+                    t("Saved to")
+                },
+                width,
+                &screen,
+                said(&saved_to, theme, &screen),
+            ))
+            .child(line(
+                t("Referrer"),
+                width,
+                &screen,
+                said(&row.referrer, theme, &screen),
+            ));
+        let body = self
+            .fields(&look, editable, body)
+            .when(has_file, |d| d.child(self.delete_after_line(&look, &row)))
+            .children(torrent)
+            .children(digest)
+            .children(contents)
+            .when_some(self.says.clone(), |d, says| {
+                d.child(native::row(
+                    None,
+                    width,
+                    &screen,
+                    native::note(says, theme.warning, &screen),
+                ))
+            })
+            .child(Self::buttons(&look, finished, failed, &row, cx));
         crate::widgets::native::dialog("properties", t("File properties"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
-            .child(crate::widgets::fit::fitted(
-                native::body(theme)
-                    .child(line(
-                        t("File name"),
-                        width,
-                        &screen,
-                        said(&named, theme, &screen),
-                    ))
-                    .child(line(t("Status"), width, &screen, status_value))
-                    .when_some(next_step, |d, step| {
-                        d.child(line("", width, &screen, said(step, theme, &screen)))
-                    })
-                    .child(line(t("Size"), width, &screen, said(&size, theme, &screen)))
-                    .child(line(
-                        t("Category"),
-                        width,
-                        &screen,
-                        said(&kind, theme, &screen),
-                    ))
-                    // Not yet, for one not yet placed.
-                    .child(line(
-                        if row.path.is_empty() {
-                            t("Will be saved to")
-                        } else {
-                            t("Saved to")
-                        },
-                        width,
-                        &screen,
-                        said(&saved_to, theme, &screen),
-                    ))
-                    .child(line(
-                        t("Referrer"),
-                        width,
-                        &screen,
-                        said(&row.referrer, theme, &screen),
-                    ))
-                    .child(field_line(
-                        "Address",
-                        width,
-                        &screen,
-                        &self.address,
-                        editable,
-                        theme,
-                    ))
-                    .child(field_line(
-                        "Login",
-                        width,
-                        &screen,
-                        &self.login,
-                        editable,
-                        theme,
-                    ))
-                    .child(field_line(
-                        "Password",
-                        width,
-                        &screen,
-                        &self.password,
-                        editable,
-                        theme,
-                    ))
-                    .child(field_line(
-                        "User-Agent",
-                        width,
-                        &screen,
-                        &self.agent,
-                        editable,
-                        theme,
-                    ))
-                    .child(field_line(
-                        "Request headers",
-                        width,
-                        &screen,
-                        &self.headers,
-                        editable,
-                        theme,
-                    ))
-                    .child(field_line("Note", width, &screen, &self.note, true, theme))
-                    .when(has_file, |d| {
-                        let times = dm_desktop_base::file_info::delete_after_times();
-                        let now = self.delete_after.unwrap_or(row.delete_after);
-                        let at = times.iter().position(|(_, s)| *s == now);
-                        let words = at
-                            .and_then(|i| times.get(i))
-                            .map_or(t("Never"), |(w, _)| *w);
-                        d.child(line(
-                            t("Delete file after"),
-                            width,
-                            &screen,
-                            popup::button(
-                                "delete-after",
-                                words.into(),
-                                times.iter().map(|(w, _)| SharedString::from(*w)).collect(),
-                                at,
-                                theme,
-                                &screen,
-                            ),
-                        ))
-                    })
-                    .children(torrent)
-                    .children(digest)
-                    .children(contents)
-                    .when_some(self.says.clone(), |d, says| {
-                        d.child(native::row(
-                            None,
-                            width,
-                            &screen,
-                            native::note(says, theme.warning, &screen),
-                        ))
-                    })
-                    // Open and Copy details at the leading side; Cancel, and
-                    // OK rightmost, as on a Mac.
-                    .child(native::buttons(
-                        vec![native::enabled(
-                            finished,
-                            native::button("open", t("Open").into(), false, theme, &screen)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.open_file(path.clone(), cx)
-                                })),
-                        )
-                        .into_any_element()]
-                        .into_iter()
-                        .chain(failed.then(|| {
-                            native::button(
-                                "copy-details",
-                                t("Copy details").into(),
-                                false,
-                                theme,
-                                &screen,
-                            )
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.copy_details(&row_for_details, cx)
-                            }))
-                            .into_any_element()
-                        }))
-                        .collect(),
-                        vec![
-                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
-                                .into_any_element(),
-                            native::button("ok", t("OK").into(), true, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
-                                .into_any_element(),
-                        ],
-                    )),
-            ))
+            .child(crate::widgets::fit::fitted(body))
             .into_any_element()
     }
 }
