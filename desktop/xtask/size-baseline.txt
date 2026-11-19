@@ -5,10 +5,10 @@
 # `cargo xtask size-baseline` does both from the files as they are now.
 browser/src/content/handoff.rs 877
 browser/src/decide/streams.rs 1410
-desktop/crates/dm-core/src/dash.rs 1005
+desktop/crates/dm-core/src/dash.rs 957
 desktop/crates/dm-core/src/download.rs 996
 desktop/crates/dm-core/src/download/assemble.rs 891
-desktop/crates/dm-core/src/download/dash.rs 2132
+desktop/crates/dm-core/src/download/dash.rs 2114
 desktop/crates/dm-core/src/download/hls.rs 1589
 desktop/crates/dm-core/src/download/ranged.rs 921
 desktop/crates/dm-core/src/download/ranged/attempt.rs 1140
@@ -36,7 +36,7 @@ desktop/crates/dm-js/src/builtins/object.rs 983
 desktop/crates/dm-js/src/interp.rs 1676
 desktop/crates/dm-js/src/parser.rs 1701
 desktop/crates/dm-js/src/regexp.rs 1033
-desktop/crates/dm-media/src/mkvmux.rs 1403
+desktop/crates/dm-media/src/mkvmux.rs 1370
 desktop/crates/dm-media/src/mp3.rs 931
 desktop/crates/dm-media/src/mp3/tables.rs 2021
 desktop/crates/dm-protocol/src/lib.rs 1385

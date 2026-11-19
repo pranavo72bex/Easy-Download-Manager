@@ -5,7 +5,7 @@
 # entry is only ever lowered or removed: `cargo xtask size-baseline` does both.
 browser/src/content/build.rs build 151
 desktop/crates/dm-core/src/dash.rs pieces_of 216
-desktop/crates/dm-core/src/download/dash.rs join_tracks 189
+desktop/crates/dm-core/src/download/dash.rs join_tracks 188
 desktop/crates/dm-core/src/download/dash_live.rs record 251
 desktop/crates/dm-core/src/download/hls.rs download_stream 229
 desktop/crates/dm-core/src/download/hls.rs record_live 164
