@@ -3,7 +3,8 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Options' Downloads page.
+//! Options' Downloads page, its sections in the page's order, each adding
+//! its rows under the one before.
 
 use super::*;
 
@@ -13,6 +14,17 @@ pub(super) fn downloads(
     window: &mut Window,
     cx: &mut Context<Options>,
 ) {
+    connections(o, p, window, cx);
+    files_and_quality(o, p, window, cx);
+    let s = o.draft.clone();
+    switches(p, cx, &s);
+    queue_limits(o, p, window, cx, &s);
+    queue_starts(o, p, cx, &s);
+    watching_and_after(o, p, window, cx);
+}
+
+/// Connections per file, and its presets.
+fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
     let (theme, screen) = (p.theme, p.screen.clone());
     let connections = input(
         o,
@@ -65,6 +77,16 @@ pub(super) fn downloads(
             .child(native::note(t("Presets:"), theme.muted, &screen))
             .children(presets),
     );
+}
+
+/// Files at once, and the videos' quality.
+fn files_and_quality(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     let files = input(
         o,
         window,
@@ -100,7 +122,10 @@ pub(super) fn downloads(
             &screen,
         ),
     );
-    let s = o.draft.clone();
+}
+
+/// The switches: the Main queue at launch, subtitles and streams as MP4.
+fn switches(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     check(
         p,
         cx,
@@ -137,10 +162,21 @@ pub(super) fn downloads(
     p.hint(t(
         "Streamed videos are saved as MP4 files, which more players open.",
     ));
+}
+
+/// Queues with their own limit, and the button adding one.
+fn queue_limits(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+    s: &Settings,
+) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     // Queues with their own limit, one limit a queue.
     p.words(t("Queues with their own limit:"));
     for i in 0..s.queue_limits.len() {
-        let offered = limit_queues(&o.queues, &s, i);
+        let offered = limit_queues(&o.queues, s, i);
         let queue = s.queue_limits[i].queue.clone();
         let at = offered.iter().position(|q| *q == queue);
         let pick = popup::button_of(
@@ -209,6 +245,11 @@ pub(super) fn downloads(
             .any(|q| !s.queue_limits.iter().any(|l| &l.queue == q)),
         div().flex().child(add_limit),
     ));
+}
+
+/// Queues that start at a set time, and the button adding one.
+fn queue_starts(o: &mut Options, p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     // Queues that start on their own, each at its own time.
     p.words(t("Queues that start at a set time:"));
     for i in 0..s.queue_starts.len() {
@@ -270,6 +311,16 @@ pub(super) fn downloads(
             cx.notify();
         }));
     p.add(div().flex().child(add_start));
+}
+
+/// The folder watched, recording, rechecking and the command run after a
+/// download.
+fn watching_and_after(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+) {
     folder(
         o,
         p,
