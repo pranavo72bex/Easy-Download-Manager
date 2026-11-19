@@ -780,6 +780,11 @@ pub(super) async fn remux_ts(
     if options.control.check().is_err() {
         return keep_ts().await;
     }
+    // No room for the MP4 beside the stream: the stream is kept, whole, as it would be where dm
+    // cannot remux it (gaps row Y21), rather than the remux failing part-way on a full disk.
+    if room_to_join(std::slice::from_ref(&joined), &options.parts_dir, options).is_err() {
+        return keep_ts().await;
+    }
     /* Not raced against a pause: it runs at the disk's speed, and a blocking task cut loose would go on writing the file a
      * resume makes afresh. */
     let ours = crate::tsmux::to_mp4_async(joined.clone(), mp4.clone()).await;

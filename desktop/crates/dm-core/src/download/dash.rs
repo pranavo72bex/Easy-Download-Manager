@@ -658,6 +658,7 @@ async fn join_tracks(
         }
         let files = fetched?;
         options.control.check()?;
+        room_to_join(&files, &options.parts_dir, options)?;
 
         // Matroska where it was asked for, or where the picture and sound
         // are a pair no MP4 holds (VP8 or Vorbis beside an MP4's samples),
@@ -1223,6 +1224,33 @@ pub(super) mod tests {
                 assert_eq!((traks, text), (tracks, false), "Options says none");
             }
         }
+    }
+
+    #[tokio::test]
+    async fn a_join_the_disk_cannot_hold_is_refused_before_it_starts_and_its_tracks_kept() {
+        let (url, dir, tracks) = serve(true).await;
+        let client = crate::reqwest_defaults();
+        let full = Options {
+            room: crate::Room::with_free_space(|_| Some(100)),
+            ..options(dir.path())
+        };
+        let err = crate::download::download(&client, &url, &full)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.starts_with("not enough room: the file needs "), "{err}");
+        assert!(!full.dest_dir.join("show.mp4").exists());
+        let kept = std::fs::read_dir(&full.parts_dir)
+            .unwrap()
+            .filter(|e| e.as_ref().is_ok_and(|e| e.path().is_file()))
+            .count();
+        assert!(kept >= tracks, "the fetched tracks are kept: {kept}");
+        // Room made: the tracks kept are joined.
+        let done = crate::download::download(&client, &url, &options(dir.path()))
+            .await
+            .unwrap();
+        let data = std::fs::read(&done.path).unwrap();
+        assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), tracks);
     }
 
     #[tokio::test]

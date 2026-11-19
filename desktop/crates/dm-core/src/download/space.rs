@@ -206,6 +206,41 @@ pub(super) fn room_for(
     })
 }
 
+/// Refuses a join the disk cannot hold (gaps row Y21): the file joined from `inputs` (a
+/// picture and its sound, the segments of a stream) is about their size, and is written in
+/// `into` while they are all still there. Said before the join starts, in the words of the
+/// check made before a byte is fetched, so the row offers the same way on; the inputs are kept
+/// and joined once there is room. Where the free space cannot be read, nothing is refused.
+pub(crate) fn room_to_join(
+    inputs: &[PathBuf],
+    into: &Path,
+    options: &Options,
+) -> Result<(), Error> {
+    let need: u64 = inputs
+        .iter()
+        .filter_map(|input| std::fs::metadata(input).ok())
+        .map(|m| m.len())
+        .sum();
+    let Some(free) = options.room.free_space(into) else {
+        return Ok(());
+    };
+    if need <= free {
+        return Ok(());
+    }
+    // The folder the person chose, as `room_for` names it.
+    let named = if same_disk(into, &options.dest_dir) {
+        options.dest_dir.as_path()
+    } else {
+        options.parts_dir.parent().unwrap_or(into)
+    };
+    Err(Error::Internal(format!(
+        "not enough room: the file needs {}, and {} has {} free",
+        amount(need),
+        named.display(),
+        amount(free)
+    )))
+}
+
 /// Bytes as a person reads them.
 pub(super) fn amount(bytes: u64) -> String {
     const UNITS: [&str; 6] = ["bytes", "KB", "MB", "GB", "TB", "PB"];

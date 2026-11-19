@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Videos: a picture and sound the disk has no room to join are refused before the join starts, with "not enough room" and the way on, instead of failing part-way; what was fetched is kept and joined once there is room. An HLS stream with no room for its MP4 is saved as the whole `.ts`.
 - Videos: with Options › Downloads › Embed subtitles on, a DASH stream's subtitles listed as WebVTT files are put inside the saved MP4 or MKV, one track a language.
 - Videos: a dubbed video's sound can be taken in another language than its own. `sound_language` in `settings.json` (a language tag such as `es` or `pt-BR`; empty, the default, keeps each video's own sound) picks the YouTube track, HLS rendition or DASH set speaking it, a plain one before one describing the picture; a video with no track in that language keeps its own. Options has no line for it yet.
 - Windows: the browsers' host keys, magnet and `.torrent` registration, Default apps and the firewall check are written and read through the registry's own API instead of starting `reg.exe` for each (Options › Browser's four questions and each launch's check no longer start a program); the kept copy of another program's key is still a `.reg` file made by `reg.exe`.

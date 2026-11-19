@@ -127,6 +127,9 @@ async fn finish_dm_tagged(
             } else {
                 "mp4"
             });
+            // Said before the join where the disk cannot hold it; the parts are kept (gaps row Y21).
+            let into = joined.parent().unwrap_or(options.parts_dir.as_path());
+            crate::download::room_to_join(&parts, into, options)?;
             let joining = if webm || mkv {
                 crate::mkvmux::join_tagged_async(parts.clone(), texts, joined.clone(), tags).await
             } else {

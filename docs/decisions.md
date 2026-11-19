@@ -7971,3 +7971,21 @@ that already says so (Options › Downloads › Embed subtitles).
   picture's transport-stream clock (`X-TIMESTAMP-MAP`), and a single transport stream is
   remuxed by `tsmux`, which takes no text: both are to be worked through with a stream to test
   against, not guessed at.
+
+## Room checked before a join, in the words of the check before fetching (2026-11-19, gaps row Y21)
+
+A join of a picture and its sound writes a file about their size beside them, and on a disk
+without that room it failed part-way with the system's words ("the picture and sound could not
+be joined: No space left on device"). `download::room_to_join` now compares the inputs' size
+with the free space where the joined file is written, before the join:
+
+* **The same sentence as before fetching** ("not enough room: the file needs …, and … has …
+  free", already in `docs/guide/failures.md`), so the row reads as a full disk and offers Choose
+  another folder…, and the folder named is the person's, as `room_for` names it.
+* **What was fetched is kept.** The refusal comes before the join touches anything; Retry after
+  room is made joins the tracks already there.
+* **HLS keeps its `.ts`.** A stream with no room for its MP4 is saved as the gathered transport
+  stream, as one dm cannot remux is: a stream that plays beats none.
+* **Free space alone,** not the claims other downloads hold (`Room`): their claims are for bytes
+  still to come, and a join a moment away is not held back for them. Where the free space cannot
+  be read, nothing is refused.
