@@ -948,3 +948,67 @@ fn a_signed_in_read_asks_the_tv_client_then_the_web_one_at_the_pages_version() {
         WEB_CLIENT_VERSION
     );
 }
+
+/// A stream that has just ended, as the player answers while YouTube makes the video of it
+/// (gaps row Y5): its streams listed as a live one's, and its HLS playlist.
+fn ended_stream(post_live: bool, live_content: bool, playlist: &str) -> Value {
+    json!({
+        "videoDetails": {
+            "title": "Launch: the whole stream",
+            "isLive": false,
+            "isPostLiveDvr": post_live,
+            "isLiveContent": live_content,
+        },
+        "streamingData": {
+            "hlsManifestUrl": playlist,
+            "adaptiveFormats": [{
+                "itag": 137,
+                "mimeType": "video/mp4; codecs=\"avc1.640028\"",
+                "height": 1080,
+                "targetDurationSec": 5,
+                "url": "https://r1.example/v?itag=137",
+            }],
+        },
+    })
+}
+
+#[test]
+fn a_stream_just_ended_is_played_from_its_hls_playlist() {
+    let playlist = "https://manifest.googlevideo.com/api/manifest/hls_variant/x/index.m3u8";
+    let player = ended_stream(true, true, playlist);
+    // None of its streams is read as a file: they are still a live one's.
+    let read: Vec<Format> = player
+        .pointer("/streamingData/adaptiveFormats")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Format::of)
+        .collect();
+    assert!(read.is_empty());
+    assert_eq!(ended_stream_playlist(&player), Some(playlist));
+    assert_eq!(
+        ended_stream_playlist(&ended_stream(false, true, playlist)),
+        Some(playlist),
+        "a live video's that is no longer live"
+    );
+    // A video never live, and an address that is not YouTube's over https, are not.
+    assert_eq!(
+        ended_stream_playlist(&ended_stream(false, false, playlist)),
+        None
+    );
+    assert_eq!(
+        ended_stream_playlist(&ended_stream(true, true, "http://x.example/a.m3u8")),
+        None
+    );
+    let staging = Path::new("staging");
+    let answer: Value =
+        serde_json::from_str(&played_from_playlist("abc", &player, playlist, staging)).unwrap();
+    assert_eq!(
+        answer["is_live"], true,
+        "handed to the engine's HLS download"
+    );
+    assert_eq!(answer["url"], playlist);
+    assert_eq!(answer["protocol"], "m3u8_native");
+    let filename = answer["filename"].as_str().unwrap();
+    assert!(filename.ends_with("[abc].mp4"), "{filename}");
+}

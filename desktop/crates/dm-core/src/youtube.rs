@@ -711,6 +711,46 @@ fn set_dubs_aside(formats: &mut [Format], want: Option<&str>) {
     }
 }
 
+/// The reading of a video played from YouTube's own HLS playlist of it (`playlist`): a live
+/// stream, or one that has just ended. Marked live, which hands it to the engine's HLS
+/// download (`videopage::download_page`): that fetches it whole where the playlist ends, and
+/// records it as it goes where it does not.
+fn played_from_playlist(id: &str, player: &Value, playlist: &str, staging: &Path) -> String {
+    let title = player
+        .pointer("/videoDetails/title")
+        .and_then(Value::as_str)
+        .unwrap_or("live");
+    json!({
+        "id": id,
+        "title": title,
+        "extractor": "youtube",
+        "extractor_key": "Youtube",
+        "webpage_url": format!("https://www.youtube.com/watch?v={id}"),
+        "is_live": true,
+        "url": playlist,
+        "protocol": "m3u8_native",
+        "ext": "mp4",
+        "filename": staging
+            .join(format!("{} [{id}].mp4", safe_title(title)))
+            .display()
+            .to_string(),
+        "read_by": "dm",
+    })
+    .to_string()
+}
+
+/// The HLS playlist of a stream that has just ended (`isPostLiveDvr`, or a live video's
+/// `isLiveContent` that is no longer `isLive`), where the player names one.
+fn ended_stream_playlist(player: &Value) -> Option<&str> {
+    let said = |at: &str| player.pointer(at).and_then(Value::as_bool).unwrap_or(false);
+    let ended = said("/videoDetails/isPostLiveDvr")
+        || (said("/videoDetails/isLiveContent") && !said("/videoDetails/isLive"));
+    player
+        .pointer("/streamingData/hlsManifestUrl")
+        .and_then(Value::as_str)
+        .filter(|u| ended && u.starts_with("https://"))
+}
+
 /// The stream's `xtags` (`acont=original:lang=es:vb=1`) as pairs, from its
 /// address or from the address inside the cipher it is locked behind.
 fn xtags(url: Option<&str>, cipher: Option<&str>) -> Vec<(String, String)> {
@@ -1265,27 +1305,7 @@ async fn read_within(
             let Some(live) = live else {
                 return Err(Error::Internal("a live stream".into()));
             };
-            let title = player
-                .pointer("/videoDetails/title")
-                .and_then(Value::as_str)
-                .unwrap_or("live");
-            return Ok(json!({
-                "id": id,
-                "title": title,
-                "extractor": "youtube",
-                "extractor_key": "Youtube",
-                "webpage_url": format!("https://www.youtube.com/watch?v={id}"),
-                "is_live": true,
-                "url": live,
-                "protocol": "m3u8_native",
-                "ext": "mp4",
-                "filename": staging
-                    .join(format!("{} [{id}].mp4", safe_title(title)))
-                    .display()
-                    .to_string(),
-                "read_by": "dm",
-            })
-            .to_string());
+            return Ok(played_from_playlist(id, &player, live, staging));
         }
         // The picture and the sound apart (`adaptiveFormats`), as a player
         // `bv+ba` takes them; the formats with both in one file only where
@@ -1309,6 +1329,13 @@ async fn read_within(
         }
         set_dubs_aside(&mut formats, crate::sound_language::wanted().as_deref());
         if formats.is_empty() {
+            // A stream that has just ended, while YouTube makes the video of it: its streams are
+            // still listed as a live one's, so none is read, and its HLS playlist plays it
+            // (gaps row Y5). Fetched whole where the playlist says it has ended, recorded as
+            // it goes where it does not, as a live one is.
+            if let Some(playlist) = ended_stream_playlist(&player) {
+                return Ok(played_from_playlist(id, &player, playlist, staging));
+            }
             failed = Some(Error::Internal(
                 "the player names no stream dm can fetch".into(),
             ));
