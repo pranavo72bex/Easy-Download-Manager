@@ -117,7 +117,9 @@ pub(crate) static IDENTIFY_AS_DM: std::sync::atomic::AtomicBool =
 
 /// Whether dm sends its own name first, not the browser-like one: Options ›
 /// Advanced › Identify as dm only. A site that refused the first name is still
-/// asked again with the others (`prefer_agent`).
+/// asked again with the others (`prefer_agent`). Put in force by dm-core's `configure`; called
+/// alone by tests.
+#[doc(hidden)]
 pub fn set_identify_as_dm(only: bool) {
     IDENTIFY_AS_DM.store(only, std::sync::atomic::Ordering::Relaxed);
 }

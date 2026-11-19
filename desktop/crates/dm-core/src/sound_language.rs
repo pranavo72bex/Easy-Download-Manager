@@ -15,7 +15,9 @@ use std::sync::RwLock;
 static WANTED: RwLock<Option<String>> = RwLock::new(None);
 
 /// Puts the language in force for every video read from now on: a language tag (`es`,
-/// `pt-BR`), as Options keeps it. Empty, or `original`, takes each video's own sound.
+/// `pt-BR`), as Options keeps it. Empty, or `original`, takes each video's own sound. Put in
+/// force by [`crate::configure`].
+#[doc(hidden)]
 pub fn set_sound_language(tag: &str) {
     let tag = tag.trim();
     let wanted =
