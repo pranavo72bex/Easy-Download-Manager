@@ -41,7 +41,7 @@ default-tls = [
     "librqbit-core/sha1-crypto-hash",
 ]
 disable-upload = []
-# dm: axum-extra and the dual-stack listener's axum support are the HTTP
+# dm(no-axum): axum-extra and the dual-stack listener's axum support are the HTTP
 # API's alone, so they come with it; without it (as dm builds librqbit) no
 # axum is built (desktop/vendor/README.md).
 http-api = [
@@ -57,7 +57,7 @@ postgres = [
     "home",
 ]
 prometheus = ["metrics-exporter-prometheus"]
-# dm: reqwest's rustls without its own provider (its `rustls` feature brings
+# dm(ring): reqwest's rustls without its own provider (its `rustls` feature brings
 # aws-lc-rs, a C library built with cmake); ring, the provider dm uses
 # everywhere else, is installed by `Session::new_with_opts` instead
 # (desktop/vendor/README.md).
@@ -83,7 +83,7 @@ webui = []
 name = "librqbit"
 path = "src/lib.rs"
 
-# dm: examples/ is not vendored (desktop/vendor/README.md), so its three
+# dm(trim): examples/ is not vendored (desktop/vendor/README.md), so its three
 # [[example]] targets are left out.
 
 [dependencies.anyhow]
@@ -230,7 +230,7 @@ version = "9.1.0"
 default-features = false
 package = "librqbit-peer-protocol"
 
-# dm: encrypted peer connections (src/mse.rs, desktop/vendor/README.md).
+# dm(mse): encrypted peer connections (src/mse.rs, desktop/vendor/README.md).
 [dependencies.num-bigint]
 version = "0.4"
 
@@ -255,7 +255,7 @@ features = [
 ]
 default-features = false
 
-# dm: the provider `rust-tls` installs (ring), named so reqwest has one.
+# dm(ring): the provider `rust-tls` installs (ring), named so reqwest has one.
 [dependencies.rustls]
 version = "0.23"
 optional = true

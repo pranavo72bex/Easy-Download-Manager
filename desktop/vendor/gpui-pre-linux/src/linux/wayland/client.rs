@@ -699,7 +699,7 @@ impl WaylandClientStatePtr {
         let source =
             data_device_manager.create_data_source(&state.globals.qh, DataSourceKind::Drag);
         source.offer(FILE_LIST_MIME_TYPE.to_string());
-        // dm: copied, never moved: a file manager that takes a move would
+        // dm(wl-copy): copied, never moved: a file manager that takes a move would
         // carry the download away from where dm saved it, and its row would
         // say the file is gone (macOS offers outside the program a copy only).
         source.set_actions(DndAction::Copy);
@@ -2956,7 +2956,7 @@ impl Dispatch<wl_data_device::WlDataDevice, ()> for WaylandClientStatePtr {
                                 }
                             };
 
-                            // dm: a file's address becomes its path, as before;
+                            // dm(links): a file's address becomes its path, as before;
                             // any other address (a link dragged from a browser)
                             // is handed on as the "path" it says, for the
                             // application to read as a link. Upstream turned

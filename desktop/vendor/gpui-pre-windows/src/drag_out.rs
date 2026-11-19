@@ -1,4 +1,4 @@
-// dm: files dragged out of the window, into an Explorer folder, a mail or a
+// dm(win-drag-out): files dragged out of the window, into an Explorer folder, a mail or a
 // chat (desktop/vendor/README.md). Upstream offers a drag out on macOS and
 // Wayland only.
 //

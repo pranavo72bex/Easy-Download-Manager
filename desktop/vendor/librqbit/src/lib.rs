@@ -61,7 +61,7 @@ mod ip_ranges;
 pub mod limits;
 mod listen;
 mod merge_streams;
-// dm: encrypted peer connections (desktop/vendor/README.md).
+// dm(mse): encrypted peer connections (desktop/vendor/README.md).
 mod mse;
 mod peer_connection;
 mod peer_info_reader;

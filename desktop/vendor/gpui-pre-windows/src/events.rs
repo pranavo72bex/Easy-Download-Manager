@@ -28,7 +28,7 @@ pub(crate) const WM_GPUI_FORCE_UPDATE_WINDOW: u32 = WM_USER + 5;
 pub(crate) const WM_GPUI_KEYBOARD_LAYOUT_CHANGED: u32 = WM_USER + 6;
 pub(crate) const WM_GPUI_GPU_DEVICE_LOST: u32 = WM_USER + 7;
 pub(crate) const WM_GPUI_DISPLAYS_CHANGED: u32 = WM_USER + 10;
-// dm: the app chose Light or Dark (`Platform::set_window_appearance`). Its own message, as
+// dm(theme): the app chose Light or Dark (`Platform::set_window_appearance`). Its own message, as
 // Windows will not post `WM_SETTINGCHANGE` with the string it carries (desktop/vendor/README.md).
 pub(crate) const WM_DM_APPEARANCE_CHOSEN: u32 = WM_USER + 21;
 
@@ -156,7 +156,7 @@ impl WindowsWindowInner {
             WM_IME_COMPOSITION => self.handle_ime_composition(handle, lparam),
             WM_SETCURSOR => self.handle_set_cursor(handle, lparam),
             WM_SETTINGCHANGE => self.handle_system_settings_changed(handle, wparam, lparam),
-            // dm: see `WM_DM_APPEARANCE_CHOSEN`.
+            // dm(theme): see `WM_DM_APPEARANCE_CHOSEN`.
             WM_DM_APPEARANCE_CHOSEN => self.follow_appearance(handle),
             WM_INPUTLANGCHANGE => self.handle_input_language_changed(),
             WM_SHOWWINDOW => self.handle_window_visibility_changed(handle, wparam),
@@ -165,7 +165,7 @@ impl WindowsWindowInner {
             WM_GPUI_CURSOR_STYLE_CHANGED
             | WM_GPUI_FORCE_UPDATE_WINDOW
             | WM_GPUI_GPU_DEVICE_LOST
-            // dm: a drag out of the window (`drag_out`).
+            // dm(win-drag-out): a drag out of the window (`drag_out`).
             | crate::drag_out::WM_DM_DRAG_OUT => self.handle_gpui_events(handle, msg, wparam, lparam),
             _ => None,
         };
@@ -1251,7 +1251,7 @@ impl WindowsWindowInner {
         Some(0)
     }
 
-    // dm: the window's look made the one in force, the system's or the app's choice; moved out
+    // dm(theme): the window's look made the one in force, the system's or the app's choice; moved out
     // of `handle_system_theme_changed` for `WM_DM_APPEARANCE_CHOSEN` too, and the title bar's
     // dark mode set before the callback, which may be absent yet.
     fn follow_appearance(&self, handle: HWND) -> Option<isize> {
@@ -1338,7 +1338,7 @@ impl WindowsWindowInner {
         }
     }
 
-    // dm: makes the drag out `start_external_drag` asked for, with nothing
+    // dm(win-drag-out): makes the drag out `start_external_drag` asked for, with nothing
     // of GPUI's borrowed while the shell's modal loop runs, then tells GPUI
     // it is over, as the X11 window does (`drag_out`).
     fn handle_dm_drag_out(&self, handle: HWND) -> Option<isize> {

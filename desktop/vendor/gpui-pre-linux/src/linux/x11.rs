@@ -1,6 +1,7 @@
 mod client;
 mod clipboard;
 mod display;
+// dm(x11-drag-out): files dragged out of a window (desktop/vendor/README.md).
 mod drag_out;
 mod event;
 mod window;

@@ -29,7 +29,7 @@ resolver = "2"
 [features]
 default = ["sha1-crypto-hash"]
 sha1-crypto-hash = ["crypto-hash"]
-# dm: the name librqbit-core and librqbit ask for, kept, now backed by the
+# dm(sha1): the name librqbit-core and librqbit ask for, kept, now backed by the
 # pure-Rust sha1 and sha2 crates rather than aws-lc-rs, which built a second
 # crypto library in C (with cmake) beside ring (desktop/vendor/README.md).
 sha1-ring = ["sha1", "sha2"]

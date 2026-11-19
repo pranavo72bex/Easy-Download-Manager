@@ -43,6 +43,7 @@ mod i18n;
 mod package;
 mod release;
 mod update_key;
+mod vendor_marks;
 
 use std::path::{Path, PathBuf};
 
@@ -633,6 +634,8 @@ fn layers() -> Result<(), String> {
     }
     // Every `DM_` switch is read through `dm_core::env`'s table (gaps row A11).
     wrong.extend(env_check::problems(&root));
+    // Every `dm(<tag>):` change in desktop/vendor/ is a row of its README's table (A17, X5).
+    wrong.extend(vendor_marks::problems(&root));
     if wrong.is_empty() {
         Ok(())
     } else {

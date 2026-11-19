@@ -1,9 +1,10 @@
 dm's change to librqbit 9.1.0 (crates.io, Apache-2.0), applied to the
 published crate with webui/, resources/, examples/, Cargo.lock,
 Cargo.toml.orig and .cargo_vcs_info.json removed first. Made again by
-desktop/vendor/vendor.sh; explained in desktop/vendor/README.md. Each changed
-line in the code is marked `dm:`. The text before each file's section says
-what its hunks do, in order; git apply skips it.
+desktop/vendor/vendor.sh; explained in desktop/vendor/README.md. Each change
+in the code is marked `dm(<tag>):`, the tag its row in that file's table. The
+text before each file's section says what its hunks do, in order; git apply
+skips it.
 
 Cargo.toml:
   1. http-api brings axum-extra and the dual-stack listener's axum support,
@@ -27,7 +28,7 @@ index 804cce9..c472976 100644
      "librqbit-core/sha1-crypto-hash",
  ]
  disable-upload = []
-+# dm: axum-extra and the dual-stack listener's axum support are the HTTP
++# dm(no-axum): axum-extra and the dual-stack listener's axum support are the HTTP
 +# API's alone, so they come with it; without it (as dm builds librqbit) no
 +# axum is built (desktop/vendor/README.md).
  http-api = [
@@ -42,7 +43,7 @@ index 804cce9..c472976 100644
      "home",
  ]
  prometheus = ["metrics-exporter-prometheus"]
-+# dm: reqwest's rustls without its own provider (its `rustls` feature brings
++# dm(ring): reqwest's rustls without its own provider (its `rustls` feature brings
 +# aws-lc-rs, a C library built with cmake); ring, the provider dm uses
 +# everywhere else, is installed by `Session::new_with_opts` instead
 +# (desktop/vendor/README.md).
@@ -74,7 +75,7 @@ index 804cce9..c472976 100644
 -[[example]]
 -name = "ubuntu"
 -path = "examples/ubuntu.rs"
-+# dm: examples/ is not vendored (desktop/vendor/README.md), so its three
++# dm(trim): examples/ is not vendored (desktop/vendor/README.md), so its three
 +# [[example]] targets are left out.
  
  [dependencies.anyhow]
@@ -99,7 +100,7 @@ index 804cce9..c472976 100644
  default-features = false
  package = "librqbit-peer-protocol"
  
-+# dm: encrypted peer connections (src/mse.rs, desktop/vendor/README.md).
++# dm(mse): encrypted peer connections (src/mse.rs, desktop/vendor/README.md).
 +[dependencies.num-bigint]
 +version = "0.4"
 +
@@ -116,7 +117,7 @@ index 804cce9..c472976 100644
  ]
  default-features = false
  
-+# dm: the provider `rust-tls` installs (ring), named so reqwest has one.
++# dm(ring): the provider `rust-tls` installs (ring), named so reqwest has one.
 +[dependencies.rustls]
 +version = "0.23"
 +optional = true
@@ -141,7 +142,7 @@ index 29843e0..0311c5f 100644
  pub mod limits;
  mod listen;
  mod merge_streams;
-+// dm: encrypted peer connections (desktop/vendor/README.md).
++// dm(mse): encrypted peer connections (desktop/vendor/README.md).
 +mod mse;
  mod peer_connection;
  mod peer_info_reader;
@@ -158,7 +159,7 @@ index 0000000..023e5f6
 --- /dev/null
 +++ b/src/mse.rs
 @@ -0,0 +1,588 @@
-+//! dm: BitTorrent Message Stream Encryption (MSE, also called PE), the
++//! dm(mse): BitTorrent Message Stream Encryption (MSE, also called PE), the
 +//! obfuscated handshake and RC4 stream other clients use, so a peer that
 +//! accepts only encrypted connections is reached, and one that connects
 +//! encrypted is taken (desktop/vendor/README.md, dm's gaps row 150).
@@ -764,7 +765,7 @@ index ca2690c..35de6e1 100644
      /// one at a stream's read position after a seek, is requested only after
      /// those, so a smaller window makes streams react faster to seeks.
      pub max_request_window: Option<usize>,
-+    /// dm: only encrypted connections (MSE), made and taken. Off, a peer is
++    /// dm(mse): only encrypted connections (MSE), made and taken. Off, a peer is
 +    /// asked in plaintext first and encrypted where it refuses that, and
 +    /// both kinds are taken.
 +    #[serde(default)]
@@ -776,7 +777,7 @@ index ca2690c..35de6e1 100644
      fut.await
  }
  
-+/// dm: a connection with its BitTorrent handshakes exchanged.
++/// dm(mse): a connection with its BitTorrent handshakes exchanged.
 +struct Connected {
 +    ckind: ConnectionKind,
 +    handshake_supports_extended: bool,
@@ -801,7 +802,7 @@ index ca2690c..35de6e1 100644
              .connect_timeout
              .unwrap_or_else(|| Duration::from_secs(10));
  
-+        // dm: in plaintext first, as before; a peer that hangs up on that may
++        // dm(mse): in plaintext first, as before; a peer that hangs up on that may
 +        // take only encrypted connections (MSE), and is asked again so.
 +        let require = self.options.require_encryption;
 +        let connected = match self
@@ -837,7 +838,7 @@ index ca2690c..35de6e1 100644
 +        .await
 +    }
 +
-+    /// dm: connects and exchanges BitTorrent handshakes, over an encrypted
++    /// dm(mse): connects and exchanges BitTorrent handshakes, over an encrypted
 +    /// connection (`crate::mse`) where `encrypted` says.
 +    async fn connect_and_handshake(
 +        &self,
@@ -978,7 +979,7 @@ index 5e02415..221b588 100644
                  .client_name_and_version
                  .unwrap_or_else(|| crate::client_name_and_version().to_owned());
  
-+            // dm: reqwest is built without a TLS provider of its own under
++            // dm(ring): reqwest is built without a TLS provider of its own under
 +            // `rust-tls` (Cargo.toml), and a client built with none panics.
 +            // ring is made the process's default unless one already is (an
 +            // Err here only says one is); every client this session and its
@@ -1004,7 +1005,7 @@ index 5e02415..221b588 100644
              bail!("Incoming ip {incoming_ip} is not in allowlist");
          }
  
-+        // dm: an encrypted connection (MSE) is answered for whichever of
++        // dm(mse): an encrypted connection (MSE) is answered for whichever of
 +        // this session's torrents it names; a plaintext one is passed through
 +        // unless only encrypted ones are taken.
 +        let info_hashes: Vec<Id20> = self
@@ -1035,7 +1036,7 @@ index 5e02415..221b588 100644
                      }
                  },
 -                Some(Ok((live, checked))) = futs.next(), if !futs.is_empty() => {
-+                // dm: every finished check is taken, a failed one too. With the
++                // dm(listener): every finished check is taken, a failed one too. With the
 +                // pattern `Some(Ok(..))`, a failed check disabled this branch
 +                // until the next connection came in, and the checks still
 +                // under way were not polled meanwhile: an encrypted handshake,
@@ -1100,7 +1101,7 @@ index 5e02415..221b588 100644
 -        assert_eq!(parsed.info, generated_parsed.info);
 -        assert_eq!(parsed_trackers, get_trackers(&generated_parsed));
 -    }
-+    // dm: upstream's test_torrent_file_from_info_and_bytes reads
++    // dm(trim): upstream's test_torrent_file_from_info_and_bytes reads
 +    // resources/ubuntu-21.04-desktop-amd64.iso.torrent, and resources/ is not
 +    // vendored (desktop/vendor/README.md).
  }
@@ -1119,7 +1120,7 @@ index 749e6af..6e0844b 100644
          shared: &ManagedTorrentShared,
          metadata: &TorrentMetadata,
      ) -> anyhow::Result<()> {
-+        // dm: every file's name checked before any file is made (gaps row 159 b).
++        // dm(names): every file's name checked before any file is made (gaps row 159 b).
 +        for file_details in metadata.file_infos.iter() {
 +            if !file_details.attrs.padding && !plain_relative(&file_details.relative_filename) {
 +                anyhow::bail!(
@@ -1136,7 +1137,7 @@ index 749e6af..6e0844b 100644
      }
  }
 +
-+/// dm: whether a torrent's file name stays in the torrent's folder: plain
++/// dm(names): whether a torrent's file name stays in the torrent's folder: plain
 +/// parts only, no root, no `..`, no drive. On Windows a part such as `D:x`
 +/// made `PathBuf::push` start again on drive D: (and `name:stream` names a
 +/// stream of a file), so such a torrent created empty files outside the
@@ -1214,7 +1215,7 @@ index db47001..b2db02e 100644
      pub peer_connect_timeout: Option<Duration>,
      pub peer_read_write_timeout: Option<Duration>,
      pub peer_max_request_window: Option<usize>,
-+    /// dm: only encrypted peer connections (`PeerConnectionOptions`).
++    /// dm(mse): only encrypted peer connections (`PeerConnectionOptions`).
 +    pub peer_require_encryption: bool,
      pub allow_overwrite: bool,
      pub output_folder: PathBuf,

@@ -932,13 +932,13 @@ impl PlatformWindow for WindowsWindow {
                 set_window_composition_attribute(hwnd, Some((0, 0, 0, 0)), 4);
             }
             WindowBackgroundAppearance::MicaBackdrop => {
-                // dm: Mica behind the whole window, not only the frame Windows draws.
+                // dm(mica): Mica behind the whole window, not only the frame Windows draws.
                 extend_frame_into_client(hwnd);
                 // DWMSBT_MAINWINDOW => MicaBase
                 dwm_set_window_composition_attribute(hwnd, 2);
             }
             WindowBackgroundAppearance::MicaAltBackdrop => {
-                // dm: as for Mica.
+                // dm(mica): as for Mica.
                 extend_frame_into_client(hwnd);
                 // DWMSBT_TABBEDWINDOW => MicaAlt
                 dwm_set_window_composition_attribute(hwnd, 4);
@@ -1063,7 +1063,7 @@ impl PlatformWindow for WindowsWindow {
         self.0.hwnd
     }
 
-    // dm: files dragged out of the window (`drag_out`); upstream offers it
+    // dm(win-drag-out): files dragged out of the window (`drag_out`); upstream offers it
     // on macOS and Wayland only.
     fn can_start_external_drag(&self) -> bool {
         true
@@ -1618,7 +1618,7 @@ fn retrieve_window_placement(
     Ok(placement)
 }
 
-// dm: Windows puts a system backdrop (Mica) behind the frame it draws itself; this window
+// dm(mica): Windows puts a system backdrop (Mica) behind the frame it draws itself; this window
 // draws its own title bar in the client area, where what the window leaves clear showed black
 // (dm's gaps row G11). Spread over the whole window (margins of -1), the backdrop is behind
 // every clear pixel. Mica is chosen for a run at its start, so an opaque window is left as
