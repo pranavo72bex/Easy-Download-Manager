@@ -100,10 +100,16 @@ pub fn install(interp: &mut Interp) {
             Ok(Value::str(&format_date(time(i, this)?)))
         });
     }
+    install_getters(interp, &dp);
+    install_setters(interp, &dp);
+}
+
+/// Installs `Date.prototype`'s getters (`getFullYear` and the rest).
+fn install_getters(interp: &mut Interp, dp: &Obj) {
     macro_rules! get {
         ($($name:expr => $k:expr),*) => {
             $(
-                method(interp, &dp, $name, 0, |i, this, _, _| {
+                method(interp, dp, $name, 0, |i, this, _, _| {
                     let t = time(i, this)?;
                     if t.is_nan() { return Ok(Value::Number(f64::NAN)); }
                     let p = parts(t);
@@ -126,7 +132,11 @@ pub fn install(interp: &mut Interp) {
         "getTimezoneOffset" => |_, _| 0.0,
         "getYear" => |p, _| (p.0 - 1900) as f64
     );
-    method(interp, &dp, "setTime", 1, |i, this, a, _| {
+}
+
+/// Installs `Date.prototype`'s setters and its `[Symbol.toPrimitive]`.
+fn install_setters(interp: &mut Interp, dp: &Obj) {
+    method(interp, dp, "setTime", 1, |i, this, a, _| {
         let n = clip(i.to_number(&arg(a, 0))?);
         set_time(i, this, n)
     });
@@ -155,12 +165,12 @@ pub fn install(interp: &mut Interp) {
             5 => |i, t, a, _| set_field(i, t, a, 5),
             _ => |i, t, a, _| set_field(i, t, a, 6),
         };
-        method(interp, &dp, name, 1, run);
+        method(interp, dp, name, 1, run);
     }
     let to_prim = crate::value::Key::Symbol(interp.intrinsics.sym_to_primitive.clone());
     super::symbol_method(
         interp,
-        &dp,
+        dp,
         &to_prim,
         "[Symbol.toPrimitive]",
         |i, this, a, _| {

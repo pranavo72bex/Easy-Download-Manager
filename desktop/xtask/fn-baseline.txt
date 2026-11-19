@@ -3,5 +3,3 @@
 # `fn` to the line of its closing brace, with its lines then: `<path> <name> <lines>`. A
 # function named here may not grow past its entry, any other may not pass 150 lines. An
 # entry is only ever lowered or removed: `cargo xtask size-baseline` does both.
-desktop/crates/dm-js/src/builtins/date.rs install 157
-desktop/crates/dm-js/src/interp.rs looped 155
