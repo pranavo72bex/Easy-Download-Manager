@@ -1512,6 +1512,63 @@ def walk(dm, origin):
           all(w in words for w in ("Text size", "60%", "80%", "100%", "120%")) and picked == 0.8
           and 0 < smaller < medium, f"{words[:12]} / {picked} / {smaller}")
 
+    # B68 (gaps row Y10): Options › Downloads has a Sound language pop-up under
+    # Video quality, the video's own at first, with its note; Español picked
+    # there is kept with OK as "es" in settings.json and shown on the pop-up
+    # when Options opens again, then the video's own is put back. Which track
+    # a dubbed video is saved with is the engine's own tests' (YouTube's, HLS's
+    # and DASH's stand-ins in dm-core).
+    def sound_language():
+        try:
+            saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return saved.get("sound_language", "")
+
+    def downloads_page():
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        dm.click("Downloads")
+        pause(0.8)
+        seen = dm.dialog_texts()
+        if "Sound language" not in seen:
+            # Below the page's first screen in a small window: scrolled to, as a person does.
+            dm.call("ui.scroll", text="Video quality", lines=3)
+            pause(0.5)
+            seen = dm.dialog_texts()
+        return seen
+
+    sound_note = ("Where a video has its sound in several languages, this one is taken; "
+                  "where none speaks it, the video's own.")
+    words = downloads_page()
+    laid_out = ("Video quality" in words and "Sound language" in words
+                and words.index("Video quality") < words.index("Sound language"))
+    check("B68", "Options › Downloads has Sound language under Video quality, the video's own at first, with its note",
+          laid_out and "The video's own" in words
+          and (sound_note in words or sound_note in " ".join(words)), f"{words}")
+    dm.click("The video's own")
+    pause(0.6)
+    dm.click("Español")
+    pause(0.6)
+    dm.click("OK")
+    pause(1.0)
+    picked = sound_language()
+    words = downloads_page()
+    shown = "Español" in words
+    dm.click("Español")
+    pause(0.6)
+    dm.click("The video's own")
+    pause(0.6)
+    dm.click("OK")
+    pause(1.0)
+    back = sound_language()
+    check("B68", "Español picked is kept with OK as \"es\", shown when Options opens again; the video's own puts back \"\"",
+          picked == "es" and shown and back == "", f"kept {picked!r}, shown {shown}, back {back!r}")
+
     # B67 (issue #32): Links on the clipboard has Save to, as Download links
     # has it: each file to its category's folder unless one category or one
     # folder (typed, or chosen with Browse…) is chosen; a folder not there yet

@@ -16,6 +16,7 @@ pub(super) fn downloads(
 ) {
     connections(o, p, window, cx);
     files_and_quality(o, p, window, cx);
+    sound_language(o, p);
     let s = o.draft.clone();
     switches(p, cx, &s);
     queue_limits(o, p, window, cx, &s);
@@ -122,6 +123,36 @@ fn files_and_quality(
             &screen,
         ),
     );
+}
+
+/// The language a video's sound is taken in, under its quality (gaps row Y10): the video's own
+/// first, then each language by its own name. A value `settings.json` has that the list lacks
+/// is shown as itself, and kept until another is picked.
+fn sound_language(o: &Options, p: &mut Page) {
+    let (theme, screen) = (p.theme, p.screen.clone());
+    let now = &o.draft.downloads.sound_language;
+    let at = options::sound_language_at(now);
+    let words: SharedString = match at {
+        Some(0) => t("The video's own").into(),
+        Some(i) => options::SOUND_LANGUAGES
+            .get(i - 1)
+            .map_or_else(|| now.clone(), |(_, name)| name.to_string())
+            .into(),
+        None => now.clone().into(),
+    };
+    let choices: Vec<SharedString> = std::iter::once(SharedString::from(t("The video's own")))
+        .chain(
+            options::SOUND_LANGUAGES
+                .iter()
+                .map(|(_, name)| SharedString::from(*name)),
+        )
+        .collect();
+    p.labelled(
+        t("Sound language"),
+        true,
+        popup::button("sound-language", words, choices, at, theme, &screen),
+    );
+    p.note(t("Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own."));
 }
 
 /// The switches: the Main queue at launch, subtitles and streams as MP4.

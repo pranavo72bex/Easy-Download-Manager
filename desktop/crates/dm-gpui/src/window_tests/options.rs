@@ -170,6 +170,58 @@ fn the_recording_limit_is_set_in_options_and_reaches_the_queue() {
     assert_eq!(saved_settings()["record_minutes"], 90);
 }
 
+/// Options › Downloads › Sound language (gaps row Y10, B68): a language picked from its pop-up
+/// is kept on OK and written down, and the video's own picked again is the empty value.
+#[test]
+fn a_sound_language_picked_in_options_is_kept() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    open_options(&mut h);
+    tab(&mut h, "Downloads");
+    h.reveal("Sound language");
+    // A new install takes each video's own sound.
+    h.reveal("The video's own");
+    h.click("The video's own");
+    h.click("Español");
+    h.until_shown("Español");
+    ok(&mut h);
+    assert_eq!(kept(&mut h).downloads.sound_language, "es");
+    assert_eq!(saved_settings()["sound_language"], "es");
+    // And back to the video's own.
+    open_options(&mut h);
+    tab(&mut h, "Downloads");
+    h.reveal("Español");
+    h.click("Español");
+    h.click("The video's own");
+    h.until_shown("The video's own");
+    ok(&mut h);
+    assert_eq!(kept(&mut h).downloads.sound_language, "");
+    assert_eq!(saved_settings()["sound_language"], "");
+}
+
+/// A sound language `settings.json` has that the pop-up's list lacks is shown as itself, and
+/// kept through an OK that changed something else (gaps row Y10).
+#[test]
+fn a_sound_language_the_list_lacks_is_shown_as_itself_and_kept() {
+    let _file = settings_file();
+    let world = world();
+    let mut own = world.settings();
+    own.downloads.sound_language = "eo".into();
+    let mut h = world.harness_with(own);
+    open_options(&mut h);
+    tab(&mut h, "Downloads");
+    h.reveal("Sound language");
+    h.reveal("eo");
+    h.fill("Files at once", "4");
+    ok(&mut h);
+    let downloads = kept(&mut h).downloads;
+    assert_eq!(
+        (downloads.concurrency, downloads.sound_language.as_str()),
+        (4, "eo")
+    );
+}
+
 /// A queue's own daily start time is set in Options › Downloads; one that is not a time is
 /// said beside it and refused.
 #[test]

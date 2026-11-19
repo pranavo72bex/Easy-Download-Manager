@@ -912,5 +912,8 @@
  "File's path": "Jalur berkas",
  "Type the file's full path, such as {}.": "Ketik jalur lengkap berkas, seperti {}.",
  "Export the list": "Ekspor daftar",
- "Import a list": "Impor daftar"
+ "Import a list": "Impor daftar",
+ "Sound language": "Bahasa audio",
+ "The video's own": "Bawaan video",
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "Jika video memiliki audio dalam beberapa bahasa, bahasa ini yang diambil; jika tidak ada, bahasa bawaan video."
 }

@@ -1674,7 +1674,6 @@ const A_FULL_FILE: &str = r#"{
     "limit_mb": 2048,
     "limit_hours": 24,
     "custom_categories": [{"name": "Books", "extensions": ["epub"], "sites": []}],
-    "sound_language": "es",
     "start_copied": true,
     "start_while_asking": true,
     "peer_blocklist": "https://example.com/list.gz",
@@ -1741,6 +1740,7 @@ const A_FULL_FILE: &str = r#"{
     "queue_limits": [{"queue": "Nightly", "files": 2}],
     "queue_starts": [{"queue": "Nightly", "at": "02:30"}],
     "remux_ts": false,
+    "sound_language": "es",
 
     "speed_limit": 512,
     "retry_wait": 9,
@@ -1814,6 +1814,7 @@ fn a_full_settings_file_reads_into_the_pages_and_is_written_back_the_same() {
     assert!(!read.browser.catch.enabled);
     assert_eq!(read.folders.parts_dir, "/srv/parts");
     assert_eq!(read.downloads.connections, 16);
+    assert_eq!(read.downloads.sound_language, "es");
     assert_eq!(read.advanced.proxy.host, "proxy.example");
     assert_eq!(read.limit_hours, 24);
     // Written back: the same keys with the same values, and no other.

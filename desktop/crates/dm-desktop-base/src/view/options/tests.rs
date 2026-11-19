@@ -128,3 +128,18 @@ fn a_kinds_usual_port_follows_the_kind_and_a_typed_one_stays() {
     assert_eq!(port_for_kind(Kind::Http, Kind::Socks5, 3128), 3128);
     assert_eq!(port_for_kind(Kind::System, Kind::Http, 0), 8080);
 }
+
+/// The sound language's pop-up (gaps row Y10): the video's own first, each language after it,
+/// and a value the list lacks at no place, so it is shown as itself and kept.
+#[test]
+fn a_sound_language_has_its_place_in_the_pop_up_and_back() {
+    assert_eq!(sound_language_at(""), Some(0));
+    assert_eq!(sound_language_of(0), Some(""));
+    for (i, (tag, _)) in SOUND_LANGUAGES.iter().enumerate() {
+        assert_eq!(sound_language_at(tag), Some(i + 1), "{tag}");
+        assert_eq!(sound_language_of(i + 1), Some(*tag));
+    }
+    assert_eq!(sound_language_at("es"), Some(2));
+    assert_eq!(sound_language_at("eo"), None);
+    assert_eq!(sound_language_of(SOUND_LANGUAGES.len() + 1), None);
+}

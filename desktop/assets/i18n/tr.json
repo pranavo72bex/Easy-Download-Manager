@@ -912,5 +912,8 @@
  "File's path": "Dosyanın yolu",
  "Type the file's full path, such as {}.": "Dosyanın tam yolunu yazın, örneğin {}.",
  "Export the list": "Listeyi dışa aktar",
- "Import a list": "Liste içe aktar"
+ "Import a list": "Liste içe aktar",
+ "Sound language": "Ses dili",
+ "The video's own": "Videonun kendi dili",
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "Bir videonun sesi birden çok dilde varsa bu dil alınır; hiçbiri bu dilde değilse videonun kendi sesi."
 }

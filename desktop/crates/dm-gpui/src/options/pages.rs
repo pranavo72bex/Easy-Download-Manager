@@ -339,6 +339,12 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
                 s.downloads.stream_quality = value.to_string();
             }
         }
+        // The video's own first, then each language (gaps row Y10).
+        "sound-language" => {
+            if let Some(tag) = options::sound_language_of(i) {
+                s.downloads.sound_language = tag.to_string();
+            }
+        }
         "queue-limit" => {
             let offered = limit_queues(&o.queues, &o.draft, pick.item);
             if let (Some(queue), Some(limit)) = (

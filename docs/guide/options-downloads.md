@@ -20,6 +20,11 @@ A site that allows fewer connections can be given its own number: see
 - **Video quality:** the quality a video is downloaded at unless you pick
   another: **Best available**, **Up to 1080p**, **Up to 720p**, **Up to
   480p** or **Audio only**. See [Videos and their qualities](videos.md).
+- **Sound language:** **The video's own** (at first), or a language by its
+  own name: English, Español, Français, Deutsch and others. "Where a video
+  has its sound in several languages, this one is taken; where none speaks
+  it, the video's own." A dubbed video (a YouTube video with dubs, or a
+  stream offering several sound tracks) is saved with the one chosen.
 - **Embed subtitles in videos from player pages:** "A video's subtitles are
   saved inside its file, to turn on in your player."
 - **Save streams that arrive as .ts as MP4:** "Streamed videos are saved as

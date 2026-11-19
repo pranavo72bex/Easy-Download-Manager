@@ -211,6 +211,11 @@ pub struct DownloadSettings {
     /// Put a `.ts` stream into an MP4 (dm's own remux).
     #[serde(default = "super::yes")]
     pub remux_ts: bool,
+    /// The language a video's sound is taken in where it offers several (a
+    /// dub): a language tag (`es`, `pt-BR`); empty, the default, takes each
+    /// video's own (gaps row Y10). Read by YouTube, HLS and DASH alike.
+    #[serde(default)]
+    pub sound_language: String,
 }
 
 impl Default for DownloadSettings {
@@ -228,6 +233,7 @@ impl Default for DownloadSettings {
             queue_limits: Vec::new(),
             queue_starts: Vec::new(),
             remux_ts: true,
+            sound_language: String::new(),
         }
     }
 }

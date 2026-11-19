@@ -91,12 +91,6 @@ pub struct Settings {
     /// built-in kinds.
     #[serde(deserialize_with = "lenient::custom_categories")]
     pub custom_categories: Vec<dm_core::Custom>,
-    /// The language a video's sound is taken in where it offers several (a
-    /// dub): a language tag (`es`, `pt-BR`); empty takes each video's own, as
-    /// before (gaps row Y10). Read by YouTube, HLS and DASH alike; kept in
-    /// `settings.json` only until Options has a line for it.
-    #[serde(default)]
-    pub sound_language: String,
     /// When the queue may run.
     #[serde(deserialize_with = "lenient::schedule")]
     pub schedule: Schedule,
@@ -494,7 +488,6 @@ impl Default for Settings {
             limit_mb: 0,
             limit_hours: 1,
             custom_categories: Vec::new(),
-            sound_language: String::new(),
             schedule: Schedule::default(),
             queue_schedules: std::collections::BTreeMap::new(),
             keep_stored_passwords: false,

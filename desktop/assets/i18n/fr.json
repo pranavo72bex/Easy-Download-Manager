@@ -912,5 +912,8 @@
  "File's path": "Chemin du fichier",
  "Type the file's full path, such as {}.": "Tapez le chemin complet du fichier, comme {}.",
  "Export the list": "Exporter la liste",
- "Import a list": "Importer une liste"
+ "Import a list": "Importer une liste",
+ "Sound language": "Langue de l'audio",
+ "The video's own": "Celle de la vidéo",
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "Quand une vidéo a son audio en plusieurs langues, celle-ci est prise ; si aucune ne la parle, celle de la vidéo."
 }

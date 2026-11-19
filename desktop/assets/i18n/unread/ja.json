@@ -94,5 +94,8 @@
  "File's path",
  "Type the file's full path, such as {}.",
  "Export the list",
- "Import a list"
+ "Import a list",
+ "Sound language",
+ "The video's own",
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own."
 ]

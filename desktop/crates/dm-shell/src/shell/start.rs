@@ -126,7 +126,7 @@ fn engine_config(settings: &Settings) -> dm_core::EngineConfig {
     dm_core::EngineConfig {
         identify_as_dm: settings.identify_as_dm,
         // The language a dubbed video's sound is taken in (gaps row Y10).
-        sound_language: settings.sound_language.clone(),
+        sound_language: settings.downloads.sound_language.clone(),
         // A dial-up or VPN connection every download waits for (`dialup.rs`).
         connect_first: crate::dialup::set(&settings.advanced.dialup),
         // The second network, where one is chosen and no proxy is on: through
