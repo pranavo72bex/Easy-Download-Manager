@@ -3,7 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Two of [`answer`]'s replies: to the extension's hello, and to a page's links.
+//! Two of [`answer()`]'s replies: to the extension's hello, and to a page's links.
 
 use super::*;
 

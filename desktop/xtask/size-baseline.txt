@@ -19,8 +19,6 @@ desktop/crates/dm-core/src/torrent.rs 1000
 desktop/crates/dm-core/src/videopage/fetch.rs 967
 desktop/crates/dm-core/src/youtube.rs 1784
 desktop/crates/dm-core/src/youtube/player.rs 921
-desktop/crates/dm-desktop-base/src/run/headless.rs 892
-desktop/crates/dm-desktop-base/src/view/format.rs 845
 desktop/crates/dm-gpui/src/dialogs/details.rs 820
 desktop/crates/dm-gpui/src/harness.rs 1403
 desktop/crates/dm-gpui/src/probe.rs 816
@@ -37,11 +35,3 @@ desktop/crates/dm-media/src/mkvmux.rs 1174
 desktop/crates/dm-media/src/mp3.rs 931
 desktop/crates/dm-media/src/mp3/tables.rs 2021
 desktop/crates/dm-protocol/src/lib.rs 1385
-desktop/crates/dm-shell/src/app/backend.rs 1392
-desktop/crates/dm-shell/src/app/commands.rs 856
-desktop/crates/dm-shell/src/app/session.rs 824
-desktop/crates/dm-shell/src/host.rs 1249
-desktop/crates/dm-shell/src/lists.rs 847
-desktop/crates/dm-shell/src/register.rs 1531
-desktop/crates/dm-shell/src/settings.rs 1689
-desktop/crates/dm-shell/src/shell.rs 1259
