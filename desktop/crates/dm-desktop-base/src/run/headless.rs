@@ -88,6 +88,9 @@ pub struct Headless {
     searches_checked: Option<Instant>,
     /// The Recheck queue's counts, once a check of it is done.
     rechecked: Arc<Mutex<Option<(usize, usize)>>>,
+    /// What hanging up the dial-up connection came to (Hang up modem when done), off this
+    /// thread, until it is said.
+    hung_up: Arc<Mutex<Option<dm_shell::dialup::HungUp>>>,
 }
 
 /// Runs dm with no window until it is asked to end (Exit over the port,
@@ -153,6 +156,7 @@ impl Headless {
             found: Arc::default(),
             searches_checked: None,
             rechecked: Arc::default(),
+            hung_up: Arc::default(),
         };
         dm.last_limit = commands::remembered_limit(&dm.backend.settings());
         dm.read();
@@ -206,6 +210,9 @@ impl Headless {
         crate::rows::set_limit_holds(read.snapshot.allowance_spent);
         crate::rows::set_hold_times(self.backend.allowance_spent(), &settings.schedule);
         self.rows = read.snapshot.rows;
+        // Once per read, as the window notes it: a read between ticks (a command over the port,
+        // a hand-off) that took the change no longer leaves When done unfired (gaps row A7).
+        self.session.note_dry(&self.rows);
         let mut categories = settings.categories();
         let before = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
         self.names = self
@@ -312,23 +319,63 @@ impl Headless {
                 );
             }
             Effect::Quit => self.quit_asked = true,
+            // Scheduler › Hang up modem when done, as the window does it (gaps row A7).
+            Effect::Scheduled { hang_up } => self.hang_up(hang_up),
             // A window's: Add URL (`--new-download` asks for a window to add
             // in: there is none, and the order is not left for a later
             // launch), the progress and Download complete windows, a fresh
-            // link asked for, what a screen reader hears. Hang up modem when
-            // done is not acted on with no window.
+            // link asked for, what a screen reader hears.
             Effect::NewDownload
             | Effect::Telling { .. }
             | Effect::StartedElsewhere(_)
             | Effect::Finished(_)
-            | Effect::Told { .. }
-            | Effect::Scheduled { .. } => {}
+            | Effect::Told { .. } => {}
             // Carried on the platform, above.
             Effect::Notify { .. }
             | Effect::NotifyFile { .. }
             | Effect::Play(_)
             | Effect::Open(_)
             | Effect::Reveal(_) => {}
+        }
+    }
+
+    /// Scheduler › Hang up modem when done, where the schedules asked for it (`hang_up`): off
+    /// this thread, as Windows takes a moment to end a connection, as the window does it; what
+    /// it came to is said when it is known.
+    fn hang_up(&mut self, hang_up: bool) {
+        if hang_up && cfg!(windows) {
+            if let Some(hung) = dm_shell::dialup::hang_up_later(Arc::clone(&self.hung_up)) {
+                self.say_hung_up(hung);
+            }
+        }
+        let hung = dm_core::lock(&self.hung_up).take();
+        if let Some(hung) = hung {
+            self.say_hung_up(hung);
+        }
+    }
+
+    /// Says what hanging up came to, in English: a connection that was not up needs no word,
+    /// one Windows would not end is a problem.
+    fn say_hung_up(&mut self, hung: dm_shell::dialup::HungUp) {
+        use dm_shell::dialup::HungUp;
+        match hung {
+            HungUp::Done(name) => {
+                self.said = english(
+                    "The scheduled downloads are done: {} is hung up.",
+                    1,
+                    &[&name],
+                );
+            }
+            HungUp::WasDown(_) => {}
+            HungUp::NoneSet => {
+                self.said = "Hang up modem when done: no connection is set in Options › \
+                             Advanced › Dial Up / VPN."
+                    .into();
+            }
+            HungUp::Failed(name, why) => {
+                self.problems
+                    .push(english("{} was not hung up: {}", 1, &[&name, &why]))
+            }
         }
     }
 
