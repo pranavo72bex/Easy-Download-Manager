@@ -40,7 +40,7 @@ async fn reading_back_ten_thousand_rows() {
     first.add_each(items).await;
     first.flush().await;
     drop(first);
-    if let Some(out) = std::env::var_os("DM_SEED_OUT") {
+    if let Some(out) = dm_core::env::get_os("DM_SEED_OUT") {
         std::fs::create_dir_all(&out).unwrap();
         std::fs::copy(&store, std::path::Path::new(&out).join("queue.json")).unwrap();
     }

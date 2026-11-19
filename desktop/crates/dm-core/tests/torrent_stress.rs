@@ -319,7 +319,7 @@ async fn many_files() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "a stress test: run by scripts/stress-protocols.py"]
 async fn paths_outside_the_folder() {
-    let Ok(dir) = std::env::var("DM_STRESS_TORRENT_DIR") else {
+    let Some(dir) = dm_core::env::get("DM_STRESS_TORRENT_DIR") else {
         println!("STRESS paths_outside_the_folder: no DM_STRESS_TORRENT_DIR");
         return;
     };

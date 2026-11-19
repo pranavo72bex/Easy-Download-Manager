@@ -224,7 +224,7 @@ async fn throughput() {
     const MB: usize = 1024 * 1024;
     // `DM_BENCH_SMALL=1`: only the small files, which take seconds, not the
     // half-gigabyte ones, which take minutes in a debug build.
-    if std::env::var_os("DM_BENCH_SMALL").is_none() {
+    if dm_core::env::get_os("DM_BENCH_SMALL").is_none() {
         run("512 MB, 1 connection", 512 * MB, 1, Duration::ZERO).await;
         run("512 MB, 8 connections", 512 * MB, 8, Duration::ZERO).await;
         run("512 MB, 16 connections", 512 * MB, 16, Duration::ZERO).await;

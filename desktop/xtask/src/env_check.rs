@@ -28,6 +28,15 @@ const SOURCES: &[&str] = &[
     "desktop/crates/dm-desktop-base/src",
     "desktop/crates/dm-gpui/src",
     "browser/src",
+    // The tests, examples and benches of the crates that reach dm-core (dm-js's, below it, read
+    // `DM_JS_FILE` themselves; the table lists it).
+    "desktop/crates/dm-core/tests",
+    "desktop/crates/dm-core/examples",
+    "desktop/crates/dm-core/benches",
+    "desktop/crates/dm-shell/tests",
+    "desktop/crates/dm-shell/benches",
+    "desktop/crates/dm-desktop-base/tests",
+    "desktop/crates/dm-gpui/tests",
 ];
 
 /// What reads a `DM_` variable without the table: `std::env::var`, `var_os`, `env!` and

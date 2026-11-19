@@ -56,6 +56,22 @@ pub const SWITCHES: &[Switch] = &[
         test_only: false,
     },
     Switch {
+        name: "DM_BENCH_SMALL",
+        purpose: "Leaves out `tests/throughput.rs`'s half-gigabyte cases, which take minutes in a \
+                  debug build.",
+        test_only: true,
+    },
+    Switch {
+        name: "DM_CODEC",
+        purpose: "The codec `examples/youtube_read.rs` asks a video's picture in.",
+        test_only: true,
+    },
+    Switch {
+        name: "DM_FETCH_FIRST",
+        purpose: "Makes `examples/youtube_read.rs` fetch the first bytes of what it read.",
+        test_only: true,
+    },
+    Switch {
         name: "DM_FILE_HOST_STAND_IN",
         purpose: "A test's server that stands in for every file-storage service.",
         test_only: true,
@@ -82,6 +98,22 @@ pub const SWITCHES: &[Switch] = &[
         test_only: true,
     },
     Switch {
+        name: "DM_INTEGRITY_FOLDER",
+        purpose: "The folder `tests/integrity.rs`'s one case run alone writes into.",
+        test_only: true,
+    },
+    Switch {
+        name: "DM_INTEGRITY_RUN_ONE",
+        purpose: "The one case `tests/integrity.rs` runs alone, in a process of its own.",
+        test_only: true,
+    },
+    Switch {
+        name: "DM_JS_FILE",
+        purpose: "A player script `dm-js`'s `tests/real_scripts.rs` reads (that crate reads it \
+                  itself: it is below dm-core).",
+        test_only: true,
+    },
+    Switch {
         name: "DM_JS_PLAYER",
         purpose: "A file of YouTube's live player for a test to run in dm's own JavaScript.",
         test_only: true,
@@ -98,8 +130,30 @@ pub const SWITCHES: &[Switch] = &[
         test_only: true,
     },
     Switch {
+        name: "DM_RAISE_FLOOR",
+        purpose: "Lets `tests/zoo.rs` raise its kept floor of passing sites when more pass.",
+        test_only: true,
+    },
+    Switch {
+        name: "DM_REGISTRY_TEST",
+        purpose: "Lets `dm-gpui`'s `tests/magnet_registry.rs` write Windows' registry keys for \
+                  magnet links.",
+        test_only: true,
+    },
+    Switch {
         name: "DM_SECRET_STORE_TEST",
         purpose: "Runs the tests that write into the system's real store of secrets.",
+        test_only: true,
+    },
+    Switch {
+        name: "DM_SEED_OUT",
+        purpose: "A folder `tests/start_timing.rs` leaves its seeded home in, to time a start by \
+                  hand.",
+        test_only: true,
+    },
+    Switch {
+        name: "DM_SHOW_ADDRESS",
+        purpose: "Makes `examples/youtube_read.rs` print the addresses it read.",
         test_only: true,
     },
     Switch {
@@ -108,11 +162,19 @@ pub const SWITCHES: &[Switch] = &[
                   tests and for measuring the two.",
         test_only: true,
     },
-    // Read by dm-test-support itself, which depends on nothing of dm's (its `secrets`): the
-    // tests' logins and passwords, one variable a name.
+    Switch {
+        name: "DM_STRESS_TORRENT_DIR",
+        purpose: "The folder `tests/torrent_stress.rs` checks paths outside of.",
+        test_only: true,
+    },
     Switch {
         name: "DM_TEST_<NAME>",
         purpose: "A login or secret a test uses, in place of one made up for the run.",
+        test_only: true,
+    },
+    Switch {
+        name: "DM_WRITE_ZOO",
+        purpose: "Makes `tests/zoo.rs` write its table of sites out.",
         test_only: true,
     },
     Switch {

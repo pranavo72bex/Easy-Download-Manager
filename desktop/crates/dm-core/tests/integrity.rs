@@ -1108,8 +1108,8 @@ const RUN_ONE: &str = "DM_INTEGRITY_RUN_ONE";
 #[tokio::test]
 async fn the_download_a_process_is_ended_in_the_middle_of() {
     let (Some(url), Some(folder)) = (
-        std::env::var_os(RUN_ONE),
-        std::env::var_os("DM_INTEGRITY_FOLDER"),
+        dm_core::env::get_os(RUN_ONE),
+        dm_core::env::get_os("DM_INTEGRITY_FOLDER"),
     ) else {
         return;
     };

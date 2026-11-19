@@ -151,7 +151,7 @@ fn open_magnet(exe: &Path, dm_home: &Path, home: &Path) -> std::process::ExitSta
 #[test]
 #[ignore = "writes the system's magnet handler on Windows: DM_REGISTRY_TEST=1, -- --ignored"]
 fn a_magnet_opened_through_dms_key_becomes_a_row_in_the_running_dm() {
-    if cfg!(windows) && std::env::var_os("DM_REGISTRY_TEST").is_none_or(|v| v.is_empty()) {
+    if cfg!(windows) && dm_core::env::get_os("DM_REGISTRY_TEST").is_none_or(|v| v.is_empty()) {
         eprintln!("not run: DM_REGISTRY_TEST is not set");
         return;
     }

@@ -30,7 +30,7 @@ use common::{options, serve, tempdir};
 /// Runs the test named again in a process of its own with a file a range, and fails as it fails
 /// there: `true` in that process, where the test goes on.
 fn by_range(test: &str) -> bool {
-    if std::env::var("DM_STAGE_BY_RANGE").as_deref() == Ok("1") {
+    if dm_core::env::get("DM_STAGE_BY_RANGE").as_deref() == Some("1") {
         return true;
     }
     let status = std::process::Command::new(std::env::current_exe().unwrap())

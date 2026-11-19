@@ -28,13 +28,13 @@ async fn main() {
         std::process::exit(2);
     }
     let staging = tempfile::tempdir().expect("no temporary folder");
-    let fetch_first = std::env::var_os("DM_FETCH_FIRST").is_some();
+    let fetch_first = dm_core::env::get_os("DM_FETCH_FIRST").is_some();
     let client = dm_core::client();
     for url in urls {
         let started = std::time::Instant::now();
         // With DM_CODEC (av01, as a GIF on Linux asks), the picture in that
         // codec, from MP4 streams as a part is, at most 720 tall.
-        let read = match std::env::var("DM_CODEC").ok().as_deref() {
+        let read = match dm_core::env::get("DM_CODEC").as_deref() {
             Some(codec) => {
                 youtube::read_at(
                     &client,
@@ -83,7 +83,7 @@ async fn main() {
                     .count();
                 // With DM_SHOW_ADDRESS set, the first stream's address, to be
                 // fetched by other means (gaps row 129: a token bound to an IP).
-                if std::env::var_os("DM_SHOW_ADDRESS").is_some() {
+                if dm_core::env::get_os("DM_SHOW_ADDRESS").is_some() {
                     if let Some(first) = value["formats"]
                         .as_array()
                         .and_then(|f| f.iter().find_map(|f| f["url"].as_str()))
@@ -199,7 +199,7 @@ async fn once(
                 .map_or(String::new(), |a| format!(" from {a}"));
             // With DM_SHOW_ADDRESS, the address refused, to be fetched by other means.
             let shown =
-                std::env::var_os("DM_SHOW_ADDRESS").map_or(String::new(), |_| format!(" {url}"));
+                dm_core::env::get_os("DM_SHOW_ADDRESS").map_or(String::new(), |_| format!(" {url}"));
             return Err(format!("{}{from}{shown}", status.as_u16()));
         }
         let bytes = answer.bytes().await.map_err(|e| e.to_string())?;
