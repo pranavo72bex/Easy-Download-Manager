@@ -452,7 +452,8 @@ pub(super) async fn download_numbered(
 
 /// [`NUMBERED_UNREAD`], with why noted in the log.
 fn numbered_unread(why: &str) -> Error {
-    eprintln!(
+    crate::note!(
+        warn,
         "dm: a stream's numbered pieces could not be read ({why}); its other formats are fetched"
     );
     Error::Internal(NUMBERED_UNREAD.into())
