@@ -8055,3 +8055,22 @@ field: written as an object they would be set aside as unreadable by any dm befo
 downgrade would open on an empty list. The queue's number is in its journal's first line instead.
 Reading takes a list or an object (`rows_from_slice`), so a file written either way reads. Every
 name dm keeps in its home is in `dm_core::paths`, once.
+
+## The HLS remux reads its segments, and frees them only when it must (2026-11-19, gaps row Y21)
+
+The transport-stream remux read the gathered `.ts` once into a scratch file per track, then wrote
+the MP4 from those: the stream, the scratch files and the MP4 were on disk together (about 2.8
+times the stream). It now reads the segment files in order as one stream: a first pass counts the
+samples into the index (in memory, as before) and each track is then replayed from the segments
+(`tsmux/replay.rs`), so nothing but the MP4 is written.
+
+* **Segments freed only when the disk is short.** With room for the segments and the MP4, the MP4
+  is written under `.partial`, named once whole, and the segments removed after: a remux cut short
+  is done again from them. Where there is room only for a little more than the stream, segments
+  are removed as both tracks pass them, and a stop then fetches those segments again, as the old
+  gather did: a stream that would have been kept as `.ts` is an MP4. With less room still, the
+  `.ts` is kept as before (`room_to_join`).
+* **More CPU for less disk.** The stream is parsed three times (the index and each track) where it
+  was once; the bytes written fall from about 2.8 times the stream to 0.9.
+* DASH and a YouTube video's two parts are left at about 2 times: freeing during their joins would
+  cost refetches or cannot shorten a whole file from its front.
