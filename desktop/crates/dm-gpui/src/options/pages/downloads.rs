@@ -35,12 +35,12 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
         NUMBER,
         true,
         false,
-        |o| o.draft.connections.to_string(),
+        |o| o.draft.downloads.connections.to_string(),
     );
     p.labelled(t("Connections per file"), true, connections);
     p.note(t("How many parts of a file dm fetches at once. More is faster on most sites, but some limit it."));
     // The presets (B56): one sets the box; the one matching it is chosen.
-    let now = o.draft.connections;
+    let now = o.draft.downloads.connections;
     let presets = options::CONNECTION_PRESETS.iter().map(|(words, count)| {
         let count = *count;
         let on = now == count as usize;
@@ -63,7 +63,7 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
             .when(!on, |d| d.bg(theme.control))
             .child(screen.label(t(words)))
             .on_click(cx.listener(move |o, _, _, cx| {
-                o.draft.connections = count as usize;
+                o.draft.downloads.connections = count as usize;
                 o.forget_field("connections");
                 cx.notify();
             }))
@@ -96,14 +96,14 @@ fn files_and_quality(
         NUMBER,
         true,
         false,
-        |o| o.draft.concurrency.to_string(),
+        |o| o.draft.downloads.concurrency.to_string(),
     );
     p.labelled(t("Files at once"), true, files);
     p.note(t("How many files download at the same time."));
     let qualities = dm_desktop_base::file_info::QUALITIES;
     let quality_at = qualities
         .iter()
-        .position(|(v, _)| *v == o.draft.stream_quality);
+        .position(|(v, _)| *v == o.draft.downloads.stream_quality);
     let quality_words = quality_at
         .map(|i| t(qualities[i].1))
         .unwrap_or_else(|| t("Best available"));
@@ -131,9 +131,9 @@ fn switches(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         cx,
         "start-queue-on-launch",
         t("Start the Main queue when dm opens"),
-        s.start_queue_on_launch,
+        s.downloads.start_queue_on_launch,
         true,
-        |s| s.start_queue_on_launch = !s.start_queue_on_launch,
+        |s| s.downloads.start_queue_on_launch = !s.downloads.start_queue_on_launch,
     );
     p.hint(t(
         "Downloads waiting in the Main queue start without a click.",
@@ -143,9 +143,9 @@ fn switches(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         cx,
         "subtitles",
         t("Embed subtitles in videos from player pages"),
-        s.subtitles,
+        s.downloads.subtitles,
         true,
-        |s| s.subtitles = !s.subtitles,
+        |s| s.downloads.subtitles = !s.downloads.subtitles,
     );
     p.hint(t(
         "A video's subtitles are saved inside its file, to turn on in your player.",
@@ -155,9 +155,9 @@ fn switches(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         cx,
         "remux-ts",
         t("Save streams that arrive as .ts as MP4"),
-        s.remux_ts,
+        s.downloads.remux_ts,
         true,
-        |s| s.remux_ts = !s.remux_ts,
+        |s| s.downloads.remux_ts = !s.downloads.remux_ts,
     );
     p.hint(t(
         "Streamed videos are saved as MP4 files, which more players open.",
@@ -175,9 +175,9 @@ fn queue_limits(
     let (theme, screen) = (p.theme, p.screen.clone());
     // Queues with their own limit, one limit a queue.
     p.words(t("Queues with their own limit:"));
-    for i in 0..s.queue_limits.len() {
+    for i in 0..s.downloads.queue_limits.len() {
         let offered = limit_queues(&o.queues, s, i);
-        let queue = s.queue_limits[i].queue.clone();
+        let queue = s.downloads.queue_limits[i].queue.clone();
         let at = offered.iter().position(|q| *q == queue);
         let pick = popup::button_of(
             "queue-limit",
@@ -200,12 +200,12 @@ fn queue_limits(
             NUMBER,
             true,
             false,
-            move |o| o.draft.queue_limits[i].files.to_string(),
+            move |o| o.draft.downloads.queue_limits[i].files.to_string(),
         );
         let delete = button(p, ("delete-queue-limit", i), t("Delete queue limit")).on_click(
             cx.listener(move |o, _, _, cx| {
-                if i < o.draft.queue_limits.len() {
-                    o.draft.queue_limits.remove(i);
+                if i < o.draft.downloads.queue_limits.len() {
+                    o.draft.downloads.queue_limits.remove(i);
                     o.forget("queue_limits");
                 }
                 cx.notify();
@@ -227,12 +227,13 @@ fn queue_limits(
     let unlimited = o
         .queues
         .iter()
-        .find(|q| !s.queue_limits.iter().any(|l| &l.queue == *q))
+        .find(|q| !s.downloads.queue_limits.iter().any(|l| &l.queue == *q))
         .cloned();
     let add_limit = button(p, "add-queue-limit", t("Add a queue limit")).on_click(cx.listener(
         move |o, _, _, cx| {
             if let Some(queue) = unlimited.clone() {
                 o.draft
+                    .downloads
                     .queue_limits
                     .push(dm_shell::settings::QueueLimit { queue, files: 1 });
             }
@@ -242,7 +243,7 @@ fn queue_limits(
     p.add(native::enabled(
         o.queues
             .iter()
-            .any(|q| !s.queue_limits.iter().any(|l| &l.queue == q)),
+            .any(|q| !s.downloads.queue_limits.iter().any(|l| &l.queue == q)),
         div().flex().child(add_limit),
     ));
 }
@@ -252,8 +253,8 @@ fn queue_starts(o: &mut Options, p: &mut Page, cx: &mut Context<Options>, s: &Se
     let (theme, screen) = (p.theme, p.screen.clone());
     // Queues that start on their own, each at its own time.
     p.words(t("Queues that start at a set time:"));
-    for i in 0..s.queue_starts.len() {
-        let queue = s.queue_starts[i].queue.clone();
+    for i in 0..s.downloads.queue_starts.len() {
+        let queue = s.downloads.queue_starts[i].queue.clone();
         let pick = popup::button_of(
             "queue-start",
             i,
@@ -271,14 +272,14 @@ fn queue_starts(o: &mut Options, p: &mut Page, cx: &mut Context<Options>, s: &Se
         let at = native::time_picker_of(
             ("start-hour", "start-minute"),
             i,
-            &o.draft.queue_starts[i].at,
+            &o.draft.downloads.queue_starts[i].at,
             theme,
             &screen,
         );
         let delete = button(p, ("delete-start", i), t("Delete start time")).on_click(cx.listener(
             move |o, _, _, cx| {
-                if i < o.draft.queue_starts.len() {
-                    o.draft.queue_starts.remove(i);
+                if i < o.draft.downloads.queue_starts.len() {
+                    o.draft.downloads.queue_starts.remove(i);
                     o.forget("queue_starts");
                 }
                 cx.notify();
@@ -304,10 +305,13 @@ fn queue_starts(o: &mut Options, p: &mut Page, cx: &mut Context<Options>, s: &Se
                 .first()
                 .cloned()
                 .unwrap_or_else(|| dm_core::MAIN_QUEUE.to_string());
-            o.draft.queue_starts.push(dm_shell::settings::QueueStart {
-                queue,
-                at: "02:00".into(),
-            });
+            o.draft
+                .downloads
+                .queue_starts
+                .push(dm_shell::settings::QueueStart {
+                    queue,
+                    at: "02:00".into(),
+                });
             cx.notify();
         }));
     p.add(div().flex().child(add_start));
@@ -329,8 +333,8 @@ fn watching_and_after(
         "watch_folder",
         "Watch a folder: links (.url, .webloc or a text file of links) and .torrent files saved there are added, then moved to its \"done\" folder. Leave it empty to turn this off.",
         true,
-        |o| o.draft.watch_folder.clone(),
-        |o, folder| o.draft.watch_folder = folder,
+        |o| o.draft.downloads.watch_folder.clone(),
+        |o, folder| o.draft.downloads.watch_folder = folder,
     );
     let record = input(
         o,
@@ -341,7 +345,7 @@ fn watching_and_after(
         NUMBER,
         true,
         false,
-        |o| o.draft.record_minutes.to_string(),
+        |o| o.draft.downloads.record_minutes.to_string(),
     );
     p.labelled(
         t("Stop recording after (minutes, 0 for no limit)"),
@@ -357,7 +361,7 @@ fn watching_and_after(
         NUMBER,
         true,
         false,
-        |o| o.draft.recheck_hours.to_string(),
+        |o| o.draft.downloads.recheck_hours.to_string(),
     );
     p.labelled(t("Recheck every (hours, 0 for manual)"), true, recheck);
     p.words(t("When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:"));
@@ -370,7 +374,7 @@ fn watching_and_after(
         400.0,
         true,
         false,
-        |o| o.draft.on_complete.clone(),
+        |o| o.draft.downloads.on_complete.clone(),
     );
     p.labelled(t("Command"), true, command);
 }

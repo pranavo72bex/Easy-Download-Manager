@@ -10,14 +10,17 @@ fn options_writes_only_what_it_changed() {
     let opened = Settings::default();
     // Options changed the connections.
     let mut draft = opened.clone();
-    draft.connections = 4;
+    draft.downloads.connections = 4;
     // Meanwhile View › Language and the Scheduler changed others.
     let mut now = opened.clone();
-    now.language = "de".into();
+    now.general.language = "de".into();
     now.schedule.enabled = true;
     let wanted = changed_only(&opened, &draft, &now).unwrap();
-    assert_eq!(wanted.connections, 4, "Options' own change");
-    assert_eq!(wanted.language, "de", "the language picked meanwhile");
+    assert_eq!(wanted.downloads.connections, 4, "Options' own change");
+    assert_eq!(
+        wanted.general.language, "de",
+        "the language picked meanwhile"
+    );
     assert!(wanted.schedule.enabled, "the schedule set meanwhile");
 }
 
@@ -39,8 +42,8 @@ fn the_lists_typed_are_read_as_words_and_sites() {
         ..Typed::of(&opened)
     };
     let kept = ok(&opened, &opened, &typed, &opened).unwrap();
-    assert_eq!(kept.catch.extensions, ["zip", "pdf"]);
-    assert_eq!(kept.catch.skip_hosts, ["skip.example"]);
+    assert_eq!(kept.browser.catch.extensions, ["zip", "pdf"]);
+    assert_eq!(kept.browser.catch.skip_hosts, ["skip.example"]);
 }
 
 /// A site pasted as an address is kept by its host name,
@@ -70,16 +73,16 @@ fn sites_are_kept_by_their_host_name() {
 fn a_proxy_with_nowhere_to_go_is_refused_on_advanced() {
     let opened = Settings::default();
     let mut draft = opened.clone();
-    draft.proxy.enabled = true;
-    draft.proxy.kind = dm_core::ProxyKind::Http;
-    draft.proxy.host = String::new();
+    draft.advanced.proxy.enabled = true;
+    draft.advanced.proxy.kind = dm_core::ProxyKind::Http;
+    draft.advanced.proxy.host = String::new();
     let refused = ok(&opened, &draft, &Typed::of(&draft), &opened).unwrap_err();
     assert_eq!(refused.tab, Some(Tab::Advanced));
     assert!(refused.to_proxy);
-    draft.proxy.host = "http://proxy.example".into();
+    draft.advanced.proxy.host = "http://proxy.example".into();
     assert!(ok(&opened, &draft, &Typed::of(&draft), &opened).is_err());
-    draft.proxy.host = "proxy.example".into();
-    draft.proxy.port = 3128;
+    draft.advanced.proxy.host = "proxy.example".into();
+    draft.advanced.proxy.port = 3128;
     assert!(ok(&opened, &draft, &Typed::of(&draft), &opened).is_ok());
 }
 
@@ -97,13 +100,25 @@ fn a_category_that_cannot_be_a_folder_is_refused_on_folders() {
 #[test]
 fn restore_defaults_puts_back_one_page_alone() {
     let draft = Settings {
-        connections: 3,
-        speed_limit: 50,
+        downloads: dm_shell::settings::DownloadSettings {
+            connections: 3,
+            ..Default::default()
+        },
+        advanced: dm_shell::settings::AdvancedSettings {
+            speed_limit: 50,
+            ..Default::default()
+        },
         ..Settings::default()
     };
     let restored = restore_defaults(Tab::Downloads, &draft);
-    assert_eq!(restored.connections, Settings::default().connections);
-    assert_eq!(restored.speed_limit, 50, "Advanced's, not Downloads'");
+    assert_eq!(
+        restored.downloads.connections,
+        Settings::default().downloads.connections
+    );
+    assert_eq!(
+        restored.advanced.speed_limit, 50,
+        "Advanced's, not Downloads'"
+    );
 }
 
 #[test]

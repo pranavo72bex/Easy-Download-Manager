@@ -117,8 +117,8 @@ pub fn remove_login_item() {
 /// straight back.
 pub fn unregister_the_rest() {
     let (mut saved, _) = settings::Settings::load();
-    if saved.start_on_login {
-        saved.start_on_login = false;
+    if saved.general.start_on_login {
+        saved.general.start_on_login = false;
         match saved.save() {
             Ok(()) => println!("turned off starting dm at login"),
             Err(e) => eprintln!("dm: the login setting could not be turned off: {e}"),

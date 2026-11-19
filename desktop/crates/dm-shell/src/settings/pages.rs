@@ -1,0 +1,316 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! The settings each page of Options edits, a struct a page (gaps row A8): what
+//! `dm_desktop_base::options::tab_settings` names for the page is the page's struct here.
+//! [`Settings`](super::Settings) holds each with `#[serde(flatten)]`, so `settings.json` keeps
+//! every key where it was, beside the settings no page edits: a file an older dm wrote reads
+//! here, and one written here reads in an older dm.
+
+use std::path::PathBuf;
+
+use dm_core::{Category, Proxy};
+use serde::{Deserialize, Serialize};
+
+use super::{QueueLimit, QueueStart, SiteRule};
+
+/// Options › General: the language, the look, the start, the sounds and the windows dm
+/// opens.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GeneralSettings {
+    /// Watch the clipboard for links and offer to download them. Off by
+    /// default: people copy URLs constantly, so this asks rather than grabs.
+    #[serde(default)]
+    pub watch_clipboard: bool,
+    /// Start with the computer, so a browser hand-off has an app to land in
+    /// without anyone opening it first. On for a new install, in the tray
+    /// with no window; Options › General turns it off.
+    #[serde(default)]
+    pub start_on_login: bool,
+    /// Open dm's control port (loopback only, a token only this account can
+    /// read) at every start, so `dm-desktop list`, `pause`, `resume` and
+    /// `cancel` find the running dm. Off unless turned on: otherwise dm
+    /// listens on nothing, and the port exists only under `--control`.
+    #[serde(default)]
+    pub allow_command_line: bool,
+    /// Let an AI assistant use dm over MCP (`dm-desktop mcp`): its requests
+    /// are answered only while this is on, and it opens the control port at
+    /// start as `allow_command_line` does. Off in a new install, by dm's own
+    /// rule that nothing listens unless turned on (gaps row F7); a settings
+    /// file that already says either keeps it.
+    #[serde(default)]
+    pub allow_mcp: bool,
+    /// Look for a newer dm about once a week. Off unless turned on: it asks
+    /// GitHub, and dm otherwise contacts nothing but what is downloaded.
+    pub check_updates: bool,
+    /// The window's language, by code ("es", "pt-BR"); empty follows the
+    /// system's where dm has it.
+    pub language: String,
+    /// Open a progress window for a download as it starts, as reference A
+    /// does (on by default since edition 2).
+    #[serde(default)]
+    pub show_progress: bool,
+    /// Say so in a window when a download finishes, with Open and Open
+    /// folder, as reference A does (on by default since edition 2).
+    #[serde(default)]
+    pub show_complete: bool,
+    /// Play the system's short sound when a download finishes.
+    pub sound_on_complete: bool,
+    /// A video from the browser's panel: "Download details" opens for it,
+    /// to name it and choose where it goes, before it starts.
+    pub ask_panel_downloads: bool,
+    /// A download caught from the browser: "Download details" opens for it
+    /// too, rather than it starting at once, as reference A's File Info
+    /// does (on by default since edition 2).
+    #[serde(default)]
+    pub ask_caught_downloads: bool,
+    /// The window's look: "system" (the modern look, light or dark as the
+    /// computer is), "light", "dark", or "classic" (a classic Windows look).
+    pub theme: String,
+    /// What a double-click on a row does: "properties", "open" (a finished
+    /// file; Properties for one not finished) or "folder" (its folder).
+    pub double_click: String,
+    /// What the window's close button does: "ask" (the first time, and the
+    /// answer is kept here), "tray" (dm goes on running in the tray) or
+    /// "exit".
+    pub on_close: String,
+    /// A finished file takes the date its server says it last changed,
+    /// rather than when it was fetched. Off by default.
+    pub server_dates: bool,
+    /// Play the system's short failure sound when a download fails.
+    #[serde(default)]
+    pub sound_on_failure: bool,
+    /// Windows 11's Mica behind the window's frame, from the next start.
+    /// Off unless chosen: it needs a see-through window, which an old GPU
+    /// driver can draw black.
+    #[serde(default)]
+    pub mica: bool,
+    /// Open "Update download link" by itself when a download's signed link
+    /// has run out part-way. Off, the row says it failed and its menu has
+    /// Update download link.
+    #[serde(default = "super::yes")]
+    pub offer_new_link: bool,
+}
+
+impl Default for GeneralSettings {
+    fn default() -> Self {
+        GeneralSettings {
+            watch_clipboard: false,
+            start_on_login: true,
+            allow_command_line: false,
+            allow_mcp: false,
+            check_updates: false,
+            language: String::new(),
+            show_progress: true,
+            show_complete: true,
+            sound_on_complete: false,
+            ask_panel_downloads: true,
+            ask_caught_downloads: true,
+            theme: "system".into(),
+            double_click: "open".into(),
+            on_close: "ask".into(),
+            server_dates: false,
+            sound_on_failure: false,
+            mica: false,
+            offer_new_link: true,
+        }
+    }
+}
+
+/// Options › Browser: which downloads the browser's extension takes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BrowserSettings {
+    /// Which downloads the browser extension takes from the browser —
+    /// Options › Browser. Kept here, in the app, and sent to the extension
+    /// when it asks (`settings.get`), so there is one list and it is the
+    /// app's. Spelled as the protocol spells it: `minSizeKb`, `skipHosts`.
+    #[serde(default)]
+    pub catch: dm_protocol::CatchRules,
+}
+
+/// Options › Folders: where downloads go, sorted by kind or not, and where they are staged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FolderSettings {
+    /// Where finished files land.
+    pub download_dir: PathBuf,
+    /// Sort finished files into folders by kind. On for a new install.
+    pub categorize: bool,
+    /// What each of those folders is called, in `Category::ALL` order. An
+    /// empty name leaves that kind unsorted.
+    pub category_folders: Vec<String>,
+    /// Where unfinished downloads are staged; empty for dm's own folder.
+    /// A download already begun keeps the folder it began in.
+    #[serde(default)]
+    pub parts_dir: String,
+}
+
+impl Default for FolderSettings {
+    fn default() -> Self {
+        FolderSettings {
+            // A `dm` folder inside the one the operating system already
+            // nominates. A download manager that puts files anywhere else is
+            // one people have to go looking in.
+            download_dir: dm_core::folders::downloads()
+                .unwrap_or_else(|| dm_core::folders::home().unwrap_or_default())
+                .join("dm"),
+            categorize: true,
+            category_folders: default_folders(),
+            parts_dir: String::new(),
+        }
+    }
+}
+
+/// Options › Downloads: connections, files at once, the queues' own limits and starts, streams,
+/// and what runs after each download.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DownloadSettings {
+    /// Connections per file.
+    pub connections: usize,
+    /// Files transferring at once.
+    pub concurrency: usize,
+    /// Which rendition to take from an adaptive stream: `best`, `audio`, or
+    /// a height.
+    pub stream_quality: String,
+    /// A folder dm reads every few seconds for links saved there: a `.url`,
+    /// a `.webloc`, a text file of links or a `.torrent` is added, then
+    /// moved into a `done` folder inside it. Empty is off.
+    #[serde(default)]
+    pub watch_folder: String,
+    /// Minutes a live stream is recorded for before dm ends it and keeps
+    /// what it has; 0 records until the stream ends or Stop.
+    #[serde(default)]
+    pub record_minutes: u64,
+    /// A command run on each finished file, its path added as the last
+    /// argument: a virus checker, or a script of the person's own. Empty
+    /// for none.
+    #[serde(default)]
+    pub on_complete: String,
+    /// Hours between the recheck queue asking its servers again on its
+    /// own. Zero asks only when "Start queue" is clicked on it.
+    #[serde(default)]
+    pub recheck_hours: u64,
+    /// Start the Main queue as dm opens, so what was added for later goes
+    /// at the next launch without a click.
+    #[serde(default)]
+    pub start_queue_on_launch: bool,
+    /// Carry a video's subtitles inside it.
+    #[serde(default)]
+    pub subtitles: bool,
+    /// Queues that run fewer files at once than `concurrency`.
+    #[serde(default, deserialize_with = "super::lenient::queue_limits")]
+    pub queue_limits: Vec<QueueLimit>,
+    /// Queues that start on their own each day at a time of their own.
+    #[serde(default)]
+    pub queue_starts: Vec<QueueStart>,
+    /// Put a `.ts` stream into an MP4 (dm's own remux).
+    #[serde(default = "super::yes")]
+    pub remux_ts: bool,
+}
+
+impl Default for DownloadSettings {
+    fn default() -> Self {
+        DownloadSettings {
+            connections: 8,
+            concurrency: 3,
+            stream_quality: default_quality(),
+            watch_folder: String::new(),
+            record_minutes: 0,
+            on_complete: String::new(),
+            recheck_hours: 0,
+            start_queue_on_launch: false,
+            subtitles: false,
+            queue_limits: Vec::new(),
+            queue_starts: Vec::new(),
+            remux_ts: true,
+        }
+    }
+}
+
+/// Options › Advanced: the speed limit, retries and timeouts, the proxy, dial-up, the cookies
+/// file and each site's own limits and rules.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AdvancedSettings {
+    /// Kilobytes a second across everything. Zero is no limit.
+    ///
+    /// Kilobytes rather than bytes because that is the unit people think in
+    /// for a link.
+    pub speed_limit: u64,
+    /// Where downloads connect through.
+    #[serde(deserialize_with = "super::lenient::proxy")]
+    pub proxy: Proxy,
+    /// A dial-up or VPN connection every download waits for (Windows; Options › Advanced ›
+    /// Dial Up / VPN). Off unless the person turns it on.
+    #[serde(default)]
+    pub dialup: crate::dialup::DialUp,
+    /// Seconds to wait between attempts after a failure; 0 lets dm choose
+    /// (quick at first, then half a minute apart).
+    pub retry_wait: u64,
+    /// A `cookies.txt` (Netscape format) whose cookies dm sends with its own
+    /// requests, for downloads that need a signed-in session. Empty for none.
+    #[serde(default)]
+    pub cookies_file: String,
+    /// How many times one connection tries before the download fails, for
+    /// a failure waiting can fix. Zero keeps trying until it gets through
+    /// or is paused.
+    #[serde(default = "default_attempts")]
+    pub attempts: u32,
+    /// Seconds a connection may send nothing before dm gives up on it and
+    /// tries again.
+    #[serde(default = "default_read_timeout")]
+    pub read_timeout: u64,
+    /// Sites that take fewer connections at once than `connections`.
+    #[serde(default, deserialize_with = "super::lenient::host_limits")]
+    pub host_limits: Vec<dm_core::HostLimit>,
+    /// A folder and a speed limit for a site's downloads (Options › Advanced).
+    #[serde(default, deserialize_with = "super::lenient::site_rules")]
+    pub site_rules: Vec<SiteRule>,
+}
+
+impl Default for AdvancedSettings {
+    fn default() -> Self {
+        AdvancedSettings {
+            speed_limit: 0,
+            // The computer's proxy settings, as a browser takes them: with none set it goes
+            // direct; behind one, a new dm works where the browser does
+            // (docs/decisions.md, 2026-11-06, in place of gaps row 80).
+            proxy: Proxy {
+                enabled: true,
+                kind: dm_core::ProxyKind::System,
+                ..Proxy::default()
+            },
+            dialup: crate::dialup::DialUp::default(),
+            retry_wait: 0,
+            cookies_file: String::new(),
+            attempts: default_attempts(),
+            read_timeout: default_read_timeout(),
+            host_limits: Vec::new(),
+            site_rules: Vec::new(),
+        }
+    }
+}
+
+fn default_attempts() -> u32 {
+    15
+}
+
+fn default_read_timeout() -> u64 {
+    30
+}
+
+fn default_quality() -> String {
+    "best".into()
+}
+
+fn default_folders() -> Vec<String> {
+    Category::ALL
+        .iter()
+        .map(|c| c.folder().to_string())
+        .collect()
+}

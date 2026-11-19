@@ -18,7 +18,7 @@ use crate::harness::{settings_file, Harness};
 /// F7).
 fn harness(world: &World) -> Harness {
     let mut settings = world.settings();
-    settings.allow_mcp = true;
+    settings.general.allow_mcp = true;
     world.harness_with(settings)
 }
 
@@ -95,7 +95,7 @@ fn what_runs_a_file_is_refused_to_a_script_in_the_row_menu_and_on_a_double_click
     let _file = settings_file();
     let world = world();
     let mut settings = world.settings();
-    settings.double_click = "open".into();
+    settings.general.double_click = "open".into();
     let mut h = world.harness_with(settings);
     h.call("downloads.add", json!({ "urls": [world.url("file.zip")] }))
         .unwrap();
@@ -416,7 +416,7 @@ fn a_download_the_schedule_holds_is_not_resumed_over_the_port() {
     let _file = settings_file();
     let world = world();
     let mut settings = world.settings();
-    settings.allow_mcp = true;
+    settings.general.allow_mcp = true;
     // Closed until a day far off.
     settings.schedule = dm_core::Schedule {
         enabled: true,
@@ -458,11 +458,14 @@ fn the_port_sets_the_limit_adds_where_downloads_may_go_and_answers_a_batch() {
         .call("downloads.speed_limit", json!({ "kb": 500 }))
         .unwrap();
     assert_eq!(set, json!({ "speed_limit_kb": 500 }));
-    assert_eq!(h.view(|view| view.backend.settings().speed_limit), 500);
+    assert_eq!(
+        h.view(|view| view.backend.settings().advanced.speed_limit),
+        500
+    );
     let off = h.call("downloads.speed_limit", json!({ "kb": 0 })).unwrap();
     assert_eq!(off, json!({ "speed_limit_kb": 0 }));
     let settings = h.view(|view| view.backend.settings());
-    assert_eq!(settings.speed_limit, 0);
+    assert_eq!(settings.advanced.speed_limit, 0);
     assert_eq!(settings.last_speed_limit, 500, "the one before");
 
     let said = h
@@ -562,11 +565,11 @@ fn assistants_are_answered_only_while_options_lets_them_and_a_port_for_them_alon
         h.call_as_assistant("queue.list", json!({})).unwrap(),
         json!([])
     );
-    h.settings_to(|s| s.allow_mcp = false);
+    h.settings_to(|s| s.general.allow_mcp = false);
     let refused = h.call_as_assistant("queue.list", json!({})).unwrap_err();
     assert!(refused.contains("turned off"), "{refused}");
     assert!(h.call("queue.list", json!({})).is_ok());
-    h.settings_to(|s| s.allow_mcp = true);
+    h.settings_to(|s| s.general.allow_mcp = true);
 
     h.assistants_only(true);
     let refused = h.call("queue.list", json!({})).unwrap_err();

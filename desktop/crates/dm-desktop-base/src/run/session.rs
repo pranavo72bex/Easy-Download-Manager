@@ -281,7 +281,7 @@ impl Session {
                 }
             }
             // One window for one download, not a stack for a batch.
-            if settings.show_progress {
+            if settings.general.show_progress {
                 if let [only] = read.started_elsewhere.as_slice() {
                     effects.push(Effect::StartedElsewhere(*only));
                 }
@@ -313,11 +313,11 @@ impl Session {
                 body: tf("{} downloads finished.", &[&many.len()]),
             }),
         }
-        if settings.sound_on_complete && !finished.is_empty() {
+        if settings.general.sound_on_complete && !finished.is_empty() {
             let sound = chosen_sound(&settings, "complete").map_or(Sound::Chime, Sound::File);
             effects.push(Effect::Play(sound));
         }
-        if settings.sound_on_failure && failed {
+        if settings.general.sound_on_failure && failed {
             let sound = chosen_sound(&settings, "failed").map_or(Sound::Alert, Sound::File);
             effects.push(Effect::Play(sound));
         }

@@ -75,7 +75,7 @@ impl Downloads {
         let named = dm_shell::app::names::name_it_will_get_after(
             &self.rows,
             row,
-            &settings.download_dir,
+            &settings.folders.download_dir,
             &mut settings.categories(),
             None,
         );

@@ -230,11 +230,11 @@ impl Downloads {
         dm_desktop_base::jumplist::publish(
             dm_desktop_base::i18n::t("Add URL"),
             dm_desktop_base::i18n::t("Open downloads folder"),
-            &settings.download_dir,
+            &settings.folders.download_dir,
         );
         // The clipboard watched, and the look asked for, as Options says.
-        this.watch_clipboard(settings.watch_clipboard);
-        crate::window::theme::follow(&settings.theme, cx);
+        this.watch_clipboard(settings.general.watch_clipboard);
+        crate::window::theme::follow(&settings.general.theme, cx);
         window.focus(&this.focus, cx);
         // The tray, and the close button that keeps dm in it.
         this.start_tray(window, cx);
@@ -457,7 +457,7 @@ impl Downloads {
         if asked.is_empty() {
             return false;
         }
-        let allow_mcp = self.backend.settings().allow_mcp;
+        let allow_mcp = self.backend.settings().general.allow_mcp;
         for request in asked {
             let answer = match dm_shell::app::control_api::refused(
                 request.via_mcp,
@@ -692,8 +692,8 @@ impl Downloads {
                 let settings = self.backend.settings();
                 if let Some((text, count)) = dm_desktop_base::details::blocks_for(
                     &chosen,
-                    settings.connections,
-                    &settings.download_dir,
+                    settings.downloads.connections,
+                    &settings.folders.download_dir,
                 ) {
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
                     self.say(dm_desktop_base::i18n::tn(
@@ -753,7 +753,7 @@ impl Downloads {
         // Resume opens each row's progress window where Options says, but
         // not one its person closed: fifteen Resumes opened it fifteen
         // times over the list. Show progress still opens it.
-        if command == Command::DownloadNow && self.backend.settings().show_progress {
+        if command == Command::DownloadNow && self.backend.settings().general.show_progress {
             for id in chosen {
                 if !self.windows.progress_closed.contains(id) {
                     self.show_progress(*id, cx);
@@ -796,7 +796,7 @@ impl Downloads {
         // Its progress window opens as it starts, where that is asked for
         // (B63), for one download at a time.
         if let [(id, _, false)] = added.rows.as_slice() {
-            if self.backend.settings().show_progress {
+            if self.backend.settings().general.show_progress {
                 self.show_progress(*id, cx);
             }
         }
@@ -832,7 +832,7 @@ impl Downloads {
                 dm_shell::app::names::name_it_will_get_after(
                     &self.rows,
                     row,
-                    &settings.download_dir,
+                    &settings.folders.download_dir,
                     &mut categories,
                     None,
                 )
@@ -922,7 +922,7 @@ impl Downloads {
         if !self
             .questions
             .cancelled_hand_offs
-            .cancelled(site, &settings.catch.skip_hosts)
+            .cancelled(site, &settings.browser.catch.skip_hosts)
         {
             return;
         }
@@ -952,8 +952,8 @@ impl Downloads {
             }
             let _ = view.update(cx, |view, _| {
                 let mut wanted = view.backend.settings();
-                if !wanted.catch.skip_hosts.contains(&site) {
-                    wanted.catch.skip_hosts.push(site);
+                if !wanted.browser.catch.skip_hosts.contains(&site) {
+                    wanted.browser.catch.skip_hosts.push(site);
                 }
                 if let Err(e) = view.backend.set_settings(wanted) {
                     view.status.problems.push(e);
@@ -1136,10 +1136,9 @@ impl Downloads {
         let now = self.backend.settings();
         let wanted =
             dm_shell::app::commands::limited(command, &now, &mut self.last_limit).unwrap_or(now);
-        match self.backend.set_settings(wanted) {
-            Ok(after) if after.speed_limit > 0 => {
-                self.say(tf("Speed limiter on: {} KB/s.", &[&after.speed_limit]))
-            }
+        let set = self.backend.set_settings(wanted);
+        match set.map(|after| after.advanced.speed_limit) {
+            Ok(kb) if kb > 0 => self.say(tf("Speed limiter on: {} KB/s.", &[&kb])),
             Ok(_) => self.say(t("Speed limiter off.").into()),
             Err(e) => self.say(e),
         }
@@ -1152,7 +1151,7 @@ impl Downloads {
         let ticks = crate::window::menus::Ticks {
             queues: self.known.queue_list.clone(),
             when_done: self.session.when_done,
-            speed_limit: settings.speed_limit,
+            speed_limit: settings.advanced.speed_limit,
             sidebar: self.layout.show_sidebar,
             toolbar: self.layout.show_toolbar,
             drop_target: settings.drop_target,
@@ -1162,7 +1161,7 @@ impl Downloads {
             toolbar_order: settings.toolbar_order.clone(),
             toolbar_hidden: settings.toolbar_hidden.clone(),
             text_size: settings.text_size,
-            language: settings.language.clone(),
+            language: settings.general.language.clone(),
             sorted_by: self.list.sort.and_then(|(column, _)| sort_command(column)),
             resume: dm_desktop_base::rows::resume_word(&self.chosen()),
             off: self.commands_off(),
@@ -1199,7 +1198,7 @@ impl Downloads {
             let items = urls.into_iter().map(|u| (u, with.clone())).collect();
             return self.add_items(items, cx);
         }
-        let root = self.backend.settings().download_dir;
+        let root = self.backend.settings().folders.download_dir;
         let mut items = Vec::new();
         for (folder, group) in dm_shell::app::search::by_site_folder(&urls, &root) {
             let mut here = with.clone();
@@ -1426,7 +1425,7 @@ impl Downloads {
         dm_shell::app::names::name_it_will_get_after(
             &self.rows,
             row,
-            &settings.download_dir,
+            &settings.folders.download_dir,
             &mut settings.categories(),
             None,
         )
@@ -1604,7 +1603,7 @@ impl Downloads {
         let finished = row.state == State::Completed;
         let going = matches!(row.state, State::Running | State::Queued | State::Paused);
         let id = row.id;
-        let command = match self.backend.settings().double_click.as_str() {
+        let command = match self.backend.settings().general.double_click.as_str() {
             "open" if finished => Command::OpenFile,
             "folder" if finished => Command::OpenFolder,
             _ if going => Command::ShowProgress,

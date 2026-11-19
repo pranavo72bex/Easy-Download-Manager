@@ -84,14 +84,20 @@ fn world() -> World {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let settings = Settings {
-        download_dir: dir.path().join("out"),
-        start_on_login: false,
+        general: dm_shell::settings::GeneralSettings {
+            start_on_login: false,
+            ..Default::default()
+        },
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: dir.path().join("out"),
+            ..Default::default()
+        },
         ..Settings::default()
     };
     let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.path().join("parts"), dm_core::Limiter::unlimited()),
-        settings.concurrency,
+        settings.downloads.concurrency,
     );
     let backend = Backend::new(
         runtime.handle().clone(),

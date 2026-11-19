@@ -15,10 +15,7 @@ use crate::harness::Harness;
 /// opens it.
 fn open_details(world: &World, name: &str) -> Harness {
     // A hand-over asks first, in Download details, as the panel's click does.
-    let mut h = world.harness_with(dm_shell::Settings {
-        ask_panel_downloads: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.general.ask_panel_downloads = true));
     h.hand_over(dm_shell::host::Request {
         url: world.url(name),
         ask: true,
@@ -72,10 +69,8 @@ fn a_file_named_zip_that_is_none_lists_nothing_and_says_nothing() {
 #[test]
 fn a_finished_zips_files_are_listed_in_its_properties() {
     let world = world();
-    let mut h = world.harness_with(dm_shell::Settings {
-        double_click: "properties".into(),
-        ..world.settings()
-    });
+    let mut h =
+        world.harness_with(world.settings_with(|s| s.general.double_click = "properties".into()));
     h.add_url(&world.url("pack.zip"), "Start now");
     h.until("it to finish", |h| {
         h.rows().iter().any(|r| r.state == State::Completed)
@@ -94,7 +89,7 @@ fn take_out_saves_one_file_of_a_zip_before_the_zip_is_fetched() {
     let world = world();
     let mut h = open_details(&world, "pack.zip");
     h.until_shown("setup.exe");
-    let folder = world.settings().download_dir;
+    let folder = world.settings().folders.download_dir;
     // The first file listed with a button: docs/readme.txt (the folder has none). The list is
     // read nearest the front first, so the last Take out drawn is setup.exe's.
     let takes = h.texts().iter().filter(|t| *t == "Take out").count();

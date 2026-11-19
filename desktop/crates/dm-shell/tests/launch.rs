@@ -16,8 +16,14 @@ async fn the_main_queue_starts_at_launch_when_the_setting_says_so() {
     // and nothing else is reading the environment while it is set.
     unsafe { std::env::set_var("DM_HOME", home.path()) };
     let saved = Settings {
-        download_dir: home.path().join("out"),
-        start_queue_on_launch: true,
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: home.path().join("out"),
+            ..Default::default()
+        },
+        downloads: dm_shell::settings::DownloadSettings {
+            start_queue_on_launch: true,
+            ..Default::default()
+        },
         ..Settings::default()
     };
     saved.save().unwrap();
@@ -55,5 +61,5 @@ async fn the_main_queue_starts_at_launch_when_the_setting_says_so() {
         State::Paused,
         "the Main queue was not started as dm opened"
     );
-    assert!(started.settings.start_queue_on_launch);
+    assert!(started.settings.downloads.start_queue_on_launch);
 }

@@ -157,7 +157,7 @@ fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     h.key("escape", &[]);
     h.until("Options to close", |h| !h.dialog_open("Options"));
     assert!(
-        h.view(|view| view.backend.settings().proxy.host.is_empty()),
+        h.view(|view| view.backend.settings().advanced.proxy.host.is_empty()),
         "Escape kept what was typed"
     );
 
@@ -343,7 +343,7 @@ fn the_toolbar_keeps_its_names_narrow_and_in_german() {
     for size in [1.0, 1.2] {
         let world = world();
         let mut settings = world.settings();
-        settings.language = "de".into();
+        settings.general.language = "de".into();
         settings.text_size = size;
         let mut h = world.harness_with(settings);
         dm_desktop_base::i18n::set("de");
@@ -412,7 +412,7 @@ fn the_complete_window_scrolls_cuts_long_names_and_closes_on_escape() {
     let _file = settings_file();
     let world = world();
     let mut settings = world.settings();
-    settings.show_complete = true;
+    settings.general.show_complete = true;
     let mut h = world.harness_with(settings);
     let long = format!("{}.zip", "very-long-name-".repeat(20));
     let url = world.url("file.zip");
@@ -554,8 +554,11 @@ fn the_delete_key_asks_and_the_limiter_takes_enter() {
     h.type_text("321");
     h.key("enter", &[]);
     h.until("Enter to apply", |h| h.dialogs().is_empty());
-    assert_eq!(h.view(|view| view.backend.settings().speed_limit), 321);
-    h.apply(|s| s.speed_limit = 0);
+    assert_eq!(
+        h.view(|view| view.backend.settings().advanced.speed_limit),
+        321
+    );
+    h.apply(|s| s.advanced.speed_limit = 0);
 }
 
 /// A right click moves the keyboard's place to the row clicked.
@@ -596,7 +599,7 @@ fn enter_starts_the_links_dialogs() {
         !h.dialog_open("Links on the clipboard")
     });
     h.until("the row", |h| h.rows().len() == 1);
-    h.settings_to(|s| s.ask_panel_downloads = true);
+    h.settings_to(|s| s.general.ask_panel_downloads = true);
     h.hand(Request {
         url: world.url("page.html"),
         referrer: world.url("page.html"),
@@ -713,7 +716,7 @@ fn enter_shows_the_row_when_already_listed() {
 fn escape_cancels_the_when_done_countdown() {
     let world = world();
     let mut settings = world.settings();
-    settings.show_complete = true;
+    settings.general.show_complete = true;
     let mut h = world.harness_with(settings);
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("it to finish", finished);

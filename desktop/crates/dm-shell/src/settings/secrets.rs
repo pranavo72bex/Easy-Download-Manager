@@ -73,10 +73,10 @@ impl Settings {
             );
         }
         let proxy = proxy_name(ns);
-        keep(proxy, &mut self.proxy.password);
+        keep(proxy, &mut self.advanced.proxy.password);
         // Empty here unless it is to be saved (`Settings::save_to`): then what an earlier run
         // kept is forgotten too.
-        keep(dialup_name(ns), &mut self.dialup.password);
+        keep(dialup_name(ns), &mut self.advanced.dialup.password);
         refused.map(|why| {
             format!(
                 "the operating system's store for passwords could not be used ({why}): the \
@@ -121,8 +121,8 @@ impl Settings {
                 &mut login.password,
             );
         }
-        fill(proxy_name(ns), &mut self.proxy.password);
-        fill(dialup_name(ns), &mut self.dialup.password);
+        fill(proxy_name(ns), &mut self.advanced.proxy.password);
+        fill(dialup_name(ns), &mut self.advanced.dialup.password);
         let note = refused.map(|why| {
             format!(
                 "the operating system's store for passwords could not be read ({why}): a \

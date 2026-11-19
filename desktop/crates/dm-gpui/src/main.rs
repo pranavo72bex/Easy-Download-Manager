@@ -42,7 +42,7 @@ use std::sync::Arc;
 static ALLOCATOR: dm_core::memory::Allocator = dm_core::memory::Allocator;
 
 use dm_desktop_base::boot::{self, Wake};
-use dm_desktop_base::modes::Mode;
+use dm_desktop_base::{i18n, modes::Mode};
 use gpui::{
     point, prelude::*, px, size, App, Bounds, TitlebarOptions, WindowBounds, WindowOptions,
 };
@@ -127,11 +127,11 @@ fn main() {
     // are made on this thread, where the language in force is kept. Without
     // it the window spoke English after every start until Options was next
     // applied.
-    dm_desktop_base::i18n::set(dm_desktop_base::i18n::chosen(&backend.settings().language));
+    i18n::set(i18n::chosen(&backend.settings().general.language));
 
     // Mica behind the window where it was chosen and Windows 11 can draw it
     // (Options › General, from this start: gaps row G11).
-    let mica = dm_desktop_base::mica::use_it(backend.settings().mica);
+    let mica = dm_desktop_base::mica::use_it(backend.settings().general.mica);
 
     // What dm's own drop targets take wakes the window to read it.
     {

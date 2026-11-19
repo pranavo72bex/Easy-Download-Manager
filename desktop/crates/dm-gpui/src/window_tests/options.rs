@@ -13,14 +13,14 @@ use crate::harness::{saved_settings, settings_file, Harness};
 use crate::options::Options;
 
 /// Options opened, as Downloads › Options opens it.
-fn open_options(h: &mut Harness) {
+pub(super) fn open_options(h: &mut Harness) {
     h.command("downloads.options");
     h.until("Options", |h| h.dialog_open("Options"));
     h.until_shown("General");
 }
 
 /// Options' tab `name` shown.
-fn tab(h: &mut Harness, name: &str) {
+pub(super) fn tab(h: &mut Harness, name: &str) {
     h.click(name);
     h.until(name, |h| {
         h.dialog(|o: &mut Options, _, _| {
@@ -55,7 +55,7 @@ fn own_proxy(h: &mut Harness) {
     h.click("The computer's proxy settings");
     h.click("HTTP");
     h.until("the proxy's own kind", |h| {
-        h.dialog(|o: &mut Options, _, _| o.draft.proxy.kind == dm_core::ProxyKind::Http)
+        h.dialog(|o: &mut Options, _, _| o.draft.advanced.proxy.kind == dm_core::ProxyKind::Http)
     });
 }
 
@@ -68,7 +68,7 @@ fn options_are_put_into_force_on_ok_and_written_down() {
     tab(&mut h, "Folders");
     h.click("Sort finished files into folders by kind");
     ok(&mut h);
-    assert!(kept(&mut h).categorize);
+    assert!(kept(&mut h).folders.categorize);
     assert_eq!(saved_settings()["categorize"], true);
 }
 
@@ -91,7 +91,7 @@ fn the_file_types_the_browser_hands_over_are_set_in_options() {
     h.reveal("Download media with dm");
     h.click("Download media with dm");
     ok(&mut h);
-    let catch = kept(&mut h).catch;
+    let catch = kept(&mut h).browser.catch;
     assert_eq!(catch.extensions, ["zip", "iso", "mkv"]);
     assert_eq!(catch.skip_hosts, ["intranet.example"]);
     assert_eq!(catch.once_hosts, ["*.once.example"]);
@@ -119,7 +119,7 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
     h.fill("Site", "Slow.Example");
     h.fill("Connections", "2");
     ok(&mut h);
-    let settings = kept(&mut h);
+    let settings = kept(&mut h).advanced;
     assert_eq!((settings.attempts, settings.read_timeout), (0, 10));
     assert_eq!(
         settings.host_limits,
@@ -146,7 +146,7 @@ fn site_limits_attempts_and_the_timeout_are_set_in_options_and_reach_the_queue()
     h.reveal("Delete site limit");
     h.click("Delete site limit");
     ok(&mut h);
-    assert!(kept(&mut h).host_limits.is_empty());
+    assert!(kept(&mut h).advanced.host_limits.is_empty());
 }
 
 #[test]
@@ -210,7 +210,7 @@ fn the_recording_limit_is_set_in_options_and_reaches_the_queue() {
     tab(&mut h, "Downloads");
     h.fill("Stop recording after (minutes, 0 for no limit)", "90");
     ok(&mut h);
-    assert_eq!(kept(&mut h).record_minutes, 90);
+    assert_eq!(kept(&mut h).downloads.record_minutes, 90);
     assert_eq!(
         in_force(&mut h, &world).record_limit,
         Some(std::time::Duration::from_secs(90 * 60)),
@@ -237,10 +237,11 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     h.fill("Recheck every (hours, 0 for manual)", "6");
     ok(&mut h);
     let settings = kept(&mut h);
-    assert!(settings.proxy.enabled);
-    assert_eq!(settings.proxy.host, "proxy.example");
-    assert_eq!(settings.proxy.bypass, ["intranet.example", "10.0.0.5"]);
-    assert_eq!(settings.recheck_hours, 6);
+    let proxy = &settings.advanced.proxy;
+    assert!(proxy.enabled);
+    assert_eq!(proxy.host, "proxy.example");
+    assert_eq!(proxy.bypass, ["intranet.example", "10.0.0.5"]);
+    assert_eq!(settings.downloads.recheck_hours, 6);
     let options = in_force(&mut h, &world);
     assert_eq!(options.proxy_bypass, ["intranet.example", "10.0.0.5"]);
     assert_eq!(options.proxy_for("http://files.intranet.example/a"), None);
@@ -251,7 +252,7 @@ fn the_proxys_bypass_list_and_the_recheck_timer_are_set_in_options() {
     h.reveal("Connect through a proxy");
     h.click("Connect through a proxy");
     ok(&mut h);
-    assert!(!kept(&mut h).proxy.enabled);
+    assert!(!kept(&mut h).advanced.proxy.enabled);
 }
 
 /// Reference A's per-protocol proxies and its automatic configuration script, in the proxy
@@ -270,18 +271,21 @@ fn a_proxy_of_its_own_for_https_and_a_configuration_script_are_set_in_options() 
     h.fill("Its host", "secure-proxy.example");
     ok(&mut h);
     let settings = kept(&mut h);
-    let https = &settings.proxy.per_scheme["https"];
+    let https = &settings.advanced.proxy.per_scheme["https"];
     assert_eq!(https.host, "secure-proxy.example");
     assert_eq!(https.port, 8080);
-    assert!(!settings.proxy.per_scheme.contains_key("http"));
-    assert!(settings.proxy.script.is_empty());
+    assert!(!settings.advanced.proxy.per_scheme.contains_key("http"));
+    assert!(settings.advanced.proxy.script.is_empty());
 
     let script = "Automatic configuration script address (it chooses each site's proxy, in place of the above)";
     open_options(&mut h);
     tab(&mut h, "Advanced");
     h.fill(script, "http://wpad.example/proxy.pac");
     ok(&mut h);
-    assert_eq!(kept(&mut h).proxy.script, "http://wpad.example/proxy.pac");
+    assert_eq!(
+        kept(&mut h).advanced.proxy.script,
+        "http://wpad.example/proxy.pac"
+    );
     let saved = saved_settings();
     assert_eq!(saved["proxy"]["script"], "http://wpad.example/proxy.pac");
     assert_eq!(
@@ -343,7 +347,7 @@ fn a_queues_own_file_limit_and_the_parts_folder_are_set_in_options() {
     ok(&mut h);
     let settings = kept(&mut h);
     assert_eq!(
-        settings.queue_limits,
+        settings.downloads.queue_limits,
         [dm_shell::settings::QueueLimit {
             queue: dm_core::MAIN_QUEUE.into(),
             files: 2
@@ -377,20 +381,21 @@ fn an_option_that_cannot_be_applied_is_said_and_what_was_typed_is_kept() {
         h.shows_part("could not change start-on-login")
     });
     let held = kept(&mut h);
-    assert!(!held.start_on_login);
+    assert!(!held.general.start_on_login);
     assert!(
-        !held.sound_on_complete,
+        !held.general.sound_on_complete,
         "half of the change was put in force"
     );
     assert!(
-        h.dialog(|o: &mut Options, _, _| o.draft.start_on_login && o.draft.sound_on_complete),
+        h.dialog(|o: &mut Options, _, _| o.draft.general.start_on_login
+            && o.draft.general.sound_on_complete),
         "the edits were thrown away"
     );
 
     *world.fake.login_fails.lock().unwrap() = false;
     ok(&mut h);
     let held = kept(&mut h);
-    assert!(held.start_on_login && held.sound_on_complete);
+    assert!(held.general.start_on_login && held.general.sound_on_complete);
 }
 
 #[test]
@@ -404,13 +409,13 @@ fn a_bad_category_options_opened_with_does_not_fail_an_unrelated_ok() {
         extensions: vec!["pdf".into()],
         ..Default::default()
     });
-    let wanted = !saved.sound_on_failure;
+    let wanted = !saved.general.sound_on_failure;
     let mut h = world.harness_with(saved);
     open_options(&mut h);
     h.reveal("Play a sound when a download fails");
     h.click("Play a sound when a download fails");
     ok(&mut h);
-    assert_eq!(kept(&mut h).sound_on_failure, wanted);
+    assert_eq!(kept(&mut h).general.sound_on_failure, wanted);
 }
 
 #[test]
@@ -435,13 +440,16 @@ fn options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_fol
     h.fill("Download folder", "Downloads/dm");
     h.click_as_person("OK", 0);
     h.until("the refusal", |h| h.shows_part("must be a full path"));
-    assert_eq!(kept(&mut h).download_dir, before.download_dir);
+    assert_eq!(
+        kept(&mut h).folders.download_dir,
+        before.folders.download_dir
+    );
 
     // From the home folder is a full path, and is expanded.
     h.fill("Download folder", "~/dm-test-downloads");
     ok(&mut h);
     assert_eq!(
-        kept(&mut h).download_dir,
+        kept(&mut h).folders.download_dir,
         dm_shell::settings::full_path("~/dm-test-downloads").unwrap()
     );
 }
@@ -453,8 +461,8 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
     // Saved before by a dm that took them, and usable on this computer: a kind's folder and
     // a category with a colon in it.
     let mut saved = world.settings();
-    saved.categorize = true;
-    saved.category_folders[1] = "Audio: 2024".into();
+    saved.folders.categorize = true;
+    saved.folders.category_folders[1] = "Audio: 2024".into();
     saved.custom_categories.push(dm_core::Custom {
         name: "Live: 2024".into(),
         extensions: vec!["mkv".into()],
@@ -468,9 +476,9 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
     h.fill("Connections per file", "4");
     ok(&mut h);
     let now = kept(&mut h);
-    assert_eq!(now.connections, 4);
+    assert_eq!(now.downloads.connections, 4);
     assert_eq!(
-        now.category_folders[1], "Audio: 2024",
+        now.folders.category_folders[1], "Audio: 2024",
         "a saved folder kept"
     );
     assert!(now.custom_categories.iter().any(|c| c.name == "Live: 2024"));
@@ -482,9 +490,12 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
     h.until("the refusal", |h| {
         h.shows_part("because its name is also its folder")
     });
-    assert_eq!(kept(&mut h).category_folders[0], before.category_folders[0]);
+    assert_eq!(
+        kept(&mut h).folders.category_folders[0],
+        before.folders.category_folders[0]
+    );
     // And a new category.
-    h.fill("Videos", &before.category_folders[0]);
+    h.fill("Videos", &before.folders.category_folders[0]);
     h.reveal("Add a category");
     h.click("Add a category");
     // The new category's row, after the saved one's.
@@ -557,7 +568,7 @@ fn options_refuses_a_proxy_with_no_host() {
     h.until("the refusal", |h| h.shows_part("Enter the proxy's host"));
     assert!(h.dialog_open("Options"), "OK took a proxy with no host");
     // Nothing was put in force: the proxy still follows the computer's settings.
-    let untouched = |h: &mut Harness| kept(h).proxy.kind == dm_core::ProxyKind::System;
+    let untouched = |h: &mut Harness| kept(h).advanced.proxy.kind == dm_core::ProxyKind::System;
     assert!(untouched(&mut h));
     h.fill("Host", "http://proxy.example:3128");
     h.click_as_person("OK", 0);
@@ -585,12 +596,12 @@ fn the_command_line_setting_is_in_options_off_by_default_and_saved() {
     let _file = settings_file();
     let world = world();
     let mut h = world.harness();
-    assert!(!kept(&mut h).allow_command_line);
+    assert!(!kept(&mut h).general.allow_command_line);
     open_options(&mut h);
     h.reveal("Allow the command line to control dm");
     h.click("Allow the command line to control dm");
     ok(&mut h);
-    assert!(kept(&mut h).allow_command_line);
+    assert!(kept(&mut h).general.allow_command_line);
     assert_eq!(saved_settings()["allow_command_line"], true);
 }
 
@@ -621,7 +632,7 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     h.reveal("Delete site rule");
     h.fill("Request headers", "X-Api-Key: k1 | Accept: */*");
     ok(&mut h);
-    let rules = kept(&mut h).site_rules;
+    let rules = kept(&mut h).advanced.site_rules;
     assert_eq!(rules.len(), 1);
     assert_eq!(rules[0].speed, 4096);
     assert_eq!(rules[0].agent, "SiteAgent/3");
@@ -655,7 +666,7 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     h.reveal("Delete site rule");
     h.click("Delete site rule");
     ok(&mut h);
-    assert!(kept(&mut h).site_rules.is_empty());
+    assert!(kept(&mut h).advanced.site_rules.is_empty());
 }
 
 /// Appearance's text size (the slider's stops) is put in force at once and kept, as View ›
@@ -687,42 +698,13 @@ fn appearance_sets_the_theme_and_the_size_of_text_for_the_whole_window() {
     h.click("Light");
     h.click("Dark");
     h.until_shown("Dark");
-    assert_eq!(kept(&mut h).theme, "system", "put in force before OK");
+    assert_eq!(
+        kept(&mut h).general.theme,
+        "system",
+        "put in force before OK"
+    );
     ok(&mut h);
-    assert_eq!(kept(&mut h).theme, "dark");
-}
-
-/// Every setting a tab's Restore defaults names exists, and putting a tab back changes what
-/// the tab edits and nothing else.
-#[test]
-fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
-    use dm_desktop_base::options::{tab_settings, TABS};
-    let fresh = serde_json::to_value(dm_shell::Settings::default()).unwrap();
-    for (tab, _) in TABS {
-        for key in tab_settings(tab) {
-            assert!(fresh.get(*key).is_some(), "{key} is no setting");
-        }
-    }
-    let world = world();
-    let mut changed = world.settings();
-    changed.connections = 9;
-    changed.theme = "dark".into();
-    changed.catch.extensions = vec!["zzz".into()];
-    let mut h = world.harness_with(changed);
-    open_options(&mut h);
-    tab(&mut h, "Downloads");
-    h.click("Restore defaults");
-    let defaults = dm_shell::Settings::default();
-    let draft = h.dialog(|o: &mut Options, _, _| o.draft.clone());
-    assert_eq!(draft.connections, defaults.connections);
-    assert_eq!(draft.theme, "dark", "General's setting was put back");
-    assert_eq!(draft.catch.extensions, ["zzz"], "Browser's was put back");
-    tab(&mut h, "Browser");
-    h.click("Restore defaults");
-    let (draft, types) = h.dialog(|o: &mut Options, _, _| (o.draft.clone(), o.typed.types.clone()));
-    assert_eq!(draft.catch.extensions, defaults.catch.extensions);
-    assert_eq!(types, defaults.catch.extensions.join(" "));
-    h.click("Cancel");
+    assert_eq!(kept(&mut h).general.theme, "dark");
 }
 
 /// Options › Advanced says how to have a phone as the second network, in steps folded away
@@ -815,7 +797,7 @@ fn ok_keeps_every_setting_of_the_advanced_page() {
     h.fill("Port", "3128");
     h.fill("Username, if it needs one", "someone");
     ok(&mut h);
-    let s = kept(&mut h);
+    let s = kept(&mut h).advanced;
     assert_eq!(
         (s.speed_limit, s.attempts, s.retry_wait, s.read_timeout),
         (321, 7, 9, 45)
@@ -938,20 +920,20 @@ fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
     // connection Windows knows chosen (as its pop-up gives it: this computer may know none),
     // filled in, and switched off again, which keeps what was typed.
     h.click("Use Windows Dial Up / VPN Networking");
-    h.dialog(|o: &mut Options, _, _| o.draft.dialup.connection = "Office VPN".into());
+    h.dialog(|o: &mut Options, _, _| o.draft.advanced.dialup.connection = "Office VPN".into());
     h.fill("User name", "me");
     h.fill("Redial attempts (zero if endlessly)", "3");
     h.fill("Time between redial attempts (seconds)", "10");
     h.click("Use Windows Dial Up / VPN Networking");
     ok(&mut h);
     let s = kept(&mut h);
-    assert!(!s.dialup.enabled, "a new dm dials nothing");
+    assert!(!s.advanced.dialup.enabled, "a new dm dials nothing");
     assert_eq!(
         (
-            s.dialup.connection.as_str(),
-            s.dialup.username.as_str(),
-            s.dialup.attempts,
-            s.dialup.wait_seconds
+            s.advanced.dialup.connection.as_str(),
+            s.advanced.dialup.username.as_str(),
+            s.advanced.dialup.attempts,
+            s.advanced.dialup.wait_seconds
         ),
         ("Office VPN", "me", 3, 10)
     );

@@ -36,7 +36,7 @@ pub(super) fn dialup(
     cx: &mut Context<Options>,
 ) {
     let (theme, screen) = (p.theme, p.screen.clone());
-    let dial = o.draft.dialup.clone();
+    let dial = o.draft.advanced.dialup.clone();
     p.section(t("Dial Up / VPN"));
     check(
         p,
@@ -45,7 +45,7 @@ pub(super) fn dialup(
         t("Use Windows Dial Up / VPN Networking"),
         dial.enabled,
         true,
-        |s| s.dialup.enabled = !s.dialup.enabled,
+        |s| s.advanced.dialup.enabled = !s.advanced.dialup.enabled,
     );
     let on = dial.enabled;
     let known = known_connections();
@@ -90,8 +90,8 @@ pub(super) fn dialup(
             chosen_one,
             masked,
             move |o| match key {
-                "dialup.username" => o.draft.dialup.username.clone(),
-                _ => o.draft.dialup.password.clone(),
+                "dialup.username" => o.draft.advanced.dialup.username.clone(),
+                _ => o.draft.advanced.dialup.password.clone(),
             },
         );
         p.labelled(t(words), chosen_one, field);
@@ -103,7 +103,7 @@ pub(super) fn dialup(
         t("Save password"),
         dial.save_password,
         chosen_one,
-        |s| s.dialup.save_password = !s.dialup.save_password,
+        |s| s.advanced.dialup.save_password = !s.advanced.dialup.save_password,
     );
     for (key, words) in [
         ("dialup.attempts", "Redial attempts (zero if endlessly)"),
@@ -122,8 +122,8 @@ pub(super) fn dialup(
             chosen_one,
             false,
             move |o| match key {
-                "dialup.attempts" => o.draft.dialup.attempts.to_string(),
-                _ => o.draft.dialup.wait_seconds.to_string(),
+                "dialup.attempts" => o.draft.advanced.dialup.attempts.to_string(),
+                _ => o.draft.advanced.dialup.wait_seconds.to_string(),
             },
         );
         p.labelled(t(words), chosen_one, field);

@@ -116,8 +116,8 @@ fn a_settings_file_that_cannot_be_read_is_kept_and_said() {
 
     let (settings, notice) = Settings::load_from(&path);
     assert_eq!(
-        settings.connections,
-        Settings::default().clamped().connections
+        settings.downloads.connections,
+        Settings::default().clamped().downloads.connections
     );
     let notice = notice.expect("a file that could not be read went unmentioned");
     assert!(notice.contains("could not be read"), "{notice}");
@@ -147,7 +147,10 @@ fn a_settings_file_with_a_byte_order_mark_is_read() {
     let (settings, notice) = Settings::load_from(&path);
     assert_eq!(notice, None);
     assert_eq!(
-        (settings.connections, settings.theme.as_str()),
+        (
+            settings.downloads.connections,
+            settings.general.theme.as_str()
+        ),
         (4, "light")
     );
     assert!(path.exists());
@@ -189,7 +192,7 @@ fn a_saved_category_that_works_here_is_kept_and_a_new_one_is_portable() {
     // Kept, it does not block an unrelated change; a new one is held to
     // every computer's rules, and so is a renamed kind's folder.
     let mut changed = read.clone();
-    changed.connections = 3;
+    changed.downloads.connections = 3;
     assert_eq!(changed.refusal(&read), None);
     changed.custom_categories.push(dm_core::Custom {
         name: "Docs: work".into(),
@@ -199,7 +202,7 @@ fn a_saved_category_that_works_here_is_kept_and_a_new_one_is_portable() {
         .refusal(&read)
         .is_some_and(|r| r.contains("Windows")));
     let mut renamed = read.clone();
-    renamed.category_folders[1] = "CON".into();
+    renamed.folders.category_folders[1] = "CON".into();
     assert!(renamed.refusal(&read).is_some());
 }
 
@@ -225,23 +228,29 @@ fn one_odd_entry_costs_that_entry_and_not_every_setting() {
     std::fs::write(&path, text).unwrap();
 
     let (read, notice) = Settings::load_from(&path);
-    assert_eq!(read.connections, 4);
-    assert_eq!(read.language, "de");
+    assert_eq!(read.downloads.connections, 4);
+    assert_eq!(read.general.language, "de");
     assert!(
-        !read.proxy.enabled,
+        !read.advanced.proxy.enabled,
         "an unknown proxy type is off, not another kind"
     );
-    assert_eq!(read.proxy.host, "p.example");
+    assert_eq!(read.advanced.proxy.host, "p.example");
     assert!(read.schedule.enabled);
     assert_eq!(read.schedule.from, "02:00");
     assert_eq!(read.schedule.to, Schedule::default().to);
-    assert_eq!(read.host_limits[0].host, "slow.example");
-    assert_eq!(read.host_limits[0].connections, 1);
-    assert_eq!(read.queue_limits[0].queue, "Nightly");
-    assert_eq!(read.queue_limits[0].files, 1, "clamped up from none");
+    assert_eq!(read.advanced.host_limits[0].host, "slow.example");
+    assert_eq!(read.advanced.host_limits[0].connections, 1);
+    assert_eq!(read.downloads.queue_limits[0].queue, "Nightly");
+    assert_eq!(
+        read.downloads.queue_limits[0].files, 1,
+        "clamped up from none"
+    );
     assert_eq!(read.site_logins[0].username, "me");
     assert_eq!(read.custom_categories[0].name, "Books");
-    assert_eq!(read.concurrency, Settings::default().concurrency);
+    assert_eq!(
+        read.downloads.concurrency,
+        Settings::default().downloads.concurrency
+    );
     let notice = notice.expect("the entry left out went unmentioned");
     assert!(notice.contains("concurrency"), "{notice}");
     assert_eq!(
@@ -279,9 +288,9 @@ fn what_a_reader_inside_left_out_is_named_and_the_file_kept() {
     ] {
         assert!(notice.contains(named), "{named} not named: {notice}");
     }
-    assert!(!read.proxy.enabled);
+    assert!(!read.advanced.proxy.enabled);
     assert_eq!(read.site_logins.len(), 1);
-    assert_eq!(read.queue_limits[0].queue, "Nightly");
+    assert_eq!(read.downloads.queue_limits[0].queue, "Nightly");
     assert_eq!(
         read.custom_categories.len(),
         1,
@@ -328,24 +337,27 @@ fn a_change_that_cannot_work_is_refused_and_an_old_one_blocks_nothing() {
         s.schedule.from = "25:00".into();
     })
     .is_some());
-    assert!(with(|s| s.download_dir = "Downloads".into()).is_some());
-    assert!(with(|s| s.download_dir = "~/Downloads".into()).is_none());
-    assert!(with(|s| s.parts_dir = "parts".into()).is_some());
+    assert!(with(|s| s.folders.download_dir = "Downloads".into()).is_some());
+    assert!(with(|s| s.folders.download_dir = "~/Downloads".into()).is_none());
+    assert!(with(|s| s.folders.parts_dir = "parts".into()).is_some());
     assert!(with(|s| s.custom_categories = vec![dm_core::Custom {
         name: "Work/Docs".into(),
         ..Default::default()
     }])
     .is_some());
-    assert!(with(|s| s.cookies_file = "/no/such/cookies.txt".into()).is_some());
-    assert!(with(|s| s.language = "de".into()).is_none());
+    assert!(with(|s| s.advanced.cookies_file = "/no/such/cookies.txt".into()).is_some());
+    assert!(with(|s| s.general.language = "de".into()).is_none());
 
     // Saved before, and so not this change's doing.
     let odd = Settings {
-        cookies_file: "/no/such/cookies.txt".into(),
+        advanced: AdvancedSettings {
+            cookies_file: "/no/such/cookies.txt".into(),
+            ..before.advanced.clone()
+        },
         ..before.clone()
     };
     let mut next = odd.clone();
-    next.language = "fr".into();
+    next.general.language = "fr".into();
     assert_eq!(next.refusal(&odd), None);
 }
 
@@ -353,15 +365,19 @@ fn a_change_that_cannot_work_is_refused_and_an_old_one_blocks_nothing() {
 fn a_download_folder_from_home_is_expanded_and_a_relative_one_is_not_kept() {
     let at = |typed: &str| {
         Settings {
-            download_dir: typed.into(),
+            folders: FolderSettings {
+                download_dir: typed.into(),
+                ..Default::default()
+            },
             ..Default::default()
         }
         .clamped()
+        .folders
         .download_dir
     };
     let home = dm_core::folders::home().unwrap();
     assert_eq!(at("~/Downloads"), home.join("Downloads"));
-    assert_eq!(at("Downloads"), Settings::default().download_dir);
+    assert_eq!(at("Downloads"), Settings::default().folders.download_dir);
 }
 
 #[test]
@@ -389,23 +405,30 @@ fn no_settings_file_is_not_a_problem() {
 #[test]
 fn values_outside_what_the_engine_accepts_are_brought_back_in() {
     let wild = Settings {
-        connections: 5000,
-        concurrency: 0,
+        downloads: DownloadSettings {
+            connections: 5000,
+            concurrency: 0,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let sane = wild.clamped();
-    assert_eq!(sane.connections, 32);
-    assert_eq!(sane.concurrency, 1);
+    assert_eq!(sane.downloads.connections, 32);
+    assert_eq!(sane.downloads.concurrency, 1);
 }
 
 #[test]
 fn a_parts_folder_is_a_full_path_or_dms_own() {
     let at = |typed: &str| {
         Settings {
-            parts_dir: typed.into(),
+            folders: FolderSettings {
+                parts_dir: typed.into(),
+                ..Default::default()
+            },
             ..Default::default()
         }
         .clamped()
+        .folders
         .parts_dir
     };
     let home = dm_core::folders::home().unwrap();
@@ -430,21 +453,26 @@ fn the_click_keys_are_ones_the_extension_knows() {
         ..Default::default()
     };
     let odd = Settings {
-        catch: catch.clone(),
+        browser: BrowserSettings {
+            catch: catch.clone(),
+        },
         ..Settings::default()
     }
     .clamped();
     assert_eq!(
-        (odd.catch.keep_key.as_str(), odd.catch.take_key.as_str()),
+        (
+            odd.browser.catch.keep_key.as_str(),
+            odd.browser.catch.take_key.as_str()
+        ),
         ("alt", "shift")
     );
     catch.keep_key = "alt".into();
     catch.take_key = String::new();
     let none = Settings {
-        catch,
+        browser: BrowserSettings { catch },
         ..Settings::default()
     };
-    assert_eq!(none.clamped().catch.take_key, "");
+    assert_eq!(none.clamped().browser.catch.take_key, "");
 }
 
 /// Settings carried to another computer leave every password behind,
@@ -453,12 +481,12 @@ fn the_click_keys_are_ones_the_extension_knows() {
 fn a_queue_start_must_be_a_time() {
     let before = Settings::default();
     let mut wanted = before.clone();
-    wanted.queue_starts.push(QueueStart {
+    wanted.downloads.queue_starts.push(QueueStart {
         queue: "Night".into(),
         at: "25:00".into(),
     });
     assert!(wanted.refusal(&before).is_some());
-    wanted.queue_starts[0].at = "02:30".into();
+    wanted.downloads.queue_starts[0].at = "02:30".into();
     assert!(wanted.refusal(&before).is_none());
     assert_eq!(wanted.queue_start_list(), [("Night".to_string(), 150)]);
 }
@@ -475,12 +503,15 @@ fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
         }],
         recent_urls: vec!["https://e.com/a.zip".into()],
         last_folders: [("Archives".to_string(), "/home/me/private zips".to_string())].into(),
-        connections: 5,
+        downloads: DownloadSettings {
+            connections: 5,
+            ..Default::default()
+        },
         ..Settings::default()
     };
-    here.proxy.username = "proxyuser".into();
-    here.proxy.password = proxy_kept.clone();
-    here.on_complete = "their-program --flag".into();
+    here.advanced.proxy.username = "proxyuser".into();
+    here.advanced.proxy.password = proxy_kept.clone();
+    here.downloads.on_complete = "their-program --flag".into();
     let file = here.exported();
     assert!(!file.contains(&kept), "a password left in the file");
     assert!(!file.contains("e.com/a.zip"), "history left in the file");
@@ -492,25 +523,28 @@ fn exported_settings_carry_no_password_and_imported_ones_keep_this_computers() {
         site_logins: here.site_logins.clone(),
         ..Settings::default()
     };
-    elsewhere.proxy.username = "proxyuser".into();
-    elsewhere.proxy.password = proxy_kept.clone();
+    elsewhere.advanced.proxy.username = "proxyuser".into();
+    elsewhere.advanced.proxy.password = proxy_kept.clone();
     let read = elsewhere.imported(&file).unwrap();
-    assert_eq!(read.connections, 5);
+    assert_eq!(read.downloads.connections, 5);
     assert_eq!(read.site_logins[0].password, kept);
-    assert_eq!(read.proxy.password, proxy_kept);
+    assert_eq!(read.advanced.proxy.password, proxy_kept);
     // A command to run is never taken from a file.
-    assert_eq!(read.on_complete, elsewhere.on_complete);
+    assert_eq!(read.downloads.on_complete, elsewhere.downloads.on_complete);
     assert!(elsewhere.imported("not settings").is_err());
 }
 
 #[test]
 fn a_recording_limit_is_minutes_held_to_a_day_and_none_when_zero() {
     let s = Settings {
-        record_minutes: 99_999,
+        downloads: DownloadSettings {
+            record_minutes: 99_999,
+            ..Default::default()
+        },
         ..Default::default()
     }
     .clamped();
-    assert_eq!(s.record_minutes, 1440);
+    assert_eq!(s.downloads.record_minutes, 1440);
     let options =
         |s: &Settings| s.options(std::path::PathBuf::from("/tmp/x"), Limiter::unlimited());
     assert_eq!(
@@ -523,25 +557,28 @@ fn a_recording_limit_is_minutes_held_to_a_day_and_none_when_zero() {
 #[test]
 fn attempts_timeouts_and_site_limits_are_held_to_what_the_engine_takes() {
     let wild = Settings {
-        attempts: 5000,
-        read_timeout: 1,
-        host_limits: vec![
-            dm_core::HostLimit {
-                host: "  Example.COM ".into(),
-                connections: 0,
-            },
-            dm_core::HostLimit {
-                host: "   ".into(),
-                connections: 4,
-            },
-        ],
+        advanced: AdvancedSettings {
+            attempts: 5000,
+            read_timeout: 1,
+            host_limits: vec![
+                dm_core::HostLimit {
+                    host: "  Example.COM ".into(),
+                    connections: 0,
+                },
+                dm_core::HostLimit {
+                    host: "   ".into(),
+                    connections: 4,
+                },
+            ],
+            ..Default::default()
+        },
         ..Default::default()
     }
     .clamped();
-    assert_eq!(wild.attempts, 100);
-    assert_eq!(wild.read_timeout, 5);
+    assert_eq!(wild.advanced.attempts, 100);
+    assert_eq!(wild.advanced.read_timeout, 5);
     assert_eq!(
-        wild.host_limits,
+        wild.advanced.host_limits,
         [dm_core::HostLimit {
             host: "example.com".into(),
             connections: 1
@@ -551,25 +588,32 @@ fn attempts_timeouts_and_site_limits_are_held_to_what_the_engine_takes() {
     // Zero is "keep trying", and is kept.
     assert_eq!(
         Settings {
-            attempts: 0,
+            advanced: AdvancedSettings {
+                attempts: 0,
+                ..Default::default()
+            },
             ..Default::default()
         }
         .clamped()
+        .advanced
         .attempts,
         0
     );
     let d = Settings::default();
-    assert_eq!((d.attempts, d.read_timeout), (15, 30));
+    assert_eq!((d.advanced.attempts, d.advanced.read_timeout), (15, 30));
     assert_eq!(d.options(PathBuf::new(), Limiter::unlimited()).attempts, 15);
 }
 
 #[test]
 fn an_empty_folder_falls_back_rather_than_saving_to_nowhere() {
     let empty = Settings {
-        download_dir: PathBuf::new(),
+        folders: FolderSettings {
+            download_dir: PathBuf::new(),
+            ..Default::default()
+        },
         ..Default::default()
     };
-    assert!(!empty.clamped().download_dir.as_os_str().is_empty());
+    assert!(!empty.clamped().folders.download_dir.as_os_str().is_empty());
 }
 
 #[test]
@@ -578,18 +622,24 @@ fn a_short_folder_list_is_filled_out_rather_than_left_ragged() {
     // easily be short, and the kinds past its end would silently stop
     // being sorted.
     let short = Settings {
-        category_folders: vec!["Videos".into()],
+        folders: FolderSettings {
+            category_folders: vec!["Videos".into()],
+            ..Default::default()
+        },
         ..Default::default()
     }
     .clamped();
-    assert_eq!(short.category_folders.len(), Category::ALL.len());
-    assert_eq!(short.category_folders[0], "Videos");
+    assert_eq!(short.folders.category_folders.len(), Category::ALL.len());
+    assert_eq!(short.folders.category_folders[0], "Videos");
 }
 
 #[test]
 fn the_speed_limit_is_read_in_the_unit_the_engine_counts() {
     let settings = Settings {
-        speed_limit: 500,
+        advanced: AdvancedSettings {
+            speed_limit: 500,
+            ..Default::default()
+        },
         ..Default::default()
     };
     assert_eq!(settings.speed_limit_bytes(), 500 * dm_core::KB);
@@ -600,7 +650,10 @@ fn the_speed_limit_is_read_in_the_unit_the_engine_counts() {
 fn a_quality_is_read_as_the_engine_means_it() {
     let at = |q: &str| {
         Settings {
-            stream_quality: q.into(),
+            downloads: DownloadSettings {
+                stream_quality: q.into(),
+                ..Default::default()
+            },
             ..Default::default()
         }
         .quality()
@@ -622,15 +675,18 @@ fn settings_written_by_an_earlier_version_still_read() {
      * outcome than one that fills in a default. */
     let old = r#"{"connections":4,"concurrency":2,"download_dir":"/tmp/x"}"#;
     let settings: Settings = serde_json::from_str(old).unwrap();
-    assert_eq!(settings.connections, 4);
-    assert_eq!(settings.speed_limit, 0);
+    assert_eq!(settings.downloads.connections, 4);
+    assert_eq!(settings.advanced.speed_limit, 0);
     assert!(
-        settings.categorize,
+        settings.folders.categorize,
         "sorting by kind is on unless turned off"
     );
     assert!(!settings.schedule.enabled);
     // A file that never named a proxy follows the computer's, as a new one does.
-    assert!(settings.proxy.enabled && settings.proxy.kind == dm_core::ProxyKind::System);
+    assert!(
+        settings.advanced.proxy.enabled
+            && settings.advanced.proxy.kind == dm_core::ProxyKind::System
+    );
     assert_eq!(settings.quality(), Quality::Best);
 }
 
@@ -639,16 +695,19 @@ fn the_extension_catches_every_file_type_until_told_otherwise() {
     // A settings file from before the extension asked the app has no
     // `catch`; the browser must still hand over every download.
     let old: Settings = serde_json::from_str(r#"{"connections":4}"#).unwrap();
-    assert!(old.catch.enabled);
-    assert!(old.catch.extensions.is_empty(), "no list is every type");
+    assert!(old.browser.catch.enabled);
+    assert!(
+        old.browser.catch.extensions.is_empty(),
+        "no list is every type"
+    );
 
     let chosen: Settings = serde_json::from_str(
         r#"{"catch":{"enabled":false,"extensions":["bin"],"minSizeKb":5,"skipHosts":["e.com"]}}"#,
     )
     .unwrap();
-    assert!(!chosen.catch.enabled);
-    assert_eq!(chosen.catch.extensions, vec!["bin".to_string()]);
-    assert_eq!(chosen.catch.min_size_kb, 5);
+    assert!(!chosen.browser.catch.enabled);
+    assert_eq!(chosen.browser.catch.extensions, vec!["bin".to_string()]);
+    assert_eq!(chosen.browser.catch.min_size_kb, 5);
     let saved = serde_json::to_value(&chosen).unwrap();
     assert_eq!(saved["catch"]["skipHosts"][0], "e.com");
 }
@@ -657,49 +716,52 @@ fn the_extension_catches_every_file_type_until_told_otherwise() {
 fn the_defaults_are_already_within_bounds() {
     let d = Settings::default();
     let c = d.clone().clamped();
-    assert_eq!(d.connections, c.connections);
-    assert_eq!(d.concurrency, c.concurrency);
+    assert_eq!(d.downloads.connections, c.downloads.connections);
+    assert_eq!(d.downloads.concurrency, c.downloads.concurrency);
 }
 
 #[test]
 fn a_site_rule_gives_its_sites_downloads_a_folder_and_a_speed_unless_chosen_otherwise() {
     let dir = std::env::temp_dir().join("dm-rule-folder");
     let settings = Settings {
-        site_rules: vec![
-            SiteRule {
-                host: "Example.COM ".into(),
-                folder: dir.display().to_string(),
-                speed: 200,
-                ..Default::default()
-            },
-            SiteRule {
-                host: "dl.example.com".into(),
-                folder: String::new(),
-                speed: 50,
-                ..Default::default()
-            },
-            SiteRule {
-                host: "  ".into(),
-                folder: "/never".into(),
-                speed: 1,
-                ..Default::default()
-            },
-            SiteRule {
-                host: "relative.test".into(),
-                folder: "not/absolute".into(),
-                speed: 5_000_000,
-                ..Default::default()
-            },
-        ],
+        advanced: AdvancedSettings {
+            site_rules: vec![
+                SiteRule {
+                    host: "Example.COM ".into(),
+                    folder: dir.display().to_string(),
+                    speed: 200,
+                    ..Default::default()
+                },
+                SiteRule {
+                    host: "dl.example.com".into(),
+                    folder: String::new(),
+                    speed: 50,
+                    ..Default::default()
+                },
+                SiteRule {
+                    host: "  ".into(),
+                    folder: "/never".into(),
+                    speed: 1,
+                    ..Default::default()
+                },
+                SiteRule {
+                    host: "relative.test".into(),
+                    folder: "not/absolute".into(),
+                    speed: 5_000_000,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        },
         ..Default::default()
     }
     .clamped();
     // Tidied: the nameless one is gone, a relative folder is none, the
     // speed is held to the setting's range, the host is plain.
-    assert_eq!(settings.site_rules.len(), 3);
-    assert_eq!(settings.site_rules[0].host, "example.com");
-    assert_eq!(settings.site_rules[2].folder, "");
-    assert_eq!(settings.site_rules[2].speed, 1024 * 1024);
+    assert_eq!(settings.advanced.site_rules.len(), 3);
+    assert_eq!(settings.advanced.site_rules[0].host, "example.com");
+    assert_eq!(settings.advanced.site_rules[2].folder, "");
+    assert_eq!(settings.advanced.site_rules[2].speed, 1024 * 1024);
 
     // The site and its subdomains; the most specific host wins.
     let rule = |url: &str| settings.site_rule_for(url).map(|r| r.speed);
@@ -732,12 +794,15 @@ fn a_site_rule_gives_its_sites_downloads_a_folder_and_a_speed_unless_chosen_othe
 #[test]
 fn a_site_rules_agent_and_headers_join_a_downloads_own() {
     let settings = Settings {
-        site_rules: vec![SiteRule {
-            host: "example.com".into(),
-            agent: " Rule/1 ".into(),
-            headers: "X-Api-Key: k1 | Authorization: Basic rule | user-agent: ignored".into(),
+        advanced: AdvancedSettings {
+            site_rules: vec![SiteRule {
+                host: "example.com".into(),
+                agent: " Rule/1 ".into(),
+                headers: "X-Api-Key: k1 | Authorization: Basic rule | user-agent: ignored".into(),
+                ..Default::default()
+            }],
             ..Default::default()
-        }],
+        },
         ..Settings::default()
     };
     let pair = |n: &str, v: &str| (n.to_string(), v.to_string());
@@ -763,20 +828,23 @@ fn a_site_rules_agent_and_headers_join_a_downloads_own() {
     // Kept and read back as written.
     let text = serde_json::to_string(&settings).unwrap();
     let back: Settings = serde_json::from_str(&text).unwrap();
-    assert_eq!(back.site_rules, settings.site_rules);
+    assert_eq!(back.advanced.site_rules, settings.advanced.site_rules);
 }
 
 #[test]
 fn the_new_link_offer_is_on_for_an_old_file_and_kept_when_turned_off() {
     let old: Settings = serde_json::from_str("{}").unwrap();
-    assert!(old.offer_new_link);
+    assert!(old.general.offer_new_link);
     let text = serde_json::to_string(&Settings {
-        offer_new_link: false,
+        general: GeneralSettings {
+            offer_new_link: false,
+            ..Default::default()
+        },
         ..Settings::default()
     })
     .unwrap();
     let back: Settings = serde_json::from_str(&text).unwrap();
-    assert!(!back.offer_new_link);
+    assert!(!back.general.offer_new_link);
 }
 
 fn saved_with_catch(extensions: &str, version: &str) -> Settings {
@@ -792,12 +860,12 @@ fn a_catch_list_saved_before_new_default_types_gets_them_once() {
     let settings = saved_with_catch(r#"["zip", "xyz"]"#, "");
     for kind in ["zip", "xyz", "docx", "xlsx", "dmg"] {
         assert!(
-            settings.catch.extensions.iter().any(|k| k == kind),
+            settings.browser.catch.extensions.iter().any(|k| k == kind),
             "{kind}"
         );
     }
     assert_eq!(
-        settings.catch.defaults_version,
+        settings.browser.catch.defaults_version,
         dm_protocol::CATCH_DEFAULTS_VERSION
     );
 }
@@ -811,9 +879,9 @@ fn a_catch_list_brought_up_to_date_is_left_as_the_person_made_it() {
         dm_protocol::CATCH_DEFAULTS_VERSION
     );
     let settings = saved_with_catch(r#"["zip"]"#, &version);
-    assert_eq!(settings.catch.extensions, ["zip"]);
+    assert_eq!(settings.browser.catch.extensions, ["zip"]);
     let every = saved_with_catch("[]", "");
-    assert!(every.catch.extensions.is_empty());
+    assert!(every.browser.catch.extensions.is_empty());
 }
 
 /// Reference A's pop-ups, every one on (edition 2): a file from an older
@@ -827,21 +895,21 @@ fn pop_ups_from_an_older_edition_take_reference_as_defaults_once() {
     )
     .unwrap()
     .clamped();
-    assert!(old.show_progress && old.show_complete);
-    assert!(old.ask_caught_downloads && old.ask_panel_downloads);
+    assert!(old.general.show_progress && old.general.show_complete);
+    assert!(old.general.ask_caught_downloads && old.general.ask_panel_downloads);
     assert_eq!(old.popups_version, POPUPS_VERSION);
     // Turned off afterwards and saved: kept through the next read.
     let mut chosen = old.clone();
-    chosen.show_progress = false;
-    chosen.ask_caught_downloads = false;
+    chosen.general.show_progress = false;
+    chosen.general.ask_caught_downloads = false;
     let text = serde_json::to_string(&chosen).unwrap();
     let again = serde_json::from_str::<Settings>(&text).unwrap().clamped();
-    assert!(!again.show_progress && again.show_complete);
-    assert!(!again.ask_caught_downloads && again.ask_panel_downloads);
+    assert!(!again.general.show_progress && again.general.show_complete);
+    assert!(!again.general.ask_caught_downloads && again.general.ask_panel_downloads);
     // A fresh install has them all on.
     let fresh = Settings::default();
-    assert!(fresh.show_progress && fresh.show_complete);
-    assert!(fresh.ask_caught_downloads && fresh.ask_panel_downloads);
+    assert!(fresh.general.show_progress && fresh.general.show_complete);
+    assert!(fresh.general.ask_caught_downloads && fresh.general.ask_panel_downloads);
 }
 
 /// A store that refuses everything, for the fallback.
@@ -878,8 +946,8 @@ fn with_passwords() -> Settings {
         }],
         ..Settings::default()
     };
-    settings.proxy.username = "bob".into();
-    settings.proxy.password = proxy_password();
+    settings.advanced.proxy.username = "bob".into();
+    settings.advanced.proxy.password = proxy_password();
     settings
 }
 
@@ -888,7 +956,7 @@ fn passwords_go_to_the_store_and_the_file_keeps_none() {
     let store = dm_core::secretstore::MemoryStore::default();
     let mut file = with_passwords();
     assert_eq!(file.move_passwords_to(&store, "ns"), None);
-    assert!(file.site_logins[0].password.is_empty() && file.proxy.password.is_empty());
+    assert!(file.site_logins[0].password.is_empty() && file.advanced.proxy.password.is_empty());
     let text = serde_json::to_string(&file).unwrap();
     assert!(!text.contains(&site_password()) && !text.contains(&proxy_password()));
 
@@ -896,7 +964,7 @@ fn passwords_go_to_the_store_and_the_file_keeps_none() {
     let mut read: Settings = serde_json::from_str(&text).unwrap();
     assert_eq!(read.take_passwords_from(&store, "ns"), (false, None));
     assert_eq!(read.site_logins[0].password, site_password());
-    assert_eq!(read.proxy.password, proxy_password());
+    assert_eq!(read.advanced.proxy.password, proxy_password());
 
     // Another home's names are not this one's.
     let mut other: Settings = serde_json::from_str(&text).unwrap();
@@ -920,7 +988,7 @@ fn a_file_with_clear_passwords_is_moved_into_the_store_on_its_first_read() {
     next.move_passwords_to(&store, "ns");
     let mut later: Settings = serde_json::from_str(&serde_json::to_string(&next).unwrap()).unwrap();
     later.take_passwords_from(&store, "ns");
-    assert_eq!(later.proxy.password, proxy_password());
+    assert_eq!(later.advanced.proxy.password, proxy_password());
 }
 
 /// An empty password is forgotten in the store when the person cleared it, and kept when this
@@ -938,23 +1006,23 @@ fn a_password_this_run_did_not_read_back_is_not_forgotten_by_the_next_save() {
     };
     fallback.move_passwords_to(&store, "ns");
     let mut read = with_passwords();
-    read.proxy.password.clear();
+    read.advanced.proxy.password.clear();
     read.take_passwords_from(&store, "ns");
     assert_eq!(
-        read.proxy.password,
+        read.advanced.proxy.password,
         proxy_password(),
         "kept through the fallback"
     );
 
     // Cleared by the person, in a run that read it: forgotten.
     let mut cleared = with_passwords();
-    cleared.proxy.password.clear();
+    cleared.advanced.proxy.password.clear();
     cleared.move_passwords_to(&store, "ns");
     let mut again = with_passwords();
-    again.proxy.password.clear();
+    again.advanced.proxy.password.clear();
     again.take_passwords_from(&store, "ns");
     assert!(
-        again.proxy.password.is_empty(),
+        again.advanced.proxy.password.is_empty(),
         "the person's clearing stands"
     );
 
@@ -973,34 +1041,38 @@ fn a_store_that_refuses_leaves_the_passwords_in_the_file_and_says_so() {
     let note = file.move_passwords_to(&Refusing, "ns").expect("a notice");
     assert!(note.contains("locked") && note.contains("settings file"));
     assert_eq!(file.site_logins[0].password, site_password());
-    assert_eq!(file.proxy.password, proxy_password());
+    assert_eq!(file.advanced.proxy.password, proxy_password());
 
     let mut read = with_passwords();
     let (moved, note) = read.take_passwords_from(&Refusing, "ns");
     assert!(!moved && note.is_some());
-    assert_eq!(read.proxy.password, proxy_password(), "nothing is lost");
+    assert_eq!(
+        read.advanced.proxy.password,
+        proxy_password(),
+        "nothing is lost"
+    );
 }
 
 #[test]
 fn a_proxy_password_stays_only_with_the_proxy_it_was_given_for() {
     let mut mine = Settings::default();
-    mine.proxy.username = "corp".into();
-    mine.proxy.host = "proxy.corp.example".into();
-    mine.proxy.port = 3128;
-    mine.proxy.password = "kept".into();
+    mine.advanced.proxy.username = "corp".into();
+    mine.advanced.proxy.host = "proxy.corp.example".into();
+    mine.advanced.proxy.port = 3128;
+    mine.advanced.proxy.password = "kept".into();
     let file = |host: &str, port: u16| {
         let mut other = Settings::default();
-        other.proxy.username = "corp".into();
-        other.proxy.host = host.into();
-        other.proxy.port = port;
+        other.advanced.proxy.username = "corp".into();
+        other.advanced.proxy.host = host.into();
+        other.advanced.proxy.port = port;
         serde_json::to_string(&other).unwrap()
     };
     let same = mine.imported(&file("proxy.corp.example", 3128)).unwrap();
-    assert_eq!(same.proxy.password, "kept");
+    assert_eq!(same.advanced.proxy.password, "kept");
     let elsewhere = mine.imported(&file("evil.example", 3128)).unwrap();
-    assert_eq!(elsewhere.proxy.password, "");
+    assert_eq!(elsewhere.advanced.proxy.password, "");
     let other_port = mine.imported(&file("proxy.corp.example", 8080)).unwrap();
-    assert_eq!(other_port.proxy.password, "");
+    assert_eq!(other_port.advanced.proxy.password, "");
 }
 
 #[test]
@@ -1018,14 +1090,17 @@ fn a_settings_file_never_sets_the_program_run_at_the_end_of_the_schedule() {
 #[test]
 fn a_settings_file_never_sets_the_proxy_script_dm_runs() {
     let mut mine = Settings::default();
-    mine.proxy.script = "https://proxy.corp.example/proxy.pac".into();
+    mine.advanced.proxy.script = "https://proxy.corp.example/proxy.pac".into();
     let mut theirs = Settings::default();
-    theirs.proxy.enabled = true;
-    theirs.proxy.script = "http://evil.example/p.pac".into();
+    theirs.advanced.proxy.enabled = true;
+    theirs.advanced.proxy.script = "http://evil.example/p.pac".into();
     let read = mine
         .imported(&serde_json::to_string(&theirs).unwrap())
         .unwrap();
-    assert_eq!(read.proxy.script, "https://proxy.corp.example/proxy.pac");
+    assert_eq!(
+        read.advanced.proxy.script,
+        "https://proxy.corp.example/proxy.pac"
+    );
 }
 
 #[test]
@@ -1084,8 +1159,14 @@ fn read_only_keeps_the_rest_of_a_file_with_one_odd_field_and_leaves_it_alone() {
     );
     std::fs::write(&path, &text).unwrap();
     let read = Settings::read_only(&path);
-    assert!(!read.ask_caught_downloads, "the person's choice was lost");
-    assert_eq!(read.connections, Settings::default().connections);
+    assert!(
+        !read.general.ask_caught_downloads,
+        "the person's choice was lost"
+    );
+    assert_eq!(
+        read.downloads.connections,
+        Settings::default().downloads.connections
+    );
     assert_eq!(
         std::fs::read_to_string(&path).unwrap(),
         text,
@@ -1094,7 +1175,10 @@ fn read_only_keeps_the_rest_of_a_file_with_one_odd_field_and_leaves_it_alone() {
     assert!(!path.with_extension("json.unreadable").exists());
     // No file at all: the defaults.
     let none = Settings::read_only(&dir.path().join("absent.json"));
-    assert_eq!(none.connections, Settings::default().connections);
+    assert_eq!(
+        none.downloads.connections,
+        Settings::default().downloads.connections
+    );
 }
 
 /// The slow hours' limit is in force in its hours, the lower of the two,
@@ -1102,12 +1186,15 @@ fn read_only_keeps_the_rest_of_a_file_with_one_odd_field_and_leaves_it_alone() {
 #[test]
 fn the_slow_hours_lower_the_limit_in_their_hours_only() {
     let mut s = Settings {
-        speed_limit: 1000,
         slow_hours: SlowHours {
             enabled: true,
             from: "22:00".into(),
             to: "06:00".into(),
             limit: 100,
+        },
+        advanced: AdvancedSettings {
+            speed_limit: 1000,
+            ..Default::default()
         },
         ..Settings::default()
     };
@@ -1127,16 +1214,16 @@ fn the_slow_hours_lower_the_limit_in_their_hours_only() {
         "outside"
     );
     // No speed limit the rest of the day: the slow one alone in its hours.
-    s.speed_limit = 0;
+    s.advanced.speed_limit = 0;
     assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 100 * dm_core::KB);
     assert_eq!(s.speed_limit_bytes_at(1, 12 * 60), 0);
     // A speed limit lower than the slow one stands.
-    s.speed_limit = 50;
+    s.advanced.speed_limit = 50;
     assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * dm_core::KB);
     // Off, or with a time that is not one, never.
     s.slow_hours.enabled = false;
     assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 50 * dm_core::KB);
-    s.speed_limit = 0;
+    s.advanced.speed_limit = 0;
     s.slow_hours.enabled = true;
     s.slow_hours.from = "25:00".into();
     assert_eq!(s.speed_limit_bytes_at(1, 23 * 60), 0);
@@ -1192,9 +1279,9 @@ fn a_dial_up_password_is_kept_only_when_save_password_is_on() {
     let path = dir.path().join("settings.json");
     let store = dm_core::secretstore::MemoryStore::default();
     let mut settings = Settings::default();
-    settings.dialup.enabled = true;
-    settings.dialup.connection = "Office VPN".into();
-    settings.dialup.password = dialup_password();
+    settings.advanced.dialup.enabled = true;
+    settings.advanced.dialup.connection = "Office VPN".into();
+    settings.advanced.dialup.password = dialup_password();
 
     // Off: neither the file nor the store has it, with a store or without one.
     for store in [None, Some(&store as &dyn dm_core::secretstore::SecretStore)] {
@@ -1207,16 +1294,19 @@ fn a_dial_up_password_is_kept_only_when_save_password_is_on() {
         assert!(text.contains("Office VPN"), "the connection itself is kept");
     }
     assert_eq!(
-        settings.dialup.password,
+        settings.advanced.dialup.password,
         dialup_password(),
         "kept for this run"
     );
     let (mut read, _) = Settings::load_file(&path);
     read.take_passwords_from(&store, &dm_core::secretstore::namespace(&path));
-    assert!(read.dialup.password.is_empty(), "the store kept it");
+    assert!(
+        read.advanced.dialup.password.is_empty(),
+        "the store kept it"
+    );
 
     // On: into the store, the file keeping none, and read back from there.
-    settings.dialup.save_password = true;
+    settings.advanced.dialup.save_password = true;
     settings.save_with(&path, Some(&store)).unwrap();
     let text = std::fs::read_to_string(&path).unwrap();
     assert!(
@@ -1225,15 +1315,15 @@ fn a_dial_up_password_is_kept_only_when_save_password_is_on() {
     );
     let (mut read, _) = Settings::load_file(&path);
     read.take_passwords_from(&store, &dm_core::secretstore::namespace(&path));
-    assert_eq!(read.dialup.password, dialup_password());
+    assert_eq!(read.advanced.dialup.password, dialup_password());
 
     // Off again: what the store kept is forgotten at the next save.
-    read.dialup.save_password = false;
+    read.advanced.dialup.save_password = false;
     read.save_with(&path, Some(&store)).unwrap();
     let (mut again, _) = Settings::load_file(&path);
     again.take_passwords_from(&store, &dm_core::secretstore::namespace(&path));
     assert!(
-        again.dialup.password.is_empty(),
+        again.advanced.dialup.password.is_empty(),
         "forgotten once Save password was turned off"
     );
 }
@@ -1241,21 +1331,30 @@ fn a_dial_up_password_is_kept_only_when_save_password_is_on() {
 #[test]
 fn a_close_or_double_click_this_dm_does_not_know_takes_the_default() {
     let odd = Settings {
-        on_close: "minimise".into(),
-        double_click: "explode".into(),
+        general: GeneralSettings {
+            on_close: "minimise".into(),
+            double_click: "explode".into(),
+            ..Default::default()
+        },
         ..Settings::default()
     }
     .clamped();
-    assert_eq!(odd.on_close, "ask");
-    assert_eq!(odd.double_click, "properties");
+    assert_eq!(odd.general.on_close, "ask");
+    assert_eq!(odd.general.double_click, "properties");
     let known = Settings {
-        on_close: "tray".into(),
-        double_click: "folder".into(),
+        general: GeneralSettings {
+            on_close: "tray".into(),
+            double_click: "folder".into(),
+            ..Default::default()
+        },
         ..Settings::default()
     }
     .clamped();
     assert_eq!(
-        (known.on_close.as_str(), known.double_click.as_str()),
+        (
+            known.general.on_close.as_str(),
+            known.general.double_click.as_str()
+        ),
         ("tray", "folder")
     );
 }
@@ -1265,7 +1364,10 @@ fn a_cookies_file_that_is_a_folder_and_a_kinds_folder_are_judged() {
     let dir = tempfile::tempdir().unwrap();
     let before = Settings::default();
     let folder = Settings {
-        cookies_file: dir.path().display().to_string(),
+        advanced: AdvancedSettings {
+            cookies_file: dir.path().display().to_string(),
+            ..before.advanced.clone()
+        },
         ..before.clone()
     };
     let why = folder.refusal(&before).unwrap();
@@ -1274,16 +1376,19 @@ fn a_cookies_file_that_is_a_folder_and_a_kinds_folder_are_judged() {
     let file = dir.path().join("cookies.txt");
     std::fs::write(&file, "").unwrap();
     let readable = Settings {
-        cookies_file: file.display().to_string(),
+        advanced: AdvancedSettings {
+            cookies_file: file.display().to_string(),
+            ..before.advanced.clone()
+        },
         ..before.clone()
     };
     assert_eq!(readable.refusal(&before), None);
 
     let mut kinds = before.clone();
-    kinds.category_folders = vec!["Fine".into(), "a/b".into()];
+    kinds.folders.category_folders = vec!["Fine".into(), "a/b".into()];
     let why = kinds.refusal(&before).unwrap();
     assert!(why.contains("a/b"), "{why}");
-    kinds.category_folders = vec!["Fine".into(), String::new()];
+    kinds.folders.category_folders = vec!["Fine".into(), String::new()];
     assert_eq!(kinds.refusal(&before), None);
 }
 
@@ -1299,14 +1404,17 @@ fn a_settings_file_that_cannot_be_moved_aside_is_said_and_left() {
 
     std::fs::write(&path, "5").unwrap();
     let (read, notice) = Settings::load_from(&path);
-    assert_eq!(read.connections, Settings::default().clamped().connections);
+    assert_eq!(
+        read.downloads.connections,
+        Settings::default().clamped().downloads.connections
+    );
     let notice = notice.unwrap();
     assert!(notice.contains("or moved aside"), "{notice}");
     assert!(path.exists(), "the file is not lost");
 
     std::fs::write(&path, r#"{"connections": 4, "concurrency": "three"}"#).unwrap();
     let (read, notice) = Settings::load_from(&path);
-    assert_eq!(read.connections, 4);
+    assert_eq!(read.downloads.connections, 4);
     let notice = notice.unwrap();
     assert!(notice.contains("could not be kept aside"), "{notice}");
 }
@@ -1330,18 +1438,22 @@ fn a_proxy_or_a_list_read_in_parts_names_what_it_left_out() {
         !notice.contains("so the proxy is off"),
         "it was off already: {notice}"
     );
-    assert!(!read.proxy.enabled);
-    assert_eq!(read.proxy.host, "p.example");
-    assert_eq!(read.proxy.port, dm_core::Proxy::default().port);
-    assert!(read.proxy.script.is_empty());
+    assert!(!read.advanced.proxy.enabled);
+    assert_eq!(read.advanced.proxy.host, "p.example");
+    assert_eq!(read.advanced.proxy.port, dm_core::Proxy::default().port);
+    assert!(read.advanced.proxy.script.is_empty());
     assert!(read.site_logins.is_empty());
 
     std::fs::write(&path, r#"{"proxy": 5, "connections": 3}"#).unwrap();
     let (read, notice) = Settings::load_from(&path);
     assert!(notice.unwrap().contains("proxy"));
-    assert_eq!(read.proxy, dm_core::Proxy::default(), "off, not a guess");
-    assert!(!read.proxy.enabled);
-    assert_eq!(read.connections, 3);
+    assert_eq!(
+        read.advanced.proxy,
+        dm_core::Proxy::default(),
+        "off, not a guess"
+    );
+    assert!(!read.advanced.proxy.enabled);
+    assert_eq!(read.downloads.connections, 3);
 }
 
 /// The tests' saves never reach the real dm's home: a test that changed the
@@ -1405,7 +1517,7 @@ fn the_text_size_is_one_of_four_stops_kept_and_stepped() {
         let (read, _) = Settings::load_from(&path);
         assert_eq!(read.text_size, held, "{written}");
         assert_eq!(
-            read.connections, 3,
+            read.downloads.connections, 3,
             "{written}: the rest of the file stands"
         );
     }
@@ -1466,7 +1578,7 @@ fn the_side_panels_width_is_bounded_and_kept() {
         let (read, _) = Settings::load_from(&path);
         assert_eq!(read.sidebar_width, held, "{written}");
         assert_eq!(
-            read.connections, 3,
+            read.downloads.connections, 3,
             "{written}: the rest of the file stands"
         );
     }
@@ -1507,8 +1619,14 @@ fn a_folder_in_home_is_written_with_a_tilde_and_read_back() {
 fn the_settings_file_carries_its_format_and_reads_the_same_without_it() {
     let dir = tempfile::tempdir().unwrap();
     let chosen = Settings {
-        connections: 5,
-        speed_limit: 300,
+        downloads: DownloadSettings {
+            connections: 5,
+            ..Default::default()
+        },
+        advanced: AdvancedSettings {
+            speed_limit: 300,
+            ..Default::default()
+        },
         ..Settings::default()
     };
     let stamped = dir.path().join("settings.json");
@@ -1540,5 +1658,231 @@ fn the_settings_file_carries_its_format_and_reads_the_same_without_it() {
         dm_core::saved::format_of(carried.as_bytes()),
         SETTINGS_FORMAT
     );
-    assert_eq!(chosen.imported(&carried).unwrap().connections, 5);
+    assert_eq!(chosen.imported(&carried).unwrap().downloads.connections, 5);
+}
+
+/// Every key a `settings.json` has, as dm wrote it before each page of Options had a struct
+/// (gaps row A8): the settings no page edits, then General's, Browser's, Folders',
+/// Downloads' and Advanced's. The nested values are added by the test.
+const A_FULL_FILE: &str = r#"{
+    "last_speed_limit": 300,
+    "slow_hours": {"enabled": true, "from": "08:00", "to": "18:00", "limit": 128},
+    "identify_as_dm": true,
+    "duplicate_choice": "again",
+    "recent_urls": ["https://example.com/a.zip"],
+    "last_folders": {"Videos": "/srv/videos"},
+    "limit_mb": 2048,
+    "limit_hours": 24,
+    "custom_categories": [{"name": "Books", "extensions": ["epub"], "sites": []}],
+    "sound_language": "es",
+    "start_copied": true,
+    "start_while_asking": true,
+    "peer_blocklist": "https://example.com/list.gz",
+    "torrent_share": true,
+    "torrent_share_ratio": 2.5,
+    "torrent_share_minutes": 60,
+    "torrent_upload_limit": 100,
+    "update_checked": 1700000000,
+    "popups_version": 2,
+    "text_size": 1.0,
+    "hinted_big": true,
+    "hinted_details": true,
+    "toolbar_style": "icons",
+    "toolbar_order": ["add_url"],
+    "column_order": ["name", "size"],
+    "columns_hidden": ["rate"],
+    "column_widths": {"name": 240.5},
+    "sidebar_width": 250.0,
+    "shut_groups": ["Queues"],
+    "sort_column": "size",
+    "sort_ascending": false,
+    "show_categories": false,
+    "show_toolbar": false,
+    "toolbar_hidden": ["delete"],
+    "site_logins": [{"host": "files.example", "username": "me", "password": "secret"}],
+    "second_path": "en5",
+    "sounds": {"complete": "/srv/done.wav"},
+    "site_searches": [],
+    "drop_target": true,
+
+    "watch_clipboard": true,
+    "start_on_login": false,
+    "allow_command_line": true,
+    "allow_mcp": true,
+    "check_updates": true,
+    "language": "de",
+    "show_progress": false,
+    "show_complete": false,
+    "sound_on_complete": true,
+    "ask_panel_downloads": false,
+    "ask_caught_downloads": false,
+    "theme": "dark",
+    "double_click": "folder",
+    "on_close": "tray",
+    "server_dates": true,
+    "sound_on_failure": true,
+    "mica": true,
+    "offer_new_link": false,
+
+    "download_dir": "/srv/files",
+    "categorize": false,
+    "category_folders": ["Clips", "Music", "", "Docs"],
+    "parts_dir": "/srv/parts",
+
+    "connections": 16,
+    "concurrency": 5,
+    "stream_quality": "720",
+    "watch_folder": "/srv/drop",
+    "record_minutes": 90,
+    "on_complete": "scan --quick",
+    "recheck_hours": 6,
+    "start_queue_on_launch": true,
+    "subtitles": true,
+    "queue_limits": [{"queue": "Nightly", "files": 2}],
+    "queue_starts": [{"queue": "Nightly", "at": "02:30"}],
+    "remux_ts": false,
+
+    "speed_limit": 512,
+    "retry_wait": 9,
+    "cookies_file": "/srv/cookies.txt",
+    "attempts": 7,
+    "read_timeout": 45,
+    "host_limits": [{"host": "slow.example", "connections": 2}],
+    "site_rules": [
+        {"host": "example.com", "folder": "/srv/example", "speed": 64, "agent": "", "headers": ""}
+    ]
+}"#;
+
+/// [`A_FULL_FILE`] with its nested settings, each as its own type writes it.
+fn a_full_file() -> serde_json::Map<String, serde_json::Value> {
+    let mut file: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(A_FULL_FILE).unwrap();
+    let hours = Schedule {
+        enabled: true,
+        from: "01:00".into(),
+        to: "05:00".into(),
+        ..Schedule::default()
+    };
+    let nested = [
+        ("schedule", serde_json::to_value(&hours)),
+        (
+            "queue_schedules",
+            serde_json::to_value(
+                [("Nightly", &hours)]
+                    .into_iter()
+                    .collect::<std::collections::BTreeMap<_, _>>(),
+            ),
+        ),
+        (
+            "catch",
+            serde_json::to_value(dm_protocol::CatchRules {
+                enabled: false,
+                ..Default::default()
+            }),
+        ),
+        (
+            "proxy",
+            serde_json::to_value(dm_core::Proxy {
+                host: "proxy.example".into(),
+                port: 3128,
+                ..Default::default()
+            }),
+        ),
+        (
+            "dialup",
+            serde_json::to_value(crate::dialup::DialUp {
+                enabled: true,
+                connection: "Office VPN".into(),
+                ..Default::default()
+            }),
+        ),
+    ];
+    for (key, value) in nested {
+        file.insert(key.to_string(), value.unwrap());
+    }
+    file
+}
+
+#[test]
+fn a_full_settings_file_reads_into_the_pages_and_is_written_back_the_same() {
+    let file = a_full_file();
+    let text = serde_json::Value::Object(file.clone()).to_string();
+    let (read, dropped) = Settings::parse(&text).unwrap();
+    assert!(dropped.is_empty(), "left out: {dropped:?}");
+    // Each page's struct took its own keys.
+    assert_eq!(read.general.theme, "dark");
+    assert!(!read.browser.catch.enabled);
+    assert_eq!(read.folders.parts_dir, "/srv/parts");
+    assert_eq!(read.downloads.connections, 16);
+    assert_eq!(read.advanced.proxy.host, "proxy.example");
+    assert_eq!(read.limit_hours, 24);
+    // Written back: the same keys with the same values, and no other.
+    assert_eq!(
+        serde_json::to_value(&read).unwrap(),
+        serde_json::Value::Object(file.clone())
+    );
+    let keys = |value: serde_json::Value| -> Vec<String> {
+        value.as_object().unwrap().keys().cloned().collect()
+    };
+    assert_eq!(
+        keys(serde_json::to_value(Settings::default()).unwrap()),
+        keys(serde_json::Value::Object(file.clone())),
+        "a key of the file is no setting, or a setting has no key"
+    );
+    // And saved as dm saves it: the same object, with its format number beside it.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    read.save_with(&path, None).unwrap();
+    let mut saved: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(saved["format"], SETTINGS_FORMAT);
+    saved.as_object_mut().unwrap().remove("format");
+    assert_eq!(saved, serde_json::Value::Object(file));
+}
+
+#[test]
+fn a_file_without_a_pages_keys_reads_with_that_pages_defaults() {
+    let read: Settings = serde_json::from_str(
+        r#"{"theme": "dark", "connections": 4, "recent_urls": ["https://example.com/a"]}"#,
+    )
+    .unwrap();
+    let fresh = Settings::default();
+    assert_eq!(read.general.theme, "dark");
+    assert_eq!(read.downloads.connections, 4);
+    assert_eq!(read.recent_urls, ["https://example.com/a"]);
+    // A page none of whose keys the file has is as a new install has it.
+    let json = |settings: &Settings| {
+        [
+            serde_json::to_value(&settings.browser).unwrap(),
+            serde_json::to_value(&settings.folders).unwrap(),
+            serde_json::to_value(&settings.advanced).unwrap(),
+        ]
+    };
+    assert_eq!(json(&read), json(&fresh));
+    // The rest of a page the file has some of: as before the pages had structs.
+    assert_eq!(read.downloads.concurrency, fresh.downloads.concurrency);
+    assert_eq!(read.downloads.stream_quality, "best");
+    assert!(read.downloads.remux_ts);
+    assert_eq!(read.general.double_click, fresh.general.double_click);
+    assert!(read.general.offer_new_link);
+}
+
+#[test]
+fn a_bad_value_on_a_page_is_named_by_its_key_and_costs_only_itself() {
+    let (read, dropped) = Settings::parse(
+        r#"{"theme": "dark", "connections": "many", "attempts": -3, "categorize": "yes"}"#,
+    )
+    .unwrap();
+    for key in ["connections", "attempts", "categorize"] {
+        assert!(
+            dropped.iter().any(|d| d == key),
+            "{key} not named: {dropped:?}"
+        );
+    }
+    assert_eq!(dropped.len(), 3, "{dropped:?}");
+    let fresh = Settings::default();
+    assert_eq!(read.general.theme, "dark");
+    assert_eq!(read.downloads.connections, fresh.downloads.connections);
+    assert_eq!(read.advanced.attempts, fresh.advanced.attempts);
+    assert_eq!(read.folders.categorize, fresh.folders.categorize);
 }

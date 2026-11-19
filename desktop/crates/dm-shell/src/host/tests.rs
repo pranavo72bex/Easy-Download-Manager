@@ -949,7 +949,7 @@ fn a_link_dm_cannot_fetch_itself_is_left_with_the_browser() {
 fn a_link_from_a_site_whose_links_work_once_is_taken_unasked() {
     let dir = tempfile::tempdir().unwrap();
     let mut settings = crate::Settings::default();
-    settings.catch.once_hosts = vec!["files.e.com".into()];
+    settings.browser.catch.once_hosts = vec!["files.e.com".into()];
     std::fs::write(
         dir.path().join("settings.json"),
         serde_json::to_string(&settings).unwrap(),

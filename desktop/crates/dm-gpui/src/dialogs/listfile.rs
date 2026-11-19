@@ -90,7 +90,7 @@ impl ListFile {
             window.remove_window();
             return;
         };
-        let example = suggested(&view.read(cx).backend.settings().download_dir);
+        let example = suggested(&view.read(cx).backend.settings().folders.download_dir);
         let path = match typed_path(&self.path.read(cx).value(), &example) {
             Ok(path) => path,
             Err(why) => return self.refused(why, window, cx),
@@ -214,7 +214,7 @@ fn open_now(view: WeakEntity<Downloads>, save: bool, cx: &mut App) {
         return;
     };
     let offered = save
-        .then(|| suggested(&downloads.read(cx).backend.settings().download_dir))
+        .then(|| suggested(&downloads.read(cx).backend.settings().folders.download_dir))
         .map(|path| path.display().to_string())
         .unwrap_or_default();
     // One field and a line, as Add URL's.

@@ -183,8 +183,8 @@ impl Properties {
         let settings = view.read(cx).backend.settings();
         if let Some((text, count)) = dm_desktop_base::details::blocks_for(
             std::slice::from_ref(row),
-            settings.connections,
-            &settings.download_dir,
+            settings.downloads.connections,
+            &settings.folders.download_dir,
         ) {
             cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
             view.update(cx, |view, cx| {

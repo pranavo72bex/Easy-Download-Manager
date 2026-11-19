@@ -69,7 +69,11 @@ pub(super) fn placed(row: &Entry, settings: &Settings, named: &str) -> (String, 
             .clone()
             .filter(|d| !d.trim().is_empty())
             .or_else(|| {
-                dm_shell::app::names::planned_folder(row, &settings.download_dir, &mut categories)
+                dm_shell::app::names::planned_folder(
+                    row,
+                    &settings.folders.download_dir,
+                    &mut categories,
+                )
             })
             .map(|f| std::path::Path::new(&f).join(named).display().to_string())
             .unwrap_or_default()

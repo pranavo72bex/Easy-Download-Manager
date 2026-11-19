@@ -55,14 +55,20 @@ fn backend(
     item: Arc<Item>,
 ) -> super::Backend {
     let settings = crate::Settings {
-        download_dir: dir.join("out"),
-        start_on_login,
+        general: crate::settings::GeneralSettings {
+            start_on_login,
+            ..Default::default()
+        },
+        folders: crate::settings::FolderSettings {
+            download_dir: dir.join("out"),
+            ..Default::default()
+        },
         ..crate::Settings::default()
     };
     let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
-        settings.concurrency,
+        settings.downloads.concurrency,
     );
     super::Backend::new(runtime.handle().clone(), queue, settings, Vec::new(), item)
 }
@@ -114,12 +120,12 @@ fn a_change_of_the_setting_meanwhile_is_the_one_that_stands() {
             std::thread::spawn(move || backend.login_item_follows_setting())
         };
         let mut off = backend.settings();
-        off.start_on_login = false;
+        off.general.start_on_login = false;
         // Saving the file may fail beside this crate's other tests; the
         // setting is in force before it is written.
         let _ = backend.set_settings(off);
         launch.join().unwrap().unwrap();
-        assert!(!backend.settings().start_on_login);
+        assert!(!backend.settings().general.start_on_login);
         assert_eq!(dm_core::lock(&item.on).last(), Some(&false));
     }
 }

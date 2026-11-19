@@ -15,8 +15,12 @@
 use std::path::PathBuf;
 
 use dm_core::Quality;
-use dm_core::{AddOptions, Categories, Category, Limiter, Options, Proxy, Schedule};
+use dm_core::{AddOptions, Categories, Category, Limiter, Options, Schedule};
 use serde::{Deserialize, Serialize};
+
+pub use pages::{
+    AdvancedSettings, BrowserSettings, DownloadSettings, FolderSettings, GeneralSettings,
+};
 
 /// Bounds the engine will honour, applied here so a value typed into the
 /// window and a value read from a hand-edited file are held to the same rule.
@@ -148,21 +152,27 @@ impl TextSizes {
 /// Options, the list's columns and sort, the side panel, and what the
 /// browser's extension is told. A field missing from the file takes its
 /// default, so an older file still reads.
+///
+/// What a page of Options edits is that page's struct (`pages.rs`), flattened: the file keeps
+/// one object with every key at its top, as before the pages had structs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
-    /// Connections per file.
-    pub connections: usize,
-    /// Files transferring at once.
-    pub concurrency: usize,
-    /// Where finished files land.
-    pub download_dir: PathBuf,
-
-    /// Kilobytes a second across everything. Zero is no limit.
-    ///
-    /// Kilobytes rather than bytes because that is the unit people think in
-    /// for a link.
-    pub speed_limit: u64,
+    /// Options › General.
+    #[serde(flatten)]
+    pub general: GeneralSettings,
+    /// Options › Browser.
+    #[serde(flatten)]
+    pub browser: BrowserSettings,
+    /// Options › Folders.
+    #[serde(flatten)]
+    pub folders: FolderSettings,
+    /// Options › Downloads.
+    #[serde(flatten)]
+    pub downloads: DownloadSettings,
+    /// Options › Advanced.
+    #[serde(flatten)]
+    pub advanced: AdvancedSettings,
     /// The limit the speed limiter last had on, in KB/s, so turning it back
     /// on — in this run or the next — restores it. Zero for never set.
     #[serde(default)]
@@ -171,7 +181,6 @@ pub struct Settings {
     /// the link), beside the one for the rest of the day.
     #[serde(default)]
     pub slow_hours: SlowHours,
-
     /// Send dm's own name to servers first, not the browser-like one
     /// (Options › Advanced › Identify as dm only). A site that refuses the
     /// first name is still asked again with the others.
@@ -182,66 +191,37 @@ pub struct Settings {
     /// `"again"`, `"replace"`. Options › General undoes it.
     #[serde(default)]
     pub duplicate_choice: String,
-
     /// Addresses typed into Add URL, newest first, without any login in
     /// them, for picking again; cleared from the dialog.
     #[serde(default)]
     pub recent_urls: Vec<String>,
-
     /// The folder last chosen in Download details for each kind of file,
     /// by its folder name (`Category::folder`), offered first the next
     /// time a file of that kind is added there.
     #[serde(default)]
     pub last_folders: std::collections::BTreeMap<String, String>,
-
     /// The download limit: no more than this many megabytes
     /// every `limit_hours` hours. Zero is none.
     pub limit_mb: u64,
     /// The span the download limit counts over, in hours.
     pub limit_hours: u64,
-
-    /// Sort finished files into folders by kind. On for a new install.
-    pub categorize: bool,
-    /// What each of those folders is called, in `Category::ALL` order. An
-    /// empty name leaves that kind unsorted.
-    pub category_folders: Vec<String>,
     /// Categories a person made: a name that is also a folder, file types,
     /// and optionally the only sites they come from. Looked at before the
     /// built-in kinds.
     #[serde(deserialize_with = "lenient::custom_categories")]
     pub custom_categories: Vec<dm_core::Custom>,
-
-    /// Which rendition to take from an adaptive stream: `best`, `audio`, or
-    /// a height.
-    pub stream_quality: String,
     /// The language a video's sound is taken in where it offers several (a
     /// dub): a language tag (`es`, `pt-BR`); empty takes each video's own, as
     /// before (gaps row Y10). Read by YouTube, HLS and DASH alike; kept in
     /// `settings.json` only until Options has a line for it.
     #[serde(default)]
     pub sound_language: String,
-
     /// When the queue may run.
     #[serde(deserialize_with = "lenient::schedule")]
     pub schedule: Schedule,
-
     /// A schedule of its own for a named queue, by the queue's name; a queue
     /// with none uses `schedule`.
     pub queue_schedules: std::collections::BTreeMap<String, Schedule>,
-
-    /// Where downloads connect through.
-    #[serde(deserialize_with = "lenient::proxy")]
-    pub proxy: Proxy,
-
-    /// A dial-up or VPN connection every download waits for (Windows; Options › Advanced ›
-    /// Dial Up / VPN). Off unless the person turns it on.
-    #[serde(default)]
-    pub dialup: crate::dialup::DialUp,
-
-    /// Watch the clipboard for links and offer to download them. Off by
-    /// default: people copy URLs constantly, so this asks rather than grabs.
-    #[serde(default)]
-    pub watch_clipboard: bool,
     /// Set when this run could not read its passwords back (the store refused, or the file
     /// was read only in part or not at all, so its defaults stand in): an empty password then
     /// says nothing about what the person wants, and the one in the store is not forgotten on
@@ -253,36 +233,11 @@ pub struct Settings {
     /// offered in a bar first. Off by default, as reference A's.
     #[serde(default)]
     pub start_copied: bool,
-
     /// A download shown in Download details starts fetching at once, while the person still
     /// chooses where it goes; Start now places it, Cancel removes it. Off by default, as
     /// reference A's "Start downloading immediately while displaying" (gaps row 85).
     #[serde(default)]
     pub start_while_asking: bool,
-
-    /// Start with the computer, so a browser hand-off has an app to land in
-    /// without anyone opening it first. On for a new install, in the tray
-    /// with no window; Options › General turns it off.
-    #[serde(default)]
-    pub start_on_login: bool,
-    /// Open dm's control port (loopback only, a token only this account can
-    /// read) at every start, so `dm-desktop list`, `pause`, `resume` and
-    /// `cancel` find the running dm. Off unless turned on: otherwise dm
-    /// listens on nothing, and the port exists only under `--control`.
-    #[serde(default)]
-    pub allow_command_line: bool,
-    /// Let an AI assistant use dm over MCP (`dm-desktop mcp`): its requests
-    /// are answered only while this is on, and it opens the control port at
-    /// start as `allow_command_line` does. Off in a new install, by dm's own
-    /// rule that nothing listens unless turned on (gaps row F7); a settings
-    /// file that already says either keeps it.
-    #[serde(default)]
-    pub allow_mcp: bool,
-    /// A folder dm reads every few seconds for links saved there: a `.url`,
-    /// a `.webloc`, a text file of links or a `.torrent` is added, then
-    /// moved into a `done` folder inside it. Empty is off.
-    #[serde(default)]
-    pub watch_folder: String,
     /// Where the list of peers a torrent never connects to is: an address on
     /// the web or a file on this computer, in the P2P format, plain or
     /// gzipped. Empty for none.
@@ -301,42 +256,14 @@ pub struct Settings {
     /// The most a shared torrent sends, in KB a second; 0 for no limit of its own.
     #[serde(default)]
     pub torrent_upload_limit: u64,
-    /// Look for a newer dm about once a week. Off unless turned on: it asks
-    /// GitHub, and dm otherwise contacts nothing but what is downloaded.
-    pub check_updates: bool,
-    /// The window's language, by code ("es", "pt-BR"); empty follows the
-    /// system's where dm has it.
-    pub language: String,
     /// When dm last looked for a newer version, in seconds since 1970.
     pub update_checked: u64,
-
     /// Which edition of the pop-up defaults the four switches below were
     /// last brought up to. A file from an older edition is brought up to
     /// this one's defaults once (`clamped`); from then on a person's choice
     /// stands.
     #[serde(default)]
     pub popups_version: u32,
-    /// Open a progress window for a download as it starts, as reference A
-    /// does (on by default since edition 2).
-    #[serde(default)]
-    pub show_progress: bool,
-    /// Say so in a window when a download finishes, with Open and Open
-    /// folder, as reference A does (on by default since edition 2).
-    #[serde(default)]
-    pub show_complete: bool,
-    /// Play the system's short sound when a download finishes.
-    pub sound_on_complete: bool,
-    /// A video from the browser's panel: "Download details" opens for it,
-    /// to name it and choose where it goes, before it starts.
-    pub ask_panel_downloads: bool,
-    /// A download caught from the browser: "Download details" opens for it
-    /// too, rather than it starting at once, as reference A's File Info
-    /// does (on by default since edition 2).
-    #[serde(default)]
-    pub ask_caught_downloads: bool,
-    /// The window's look: "system" (the modern look, light or dark as the
-    /// computer is), "light", "dark", or "classic" (a classic Windows look).
-    pub theme: String,
     /// How large the GPUI window draws everything, as a multiple of its
     /// design (Options › General › Appearance's slider, View › Text size):
     /// one of `TEXT_SIZE.stops`, 0.6 to 1.2, 1.0 the default; Ctrl (Cmd)
@@ -344,13 +271,6 @@ pub struct Settings {
     /// either window can read it.
     #[serde(default = "default_text_size", deserialize_with = "lenient::text_size")]
     pub text_size: f32,
-    /// What a double-click on a row does: "properties", "open" (a finished
-    /// file; Properties for one not finished) or "folder" (its folder).
-    pub double_click: String,
-    /// What the window's close button does: "ask" (the first time, and the
-    /// answer is kept here), "tray" (dm goes on running in the tray) or
-    /// "exit".
-    pub on_close: String,
     /// The hint about the Scheduler, said once when a very big download
     /// starts, has been said.
     pub hinted_big: bool,
@@ -358,16 +278,6 @@ pub struct Settings {
     /// said once when a download starts with the progress window off, has
     /// been said.
     pub hinted_details: bool,
-    /// A finished file takes the date its server says it last changed,
-    /// rather than when it was fetched. Off by default.
-    pub server_dates: bool,
-    /// Seconds to wait between attempts after a failure; 0 lets dm choose
-    /// (quick at first, then half a minute apart).
-    pub retry_wait: u64,
-    /// Minutes a live stream is recorded for before dm ends it and keeps
-    /// what it has; 0 records until the stream ends or Stop.
-    #[serde(default)]
-    pub record_minutes: u64,
     /// The toolbar styles: "both" (icons and text), "icons" (small, icons
     /// only) or "text" (text only). Anything else is "both".
     pub toolbar_style: String,
@@ -409,94 +319,23 @@ pub struct Settings {
     /// host, so a protected file need not be typed for each time.
     #[serde(default, deserialize_with = "lenient::site_logins")]
     pub site_logins: Vec<SiteLogin>,
-
-    /// Which downloads the browser extension takes from the browser —
-    /// Options › Browser. Kept here, in the app, and sent to the extension
-    /// when it asks (`settings.get`), so there is one list and it is the
-    /// app's. Spelled as the protocol spells it: `minSizeKb`, `skipHosts`.
-    #[serde(default)]
-    pub catch: dm_protocol::CatchRules,
-
-    /// A `cookies.txt` (Netscape format) whose cookies dm sends with its own
-    /// requests, for downloads that need a signed-in session. Empty for none.
-    #[serde(default)]
-    pub cookies_file: String,
-
-    /// A command run on each finished file, its path added as the last
-    /// argument: a virus checker, or a script of the person's own. Empty
-    /// for none.
-    #[serde(default)]
-    pub on_complete: String,
-
-    /// How many times one connection tries before the download fails, for
-    /// a failure waiting can fix. Zero keeps trying until it gets through
-    /// or is paused.
-    #[serde(default = "default_attempts")]
-    pub attempts: u32,
-    /// Seconds a connection may send nothing before dm gives up on it and
-    /// tries again.
-    #[serde(default = "default_read_timeout")]
-    pub read_timeout: u64,
     /// A second network (an interface's name, such as `en5` for an iPhone
     /// over USB) that every other connection of a download goes out on;
     /// empty for none. Not used while a proxy is on: the proxy is the path.
     #[serde(default)]
     pub second_path: String,
-    /// Sites that take fewer connections at once than `connections`.
-    #[serde(default, deserialize_with = "lenient::host_limits")]
-    pub host_limits: Vec<dm_core::HostLimit>,
-    /// A folder and a speed limit for a site's downloads (Options › Advanced).
-    #[serde(default, deserialize_with = "lenient::site_rules")]
-    pub site_rules: Vec<SiteRule>,
-    /// Hours between the recheck queue asking its servers again on its
-    /// own. Zero asks only when "Start queue" is clicked on it.
-    #[serde(default)]
-    pub recheck_hours: u64,
-    /// Play the system's short failure sound when a download fails.
-    #[serde(default)]
-    pub sound_on_failure: bool,
     /// A sound file of the person's own for an event (`complete`, `failed`, `queue_started`,
     /// `queue_done`); an event with no entry, or an empty one, keeps the system's sound. Only `.wav`
     /// is promised. The switches above still decide whether the finish and failure sounds play.
     #[serde(default)]
     pub sounds: std::collections::BTreeMap<String, String>,
-    /// Start the Main queue as dm opens, so what was added for later goes
-    /// at the next launch without a click.
-    #[serde(default)]
-    pub start_queue_on_launch: bool,
-    /// Carry a video's subtitles inside it.
-    #[serde(default)]
-    pub subtitles: bool,
     /// "Site files" searches saved to run again, by hand or on a timer.
     #[serde(default)]
     pub site_searches: Vec<crate::lists::Search>,
-    /// Queues that run fewer files at once than `concurrency`.
-    #[serde(default, deserialize_with = "lenient::queue_limits")]
-    pub queue_limits: Vec<QueueLimit>,
     /// The floating drop target: a small window over every other, which
     /// takes a link dragged onto it. Off unless chosen (View › Drop target).
     #[serde(default)]
     pub drop_target: bool,
-    /// Windows 11's Mica behind the window's frame, from the next start.
-    /// Off unless chosen: it needs a see-through window, which an old GPU
-    /// driver can draw black.
-    #[serde(default)]
-    pub mica: bool,
-    /// Queues that start on their own each day at a time of their own.
-    #[serde(default)]
-    pub queue_starts: Vec<QueueStart>,
-    /// Put a `.ts` stream into an MP4 (dm's own remux).
-    #[serde(default = "yes")]
-    pub remux_ts: bool,
-    /// Open "Update download link" by itself when a download's signed link
-    /// has run out part-way. Off, the row says it failed and its menu has
-    /// Update download link.
-    #[serde(default = "yes")]
-    pub offer_new_link: bool,
-    /// Where unfinished downloads are staged; empty for dm's own folder.
-    /// A download already begun keeps the folder it began in.
-    #[serde(default)]
-    pub parts_dir: String,
 }
 
 /// A named queue that starts on its own each day at a time.
@@ -572,10 +411,6 @@ fn default_sidebar_width() -> f32 {
     SIDEBAR_WIDTH.default
 }
 
-fn default_attempts() -> u32 {
-    15
-}
-
 fn default_share_ratio() -> f64 {
     1.0
 }
@@ -584,11 +419,8 @@ fn default_share_minutes() -> u64 {
     120
 }
 
-fn default_read_timeout() -> u64 {
-    30
-}
-
-/// Bounds for the two above: a hundred tries is already an hour of asking,
+/// Bounds for the attempts and the read timeout (Options › Advanced): a hundred tries is
+/// already an hour of asking,
 /// and a connection silent for ten minutes is not slow.
 const ATTEMPTS: (u32, u32) = (0, 100);
 const READ_TIMEOUT_SECS: (u64, u64) = (5, 600);
@@ -617,7 +449,7 @@ impl Settings {
         for login in &mut out.site_logins {
             login.password.clear();
         }
-        out.proxy.password.clear();
+        out.advanced.proxy.password.clear();
         out.recent_urls.clear();
         out.last_folders.clear();
         serde_json::to_string_pretty(&dm_core::saved::Stamped {
@@ -645,11 +477,14 @@ impl Settings {
         }
         // For the same proxy: a user name alone is guessable, and a file naming
         // another proxy must not be handed this computer's password for it.
-        if read.proxy.username == self.proxy.username
-            && read.proxy.host == self.proxy.host
-            && read.proxy.port == self.proxy.port
+        if read.advanced.proxy.username == self.advanced.proxy.username
+            && read.advanced.proxy.host == self.advanced.proxy.host
+            && read.advanced.proxy.port == self.advanced.proxy.port
         {
-            read.proxy.password.clone_from(&self.proxy.password);
+            read.advanced
+                .proxy
+                .password
+                .clone_from(&self.advanced.proxy.password);
         }
         read.recent_urls.clone_from(&self.recent_urls);
         read.last_folders = self.last_folders.clone();
@@ -667,12 +502,17 @@ impl Settings {
     /// which of them were changed back.
     pub fn keep_programs_of(&mut self, mine: &Settings) -> KeptPrograms {
         let mut kept = KeptPrograms::default();
-        if self.on_complete != mine.on_complete {
-            self.on_complete.clone_from(&mine.on_complete);
+        if self.downloads.on_complete != mine.downloads.on_complete {
+            self.downloads
+                .on_complete
+                .clone_from(&mine.downloads.on_complete);
             kept.command = true;
         }
-        if self.proxy.script != mine.proxy.script {
-            self.proxy.script.clone_from(&mine.proxy.script);
+        if self.advanced.proxy.script != mine.advanced.proxy.script {
+            self.advanced
+                .proxy
+                .script
+                .clone_from(&mine.advanced.proxy.script);
             kept.proxy_script = true;
         }
         if self.schedule.run_when_done != mine.schedule.run_when_done {
@@ -704,25 +544,31 @@ impl Settings {
     /// person moving dm to another computer brings their folders. Says whether any was put back.
     pub fn keep_places_of(&mut self, mine: &Settings) -> bool {
         let folders = |s: &Settings| -> Vec<(String, String)> {
-            s.site_rules
+            s.advanced
+                .site_rules
                 .iter()
                 .map(|r| (r.host.clone(), r.folder.clone()))
                 .collect()
         };
-        let changed = self.download_dir != mine.download_dir
-            || self.parts_dir != mine.parts_dir
-            || self.categorize != mine.categorize
-            || self.category_folders != mine.category_folders
+        let changed = self.folders.download_dir != mine.folders.download_dir
+            || self.folders.parts_dir != mine.folders.parts_dir
+            || self.folders.categorize != mine.folders.categorize
+            || self.folders.category_folders != mine.folders.category_folders
             || folders(self) != folders(mine);
         if changed {
-            self.download_dir.clone_from(&mine.download_dir);
-            self.parts_dir.clone_from(&mine.parts_dir);
-            self.categorize = mine.categorize;
-            self.category_folders.clone_from(&mine.category_folders);
+            self.folders
+                .download_dir
+                .clone_from(&mine.folders.download_dir);
+            self.folders.parts_dir.clone_from(&mine.folders.parts_dir);
+            self.folders.categorize = mine.folders.categorize;
+            self.folders
+                .category_folders
+                .clone_from(&mine.folders.category_folders);
             // A site's speed may be the script's; its folder is put back, and a site rule the
             // person did not have writes nowhere of its own.
-            for rule in &mut self.site_rules {
+            for rule in &mut self.advanced.site_rules {
                 rule.folder = mine
+                    .advanced
                     .site_rules
                     .iter()
                     .find(|r| r.host == rule.host)
@@ -759,17 +605,6 @@ pub struct SiteLogin {
     pub username: String,
     /// The password sent with it, kept in this account's own file (0600).
     pub password: String,
-}
-
-fn default_quality() -> String {
-    "best".into()
-}
-
-fn default_folders() -> Vec<String> {
-    Category::ALL
-        .iter()
-        .map(|c| c.folder().to_string())
-        .collect()
 }
 
 /// A lower speed limit for set hours of every day.
@@ -819,35 +654,15 @@ impl SlowHours {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            attempts: default_attempts(),
-            read_timeout: default_read_timeout(),
+            general: GeneralSettings::default(),
+            browser: BrowserSettings::default(),
+            folders: FolderSettings::default(),
+            downloads: DownloadSettings::default(),
+            advanced: AdvancedSettings::default(),
             second_path: String::new(),
-            host_limits: Vec::new(),
-            site_rules: Vec::new(),
-            recheck_hours: 0,
-            sound_on_failure: false,
             sounds: Default::default(),
-            start_queue_on_launch: false,
-            subtitles: false,
             site_searches: Vec::new(),
-            queue_limits: Vec::new(),
-            queue_starts: Vec::new(),
             drop_target: false,
-            mica: false,
-            offer_new_link: true,
-            remux_ts: true,
-            parts_dir: String::new(),
-            on_complete: String::new(),
-            cookies_file: String::new(),
-            connections: 8,
-            concurrency: 3,
-            // A `dm` folder inside the one the operating system already
-            // nominates. A download manager that puts files anywhere else is
-            // one people have to go looking in.
-            download_dir: dm_core::folders::downloads()
-                .unwrap_or_else(|| dm_core::folders::home().unwrap_or_default())
-                .join("dm"),
-            speed_limit: 0,
             last_speed_limit: 0,
             slow_hours: SlowHours::default(),
             identify_as_dm: false,
@@ -856,53 +671,23 @@ impl Default for Settings {
             last_folders: Default::default(),
             limit_mb: 0,
             limit_hours: 1,
-            categorize: true,
-            category_folders: default_folders(),
             custom_categories: Vec::new(),
-            stream_quality: default_quality(),
             sound_language: String::new(),
             schedule: Schedule::default(),
             queue_schedules: std::collections::BTreeMap::new(),
-            // The computer's proxy settings, as a browser takes them: with none set it goes
-            // direct; behind one, a new dm works where the browser does
-            // (docs/decisions.md, 2026-11-06, in place of gaps row 80).
-            dialup: crate::dialup::DialUp::default(),
-            proxy: Proxy {
-                enabled: true,
-                kind: dm_core::ProxyKind::System,
-                ..Proxy::default()
-            },
-            watch_clipboard: false,
             keep_stored_passwords: false,
             start_copied: false,
             start_while_asking: false,
-            start_on_login: true,
-            allow_command_line: false,
-            allow_mcp: false,
-            watch_folder: String::new(),
             peer_blocklist: String::new(),
             torrent_share: false,
             torrent_share_ratio: default_share_ratio(),
             torrent_share_minutes: default_share_minutes(),
             torrent_upload_limit: 0,
-            check_updates: false,
-            language: String::new(),
             update_checked: 0,
             popups_version: POPUPS_VERSION,
-            show_progress: true,
-            show_complete: true,
-            sound_on_complete: false,
-            ask_panel_downloads: true,
-            ask_caught_downloads: true,
-            theme: "system".into(),
             text_size: TEXT_SIZE.default,
-            double_click: "open".into(),
-            on_close: "ask".into(),
             hinted_big: false,
             hinted_details: false,
-            server_dates: false,
-            retry_wait: 0,
-            record_minutes: 0,
             toolbar_style: "both".into(),
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
@@ -916,7 +701,6 @@ impl Default for Settings {
             show_toolbar: true,
             toolbar_hidden: Vec::new(),
             site_logins: Vec::new(),
-            catch: dm_protocol::CatchRules::default(),
         }
     }
 }
@@ -928,74 +712,88 @@ impl Settings {
     /// anyone can edit, and a hand-typed 500 connections should be clamped
     /// rather than handed to the engine or rejected with an error nobody sees.
     pub fn clamped(mut self) -> Self {
-        self.connections = self.connections.clamp(CONNECTIONS.0, CONNECTIONS.1);
-        self.concurrency = self.concurrency.clamp(CONCURRENCY.0, CONCURRENCY.1);
-        self.speed_limit = self.speed_limit.clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
+        self.downloads.connections = self
+            .downloads
+            .connections
+            .clamp(CONNECTIONS.0, CONNECTIONS.1);
+        self.downloads.concurrency = self
+            .downloads
+            .concurrency
+            .clamp(CONCURRENCY.0, CONCURRENCY.1);
+        self.advanced.speed_limit = self
+            .advanced
+            .speed_limit
+            .clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
         self.recent_urls.truncate(RECENT_URLS);
-        self.retry_wait = self.retry_wait.min(3600);
+        self.advanced.retry_wait = self.advanced.retry_wait.min(3600);
         self.text_size = TEXT_SIZE.held(self.text_size);
         self.sidebar_width = SIDEBAR_WIDTH.held(self.sidebar_width);
         // A day at most: a stream meant to run longer is stopped by hand.
-        self.record_minutes = self.record_minutes.min(24 * 60);
-        if !["ask", "tray", "exit"].contains(&self.on_close.as_str()) {
-            self.on_close = "ask".into();
+        self.downloads.record_minutes = self.downloads.record_minutes.min(24 * 60);
+        if !["ask", "tray", "exit"].contains(&self.general.on_close.as_str()) {
+            self.general.on_close = "ask".into();
         }
-        if !["properties", "open", "folder"].contains(&self.double_click.as_str()) {
-            self.double_click = "properties".into();
+        if !["properties", "open", "folder"].contains(&self.general.double_click.as_str()) {
+            self.general.double_click = "properties".into();
         }
-        self.catch.bring_up_to_date();
+        self.browser.catch.bring_up_to_date();
         // A file from an older edition takes this edition's defaults once
         // (reference A's: every pop-up on); a choice saved since stands.
         if self.popups_version < POPUPS_VERSION {
-            self.show_progress = true;
-            self.show_complete = true;
-            self.ask_caught_downloads = true;
-            self.ask_panel_downloads = true;
+            self.general.show_progress = true;
+            self.general.show_complete = true;
+            self.general.ask_caught_downloads = true;
+            self.general.ask_panel_downloads = true;
             self.popups_version = POPUPS_VERSION;
         }
         // The click keys are one of those the extension knows, or (to take)
         // none; anything else is what they ship as.
-        if !dm_protocol::CLICK_KEYS.contains(&self.catch.keep_key.as_str()) {
-            self.catch.keep_key = "alt".into();
+        if !dm_protocol::CLICK_KEYS.contains(&self.browser.catch.keep_key.as_str()) {
+            self.browser.catch.keep_key = "alt".into();
         }
-        if !self.catch.take_key.is_empty()
-            && !dm_protocol::CLICK_KEYS.contains(&self.catch.take_key.as_str())
+        if !self.browser.catch.take_key.is_empty()
+            && !dm_protocol::CLICK_KEYS.contains(&self.browser.catch.take_key.as_str())
         {
-            self.catch.take_key = "shift".into();
+            self.browser.catch.take_key = "shift".into();
         }
         self.last_speed_limit = self
             .last_speed_limit
             .clamp(SPEED_LIMIT_KB.0, SPEED_LIMIT_KB.1);
         self.limit_mb = self.limit_mb.min(LIMIT_MB);
         self.limit_hours = self.limit_hours.clamp(1, LIMIT_HOURS);
-        self.attempts = self.attempts.clamp(ATTEMPTS.0, ATTEMPTS.1);
-        self.recheck_hours = self.recheck_hours.min(LIMIT_HOURS);
-        self.read_timeout = self
+        self.advanced.attempts = self.advanced.attempts.clamp(ATTEMPTS.0, ATTEMPTS.1);
+        self.downloads.recheck_hours = self.downloads.recheck_hours.min(LIMIT_HOURS);
+        self.advanced.read_timeout = self
+            .advanced
             .read_timeout
             .clamp(READ_TIMEOUT_SECS.0, READ_TIMEOUT_SECS.1);
         // A folder for unfinished downloads is a full path: `~` is the home
         // folder, and a relative one is no folder — a Dock launch starts in
         // `/`, where nothing can be written, and every download would fail.
-        self.parts_dir = full_path(&self.parts_dir)
+        self.folders.parts_dir = full_path(&self.folders.parts_dir)
             .map(|path| path.display().to_string())
             .unwrap_or_default();
         // A limit names a queue or a site, or it limits nothing; and it is a
         // number the engine will take.
-        self.queue_limits
+        self.downloads
+            .queue_limits
             .retain(|limit| !limit.queue.trim().is_empty());
-        for limit in &mut self.queue_limits {
+        for limit in &mut self.downloads.queue_limits {
             limit.queue = limit.queue.trim().to_string();
             limit.files = limit.files.clamp(CONCURRENCY.0, CONCURRENCY.1);
         }
-        self.host_limits
+        self.advanced
+            .host_limits
             .retain(|limit| !limit.host.trim().is_empty());
-        for limit in &mut self.host_limits {
+        for limit in &mut self.advanced.host_limits {
             limit.host = limit.host.trim().to_ascii_lowercase();
             limit.connections = limit.connections.clamp(CONNECTIONS.0, CONNECTIONS.1);
         }
         // A rule names a site, and its folder is a whole path or none.
-        self.site_rules.retain(|rule| !rule.host.trim().is_empty());
-        for rule in &mut self.site_rules {
+        self.advanced
+            .site_rules
+            .retain(|rule| !rule.host.trim().is_empty());
+        for rule in &mut self.advanced.site_rules {
             rule.host = rule
                 .host
                 .trim()
@@ -1010,12 +808,13 @@ impl Settings {
         // relative one as it is typed (`refusal`); one in a file edited by
         // hand falls back to the default rather than to wherever dm was
         // started from.
-        self.download_dir = full_path(&self.download_dir.display().to_string())
-            .unwrap_or_else(|| Settings::default().download_dir);
+        self.folders.download_dir = full_path(&self.folders.download_dir.display().to_string())
+            .unwrap_or_else(|| Settings::default().folders.download_dir);
         // One name per category, always: the engine indexes this list by
         // category, and a short one read from a hand-edited file would leave
         // the kinds past its end unsorted for no stated reason.
-        self.category_folders
+        self.folders
+            .category_folders
             .resize(Category::ALL.len(), String::new());
         self
     }
@@ -1036,30 +835,35 @@ impl Settings {
                 self.schedule.from, self.schedule.to
             ));
         }
-        if self.queue_starts != previous.queue_starts {
-            if let Some(bad) = self.queue_starts.iter().find(|s| !dm_core::is_time(&s.at)) {
+        if self.downloads.queue_starts != previous.downloads.queue_starts {
+            if let Some(bad) = self
+                .downloads
+                .queue_starts
+                .iter()
+                .find(|s| !dm_core::is_time(&s.at))
+            {
                 return Some(format!(
                     "a queue's start time must be HH:MM in 24 hours, not {:?}",
                     bad.at
                 ));
             }
         }
-        if self.download_dir != previous.download_dir {
-            let typed = self.download_dir.display().to_string();
+        if self.folders.download_dir != previous.folders.download_dir {
+            let typed = self.folders.download_dir.display().to_string();
             if full_path(&typed).is_none() {
                 return Some(format!(
                     "the download folder must be a full path, such as {}, not {typed:?}",
-                    Settings::default().download_dir.display()
+                    Settings::default().folders.download_dir.display()
                 ));
             }
         }
-        if self.parts_dir.trim() != previous.parts_dir.trim()
-            && !self.parts_dir.trim().is_empty()
-            && full_path(&self.parts_dir).is_none()
+        if self.folders.parts_dir.trim() != previous.folders.parts_dir.trim()
+            && !self.folders.parts_dir.trim().is_empty()
+            && full_path(&self.folders.parts_dir).is_none()
         {
             return Some(format!(
                 "the folder for unfinished downloads must be a full path, not {:?}",
-                self.parts_dir
+                self.folders.parts_dir
             ));
         }
         // A name made or renamed is held to every computer's rules, since
@@ -1075,16 +879,17 @@ impl Settings {
                 ));
             }
         }
-        for (at, folder) in self.category_folders.iter().enumerate() {
-            if folder.trim().is_empty() || previous.category_folders.get(at) == Some(folder) {
+        for (at, folder) in self.folders.category_folders.iter().enumerate() {
+            if folder.trim().is_empty() || previous.folders.category_folders.get(at) == Some(folder)
+            {
                 continue;
             }
             if let Err(why) = dm_core::portable_folder(folder) {
                 return Some(format!("a folder cannot be called {folder:?}: {why}"));
             }
         }
-        let cookies = self.cookies_file.trim();
-        if cookies != previous.cookies_file.trim() && !cookies.is_empty() {
+        let cookies = self.advanced.cookies_file.trim();
+        if cookies != previous.advanced.cookies_file.trim() && !cookies.is_empty() {
             if let Err(e) = std::fs::metadata(cookies).and_then(|m| {
                 if m.is_file() {
                     Ok(())
@@ -1109,9 +914,9 @@ impl Settings {
     /// be remembered in both.
     pub fn options(&self, parts_dir: PathBuf, limiter: Limiter) -> Options {
         Options {
-            connections: self.connections,
+            connections: self.downloads.connections,
             control: dm_core::Control::new(),
-            dest_dir: self.download_dir.clone(),
+            dest_dir: self.folders.download_dir.clone(),
             parts_dir,
             limiter,
             categories: self.categories(),
@@ -1140,17 +945,17 @@ impl Settings {
             media: false,
             referrer: None,
             // For the tools dm runs; the client has its own copy.
-            proxy: self.proxy.url_for_tools(),
+            proxy: self.advanced.proxy.url_for_tools(),
             container: None,
-            attempts: self.attempts,
-            host_limits: self.host_limits.clone(),
-            subtitles: self.subtitles,
+            attempts: self.advanced.attempts,
+            host_limits: self.advanced.host_limits.clone(),
+            subtitles: self.downloads.subtitles,
             room: Default::default(),
-            remux: self.remux_ts,
-            server_dates: self.server_dates,
-            retry_wait: self.retry_wait,
-            record_limit: (self.record_minutes > 0)
-                .then(|| std::time::Duration::from_secs(self.record_minutes * 60)),
+            remux: self.downloads.remux_ts,
+            server_dates: self.general.server_dates,
+            retry_wait: self.advanced.retry_wait,
+            record_limit: (self.downloads.record_minutes > 0)
+                .then(|| std::time::Duration::from_secs(self.downloads.record_minutes * 60)),
             frame_rate: None,
             caption: None,
             format: None,
@@ -1158,9 +963,10 @@ impl Settings {
             save_name: None,
             title_hint: None,
             accept_page: false,
-            system_proxy: self.proxy.enabled && self.proxy.kind == dm_core::ProxyKind::System,
-            proxy_bypass: if self.proxy.enabled {
-                self.proxy.bypass.clone()
+            system_proxy: self.advanced.proxy.enabled
+                && self.advanced.proxy.kind == dm_core::ProxyKind::System,
+            proxy_bypass: if self.advanced.proxy.enabled {
+                self.advanced.proxy.bypass.clone()
             } else {
                 Vec::new()
             },
@@ -1175,12 +981,13 @@ impl Settings {
 
     /// How often the recheck queue asks its servers again, if on its own.
     pub fn recheck_every(&self) -> Option<std::time::Duration> {
-        (self.recheck_hours > 0).then(|| std::time::Duration::from_secs(self.recheck_hours * 3600))
+        (self.downloads.recheck_hours > 0)
+            .then(|| std::time::Duration::from_secs(self.downloads.recheck_hours * 3600))
     }
 
     /// Where unfinished downloads are staged: the folder chosen, or dm's own.
     pub fn parts_dir(&self) -> PathBuf {
-        let chosen = self.parts_dir.trim();
+        let chosen = self.folders.parts_dir.trim();
         if chosen.is_empty() {
             home().join(dm_core::paths::PARTS)
         } else {
@@ -1190,7 +997,8 @@ impl Settings {
 
     /// The start times that are times, for the queue.
     pub fn queue_start_list(&self) -> Vec<(String, u32)> {
-        self.queue_starts
+        self.downloads
+            .queue_starts
             .iter()
             .filter_map(|s| Some((s.queue.clone(), dm_core::minutes_of(&s.at)?)))
             .collect()
@@ -1198,22 +1006,29 @@ impl Settings {
 
     /// The per-queue limits as the engine takes them.
     pub fn queue_limit_map(&self) -> std::collections::HashMap<String, usize> {
-        self.queue_limits
+        self.downloads
+            .queue_limits
             .iter()
             .map(|l| (l.queue.clone(), l.files))
             .collect()
     }
 
+    /// A client as these settings ask for one: through the proxy, giving up on a silent
+    /// connection after the read timeout (`dm_core::client_with_timeout`).
+    pub fn client(&self) -> Result<dm_core::reqwest::Client, String> {
+        dm_core::client_with_timeout(&self.advanced.proxy, self.read_timeout())
+    }
+
     /// How long a connection may send nothing, in the client's units.
     pub fn read_timeout(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.read_timeout.max(1))
+        std::time::Duration::from_secs(self.advanced.read_timeout.max(1))
     }
 
     /// The engine's view of the sorting settings.
     pub fn categories(&self) -> Categories {
         Categories {
-            enabled: self.categorize,
-            folders: self.category_folders.clone(),
+            enabled: self.folders.categorize,
+            folders: self.folders.category_folders.clone(),
             custom: self.custom_categories.clone(),
             ..Default::default()
         }
@@ -1229,7 +1044,7 @@ impl Settings {
 
     /// The speed ceiling in bytes a second, which is what the engine counts.
     pub fn speed_limit_bytes(&self) -> u64 {
-        self.speed_limit.saturating_mul(dm_core::KB)
+        self.advanced.speed_limit.saturating_mul(dm_core::KB)
     }
 
     /// The speed limit in force now, in bytes a second: the lower of the
@@ -1259,7 +1074,7 @@ impl Settings {
     /// Anything unrecognised means the best available — a typo in a settings
     /// file should not silently fetch the smallest rendition on offer.
     pub fn quality(&self) -> Quality {
-        Quality::named(&self.stream_quality)
+        Quality::named(&self.downloads.stream_quality)
     }
 
     /// Where the settings are kept: `settings.json` in dm's home.
@@ -1422,6 +1237,7 @@ impl Settings {
         // folder itself; said, rather than done without a word.
         // Empty is "not nested", on purpose.
         let unusable: Vec<String> = settings
+            .folders
             .category_folders
             .iter()
             .filter(|f| !f.trim().is_empty() && !dm_core::one_folder(f))
@@ -1459,8 +1275,8 @@ impl Settings {
         let mut file = self.clone();
         // A dial-up password not to be saved is written nowhere, store or no store: kept in
         // memory for this run and forgotten when dm closes, as reference A's (`dialup.rs`).
-        if !file.dialup.save_password {
-            file.dialup.password.clear();
+        if !file.advanced.dialup.save_password {
+            file.advanced.dialup.password.clear();
         }
         if let Some(store) = store {
             // A refusal leaves the password in the file, as before; the next read says so.
@@ -1491,7 +1307,8 @@ impl Settings {
     /// it.
     pub fn site_rule_for(&self, url: &str) -> Option<&SiteRule> {
         let host = dm_core::host_of(url);
-        self.site_rules
+        self.advanced
+            .site_rules
             .iter()
             .filter(|rule| {
                 let want = rule
@@ -1865,6 +1682,7 @@ pub fn enter_portable() -> Option<PathBuf> {
     Some(home)
 }
 
+mod pages;
 mod secrets;
 
 #[cfg(test)]

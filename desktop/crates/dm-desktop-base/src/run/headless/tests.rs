@@ -52,13 +52,16 @@ impl dm_shell::app::backend::Platform for Nothing {
 /// dm with no window over an empty queue of its own under `dir`.
 fn headless(runtime: &tokio::runtime::Runtime, dir: &std::path::Path) -> Headless {
     let settings = dm_shell::Settings {
-        download_dir: dir.join("out"),
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: dir.join("out"),
+            ..Default::default()
+        },
         ..Default::default()
     };
     let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
-        settings.concurrency,
+        settings.downloads.concurrency,
     );
     let backend = Backend::new(
         runtime.handle().clone(),

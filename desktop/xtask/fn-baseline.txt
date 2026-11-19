@@ -26,9 +26,9 @@ desktop/crates/dm-gpui/src/dialogs/playlist.rs render 182
 desktop/crates/dm-gpui/src/dialogs/series.rs render 160
 desktop/crates/dm-gpui/src/harness/world.rs world 253
 desktop/crates/dm-gpui/src/main.rs main 276
-desktop/crates/dm-gpui/src/options.rs put 192
+desktop/crates/dm-gpui/src/options.rs put 190
 desktop/crates/dm-gpui/src/options.rs render 164
-desktop/crates/dm-gpui/src/options/pages/advanced.rs proxy 174
+desktop/crates/dm-gpui/src/options/pages/advanced.rs proxy 166
 desktop/crates/dm-gpui/src/options/pages/browser.rs browser 279
 desktop/crates/dm-gpui/src/options/pages/folders.rs folders 155
 desktop/crates/dm-gpui/src/window/list.rs carry_out 244
@@ -37,7 +37,7 @@ desktop/crates/dm-gpui/src/window/menus.rs bind_keys 160
 desktop/crates/dm-gpui/src/window/table.rs row_cells 155
 desktop/crates/dm-gpui/src/window/table.rs rows 169
 desktop/crates/dm-gpui/src/window/toolbar.rs toolbar 162
-desktop/crates/dm-gpui/src/window_tests/commands.rs every_menu_item_clicked_does_what_it_says 328
+desktop/crates/dm-gpui/src/window_tests/commands.rs every_menu_item_clicked_does_what_it_says 325
 desktop/crates/dm-js/src/builtins/array.rs install 413
 desktop/crates/dm-js/src/builtins/date.rs install 157
 desktop/crates/dm-js/src/builtins/number.rs install 364

@@ -51,7 +51,7 @@ impl Downloads {
     /// progress window of one that has it open, else in a window listing the rest; a progress
     /// window closes where it is not.
     pub(crate) fn finished(&mut self, ids: &[dm_core::Id], cx: &mut Context<Self>) {
-        let show = self.backend.settings().show_complete;
+        let show = self.backend.settings().general.show_complete;
         for id in ids {
             // Its progress window open: that window becomes Download complete itself, with
             // Open and Open folder, rather than a second window opening over it (gaps row U11,
@@ -86,7 +86,7 @@ impl Downloads {
         self.windows.complete_window = None;
         if never {
             let mut wanted = self.backend.settings();
-            wanted.show_complete = false;
+            wanted.general.show_complete = false;
             match self.backend.set_settings(wanted) {
                 Ok(_) => self.say(
                     dm_desktop_base::i18n::t(

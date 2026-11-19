@@ -48,13 +48,16 @@ fn backend(
     settings: dm_shell::Settings,
 ) -> Backend {
     let settings = dm_shell::Settings {
-        download_dir: dir.join("out"),
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: dir.join("out"),
+            ..settings.folders
+        },
         ..settings
     };
     let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
-        settings.concurrency,
+        settings.downloads.concurrency,
     );
     Backend::new(
         runtime.handle().clone(),
@@ -92,8 +95,11 @@ fn a_finish_and_a_failure_are_told_in_order_with_their_sounds() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let settings = dm_shell::Settings {
-        sound_on_complete: true,
-        sound_on_failure: true,
+        general: dm_shell::settings::GeneralSettings {
+            sound_on_complete: true,
+            sound_on_failure: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let backend = backend(&runtime, dir.path(), settings);
@@ -155,12 +161,15 @@ fn a_batch_is_one_notification_and_a_chosen_sound_is_its_file() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let settings = dm_shell::Settings {
-        sound_on_complete: true,
-        sound_on_failure: false,
         sounds: std::collections::BTreeMap::from([(
             "complete".to_string(),
             " done.wav ".to_string(),
         )]),
+        general: dm_shell::settings::GeneralSettings {
+            sound_on_complete: true,
+            sound_on_failure: false,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let backend = backend(&runtime, dir.path(), settings);
@@ -202,7 +211,10 @@ fn a_download_started_elsewhere_and_an_address_added_again_are_asked_for() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let settings = dm_shell::Settings {
-        show_progress: true,
+        general: dm_shell::settings::GeneralSettings {
+            show_progress: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let backend = backend(&runtime, dir.path(), settings);

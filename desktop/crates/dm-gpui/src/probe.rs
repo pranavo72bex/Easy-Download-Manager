@@ -82,7 +82,7 @@ fn answer_inside(
             let (wanted, _) =
                 dm_shell::app::control_api::speed_limit(&view.backend.settings(), params)?;
             let (now, _) = view.backend.set_settings_from(wanted, true);
-            Ok(json!({ "speed_limit_kb": now?.speed_limit }))
+            Ok(json!({ "speed_limit_kb": now?.advanced.speed_limit }))
         }
         "batch" => dm_shell::app::control_api::batch(params, |method, params| {
             answer_inside(view, method, params, window, cx)

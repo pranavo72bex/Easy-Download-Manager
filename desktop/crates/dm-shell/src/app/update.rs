@@ -317,7 +317,7 @@ pub fn due(last: u64, now: u64) -> bool {
 /// wants it and it is due: to be saved as the check is made, so the next is
 /// a week after this one however long dm runs. `None` when no check is due.
 pub fn weekly(settings: &crate::Settings, now: u64) -> Option<crate::Settings> {
-    if !settings.check_updates || !due(settings.update_checked, now) {
+    if !settings.general.check_updates || !due(settings.update_checked, now) {
         return None;
     }
     let mut wanted = settings.clone();

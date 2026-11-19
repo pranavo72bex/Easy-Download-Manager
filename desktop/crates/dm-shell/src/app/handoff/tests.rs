@@ -16,8 +16,11 @@ fn request(url: &str, caught: bool) -> Request {
 
 fn settings(ask: bool) -> Settings {
     Settings {
-        ask_caught_downloads: ask,
-        ask_panel_downloads: ask,
+        general: crate::settings::GeneralSettings {
+            ask_caught_downloads: ask,
+            ask_panel_downloads: ask,
+            ..Default::default()
+        },
         ..Settings::default()
     }
 }

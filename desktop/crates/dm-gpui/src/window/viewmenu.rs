@@ -134,7 +134,7 @@ impl Downloads {
             return;
         }
         let mut wanted = self.backend.settings();
-        wanted.language = code.to_string();
+        wanted.general.language = code.to_string();
         self.keep_view(wanted, cx);
     }
 

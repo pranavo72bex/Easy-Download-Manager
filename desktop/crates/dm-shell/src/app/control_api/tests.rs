@@ -75,7 +75,10 @@ fn the_list_says_whether_a_row_is_signed_in_and_never_what_with() {
 #[test]
 fn an_add_is_checked_and_a_listed_address_is_not_added_twice() {
     let applied = Settings {
-        download_dir: std::path::PathBuf::from("/tmp/dm-down"),
+        folders: crate::settings::FolderSettings {
+            download_dir: std::path::PathBuf::from("/tmp/dm-down"),
+            ..Default::default()
+        },
         ..Settings::default()
     };
     let rows = [row(1, "https://h.example/a", State::Paused)];
@@ -115,14 +118,21 @@ fn an_add_is_checked_and_a_listed_address_is_not_added_twice() {
 #[test]
 fn a_speed_limit_is_checked_and_keeps_the_one_it_replaces() {
     let applied = Settings {
-        speed_limit: 300,
+        advanced: crate::settings::AdvancedSettings {
+            speed_limit: 300,
+            ..Default::default()
+        },
         ..Settings::default()
     };
     assert!(speed_limit(&applied, &json!({})).is_err());
     assert!(speed_limit(&applied, &json!({"kb": 100_000_001u64})).is_err());
     let (wanted, replaced) = speed_limit(&applied, &json!({"kb": 50})).unwrap();
     assert_eq!(
-        (wanted.speed_limit, wanted.last_speed_limit, replaced),
+        (
+            wanted.advanced.speed_limit,
+            wanted.last_speed_limit,
+            replaced
+        ),
         (50, 300, Some(300))
     );
 }

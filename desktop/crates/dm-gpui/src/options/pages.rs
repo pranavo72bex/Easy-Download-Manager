@@ -300,23 +300,23 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
     match pick.field {
         // A queue's start time, hour or minute (gaps row U32).
         "start-hour" | "start-minute" => {
-            if let Some(start) = s.queue_starts.get_mut(pick.item) {
+            if let Some(start) = s.downloads.queue_starts.get_mut(pick.item) {
                 native::time_picked(&mut start.at, pick.field == "start-hour", i);
             }
         }
         "language" => {
             if let Some((code, _)) = dm_desktop_base::i18n::LANGUAGES.get(i) {
-                s.language = code.to_string();
+                s.general.language = code.to_string();
             }
         }
         "theme" => {
             if let Some(word) = THEMES.get(i) {
-                s.theme = word.to_string();
+                s.general.theme = word.to_string();
             }
         }
         "on-close" => {
             if let Some(word) = ON_CLOSE.get(i) {
-                s.on_close = word.to_string();
+                s.general.on_close = word.to_string();
             }
         }
         "duplicate" => {
@@ -326,31 +326,33 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
         }
         "keep-key" => {
             if let Some(key) = dm_protocol::CLICK_KEYS.get(i) {
-                s.catch.keep_key = key.to_string();
+                s.browser.catch.keep_key = key.to_string();
             }
         }
         "take-key" => {
             if let Some(key) = TAKE_KEYS.get(i) {
-                s.catch.take_key = key.to_string();
+                s.browser.catch.take_key = key.to_string();
             }
         }
         "quality" => {
             if let Some((value, _)) = dm_desktop_base::file_info::QUALITIES.get(i) {
-                s.stream_quality = value.to_string();
+                s.downloads.stream_quality = value.to_string();
             }
         }
         "queue-limit" => {
             let offered = limit_queues(&o.queues, &o.draft, pick.item);
-            if let (Some(queue), Some(limit)) =
-                (offered.get(i), o.draft.queue_limits.get_mut(pick.item))
-            {
+            if let (Some(queue), Some(limit)) = (
+                offered.get(i),
+                o.draft.downloads.queue_limits.get_mut(pick.item),
+            ) {
                 limit.queue = queue.clone();
             }
         }
         "queue-start" => {
-            if let (Some(queue), Some(start)) =
-                (o.queues.get(i), o.draft.queue_starts.get_mut(pick.item))
-            {
+            if let (Some(queue), Some(start)) = (
+                o.queues.get(i),
+                o.draft.downloads.queue_starts.get_mut(pick.item),
+            ) {
                 start.queue = queue.clone();
             }
         }
@@ -363,14 +365,14 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
         }
         "dialup-connection" => {
             if i == 0 {
-                s.dialup.connection.clear();
+                s.advanced.dialup.connection.clear();
             } else if let Some(found) = dialup::known_connections().get(i - 1) {
-                s.dialup.connection = found.clone();
+                s.advanced.dialup.connection = found.clone();
             }
         }
         "proxy-kind" => {
             if let Some(kind) = PROXY_KINDS.get(i) {
-                let p = &mut s.proxy;
+                let p = &mut s.advanced.proxy;
                 p.port = options::port_for_kind(p.kind, *kind, p.port);
                 p.kind = *kind;
                 // Its field made again with the port the kind gave it.
@@ -385,12 +387,13 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
 /// limit has (one limit a queue: two for Main queue were both kept and the
 /// last won without a word).
 fn limit_queues(queues: &[String], s: &Settings, row: usize) -> Vec<String> {
-    let own = s.queue_limits.get(row).map(|l| l.queue.clone());
+    let own = s.downloads.queue_limits.get(row).map(|l| l.queue.clone());
     let mut offered: Vec<String> = queues
         .iter()
         .filter(|q| {
             own.as_ref() == Some(*q)
                 || !s
+                    .downloads
                     .queue_limits
                     .iter()
                     .enumerate()

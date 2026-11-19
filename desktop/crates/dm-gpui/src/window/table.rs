@@ -660,7 +660,7 @@ fn row_cells(
                     let settings = &view.known.drawn;
                     said = dm_shell::app::names::planned_folder(
                         row,
-                        &settings.download_dir,
+                        &settings.folders.download_dir,
                         &mut settings.categories(),
                     )
                     .unwrap_or_default();

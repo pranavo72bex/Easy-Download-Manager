@@ -100,7 +100,7 @@ fn links_on_the_clipboard_are_picked_and_put_in_the_main_queue() {
 fn a_video_from_the_browsers_panel_opens_download_file_info_with_its_quality() {
     let world = world();
     let mut h = world.harness();
-    h.settings_to(|s| s.ask_panel_downloads = true);
+    h.settings_to(|s| s.general.ask_panel_downloads = true);
     let page = world.url("file.zip");
     h.hand(Request {
         url: page.clone(),
@@ -158,7 +158,7 @@ fn the_welcome_offers_the_extension_for_each_browser() {
 fn a_pages_links_open_the_download_links_dialog() {
     let world = world();
     let mut h = world.harness();
-    h.settings_to(|s| s.ask_panel_downloads = true);
+    h.settings_to(|s| s.general.ask_panel_downloads = true);
     hand_links(
         &mut h,
         &world,
@@ -236,9 +236,9 @@ fn a_pages_links_open_the_download_links_dialog() {
 fn a_dialogs_open_runs_nothing_a_moment_after_a_script_pressed_a_key() {
     let world = world();
     let mut settings = world.settings();
-    settings.double_click = "properties".into();
+    settings.general.double_click = "properties".into();
     // The window tests' settings have Download complete off.
-    settings.show_complete = true;
+    settings.general.show_complete = true;
     let mut h = world.harness_with(settings);
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("the download to complete", finished);
@@ -285,7 +285,7 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     let world = world();
     let mut settings = world.settings();
     // Options › General's other choice; "opens the file" is the new install's, below.
-    settings.double_click = "properties".into();
+    settings.general.double_click = "properties".into();
     let mut h = world.harness_with(settings);
     h.add_url(&world.url("file.zip"), "Start now");
     h.add_url(&world.url("stalled.bin"), "Start now");
@@ -338,7 +338,7 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     // straight away; one still going shows its progress.
     h.close_dialogs();
     h.fake.opened.lock().unwrap().clear();
-    h.settings_to(|s| s.double_click = "open".into());
+    h.settings_to(|s| s.general.double_click = "open".into());
     h.until_a_persons_moment();
     h.person_click("file.zip", 2);
     h.until("the file to be opened", |h| {
@@ -783,7 +783,7 @@ fn move_rename_moves_several_finished_files_together() {
 fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     let world = world();
     let mut h = world.harness();
-    h.settings_to(|s| s.ask_panel_downloads = true);
+    h.settings_to(|s| s.general.ask_panel_downloads = true);
     let hand = |h: &mut Harness, name: &str| {
         h.hand(handed(&world, name));
         h.until("Download details", |h| h.dialog_open("Download details"));
@@ -808,7 +808,7 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     h.until_shown(question);
     h.click("Keep handing them over");
     h.until("the question to go", |h| !h.shows(question));
-    assert!(h.view(|v| v.backend.settings().catch.skip_hosts.is_empty()));
+    assert!(h.view(|v| v.backend.settings().browser.catch.skip_hosts.is_empty()));
     // Twice more, and this time left to the browser: the site joins the list the extension
     // reads.
     hand(&mut h, "file.zip");
@@ -819,7 +819,7 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     h.until_shown(question);
     h.click("Leave them to the browser");
     h.until("the site left to the browser", |h| {
-        h.view(|v| v.backend.settings().catch.skip_hosts) == ["127.0.0.1"]
+        h.view(|v| v.backend.settings().browser.catch.skip_hosts) == ["127.0.0.1"]
     });
 }
 
@@ -827,7 +827,7 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
 fn a_handed_over_videos_sign_in_survives_download_details() {
     let world = world();
     let mut h = world.harness();
-    h.settings_to(|s| s.ask_panel_downloads = true);
+    h.settings_to(|s| s.general.ask_panel_downloads = true);
     h.hand(Request {
         cookies: "session=1".into(),
         ..handed(&world, "file.zip")
@@ -903,7 +903,7 @@ fn the_clipboard_watcher_offers_only_new_links_and_only_when_on() {
     h.click(watch);
     h.click("OK");
     h.until("the watch on", |h| {
-        h.view(|v| v.backend.settings().watch_clipboard)
+        h.view(|v| v.backend.settings().general.watch_clipboard)
     });
     looked(&mut h);
     assert!(!h.shows(offer), "offered what was there before");
@@ -965,9 +965,7 @@ fn a_dialog_asked_for_while_open_keeps_what_was_typed_in_it() {
 #[test]
 fn a_browsers_hand_off_opens_its_progress_window() {
     let world = world();
-    let mut settings = world.settings();
-    settings.show_progress = true;
-    let mut h = world.harness_with(settings);
+    let mut h = world.harness_with(world.settings_with(|s| s.general.show_progress = true));
     // As the native host's hand-off lands: in the queue, not through the window's own Add.
     h.view(|v| {
         v.backend
@@ -1110,9 +1108,9 @@ fn import_asks_about_addresses_already_listed() {
 fn a_fresh_link_is_taken_from_the_browser() {
     let world = world();
     let mut settings = world.settings();
-    settings.attempts = 3;
-    settings.retry_wait = 0;
-    settings.record_minutes = 0;
+    settings.advanced.attempts = 3;
+    settings.advanced.retry_wait = 0;
+    settings.downloads.record_minutes = 0;
     let mut h = world.harness_with(settings);
     h.view(|v| {
         v.backend.add_with(
@@ -1354,7 +1352,7 @@ fn the_clipboard_watcher_offers_every_link_copied_together() {
     let world = world();
     *world.fake.clipboard.lock().unwrap() = Some("old".into());
     let mut h = world.harness();
-    h.settings_to(|s| s.watch_clipboard = true);
+    h.settings_to(|s| s.general.watch_clipboard = true);
     let links = [
         world.url("file.zip"),
         world.url("other.pdf"),
@@ -1394,7 +1392,7 @@ fn the_clipboard_bar_keeps_its_buttons_in_the_window() {
     let world = world();
     *world.fake.clipboard.lock().unwrap() = Some("old".into());
     let mut h = world.harness();
-    h.settings_to(|s| s.watch_clipboard = true);
+    h.settings_to(|s| s.general.watch_clipboard = true);
     let long = world.url(&format!("{}.zip", "a-very-long-name".repeat(8)));
     clip(&mut h, &long);
     h.until_shown("Dismiss");
@@ -1425,7 +1423,7 @@ fn a_number_box_says_when_what_was_typed_is_not_a_number() {
     h.click("Advanced");
     let label = "Time out a silent connection after (seconds)";
     h.until_shown(label);
-    let before = h.view(|v| v.backend.settings().read_timeout);
+    let before = h.view(|v| v.backend.settings().advanced.read_timeout);
     let said = "Numbers only: the one before was kept";
     h.type_into(label, "abc");
     assert!(!h.shows(said), "said while still typing");
@@ -1435,7 +1433,7 @@ fn a_number_box_says_when_what_was_typed_is_not_a_number() {
     h.click("OK");
     h.until("Options to close", |h| !h.dialog_open("Options"));
     assert_eq!(
-        h.view(|v| v.backend.settings().read_timeout),
+        h.view(|v| v.backend.settings().advanced.read_timeout),
         before,
         "the number changed"
     );
@@ -1532,7 +1530,7 @@ fn the_default_double_click_opens_a_finished_file_and_shows_progress_for_one_sti
 fn the_close_question_is_asked_once_and_the_answer_is_kept() {
     let world = world();
     let mut h = world.harness();
-    assert_eq!(h.view(|v| v.backend.settings().on_close), "ask");
+    assert_eq!(h.view(|v| v.backend.settings().general.on_close), "ask");
     let question = "Keep running in the tray?";
     h.act(|view, cx| view.ask_close(cx));
     h.until_shown(question);
@@ -1541,16 +1539,16 @@ fn the_close_question_is_asked_once_and_the_answer_is_kept() {
         h.view(|v| v.system.hidden)
     });
     assert!(!h.shows(question));
-    assert_eq!(h.view(|v| v.backend.settings().on_close), "tray");
+    assert_eq!(h.view(|v| v.backend.settings().general.on_close), "tray");
 
     // The other answer, from a fresh question.
     h.act(|view, cx| view.show_main(cx));
-    h.settings_to(|s| s.on_close = "ask".into());
+    h.settings_to(|s| s.general.on_close = "ask".into());
     h.act(|view, cx| view.ask_close(cx));
     h.until_shown(question);
     h.click("Exit");
     h.until("Exit to quit", |_| crate::dialogs::question::is_quitting());
-    assert_eq!(h.view(|v| v.backend.settings().on_close), "exit");
+    assert_eq!(h.view(|v| v.backend.settings().general.on_close), "exit");
 }
 
 /// The welcome is three steps: the browser, where downloads go, and Done. The folder shown is
@@ -1560,7 +1558,7 @@ fn the_close_question_is_asked_once_and_the_answer_is_kept() {
 fn the_welcome_confirms_where_downloads_go_and_ends_with_done() {
     let world = world();
     let mut h = world.harness();
-    let was = h.view(|v| v.backend.settings().download_dir);
+    let was = h.view(|v| v.backend.settings().folders.download_dir);
     h.act(|view, cx| view.welcome(cx));
     h.until("the welcome", |h| h.dialog_open("Add dm to your browser"));
     h.until_shown("Download folder");
@@ -1575,7 +1573,8 @@ fn the_welcome_confirms_where_downloads_go_and_ends_with_done() {
     h.until("the welcome to close", |h| {
         !h.dialog_open("Add dm to your browser")
     });
-    assert_eq!(h.view(|v| v.backend.settings().download_dir), elsewhere);
+    let now = h.view(|v| v.backend.settings().folders.download_dir);
+    assert_eq!(now, elsewhere);
 }
 
 /// `--new-download` (the taskbar jump list's New download), left in the inbox, opens Add URL;
@@ -1688,7 +1687,7 @@ fn delete_file_after_is_chosen_when_saving() {
 fn a_part_asked_for_in_the_browsers_panel_fills_download_details() {
     let world = world();
     let mut h = world.harness();
-    h.settings_to(|s| s.ask_panel_downloads = true);
+    h.settings_to(|s| s.general.ask_panel_downloads = true);
     for (from, to, shown_from) in [("1:30", "2:00", "1:30"), ("", "45", "0:00")] {
         h.hand(Request {
             url: world.url("file.zip"),
@@ -1769,7 +1768,7 @@ fn a_copied_link_is_taken_at_once_where_that_is_on() {
     *world.fake.clipboard.lock().unwrap() = Some("nothing yet".into());
     let mut h = world.harness();
     h.settings_to(|s| {
-        s.watch_clipboard = true;
+        s.general.watch_clipboard = true;
         s.start_copied = true;
     });
     let copied = world.url("taken.iso");

@@ -88,7 +88,7 @@ pub(crate) fn reads(backend: Backend, assistants_only: bool) -> Reads {
         ) {
             return None;
         }
-        let allow_mcp = dm_core::lock(&backend.settings_handle()).allow_mcp;
+        let allow_mcp = dm_core::lock(&backend.settings_handle()).general.allow_mcp;
         if let Some(why) = dm_shell::app::control_api::refused(via_mcp, assistants_only, allow_mcp)
         {
             return Some(Err(why));

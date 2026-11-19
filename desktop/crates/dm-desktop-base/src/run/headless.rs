@@ -213,7 +213,7 @@ impl Headless {
                 let name = dm_shell::app::names::name_it_will_get_after(
                     &self.rows,
                     row,
-                    &settings.download_dir,
+                    &settings.folders.download_dir,
                     &mut categories,
                     Some(before.get(&row.id).copied().unwrap_or(0)),
                 );
@@ -415,7 +415,7 @@ impl Headless {
 
     /// The watched folder: each file's links added.
     fn take_watched(&mut self) {
-        let folder = self.backend.settings().watch_folder.clone();
+        let folder = self.backend.settings().downloads.watch_folder.clone();
         for links in self
             .session
             .look_at_watched(&folder, &self.rows, &self.backend)
@@ -506,7 +506,7 @@ impl Headless {
                 ..Default::default()
             };
             let items: Vec<(String, dm_core::AddOptions)> = if keep_layout {
-                dm_shell::app::search::by_site_folder(&new, &settings.download_dir)
+                dm_shell::app::search::by_site_folder(&new, &settings.folders.download_dir)
                     .into_iter()
                     .flat_map(|(folder, group)| {
                         let mut here = with.clone();
@@ -567,7 +567,7 @@ impl Headless {
             Some(requests) => requests.try_iter().collect(),
             None => return,
         };
-        let allow_mcp = self.backend.settings().allow_mcp;
+        let allow_mcp = self.backend.settings().general.allow_mcp;
         for request in asked {
             let answer =
                 match control_api::refused(request.via_mcp, self.assistants_only, allow_mcp) {
@@ -626,7 +626,7 @@ impl Headless {
                 }
                 let (now, _) = self.backend.set_settings_from(wanted, true);
                 self.session.forget_limit();
-                Ok(json!({ "speed_limit_kb": now?.speed_limit }))
+                Ok(json!({ "speed_limit_kb": now?.advanced.speed_limit }))
             }
             "batch" => {
                 control_api::batch(params, |method, params| self.answer_inside(method, params))
@@ -658,9 +658,9 @@ impl Headless {
             | Command::SpeedUnlimited => {
                 let now = self.backend.settings();
                 let wanted = commands::limited(command, &now, &mut self.last_limit).unwrap_or(now);
-                let after = self.backend.set_settings(wanted)?;
-                self.said = if after.speed_limit > 0 {
-                    english("Speed limiter on: {} KB/s.", 1, &[&after.speed_limit])
+                let kb = self.backend.set_settings(wanted)?.advanced.speed_limit;
+                self.said = if kb > 0 {
+                    english("Speed limiter on: {} KB/s.", 1, &[&kb])
                 } else {
                     "Speed limiter off.".into()
                 };

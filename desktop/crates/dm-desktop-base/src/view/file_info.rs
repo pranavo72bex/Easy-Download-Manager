@@ -43,7 +43,7 @@ pub fn delete_after_times() -> [(&'static str, Option<u64>); 4] {
 pub fn places(settings: &Settings) -> Vec<(String, String)> {
     let mut categories = settings.categories();
     categories.enabled = true;
-    let root = &settings.download_dir;
+    let root = &settings.folders.download_dir;
     let mut places: Vec<(String, String)> = dm_core::Category::ALL
         .iter()
         .map(|kind| {
@@ -64,8 +64,8 @@ pub fn places(settings: &Settings) -> Vec<(String, String)> {
 /// The folder an empty "Save to folder" means, as its hint says it: sorted
 /// into kinds' folders only where Options › Folders sorts them.
 pub fn default_folder_words(settings: &Settings) -> String {
-    let dir = settings.download_dir.display().to_string();
-    if settings.categorize {
+    let dir = settings.folders.download_dir.display().to_string();
+    if settings.folders.categorize {
         tf("{} (sorted by kind)", &[&dir])
     } else {
         dir
@@ -90,9 +90,9 @@ pub fn folder_for(settings: &Settings, typed: &str, url: &str, name: &str) -> Pa
         if categories.enabled {
             categories.site = dm_core::host_of(url);
             let kind = dm_core::by_name(name).unwrap_or(dm_core::Category::Other);
-            categories.place(&settings.download_dir, kind, name)
+            categories.place(&settings.folders.download_dir, kind, name)
         } else {
-            settings.download_dir.clone()
+            settings.folders.download_dir.clone()
         }
     }
 }

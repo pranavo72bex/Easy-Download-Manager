@@ -62,13 +62,13 @@ fn a_dropped_file_of_links_is_downloaded() {
 fn a_finished_files_command_that_cannot_start_is_a_problem_and_chosen_sounds_play() {
     let world = world();
     let mut settings = world.settings();
-    settings.on_complete = world
+    settings.downloads.on_complete = world
         .dir
         .path()
         .join("no-such-program")
         .display()
         .to_string();
-    settings.sound_on_complete = true;
+    settings.general.sound_on_complete = true;
     for event in ["complete", "queue_done"] {
         settings
             .sounds
@@ -146,7 +146,7 @@ fn a_change_of_settings_with_a_cookies_file_gone_is_made_and_the_problem_said() 
     let cookies = world.dir.path().join("cookies.txt");
     std::fs::write(&cookies, "# Netscape HTTP Cookie File\n").unwrap();
     let named = cookies.display().to_string();
-    h.settings_to(|s| s.cookies_file = named);
+    h.settings_to(|s| s.advanced.cookies_file = named);
     std::fs::remove_file(&cookies).unwrap();
     h.settings_to(|s| s.hinted_big = !s.hinted_big);
     h.until("the cookies file's problem", |h| {
@@ -154,7 +154,7 @@ fn a_change_of_settings_with_a_cookies_file_gone_is_made_and_the_problem_said() 
             .iter()
             .any(|p| p.contains("downloads go without its cookies"))
     });
-    h.settings_to(|s| s.cookies_file = String::new());
+    h.settings_to(|s| s.advanced.cookies_file = String::new());
 }
 
 /// A once-only date that is over is put away, for every queue and for a queue of its own,
@@ -189,7 +189,7 @@ fn a_once_only_date_that_is_over_is_put_away() {
 fn sorted_by_status_the_rows_go_in_the_order_of_their_state() {
     let world = world();
     let mut settings = world.settings();
-    settings.concurrency = 1;
+    settings.downloads.concurrency = 1;
     let mut h = world.harness_with(settings);
     h.call(
         "downloads.add",

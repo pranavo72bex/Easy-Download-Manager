@@ -16,17 +16,20 @@ async fn a_saved_proxy_with_no_host_is_turned_off_and_said_at_launch() {
     // and nothing else is reading the environment while it is set.
     unsafe { std::env::set_var("DM_HOME", home.path()) };
     let mut saved = Settings {
-        download_dir: home.path().join("out"),
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: home.path().join("out"),
+            ..Default::default()
+        },
         ..Settings::default()
     };
-    saved.proxy.enabled = true;
-    saved.proxy.kind = dm_core::ProxyKind::Http;
-    saved.proxy.host = String::new();
+    saved.advanced.proxy.enabled = true;
+    saved.advanced.proxy.kind = dm_core::ProxyKind::Http;
+    saved.advanced.proxy.host = String::new();
     saved.save().unwrap();
 
     let started = dm_shell::shell::start(&dm_shell::shell::orders(&[])).await;
     assert!(
-        !started.settings.proxy.enabled,
+        !started.settings.advanced.proxy.enabled,
         "the unusable proxy stayed on for the tools while dm's own went direct"
     );
     assert!(
@@ -48,7 +51,7 @@ async fn a_saved_proxy_with_no_host_is_turned_off_and_said_at_launch() {
     // proxy still on and refused every hand-off while the app went direct.
     let (on_disk, _) = Settings::load();
     assert!(
-        !on_disk.proxy.enabled,
+        !on_disk.advanced.proxy.enabled,
         "the host still reads the broken proxy as on"
     );
 }

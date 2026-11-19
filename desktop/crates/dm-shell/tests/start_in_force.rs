@@ -21,14 +21,17 @@ async fn saved_settings_are_in_force_from_the_start() {
     // and nothing else is reading the environment while it is set.
     unsafe { std::env::set_var("DM_HOME", home.path()) };
     let mut saved = Settings {
-        download_dir: home.path().join("out"),
         identify_as_dm: true,
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: home.path().join("out"),
+            ..Default::default()
+        },
         ..Settings::default()
     };
-    saved.dialup.enabled = true;
-    saved.dialup.connection = "dm test connection that does not exist".into();
-    saved.dialup.attempts = 1;
-    saved.dialup.wait_seconds = 0;
+    saved.advanced.dialup.enabled = true;
+    saved.advanced.dialup.connection = "dm test connection that does not exist".into();
+    saved.advanced.dialup.attempts = 1;
+    saved.advanced.dialup.wait_seconds = 0;
     saved.save().unwrap();
 
     let started = shell::start(&shell::orders(&[])).await;

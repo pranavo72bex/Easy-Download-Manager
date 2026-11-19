@@ -42,11 +42,10 @@ fn a_progress_window_says_what_came_over_the_second_network() {
     let _off = Off;
     let world = world();
     // Two connections or more: the second goes out on the second network.
-    let mut h = world.harness_with(dm_shell::Settings {
-        connections: 4,
-        show_progress: true,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| {
+        s.downloads.connections = 4;
+        s.general.show_progress = true;
+    }));
     h.add_url(&world.url("ranges-stall.bin"), "Start now");
     // A piece taken on each path (every other connection is the second's).
     h.until("pieces taken on both networks", |h| {

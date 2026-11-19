@@ -76,7 +76,7 @@ fn every_dialog_in_every_language_is_translated() {
     {
         let world = world();
         let mut settings = world.settings();
-        settings.language = (*code).into();
+        settings.general.language = (*code).into();
         let mut h = world.harness_with(settings);
         dm_desktop_base::i18n::set(code);
         dm_desktop_base::i18n::record_missing();
@@ -203,10 +203,7 @@ fn every_menu_item_clicked_does_what_it_says() {
     // The stalled connection given the longest wait allowed: at the default 30 s, a whole suite
     // run reached the running row's checks after it had timed out and was retrying ("No answer
     // (retry 2 of 15)"), where Update download link is rightly offered.
-    let mut h = world.harness_with(dm_shell::Settings {
-        read_timeout: 600,
-        ..world.settings()
-    });
+    let mut h = world.harness_with(world.settings_with(|s| s.advanced.read_timeout = 600));
     h.add_url(&world.url("file.zip"), "Start now");
     h.add_url(&world.url("stalled.bin"), "Start now");
     h.add_url(&world.url("other.pdf"), "Add for later");
@@ -406,16 +403,16 @@ fn every_menu_item_clicked_does_what_it_says() {
         h.dialog_open("Speed limiter")
     });
     h.close_dialogs();
-    let limit = h.view(|v| v.backend.settings().speed_limit);
+    let limit = h.view(|v| v.backend.settings().advanced.speed_limit);
     press(&mut h, &["Downloads", "Speed limiter", "Limit speed"]);
     assert_ne!(
-        h.view(|v| v.backend.settings().speed_limit),
+        h.view(|v| v.backend.settings().advanced.speed_limit),
         limit,
         "Limit speed"
     );
     press(&mut h, &["Downloads", "Speed limiter", "Limit speed"]);
     assert_eq!(
-        h.view(|v| v.backend.settings().speed_limit),
+        h.view(|v| v.backend.settings().advanced.speed_limit),
         limit,
         "and back"
     );

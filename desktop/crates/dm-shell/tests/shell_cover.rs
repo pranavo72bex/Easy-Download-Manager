@@ -36,7 +36,10 @@ fn home() -> &'static Path {
         }
         // Downloads, if any were made, land here too.
         let saved = Settings {
-            download_dir: home.path().join("out"),
+            folders: dm_shell::settings::FolderSettings {
+                download_dir: home.path().join("out"),
+                ..Default::default()
+            },
             ..Settings::default()
         };
         std::fs::write(
@@ -51,7 +54,10 @@ fn home() -> &'static Path {
 
 fn queue(dir: &Path) -> DownloadList {
     let saved = Settings {
-        download_dir: dir.join("out"),
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: dir.join("out"),
+            ..Default::default()
+        },
         ..Settings::default()
     };
     let mut options = saved.options(dir.join("parts"), dm_core::Limiter::unlimited());
@@ -240,7 +246,7 @@ async fn links_on_the_command_line_are_added_as_the_engine_starts() {
         ]
     );
     // What it was started with is read from dm's home.
-    assert_eq!(started.settings.download_dir, home().join("out"));
+    assert_eq!(started.settings.folders.download_dir, home().join("out"));
 }
 
 /// A paste of several links where the queue turns some down: the rest are
@@ -280,12 +286,21 @@ async fn a_change_of_the_read_timeout_puts_a_new_client_in_force() {
     let dir = tempfile::tempdir().unwrap();
     let queue = queue(dir.path());
     let held = Settings {
-        download_dir: dir.path().join("out"),
+        folders: dm_shell::settings::FolderSettings {
+            download_dir: dir.path().join("out"),
+            ..Default::default()
+        },
         ..Settings::default()
     };
     let next = Settings {
-        read_timeout: held.read_timeout + 30,
-        concurrency: 3,
+        downloads: dm_shell::settings::DownloadSettings {
+            concurrency: 3,
+            ..held.downloads.clone()
+        },
+        advanced: dm_shell::settings::AdvancedSettings {
+            read_timeout: held.advanced.read_timeout + 30,
+            ..held.advanced.clone()
+        },
         ..held.clone()
     };
     let problems = shell::apply(&next, Some(&held), &queue).await.unwrap();
