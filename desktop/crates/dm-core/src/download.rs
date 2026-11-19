@@ -43,6 +43,8 @@ mod hls_sealed;
 mod hls_text;
 mod http;
 mod mirrors;
+mod page_stream;
+mod per_site;
 mod plain;
 mod ranged;
 mod sidecar;
@@ -54,6 +56,13 @@ pub use files::*;
 pub(crate) use hls::*;
 pub use http::*;
 use mirrors::*;
+use page_stream::is_stream;
+pub(crate) use page_stream::{
+    download_numbered_stream_with, download_video_stream_with, stream_headers, Headers,
+    StreamHints, NUMBERED_UNREAD,
+};
+#[cfg(test)]
+use per_site::refuses_unrouted;
 pub(crate) use ranged::*;
 pub use space::*;
 
@@ -186,91 +195,6 @@ pub struct HostLimit {
     pub host: String,
     /// How many connections that site takes.
     pub connections: usize,
-}
-
-/// Whether a connection of dm's own is refused under the computer's proxy
-/// settings: they are chosen, they gave no address, the site is not
-/// bypassed, and the computer has a proxy in force (asked last, as it may
-/// run `scutil`).
-fn refuses_unrouted(
-    system: bool,
-    has_address: bool,
-    bypassed: bool,
-    in_force: impl FnOnce() -> bool,
-) -> bool {
-    system && !has_address && !bypassed && in_force()
-}
-
-impl Options {
-    /// The attempts and the wait between them, as the retry loops take them.
-    pub fn tries(&self) -> retry::Tries {
-        retry::Tries {
-            attempts: self.attempts,
-            wait: (self.retry_wait > 0).then(|| std::time::Duration::from_secs(self.retry_wait)),
-        }
-    }
-
-    /// The proxy a download of `url` goes through, for the tools and the
-    /// FTP client: `proxy`, unless the site is on the bypass list; where a
-    /// configuration script chooses, what it says for the site.
-    pub fn proxy_for(&self, url: &str) -> Option<String> {
-        let host = category::host_of(url);
-        let bypassed = crate::proxy::Proxy {
-            bypass: self.proxy_bypass.clone(),
-            ..Default::default()
-        }
-        .bypasses(&host);
-        if bypassed {
-            None
-        } else {
-            crate::proxy::route_for(self.proxy.as_deref(), url)
-        }
-    }
-
-    /// Why a connection of dm's own (FTP, a torrent's swarm) to `url` may
-    /// not be made: the computer's proxy is in force and names no address
-    /// such a connection could use, and the site is not on the bypass list.
-    /// A computer with no proxy at all goes direct, so its FTP downloads
-    /// and torrents are not refused.
-    pub fn no_route_through_system_proxy(&self, url: &str, what: &str) -> Option<String> {
-        let bypassed = crate::proxy::Proxy {
-            bypass: self.proxy_bypass.clone(),
-            ..Default::default()
-        }
-        .bypasses(&category::host_of(url));
-        refuses_unrouted(
-            self.system_proxy,
-            self.proxy.is_some(),
-            bypassed,
-            crate::proxy::system_proxy_in_force,
-        )
-        .then(|| {
-            format!(
-                "dm cannot send {what} through the computer's proxy settings, and does not go \
-                 around them — name the proxy's address in Options › Advanced"
-            )
-        })
-    }
-
-    /// The connections a download of `url` opens: the setting, or the
-    /// site's own limit where it has one.
-    pub fn connections_for(&self, url: &str) -> usize {
-        let host = category::host_of(url);
-        let capped = self
-            .host_limits
-            .iter()
-            .filter(|limit| {
-                let want = limit
-                    .host
-                    .trim()
-                    .trim_start_matches('.')
-                    .to_ascii_lowercase();
-                !want.is_empty() && (host == want || host.ends_with(&format!(".{want}")))
-            })
-            .map(|limit| limit.connections.max(1))
-            .min();
-        capped.map_or(self.connections, |cap| cap.min(self.connections))
-    }
 }
 
 /// What happened, once it stopped happening.
@@ -624,141 +548,6 @@ tokio::task_local! {
     /// beside [`STREAM`]. Kept here rather than on `Options`, which callers
     /// build field by field.
     static HINTS: StreamHints;
-}
-
-/// How the server of a stream wants to be asked, as the reading of the page
-/// gave it. Data only: nothing here names a site.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub(crate) struct StreamHints {
-    /// The rest of the headers its reading says the server is asked with.
-    pub headers: Headers,
-    /// The most bytes one request may ask for (`downloader_options`'
-    /// `http_chunk_size`): a server that slows or cuts any one response
-    /// after that is asked for the next slice on a fresh one.
-    pub chunk: Option<u64>,
-}
-
-/// Headers a video site's reading gives for one stream (`http_headers`),
-/// kept for that stream's requests alone.
-///
-/// Only what dm does not own: the agent goes by dm's table of agents, and
-/// `Range`, `If-Range`, `Accept-Encoding` (the engine needs the file as it
-/// is) and the connection's own are dm's. A `Cookie` can be a sign-in, so
-/// the values are never printed, and it is sent only where dm has none of
-/// its own for the site, as a `Referer` only where it has none.
-#[derive(Clone, Default, PartialEq)]
-pub(crate) struct Headers(Vec<(reqwest::header::HeaderName, reqwest::header::HeaderValue)>);
-
-impl std::fmt::Debug for Headers {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_list()
-            .entries(self.0.iter().map(|(n, _)| n))
-            .finish()
-    }
-}
-
-impl Headers {
-    /// The sendable ones of `(name, value)` pairs; the rest are dropped.
-    pub fn of<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>) -> Headers {
-        const DM_OWN: [&str; 14] = [
-            "user-agent",
-            "range",
-            "if-range",
-            "accept-encoding",
-            "host",
-            "content-length",
-            "content-type",
-            "transfer-encoding",
-            "connection",
-            "te",
-            "upgrade",
-            "expect",
-            "proxy-authorization",
-            "authorization",
-        ];
-        Headers(
-            pairs
-                .into_iter()
-                .filter(|(name, _)| !DM_OWN.iter().any(|own| own.eq_ignore_ascii_case(name)))
-                .filter_map(|(name, value)| {
-                    Some((
-                        reqwest::header::HeaderName::from_bytes(name.as_bytes()).ok()?,
-                        reqwest::header::HeaderValue::from_str(value).ok()?,
-                    ))
-                })
-                .collect(),
-        )
-    }
-
-    /// `request` with these added, below what dm sets itself.
-    pub fn onto(
-        &self,
-        mut request: reqwest::RequestBuilder,
-        own_cookie: bool,
-        own_referrer: bool,
-    ) -> reqwest::RequestBuilder {
-        for (name, value) in &self.0 {
-            let held = (*name == reqwest::header::COOKIE && own_cookie)
-                || (*name == reqwest::header::REFERER && own_referrer);
-            if !held {
-                request = request.header(name.clone(), value.clone());
-            }
-        }
-        request
-    }
-}
-
-/// The headers of the stream being fetched, if one is.
-pub(crate) fn stream_headers() -> Headers {
-    HINTS
-        .try_with(|hints| hints.headers.clone())
-        .unwrap_or_default()
-}
-
-/// [`download_reporting`] for one stream of a video page (`videopage::fetch`),
-/// asked for as its reading says: the address is the file, so what the
-/// server refuses, or answers with a page, is that stream's failure.
-pub(crate) async fn download_video_stream_with(
-    client: &reqwest::Client,
-    url: &str,
-    options: &Options,
-    report: Option<tokio::sync::mpsc::Sender<Update>>,
-    hints: StreamHints,
-) -> Result<Finished, Error> {
-    // Boxed: a video page's streams are downloads that may themselves meet a
-    // page (`videopage::download_page`), which an async fn cannot be recursive in.
-    Box::pin(HINTS.scope(
-        hints,
-        STREAM.scope((), download_reporting(client, url, options, report)),
-    ))
-    .await
-}
-
-/// What [`download_numbered_stream_with`] fails with where the stream's first piece does not
-/// say how many follow, or it failed before any piece after the first was whole: the video is
-/// then fetched from its other formats (`videopage::download_page`), as before dm read
-/// numbered pieces. Never shown: a fallback is always taken on it.
-pub(crate) const NUMBERED_UNREAD: &str = "the stream's numbered pieces could not be read";
-
-/// [`download_video_stream_with`] for a stream served only as numbered pieces (`&sq=N`, gaps
-/// row Y14): fetched piece by piece by the DASH piece fetcher, and gathered into one file.
-pub(crate) async fn download_numbered_stream_with(
-    client: &reqwest::Client,
-    url: &str,
-    options: &Options,
-    report: Option<tokio::sync::mpsc::Sender<Update>>,
-    hints: StreamHints,
-) -> Result<Finished, Error> {
-    Box::pin(HINTS.scope(
-        hints,
-        STREAM.scope((), dash::download_numbered(client, url, options, report)),
-    ))
-    .await
-}
-
-/// Whether the download in hand is one stream of a video page.
-fn is_stream() -> bool {
-    STREAM.try_with(|()| ()).is_ok()
 }
 
 /// Downloads `url` into the folder in `options` and returns what came of it;
