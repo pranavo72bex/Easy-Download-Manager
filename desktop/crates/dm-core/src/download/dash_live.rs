@@ -209,7 +209,7 @@ pub(super) async fn record(
     let mut text = Some(first_text);
     let mut landed = manifest.to_string();
     let (mut misses, mut last_tries) = (0u32, 0u32);
-    let ended: Result<(), Error> = 'rounds: loop {
+    let ended: Result<(), Error> = loop {
         let body = match text.take() {
             Some(body) => body,
             None => match fetch_playlist(client, manifest, options).await {
@@ -256,101 +256,28 @@ pub(super) async fn record(
                 .iter()
                 .find(|p| p.video.is_some() || p.audio.is_some())
             {
-                extension = extension_for(period, options);
-                for (medium, present, name) in [
-                    (
-                        Medium::Video,
-                        period.video.is_some(),
-                        "live-picture.recording",
-                    ),
-                    (
-                        Medium::Audio,
-                        period.audio.is_some(),
-                        "live-sound.recording",
-                    ),
-                ] {
-                    if !present {
-                        continue;
-                    }
-                    let path = options.parts_dir.join(name);
-                    recorders.push(Recorder {
-                        medium,
-                        out: tokio::io::BufWriter::new(fs::File::create(&path).await?),
-                        path,
-                        first: None,
-                        inits: HashMap::new(),
-                        seen: HashSet::new(),
-                        seen_order: VecDeque::new(),
-                        last: None,
-                        wrote: false,
-                    });
-                }
-                filename = stream::titled(
-                    &stream::name_for(named_from, extension),
-                    options.title_hint.as_deref(),
-                    options.save_name.as_deref(),
-                );
-                if let Some(tx) = &report {
-                    let _ = tx
-                        .send(Update::Named {
-                            name: filename.clone(),
-                            category: category::classify(&filename, None),
-                        })
-                        .await;
-                }
+                (extension, filename) =
+                    begin(period, named_from, options, &report, &mut recorders).await?;
             }
         }
         // Each period's new pieces, in order. A failure leaves the rest for the next reading.
         for recorder in recorders.iter_mut() {
             recorder.pass_over_older(&listing);
         }
-        let mut failed = false;
-        'periods: for period in &listing.periods {
-            let mut recorded = true;
-            for recorder in recorders.iter_mut() {
-                let Some(track) = recorder.track_in(period) else {
-                    continue;
-                };
-                match recorder.admits(client, track, options, &downloaded).await {
-                    Ok(admitted) => recorded &= admitted,
-                    Err(e @ (Error::Paused | Error::Cancelled)) => break 'rounds Err(e),
-                    Err(_) => {
-                        failed = true;
-                        break 'periods;
-                    }
-                }
-            }
-            if !recorded {
-                let inits: Vec<String> = recorders
-                    .iter()
-                    .filter_map(|r| r.track_in(period))
-                    .filter_map(|t| t.init.as_ref().map(|i| i.url.clone()))
-                    .collect();
-                if passed_over.insert(inits) {
-                    if let Some(tx) = &report {
-                        let said =
-                            crate::download::NOTES[3].replace("{}", &passed_over.len().to_string());
-                        let _ = tx.send(Update::Note(said)).await;
-                    }
-                }
-            }
-            for recorder in recorders.iter_mut() {
-                let Some(track) = recorder.track_in(period) else {
-                    continue;
-                };
-                match recorder
-                    .take(client, track, recorded, options, &downloaded)
-                    .await
-                {
-                    Ok(()) => {}
-                    Err(e @ (Error::Paused | Error::Cancelled)) => break 'rounds Err(e),
-                    Err(_) => {
-                        failed = true;
-                        break 'periods;
-                    }
-                }
-            }
-        }
+        let failed = match take_periods(
+            &mut recorders,
+            &listing,
+            client,
+            options,
+            &downloaded,
+            &mut passed_over,
+            &report,
+        )
+        .await
+        {
+            Ok(failed) => failed,
+            Err(e) => break Err(e),
+        };
         for recorder in recorders.iter_mut() {
             recorder.out.flush().await?;
         }
@@ -396,6 +323,131 @@ pub(super) async fn record(
             "the live stream sent nothing to record".into(),
         ));
     }
+    join_recorded(recorders, extension, &filename, options).await
+}
+
+/// The recording's tracks and its name, from `period`, the first that has any: each track's
+/// growing file made in `recorders`, and the name said to the row. The extension and the name.
+async fn begin(
+    period: &dash::LivePeriod,
+    named_from: &str,
+    options: &Options,
+    report: &Option<tokio::sync::mpsc::Sender<Update>>,
+    recorders: &mut Vec<Recorder>,
+) -> Result<(&'static str, String), Error> {
+    let extension = extension_for(period, options);
+    for (medium, present, name) in [
+        (
+            Medium::Video,
+            period.video.is_some(),
+            "live-picture.recording",
+        ),
+        (
+            Medium::Audio,
+            period.audio.is_some(),
+            "live-sound.recording",
+        ),
+    ] {
+        if !present {
+            continue;
+        }
+        let path = options.parts_dir.join(name);
+        recorders.push(Recorder {
+            medium,
+            out: tokio::io::BufWriter::new(fs::File::create(&path).await?),
+            path,
+            first: None,
+            inits: HashMap::new(),
+            seen: HashSet::new(),
+            seen_order: VecDeque::new(),
+            last: None,
+            wrote: false,
+        });
+    }
+    let filename = stream::titled(
+        &stream::name_for(named_from, extension),
+        options.title_hint.as_deref(),
+        options.save_name.as_deref(),
+    );
+    if let Some(tx) = report {
+        let _ = tx
+            .send(Update::Named {
+                name: filename.clone(),
+                category: category::classify(&filename, None),
+            })
+            .await;
+    }
+    Ok((extension, filename))
+}
+
+/// Each period's new pieces in `listing`, in order: whether one failed, which leaves the rest
+/// for the next reading. A stop is the error; a period passed over is said to the row.
+async fn take_periods(
+    recorders: &mut [Recorder],
+    listing: &dash::Live,
+    client: &reqwest::Client,
+    options: &Options,
+    downloaded: &AtomicU64,
+    passed_over: &mut HashSet<Vec<String>>,
+    report: &Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<bool, Error> {
+    let mut failed = false;
+    'periods: for period in &listing.periods {
+        let mut recorded = true;
+        for recorder in recorders.iter_mut() {
+            let Some(track) = recorder.track_in(period) else {
+                continue;
+            };
+            match recorder.admits(client, track, options, downloaded).await {
+                Ok(admitted) => recorded &= admitted,
+                Err(e @ (Error::Paused | Error::Cancelled)) => return Err(e),
+                Err(_) => {
+                    failed = true;
+                    break 'periods;
+                }
+            }
+        }
+        if !recorded {
+            let inits: Vec<String> = recorders
+                .iter()
+                .filter_map(|r| r.track_in(period))
+                .filter_map(|t| t.init.as_ref().map(|i| i.url.clone()))
+                .collect();
+            if passed_over.insert(inits) {
+                if let Some(tx) = report {
+                    let said =
+                        crate::download::NOTES[3].replace("{}", &passed_over.len().to_string());
+                    let _ = tx.send(Update::Note(said)).await;
+                }
+            }
+        }
+        for recorder in recorders.iter_mut() {
+            let Some(track) = recorder.track_in(period) else {
+                continue;
+            };
+            match recorder
+                .take(client, track, recorded, options, downloaded)
+                .await
+            {
+                Ok(()) => {}
+                Err(e @ (Error::Paused | Error::Cancelled)) => return Err(e),
+                Err(_) => {
+                    failed = true;
+                    break 'periods;
+                }
+            }
+        }
+    }
+    Ok(failed)
+}
+
+/// Joins the tracks `recorders` wrote into one file, and places it as `filename`.
+async fn join_recorded(
+    recorders: Vec<Recorder>,
+    extension: &str,
+    filename: &str,
+    options: &Options,
+) -> Result<Finished, Error> {
     let files: Vec<PathBuf> = recorders
         .iter()
         .filter(|r| r.wrote)
@@ -428,7 +480,7 @@ pub(super) async fn record(
         control: crate::control::Control::new(),
         ..options.clone()
     };
-    let (path, bytes, category) = finish(&filename, None, &[joined], &placing).await?;
+    let (path, bytes, category) = finish(filename, None, &[joined], &placing).await?;
     Ok(Finished {
         left_behind: None,
         path,
