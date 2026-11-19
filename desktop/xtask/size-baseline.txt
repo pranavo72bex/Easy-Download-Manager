@@ -3,20 +3,3 @@
 # `<path> <lines>`. A file named here may not grow past its entry, any other may not pass
 # 800 lines, and none may pass 2,500. An entry is only ever lowered or removed:
 # `cargo xtask size-baseline` does both from the files as they are now.
-desktop/crates/dm-core/src/download.rs 996
-desktop/crates/dm-core/src/download/dash.rs 2053
-desktop/crates/dm-core/src/download/hls.rs 1437
-desktop/crates/dm-core/src/download/ranged.rs 848
-desktop/crates/dm-core/src/download/ranged/attempt.rs 1140
-desktop/crates/dm-core/src/stream.rs 945
-desktop/crates/dm-core/src/youtube.rs 1784
-desktop/crates/dm-core/src/youtube/player.rs 921
-desktop/crates/dm-gpui/src/dialogs/details.rs 820
-desktop/crates/dm-gpui/src/harness.rs 1403
-desktop/crates/dm-gpui/src/probe.rs 816
-desktop/crates/dm-gpui/src/window/list.rs 1390
-desktop/crates/dm-gpui/src/window/table.rs 970
-desktop/crates/dm-gpui/src/window_tests/dialogs.rs 2120
-desktop/crates/dm-gpui/src/window_tests/downloads.rs 1777
-desktop/crates/dm-gpui/src/window_tests/lists.rs 908
-desktop/crates/dm-gpui/src/window_tests/options.rs 1004
