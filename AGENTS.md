@@ -132,6 +132,7 @@ make build              # installers for every platform this machine can build, 
 make build-macos | build-linux | build-windows | build-extension   # one of them
 make devices            # which platforms this machine can build, and why not
 make test | analyze | format | qa | qa-docker   # tests; what CI refuses; the contract, whole
+cargo xtask build | test | package | qa         # the same four on any system, Windows too
 ```
 
 All of it that needs no window, in one command (formatting, lints, licences and the tests of

@@ -90,7 +90,8 @@ jobs:
 
       # nextest runs the test binaries side by side (cargo test runs them
       # one after another) and fails a test that hangs; doctests, which it
-      # does not run, follow.
+      # does not run, follow, in the same step: `cargo xtask test`, as
+      # anyone runs the tests on any system (gaps row X7).
       - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-nextest
@@ -101,8 +102,8 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
 
-      - name: Test the engine, the shell and the window
-        run: cargo nextest run --workspace --locked --profile ci
+      - name: Test the engine, the shell and the window, then the doctests
+        run: cargo xtask test --profile ci
 
       # The log is the administrators' alone; the annotations are anyone's.
       # Run on a pass too: a test that needed a retry is named as flaky.
@@ -110,9 +111,6 @@ jobs:
         if: always()
         shell: bash
         run: python3 ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml || python ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml
-
-      - name: Doctests
-        run: cargo test --doc --workspace --locked
 
   coverage:
     # Line coverage of the desktop workspace, held to a floor that is only ever raised (the

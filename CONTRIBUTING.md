@@ -43,8 +43,11 @@ cargo test
 cd .. && sh scripts/package.sh     # builds dist/chrome and dist/firefox
 ```
 
-`cargo xtask package`, from the repository's root or `desktop/`, makes this
-system's installers (it needs `cargo install cargo-packager --locked`).
+`cargo xtask build`, `test`, `package` and `qa`, from the repository's root or
+`desktop/`, do the same on Windows, macOS and Linux: dm and the extension built
+for release, the workspace's tests as CI runs them, this system's installers
+(it needs `cargo install cargo-packager --locked`) and `scripts/human-qa.py`
+whole, with what the system needs set for it.
 
 `docs/how-it-works.md` explains how the app and the extension fit together
 and how to load the extension unpacked. `docs/testing.md` lists every check

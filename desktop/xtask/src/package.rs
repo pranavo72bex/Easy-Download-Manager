@@ -15,6 +15,10 @@
 //! Anything after `package` goes to cargo-packager as it is (`--formats nsis`, `--target …`,
 //! `--out-dir …`). With `CARGO_TARGET_DIR` set, the packages go to `<it>/release/bundle`, beside
 //! the build, rather than into the checkout.
+//!
+//! On Linux alone the .rpm follows, made from the same build by `scripts/linux/nfpm.sh` as CI's
+//! and the Makefile's are, when no `--formats` or `--target` was named; elsewhere a line says it
+//! was not made. A failed program ends xtask with its exit code (gaps row X7).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -86,41 +90,95 @@ pub(crate) fn run(root: &Path, extra: &[String]) -> Result<String, String> {
         // that may not script Finder (as the Makefile's `app`).
         cargo.env("CI", "true");
     }
-    if std::env::consts::OS != "windows" && std::env::var_os("CARGO_BUILD_RUSTFLAGS").is_none() {
-        // Without the building computer's paths in what ships (scripts/release-flags.sh).
-        // Windows keeps its own target flags (desktop/.cargo/config.toml), which these would not
-        // replace, so it is not asked there.
-        let flags = Command::new("sh")
-            .arg(root.join("scripts").join("release-flags.sh"))
-            .output()
-            .map_err(|e| format!("sh scripts/release-flags.sh: {e}"))?;
-        if !flags.status.success() {
-            return Err("sh scripts/release-flags.sh failed".to_string());
-        }
-        cargo.env(
-            "CARGO_BUILD_RUSTFLAGS",
-            String::from_utf8_lossy(&flags.stdout).trim(),
-        );
+    // Without the building computer's paths in what ships (scripts/release-flags.sh); not on
+    // Windows, whose target flags these would not replace.
+    if let Some(flags) = crate::tasks::release_flags(root)? {
+        cargo.env("CARGO_BUILD_RUSTFLAGS", flags);
     }
     println!("== in {}: cargo {}", dir.display(), args.join(" "));
     let status = cargo
         .status()
         .map_err(|e| format!("could not start cargo: {e}"))?;
     if !status.success() {
-        return Err(format!("cargo packager failed ({status})"));
+        crate::tasks::exit_with("cargo packager", status);
     }
-    let out = match (target_dir, given(extra, "--out-dir", "-o")) {
-        (Some(dir), false) => dir.join("release").join("bundle"),
-        _ => root
-            .join("desktop")
+    let out = out_dir(extra, target_dir.as_deref(), &dir).unwrap_or_else(|| {
+        root.join("desktop")
             .join("target")
             .join("release")
-            .join("bundle"),
+            .join("bundle")
+    });
+    rpm(root, extra, &out)?;
+    Ok(format!("{PACKAGE}'s packages made, in {}", out.display()))
+}
+
+/// The folder the packages go to: the caller's `--out-dir` (against `dir`, where the packager
+/// runs) or the build's own; `None` for the settings' `outDir`.
+fn out_dir(extra: &[String], target_dir: Option<&Path>, dir: &Path) -> Option<PathBuf> {
+    let mut given_dir = None;
+    for (i, a) in extra.iter().enumerate() {
+        if let Some(value) = a.strip_prefix("--out-dir=") {
+            given_dir = Some(value.to_string());
+        } else if a == "--out-dir" || a == "-o" {
+            given_dir = extra.get(i + 1).cloned();
+        }
+    }
+    match given_dir {
+        Some(out) => Some(dir.join(out)),
+        None => target_dir.map(|t| t.join("release").join("bundle")),
+    }
+}
+
+/// The .rpm's command line on `os`, from `binary` at `version` into `out`: Linux's alone, and only
+/// where the caller named no formats or target of their own.
+fn rpm_line(
+    os: &str,
+    extra: &[String],
+    binary: &Path,
+    version: &str,
+    out: &Path,
+) -> Option<Vec<String>> {
+    if os != "linux" || given(extra, "--formats", "-f") || given(extra, "--target", "--target") {
+        return None;
+    }
+    Some(vec![
+        "sh".to_string(),
+        "scripts/linux/nfpm.sh".to_string(),
+        binary.to_string_lossy().into_owned(),
+        version.to_string(),
+        out.to_string_lossy().into_owned(),
+    ])
+}
+
+/// The .rpm, on Linux, of the build just packaged, into `out`.
+fn rpm(root: &Path, extra: &[String], out: &Path) -> Result<(), String> {
+    let manifest = crate::read(&crate_dir(root).join("Cargo.toml"))?;
+    let parsed: toml::Table = manifest.parse().map_err(|e| format!("{PACKAGE}: {e}"))?;
+    let version = parsed
+        .get("package")
+        .and_then(|p| p.get("version"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("{PACKAGE}'s Cargo.toml names no version"))?;
+    let binary = crate::tasks::target_dir(root).join("release").join(PACKAGE);
+    let os = std::env::consts::OS;
+    let Some(line) = rpm_line(os, extra, &binary, version, out) else {
+        if os == "linux" {
+            println!("(the .rpm is not made where --formats or --target is named)");
+        } else {
+            println!("(the .rpm is Linux's alone: not made here)");
+        }
+        return Ok(());
     };
-    Ok(format!(
-        "{PACKAGE}'s packages made (in {} unless --out-dir said otherwise)",
-        out.display()
-    ))
+    println!("== in {}: {}", root.display(), line.join(" "));
+    let status = Command::new(&line[0])
+        .args(&line[1..])
+        .current_dir(root)
+        .status()
+        .map_err(|e| format!("could not start sh: {e}"))?;
+    if !status.success() {
+        crate::tasks::exit_with("scripts/linux/nfpm.sh", status);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -161,6 +219,21 @@ mod tests {
         assert!(args.ends_with(&extra));
         let args = arguments("linux", &strings(&["--formats=deb"]), None);
         assert!(!args.contains(&"--formats".to_string()));
+    }
+
+    #[test]
+    fn the_rpm_is_made_on_linux_alone_and_only_with_the_default_formats() {
+        let (bin, out, dir) = (Path::new("b"), Path::new("o"), Path::new("crate"));
+        let line = rpm_line("linux", &[], bin, "1", out).expect("Linux makes the .rpm");
+        assert_eq!(line.join(" "), "sh scripts/linux/nfpm.sh b 1 o");
+        for os in ["windows", "macos"] {
+            assert!(rpm_line(os, &[], bin, "1", out).is_none(), "{os}");
+        }
+        for flag in ["-f", "--target"] {
+            assert!(rpm_line("linux", &strings(&[flag, "x"]), bin, "1", out).is_none());
+        }
+        let given = out_dir(&strings(&["-o", "o"]), Some(Path::new("t")), dir);
+        assert_eq!(given, Some(dir.join("o")));
     }
 
     #[test]
