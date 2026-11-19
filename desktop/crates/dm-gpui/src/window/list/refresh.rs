@@ -61,7 +61,7 @@ impl Downloads {
         let read = self.session.read(&self.backend, &settings);
         // What it detected and the problems it met are the tick's.
         let mut changed = queue_changed || !read.problems.is_empty();
-        self.detected.push(read.detected);
+        self.session.note_read(read.detected);
         self.problems.extend(read.problems);
         // What the read told beside the rows, which a row's words are said
         // from (ranges tried again, swarms, files taken by a later row, the
@@ -81,9 +81,8 @@ impl Downloads {
         };
         changed |= taken.changed || taken.moved;
         let moved = taken.moved;
-        if self.session.ran_dry(&self.rows) {
-            self.ran_dry = true;
-        }
+        // Once per read, as `ran_dry` asks: When done's for the next tick.
+        self.session.note_dry(&self.rows);
         // Every row's finishing words where the rows are placed again, else
         // those of the rows that changed.
         self.keep_whens(&settings.language, moved, taken.finished_at);

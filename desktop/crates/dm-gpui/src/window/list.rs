@@ -18,8 +18,8 @@ use std::time::{Duration, Instant};
 
 use dm_core::{Entry, State};
 use dm_desktop_base::boot::Wake;
+use dm_desktop_base::session::Session;
 use dm_shell::app::backend::Backend;
-use dm_shell::app::session::Session;
 use gpui::{div, prelude::*, Context, FocusHandle, Role, UniformListScrollHandle, Window};
 
 use crate::window::screen::Screen;
@@ -213,12 +213,6 @@ pub struct Downloads {
     /// Exit was carried out (`quit`): what the window's tests read, as GPUI's test platform
     /// ends nothing.
     pub(crate) quit_asked: bool,
-    /// The queue ran dry at a read (`Session::ran_dry`, looked at once per read, as it asks):
-    /// When done's for the next tick. Looked at in the tick alone, a read between (after a
-    /// command, an add, Download details) took the change, and When done never fired.
-    pub(crate) ran_dry: bool,
-    /// What the reads since the last tick detected (`tick.rs`).
-    pub(crate) detected: Vec<dm_shell::app::detect::Detected>,
     /// Problems to show above the list, each until dismissed.
     pub(crate) problems: Vec<String>,
     /// Finished rows' sizes, read once from their files.
@@ -407,8 +401,6 @@ impl Downloads {
             question_window: None,
             exit_asked: false,
             quit_asked: false,
-            ran_dry: false,
-            detected: Vec::new(),
             problems: Vec::new(),
             saved: Default::default(),
             sizes_told: Default::default(),

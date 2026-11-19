@@ -23,17 +23,17 @@ use dm_core::{Entry, Id};
 use dm_shell::app::backend::Backend;
 use dm_shell::app::commands::{self, Command, Ran};
 use dm_shell::app::control_api;
-use dm_shell::app::detect::Detected;
 use dm_shell::app::handoff::{Asking, Route};
 use dm_shell::app::names::name_of;
 use dm_shell::app::places::{Place, Places};
-use dm_shell::app::session::{Carried, Fired, Session};
+use dm_shell::app::session::Carried;
 use serde_json::{json, Value};
 
 use crate::boot::Wake;
 use crate::control::Request;
-use crate::i18n::{fill, form_of, t, tf};
+use crate::i18n::{fill, form_of, t};
 use crate::probe::{self, WindowProbe};
+use crate::session::{Driver, Effect, Session};
 
 /// How often dm looks at its clock when nothing wakes it: the schedules,
 /// When done's countdown, the watched folder and the saved searches.
@@ -73,8 +73,6 @@ pub struct Headless {
     /// What a window's status line would say now, in English.
     said: String,
     problems: Vec<String>,
-    /// What the reads detected, for the next look (notifications, sounds).
-    detected: Vec<Detected>,
     requests: Option<mpsc::Receiver<Request>>,
     /// The port was opened only for AI assistants.
     assistants_only: bool,
@@ -137,7 +135,6 @@ impl Headless {
             selected: BTreeSet::new(),
             said: String::new(),
             problems: Vec::new(),
-            detected: Vec::new(),
             requests,
             assistants_only,
             quit_asked: false,
@@ -155,24 +152,22 @@ impl Headless {
     /// done, the hand-offs, the countdown, "Delete file after", the watched
     /// folder, the saved searches, and the port's requests answered.
     fn tick(&mut self) {
-        let home = dm_shell::settings::home();
         self.read();
-        // `--new-download` asks for a window to add in: there is none, and
-        // the order is not left for a later launch.
-        let _ = dm_shell::app::session::new_download_asked(&home);
-        if let Some(wanted) = dm_shell::app::session::when_done_asked(&home) {
-            if wanted.possible(crate::power::available) {
-                self.session.when_done = wanted;
-            } else {
-                self.said =
-                    "This computer has no way to do that when the downloads are done.".into();
-            }
+        // The application's tick (`Session::tick`): the inbox's orders, what
+        // the read detected told, the schedules and When done, with nobody to
+        // see a countdown for Exit.
+        for effect in self.session.take_orders(Driver::HEADLESS) {
+            self.carry(effect);
         }
-        self.told();
-        self.schedule_hooks();
-        if self.when_queue_dry() {
-            self.quit_asked = true;
-            return;
+        for effect in self
+            .session
+            .tick(&self.backend, &self.rows, Driver::HEADLESS)
+        {
+            if matches!(effect, Effect::Quit) {
+                self.quit_asked = true;
+                return;
+            }
+            self.carry(effect);
         }
         // What a platform held back while the person was busy elsewhere.
         self.backend.platform.tick();
@@ -193,7 +188,7 @@ impl Headless {
         dm_shell::app::changes::take();
         let settings = self.backend.settings();
         let read = self.session.read(&self.backend, &settings);
-        self.detected.push(read.detected);
+        self.session.note_read(read.detected);
         self.problems.extend(read.problems);
         crate::rows::set_retrying(read.snapshot.retrying);
         crate::rows::set_swarms(read.snapshot.swarms);
@@ -270,100 +265,60 @@ impl Headless {
             .filter(|p| !p.is_empty())
     }
 
-    /// What the reads detected: a notification for each download that
-    /// failed and one for what finished (a batch is one), the sounds
-    /// chosen, and a hand-off's address already listed said.
-    fn told(&mut self) {
-        let detected = std::mem::take(&mut self.detected);
-        let settings = self.backend.settings();
-        let mut finished: Vec<(String, String)> = Vec::new();
-        let mut failed = false;
-        for read in &detected {
-            for row in &self.rows {
-                if read.failed.contains(&row.id) {
-                    failed = true;
-                    self.backend.platform.notify(
-                        t("Download failed"),
-                        &format!("{} — {}", name_of(row), crate::rows::status_of(row)),
-                    );
-                }
-                if read.finished.contains(&row.id) {
-                    finished.push((name_of(row), row.path.clone()));
-                }
+    /// One thing the application's tick asks (`Session::tick`), settled with
+    /// no one asked: what a window would open is not, what it would say is
+    /// said in English, and a failure is notified without a Retry.
+    fn carry(&mut self, effect: Effect) {
+        if let Some(done) = effect.on_platform(&self.backend) {
+            if let Err(why) = done {
+                self.problems.push(why);
             }
-            if let Some(row) = read
-                .added_again
-                .and_then(|id| self.rows.iter().find(|r| r.id == id))
-            {
+            return;
+        }
+        match effect {
+            Effect::WhenDone(wanted) => self.session.when_done = wanted,
+            Effect::CannotWhenDone => {
+                self.said =
+                    "This computer has no way to do that when the downloads are done.".into();
+            }
+            Effect::Failed { name, why, .. } => self
+                .backend
+                .platform
+                .notify(t("Download failed"), &format!("{name} — {why}")),
+            Effect::AddedAgain { name } => {
                 self.said = english(
                     "Added {} again: that address was already in the list.",
                     1,
-                    &[&name_of(row)],
+                    &[&name],
                 );
             }
-        }
-        match finished.as_slice() {
-            [] => {}
-            [(name, path)] => self
-                .backend
-                .platform
-                .notify_file(t("Download finished"), name, path),
-            many => self.backend.platform.notify(
-                t("Download finished"),
-                &tf("{} downloads finished.", &[&many.len()]),
-            ),
-        }
-        if settings.sound_on_complete && !finished.is_empty() {
-            match self.sound("complete") {
-                Some(path) => self.backend.platform.play_file(&path),
-                None => self.backend.platform.chime(),
+            Effect::Problem(why) => self.problems.push(why),
+            Effect::Armed(wanted) => {
+                self.said = english(
+                    "The schedule has set what dm does when the downloads are done: {}.",
+                    1,
+                    &[&wanted.verb()],
+                );
             }
+            Effect::Quit => self.quit_asked = true,
+            // A window's: Add URL (`--new-download` asks for a window to add
+            // in: there is none, and the order is not left for a later
+            // launch), the progress and Download complete windows, a fresh
+            // link asked for, what a screen reader hears. Hang up modem when
+            // done is not acted on with no window.
+            Effect::NewDownload
+            | Effect::Telling { .. }
+            | Effect::StartedElsewhere(_)
+            | Effect::Finished(_)
+            | Effect::Told { .. }
+            | Effect::Scheduled { .. } => {}
+            // Carried on the platform, above.
+            Effect::Notify { .. }
+            | Effect::NotifyFile { .. }
+            | Effect::Play(_)
+            | Effect::Open(_)
+            | Effect::Reveal(_) => {}
         }
-        if settings.sound_on_failure && failed {
-            match self.sound("failed") {
-                Some(path) => self.backend.platform.play_file(&path),
-                None => self.backend.platform.alert(),
-            }
-        }
-    }
-
-    /// The schedules (`Session::schedule_tick`): a once-only date that has
-    /// passed is put away, and what the schedule armed for When done said.
-    fn schedule_hooks(&mut self) {
-        let settings = self.backend.settings();
-        if let Some(wanted) = crate::held::spent_once_now(&settings) {
-            if let Err(why) = self.backend.set_settings(wanted) {
-                self.problems.push(why);
-            }
-        }
-        let settings = self.backend.settings();
-        let tick = self.session.schedule_tick(
-            &self.backend,
-            &settings,
-            &self.rows,
-            crate::power::available,
-        );
-        if let Some(wanted) = tick.armed {
-            self.said = english(
-                "The schedule has set what dm does when the downloads are done: {}.",
-                1,
-                &[&wanted.verb()],
-            );
-        }
-        self.problems.extend(tick.problems);
-    }
-
-    /// A queue that has run dry has finished: its own sound, where one was
-    /// chosen, and When done, with nobody to see a countdown for Exit.
-    /// Whether dm is to end now.
-    fn when_queue_dry(&mut self) -> bool {
-        if !self.session.ran_dry(&self.rows) {
-            return false;
-        }
-        if let Some(path) = self.sound("queue_done") {
-            self.backend.platform.play_file(&path);
-        }
-        self.session.when_done_fires(true, Instant::now()) == Fired::QuitNow
     }
 
     /// What the browser handed over, each added straight in: there is

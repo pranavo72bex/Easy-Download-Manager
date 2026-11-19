@@ -4,18 +4,18 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What the GPUI window does on each wake beside reading the list
-//! (`docs/architecture/ARCHITECTURE.md`): orders
-//! left by the command line, what the read detected (notifications, sounds,
-//! a hand-off's address listed again), the schedules' hooks and When done,
-//! the browser's hand-offs, the When done countdown, "Delete file after",
-//! the watched folder and the one-time hints. Each rule is the
-//! application's (`dm_shell::app`); the window says what came of it and
-//! opens what it asks in.
+//! (`docs/architecture/ARCHITECTURE.md`): the application's tick
+//! (`dm_desktop_base::session`: orders left by the command line, what the
+//! read detected, the schedules' hooks and When done) carried out as the
+//! window does it, then the browser's hand-offs, the When done countdown,
+//! "Delete file after", the watched folder and the one-time hints. Each rule
+//! is the application's (`dm_shell::app`); the window says what came of it
+//! and opens what it asks in.
 
 use std::time::Instant;
 
 use dm_desktop_base::i18n::{t, tf};
-use dm_shell::app::session::Fired;
+use dm_desktop_base::session::{Driver, Effect};
 use gpui::Context;
 
 use crate::window::list::Downloads;
@@ -40,33 +40,21 @@ impl Downloads {
             self.contrast = contrast;
             cx.refresh_windows();
         }
-        let home = dm_shell::settings::home();
         // `--new-download` and `--when-done`, left in the inbox by this
         // launch or a later one. In the tests, only by a window whose test
         // holds the inbox, the home being every test's (`harness::Inbox`).
-        let reads_inbox = crate::reads_inbox();
-        if reads_inbox && dm_shell::app::session::new_download_asked(&home) {
-            crate::dialogs::addurl::open(cx.entity().downgrade(), cx);
+        let driver = Driver::window(crate::reads_inbox());
+        for effect in self.session.take_orders(driver) {
+            self.carry(effect, cx);
         }
-        if let Some(wanted) = reads_inbox
-            .then(|| dm_shell::app::session::when_done_asked(&home))
-            .flatten()
-        {
-            // As the menu greys them: only what this computer can do.
-            if wanted.possible(dm_desktop_base::power::available) {
-                self.run(dm_shell::app::commands::when_done_command(wanted), cx);
-            } else {
-                self.say(
-                    t("This computer has no way to do that when the downloads are done.").into(),
-                );
+        // What the reads detected, the schedules, each download's own When
+        // done and the queue run dry (`Session::tick`), as the window does it.
+        for effect in self.session.tick(&self.backend, &self.rows, driver) {
+            if matches!(effect, Effect::Quit) {
+                self.quit(cx);
+                return;
             }
-        }
-        self.told(cx);
-        self.schedule_hooks();
-        self.this_done_due();
-        if self.when_queue_dry() {
-            self.quit(cx);
-            return;
+            self.carry(effect, cx);
         }
         // What a platform held back while the person was busy (a
         // fullscreen app) is said once they are not.
@@ -104,135 +92,81 @@ impl Downloads {
         );
     }
 
-    /// What the reads since the last tick detected: a notification for each
-    /// download that failed, one for what finished (a batch is one
-    /// sentence; a single file keeps its Open), the sounds chosen, and a
-    /// hand-off's address already listed said.
-    fn told(&mut self, cx: &mut Context<Self>) {
-        let detected = std::mem::take(&mut self.detected);
-        let settings = self.backend.settings();
-        self.prune_progress(cx);
-        self.say_opener();
-        let mut finished: Vec<(String, String)> = Vec::new();
-        let mut finished_ids: Vec<dm_core::Id> = Vec::new();
-        // Each failure's name and why, said aloud too (gaps row U23).
-        let mut failures: Vec<(String, String)> = Vec::new();
-        let expired = detected
-            .iter()
-            .find_map(|read| read.expired.first().copied());
-        self.offer_new_link(expired, cx);
-        for read in detected {
-            for row in &self.rows {
-                if read.failed.contains(&row.id) {
-                    let (name, why) = (
-                        dm_shell::app::names::name_of(row),
-                        dm_desktop_base::rows::status_of(row),
-                    );
-                    // Told as a finish is, with why in plain words.
-                    self.backend.platform.notify_failure(
-                        t("Download failed"),
-                        &format!("{name} — {why}"),
-                        row.id,
-                    );
-                    failures.push((name, why));
-                }
-                if read.finished.contains(&row.id) {
-                    finished.push((dm_shell::app::names::name_of(row), row.path.clone()));
-                    finished_ids.push(row.id);
-                }
+    /// One thing the application's tick asks (`Session::tick`), carried out as the window
+    /// does it: a dialog opened, a sentence said in the language in force, a notification, a
+    /// sound.
+    fn carry(&mut self, effect: Effect, cx: &mut Context<Self>) {
+        if let Some(done) = effect.on_platform(&self.backend) {
+            if let Err(why) = done {
+                self.problems.push(why);
             }
+            return;
+        }
+        match effect {
+            Effect::NewDownload => crate::dialogs::addurl::open(cx.entity().downgrade(), cx),
+            Effect::WhenDone(wanted) => {
+                self.run(dm_shell::app::commands::when_done_command(wanted), cx);
+            }
+            Effect::CannotWhenDone => {
+                self.say(
+                    t("This computer has no way to do that when the downloads are done.").into(),
+                );
+            }
+            Effect::Telling { expired } => {
+                self.prune_progress(cx);
+                self.say_opener();
+                self.offer_new_link(expired, cx);
+            }
+            // Told as a finish is, with why in plain words, and a Retry.
+            Effect::Failed { id, name, why } => self.backend.platform.notify_failure(
+                t("Download failed"),
+                &format!("{name} — {why}"),
+                id,
+            ),
             // A download that started without the window starting it (a
             // browser's hand-off, a second launch) opens its progress window
-            // as one started here does, where that is asked for: one window
-            // for one download, not a stack for a batch.
-            if settings.show_progress {
-                if let [only] = read.started_elsewhere.as_slice() {
-                    if !self.progress_closed_has(*only) {
-                        self.show_progress(*only, cx);
-                    }
+            // as one started here does, where that is asked for.
+            Effect::StartedElsewhere(only) => {
+                if !self.progress_closed_has(only) {
+                    self.show_progress(only, cx);
                 }
             }
             // A browser's hand-off of an address already listed: added by
             // the inbox before the window heard of it, and the browser has
             // let its own download go. Said, as Add URL would have asked.
-            if let Some(row) = read
-                .added_again
-                .and_then(|id| self.rows.iter().find(|r| r.id == id))
-            {
-                self.say(tf(
-                    "Added {} again: that address was already in the list.",
-                    &[&dm_shell::app::names::name_of(row)],
-                ));
+            Effect::AddedAgain { name } => self.say(tf(
+                "Added {} again: that address was already in the list.",
+                &[&name],
+            )),
+            Effect::Finished(ids) => self.finished(&ids, cx),
+            // Said aloud from the status bar, not by the system's notification
+            // alone, which a screen reader may not read (gaps row U23).
+            Effect::Told { finished, failures } => {
+                if let Some(sentence) = crate::window::a11y::heard(&finished, &failures) {
+                    self.heard = Some((sentence, Instant::now()));
+                }
             }
-        }
-        if !finished_ids.is_empty() {
-            self.finished(&finished_ids, cx);
-        }
-        // Said aloud from the status bar, not by the system's notification
-        // alone, which a screen reader may not read (gaps row U23).
-        let names: Vec<String> = finished.iter().map(|(name, _)| name.clone()).collect();
-        if let Some(sentence) = crate::window::a11y::heard(&names, &failures) {
-            self.heard = Some((sentence, std::time::Instant::now()));
-        }
-        match finished.as_slice() {
-            [] => {}
-            [(name, path)] => self
-                .backend
-                .platform
-                .notify_file(t("Download finished"), name, path),
-            many => self.backend.platform.notify(
-                t("Download finished"),
-                &tf("{} downloads finished.", &[&many.len()]),
-            ),
-        }
-        let sound = |event: &str| {
-            settings
-                .sounds
-                .get(event)
-                .map(|p| p.trim().to_string())
-                .filter(|p| !p.is_empty())
-        };
-        if settings.sound_on_complete && !finished.is_empty() {
-            match sound("complete") {
-                Some(path) => self.backend.platform.play_file(&path),
-                None => self.backend.platform.chime(),
-            }
-        }
-        if settings.sound_on_failure && !failures.is_empty() {
-            match sound("failed") {
-                Some(path) => self.backend.platform.play_file(&path),
-                None => self.backend.platform.alert(),
-            }
+            Effect::Problem(why) => self.problems.push(why),
+            Effect::Armed(wanted) => self.say(tf(
+                "The schedule has set what dm does when the downloads are done: {}.",
+                &[&t(wanted.verb())],
+            )),
+            Effect::Scheduled { hang_up } => self.hang_up(hang_up),
+            Effect::Quit => self.quit(cx),
+            // Carried on the platform, above.
+            Effect::Notify { .. }
+            | Effect::NotifyFile { .. }
+            | Effect::Play(_)
+            | Effect::Open(_)
+            | Effect::Reveal(_) => {}
         }
     }
 
-    /// The schedules, after every read (`Session::schedule_tick`): a
-    /// once-only date that has passed is put away, and what the schedule
-    /// armed for When done is said.
-    fn schedule_hooks(&mut self) {
-        let settings = self.backend.settings();
-        if let Some(wanted) = dm_desktop_base::held::spent_once_now(&settings) {
-            if let Err(why) = self.backend.set_settings(wanted) {
-                self.problems.push(why);
-            }
-        }
-        let settings = self.backend.settings();
-        let tick = self.session.schedule_tick(
-            &self.backend,
-            &settings,
-            &self.rows,
-            dm_desktop_base::power::available,
-        );
-        if let Some(wanted) = tick.armed {
-            self.say(tf(
-                "The schedule has set what dm does when the downloads are done: {}.",
-                &[&t(wanted.verb())],
-            ));
-        }
-        self.problems.extend(tick.problems);
-        // Scheduler › Hang up modem when done: off the window's thread, as Windows takes a
-        // moment to end a connection; what it came to is said when it is known.
-        if tick.hang_up && cfg!(windows) {
+    /// Scheduler › Hang up modem when done, where the schedules asked for it (`hang_up`): off
+    /// the window's thread, as Windows takes a moment to end a connection; what it came to is
+    /// said when it is known.
+    fn hang_up(&mut self, hang_up: bool) {
+        if hang_up && cfg!(windows) {
             if let Some(hung) =
                 dm_shell::dialup::hang_up_later(std::sync::Arc::clone(&self.hung_up))
             {
@@ -253,48 +187,6 @@ impl Downloads {
             Some(Err(problem)) => self.problems.push(problem),
             None => {}
         }
-    }
-
-    /// Each download whose own "When this download is done" is due (gaps row U36): its file or
-    /// folder opened, or exit, sleep, hibernate or turn off through When done's own countdown,
-    /// which can be cancelled.
-    fn this_done_due(&mut self) {
-        use dm_shell::app::session::ThisDone;
-        for (row, choice) in self.session.this_done_due(&self.rows) {
-            let opened = match choice {
-                ThisDone::Nothing => Ok(()),
-                ThisDone::Open => self.backend.platform.open(&row.path),
-                ThisDone::OpenFolder => self.backend.platform.reveal(&row.path),
-                ThisDone::Then(action) => {
-                    let at = Instant::now()
-                        + std::time::Duration::from_secs(dm_shell::app::power::COUNTDOWN_SECS);
-                    self.session.countdown = Some((action, at));
-                    Ok(())
-                }
-            };
-            if let Err(why) = opened {
-                self.problems.push(why);
-            }
-        }
-    }
-
-    /// A queue that has run dry has finished: its own sound, where the
-    /// person chose a file, and When done (`Session::when_done_fires`).
-    /// Whether dm is to quit now.
-    fn when_queue_dry(&mut self) -> bool {
-        if !std::mem::take(&mut self.ran_dry) {
-            return false;
-        }
-        let settings = self.backend.settings();
-        if let Some(path) = settings
-            .sounds
-            .get("queue_done")
-            .map(|p| p.trim().to_string())
-            .filter(|p| !p.is_empty())
-        {
-            self.backend.platform.play_file(&path);
-        }
-        self.session.when_done_fires(false, Instant::now()) == Fired::QuitNow
     }
 
     /// A very big download that has started: said once, ever, that the

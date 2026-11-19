@@ -11,6 +11,7 @@
 
 use super::*;
 use dm_shell::app::power::WhenDone;
+use dm_shell::app::session::Fired;
 
 /// A platform that does nothing.
 struct Nothing;
