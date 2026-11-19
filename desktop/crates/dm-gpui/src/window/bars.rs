@@ -3,7 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The bars above the list that the egui window has, each with its words and
+//! The bars above the list, each with its words and
 //! its ways on: a download paused by itself for want of room or of its
 //! drive (Choose another folder…, Resume); downloads that did not finish
 //! (Retry all, Hide, until another fails); and, until the browser's

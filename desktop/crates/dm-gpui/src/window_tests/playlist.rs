@@ -5,7 +5,7 @@
 
 //! The Playlist window, driven by the words on screen: what it lists, what its ticks and
 //! quality pick, what Start now and Add for later add, and what it says while it reads or
-//! when it cannot. Ported from the egui window's `tests/dialogs_cover.rs`.
+//! when it cannot.
 
 use dm_core::youtube::{Playlist, PlaylistEntry};
 use dm_core::State;

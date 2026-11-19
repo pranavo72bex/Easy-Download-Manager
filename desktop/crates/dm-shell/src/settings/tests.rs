@@ -1361,8 +1361,8 @@ fn a_test_of_this_crate_keeps_its_settings_out_of_the_real_home() {
 
 /// The window's scale (issue #32, the maintainer's slider of 2026-11-11):
 /// four stops, 100% for a new install and for an older file, kept through a
-/// save and a load, any other value read as the nearest stop, the egui
-/// window's names read as 80, 100 and 120, and View's steps held at 60 and
+/// save and a load, any other value read as the nearest stop, an older
+/// file's names read as 80, 100 and 120, and View's steps held at 60 and
 /// 120.
 #[test]
 fn the_text_size_is_one_of_four_stops_kept_and_stepped() {

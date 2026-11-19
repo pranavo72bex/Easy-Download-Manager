@@ -3,11 +3,11 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Add numbered series, a window of its own, with the egui window's words:
-//! an address with a * where the number or letter changes, the range and
-//! how many digits each number has; every address the series makes listed
-//! before anything is fetched; Start now and Add for later. The series is
-//! dm's (`dm_shell::lists::series`), the reasons it cannot be made too
+//! Add numbered series, a window of its own: an address with a * where the
+//! number or letter changes, the range and how many digits each number has;
+//! every address the series makes listed before anything is fetched; Start
+//! now and Add for later. The series is dm's (`dm_shell::lists::series`),
+//! the reasons it cannot be made too
 //! (`dm_desktop_base::project::series_error`).
 
 use dm_core::{AddOptions, MAIN_QUEUE};

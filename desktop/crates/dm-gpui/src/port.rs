@@ -3,11 +3,11 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The control port, as the egui window opens it: the same server
-//! (`dm_desktop_base::control`), its requests handed to the window's thread
-//! through the window's own wake-up, and answered there (`list::Downloads`);
-//! `queue.list` and `downloads.pause`, `.resume` and `.cancel` by id, which need
-//! only the queue, answered on the port's own thread.
+//! The control port: the same server (`dm_desktop_base::control`), its
+//! requests handed to the window's thread through the window's own wake-up,
+//! and answered there (`list::Downloads`); `queue.list` and
+//! `downloads.pause`, `.resume` and `.cancel` by id, which need only the
+//! queue, answered on the port's own thread.
 
 use std::sync::{mpsc, Arc, Mutex};
 

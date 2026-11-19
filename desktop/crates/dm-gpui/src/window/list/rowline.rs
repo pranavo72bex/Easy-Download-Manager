@@ -10,7 +10,7 @@ use gpui::SharedString;
 
 /// A row's picture of its file's kind, and the kind's colour (B45): told
 /// apart by shape (a play mark, a note, lines, a window, a zip, a hill and a
-/// sun, a plain sheet), in the egui window's colours.
+/// sun, a plain sheet), each in its kind's colour from `theme`.
 pub(crate) fn kind_picture(kind: Option<dm_core::Category>) -> (&'static str, gpui::Rgba) {
     use dm_core::Category as K;
     match kind {

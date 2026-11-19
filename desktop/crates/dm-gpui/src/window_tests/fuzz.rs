@@ -4,9 +4,8 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The window's answer to the control port fed random and hostile requests: each is answered
-//! or refused, and the window goes on. `PROPTEST_CASES=20000` for a deep hunt. Ported from
-//! the egui window's `tests/fuzz.rs` (its readers every window shares are in
-//! `dm-desktop-base/tests/fuzz.rs`).
+//! or refused, and the window goes on. `PROPTEST_CASES=20000` for a deep hunt. The
+//! readers every window shares are fuzzed in `dm-desktop-base/tests/fuzz.rs`.
 
 use proptest::prelude::*;
 use proptest::test_runner::{Config, TestRunner};

@@ -5,9 +5,7 @@
 
 //! What the window asks of the app, as plain calls.
 //!
-//! The web window reached the queue across Tauri's IPC, which is why a test
-//! had to hold the page's command names and the handler list to each other.
-//! Here the window calls the queue directly, on the app's own runtime: a
+//! The window calls the queue directly, on the app's own runtime: a
 //! command the window needs and the backend lacks is a compile error.
 
 use std::sync::{Arc, Mutex};

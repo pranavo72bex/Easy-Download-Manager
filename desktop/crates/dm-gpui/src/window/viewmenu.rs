@@ -3,10 +3,10 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The View menu's choices kept in the settings, as the egui window's View
-//! menu has them: Columns (each shown or hidden; a heading dragged in the
-//! table moves it), Customize toolbar (the buttons' style, each button
-//! shown or hidden), Text size and Language. Each is an item of the system's
+//! The View menu's choices kept in the settings: Columns (each shown or
+//! hidden; a heading dragged in the table moves it), Customize toolbar
+//! (the buttons' style, each button shown or hidden), Text size and
+//! Language. Each is an item of the system's
 //! menu bar, ticked as it stands (`menus::Ticks`).
 
 use dm_desktop_base::columns::Column;

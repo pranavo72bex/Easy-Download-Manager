@@ -5,9 +5,8 @@
 
 //! The shell's answer to the control port: the window's methods through
 //! `dm_desktop_base::probe::WindowProbe`, the rest through the application
-//! (`dm_shell::app::control_api`), as the egui window answers them. What the
-//! shell does not draw yet it says so, by name, rather than answering as if
-//! it did.
+//! (`dm_shell::app::control_api`). What the shell does not draw yet it says
+//! so, by name, rather than answering as if it did.
 
 use dm_desktop_base::probe::{self, WindowProbe};
 use gpui::{
@@ -41,7 +40,7 @@ pub fn answer(
 }
 
 /// What a `batch` reaches as well: the view and the application, never the
-/// window's input, as with the egui window.
+/// window's input.
 fn answer_inside(
     view: &mut Downloads,
     method: &str,
@@ -70,7 +69,7 @@ fn answer_inside(
                     .map(|url| (url.clone(), asked.with.clone()))
                     .collect();
                 let added = view.session.add(&view.backend, items).outcome();
-                // Read at once, as the egui window reads after an add: a batch's next step
+                // Read at once after an add: a batch's next step
                 // (`ui.inspect`, a second add of the same address) sees the rows added.
                 view.read();
                 added?
@@ -102,7 +101,7 @@ fn rect_of(b: Bounds<Pixels>) -> probe::Rect {
     ]
 }
 
-/// A key's name as the control port gives it (egui's), as GPUI names it.
+/// A key's name as the control port gives it, as GPUI names it.
 fn key_name(name: &str) -> Option<String> {
     let lower = name.to_ascii_lowercase();
     Some(
@@ -353,8 +352,8 @@ impl Probe<'_, '_> {
 
 impl WindowProbe for Probe<'_, '_> {
     fn may_step(&mut self) -> Result<(), String> {
-        // A click or a key on a window parked in the tray would act on what no one sees, as
-        // the egui window refused it.
+        // A click or a key on a window parked in the tray would act on what no one sees, so
+        // it is refused.
         if self.view.hidden {
             return Err(
                 "dm's window is hidden in the tray: launch dm again, or choose Show in the tray, first"
@@ -509,9 +508,9 @@ impl WindowProbe for Probe<'_, '_> {
             .map_err(|_| format!("nothing on screen says {:?}", scroll.text))?;
         let at = over.bounds.center();
         self.view.scripted.acted();
-        // A line is 40 points, as the egui window turns a wheel's; down is
-        // a negative delta, as the system gives it. In the window the words
-        // are in: a dialog's page scrolls in its own.
+        // A line is 40 points; down is a negative delta, as the system
+        // gives it. In the window the words are in: a dialog's page scrolls
+        // in its own.
         let delta =
             ScrollDelta::Pixels(point(px(-scroll.sideways * 40.0), px(-scroll.lines * 40.0)));
         self.cx.defer(move |cx| {
@@ -710,8 +709,7 @@ impl WindowProbe for Probe<'_, '_> {
             .filter_map(|&r| self.view.rows.get(r))
             .enumerate()
             .map(|(i, row)| {
-                // As the list shows the row, its status in English, as the
-                // egui window reports it.
+                // As the list shows the row, its status in English.
                 let name = match self.view.shown_names.get(&row.id) {
                     Some(name) => name.clone(),
                     None => line(row).0.to_string(),
@@ -798,7 +796,7 @@ impl WindowProbe for Probe<'_, '_> {
                 self.cx.notify();
             }
             // Exit asks a person, but nothing over the port can answer: a script's exits at
-            // once (docs/decisions.md, "Exit asks; scripts do not"), as the egui window's did.
+            // once (docs/decisions.md, "Exit asks; scripts do not").
             Command::Quit => self.view.quit(self.cx),
             _ => self.view.run(command, self.cx),
         }

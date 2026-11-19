@@ -3,19 +3,18 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! dm's window in GPUI: the Phase B shell (docs/gaps.md G6). It starts dm as
-//! the egui window does (`dm_desktop_base::boot`: one engine, one queue),
-//! reads the queue once each time it is woken, and draws its rows; each check
-//! of docs/migration/GPUI_MIGRATION_PLAN.md Phase B is made on it.
+//! dm's window in GPUI. It starts dm (`dm_desktop_base::boot`: one engine,
+//! one queue), reads the queue once each time it is woken, and draws its
+//! rows.
 //!
 //! `--headless` runs dm with no window and no GPUI at all
-//! (`dm_desktop_base::headless`), as the egui binary's does.
+//! (`dm_desktop_base::headless`).
 //! `--accessibility` prints what VoiceOver is given of each window and
 //! quits; `--churn` first opens and closes a dialog window 50 times.
 
-// A release opens no console window beside dm's own on Windows, as the egui
-// binary's does; the command-line modes attach to the terminal they were
-// started from (`dm_desktop_base::modes`).
+// A release opens no console window beside dm's own on Windows; the
+// command-line modes attach to the terminal they were started from
+// (`dm_desktop_base::modes`).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 // As every dm crate: no unwrap, expect or panic in shipped code (the rest of the
 // lints are the workspace's, `desktop/Cargo.toml` `[workspace.lints]`).
@@ -51,7 +50,8 @@ use gpui::{
 };
 
 /// A dialog in a window of its own, as dm's are (B42): a question, OK and
-/// Cancel. Phase B's first check is whether a screen reader reaches both.
+/// Cancel. `--accessibility` opens it, to show whether a screen reader
+/// reaches both.
 struct Question;
 
 /// A button a screen reader can find: an id, the button role, its words.
@@ -199,10 +199,10 @@ fn main() {
     });
 
     // Every word in the language the person chose (or the system's), from
-    // the first frame, as the egui window starts: the window, its menus, the
-    // tray and the jump list are made on this thread, where the language in
-    // force is kept. Without it the window spoke English after every start
-    // until Options was next applied.
+    // the first frame: the window, its menus, the tray and the jump list
+    // are made on this thread, where the language in force is kept. Without
+    // it the window spoke English after every start until Options was next
+    // applied.
     dm_desktop_base::i18n::set(dm_desktop_base::i18n::chosen(&backend.settings().language));
 
     // Mica behind the window where it was chosen and Windows 11 can draw it
@@ -216,8 +216,7 @@ fn main() {
     }
 
     // The control port, where asked for (`--control`, DM_CONTROL, or the
-    // person's setting), as the egui window opens it; the list read on the
-    // port's own thread.
+    // person's setting); the list read on the port's own thread.
     let requests = control.and_then(|port| {
         match port::open(port, Arc::clone(&wake), backend.clone(), assistants_only) {
             Ok(requests) => {
@@ -424,8 +423,7 @@ fn wire(view: &gpui::Entity<window::list::Downloads>, cx: &mut App) {
         None => cx.quit(),
     });
     // View › Text size and its keys, heard from any window in front, a
-    // dialog's too, as the egui window's zoom was: kept by the list,
-    // which keeps the settings.
+    // dialog's too: kept by the list, which keeps the settings.
     let text_size = move |up: Option<bool>| {
         let view = text_view.clone();
         move |cx: &mut App| {
@@ -442,7 +440,7 @@ fn wire(view: &gpui::Entity<window::list::Downloads>, cx: &mut App) {
     cx.on_action(move |_: &window::viewmenu::TextNormal, cx| normal(cx));
 }
 
-/// What VoiceOver is given of each window, then out (Phase B check 1). The
+/// What VoiceOver is given of each window, then out (`--accessibility`). The
 /// first ask wakes AccessKit, which GPUI answers with a placeholder and the
 /// real tree on the next frame: so ask, draw every window again, then read.
 /// With `churn`, a dialog is opened, read and closed 50 times first.

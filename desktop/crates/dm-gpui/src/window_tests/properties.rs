@@ -5,7 +5,7 @@
 
 //! File properties, driven by the words on screen: a failed download's sign-in and Copy
 //! details, an address dm cannot fetch refused, a category of the person's own named, a file
-//! that cannot be read said so. Ported from the egui window's `tests/dialogs_cover.rs`.
+//! that cannot be read said so.
 
 use dm_core::State;
 use dm_shell::app::commands::Command;

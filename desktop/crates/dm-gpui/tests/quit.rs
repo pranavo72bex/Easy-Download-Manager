@@ -6,8 +6,7 @@
 //! The GPUI binary with no window (`--headless`): it starts with no display
 //! to draw on, answers on its control port, and, asked to end by the system
 //! (a logout, `kill`, a service manager), ends as Program › Exit does, the
-//! queue written down and `control.port` gone, as the egui binary's
-//! (`dm-desktop/tests/quit.rs`).
+//! queue written down and `control.port` gone.
 
 #![cfg(unix)]
 

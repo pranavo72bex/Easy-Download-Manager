@@ -3,13 +3,13 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! File properties, a window for each download, with the egui window's
-//! words: its name, status and next step, size, category and where it is
-//! (or will be) saved, the page it came from; its address, sign-in and
-//! note, which OK keeps; a torrent's files with their priorities; a
-//! finished file's SHA-256 and a box to check it against a digest the
-//! person was given; a finished ZIP's files (B44's Properties half). What
-//! OK keeps is dm's (`dm_desktop_base::row_edits::keep_properties`).
+//! File properties, a window for each download: its name, status and next
+//! step, size, category and where it is (or will be) saved, the page it
+//! came from; its address, sign-in and note, which OK keeps; a torrent's
+//! files with their priorities; a finished file's SHA-256 and a box to
+//! check it against a digest the person was given; a finished ZIP's files
+//! (B44's Properties half). What OK keeps is dm's
+//! (`dm_desktop_base::row_edits::keep_properties`).
 
 use std::time::Duration;
 
@@ -765,8 +765,7 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
     else {
         return;
     };
-    // Each further one a step down and across, as the egui window places
-    // them.
+    // Each further one a step down and across.
     let nth = downloads.read(cx).properties_open(cx);
     let (width, height) = crate::widgets::native::WindowSize::Properties.here();
     let mut bounds = Bounds::centered(None, size(px(width), px(height)), cx);

@@ -13,7 +13,7 @@ use super::Downloads;
 impl Downloads {
     /// Remove (or Delete file, `deleting_files`) on the rows chosen. Finished
     /// rows only leave the list, nothing lost, Undo on offer for a moment; any
-    /// other is asked about first, as the egui window asks.
+    /// other is asked about first.
     pub(super) fn remove(
         &mut self,
         chosen: &[Entry],
@@ -72,8 +72,7 @@ impl Downloads {
                 escape: 0,
             }
         };
-        // Delete file starts with its file ticked to go too, as the egui window's did; Remove
-        // never does.
+        // Delete file starts with its file ticked to go too; Remove never does.
         let asked = words(deleting_files && count_files > 0);
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, delete, cx| {

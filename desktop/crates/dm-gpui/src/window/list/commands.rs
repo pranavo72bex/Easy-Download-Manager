@@ -10,8 +10,8 @@ use super::*;
 
 impl Downloads {
     /// Whether `command` can be run now: the shell carries it out, and it
-    /// applies to the rows chosen (`commands::applies`), as the egui
-    /// window greys its buttons and menu items.
+    /// applies to the rows chosen (`commands::applies`); else its
+    /// buttons and menu items are greyed.
     pub fn enabled(&self, command: dm_shell::app::commands::Command) -> bool {
         if !crate::window::menus::carried_out(command) {
             return false;

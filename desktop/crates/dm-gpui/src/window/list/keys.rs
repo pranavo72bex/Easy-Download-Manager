@@ -3,7 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The list's keys, as the egui window has them (gaps row U6): the arrows, Home, End, Page Up
+//! The list's keys (gaps row U6): the arrows, Home, End, Page Up
 //! and Page Down move the choice, Shift extending it from where it started
 //! (`dm_desktop_base::selection::stepped`); Enter shows the chosen downloads' progress; Shift+F10
 //! and the Menu key open the row menu at the keyboard's place.
@@ -15,7 +15,7 @@ use super::*;
 impl Downloads {
     /// A right-click on the row at `position`, at `at`: the row is chosen
     /// if it was not (a right-click on a chosen row keeps the choice), and
-    /// the row menu opens there. The keyboard's place moves to it, as the egui window's does:
+    /// the row menu opens there. The keyboard's place moves to it:
     /// the arrows and Shift go on from the row clicked.
     pub fn open_menu(&mut self, id: dm_core::Id, at: gpui::Point<gpui::Pixels>) {
         if self.position_of(id).is_some() {

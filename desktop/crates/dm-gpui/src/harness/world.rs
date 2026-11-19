@@ -4,8 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The world a window test runs in: a server on the loopback with the files the tests fetch,
-//! a runtime for the queue, a fake system and a folder of its own. As the egui window's
-//! tests' (`dm-desktop/tests/window/support.rs`), from which it moved.
+//! a runtime for the queue, a fake system and a folder of its own.
 
 use std::net::SocketAddr;
 use std::sync::Arc;

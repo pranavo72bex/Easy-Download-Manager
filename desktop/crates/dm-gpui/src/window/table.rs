@@ -6,8 +6,8 @@
 //! The download table, as a macOS list view draws one: a header of column
 //! headings (a click sorts by that column, a second the other way), and
 //! the rows of the place chosen, only those on screen laid out. The columns
-//! (their order, which are hidden) and every cell's words are the egui
-//! window's (`dm_desktop_base::columns` and `rows`); numbers stand against
+//! (their order, which are hidden) and every cell's words come
+//! from `dm_desktop_base::columns` and `rows`; numbers stand against
 //! their column's right edge so their digits line up down the list. A
 //! heading dragged onto another takes its place, as a macOS table's do; a
 //! finished row dragged out of the window carries its file (`dragout`).
@@ -648,8 +648,8 @@ fn row_cells(
             }
             _ => {
                 let mut said = words(column, row, whens);
-                // A row not saved yet shows the folder it will go to, as the egui window's
-                // did, without that guess written into the row (`names::planned_folder`).
+                // A row not saved yet shows the folder it will go to, without that guess
+                // written into the row (`names::planned_folder`).
                 if column == Column::Folder && said.is_empty() {
                     let settings = &view.drawn;
                     said = dm_shell::app::names::planned_folder(
@@ -671,7 +671,7 @@ fn row_cells(
 }
 
 /// What stands under the headings where the place chosen shows no row: as
-/// the egui window says it (`rows::empty_words`), and while nothing at all
+/// `rows::empty_words` says it, and while nothing at all
 /// is listed, the next step as a button and where links may be dropped.
 /// Without it a new window was an empty table that said nothing.
 pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
@@ -899,7 +899,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
 /// The group a row's buttons show with when the pointer is over it.
 const ROW_GROUP: &str = "row";
 
-/// What a row's own buttons do, by how it stands, as the egui window showed them on the row
+/// What a row's own buttons do, by how it stands, shown on the row
 /// under the pointer: Stop on one under way, Resume on one paused, Retry on one failed, Open and
 /// Open folder on one finished; Details (its progress window) on one not finished; Delete where
 /// it can act, on one stopped or finished, never one still writing its file. Each with its
@@ -968,8 +968,8 @@ fn row_buttons(
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .on_click(cx.listener(move |view, _, window, cx| {
                     cx.stop_propagation();
-                    // Delete on one of several chosen rows deletes them all, as the egui
-                    // window's did; every other button acts on its own row.
+                    // Delete on one of several chosen rows deletes them all; every other
+                    // button acts on its own row.
                     if !(command == Command::Remove
                         && view.selected.len() > 1
                         && view.selected.contains(&id))
@@ -1008,7 +1008,7 @@ mod tests {
         assert_eq!(cell.column_index(), Some(2));
     }
 
-    /// A row's own buttons by how it stands, as the egui window's on the row under the pointer:
+    /// A row's own buttons by how it stands, on the row under the pointer:
     /// Details on one not finished, Delete on one that is not writing its file.
     #[test]
     fn a_rows_buttons_follow_its_state() {

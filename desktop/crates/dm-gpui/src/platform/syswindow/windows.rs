@@ -18,7 +18,7 @@ pub(crate) fn hwnd(window: &Window) -> Option<windows_sys::Win32::Foundation::HW
 }
 
 /// Puts `window` away without closing it (`ShowWindow(SW_HIDE)`): off the
-/// screen and the taskbar, as the egui window hides into the tray.
+/// screen and the taskbar, the way dm hides into the tray.
 pub fn hide(window: &Window) {
     if let Some(hwnd) = hwnd(window) {
         // SAFETY: `hwnd` is the live window this borrow keeps open; called on

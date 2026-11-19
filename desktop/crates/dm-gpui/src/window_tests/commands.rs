@@ -4,12 +4,11 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The commands, as the menus, the toolbar, a row's menu, the keys and the control port reach
-//! them: each does what it says. Moved from the egui window's tests, but for two of egui's
-//! own: that every control had a name in egui's AccessKit tree (the GPUI window's names are
-//! `a11y.rs`'s and the accessibility checks', gaps row U23), and that each dialog kept its
-//! title and buttons inside the main window at 150% and 200% text (a GPUI dialog is a window of
-//! its own, sized to what it holds, and the text size is one for the whole process, so a test
-//! of it would scale every test's window beside it).
+//! them: each does what it says. Not checked here: that every control has a name (the
+//! window's names are `a11y.rs`'s and the accessibility checks', gaps row U23), and that each
+//! dialog keeps its title and buttons in view at a large text size (a GPUI dialog is a window
+//! of its own, sized to what it holds, and the text size is one for the whole process, so a
+//! test of it would scale every test's window beside it).
 
 use dm_core::State;
 use dm_shell::app::commands::Command;

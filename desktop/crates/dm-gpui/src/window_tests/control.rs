@@ -4,8 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The control port and the MCP bridge against the window: what a script, the command line
-//! or an AI assistant asks, and what it may not. Ported from the egui window's
-//! `tests/window/control.rs`.
+//! or an AI assistant asks, and what it may not.
 
 use dm_core::State;
 use dm_shell::app::power::WhenDone;
@@ -307,8 +306,7 @@ fn a_batch_runs_its_steps_in_order() {
 
 /// What a client asks of the window as a person would is refused while the window is hidden
 /// in the tray, where no one sees what it would act on; a method that is not a person's still
-/// goes. The egui window also capped the steps waiting for its frames: the GPUI window does
-/// each step as it is asked, so none waits.
+/// goes. The window does each step as it is asked, so none waits for a frame.
 #[test]
 fn steps_waiting_for_frames_are_capped_and_refused_while_hidden() {
     let world = world();

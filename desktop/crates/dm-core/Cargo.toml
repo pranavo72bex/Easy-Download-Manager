@@ -35,8 +35,9 @@ retina.workspace = true
 base64.workspace = true
 futures-util.workspace = true
 thiserror.workspace = true
-# The shell sends these straight into a webview; deriving here beats
-# maintaining a parallel set of near-identical types in the GUI crate.
+# The queue's rows and the engine's types are saved and sent as JSON (the
+# queue file, the control port): derived here, beside the types, rather than
+# copied into each crate that sends them.
 serde = { workspace = true, features = ["derive", "rc"] }
 # The queue is written to disk so a restart does not lose it.
 serde_json.workspace = true

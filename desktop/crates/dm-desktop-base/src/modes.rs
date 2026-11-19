@@ -8,8 +8,7 @@
 //! panel's list, `--version`, `--help`, the command-line client of a running
 //! dm (`list`, `status`, `pause`, `resume`, `cancel`), the MCP server,
 //! `--register` and `--unregister`, and a word that is no link, file or
-//! command. Each says and does exactly what it did in the egui window's own
-//! `main`, which these were taken from.
+//! command. Each says and does the same under every window.
 
 use dm_shell::{host, settings, shell};
 

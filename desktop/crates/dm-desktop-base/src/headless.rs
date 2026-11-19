@@ -8,8 +8,8 @@
 //! the schedules, When done and the control protocol go on as they do under
 //! a window, with nothing drawn and no toolkit started, so it runs where
 //! there is no display. Each rule is the application's (`dm_shell::app`);
-//! what a window would ask a person is settled as the egui window's
-//! headless mode settles it: a hand-off is added straight in, Exit when
+//! what a window would ask a person is settled with no one asked: a
+//! hand-off is added straight in, Exit when
 //! done is at once, a row the schedule holds waits, and what needs a window
 //! (a dialog, the clipboard, a file opened) is refused, said why.
 

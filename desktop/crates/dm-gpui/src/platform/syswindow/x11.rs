@@ -42,8 +42,8 @@ pub(super) fn done<C: x11rb::connection::RequestConnection>(
         .map_err(|e| e.to_string())
 }
 
-/// On X11 the window is unmapped: off the screen and the taskbar, as the
-/// egui window hides into the tray. On Wayland it is minimized, which its
+/// On X11 the window is unmapped: off the screen and the taskbar, the way
+/// dm hides into the tray. On Wayland it is minimized, which its
 /// desktop's taskbar brings back.
 pub fn hide(window: &Window) {
     use x11rb::protocol::xproto::ConnectionExt;

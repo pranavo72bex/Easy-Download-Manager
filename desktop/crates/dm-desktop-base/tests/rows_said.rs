@@ -4,8 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What a row says of itself, in every window: its state's word, a retry, a stall, a refusal
-//! that wants a sign-in, a file due to go. Moved from the egui window's tests
-//! (`tests/app_cover.rs`).
+//! that wants a sign-in, a file due to go.
 
 use std::collections::HashMap;
 use std::time::Instant;

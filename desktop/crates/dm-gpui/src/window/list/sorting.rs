@@ -13,9 +13,8 @@ use super::Downloads;
 
 impl Downloads {
     /// Sorts by `column`: up, then the other way on a second click, then
-    /// back in the order the downloads were added, as the egui window's
-    /// header does; kept in the settings, so the list comes back sorted so
-    /// after a restart.
+    /// back in the order the downloads were added; kept in the settings, so
+    /// the list comes back sorted so after a restart.
     pub fn sort_by(&mut self, column: Column, cx: &mut Context<Self>) {
         self.sort = dm_desktop_base::columns::next_sort(self.sort, column);
         self.reshow();

@@ -5,8 +5,7 @@
 
 //! What the window does around its list between a person's clicks: drops, the problems it
 //! says, a file due to go that cannot, a schedule's date that is over, a sort by status, the
-//! limits said in the status line. Ported from the egui window's `tests/app_cover.rs` and
-//! `tests/app_more_cover.rs`.
+//! limits said in the status line.
 
 use dm_core::State;
 

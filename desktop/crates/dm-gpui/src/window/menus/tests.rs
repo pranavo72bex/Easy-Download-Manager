@@ -133,7 +133,7 @@ fn an_item_that_opens_a_dialog_says_so_with_an_ellipsis() {
     assert!(find(&menus, "Add numbered series").is_none());
 }
 
-/// View › Text size, as the egui window's: how large it is, then
+/// View › Text size: how large it is, then
 /// Larger, Smaller and Normal size, between Customize toolbar and
 /// Language.
 #[test]
@@ -201,7 +201,7 @@ fn resume_says_what_it_will_do_for_the_rows_chosen() {
 }
 
 #[test]
-fn the_window_has_the_egui_windows_five_menus_with_exit_options_and_about() {
+fn the_window_has_five_menus_with_exit_options_and_about() {
     let menus = window_menus(&Ticks::default());
     let names: Vec<String> = menus.iter().map(|m| m.name.to_string()).collect();
     assert_eq!(names, WINDOW_MENUS.map(t));
@@ -262,7 +262,7 @@ fn each_key_runs_its_own_command_and_no_other() {
             "{a:?} runs {command:?} and another"
         );
     }
-    // The one that went wrong in the egui window: ⌘⇧N is the numbered
+    // ⌘⇧N is the numbered
     // series, not Add URL.
     let command = if cfg!(target_os = "macos") {
         "cmd"

@@ -3,8 +3,8 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! What the GPUI window does on each wake beside reading the list, as the
-//! egui window's tick does it (`docs/architecture/ARCHITECTURE.md`): orders
+//! What the GPUI window does on each wake beside reading the list
+//! (`docs/architecture/ARCHITECTURE.md`): orders
 //! left by the command line, what the read detected (notifications, sounds,
 //! a hand-off's address listed again), the schedules' hooks and When done,
 //! the browser's hand-offs, the When done countdown, "Delete file after",
@@ -314,7 +314,7 @@ impl Downloads {
     }
 
     /// A download under way while its progress window does not open by itself: said once,
-    /// ever, where its progress is (the row's Details button), as the egui window said it,
+    /// ever, where its progress is (the row's Details button),
     /// and only where nothing else is being said.
     pub(crate) fn details_hint(&mut self) {
         use dm_shell::app::hints::Hint;
@@ -474,7 +474,7 @@ mod hang_up_tests {
     use super::hung_up_words;
     use dm_shell::dialup::HungUp;
 
-    /// Scheduler › Hang up modem when done is said as the egui window said it: hung up, no
+    /// What Scheduler › Hang up modem when done came to is said: hung up, no
     /// connection set, or a problem; a connection that was down is not said.
     #[test]
     fn what_hanging_up_came_to_is_said() {

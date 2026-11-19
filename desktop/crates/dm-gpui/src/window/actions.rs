@@ -3,8 +3,8 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The main window's commands that act on files and lists, as the egui
-//! window's do: open, preview, show in Finder and extract a download's file;
+//! The main window's commands that act on files and lists: open, preview,
+//! show in Finder and extract a download's file;
 //! import a list (asked first where some of it is listed already) and
 //! export the list, the file typed where there is no chooser; select every
 //! row shown; Help. Each rule is the application's; the window says what

@@ -5,7 +5,6 @@
 
 //! The list and what is said of it: the side panel's places, the columns and their sort, the
 //! toolbar, the status bar, the rows' names, sizes and folders, and what a command acts on.
-//! Ported from the egui window's `tests/window/lists.rs`.
 
 use std::time::Instant;
 
@@ -305,8 +304,7 @@ fn clicking_a_heading_sorts_and_clicking_again_reverses() {
 }
 
 /// A column turned off in View › Columns is gone and comes back; one moved (a heading dragged
-/// onto another, as the GPUI window moves a column, where the egui window had Move items in
-/// the menu) is drawn and kept in its new place.
+/// onto another) is drawn and kept in its new place.
 #[test]
 fn a_column_turned_off_is_gone_and_comes_back() {
     // Turning one off is saved in the settings file other tests read.

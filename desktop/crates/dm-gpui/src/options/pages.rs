@@ -3,12 +3,11 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Options' six pages (B43), each setting with the egui window's words and
-//! the explanation under it, in the order the egui window has them: check
-//! boxes, the system's pop-ups and fields, sections under bold headings. A
-//! field's text goes into the draft as it is typed (`Options::put`); a
-//! check box, a pop-up or a button changes the draft at once. On Windows,
-//! as the egui window's: who opens magnet links and `.torrent` files
+//! Options' six pages (B43), each setting with its words and the
+//! explanation under it: check boxes, the system's pop-ups and fields,
+//! sections under bold headings. A field's text goes into the draft as it
+//! is typed (`Options::put`); a check box, a pop-up or a button changes the
+//! draft at once. On Windows: who opens magnet links and `.torrent` files
 //! (Browser) and Dial Up / VPN (Advanced).
 
 use dm_desktop_base::i18n::{t, tf};
@@ -38,8 +37,8 @@ const STOP_WIDTH: f32 = 40.0;
 /// Under a check box, its explanation lines up with its words.
 const UNDER_CHECK: f32 = 20.0;
 
-/// The looks this window draws: the computer's, light or dark (`classic`
-/// is the egui window's own look, and here the computer's).
+/// The looks this window draws: the computer's, light or dark (a `classic`
+/// kept in the settings is drawn as the computer's).
 const THEMES: [&str; 3] = ["system", "light", "dark"];
 /// What closing the window does, by the setting's word.
 const ON_CLOSE: [&str; 3] = ["ask", "tray", "exit"];
@@ -450,7 +449,7 @@ fn general(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
     // percent; the maintainer's word of 2026-11-11), the one View › Larger
     // and Smaller and Ctrl (⌘) with + and − also step: it shows the scale in
     // force, a choice takes effect at once in every window, and it is kept
-    // whatever OK or Cancel, as the egui window's Text size is. Each stop's
+    // whatever OK or Cancel. Each stop's
     // percentage under the track picks it too, for the keyboard's and a
     // script's click.
     let slider = o.scale_slider(window, cx);
@@ -2012,8 +2011,8 @@ fn advanced(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context
         // Its heading at the top of the page, its settings under it.
         o.scroll.scroll_to_top_of_item(proxy_at);
     }
-    // A dial-up or VPN connection every download waits for, as the egui
-    // window's, in reference A's words and order (contract B43). Windows
+    // A dial-up or VPN connection every download waits for, in reference
+    // A's words and order (contract B43). Windows
     // only: the connections are the ones Windows knows.
     if cfg!(windows) {
         dialup::dialup(o, p, window, cx);
@@ -2253,10 +2252,9 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
 }
 
 /// Who opens magnet links and `.torrent` files on this computer (Windows),
-/// as the egui window's Browser page says it: each with a button that makes
-/// it dm where it is not, and one that gives it back to the program that
-/// had it. Read beside the window as the page opens, and again after a
-/// change.
+/// as the Browser page says it: each with a button that makes it dm where
+/// it is not, and one that gives it back to the program that had it. Read
+/// beside the window as the page opens, and again after a change.
 #[cfg(windows)]
 fn handlers(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
     use dm_shell::register::{self, Owner};

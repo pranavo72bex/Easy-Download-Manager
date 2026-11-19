@@ -5,7 +5,7 @@
 
 //! Readers of outside input every window shares, fed what a fuzzer makes: the control
 //! socket, an address as it is shown, and the links read out of text and files. A panic is a
-//! failure. Moved from the egui window's tests.
+//! failure.
 
 use std::io::{BufRead, BufReader, Write};
 

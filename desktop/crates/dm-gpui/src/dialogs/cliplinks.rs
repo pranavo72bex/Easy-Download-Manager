@@ -3,13 +3,12 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Links on the clipboard, a window of its own, with the egui window's
-//! words: every link the clipboard holds (`dm_shell::app::links::links_in`),
-//! each ticked but one already in the list, which is offered unticked and
-//! said to be there; Check all, Uncheck all; Save to, as "Download links"
-//! has it (`savefolder`: each to its category's folder, as before, one
-//! category, or one folder typed or chosen, made if it is not there yet);
-//! Start now and Add for later.
+//! Links on the clipboard, a window of its own: every link the clipboard
+//! holds (`dm_shell::app::links::links_in`), each ticked but one already in
+//! the list, which is offered unticked and said to be there; Check all,
+//! Uncheck all; Save to, as "Download links" has it (`savefolder`: each to
+//! its category's folder, as before, one category, or one folder typed or
+//! chosen, made if it is not there yet); Start now and Add for later.
 
 use dm_core::{AddOptions, MAIN_QUEUE};
 use dm_desktop_base::i18n::{t, tf, tn, Said};

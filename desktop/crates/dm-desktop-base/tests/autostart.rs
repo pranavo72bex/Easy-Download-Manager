@@ -5,8 +5,7 @@
 
 //! The login entry (`autostart`), with nothing of the person's touched:
 //! every folder the entry is looked for in is pointed at a temporary one
-//! first, under a lock, and put back after. Moved from the egui window's
-//! tests.
+//! first, under a lock, and put back after.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;

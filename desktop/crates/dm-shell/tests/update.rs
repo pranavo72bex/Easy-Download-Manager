@@ -4,8 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The update check's manifest and versions, read from what a release
-//! publishes: what does not read offers nothing. Moved from the egui
-//! window's tests.
+//! publishes: what does not read offers nothing.
 
 use dm_shell::app::update;
 

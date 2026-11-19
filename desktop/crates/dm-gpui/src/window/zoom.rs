@@ -4,9 +4,8 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The window's scale (View › Text size, Options › General › Appearance's
-//! slider: 60, 80, 100 or 120 percent): one scale for everything dm draws,
-//! as the egui window's zoom scaled it. GPUI
-//! has no zoom of its own and every measure dm gives it is in points, so
+//! slider: 60, 80, 100 or 120 percent): one scale for everything dm draws.
+//! GPUI has no zoom of its own and every measure dm gives it is in points, so
 //! each one goes through [`px`] here, which multiplies it by the size in
 //! force: text, rows, controls, paddings and pictures grow together. What
 //! gpui-component draws in rems follows through its theme's font size, which
@@ -14,10 +13,10 @@
 //! window's frame, the screen's, the pointer's) is already in points on
 //! screen and is used with `gpui::px` as it is.
 //!
-//! The main window's least size stays the same on screen at every text size,
-//! as the egui window's does: grown with it, a window at 200% could not be
-//! made small enough to fit a laptop's screen. A dialog's window is resized
-//! by the same factor as the text, so what it holds still fits.
+//! The main window's least size stays the same on screen at every text size:
+//! grown with it, a window at 200% could not be made small enough to fit a
+//! laptop's screen. A dialog's window is resized by the same factor as the
+//! text, so what it holds still fits.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 

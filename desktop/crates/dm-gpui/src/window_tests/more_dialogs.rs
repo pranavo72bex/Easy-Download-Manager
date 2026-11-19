@@ -4,8 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! More of the windows over the list: a progress window whose row is gone, Update download
-//! link given what is no link, About's pages. Ported from the egui window's
-//! `tests/dialogs_more_cover.rs`.
+//! link given what is no link, About's pages.
 
 use dm_shell::app::commands::Command;
 

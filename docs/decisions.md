@@ -7989,3 +7989,20 @@ with the free space where the joined file is written, before the join:
 * **Free space alone,** not the claims other downloads hold (`Room`): their claims are for bytes
   still to come, and a join a moment away is not held back for them. Where the free space cannot
   be read, nothing is refused.
+
+## The migration's words refused in the crates (2026-11-19, gaps row A20)
+
+With egui gone (G9), about 190 comment lines in 100 files still explained the code by the window
+it replaced ("as the egui window does", "Moved from the egui window's tests", "the Phase B
+shell"). Each now says what the code does and why, and `cargo xtask layers` refuses the words
+again: `egui`, `eframe`, or "Phase" followed by A to E, case aside, in every crate's sources,
+tests and manifest (`migration_words`).
+
+* **Whole words.** A line is split at anything but a letter or digit, so `egui_extras` and a
+  test named `…_egui_…` are found, and `VTDecompressionSessionDecodeFrame` or the installer's
+  NSIS step `dmReplaceEguiWindow` (which takes away the older `dm-desktop.exe`) are not: that
+  step is still needed on a computer that has the older program, and its name is not a comment.
+* **xtask is not read.** Its list of window crates names `egui` and `eframe` to refuse them as
+  dependencies.
+* **History goes here and to git,** not into the code: where a behaviour was kept from the
+  earlier window, the behaviour contract is what fixes it.

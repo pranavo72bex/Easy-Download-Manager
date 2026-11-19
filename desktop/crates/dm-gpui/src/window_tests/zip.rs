@@ -88,8 +88,7 @@ fn a_finished_zips_files_are_listed_in_its_properties() {
 
 /// One file taken out of the archive alone, before the archive is fetched (gaps EDM-E1 part
 /// 7): saved whole in the folder the archive is going to, the line under the list saying where,
-/// and no row for the archive. The folder is the one Download details offers, Options' own
-/// (the egui test typed another in; where it goes is the same rule).
+/// and no row for the archive. The folder is the one Download details offers, Options' own.
 #[test]
 fn take_out_saves_one_file_of_a_zip_before_the_zip_is_fetched() {
     let world = world();

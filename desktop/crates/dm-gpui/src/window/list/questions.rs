@@ -413,7 +413,7 @@ impl Downloads {
         // The downloads stopped and awaited, as a pause stops them, the
         // queue written last (gaps row 186).
         self.backend.shut_down();
-        // As the egui window ends: a request still waiting is told dm is
+        // A request still waiting is told dm is
         // quitting, and `control.port` no longer sends a client to a port
         // nobody answers. Here, before the system ends the process:
         // nothing after GPUI's run is reached on macOS. Not in the window's tests, which
@@ -475,8 +475,8 @@ impl Downloads {
     /// Opens the next waiting question, when none is open: on macOS and
     /// Windows once the main window is in front (the system gives it the keys
     /// again as a dialog closes, and a question there is a `Dialog`, owned by
-    /// the window in front, which must be the main one); on Linux at once,
-    /// as the egui window asks there. Waiting for the main window there left
+    /// the window in front, which must be the main one); on Linux at once.
+    /// Waiting for the main window there left
     /// "Already in the list" unseen until it was clicked (B17): the window
     /// manager hands the keys to whichever window it likes as a dialog
     /// closes (openbox: a Download complete window left open), or to none.

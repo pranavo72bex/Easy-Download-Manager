@@ -5,7 +5,6 @@
 
 //! More of Options' pages, driven by the words on screen: a settings file that cannot be
 //! written or read, the browsers' extension and the keys a click is held with, the sign-ins.
-//! Ported from the egui window's `tests/dialogs_cover.rs`.
 
 use dm_shell::app::commands::Command;
 

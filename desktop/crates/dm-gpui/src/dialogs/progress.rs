@@ -262,9 +262,9 @@ impl Render for Progress {
         let (row, backend, named) = {
             let view = view.read(cx);
             let Some(row) = view.row_of(self.id).cloned() else {
-                // Its download taken out of the list (removed, here or by a script): the
-                // window closes, as the egui window's did, rather than stay open and empty.
-                // One the list has not read yet is still in the queue, and waits.
+                // Its download taken out of the list (removed, here or by a script): the window
+                // closes rather than stay open and empty. One the list has not read yet is
+                // still in the queue, and waits.
                 if view.backend.row(self.id).is_none() {
                     window.remove_window();
                 }
@@ -764,7 +764,7 @@ pub fn open(
         move |window, cx| {
             let screen = Screen::default();
             Screens::register(window.window_handle(), screen.clone(), true, cx);
-            // Known by its name, as the egui window's progress windows are.
+            // Known by its name.
             Screens::named(window.window_handle(), "Download progress", cx);
             // The keyboard in the window as it opens, so Escape reaches it.
             let focus = cx.focus_handle();

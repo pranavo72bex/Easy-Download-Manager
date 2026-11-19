@@ -3,13 +3,13 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Options, a window of its own with the egui window's six pages (B43) and
-//! their words, laid out as macOS's own settings are: the pages as a tab
-//! view's segments at the top, each setting a check box, a pop-up or a
-//! field, with what it does under it, in sections under bold headings. OK
-//! keeps only what Options changed and refuses what cannot be kept, on the
-//! page that holds it (`dm_desktop_base::options`); Cancel keeps nothing.
-//! The pages are drawn in `options/pages.rs`.
+//! Options, a window of its own with six pages (B43) and their words, laid
+//! out as macOS's own settings are: the pages as a tab view's segments at
+//! the top, each setting a check box, a pop-up or a field, with what it
+//! does under it, in sections under bold headings. OK keeps only what
+//! Options changed and refuses what cannot be kept, on the page that holds
+//! it (`dm_desktop_base::options`); Cancel keeps nothing. The pages are
+//! drawn in `options/pages.rs`.
 
 /// Its six pages (B43).
 pub(crate) mod pages;

@@ -5,7 +5,7 @@
 
 //! dm's menus where the system keeps them: on macOS the menu bar, with the
 //! app menu macOS programs have (About, Options, Services, Hide, Quit) and
-//! then the egui window's own menus (Tasks, File, Downloads, View, Help),
+//! then dm's own menus (Tasks, File, Downloads, View, Help),
 //! built from the application's command registry (`Command`: each one's
 //! label, in the language in force, and its keys), in the same order. A
 //! command the shell cannot carry out yet is shown greyed, not run.
@@ -16,7 +16,7 @@ use dm_shell::app::power::WhenDone;
 use gpui::{Action, App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType};
 
 /// What the menus show ticked, and the queues Start Queue and Stop Queue
-/// list, as the egui window's menus show them: the menu bar is built again
+/// list: the menu bar is built again
 /// when any of it changes (`Downloads::refresh_menus`).
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Ticks {
@@ -409,7 +409,7 @@ pub fn bind_keys(cx: &mut App) {
     bindings.push(KeyBinding::new(paste, gpui_base::input::Paste, None));
     bindings.push(KeyBinding::new("up", SelectPrevious, None));
     bindings.push(KeyBinding::new("down", SelectNext, None));
-    // The rest of the list's keys, as the egui window has them (gaps row U6). A text field
+    // The rest of the list's keys (gaps row U6). A text field
     // binds these in its own context, which GPUI puts first.
     for (keys, to, shift) in [
         ("home", ListMove::First, false),
@@ -425,7 +425,7 @@ pub fn bind_keys(cx: &mut App) {
     ] {
         bindings.push(KeyBinding::new(keys, MoveInList { to, shift }, None));
     }
-    // Enter shows the chosen downloads' progress, as the egui window's list does.
+    // Enter shows the chosen downloads' progress.
     bindings.push(KeyBinding::new("enter", Confirm, None));
     bindings.push(KeyBinding::new("escape", Dismiss, None));
     bindings.push(KeyBinding::new("shift-f10", RowMenuByKey, None));
@@ -498,8 +498,7 @@ fn item(command: Command) -> MenuItem {
 }
 
 /// A command's words on its menu item: with "…" where it opens a dialog
-/// that asks for more first, as the egui window's menus and macOS's own
-/// say it.
+/// that asks for more first, as macOS's own menus say it.
 fn shown(command: Command) -> String {
     let title = t(command.label());
     if command.asks_more() && !title.ends_with('…') {
@@ -597,8 +596,8 @@ struct Bar {
     help: Menu,
 }
 
-/// The menus in the window's own top bar, on every system, as the egui
-/// window's menu row and a code editor's title bar have them: Tasks (Exit
+/// The menus in the window's own top bar, on every system, as a code
+/// editor's title bar has them: Tasks (Exit
 /// last), File, Downloads (Options last), View and Help (About last), with
 /// the menu bar's items and ticks. On macOS the system's menu bar holds
 /// them too, beside dm's own app menu, Edit and Window.
@@ -709,7 +708,7 @@ fn bar(ticks: &Ticks) -> Bar {
     );
     let mut file = file;
     // Resume first, in the words it has for the rows chosen (Retry, Start
-    // now), as the egui window's File menu says it.
+    // now).
     let resume = if ticks.resume.is_empty() {
         Command::DownloadNow.label()
     } else {
@@ -767,7 +766,7 @@ fn bar(ticks: &Ticks) -> Bar {
             ),
         ),
     ]);
-    // View, as the egui window's: Categories, Toolbar and Drop target
+    // View: Categories, Toolbar and Drop target
     // ticked while shown; then Columns, Customize toolbar, Text size,
     // Language and Sort by, each ticked as it stands.
     let columns = Menu::new(t("Columns")).items(
@@ -864,8 +863,7 @@ fn bar(ticks: &Ticks) -> Bar {
         MenuItem::submenu(sort),
     ]);
     // Help: dm's guide and its topics, Tip of the day, the project's home
-    // page, support and telling a friend (gaps row 91), as the egui
-    // window's Help menu has them.
+    // page, support and telling a friend (gaps row 91).
     let page =
         |words: &str, address: String| MenuItem::action(words.to_string(), OpenPage { address });
     let mut help = menu("Help", &[&[C::Help]]);

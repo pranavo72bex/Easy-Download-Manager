@@ -14,8 +14,7 @@
 //! does not. So the toasts go in rounds, the count is read once things have
 //! settled, and the limit is half a handle a toast over all the rounds: far
 //! above the coming and going (+15 for thirty, seen once beside the whole
-//! suite), far below one handle kept a toast. Moved from the egui window's
-//! tests.
+//! suite), far below one handle kept a toast.
 
 #![cfg(windows)]
 

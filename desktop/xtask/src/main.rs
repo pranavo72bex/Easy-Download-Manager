@@ -592,6 +592,44 @@ fn layers() -> Result<(), String> {
             }
         }
     }
+    // The window's move to GPUI is over (gaps rows G9, A20): no comment or name in a crate says
+    // the earlier toolkit or the migration plan's phases. xtask itself is not read: its list of
+    // window crates names them to refuse them.
+    for krate in [
+        "desktop/crates/dm-assets",
+        "desktop/crates/dm-js",
+        "desktop/crates/dm-media",
+        "desktop/crates/dm-torrent",
+        "desktop/crates/dm-net",
+        "desktop/crates/dm-protocol",
+        "desktop/crates/dm-safari",
+        "desktop/crates/dm-core",
+        "desktop/crates/dm-shell",
+        "desktop/crates/dm-test-support",
+        "desktop/crates/dm-desktop-base",
+        "desktop/crates/dm-gpui",
+        "browser",
+    ] {
+        let home = root.join(krate);
+        let mut files = vec![home.join("Cargo.toml")];
+        for sub in ["src", "tests", "benches", "examples"] {
+            files.extend(
+                walk(&home.join(sub))
+                    .into_iter()
+                    .filter(|f| f.extension().is_some_and(|e| e == "rs")),
+            );
+        }
+        for file in files {
+            let text = std::fs::read_to_string(&file).unwrap_or_default();
+            let shown = file.strip_prefix(&root).unwrap_or(&file).display();
+            for (line, word) in migration_words(&text) {
+                wrong.push(format!(
+                    "{shown}:{line} says {word}: say what the code does and why now, and leave \
+                     the window's migration to docs/decisions.md and git (gaps row A20)"
+                ));
+            }
+        }
+    }
     if wrong.is_empty() {
         Ok(())
     } else {
@@ -632,7 +670,31 @@ fn paths_out_of(text: &str, file: &Path, home: &Path) -> Vec<(usize, String)> {
     found
 }
 
-/// Whether `file` is a module's tests by its name: `tests.rs`, or `<what>_tests.rs` beside it
+/// The lines of `text` that name the window's earlier toolkit (`egui`, `eframe`) or a phase of
+/// the migration plan (`Phase B`), case aside, by line number. Words are split at anything but
+/// a letter or digit, so `egui_extras` and a test named `…_egui_…` are found, and a word that
+/// only holds the letters (`DecodeFrame`, an installer's `dmReplaceEguiWindow`) is not.
+fn migration_words(text: &str) -> Vec<(usize, &'static str)> {
+    let mut found = Vec::new();
+    for (n, line) in text.lines().enumerate() {
+        let lower = line.to_ascii_lowercase();
+        let words: Vec<&str> = lower
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .collect();
+        if words.iter().any(|w| *w == "egui" || *w == "eframe") {
+            found.push((n + 1, "the earlier window toolkit"));
+        } else if words
+            .windows(2)
+            .any(|pair| pair[0] == "phase" && matches!(pair[1], "a" | "b" | "c" | "d" | "e"))
+        {
+            found.push((n + 1, "a phase of the migration"));
+        }
+    }
+    found
+}
+
+/// Whether a file is a test file of its own: `tests.rs`, or `<what>_tests.rs` beside it
 /// (gaps row A13).
 fn is_test_file(file: &Path) -> bool {
     file.file_name()
@@ -1139,6 +1201,19 @@ mod tests {
         if let Err(why) = layers() {
             panic!("{why}");
         }
+    }
+
+    #[test]
+    fn the_windows_migration_is_not_told_in_the_crates() {
+        let text = "// as in the egui window\n\
+                    fn the_egui_windows_menus() {}\n\
+                    // egui_extras's table\n\
+                    // Phase B check 1\n\
+                    fn decode() { VTDecompressionSessionDecodeFrame(); }\n\
+                    Section \"dmReplaceEguiWindow\"\n\
+                    // a phase by phase plan; Phase F\n";
+        let lines: Vec<usize> = migration_words(text).into_iter().map(|(n, _)| n).collect();
+        assert_eq!(lines, [1, 2, 3, 4]);
     }
 
     #[test]

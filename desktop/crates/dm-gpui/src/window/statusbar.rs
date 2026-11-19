@@ -7,7 +7,7 @@
 //! (Finder's): what is downloading and how fast, what is finishing, what
 //! waits for Start queue, and the speed limit, which a click opens the
 //! speed limiter's presets from. The counts are the
-//! application's (`rules::tally`); the sentences are the egui window's own,
+//! application's (`rules::tally`); the sentences are translated ones,
 //! so each language says the same.
 
 use dm_desktop_base::format::rate;
@@ -60,7 +60,7 @@ pub fn parts(view: &Downloads) -> Vec<String> {
             &[&tally.later],
         ));
     }
-    // A sentence said a moment ago, as the egui window says its own.
+    // A sentence said a moment ago.
     let mut said_wait = false;
     if let Some((said, at)) = &view.said {
         if at.elapsed() < SAID_FOR {

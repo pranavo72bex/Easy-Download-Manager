@@ -5,8 +5,7 @@
 
 //! The row menu, where a right-click (or Control-click) lands, drawn as a
 //! macOS context menu: rounded and shadowed, the item under the pointer in
-//! the selection colour, what does not apply to the rows chosen greyed. Its
-//! items and their words are the egui window's row menu's.
+//! the selection colour, what does not apply to the rows chosen greyed.
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::Command;
@@ -20,7 +19,7 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
-/// The menu's items, in groups, each with the words it shows (the egui row
+/// The menu's items, in groups, each with the words it shows (the row
 /// menu's own, where it says them differently from the command's title):
 /// Resume as `resume` says it for the rows chosen (Retry, Start now).
 fn groups(resume: &'static str) -> Vec<Vec<(Command, &'static str)>> {
@@ -83,7 +82,7 @@ pub enum Before {
     Heading(&'static str),
 }
 
-/// The row menu's entries for the rows chosen, in order: the egui row menu's groups, then
+/// The row menu's entries for the rows chosen, in order: the menu's groups, then
 /// "Delete file after" (gaps row U8) for rows that have, or will have, a file.
 pub fn entries(view: &Downloads) -> Vec<Entry> {
     let resume = dm_desktop_base::rows::resume_word(&view.chosen());

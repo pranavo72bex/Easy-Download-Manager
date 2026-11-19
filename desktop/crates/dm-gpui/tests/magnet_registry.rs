@@ -15,7 +15,7 @@
 //!
 //! Elsewhere there is no registry: the test runs the command the key would
 //! hold, as Windows would, which checks that command and the hand-off to the
-//! running dm. Moved from the egui window's tests, with the GPUI binary.
+//! running dm.
 
 use std::path::Path;
 use std::process::{Child, Command, Stdio};

@@ -4,8 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The Grabber, driven by the words on screen: the sign-in it searches with, a search saved
-//! only whole, and what a search found said. Ported from the egui window's
-//! `tests/dialogs_cover.rs`.
+//! only whole, and what a search found said.
 
 use crate::harness::world::world;
 use crate::harness::{settings_file, Harness};

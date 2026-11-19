@@ -3,11 +3,11 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Add URL, a window of its own (B42: work, not a question), with the egui
-//! window's words: the address (a link on the clipboard put in, as the
-//! egui window does), a sign-in where it needs one, OK and Cancel. What OK
-//! does is dm's (`dm_desktop_base::add_url::decide`, B01 and B02); where
-//! it sends the address is the main window's (`Downloads::after_add_url`).
+//! Add URL, a window of its own (B42: work, not a question): the address (a
+//! link on the clipboard put in), a sign-in where it needs one, OK and
+//! Cancel. What OK does is dm's (`dm_desktop_base::add_url::decide`, B01
+//! and B02); where it sends the address is the main window's
+//! (`Downloads::after_add_url`).
 
 use dm_desktop_base::add_url::{decide, Next};
 use dm_desktop_base::i18n::t;
@@ -63,7 +63,7 @@ impl AddUrl {
         if let Next::Says(words) = decided.next {
             self.says = Some(words.into());
             // The address keeps the keyboard, to be put right, chosen: what is typed next
-            // replaces it, as in the egui window.
+            // replaces it.
             self.address.update(cx, |a, cx| {
                 a.focus(window, cx);
                 a.select_all(window, cx);

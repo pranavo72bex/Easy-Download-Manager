@@ -5,8 +5,8 @@
 
 //! A place's right-click menu in the side panel (gaps row U12): a category's Open folder and
 //! Add or edit categories…, Unfinished's Resume all and Stop All, Finished's Delete Completed,
-//! a queue's Start Queue, Stop Queue and Scheduler…. Its items are the egui window's
-//! (`dm_shell::app::places::place_menu`), drawn as the row menu is (`rowmenu::panel`).
+//! a queue's Start Queue, Stop Queue and Scheduler…. Its items come from
+//! `dm_shell::app::places::place_menu`, drawn as the row menu is (`rowmenu::panel`).
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::places::{folder_of, place_menu, Place, PlaceAction};

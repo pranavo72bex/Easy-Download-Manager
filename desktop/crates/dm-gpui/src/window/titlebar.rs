@@ -11,8 +11,8 @@
 //! categories (⌃⌘S as well); the menus' titles, Tasks, File, Downloads,
 //! View and Help, each opening its menu as the system draws one
 //! (`menus::window_menus`); and, centred in the room left, the search box
-//! that narrows the list as one types (its name, address or note, as the
-//! egui window's top-row box), how many rows it leaves and a way to clear
+//! that narrows the list as one types (its name, address or note), how
+//! many rows it leaves and a way to clear
 //! it. On Windows the bar ends with the window's own buttons. The bar's
 //! empty space moves the window; a double-click on it does what the
 //! system's settings say (zoom or minimize).
@@ -192,7 +192,7 @@ fn search_box(
     div()
         .id("search")
         // Escape in the box clears it and gives the keyboard back to
-        // the list, as the egui window's box does.
+        // the list.
         .on_key_down(cx.listener(|view, event: &gpui::KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" {
                 view.clear_filter(window, cx);

@@ -4,7 +4,6 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What a platform gets from [`Platform`] when it says no more than it must.
-//! Moved from the egui window's tests.
 
 use std::sync::{Arc, Mutex};
 

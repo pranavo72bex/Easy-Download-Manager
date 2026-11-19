@@ -442,7 +442,7 @@ pub fn gone(entry: &Entry) -> bool {
 thread_local! {
     /// The finished files found missing where a window looks for them off
     /// its own thread (`look_for`, `set_looked`), by row, with the path
-    /// looked at; `None` where nothing looks so (the egui window), and
+    /// looked at; `None` where nothing looks so, and
     /// `gone` then asks the disk as each row is drawn. Two `stat` calls for
     /// each finished row on screen, at every frame, were the GPUI window's
     /// (gaps row 180).

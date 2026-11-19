@@ -72,8 +72,8 @@ impl PanelWidths {
     }
 }
 
-/// The egui window's named text sizes, as a settings file may still say
-/// them, and the stop each is read as.
+/// The named text sizes an older settings file may still say, and the stop
+/// each is read as.
 const TEXT_SIZE_NAMES: [(&str, f32); 3] = [("small", 0.8), ("medium", 1.0), ("large", 1.2)];
 
 impl TextSizes {
@@ -115,9 +115,9 @@ impl TextSizes {
         (self.held(size) * 100.0).round() as u32
     }
 
-    /// A scale as a settings file says it: a number (a factor, 0.85 as the
-    /// egui window's Small was, or a percentage, 80), the egui window's
-    /// name for it (Small, Medium, Large), or a percentage in words ("80%").
+    /// A scale as a settings file says it: a number (a factor, 0.85, or a
+    /// percentage, 80), an older file's name for it (Small, Medium, Large),
+    /// or a percentage in words ("80%").
     /// Anything else is `None`.
     pub fn read(&self, said: &serde_json::Value) -> Option<f32> {
         let number = |n: f64| {
@@ -1690,7 +1690,7 @@ mod lenient {
             .map(|read| (read, dropped))
     }
 
-    /// The window's scale as a number, a percentage or the egui window's
+    /// The window's scale as a number, a percentage or an older file's
     /// name for it (`TextSizes::read`); anything else is the default.
     pub(super) fn text_size<'de, D: Deserializer<'de>>(d: D) -> Result<f32, D::Error> {
         let said = serde_json::Value::deserialize(d)?;

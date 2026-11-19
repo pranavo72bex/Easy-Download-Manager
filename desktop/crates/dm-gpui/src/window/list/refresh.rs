@@ -65,7 +65,7 @@ impl Downloads {
         self.problems.extend(read.problems);
         // What the read told beside the rows, which a row's words are said
         // from (ranges tried again, swarms, files taken by a later row, the
-        // download limit), as the egui window sets it.
+        // download limit).
         dm_desktop_base::rows::set_retrying(read.snapshot.retrying);
         dm_desktop_base::rows::set_swarms(read.snapshot.swarms);
         dm_desktop_base::rows::set_limit_holds(read.snapshot.allowance_spent);
@@ -95,8 +95,8 @@ impl Downloads {
             // and each tick, a pass over every row under the queue's lock
             // each time (gaps row 181).
             self.queue_list = dm_core::queue_names(self.rows.iter().map(|r| &**r));
-            // Each row by the name its file will get, as the egui window
-            // shows it: a waiting second copy reads "name (1)".
+            // Each row by the name its file will get: a waiting second
+            // copy reads "name (1)".
             self.earlier = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
             let every: Vec<usize> = (0..self.rows.len()).collect();
             self.shown_names.clear();

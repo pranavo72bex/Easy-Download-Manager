@@ -4,9 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Where things are and that they can be reached: the columns, the windows a download opens,
-//! dialogs at small sizes, the text size and the language, drags out of the list. Ported from
-//! the egui window's `tests/window/layout.rs`; what was the egui window's own geometry
-//! (its zoom past 120%, its scroll areas' frames, its painting) is not.
+//! dialogs at small sizes, the text size and the language, drags out of the list.
 
 use std::time::{Duration, Instant};
 
@@ -537,7 +535,7 @@ fn the_columns_start_in_one_place_whatever_the_rows_queues() {
 }
 
 /// At the largest text in the smallest window the places are still reached: the side panel
-/// stays, where the egui window's gave way to a drop-down above the list.
+/// stays.
 #[test]
 fn the_places_are_reachable_when_they_give_way_at_large_text() {
     // The text size is the process's.

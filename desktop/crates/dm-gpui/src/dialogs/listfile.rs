@@ -5,12 +5,12 @@
 
 //! Import's or Export's file, its path typed, where the desktop has no
 //! file chooser to ask with (a Linux desktop with neither the portal's nor
-//! zenity's): both did nothing there, without a word (gaps row U41). The
-//! egui window's dialog, in its words: "No file picker here: type the
-//! path.", the file's path (Export's the download folder's
-//! `downloads.dmlist`), OK and Cancel. A path that is not a full one, or a
-//! list that cannot be read or written, is said in it, and it stays open
-//! with the path as typed, to be put right.
+//! zenity's): both did nothing there, without a word (gaps row U41). It
+//! says "No file picker here: type the path.", and has the file's path
+//! (Export's the download folder's `downloads.dmlist`), OK and Cancel. A
+//! path that is not a full one, or a list that cannot be read or written,
+//! is said in it, and it stays open with the path as typed, to be put
+//! right.
 
 use std::path::{Path, PathBuf};
 

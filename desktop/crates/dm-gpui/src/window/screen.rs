@@ -4,8 +4,8 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The words on screen, where they were laid out this frame: what the
-//! control port's `ui.texts` gives and `ui.click` aims at, as the egui window
-//! reads its painted text. Each piece of text the window draws through
+//! control port's `ui.texts` gives and `ui.click` aims at. Each piece of
+//! text the window draws through
 //! [`Screen::label`] records its bounds as it is laid out, so the record is
 //! of the frame on screen, not of what the window meant to draw; only while
 //! a control port is open ([`record`]), as nothing else reads it.
@@ -98,9 +98,9 @@ pub fn record() {
 }
 
 /// Every window's words: the main window's and each dialog's, so the
-/// control port reads and clicks words in any of them, as it does the
-/// egui window's dialogs. A dialog whose title changes as it goes (a
-/// download's progress) is also known by its name. And each window's title
+/// control port reads and clicks words in any of them. A dialog whose
+/// title changes as it goes (a download's progress) is also known by its
+/// name. And each window's title
 /// as it was last set, which GPUI's Windows and Linux windows do not say.
 #[derive(Default)]
 pub struct Screens(
@@ -217,8 +217,8 @@ pub fn bring_named(name: &str, cx: &mut App) -> bool {
     }
 }
 
-/// The name every dm window gives the desktop on Linux, as the egui
-/// window's does: the `.desktop` entry's `StartupWMClass`.
+/// The name every dm window gives the desktop on Linux: the `.desktop`
+/// entry's `StartupWMClass`.
 pub const APP_ID: &str = "dm";
 
 /// Opens a dialog's window as `App::open_window` does, and keeps the title
@@ -230,8 +230,8 @@ pub const APP_ID: &str = "dm";
 ///
 /// On Linux each window also says it is dm's (`APP_ID`): the class X11's
 /// window managers and the app id Wayland's compositors match to the
-/// launcher (`StartupWMClass=dm` in `packaging/deb.desktop`), as the egui
-/// window does. Without it a dock showed a second, generic icon beside dm's.
+/// launcher (`StartupWMClass=dm` in `packaging/deb.desktop`). Without it a
+/// dock showed a second, generic icon beside dm's.
 /// And on X11 a dialog stands where it asked to (over dm's window, B42), as
 /// on macOS and Windows, not where the window manager finds room.
 pub fn open_window<V: 'static + gpui::Render>(

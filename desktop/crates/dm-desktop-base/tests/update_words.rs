@@ -4,7 +4,6 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What About says of each answer of the update check, in plain words.
-//! Moved from the egui window's tests.
 
 use dm_desktop_base::i18n;
 use dm_desktop_base::project::update_words;

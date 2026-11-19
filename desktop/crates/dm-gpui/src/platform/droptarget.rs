@@ -3,12 +3,11 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The floating drop target (View › Drop target), as the egui window's: a
-//! small card that stays over every other window, takes a link dragged from
-//! a browser or a file dropped on it, shows how far the downloads are along
-//! its foot and how fast on hover, moves when dragged, and brings dm's
-//! window back on a double-click; its right-click menu has Show dm and Hide
-//! the drop target.
+//! The floating drop target (View › Drop target): a small card that stays
+//! over every other window, takes a link dragged from a browser or a file
+//! dropped on it, shows how far the downloads are along its foot and how
+//! fast on hover, moves when dragged, and brings dm's window back on a
+//! double-click; its right-click menu has Show dm and Hide the drop target.
 
 use dm_core::State;
 use dm_desktop_base::i18n::{t, tn};

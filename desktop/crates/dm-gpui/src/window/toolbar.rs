@@ -56,7 +56,7 @@ pub fn toolbar(
     let picture = style != dm_desktop_base::toolbar::ToolStyle::Text;
     let worded = style != dm_desktop_base::toolbar::ToolStyle::Icons;
     // Resume says what it will do for the rows chosen (Retry, Start now), as
-    // the egui window's button and both windows' menus do.
+    // the menus do.
     let resume = dm_desktop_base::rows::resume_word(&view.chosen());
     div()
         .id("toolbar")
@@ -64,7 +64,7 @@ pub fn toolbar(
         .aria_label(t("Toolbar"))
         // A row as tall as a button; where the buttons do not fit across
         // the window (a narrow one, a larger text size), the rest go on to
-        // a second row, as the egui window's toolbar does, rather than past
+        // a second row rather than past
         // the right edge.
         .min_h(px(HEIGHT))
         .flex_none()
@@ -172,7 +172,7 @@ pub fn toolbar(
                 })
                 .when(worded, |b| b.child(screen.label(words)))
                 // As wide as the widest of its words, so the buttons after it stay put when
-                // Resume becomes Retry or Start now (as the egui window's did): the others
+                // Resume becomes Retry or Start now: the others
                 // take room under it, unseen and unread.
                 .when(
                     worded && command == dm_shell::app::commands::Command::DownloadNow,

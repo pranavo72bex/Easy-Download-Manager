@@ -22,8 +22,8 @@ pub(crate) fn ns_window(window: &Window) -> Option<objc2::rc::Retained<objc2_app
     view.window()
 }
 
-/// Puts `window` away without closing it (`-[NSWindow orderOut:]`), as the
-/// egui window hides into the tray.
+/// Puts `window` away without closing it (`-[NSWindow orderOut:]`), the way
+/// dm hides into the tray.
 pub fn hide(window: &Window) {
     if let Some(ns_window) = ns_window(window) {
         ns_window.orderOut(None);

@@ -7,7 +7,7 @@
 //! browser's hand-off, how a settings change is put into force.
 //!
 //! None of it depends on how the window is drawn, so it lives here rather
-//! than in the egui window's crate, and a test can drive it with no window.
+//! than in the window's crate, and a test can drive it with no window.
 
 use std::path::{Path, PathBuf};
 

@@ -6,7 +6,7 @@
 //! The side panel, as a macOS source list (Finder's, Mail's): a heading for
 //! each group, each place with how many it holds, the chosen one drawn in
 //! the system's selection colour. The places, their counts and their order
-//! are the egui window's (`dm_shell::app::places`): All Downloads (All,
+//! come from `dm_shell::app::places`: All Downloads (All,
 //! each kind, a person's own categories), Unfinished, Finished, and Queues.
 //! Its right edge dragged makes it wider or narrower, kept across launches
 //! (`Settings::sidebar_width`), and a name longer than it has room for is cut
@@ -252,7 +252,7 @@ fn group_heading(
 }
 
 /// The Grabber's saved searches, under their heading: a click opens the Grabber filled in
-/// with one (gaps rows U40, U41), as the egui window's panel did.
+/// with one (gaps rows U40, U41).
 fn projects(
     view: &Downloads,
     theme: Theme,
@@ -377,7 +377,7 @@ fn place_row(
                     cx.notify();
                 })
             })
-            // Its menu, as the egui window's (gaps row U12).
+            // Its menu (gaps row U12).
             .on_mouse_down(
                 gpui::MouseButton::Right,
                 cx.listener(move |view, event: &gpui::MouseDownEvent, window, cx| {

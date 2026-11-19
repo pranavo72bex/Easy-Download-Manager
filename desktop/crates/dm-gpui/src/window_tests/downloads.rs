@@ -1762,8 +1762,7 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
 
 /// The limiter's field takes what is typed in place of what it held; the toolbar's buttons
 /// stay put when Resume becomes Retry; the progress window says what a refusal leaves
-/// unknown. (Where the egui window kept its progress window and the empty list's words is
-/// egui's own layout, not checked here.)
+/// unknown.
 #[test]
 fn the_small_things_of_round_eight() {
     let world = world();

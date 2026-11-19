@@ -3,8 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The second network (Options › Advanced › Network) as the progress window shows it. Moved
-//! from the egui window's tests (`dm-desktop/tests/second_network.rs`).
+//! The second network (Options › Advanced › Network) as the progress window shows it.
 
 use dm_core::State;
 

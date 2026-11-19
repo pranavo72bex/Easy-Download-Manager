@@ -6,7 +6,7 @@
 //! The application layer: what dm does, apart from how any window shows it.
 //!
 //! Everything here is free of the window toolkit (`cargo xtask layers` keeps
-//! dm-shell so), so the egui window today, and any other presentation later,
+//! dm-shell so), so the window, the headless mode and any other presentation
 //! drive the same application: they draw what it holds and hand it what a
 //! person asked for. What belongs here: commands and their rules, the state a
 //! window draws from, the changes it is told of, scheduling and settings

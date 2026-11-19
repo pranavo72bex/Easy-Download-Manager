@@ -23,9 +23,9 @@ pub(super) fn known_connections() -> Vec<String> {
     }
 }
 
-/// Advanced's Dial Up / VPN section (Windows), as the egui window's:
-/// reference A's switch, then the connection with its sign-in, then the
-/// redials, which wait for a connection chosen.
+/// Advanced's Dial Up / VPN section (Windows): reference A's switch, then
+/// the connection with its sign-in, then the redials, which wait for a
+/// connection chosen.
 pub(super) fn dialup(
     o: &mut Options,
     p: &mut Page,

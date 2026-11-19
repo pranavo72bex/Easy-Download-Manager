@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Finished files dragged out of the window, into Finder or a file
-//! manager's folder, a mail or a chat, as the egui window lets them be.
+//! manager's folder, a mail or a chat.
 //!
 //! A finished row is dragged as any GPUI element is (`on_drag`), its file's
 //! name under the pointer while it is over the window. Once the pointer
@@ -71,8 +71,7 @@ pub(crate) fn may_carry(row: &Entry) -> bool {
     row.state == State::Completed && !row.path.is_empty()
 }
 
-/// The files a drag from row `id` carries, as the egui window's
-/// (`dm-desktop` `columns::files_to_drag`): the chosen rows, in the list's
+/// The files a drag from row `id` carries: the chosen rows, in the list's
 /// order, when the row is one of them, else that row alone; of those, the
 /// finished ones whose file is still where dm saved it.
 pub(crate) fn carried(view: &Downloads, id: Id) -> Vec<PathBuf> {

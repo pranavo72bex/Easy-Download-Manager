@@ -3,13 +3,13 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! About dm, centred as the system's own About panels are, with the egui
-//! window's words: the name, the version, what dm is, the project's pages;
-//! Check for updates and what came of it, What's new and Download the
-//! update. Help's Tip of the day. The update downloaded and checked
-//! against its release's digest is offered above the list: Install now,
-//! or Later. The check is the application's (`dm_shell::app::update`), the
-//! words both windows say (`dm_desktop_base::project`).
+//! About dm, centred as the system's own About panels are: the name, the
+//! version, what dm is, the project's pages; Check for updates and what
+//! came of it, What's new and Download the update. Help's Tip of the day.
+//! The update downloaded and checked against its release's digest is
+//! offered above the list: Install now, or Later. The check is the
+//! application's (`dm_shell::app::update`), its words dm's own, kept with no
+//! toolkit (`dm_desktop_base::project`).
 
 use std::sync::{Arc, Mutex};
 

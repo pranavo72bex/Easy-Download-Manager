@@ -26,7 +26,7 @@ fn this_window_carries_the_version_dm_is_released_under() {
 
 /// The language chosen is in force before the window and the tray are
 /// made: set only by Options' OK, every word was English after each start
-/// (review of 2026-11-11), where the egui window starts in it.
+/// (review of 2026-11-11).
 #[test]
 fn the_language_chosen_is_in_force_before_the_window_opens() {
     let source = include_str!("main.rs");

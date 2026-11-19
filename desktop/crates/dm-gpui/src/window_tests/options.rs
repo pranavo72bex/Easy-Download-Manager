@@ -4,8 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Options, set as a person sets it: its tabs, check boxes, pop-ups and fields, then OK, and
-//! what that put in force on the queue and wrote down. Ported from the egui window's
-//! `tests/window/options.rs`.
+//! what that put in force on the queue and wrote down.
 
 use dm_core::State;
 
@@ -499,9 +498,7 @@ fn options_holds_only_new_or_renamed_folders_to_every_computers_rules() {
 }
 
 /// The sort is remembered, and a third click on its heading puts the list back in the queue's
-/// order; Options keeps its place whichever tab shows: OK stands where it stood. (The egui
-/// window's test also had a status line naming a row go with the row: gaps row U41's first
-/// rule.)
+/// order; Options keeps its place whichever tab shows: OK stands where it stood.
 #[test]
 fn the_sort_survives_a_restart_and_options_keeps_its_place() {
     use dm_desktop_base::columns::Column;
@@ -662,9 +659,8 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
 }
 
 /// Appearance's text size (the slider's stops) is put in force at once and kept, as View ›
-/// Larger and Smaller are; the theme is a choice kept on OK. (The egui window also showed the
-/// look as it was chosen, before OK; GPUI's test platform draws no look of its own to read, so
-/// that is not checked here.)
+/// Larger and Smaller are; the theme is a choice kept on OK. (GPUI's test platform draws no
+/// look of its own to read, so the look shown before OK is not checked here.)
 #[test]
 fn appearance_sets_the_theme_and_the_size_of_text_for_the_whole_window() {
     let _file = settings_file();

@@ -35,9 +35,8 @@ pub(crate) fn home() -> &'static std::path::Path {
 }
 
 /// The settings file every test's window writes, held by a test that reads it back, so it
-/// reads its own window's and not another's: as the egui window's tests'
-/// (`support::settings_file`). Held until dropped; taken again on the same thread, it is
-/// held already.
+/// reads its own window's and not another's. Held until dropped; taken again on the same
+/// thread, it is held already.
 pub(crate) struct SettingsFile(Option<std::sync::MutexGuard<'static, ()>>);
 
 static SETTINGS_FILE: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -192,7 +191,7 @@ pub(crate) struct Harness {
     pub(crate) cx: TestAppContext,
     pub(crate) window: AnyWindowHandle,
     view: Entity<Downloads>,
-    /// What dm asked of the system; read by the tests ported from the egui window's.
+    /// What dm asked of the system; read by the tests that check it.
     #[allow(dead_code)]
     pub(crate) fake: Arc<Fake>,
     asks: mpsc::Sender<dm_desktop_base::control::Request>,

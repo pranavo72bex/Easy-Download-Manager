@@ -3,11 +3,10 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! dm in the menu bar's status area, as the egui window's tray: Show dm,
-//! Add URL… and Add links from clipboard… (the window brought forward),
-//! Start Queue and Stop All, the speed limiter (ticked while a limit is in
-//! force) with its presets (the one in force ticked) and Settings… (B52),
-//! the Scheduler, Exit dm; a
+//! dm in the menu bar's status area: Show dm, Add URL… and Add links from
+//! clipboard… (the window brought forward), Start Queue and Stop All, the
+//! speed limiter (ticked while a limit is in force) with its presets (the
+//! one in force ticked) and Settings… (B52), the Scheduler, Exit dm; a
 //! click on the icon shows the window. Its picture is a template image, as
 //! the system's own status items are, so it takes the menu bar's colour.
 //! The close button keeps dm here where Options says so (asked once: "Keep
@@ -147,7 +146,7 @@ impl Tray {
         // One id across launches: the system remembers an item's place by it.
         let icon = TrayIconBuilder::new().with_id("dm");
         // macOS draws a template picture in the menu bar's own colour;
-        // Windows and Linux show dm's own icon, as the egui window's tray.
+        // Windows and Linux show dm's own icon.
         #[cfg(target_os = "macos")]
         let icon = icon.with_icon_templated(template_icon()?);
         #[cfg(not(target_os = "macos"))]
@@ -291,7 +290,7 @@ impl Downloads {
             Ok(tray) => {
                 self.tray = Some(tray);
                 // Registered again with a panel that starts after dm, or
-                // restarts (Linux), as the egui window's tray is.
+                // restarts (Linux).
                 dm_desktop_base::tray::keep_registered();
             }
             Err(e) => {
@@ -353,7 +352,7 @@ impl Downloads {
             // Wayland desktop, which ignores minimize), or nothing showing
             // the tray it would be kept in (a Linux desktop with no panel for
             // it): closing ends it, asked first while downloads run, as Exit
-            // is, and as the egui window does.
+            // is.
             self.ask_quit(cx);
             return false;
         }
@@ -377,8 +376,7 @@ impl Downloads {
             detail: None,
             toggle: None,
             ticked: false,
-            // Exit at the leading side, Keep running the default, as the
-            // egui window's buttons read.
+            // Exit at the leading side, Keep running the default.
             buttons: vec![t("Exit").into(), t("Keep running").into()],
             default: 1,
             escape: 1,

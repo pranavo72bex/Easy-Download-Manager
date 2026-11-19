@@ -6,8 +6,8 @@
 //! The computer's accent colour, for every window: Windows keeps the whole palette its own
 //! programs take their accent brushes from (three lighter shades, the accent, three darker);
 //! macOS and Linux give one colour, and the shades are made from it. Read on a thread of its
-//! own every few seconds, as the system theme is. Moved here from the egui window (gaps row
-//! U33), as plain red, green and blue.
+//! own every few seconds, as the system theme is. Each colour is kept as plain red, green and
+//! blue.
 
 use std::sync::{Mutex, Once};
 use std::time::Duration;

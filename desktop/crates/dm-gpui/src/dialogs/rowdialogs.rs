@@ -3,10 +3,9 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The row menu's dialogs, each a window of its own as Add URL is, with
-//! the egui window's words: Update download link, Move to queue and
-//! Move/Rename. What OK does is dm's (`dm_desktop_base::row_edits`), so the
-//! two windows cannot differ.
+//! The row menu's dialogs, each a window of its own as Add URL is: Update
+//! download link, Move to queue and Move/Rename. What OK does is dm's
+//! (`dm_desktop_base::row_edits`), kept with no toolkit and tested there.
 
 use dm_core::{Entry, Id};
 use dm_desktop_base::i18n::{t, tn};

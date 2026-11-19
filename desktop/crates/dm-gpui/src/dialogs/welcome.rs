@@ -3,12 +3,12 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! A new install's first window, "Add dm to your browser", as the egui
-//! window's: what the extension does, a button for each browser on the
-//! computer that opens its extension's page there, where downloads go
-//! (confirmed or changed now), and that dm starts with the computer, in the
-//! tray; Done, or Later. Once, and only while no browser has spoken to dm;
-//! not for a dm on a home of its own (tests and checks set `DM_HOME`).
+//! A new install's first window, "Add dm to your browser": what the
+//! extension does, a button for each browser on the computer that opens its
+//! extension's page there, where downloads go (confirmed or changed now),
+//! and that dm starts with the computer, in the tray; Done, or Later. Once,
+//! and only while no browser has spoken to dm; not for a dm on a home of
+//! its own (tests and checks set `DM_HOME`).
 
 use dm_desktop_base::i18n::{t, tf};
 use dm_shell::register::{Installed, Store};

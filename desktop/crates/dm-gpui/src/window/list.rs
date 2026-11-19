@@ -5,7 +5,7 @@
 
 //! The download list as the shell draws it: the application read once each
 //! time the window is woken (a queue change, coalesced over a quarter of a
-//! second as the egui window does; an order or a signal at once; every
+//! second; an order or a signal at once; every
 //! quarter of a second while a download runs, and once a second for the
 //! schedules' and When done's clocks), and only the rows on screen laid out
 //! (`uniform_list`), so a list of 10,000 costs what the screenful does. A
@@ -163,7 +163,7 @@ pub struct Downloads {
     /// What was typed over the list to find a row by its name, and when last (`keys.rs`).
     pub(crate) typed: (String, Option<std::time::Instant>),
     /// A sentence for the status bar, and when it was said: it stands for
-    /// a while, as the egui window's does.
+    /// a while.
     pub(crate) said: Option<(String, std::time::Instant)>,
     /// Where the list stands sideways, for its sideways bar (gaps row U43).
     pub(crate) sideways: gpui::ScrollHandle,
@@ -214,7 +214,7 @@ pub struct Downloads {
     /// Finished rows' sizes, read once from their files.
     pub(crate) saved: dm_shell::app::snapshot::SavedSizes,
     /// The size a dialog learned of a row it added (Download links asks each link's server),
-    /// shown until the row knows its own, as the egui window shows it.
+    /// shown until the row knows its own.
     pub(crate) sizes_told: std::collections::HashMap<dm_core::Id, u64>,
     /// A browser's hand-off is being asked about (Download details or
     /// Download links): the next waits for it.
@@ -410,8 +410,8 @@ impl Downloads {
                     .placeholder(dm_desktop_base::i18n::t("Name, address or note"))
             }),
             filter_text: String::new(),
-            // Limit speed turns back on at the limit last in force, kept across a restart,
-            // as the egui window's: from 0 it came back on at 1 KB/s.
+            // Limit speed turns back on at the limit last in force, kept across a restart:
+            // from 0 it came back on at 1 KB/s.
             last_limit,
             rechecked: Default::default(),
             menu_ticks: None,
@@ -544,7 +544,7 @@ impl Downloads {
         }
         // A login launch waits in the tray; where nothing is showing a tray
         // a while later (a panel that never came), its window opens rather
-        // than dm running unseen, as the egui window's does.
+        // than dm running unseen.
         if hidden {
             cx.spawn_in(window, async move |this, cx| {
                 cx.background_executor().timer(HIDDEN_WAIT).await;
@@ -600,8 +600,8 @@ impl Downloads {
                 };
                 // A change to the queue is read a quarter of a second later,
                 // the burst within it as one; but something to act on now (a
-                // browser's hand-off, another dm's order) ends that wait, as
-                // it does in the egui window: behind a running download's
+                // browser's hand-off, another dm's order) ends that wait:
+                // behind a running download's
                 // changes, a hand-off waited the quarter out before its
                 // download began.
                 if wake == Wake::Soon {
@@ -658,7 +658,7 @@ impl Downloads {
     }
 
     /// How far the downloads are, on the taskbar button, so a minimized
-    /// window still says it, as the egui window's does: green while they
+    /// window still says it: green while they
     /// run, yellow paused, red a minute after one failed (Windows); a bar
     /// and a count on the Dock (macOS) and the launcher (Linux).
     fn taskbar_follow(&mut self, window: &Window) {
@@ -679,7 +679,7 @@ impl Downloads {
 
     /// How long the window sleeps when nothing wakes it: a quarter of a
     /// second while a download runs, whose figures nothing else tells it of
-    /// (the engine reports them that often, and the egui window drew them so;
+    /// (the engine reports them that often;
     /// read once a second, they moved in jumps); a second for When done's
     /// countdown and the clipboard; else 30 seconds.
     fn clock_every(&self) -> Duration {
@@ -1663,7 +1663,7 @@ impl Downloads {
 
     /// Whether a dialog stands in front of the list: a question, or a
     /// dialog's window. Progress windows and "Download complete" stand
-    /// beside it, not in front, as in the egui window.
+    /// beside it, not in front.
     pub(crate) fn dialog_in_front(&self, cx: &gpui::App) -> bool {
         self.sheet_open
             || crate::window::screen::Screens::all(cx)

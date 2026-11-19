@@ -5,10 +5,10 @@
 
 //! Sorting finished files into folders by what they are.
 //!
-//! The rules are the extension's, in `naming.js`, deliberately: the two
-//! implementations save the same file, and a video that lands in `Videos`
-//! under one and `Other` under the other is a bug people report as lost
-//! downloads.
+//! The rules are dm's alone: the extension hands a download over and dm
+//! decides where it lands, so a file lands in the same folder however it was
+//! added. A video that lands in `Videos` one way and `Other` another is a bug
+//! people report as lost downloads.
 
 use std::path::{Path, PathBuf};
 

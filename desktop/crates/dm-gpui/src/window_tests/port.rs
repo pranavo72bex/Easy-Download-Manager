@@ -6,8 +6,7 @@
 //! The control port over the window, method by method: what each answers, what it refuses
 //! and why, and what the window shows after; and an AI assistant driving the window through
 //! its tools. What each method reads of its parameters is the shared code's
-//! (`dm_desktop_base::probe`, `dm_shell::app::control_api`) and tested there. Ported from the
-//! egui window's `tests/control_cover.rs`.
+//! (`dm_desktop_base::probe`, `dm_shell::app::control_api`) and tested there.
 
 use dm_core::State;
 use serde_json::{json, Value};

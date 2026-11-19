@@ -4,8 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The bars above the list, the empty list's first step, and commands on rows a menu or a
-//! key runs: what each opens and says. Ported from the egui window's
-//! `tests/app_more_cover.rs`.
+//! key runs: what each opens and says.
 
 use dm_core::State;
 use dm_shell::app::commands::Command;

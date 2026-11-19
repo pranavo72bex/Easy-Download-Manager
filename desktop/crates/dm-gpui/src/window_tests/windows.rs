@@ -5,7 +5,6 @@
 
 //! Every dialog a window of its own: placed over the main window, its words a dialog's to a
 //! script, closed by its close button; two Properties side by side, each with its own Cancel.
-//! Ported from the egui window's `tests/dialog_windows.rs`.
 
 use dm_shell::app::commands::Command;
 

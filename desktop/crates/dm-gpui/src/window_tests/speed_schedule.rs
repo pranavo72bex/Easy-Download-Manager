@@ -3,8 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The speed limiter, the Scheduler, When done and Exit, driven through the window. Ported
-//! from the egui window's `tests/window/speed_schedule.rs`.
+//! The speed limiter, the Scheduler, When done and Exit, driven through the window.
 
 use std::time::Instant;
 

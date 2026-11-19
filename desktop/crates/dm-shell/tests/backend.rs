@@ -6,8 +6,7 @@
 //! The backend's verbs on rows that cannot take them, and a running
 //! download given a new address, against a real queue on a loopback server.
 //! dm's home is a temporary folder (`DM_HOME`) for the whole binary, and a
-//! platform that does nothing stands in for the system. Moved from the egui
-//! window's tests.
+//! platform that does nothing stands in for the system.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};

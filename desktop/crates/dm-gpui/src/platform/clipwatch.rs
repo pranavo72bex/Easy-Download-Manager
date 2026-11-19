@@ -3,12 +3,12 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The clipboard watched, as the egui window watches it (Options › General,
-//! "Offer to download links I copy"): a link copied is offered above the
-//! list with Download and Dismiss, several with Download… (the list of
-//! them to tick); with "Take a copied link at once", taken without the
-//! offer. What a look finds, and what is not offered again, is the
-//! application's (`dm_shell::app::links::Clipboard`).
+//! The clipboard watched (Options › General, "Offer to download links I
+//! copy"): a link copied is offered above the list with Download and
+//! Dismiss, several with Download… (the list of them to tick); with "Take a
+//! copied link at once", taken without the offer. What a look finds, and
+//! what is not offered again, is the application's
+//! (`dm_shell::app::links::Clipboard`).
 
 use std::time::Duration;
 

@@ -3,13 +3,10 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The dialogs: what each offers, and that what a person chooses in it is what is done. Moved
-//! from the egui window's tests. Not moved: Find's Close button (the GPUI window's Find is the
-//! top bar's search box, `docs/decisions.md` 2026-11-10, with no dialog to close), and two of
-//! egui's own drawing (no field outlined in egui's selection stroke; a dialog with egui's
-//! deepest shadow standing whole inside the main window, where a GPUI dialog is a window of
-//! its own). Waiting on the GPUI window: a saved Grabber search under Grabber projects in the
-//! side panel (gaps row U40).
+//! The dialogs: what each offers, and that what a person chooses in it is what is done. Find
+//! has no Close button to test: Find is the top bar's search box (`docs/decisions.md`
+//! 2026-11-10), with no dialog to close. Waiting on the GPUI window: a saved Grabber search
+//! under Grabber projects in the side panel (gaps row U40).
 
 use dm_core::State;
 use dm_shell::host::Request;
@@ -589,8 +586,7 @@ fn the_grabbers_start_now_starts_what_it_found() {
 
 /// A search a page deep reads the pages of the start page's site; saved to run every hour, it
 /// runs an hour on and its files are added for later, and run again by hand it adds nothing
-/// twice. The egui window also listed it under Grabber projects in the side panel, which the
-/// GPUI window has not yet (gaps row U40).
+/// twice.
 #[test]
 fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     let world = world();
@@ -1211,8 +1207,7 @@ fn download_details_says_the_name_it_will_get_and_a_server_refusal() {
 }
 
 /// Behind Options the toolbar and the places take no clicks (B42: Options holds the dm window).
-/// The egui window's progress window, drawn inside the dm window, took none either; the GPUI
-/// window's is a window of its own beside dm's (B42), which Options does not hold.
+/// The progress window is a window of its own beside dm's (B42), which Options does not hold.
 #[test]
 fn the_window_behind_a_dialog_takes_no_clicks() {
     let world = world();

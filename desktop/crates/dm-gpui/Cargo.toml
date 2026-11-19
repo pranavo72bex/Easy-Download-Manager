@@ -9,8 +9,8 @@ description = "dm — a download manager, with a window drawn in Rust (GPUI)"
 # (desktop/deny.toml).
 publish = false
 
-# dm's window, the one every system ships (docs/gaps.md G9 removed the older
-# egui one). It uses dm-core, dm-shell and dm-desktop-base. Pinned together:
+# dm's window, the one every system ships. It uses dm-core, dm-shell and
+# dm-desktop-base. Pinned together:
 # docs/migration/GPUI_DEPENDENCY_DECISION.md 3.1. Its version is dm's: the
 # Makefile's `APP_VERSION`, the workflows and the update check read it here.
 [[bin]]
@@ -96,8 +96,8 @@ infoPlistPath = "../../assets/macos/Info.plist"
 # template's own `Section Uninstall`, so it runs first. Upgrading through
 # "uninstall first" runs it too; the next launch writes both back
 # (`register::ensure_this_copy`, the login item following the setting).
-# Installed over a dm whose window was the older egui one, that program
-# (`dm-desktop.exe`, beside this one in the same folder) is taken away
+# Installed over a dm that still has the older window, `dm-desktop.exe`
+# (beside this one in the same folder), that program is taken away
 # first, so the login item and the browsers' registrations that start it
 # find it gone and follow this one at its first start (`autostart::takes_over`, `register::ensure_this_copy`). Still
 # running, it is ended first, as the installer ends a running dm-gpui.exe

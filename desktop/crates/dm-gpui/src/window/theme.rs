@@ -149,8 +149,8 @@ impl Theme {
     }
 }
 
-/// Each kind of file's colour in the list (B45), the same in Light and Dark: the egui
-/// window's, named here with the rest of the window's colours (gaps row A19).
+/// Each kind of file's colour in the list (B45), the same in Light and Dark,
+/// named here with the rest of the window's colours (gaps row A19).
 pub const KIND_VIDEOS: u32 = 0x8e44ad;
 pub const KIND_AUDIO: u32 = 0xe67e22;
 pub const KIND_DOCUMENTS: u32 = 0x2b6cc4;
@@ -285,11 +285,11 @@ fn windows(dark: bool) -> Theme {
     }
 }
 
-/// Windows' High Contrast, as its own programs draw under it and as the
-/// egui window does: every background the window colour, every word and
-/// line the text colour, what is chosen the highlight with its own text, a
-/// button the button face, nothing see-through and no stripes. Nothing is
-/// told by colour alone (a state has its words, a kind its picture's shape).
+/// Windows' High Contrast, as its own programs draw under it: every
+/// background the window colour, every word and line the text colour, what
+/// is chosen the highlight with its own text, a button the button face,
+/// nothing see-through and no stripes. Nothing is told by colour alone (a
+/// state has its words, a kind its picture's shape).
 fn high_contrast(p: &dm_desktop_base::contrast::Palette) -> Theme {
     let c = |[r, g, b]: dm_desktop_base::contrast::Rgb| {
         rgb(u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b))
@@ -375,8 +375,8 @@ pub fn frame(colour: Rgba) -> Rgba {
 }
 
 /// The look Options › General asks for: Light or Dark whatever the
-/// computer's, else the computer's (`classic` is the egui window's own look,
-/// drawn here as the computer's). Every window follows, as the system's own
+/// computer's, else the computer's (`classic` is
+/// drawn as the computer's). Every window follows, as the system's own
 /// setting would have it.
 pub fn follow(choice: &str, cx: &mut gpui::App) {
     cx.set_window_appearance(asked(choice));

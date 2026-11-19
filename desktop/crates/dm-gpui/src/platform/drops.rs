@@ -3,15 +3,14 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! What is dropped on dm's windows, taken as the egui window takes it: a
-//! link dragged from a browser (an address, not a file), and files (a
-//! `.torrent` is itself the download; a `.url`, `.webloc` or text file of
-//! links is read for them: `dm_shell::app::links::links_at`). GPUI's windows
-//! take only dragged files, so: on macOS their drag methods are given dm's
-//! own, which take a link off the drag's pasteboard and pass every file
-//! drag on to GPUI's unchanged, as the egui window does with winit's; on
-//! Windows dm's OLE drop target takes GPUI's place on the window and takes
-//! both (`dm_desktop_base::drops::win`, the egui window's too). Either way
+//! What is dropped on dm's windows: a link dragged from a browser (an
+//! address, not a file), and files (a `.torrent` is itself the download; a
+//! `.url`, `.webloc` or text file of links is read for them:
+//! `dm_shell::app::links::links_at`). GPUI's windows take only dragged
+//! files, so: on macOS their drag methods are given dm's own, which take a
+//! link off the drag's pasteboard and pass every file drag on to GPUI's
+//! unchanged; on Windows dm's OLE drop target takes GPUI's place on the
+//! window and takes both (`dm_desktop_base::drops::win`). Either way
 //! what arrives waits in `dm_desktop_base::drops` for the window's next
 //! look; on Linux GPUI's own drop takes the files.
 

@@ -3,15 +3,15 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Download details, a window of its own (B02), with the egui window's
-//! words: where the file goes (its category, its folder, chosen in the
-//! system's own folder panel), its name (the server's, once asked), a
-//! video's qualities and a part of it, a ZIP's files (one taken out alone),
-//! its size, a note, when it is deleted, and Start now, Add for later to a
-//! queue, or Cancel. Opened for an address typed in Add URL, or for a
-//! download the browser handed over, with what the browser sent (the page,
-//! the sign-in, the quality picked in its panel, the browser's name). What
-//! it offers and adds is dm's (`dm_desktop_base::file_info`).
+//! Download details, a window of its own (B02): where the file goes (its
+//! category, its folder, chosen in the system's own folder panel), its name
+//! (the server's, once asked), a video's qualities and a part of it, a
+//! ZIP's files (one taken out alone), its size, a note, when it is deleted,
+//! and Start now, Add for later to a queue, or Cancel. Opened for an
+//! address typed in Add URL, or for a download the browser handed over,
+//! with what the browser sent (the page, the sign-in, the quality picked in
+//! its panel, the browser's name). What it offers and adds is dm's
+//! (`dm_desktop_base::file_info`).
 
 use dm_core::Id;
 use dm_desktop_base::file_info::{self, Clash, Form};
@@ -1373,8 +1373,8 @@ fn open_now(
             });
             let details = cx.new(|cx| {
                 let focus = cx.focus_handle();
-                // Return in a field is Start now, as in the egui window;
-                // what is typed is weighed again (the name's clash).
+                // Return in a field is Start now; what is typed is weighed
+                // again (the name's clash).
                 for input in [&folder, &name, &note, &part_from, &part_to] {
                     cx.subscribe_in(input, window, |this: &mut Details, _, event, window, cx| {
                         match event {
@@ -1426,7 +1426,7 @@ fn open_now(
                     screen,
                 }
             });
-            // Start now has the keyboard, as in the egui window.
+            // Start now has the keyboard.
             details.update(cx, |d, cx| window.focus(&d.focus, cx));
             hear_server(&details, told, window, cx);
             // A YouTube video's qualities are asked at once, from its own

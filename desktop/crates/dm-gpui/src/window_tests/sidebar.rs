@@ -9,7 +9,7 @@ use crate::harness::world::world;
 
 /// A saved Grabber search is listed under Grabber projects in the side panel, as reference A
 /// keeps its projects there; clicking it opens the Grabber with it filled in (gaps rows U40,
-/// U41). Moved from the egui window's tests.
+/// U41).
 #[test]
 fn a_saved_grabber_search_is_a_project_in_the_side_panel() {
     let _file = crate::harness::settings_file();
@@ -32,7 +32,7 @@ fn a_saved_grabber_search_is_a_project_in_the_side_panel() {
 }
 
 /// A group of places shuts from its heading and opens again from it, kept for the next
-/// launch (gaps row U42). Moved from the egui window's tests.
+/// launch (gaps row U42).
 #[test]
 fn a_group_of_places_shuts_and_opens_from_its_row() {
     let _file = crate::harness::settings_file();

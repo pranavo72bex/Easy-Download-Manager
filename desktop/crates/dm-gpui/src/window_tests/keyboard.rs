@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The keyboard and the right-click: the list's keys, Escape and Enter in the dialogs, the
-//! side panel's and the rows' menus. Ported from the egui window's `tests/window/keyboard.rs`.
+//! side panel's and the rows' menus.
 
 use dm_core::State;
 use dm_shell::app::places::Place;
@@ -136,9 +136,9 @@ fn the_list_narrows_as_a_filter_is_typed() {
 }
 
 /// Escape closes the dialog in front, and nothing behind it: Options, without what was typed
-/// into it; Add URL over Download details, whose note stays. (The egui window's menus and
-/// drop-downs were its own, drawn over the dialog; the GPUI window's are the system's, which
-/// close themselves, and Find is the main window's search box, not a dialog.)
+/// into it; Add URL over Download details, whose note stays. (The window's menus and
+/// drop-downs are the system's, which close themselves, and Find is the main window's search
+/// box, not a dialog.)
 #[test]
 fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     // Add URL saves its addresses.
@@ -265,8 +265,8 @@ fn the_lists_keys_do_not_reach_it_from_behind_a_dialog() {
 
 /// F3 and Enter in the search box find the next row it shows, and the search goes on as more
 /// is typed. Find is the search box in the GPUI window (gaps row U30), and its Return hands the
-/// keyboard to the list, where the arrows go on from the row found (the egui Find dialog's
-/// field kept it); Return there opened the found row's progress window as well.
+/// keyboard to the list, where the arrows go on from the row found; Return there opened the
+/// found row's progress window as well.
 #[test]
 fn f3_finds_the_next_one_while_find_is_open() {
     let world = world();
@@ -334,8 +334,7 @@ fn a_dialog_is_typed_in_at_once_and_enter_presses_its_default_button() {
 }
 
 /// At the narrowest window and in German, and at the largest text, every toolbar button stays
-/// in the window and clear of the others. (The egui window's classic look and its 200% zoom
-/// are not the GPUI window's: its text goes to 120%.)
+/// in the window and clear of the others. (The window's text goes to 120% at most.)
 #[test]
 fn the_toolbar_keeps_its_names_narrow_and_in_german() {
     // The language and the text size are the process's.

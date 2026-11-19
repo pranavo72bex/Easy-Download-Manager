@@ -4,9 +4,8 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The main window comes back where and as large as it was left, zoomed if
-//! it was, as the egui window's does (eframe keeps its frame) and as a
-//! Mac's windows do. The frame is kept in `window.json` in dm's home, so a
-//! run on a home of its own (`DM_HOME`: a test, a check) keeps its own and
+//! it was, as a Mac's windows do. The frame is kept in `window.json` in
+//! dm's home, so a run on a home of its own (`DM_HOME`: a test, a check) keeps its own and
 //! starts as a fresh install does. The frame is kept with the display it
 //! was on, since macOS counts a window's frame from its own display's
 //! corner, and the window opens on that display again; one unplugged

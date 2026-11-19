@@ -6,7 +6,7 @@
 //! The AI client's tools (`mcp.rs`): the MCP protocol they answer, the
 //! control calls each tool stands for, and the connection to dm, tried
 //! against a stand-in for dm's control port on loopback that says exactly
-//! what it was asked. Moved from the egui window's tests.
+//! what it was asked.
 
 use dm_desktop_base::mcp::{self, Control};
 use serde_json::{json, Value};

@@ -8,9 +8,9 @@ edition = "2021"
 publish = false
 description = "What every dm window shares: the settings, the browser host, the one-instance lock, startup and the inbox"
 
-# No window toolkit here. The Tauri window and the egui one both sit on this,
-# so what a download manager does at startup, on a browser hand-off and on a
-# settings change is written once, whichever window is drawing it.
+# No window toolkit here. The window (dm-gpui) and the headless mode both sit
+# on this, so what a download manager does at startup, on a browser hand-off
+# and on a settings change is written once, with a window drawing it or none.
 [dependencies]
 # A form's raw body, which the extension sends as base64 (dm-core's version).
 base64.workspace = true

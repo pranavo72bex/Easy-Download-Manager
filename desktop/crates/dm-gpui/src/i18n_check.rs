@@ -4,9 +4,8 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Every word the window translates is in every catalog, and no catalog keeps a word nothing
-//! says: a missing one reads in English, which is a gap. Moved from the egui window's tests;
-//! its check that every translation has a glyph in its own fonts is not, as this window draws
-//! in the system's fonts.
+//! says: a missing one reads in English, which is a gap. No check here that every translation
+//! has a glyph in the window's fonts, as this window draws in the system's fonts.
 
 use std::collections::{BTreeSet, HashMap};
 
