@@ -67,6 +67,13 @@ impl From<dm_core::Error> for Error {
     }
 }
 
+/// The application's error, its words as they are.
+impl From<dm_shell::Error> for Error {
+    fn from(e: dm_shell::Error) -> Error {
+        Error(String::from(e))
+    }
+}
+
 impl PartialEq<str> for Error {
     fn eq(&self, other: &str) -> bool {
         self.0 == other
