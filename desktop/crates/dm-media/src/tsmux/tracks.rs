@@ -280,7 +280,14 @@ pub(super) fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Resul
     })
 }
 
-pub(super) fn build(streams: &mut [Elementary], out: &Path) -> Result<u64, String> {
+/// The MP4 of what was read, at `out`. `place` is given when the MP4 starts on the stream's
+/// 90 kHz clock (the earlier of its first picture and its first sound, which both are started
+/// from) and gives back the subtitles to carry, timed from there; asked only where there is a
+/// picture to show them over (gaps row Y20).
+pub(super) fn build<F>(streams: &mut [Elementary], out: &Path, place: F) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+{
     let video = streams
         .iter()
         .position(|s| PICTURES.contains(&s.kind) && !s.samples.is_empty());
@@ -316,5 +323,11 @@ pub(super) fn build(streams: &mut [Elementary], out: &Path) -> Result<u64, Strin
                 .map_err(|e| format!("a scratch file could not be read: {e}"))?,
         );
     }
-    crate::mp4mux::write_output(&tracks, &mut files, out, None)
+    let texts = if video.is_some() {
+        place(earliest)
+    } else {
+        Vec::new()
+    };
+    let tags = crate::mp4mux::Tags::default();
+    crate::mp4mux::write_with_text(tracks, files, &texts, out, None, None, &tags)
 }

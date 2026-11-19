@@ -43,7 +43,7 @@ pub struct Subtitle {
 }
 
 /// A WebVTT timestamp, `hh:mm:ss.ttt` or `mm:ss.ttt`, in milliseconds.
-fn timestamp(text: &str) -> Option<u64> {
+pub fn timestamp(text: &str) -> Option<u64> {
     let (clock, millis) = text.trim().split_once(['.', ','])?;
     let millis: u64 = millis.get(..3.min(millis.len()))?.parse().ok()?;
     let parts: Vec<u64> = clock

@@ -17,6 +17,51 @@ pub async fn to_mp4_async(input: PathBuf, out: PathBuf) -> Result<u64, String> {
         .map_err(|e| format!("the remux stopped: {e}"))?
 }
 
+/// [`to_mp4_with_text`], off the async runtime: `place` times the subtitles from when the MP4
+/// starts on the stream's 90 kHz clock (gaps row Y20).
+pub async fn to_mp4_with_text_async<F>(
+    input: PathBuf,
+    out: PathBuf,
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || to_mp4_with_text(&input, &out, place))
+        .await
+        .map_err(|e| format!("the remux stopped: {e}"))?
+}
+
+/// [`join_packed_with_text`], off the async runtime.
+pub async fn join_packed_with_text_async<F>(
+    ts: PathBuf,
+    aac: PathBuf,
+    out: PathBuf,
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || join_packed_with_text(&ts, &aac, &out, place))
+        .await
+        .map_err(|e| format!("the remux stopped: {e}"))?
+}
+
+/// [`join_ts_with_text`], off the async runtime.
+pub async fn join_ts_with_text_async<F>(
+    picture: PathBuf,
+    sound: PathBuf,
+    out: PathBuf,
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || join_ts_with_text(&picture, &sound, &out, place))
+        .await
+        .map_err(|e| format!("the remux stopped: {e}"))?
+}
+
 /// [`join_packed`], off the async runtime.
 pub async fn join_packed_async(ts: PathBuf, aac: PathBuf, out: PathBuf) -> Result<u64, String> {
     tokio::task::spawn_blocking(move || join_packed(&ts, &aac, &out))

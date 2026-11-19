@@ -109,6 +109,20 @@ pub struct Variant {
     /// The audio group it plays with (`AUDIO=`), where its sound is listed
     /// apart from it.
     pub audio: Option<String>,
+    /// The subtitle group it plays with (`SUBTITLES=`), whose renditions are
+    /// listed by [`subtitle_renditions`].
+    pub subtitles: Option<String>,
+}
+
+/// A subtitle rendition a master playlist lists (`#EXT-X-MEDIA:TYPE=SUBTITLES`):
+/// a media playlist of WebVTT segments (gaps row Y20).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubtitleRendition {
+    /// Its language (`LANGUAGE`), as a file's name could carry it; `und` where
+    /// it names none, or one that could not be.
+    pub language: String,
+    /// Its media playlist's address, joined onto the master's.
+    pub url: String,
 }
 
 /// Which rendition to take.
@@ -392,6 +406,52 @@ fn audio_uri(master: &str, group: &str, want: Option<&str>) -> Option<String> {
     attribute(chosen, "URI")
 }
 
+/// The subtitle renditions of a master playlist's group `group` (a variant's
+/// `SUBTITLES=`), one a language: the first of each, in the order listed,
+/// one marked `FORCED=YES` (only what the picture does not say) passed over
+/// where a plain one of its language is listed. Each address is joined onto
+/// `base`; one with no address, or one that cannot be joined, is left out.
+pub fn subtitle_renditions(master: &str, group: &str, base: &str) -> Vec<SubtitleRendition> {
+    let is_forced = |l: &str| attribute(l, "FORCED").is_some_and(|f| f.eq_ignore_ascii_case("YES"));
+    let mut found: Vec<(SubtitleRendition, bool)> = Vec::new();
+    for row in lines(master) {
+        let upper = row.to_ascii_uppercase();
+        if !upper.starts_with("#EXT-X-MEDIA:")
+            || attribute(row, "TYPE").is_none_or(|t| !t.eq_ignore_ascii_case("SUBTITLES"))
+            || attribute(row, "GROUP-ID").as_deref() != Some(group)
+        {
+            continue;
+        }
+        let Some(url) = attribute(row, "URI").and_then(|uri| join(base, &uri).ok()) else {
+            continue;
+        };
+        let language = attribute(row, "LANGUAGE")
+            .map(|l| l.trim().to_string())
+            .filter(|l| {
+                !l.is_empty()
+                    && l.len() <= 20
+                    && l.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            })
+            .unwrap_or_else(|| "und".to_string());
+        let forced = is_forced(row);
+        let rendition = SubtitleRendition { language, url };
+        let listed = found
+            .iter()
+            .position(|(r, _)| r.language.eq_ignore_ascii_case(&rendition.language));
+        match listed {
+            // A plain one in place of the forced one listed first.
+            Some(i) => {
+                if let Some(slot) = found.get_mut(i).filter(|slot| slot.1 && !forced) {
+                    *slot = (rendition, false);
+                }
+            }
+            None => found.push((rendition, forced)),
+        }
+    }
+    found.into_iter().map(|(r, _)| r).collect()
+}
+
 /// Every rendition a master playlist lists, in the order it lists them.
 pub fn variants(text: &str, base: &str) -> Vec<Variant> {
     let rows = lines(text);
@@ -420,6 +480,7 @@ pub fn variants(text: &str, base: &str) -> Vec<Variant> {
                 .and_then(|b| b.parse().ok())
                 .unwrap_or(0),
             audio: attribute(row, "AUDIO"),
+            subtitles: attribute(row, "SUBTITLES"),
         });
     }
     out

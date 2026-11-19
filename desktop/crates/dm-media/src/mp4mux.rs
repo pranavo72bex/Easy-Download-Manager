@@ -322,6 +322,56 @@ pub fn join_cut_tagged(
     shape: Option<crate::shape::Shape>,
     tags: &Tags,
 ) -> Result<u64, String> {
+    let (tracks, files) = read_inputs(inputs, shape)?;
+    write_with_text(tracks, files, texts, out, cut, None, tags)
+}
+
+/// [`join_cut`], with subtitles timed once the inputs are read (an HLS stream's WebVTT
+/// segments, gaps row Y20): `place` is given when the output starts on the inputs' own
+/// timeline, in 90 kHz ticks (its earliest track's first time, `tfdt`; 0 where none says), and
+/// gives back the subtitles timed from there.
+pub fn join_cut_placed<F>(
+    inputs: &[PathBuf],
+    place: F,
+    out: &Path,
+    cut: Option<(u64, u64)>,
+    shape: Option<crate::shape::Shape>,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+{
+    let (tracks, files) = read_inputs(inputs, shape)?;
+    let starts = || {
+        tracks
+            .iter()
+            .filter_map(|t| t.start.map(|s| (s, t.timescale)))
+    };
+    // As the index places each track (`write::moov`): by its start in milliseconds.
+    let earliest_ms = starts()
+        .map(|(s, scale_of)| write::scale(s, scale_of, MOVIE_TIMESCALE))
+        .min();
+    let zero = starts()
+        .map(|(s, scale_of)| write::scale(s, scale_of, 90_000))
+        .min()
+        .unwrap_or(0);
+    let texts = place(i64::try_from(zero).unwrap_or(i64::MAX));
+    write_with_text(
+        tracks,
+        files,
+        &texts,
+        out,
+        cut,
+        earliest_ms,
+        &Tags::default(),
+    )
+}
+
+/// Every track of `inputs` that has samples, each input's file open, reshaped where `shape`
+/// says.
+fn read_inputs(
+    inputs: &[PathBuf],
+    shape: Option<crate::shape::Shape>,
+) -> Result<(Vec<Track>, Vec<File>), String> {
     let mut tracks = Vec::new();
     let mut files = Vec::new();
     for (index, path) in inputs.iter().enumerate() {
@@ -353,6 +403,23 @@ pub fn join_cut_tagged(
             crate::shape::apply(track, shape)?;
         }
     }
+    Ok((tracks, files))
+}
+
+/// `tracks`, read from `files`, written as one MP4 at `out` (cut where `cut` says, with
+/// `tags`), and `texts` after them as subtitle tracks, one a language, each starting at
+/// `start` (milliseconds on the tracks' own timeline, as `Track::start` places a track; `None`
+/// for the output's own zero). Returns its length. What a transport stream's remux writes
+/// through too (`tsmux`).
+pub(crate) fn write_with_text(
+    mut tracks: Vec<Track>,
+    mut files: Vec<File>,
+    texts: &[crate::subtitles::Subtitle],
+    out: &Path,
+    cut: Option<(u64, u64)>,
+    start: Option<u64>,
+    tags: &Tags,
+) -> Result<u64, String> {
     if texts.is_empty() {
         return write::write_output_tagged(&tracks, &mut files, out, cut, tags);
     }
@@ -364,7 +431,9 @@ pub fn join_cut_tagged(
     let written = (|| {
         let mut data = Vec::new();
         for text in texts {
-            tracks.push(text_track(text, files.len(), &mut data));
+            let mut track = text_track(text, files.len(), &mut data);
+            track.start = start;
+            tracks.push(track);
         }
         std::fs::write(&scratch, &data).map_err(|e| format!("subtitles: {e}"))?;
         files.push(File::open(&scratch).map_err(|e| format!("subtitles: {e}"))?);

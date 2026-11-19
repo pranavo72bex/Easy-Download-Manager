@@ -18,11 +18,17 @@ pub(super) async fn download_stream(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
-    let (mut listed, rendition) = match resolve_stream(client, url, options).await? {
-        Resolved::Own(listed, rendition) => (listed, rendition),
-        Resolved::Pair(picture, sound, rendition) => {
+    let (mut listed, rendition, subtitles) = match resolve_stream(client, url, options).await? {
+        Resolved::Own(listed, rendition, subtitles) => (listed, rendition, subtitles),
+        Resolved::Pair(picture, sound, rendition, subtitles) => {
+            // Carried inside the file where Options says so (gaps row Y20).
+            let texts = if options.subtitles && options.quality != Quality::Audio {
+                super::hls_text::fetch(client, &subtitles, options).await?
+            } else {
+                super::hls_text::HlsTexts::default()
+            };
             return super::dash::download_pair(
-                client, &picture, &sound, &rendition, options, report,
+                client, &picture, &sound, &rendition, texts, options, report,
             )
             .await;
         }
@@ -41,10 +47,14 @@ pub(super) async fn download_stream(
      * exactly, by the muxer's edit lists; a transport stream is joined whole
      * at the nearest segments, as it has no frame index to trim by here. */
     let mut rendition = rendition;
+    // Where in the stream the segments taken start, which subtitles with no map of their own
+    // are timed from (gaps row Y20).
+    let mut skipped = 0.0;
     if let Some(span) = options.span {
-        let (covered, _, _) = stream::cover(&listed, span.from, span.to).ok_or_else(|| {
+        let (covered, starts, _) = stream::cover(&listed, span.from, span.to).ok_or_else(|| {
             Error::Internal("that part is outside the stream's length".to_string())
         })?;
+        skipped = starts;
         rendition = format!("{rendition}|{}", span.words());
         listed = covered;
     }
@@ -133,6 +143,25 @@ pub(super) async fn download_stream(
         });
     }
 
+    /* The subtitle renditions the master lists for this rendition, carried inside the file
+     * where Options says so and there is a picture to show them over (gaps row Y20): fetched
+     * before the segments, so a stop while they come is a stop, not a file without them. A
+     * transport stream carries them only where it is put into an MP4 (not one kept as `.ts`,
+     * nor one scrambled by SAMPLE-AES, whose remux takes none). */
+    let carried = match listed.container.as_str() {
+        "m4a" | "aac" => false,
+        "ts" => remuxing && !sealed,
+        _ => true,
+    };
+    let pictured = options.quality != Quality::Audio && carried;
+    let texts = if options.subtitles && pictured && !subtitles.is_empty() {
+        super::hls_text::fetch(client, &subtitles, options)
+            .await?
+            .skipping(skipped)
+    } else {
+        super::hls_text::HlsTexts::default()
+    };
+
     let parts: Vec<PathBuf> = if fs::metadata(&gathered).await.is_ok() {
         vec![gathered]
     } else {
@@ -172,15 +201,27 @@ pub(super) async fn download_stream(
     let (parts, filename) = if sealed {
         super::hls_sealed::clear(&listed, &keys, &parts, options).await?
     } else {
-        match remux_ts(&listed.filename, &parts, options).await {
+        match remux_ts_with(&listed.filename, &parts, &texts, options).await {
             Some((mp4, name)) => (vec![mp4], name),
             None => (parts, listed.filename.clone()),
         }
     };
     let parts = match cut {
-        Some(window) => vec![cut_fragments(&parts, Some(window), options).await?],
+        Some(window) => vec![cut_fragments_with(&parts, Some(window), &texts, options).await?],
         // Runs, each with its set-up, as one MP4 (gaps row Y16).
-        None if runs && fragmented => vec![cut_fragments(&parts, None, options).await?],
+        None if runs && fragmented => {
+            vec![cut_fragments_with(&parts, None, &texts, options).await?]
+        }
+        // Subtitles to carry: the fragments made one MP4 with them; kept as they came where dm
+        // cannot make one, which is still the stream (gaps row Y20).
+        None if fragmented && !texts.is_empty() => {
+            let made = cut_fragments_with(&parts, None, &texts, options).await;
+            match made {
+                Ok(joined) => vec![joined],
+                Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+                Err(_) => parts,
+            }
+        }
         None => parts,
     };
     let (path, bytes, category) = finish(&filename, None, &parts, options).await?;
@@ -747,6 +788,17 @@ pub(super) async fn remux_ts(
     parts: &[PathBuf],
     options: &Options,
 ) -> Option<(PathBuf, String)> {
+    remux_ts_with(name, parts, &super::hls_text::HlsTexts::default(), options).await
+}
+
+/// [`remux_ts`], with an HLS stream's subtitles carried inside the MP4, timed from where it
+/// starts (gaps row Y20); none where `texts` is empty, as before.
+pub(super) async fn remux_ts_with(
+    name: &str,
+    parts: &[PathBuf],
+    texts: &super::hls_text::HlsTexts,
+    options: &Options,
+) -> Option<(PathBuf, String)> {
     if !remux_wanted(name, options) {
         return None;
     }
@@ -787,7 +839,13 @@ pub(super) async fn remux_ts(
     }
     /* Not raced against a pause: it runs at the disk's speed, and a blocking task cut loose would go on writing the file a
      * resume makes afresh. */
-    let ours = crate::tsmux::to_mp4_async(joined.clone(), mp4.clone()).await;
+    let ours = if texts.is_empty() {
+        crate::tsmux::to_mp4_async(joined.clone(), mp4.clone()).await
+    } else {
+        let texts = texts.clone();
+        let place = move |zero| texts.timed(zero);
+        crate::tsmux::to_mp4_with_text_async(joined.clone(), mp4.clone(), place).await
+    };
     if ours.is_ok() && fs::metadata(&mp4).await.is_ok_and(|m| m.len() > 0) {
         let _ = fs::remove_file(&joined).await;
         return Some((mp4, format!("{}.mp4", ts_stem(name))));
@@ -815,7 +873,9 @@ pub(super) fn ts_stem(name: &str) -> &str {
 
 /// A stream as resolved: dm's to assemble, or a shape it hands on.
 pub(super) enum Resolved {
-    Own(stream::Stream, String),
+    /// A stream of one playlist, the rendition's address, and the subtitle renditions the
+    /// master lists for it.
+    Own(stream::Stream, String, Vec<stream::SubtitleRendition>),
     /// A live stream, recorded as it goes: its media playlist's address,
     /// and its sound's where the master keeps that in a playlist of its own
     /// that dm can join to the picture.
@@ -823,8 +883,14 @@ pub(super) enum Resolved {
     /// Why dm does not assemble it itself (`stream::beyond_dm`).
     Beyond(&'static str),
     /// A picture and its sound as two playlists of fragmented MP4, which dm
-    /// fetches as two tracks and joins; the rendition's address names them.
-    Pair(Box<stream::Stream>, Box<stream::Stream>, String),
+    /// fetches as two tracks and joins; the rendition's address names them. With the subtitle
+    /// renditions the master lists for it.
+    Pair(
+        Box<stream::Stream>,
+        Box<stream::Stream>,
+        String,
+        Vec<stream::SubtitleRendition>,
+    ),
 }
 
 /// Reads the manifest, following a master playlist to the rendition wanted.
@@ -861,8 +927,14 @@ pub(super) async fn resolve_stream(
             .audio
             .as_deref()
             .and_then(|group| stream::audio_playlist(&text, group, &landed));
+        // Its subtitles, which a pair or a stream of its own carries (gaps row Y20).
+        let subtitles = chosen
+            .subtitles
+            .as_deref()
+            .map(|group| stream::subtitle_renditions(&text, group, &landed))
+            .unwrap_or_default();
         if let Some(sound_url) = apart {
-            return resolve_pair(
+            let resolved = resolve_pair(
                 client,
                 url,
                 &chosen.url,
@@ -871,7 +943,13 @@ pub(super) async fn resolve_stream(
                 &sound_url,
                 options,
             )
-            .await;
+            .await?;
+            return Ok(match resolved {
+                Resolved::Pair(picture, sound, rendition, _) => {
+                    Resolved::Pair(picture, sound, rendition, subtitles)
+                }
+                other => other,
+            });
         }
         if let Some(why) =
             stream::beyond_dm(Some(&text), chosen.audio.as_deref(), &media, &media_landed)
@@ -885,7 +963,7 @@ pub(super) async fn resolve_stream(
             return Ok(Resolved::Live(chosen.url, None));
         }
         let listed = stream::media_playlist(&media, &media_landed, url, quality)?;
-        return Ok(Resolved::Own(listed, chosen.url));
+        return Ok(Resolved::Own(listed, chosen.url, subtitles));
     }
     if let Some(why) = stream::beyond_dm(None, None, &text, &landed) {
         return Ok(Resolved::Beyond(why));
@@ -900,7 +978,7 @@ pub(super) async fn resolve_stream(
         return Ok(Resolved::Live(url.to_string(), None));
     }
     let listed = stream::media_playlist(&text, &landed, url, quality)?;
-    Ok(Resolved::Own(listed, url.to_string()))
+    Ok(Resolved::Own(listed, url.to_string(), Vec::new()))
 }
 
 /// A live stream whose samples are scrambled (SAMPLE-AES): recorded as it comes, it is never
@@ -956,6 +1034,7 @@ async fn resolve_pair(
         Box::new(picture),
         Box::new(sound),
         format!("{rendition}\n{sound_url}"),
+        Vec::new(),
     ))
 }
 
@@ -1280,20 +1359,55 @@ pub(super) async fn cut_fragments(
     window: Option<(u64, u64)>,
     options: &Options,
 ) -> Result<PathBuf, Error> {
+    cut_fragments_with(
+        parts,
+        window,
+        &super::hls_text::HlsTexts::default(),
+        options,
+    )
+    .await
+}
+
+/// [`cut_fragments`], with an HLS stream's subtitles carried inside, timed from where the
+/// fragments start (`tfdt`, gaps row Y20); none where `texts` is empty, as before.
+pub(super) async fn cut_fragments_with(
+    parts: &[PathBuf],
+    window: Option<(u64, u64)>,
+    texts: &super::hls_text::HlsTexts,
+    options: &Options,
+) -> Result<PathBuf, Error> {
     let whole = options.parts_dir.join("cut-input.mp4");
     let out = options.parts_dir.join("cut-output.mp4");
     let _ = fs::remove_file(&whole).await;
     let _ = fs::remove_file(&out).await;
     join_parts_copy(parts, &whole).await?;
-    crate::mp4mux::join_cut_async(
-        vec![whole.clone()],
-        Vec::new(),
-        out.clone(),
-        window,
-        options.shape,
-    )
-    .await
-    .map_err(Error::Internal)?;
+    if texts.is_empty() {
+        crate::mp4mux::join_cut_async(
+            vec![whole.clone()],
+            Vec::new(),
+            out.clone(),
+            window,
+            options.shape,
+        )
+        .await
+        .map_err(Error::Internal)?;
+    } else {
+        let texts = texts.clone();
+        let place = move |zero| texts.timed(zero);
+        let made = crate::mp4mux::join_cut_placed_async(
+            vec![whole.clone()],
+            place,
+            out.clone(),
+            window,
+            options.shape,
+        )
+        .await;
+        if let Err(why) = made {
+            let _ = fs::remove_file(&whole).await;
+            let _ = fs::remove_file(&out).await;
+            return Err(Error::Internal(why));
+        }
+    }
     let _ = fs::remove_file(&whole).await;
     Ok(out)
 }

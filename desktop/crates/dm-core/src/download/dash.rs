@@ -3,6 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
+use super::hls_text::{HlsTexts, Texts};
 use super::*;
 use crate::dash::{self, Medium, Track};
 
@@ -72,7 +73,15 @@ pub(super) async fn download_dash(
         Vec::new()
     };
     join_tracks(
-        client, &tracks, &filename, extension, webm, &signature, texts, options, report,
+        client,
+        &tracks,
+        &filename,
+        extension,
+        webm,
+        &signature,
+        Texts::Timed(texts),
+        options,
+        report,
     )
     .await
 }
@@ -181,12 +190,13 @@ async fn check_seams(
 
 /// An HLS picture and sound kept in playlists of their own (plain
 /// fragmented MP4 on both sides), fetched and joined as the two tracks of a
-/// DASH stream are.
+/// DASH stream are. `texts` are the stream's subtitles, carried inside (gaps row Y20).
 pub(super) async fn download_pair(
     client: &reqwest::Client,
     picture: &stream::Stream,
     sound: &stream::Stream,
     rendition: &str,
+    texts: HlsTexts,
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
@@ -240,6 +250,14 @@ pub(super) async fn download_pair(
         options.title_hint.as_deref(),
         options.save_name.as_deref(),
     );
+    // A part starts at the picture's first piece that overlaps it, which subtitles with no map
+    // of their own are timed from.
+    let texts = match options.span {
+        Some(span) => texts.skipping(
+            stream::cover(picture, span.from, span.to).map_or(0.0, |(_, starts, _)| starts),
+        ),
+        None => texts,
+    };
     join_tracks(
         client,
         &refs,
@@ -247,7 +265,7 @@ pub(super) async fn download_pair(
         "mp4",
         false,
         &signature,
-        Vec::new(),
+        Texts::of_hls(texts),
         options,
         report,
     )
@@ -331,7 +349,7 @@ pub(super) async fn download_media_pair(
         "mp4",
         false,
         &signature,
-        Vec::new(),
+        Texts::Timed(Vec::new()),
         options,
         report,
     )
@@ -567,8 +585,9 @@ const TRACK_MOST: u64 = 1 << 40;
 /// The tracks fetched, gathered one file each, and joined into the file
 /// named `filename`, placed where downloads go. `signature` says what is
 /// being fetched: parts staged for something else are not adopted. `texts`
-/// are carried as subtitle tracks where an MP4 or a Matroska file is made
-/// (not by the joins of transport streams).
+/// are carried as subtitle tracks where an MP4 or a Matroska file is made;
+/// an HLS stream's (gaps row Y20) where an MP4 is, by the joins of transport
+/// streams too, and not in a Matroska file.
 #[allow(clippy::too_many_arguments)]
 async fn join_tracks(
     client: &reqwest::Client,
@@ -577,7 +596,7 @@ async fn join_tracks(
     extension: &str,
     webm: bool,
     signature: &str,
-    texts: Vec<crate::subtitles::Subtitle>,
+    texts: Texts,
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
@@ -685,7 +704,8 @@ async fn join_tracks(
         // Run to the end like the remux of a transport stream: cut loose
         // from a pause it would go on writing a file a resume makes afresh.
         let made = if webm || mkv {
-            crate::mkvmux::join_with_text_async(files.clone(), texts, partial.clone()).await
+            crate::mkvmux::join_with_text_async(files.clone(), texts.into_timed(), partial.clone())
+                .await
         } else if let [picture, sound] = files.as_slice().iter().collect::<Vec<_>>()[..]
             .iter()
             .map(|p| (*p).clone())
@@ -693,12 +713,35 @@ async fn join_tracks(
             .as_slice()
         {
             if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_packed_aac(sound) {
-                crate::tsmux::join_packed_async(picture.clone(), sound.clone(), partial.clone())
-                    .await
+                match texts {
+                    Texts::Hls(texts) => {
+                        let place = move |zero| texts.timed(zero);
+                        let (ts, aac, out) = (picture.clone(), sound.clone(), partial.clone());
+                        crate::tsmux::join_packed_with_text_async(ts, aac, out, place).await
+                    }
+                    Texts::Timed(_) => {
+                        crate::tsmux::join_packed_async(
+                            picture.clone(),
+                            sound.clone(),
+                            partial.clone(),
+                        )
+                        .await
+                    }
+                }
             } else if crate::tsmux::is_transport_stream(picture)
                 && crate::tsmux::is_transport_stream(sound)
             {
-                crate::tsmux::join_ts_async(picture.clone(), sound.clone(), partial.clone()).await
+                match texts {
+                    Texts::Hls(texts) => {
+                        let place = move |zero| texts.timed(zero);
+                        let (seen, heard, out) = (picture.clone(), sound.clone(), partial.clone());
+                        crate::tsmux::join_ts_with_text_async(seen, heard, out, place).await
+                    }
+                    Texts::Timed(_) => {
+                        crate::tsmux::join_ts_async(picture.clone(), sound.clone(), partial.clone())
+                            .await
+                    }
+                }
             } else {
                 join_mp4(files.clone(), texts, partial.clone(), options).await
             }
@@ -737,13 +780,24 @@ async fn join_tracks(
 }
 
 /// The tracks joined into one MP4 with `texts` as its subtitles, cut to the span where there is
-/// one.
+/// one. An HLS stream's are timed from where the tracks start (`tfdt`, gaps row Y20).
 async fn join_mp4(
     files: Vec<PathBuf>,
-    texts: Vec<crate::subtitles::Subtitle>,
+    texts: Texts,
     out: PathBuf,
     options: &Options,
 ) -> Result<u64, String> {
+    let texts = match texts {
+        Texts::Timed(texts) => texts,
+        Texts::Hls(texts) => {
+            let (cut, shape) = match options.span {
+                Some(span) => (Some(span.millis()), options.shape),
+                None => (None, None),
+            };
+            let place = move |zero| texts.timed(zero);
+            return crate::mp4mux::join_cut_placed_async(files, place, out, cut, shape).await;
+        }
+    };
     match options.span {
         Some(span) => {
             crate::mp4mux::join_cut_async(files, texts, out, Some(span.millis()), options.shape)
