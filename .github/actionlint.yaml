@@ -1,0 +1,7 @@
+# actionlint (desktop.yml's "Workflows" step) knows GitHub's runner labels as of its own
+# release; `windows-11-arm`, GitHub's Windows on Arm runner that the release matrix builds on
+# (gaps row R3), came after actionlint 1.7.7, which reads it as a self-hosted runner's label
+# unless it is named here.
+self-hosted-runner:
+  labels:
+    - windows-11-arm
