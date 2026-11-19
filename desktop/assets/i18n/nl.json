@@ -912,5 +912,8 @@
  "File's path": "Pad van het bestand",
  "Type the file's full path, such as {}.": "Typ het volledige pad van het bestand, zoals {}.",
  "Export the list": "De lijst exporteren",
- "Import a list": "Een lijst importeren"
+ "Import a list": "Een lijst importeren",
+ "Sound language": "Taal van het geluid",
+ "The video's own": "Die van de video",
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "Heeft een video geluid in meerdere talen, dan wordt deze genomen; spreekt geen enkele die taal, dan die van de video."
 }

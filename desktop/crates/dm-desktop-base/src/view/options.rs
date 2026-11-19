@@ -57,6 +57,50 @@ pub const CONNECTION_PRESETS: [(&str, u32); 4] = [
     ("Maximum (32)", 32),
 ];
 
+/// Options › Downloads' sound languages (gaps row Y10): the setting's value (a language tag)
+/// and the language's own name, untranslated, as the window's languages are named. The pop-up
+/// offers "The video's own" (an empty value) above them.
+pub const SOUND_LANGUAGES: [(&str, &str); 16] = [
+    ("en", "English"),
+    ("es", "Español"),
+    ("fr", "Français"),
+    ("de", "Deutsch"),
+    ("it", "Italiano"),
+    ("pt-BR", "Português (Brasil)"),
+    ("pt", "Português"),
+    ("ru", "Русский"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
+    ("zh", "中文"),
+    ("hi", "हिन्दी"),
+    ("ar", "العربية"),
+    ("tr", "Türkçe"),
+    ("pl", "Polski"),
+    ("nl", "Nederlands"),
+];
+
+/// Where the sound language `value` stands in Options › Downloads' pop-up: 0 for the video's
+/// own (empty), then each of [`SOUND_LANGUAGES`] in turn; none for a value the list lacks,
+/// which the pop-up shows as itself and keeps.
+pub fn sound_language_at(value: &str) -> Option<usize> {
+    if value.is_empty() {
+        return Some(0);
+    }
+    SOUND_LANGUAGES
+        .iter()
+        .position(|(tag, _)| *tag == value)
+        .map(|i| i + 1)
+}
+
+/// The sound language at `index` of Options › Downloads' pop-up, as [`sound_language_at`]
+/// counts: empty for the video's own; none past the list's end.
+pub fn sound_language_of(index: usize) -> Option<&'static str> {
+    match index {
+        0 => Some(""),
+        i => SOUND_LANGUAGES.get(i - 1).map(|(tag, _)| *tag),
+    }
+}
+
 /// The events a sound file can be chosen for, by the settings' key.
 pub const SOUND_EVENTS: [&str; 4] = ["complete", "failed", "queue_started", "queue_done"];
 
@@ -111,6 +155,7 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
             "recheck_hours",
             "record_minutes",
             "remux_ts",
+            "sound_language",
             "start_queue_on_launch",
             "stream_quality",
             "subtitles",

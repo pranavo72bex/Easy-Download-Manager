@@ -912,5 +912,8 @@
  "File's path": "파일 경로",
  "Type the file's full path, such as {}.": "{}처럼 파일의 전체 경로를 입력하세요.",
  "Export the list": "목록 내보내기",
- "Import a list": "목록 가져오기"
+ "Import a list": "목록 가져오기",
+ "Sound language": "음성 언어",
+ "The video's own": "동영상 원래 언어",
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "동영상에 여러 언어의 음성이 있으면 이 언어를 사용합니다. 해당 언어가 없으면 동영상 원래 음성을 사용합니다."
 }

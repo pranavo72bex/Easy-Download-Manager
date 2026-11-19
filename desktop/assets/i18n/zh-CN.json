@@ -912,5 +912,8 @@
  "File's path": "文件路径",
  "Type the file's full path, such as {}.": "请输入文件的完整路径，例如 {}。",
  "Export the list": "导出列表",
- "Import a list": "导入列表"
+ "Import a list": "导入列表",
+ "Sound language": "音频语言",
+ "The video's own": "视频原声",
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "视频有多种语言的音轨时，使用此语言；若没有该语言，则使用视频原声。"
 }

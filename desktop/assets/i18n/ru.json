@@ -912,5 +912,8 @@
  "File's path": "Путь к файлу",
  "Type the file's full path, such as {}.": "Введите полный путь к файлу, например {}.",
  "Export the list": "Экспортировать список",
- "Import a list": "Импортировать список"
+ "Import a list": "Импортировать список",
+ "Sound language": "Язык звука",
+ "The video's own": "Как в видео",
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "Если у видео звук на нескольких языках, берётся этот; если ни один на нём не говорит — звук самого видео."
 }
