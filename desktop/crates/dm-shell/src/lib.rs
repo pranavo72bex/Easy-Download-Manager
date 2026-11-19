@@ -20,6 +20,7 @@
 )]
 pub mod app;
 pub mod dialup;
+mod error;
 pub mod firewall;
 pub mod host;
 pub mod instance;
@@ -32,4 +33,5 @@ pub mod shell;
 #[cfg(test)]
 pub(crate) use dm_test_support::secrets as test_secrets;
 
+pub use error::Error;
 pub use settings::{home, Settings};

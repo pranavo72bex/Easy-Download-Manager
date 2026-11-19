@@ -6,6 +6,8 @@
 //! "Site files" at work: reading a site's pages, or an FTP server's folders, for the
 //! files a [`Search`] wants, and keeping those within its sizes.
 
+use crate::Error;
+
 use super::{
     has_extension, links_on_page, CrawlWatch, Crawled, Search, MAX_DEPTH, MAX_PAGES, MOST_MINUTES,
 };
@@ -88,14 +90,14 @@ async fn fetch_page(
     page: &str,
     ask: &str,
     start: bool,
-) -> Result<(String, String), String> {
+) -> Result<(String, String), Error> {
     // `ask` may carry a login; `page` is what is said in a message, and it may too.
     let shown = bare_of_login(page);
     let res = dm_core::auth::send(client, client.get(ask), ask)
         .await
         .map_err(|e| e.to_string())?;
     if !res.status().is_success() {
-        return Err(format!("the page answered {}", res.status()));
+        return Err(format!("the page answered {}", res.status()).into());
     }
     let kind = res
         .headers()
@@ -107,7 +109,7 @@ async fn fetch_page(
     // read as one: a bare `/download/123` is usually the file itself.
     let html = kind == "text/html" || kind == "application/xhtml+xml";
     if !(html || (start && kind.is_empty())) {
-        return Err(format!("{shown} is a file ({kind}), not a page of links"));
+        return Err(format!("{shown} is a file ({kind}), not a page of links").into());
     }
     let base = res.url().to_string();
     // A page, not a file: past a few megabytes this is not HTML to read,
@@ -130,7 +132,7 @@ async fn fetch_page(
 /// pages it links to, and gathers the files wanted. Each page once, at most
 /// [`MAX_PAGES`] of them. A start page that cannot be read is the error;
 /// a page further in that cannot is skipped.
-pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result<Crawled, String> {
+pub async fn crawl(client: &dm_core::reqwest::Client, search: &Search) -> Result<Crawled, Error> {
     crawl_with(client, search, None).await
 }
 
@@ -141,7 +143,7 @@ pub async fn crawl_with(
     client: &dm_core::reqwest::Client,
     search: &Search,
     options: Option<&dm_core::Options>,
-) -> Result<Crawled, String> {
+) -> Result<Crawled, Error> {
     crawl_watched(client, search, options, &CrawlWatch::default()).await
 }
 
@@ -151,7 +153,7 @@ pub async fn crawl_watched(
     search: &Search,
     options: Option<&dm_core::Options>,
     watch: &CrawlWatch,
-) -> Result<Crawled, String> {
+) -> Result<Crawled, Error> {
     let minutes = search.stop_after_minutes.min(MOST_MINUTES);
     let deadline = (minutes > 0)
         .then(|| tokio::time::Instant::now() + std::time::Duration::from_secs(minutes * 60));
@@ -221,7 +223,7 @@ pub async fn crawl_ftp(
     search: &Search,
     options: &dm_core::Options,
     deadline: Option<tokio::time::Instant>,
-) -> Result<Crawled, String> {
+) -> Result<Crawled, Error> {
     walk_folders(search, deadline, |folder| async move {
         dm_core::ftp::list(&folder, options).await
     })
@@ -234,7 +236,7 @@ pub(super) async fn walk_folders<F, Fut>(
     search: &Search,
     deadline: Option<tokio::time::Instant>,
     list: F,
-) -> Result<Crawled, String>
+) -> Result<Crawled, Error>
 where
     F: Fn(String) -> Fut,
     Fut: std::future::Future<Output = Result<Vec<dm_core::ftp::Listed>, dm_core::Error>>,
@@ -266,7 +268,7 @@ where
         };
         let entries = match listed {
             Ok(entries) => entries,
-            Err(e) if found.pages == 0 => return Err(e.to_string()),
+            Err(e) if found.pages == 0 => return Err(e.to_string().into()),
             Err(_) => continue,
         };
         found.pages += 1;
@@ -306,7 +308,7 @@ pub async fn crawl_until(
     client: &dm_core::reqwest::Client,
     search: &Search,
     deadline: Option<tokio::time::Instant>,
-) -> Result<Crawled, String> {
+) -> Result<Crawled, Error> {
     crawl_until_watched(client, search, deadline, &CrawlWatch::default()).await
 }
 
@@ -316,7 +318,7 @@ async fn crawl_until_watched(
     search: &Search,
     deadline: Option<tokio::time::Instant>,
     watch: &CrawlWatch,
-) -> Result<Crawled, String> {
+) -> Result<Crawled, Error> {
     use std::collections::{HashSet, VecDeque};
     use std::sync::atomic::Ordering;
     let start = url::Url::parse(search.page.trim())

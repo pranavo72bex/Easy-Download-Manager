@@ -196,7 +196,7 @@ impl Session {
             {
                 if let Err(why) = crate::shell::run_after(command, std::path::Path::new(&row.path))
                 {
-                    problems.push(why);
+                    problems.push(String::from(why));
                 }
             }
         }
@@ -502,7 +502,7 @@ fn end_of_window(
             let command = schedule.run_when_done.trim();
             if !command.is_empty() {
                 if let Err(why) = crate::shell::run_program(command) {
-                    tick.problems.push(why);
+                    tick.problems.push(String::from(why));
                 }
             }
             if schedule.hang_up {

@@ -250,7 +250,7 @@ impl Backend {
     }
 
     /// Adds the downloads that `text` names (addresses, one to a line).
-    pub fn add(&self, text: &str) -> Result<shell::Added, String> {
+    pub fn add(&self, text: &str) -> Result<shell::Added, crate::Error> {
         self.block_on(shell::add(&self.queue, text))
     }
 
@@ -399,7 +399,7 @@ impl Backend {
     }
 
     /// Sets the checksum a finished download is checked against, from the text typed.
-    pub fn set_checksum(&self, id: Id, text: &str) -> Result<(), String> {
+    pub fn set_checksum(&self, id: Id, text: &str) -> Result<(), crate::Error> {
         let checksum = shell::checksum(text)?;
         self.block_on(self.queue.set_checksum(id, checksum));
         Ok(())

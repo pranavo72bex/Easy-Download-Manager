@@ -22,6 +22,8 @@
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
 use std::path::{Path, PathBuf};
 
+use crate::Error;
+
 #[cfg(test)]
 use dm_protocol::NATIVE_HOST;
 use dm_protocol::{CHROME_EXTENSION_ID, EDGE_EXTENSION_ID, FIREFOX_EXTENSION_ID};
@@ -57,7 +59,7 @@ pub fn register(
     exe: &Path,
     allowed: &Allowed,
     programs: &Programs,
-) -> Result<Vec<PathBuf>, String> {
+) -> Result<Vec<PathBuf>, Error> {
     if cfg!(target_os = "windows") {
         let written = register_windows(&windows_data(home), exe, allowed, run_reg)?;
         // Best effort, and never over another program's own: a failure here
@@ -68,10 +70,7 @@ pub fn register(
         return Ok(written);
     }
     if !exe.is_absolute() || !exe.is_file() {
-        return Err(format!(
-            "{} is not a program a browser could start",
-            exe.display()
-        ));
+        return Err(format!("{} is not a program a browser could start", exe.display()).into());
     }
     // Before anything is written: a manifest pointing at a binary the browser
     // may not run is the failure this exists to prevent.
@@ -82,7 +81,8 @@ pub fn register(
              folder on a disk you can write to) and open it from there, so your browser can \
              hand it downloads.",
             exe.display()
-        ));
+        )
+        .into());
     }
     if protected(exe, home, cfg!(target_os = "macos")) {
         return Err(format!(
@@ -91,7 +91,8 @@ pub fn register(
              why.\n\nInstall dm (make install, or the app in /Applications) and register that copy, \
              or set DM_ENGINE to a copy outside ~/Downloads, ~/Desktop and ~/Documents.",
             exe.display()
-        ));
+        )
+        .into());
     }
 
     let mut written = Vec::new();
@@ -140,11 +141,7 @@ pub fn unregister(home: &Path) -> Vec<PathBuf> {
 /// which is harmless and keeps an old copy of the extension working until
 /// it is replaced. `None` when nothing needed doing, including when no
 /// browser is installed.
-pub fn ensure(
-    home: &Path,
-    exe: &Path,
-    programs: &Programs,
-) -> Result<Option<Vec<PathBuf>>, String> {
+pub fn ensure(home: &Path, exe: &Path, programs: &Programs) -> Result<Option<Vec<PathBuf>>, Error> {
     let files: Vec<(PathBuf, Family)> = if cfg!(target_os = "windows") {
         let data = windows_data(home);
         [Family::Chromium, Family::Firefox]
@@ -216,7 +213,7 @@ pub fn ensure(
 /// [`ensure`] for this user, for the copy of dm that is running — or, in an
 /// AppImage, the AppImage file, since the program inside it is mounted at a
 /// new place every launch.
-pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, String> {
+pub fn ensure_this_copy() -> Result<Option<Vec<PathBuf>>, Error> {
     let exe = match std::env::var_os("APPIMAGE") {
         Some(image) => PathBuf::from(image),
         None => std::env::current_exe()
@@ -328,7 +325,7 @@ pub fn may_claim() -> bool {
 /// running dm too, before it hands off — and each time the running
 /// dm is asked to show itself, so a browser installed since is registered
 /// the next time the person opens dm.
-pub fn ensure_if_claimed() -> Result<Option<Vec<PathBuf>>, String> {
+pub fn ensure_if_claimed() -> Result<Option<Vec<PathBuf>>, Error> {
     if may_claim() {
         ensure_this_copy()
     } else {
@@ -342,7 +339,7 @@ pub fn ensure_if_claimed() -> Result<Option<Vec<PathBuf>>, String> {
 /// comes back.
 pub fn worth_saying(
     last: &mut Option<String>,
-    result: Result<Option<Vec<PathBuf>>, String>,
+    result: Result<Option<Vec<PathBuf>>, Error>,
 ) -> Option<String> {
     match result {
         Ok(_) => {
@@ -351,8 +348,8 @@ pub fn worth_saying(
         }
         Err(why) if last.as_deref() == Some(why.as_str()) => None,
         Err(why) => {
-            *last = Some(why.clone());
-            Some(why)
+            *last = Some(why.to_string());
+            Some(why.into())
         }
     }
 }

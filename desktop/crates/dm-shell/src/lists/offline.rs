@@ -18,6 +18,8 @@ use std::sync::atomic::Ordering;
 
 use url::Url;
 
+use crate::Error;
+
 use super::{
     has_any, looks_like_page, path_of, same_site, with_start_login, CrawlWatch, Search, MAX_DEPTH,
     MAX_PAGES, MOST_MINUTES,
@@ -101,13 +103,13 @@ async fn fetch(
     ask: &str,
     page: Option<bool>,
     cap: usize,
-) -> Result<Read, String> {
+) -> Result<Read, Error> {
     use futures_util::StreamExt as _;
     let res = dm_core::auth::send(client, client.get(ask), ask)
         .await
         .map_err(|e| e.to_string())?;
     if !res.status().is_success() {
-        return Err(format!("it answered {}", res.status()));
+        return Err(format!("it answered {}", res.status()).into());
     }
     let content_type = res
         .headers()
@@ -119,7 +121,7 @@ async fn fetch(
     if let Some(start) = page {
         let html = mime == "text/html" || mime == "application/xhtml+xml";
         if !(html || (start && mime.is_empty())) {
-            return Err(format!("a file ({mime}), not a page"));
+            return Err(format!("a file ({mime}), not a page").into());
         }
     } else if res.content_length().is_some_and(|n| n > cap as u64) {
         return Err("larger than a page's file is saved".into());
@@ -183,7 +185,7 @@ impl Reading<'_> {
     }
 
     /// The pages, from the start page, `depth` deep, at most [`MAX_PAGES`].
-    async fn pages(&mut self) -> Result<(), String> {
+    async fn pages(&mut self) -> Result<(), Error> {
         let depth = self.search.depth.min(MAX_DEPTH);
         let mut seen: HashSet<String> = HashSet::from([key(&self.start)]);
         let mut frontier: VecDeque<(Url, u8)> = VecDeque::from([(self.start.clone(), 0)]);
@@ -212,7 +214,7 @@ impl Reading<'_> {
             };
             let (landed, mime, charset, bytes) = match read {
                 Ok(read) => read,
-                Err(e) if first => return Err(format!("{}: {e}", key(&page))),
+                Err(e) if first => return Err(format!("{}: {e}", key(&page)).into()),
                 Err(_) => continue,
             };
             if first {
@@ -265,7 +267,7 @@ impl Reading<'_> {
             let room = (MAX_RESOURCES - saved).min(self.needed.len());
             let wave: Vec<Url> = self.needed.drain(..room).collect();
             let (client, start, deadline) = (self.client, &self.start, self.deadline);
-            let read: Vec<(Url, Option<Result<Read, String>>)> = futures_util::stream::iter(wave)
+            let read: Vec<(Url, Option<Result<Read, Error>>)> = futures_util::stream::iter(wave)
                 .map(|link| async move {
                     let ask = with_start_login(link.as_str(), start);
                     let read = before(deadline, fetch(client, &ask, None, RESOURCE_CAP)).await;
@@ -332,7 +334,7 @@ pub async fn save_pages(
     client: &dm_core::reqwest::Client,
     search: &Search,
     folder: &Path,
-) -> Result<Saved, String> {
+) -> Result<Saved, Error> {
     save_pages_watched(client, search, folder, &CrawlWatch::default()).await
 }
 
@@ -343,7 +345,7 @@ pub async fn save_pages_watched(
     search: &Search,
     folder: &Path,
     watch: &CrawlWatch,
-) -> Result<Saved, String> {
+) -> Result<Saved, Error> {
     let start =
         Url::parse(search.page.trim()).map_err(|e| format!("that is not a page address: {e}"))?;
     if !matches!(start.scheme(), "http" | "https") {
@@ -370,7 +372,7 @@ pub async fn save_pages_watched(
 }
 
 /// What was read, written under `folder` with its links made to work there.
-async fn write(got: &[Got], folder: &Path, stopped: bool) -> Result<Saved, String> {
+async fn write(got: &[Got], folder: &Path, stopped: bool) -> Result<Saved, Error> {
     let mut names = names::Names::default();
     let places: Vec<Vec<String>> = got
         .iter()

@@ -149,9 +149,9 @@ fn new_client(settings: &Settings, previous: Option<&Settings>) -> bool {
 /// value it refuses, or a proxy that cannot be built. `apply` after this
 /// changes everything or nothing, where before a proxy refused halfway left
 /// the half before it live.
-pub fn check(settings: &Settings, previous: Option<&Settings>) -> Result<(), String> {
+pub fn check(settings: &Settings, previous: Option<&Settings>) -> Result<(), crate::Error> {
     if let Some(why) = previous.and_then(|held| settings.refusal(held)) {
-        return Err(why);
+        return Err(why.into());
     }
     if new_client(settings, previous) {
         settings.client()?;
@@ -198,7 +198,7 @@ pub async fn apply(
     settings: &Settings,
     previous: Option<&Settings>,
     queue: &DownloadList,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, crate::Error> {
     check(settings, previous)?;
     if new_client(settings, previous) {
         queue

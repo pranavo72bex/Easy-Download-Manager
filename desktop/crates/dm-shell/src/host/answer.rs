@@ -241,7 +241,7 @@ fn take(home: &Path, start: Start, world: &mut dyn World) -> Reply {
 /// video's or sound's own address, else the page (or frame) it was on, read for its video.
 /// The items an app of today serves are carried out by the extension itself
 /// (`dm_protocol::menu_does`); this is where an item added later is decided, by the app.
-pub(super) fn menu_start(click: &dm_protocol::MenuClicked) -> Result<Start, String> {
+pub(super) fn menu_start(click: &dm_protocol::MenuClicked) -> Result<Start, crate::Error> {
     let web = |url: &str| {
         let lower = url.trim().to_ascii_lowercase();
         lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("ftp://")

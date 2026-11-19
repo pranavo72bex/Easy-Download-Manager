@@ -131,7 +131,7 @@ pub fn unregister_windows(
 /// `.reg` copy kept of another program's key, by `reg.exe`.
 #[cfg(windows)]
 pub fn run_reg(args: &[String]) -> Result<(), String> {
-    crate::registry::run(args)
+    crate::registry::run(args).map_err(String::from)
 }
 
 /// Away from Windows there is no registry.

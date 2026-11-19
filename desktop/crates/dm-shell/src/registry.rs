@@ -10,6 +10,8 @@
 //! program's key is a `.reg` file in Windows' own format, which a person can open, and only
 //! `reg.exe` writes and reads that format whole.
 
+use crate::Error;
+
 /// The part of the registry a key is in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Root {
@@ -79,30 +81,30 @@ pub enum Call {
 }
 
 /// A full key's root and the path under it: `HKCU\Software\x` is the person's `Software\x`.
-pub fn split_root(full: &str) -> Result<(Root, String), String> {
+pub fn split_root(full: &str) -> Result<(Root, String), Error> {
     let (head, rest) = full.split_once('\\').unwrap_or((full, ""));
     let root = match head.to_ascii_uppercase().as_str() {
         "HKCU" | "HKEY_CURRENT_USER" => Root::CurrentUser,
         "HKLM" | "HKEY_LOCAL_MACHINE" => Root::LocalMachine,
-        _ => return Err(format!("{full} is not under HKCU or HKLM")),
+        _ => return Err(format!("{full} is not under HKCU or HKLM").into()),
     };
     Ok((root, rest.trim_end_matches('\\').to_string()))
 }
 
 /// What `args` (`reg.exe`'s own arguments, the verb first) ask. Only string values are written,
 /// as only they are asked for; anything else is refused in words, not guessed at.
-pub fn parse(args: &[String]) -> Result<Call, String> {
+pub fn parse(args: &[String]) -> Result<Call, Error> {
     let verb = args.first().map(String::as_str).unwrap_or_default();
     if matches!(verb, "export" | "import") {
         return Ok(Call::Program);
     }
     if !matches!(verb, "add" | "delete" | "query") {
-        return Err(format!("\"{verb}\" is not a registry change dm makes"));
+        return Err(format!("\"{verb}\" is not a registry change dm makes").into());
     }
     let (root, key) = split_root(args.get(1).map_or("", String::as_str))?;
     // A root alone is never meant: removing its empty path would empty the whole root.
     if key.is_empty() {
-        return Err("a key under HKCU or HKLM is to be named, not the root itself".to_string());
+        return Err("a key under HKCU or HKLM is to be named, not the root itself".into());
     }
     let (mut value, mut data) = (None, None);
     let mut rest = args.iter().skip(2);
@@ -110,7 +112,7 @@ pub fn parse(args: &[String]) -> Result<Call, String> {
         let mut next = || {
             rest.next()
                 .cloned()
-                .ok_or_else(|| format!("{flag} names nothing"))
+                .ok_or_else(|| Error::from(format!("{flag} names nothing")))
         };
         match flag.to_ascii_lowercase().as_str() {
             "/ve" => value = Some(Value::Default),
@@ -119,11 +121,11 @@ pub fn parse(args: &[String]) -> Result<Call, String> {
             "/t" => {
                 let kind = next()?;
                 if !kind.eq_ignore_ascii_case("REG_SZ") {
-                    return Err(format!("{kind} values are not written, only REG_SZ"));
+                    return Err(format!("{kind} values are not written, only REG_SZ").into());
                 }
             }
             "/f" => {}
-            _ => return Err(format!("{flag} is not a flag dm uses")),
+            _ => return Err(format!("{flag} is not a flag dm uses").into()),
         }
     }
     Ok(match (verb, value) {
@@ -144,27 +146,27 @@ pub fn parse(args: &[String]) -> Result<Call, String> {
 /// registry's API, `export` and `import` by `reg.exe`. An error says the verb and Windows' own
 /// words, as `reg.exe`'s did.
 #[cfg(windows)]
-pub fn run(args: &[String]) -> Result<(), String> {
+pub fn run(args: &[String]) -> Result<(), Error> {
     let verb = args.first().map(String::as_str).unwrap_or_default();
     parse(args)
         .and_then(|call| match call {
             Call::Program => program(args),
             call => api::run(&call),
         })
-        .map_err(|why| format!("reg {verb}: {why}"))
+        .map_err(|why| Error::from(format!("reg {verb}: {why}")))
 }
 
 /// The string values of a key (`HKLM\…`), in the registry's order; values of other kinds are
 /// left out.
 #[cfg(windows)]
-pub fn strings(full: &str) -> Result<Vec<String>, String> {
+pub fn strings(full: &str) -> Result<Vec<String>, Error> {
     let (root, key) = split_root(full)?;
     api::strings(root, &key)
 }
 
 /// Windows' own `reg.exe`, for the `.reg` files.
 #[cfg(windows)]
-fn program(args: &[String]) -> Result<(), String> {
+fn program(args: &[String]) -> Result<(), Error> {
     let out = dm_core::no_window(&mut std::process::Command::new("reg"))
         .args(args)
         .output()
@@ -172,13 +174,13 @@ fn program(args: &[String]) -> Result<(), String> {
     if out.status.success() {
         Ok(())
     } else {
-        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        Err(String::from_utf8_lossy(&out.stderr).trim().into())
     }
 }
 
 #[cfg(windows)]
 mod api {
-    use super::{Call, Root, Value};
+    use super::{Call, Error, Root, Value};
     use windows_sys::Win32::Foundation::{
         ERROR_MORE_DATA, ERROR_NO_MORE_ITEMS, ERROR_SUCCESS, WIN32_ERROR,
     };
@@ -207,11 +209,13 @@ mod api {
     }
 
     /// Windows' words for a status other than success.
-    fn checked(status: WIN32_ERROR) -> Result<(), String> {
+    fn checked(status: WIN32_ERROR) -> Result<(), Error> {
         if status == ERROR_SUCCESS {
             Ok(())
         } else {
-            Err(std::io::Error::from_raw_os_error(status as i32).to_string())
+            Err(std::io::Error::from_raw_os_error(status as i32)
+                .to_string()
+                .into())
         }
     }
 
@@ -235,7 +239,7 @@ mod api {
     }
 
     impl Key {
-        fn open(root: Root, key: &str, access: REG_SAM_FLAGS) -> Result<Key, String> {
+        fn open(root: Root, key: &str, access: REG_SAM_FLAGS) -> Result<Key, Error> {
             let name = wide(key);
             let mut opened: HKEY = std::ptr::null_mut();
             // SAFETY: `name` is NUL-terminated and outlives the call; `opened` is ours to write.
@@ -244,7 +248,7 @@ mod api {
         }
 
         /// The key, made (with any keys above it) where it is missing.
-        fn create(root: Root, key: &str) -> Result<Key, String> {
+        fn create(root: Root, key: &str) -> Result<Key, Error> {
             let name = wide(key);
             let mut opened: HKEY = std::ptr::null_mut();
             // SAFETY: `name` is NUL-terminated and outlives the call; no class, no security
@@ -266,7 +270,7 @@ mod api {
         }
     }
 
-    pub(super) fn run(call: &Call) -> Result<(), String> {
+    pub(super) fn run(call: &Call) -> Result<(), Error> {
         match call {
             Call::Make { root, key } => Key::create(*root, key).map(drop),
             Call::Set {
@@ -323,12 +327,12 @@ mod api {
                     })
                 }
             },
-            Call::Program => Err("export and import are reg.exe's".to_string()),
+            Call::Program => Err("export and import are reg.exe's".into()),
         }
     }
 
     /// Every string value of a key, read one by one until the registry says there are no more.
-    pub(super) fn strings(root: Root, key: &str) -> Result<Vec<String>, String> {
+    pub(super) fn strings(root: Root, key: &str) -> Result<Vec<String>, Error> {
         let opened = Key::open(root, key, KEY_QUERY_VALUE)?;
         // A value's name is at most 16,383 characters; data grows as a value asks.
         let mut name = vec![0u16; 16_384];

@@ -112,9 +112,9 @@ pub fn leave_when_done(home: &Path, orders: &Orders) {
 pub fn hand_off(
     home: &Path,
     orders: &Orders,
-    register: impl FnOnce() -> Result<Option<Vec<std::path::PathBuf>>, String>,
+    register: impl FnOnce() -> Result<Option<Vec<std::path::PathBuf>>, crate::Error>,
 ) -> Option<String> {
-    let failed = register().err();
+    let failed = register().err().map(String::from);
     hand_to_running(home, orders);
     failed
 }

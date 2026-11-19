@@ -7,11 +7,11 @@ use super::*;
 
 /* Found by profile folder alone, as before: these tests run on
  * computers with real browsers on PATH and in /Applications. */
-fn register(home: &Path, exe: &Path, allowed: &Allowed) -> Result<Vec<PathBuf>, String> {
+fn register(home: &Path, exe: &Path, allowed: &Allowed) -> Result<Vec<PathBuf>, Error> {
     super::register(home, exe, allowed, &Programs::default())
 }
 
-fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, String> {
+fn ensure(home: &Path, exe: &Path) -> Result<Option<Vec<PathBuf>>, Error> {
     super::ensure(home, exe, &Programs::default())
 }
 
