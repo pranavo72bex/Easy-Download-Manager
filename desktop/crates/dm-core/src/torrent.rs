@@ -32,8 +32,16 @@ use tokio_util::sync::CancellationToken;
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error, Progress};
 
+mod blocklist;
+mod placing;
 mod run;
+mod trackers;
+use blocklist::blocklist_file;
+use placing::place;
+#[cfg(test)]
+use placing::{copy_across, folder_name};
 use run::*;
+use trackers::{tcp_trackers_of, tcp_trackers_of_magnet};
 
 /// A torrent's swarm as its engine last saw it: shown beside the bytes, as
 /// a torrent has peers where a file has connections.
@@ -149,93 +157,6 @@ pub fn stop_sharing(path: &Path) {
     if let Some((_, token)) = shared().remove(path) {
         token.cancel();
     }
-}
-
-/// How long a blocklist fetched from the web is used before it is fetched again.
-const BLOCKLIST_FRESH: Duration = Duration::from_secs(24 * 3600);
-/// The largest blocklist read: the lists in use are a few megabytes, gzipped.
-const BLOCKLIST_MOST: u64 = 64 * 1024 * 1024;
-
-/// The blocklist as librqbit reads it, a `file:` address: one on this
-/// computer as it is; one on the web fetched with dm's own client (so
-/// through the proxy, which librqbit's own fetch would go around) and kept
-/// a day beside the parts. One that cannot be read is an error: a torrent
-/// does not go on as if the person had asked for no list.
-async fn blocklist_file(
-    client: &reqwest::Client,
-    address: &str,
-    parts_dir: &Path,
-) -> Result<String, Error> {
-    let address = address.trim();
-    let refused = |why: String| {
-        Error::Internal(format!(
-            "the peer blocklist at {address} could not be read: {why}"
-        ))
-    };
-    if address.starts_with("file:") {
-        return Ok(address.to_string());
-    }
-    if !(address.starts_with("http://") || address.starts_with("https://")) {
-        let path = Path::new(address);
-        if !path.is_file() {
-            return Err(refused("there is no such file".into()));
-        }
-        return file_url(path).ok_or_else(|| refused("its path cannot be made an address".into()));
-    }
-    let folder = parts_dir.parent().unwrap_or(parts_dir);
-    let kept = folder.join(format!("peer-blocklist-{:016x}", fnv(address)));
-    let fresh = tokio::fs::metadata(&kept)
-        .await
-        .ok()
-        .and_then(|m| m.modified().ok())
-        .and_then(|at| at.elapsed().ok())
-        .is_some_and(|age| age < BLOCKLIST_FRESH);
-    if !fresh {
-        let mut response = client
-            .get(address)
-            .send()
-            .await
-            .map_err(|e| refused(e.to_string()))?;
-        if !response.status().is_success() {
-            return Err(refused(format!(
-                "the server answered {}",
-                response.status()
-            )));
-        }
-        let too_big = || refused("it is larger than 64 MB".into());
-        if response
-            .content_length()
-            .is_some_and(|n| n > BLOCKLIST_MOST)
-        {
-            return Err(too_big());
-        }
-        let mut body = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(|e| refused(e.to_string()))? {
-            body.extend_from_slice(&chunk);
-            if body.len() as u64 > BLOCKLIST_MOST {
-                return Err(too_big());
-            }
-        }
-        tokio::fs::create_dir_all(folder)
-            .await
-            .map_err(Error::Disk)?;
-        // Whole or not at all: a torrent started meanwhile reads the last one.
-        let partial = kept.with_extension("part");
-        tokio::fs::write(&partial, &body)
-            .await
-            .map_err(Error::Disk)?;
-        tokio::fs::rename(&partial, &kept)
-            .await
-            .map_err(Error::Disk)?;
-    }
-    file_url(&kept).ok_or_else(|| refused("its copy's path cannot be made an address".into()))
-}
-
-/// A short name for an address, for the file its list is kept in.
-fn fnv(text: &str) -> u64 {
-    text.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
-    })
 }
 
 /// One file of a torrent, and whether it is fetched.
@@ -356,79 +277,6 @@ pub fn local_file(url: &str) -> Option<std::path::PathBuf> {
 /// The `file://` address of a path on this computer.
 pub fn file_url(path: &std::path::Path) -> Option<String> {
     url::Url::from_file_path(path).ok().map(String::from)
-}
-
-/// Whether a tracker's address is one a proxy carries: HTTP or HTTPS.
-/// A `udp://` tracker would be asked directly, around any proxy.
-fn tcp_tracker(address: &str) -> bool {
-    let lower = address.trim().to_ascii_lowercase();
-    lower.starts_with("http://") || lower.starts_with("https://")
-}
-
-/// The refusal when a proxy leaves a torrent no way to find peers.
-fn no_tracker_behind_proxy() -> Error {
-    Error::Internal(
-        "behind a proxy dm finds peers only through http or https trackers, and this torrent lists none"
-            .into(),
-    )
-}
-
-/// A magnet with only the trackers a proxy carries: behind one, the DHT is
-/// off and a `udp://` tracker would be asked directly with the info-hash
-/// and the real address.
-fn tcp_trackers_of_magnet(magnet: &str) -> Result<String, Error> {
-    let (head, query) = magnet.split_once('?').unwrap_or((magnet, ""));
-    let mut trackers = 0;
-    let kept: Vec<&str> = query
-        .split('&')
-        .filter(|part| {
-            let Some(value) = part.strip_prefix("tr=") else {
-                return true;
-            };
-            let address = percent_encoding::percent_decode_str(value).decode_utf8_lossy();
-            let keep = tcp_tracker(&address);
-            trackers += usize::from(keep);
-            keep
-        })
-        .collect();
-    if trackers == 0 {
-        return Err(no_tracker_behind_proxy());
-    }
-    Ok(format!("{head}?{}", kept.join("&")))
-}
-
-/// A `.torrent` with only the trackers a proxy carries, its info dictionary
-/// kept byte for byte so it is still the same torrent.
-fn tcp_trackers_of(metainfo: &[u8]) -> Result<Vec<u8>, Error> {
-    let parsed = dm_torrent::metainfo(metainfo)
-        .map_err(|e| Error::Internal(format!("this file is not a torrent: {e}")))?;
-    let trackers: Vec<String> = parsed
-        .trackers
-        .into_iter()
-        .filter(|t| tcp_tracker(t))
-        .collect();
-    let Some(first) = trackers.first() else {
-        return Err(no_tracker_behind_proxy());
-    };
-    let string = |out: &mut Vec<u8>, s: &[u8]| {
-        out.extend_from_slice(s.len().to_string().as_bytes());
-        out.push(b':');
-        out.extend_from_slice(s);
-    };
-    // Its keys in order, as bencoding requires.
-    let mut out = b"d".to_vec();
-    string(&mut out, b"announce");
-    string(&mut out, first.as_bytes());
-    string(&mut out, b"announce-list");
-    out.extend_from_slice(b"ll");
-    for t in &trackers {
-        string(&mut out, t.as_bytes());
-    }
-    out.extend_from_slice(b"ee");
-    string(&mut out, b"info");
-    out.extend_from_slice(&parsed.info);
-    out.push(b'e');
-    Ok(out)
 }
 
 fn ends_with_ignoring_case(s: &str, suffix: &str) -> bool {
@@ -733,130 +581,6 @@ fn high_water(before: Option<u64>, progress: u64, total: Option<u64>) -> u64 {
     progress
         .min(total.unwrap_or(u64::MAX))
         .max(before.unwrap_or(0))
-}
-
-/// Moves what a torrent produced into the download folder.
-///
-/// One file is placed exactly as any other download is — sorted into its
-/// category folder and checked against the digest it was given, by the same
-/// code. A tree of files keeps the structure the torrent names, under the
-/// download folder itself: category sorting is for one file with one kind.
-/// A digest cannot be checked over a tree, and a row that carries one is
-/// failed rather than completed with the digest quietly unchecked.
-async fn place(
-    staged: &Path,
-    name: &str,
-    options: &Options,
-) -> Result<(PathBuf, category::Category, bool, Option<String>), Error> {
-    if staged.is_file() {
-        // Under the file's own name, not the torrent's: the two differ when
-        // a torrent of one file is named for its release.
-        let file_name = staged
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| name.to_string());
-        let (path, _, category) =
-            crate::download::finish(&file_name, None, &[staged.to_path_buf()], options).await?;
-        return Ok((path, category, options.checksum.is_some(), None));
-    }
-    if options.checksum.is_some() {
-        return Err(Error::Internal(
-            "a checksum cannot be checked over a torrent of several files".into(),
-        ));
-    }
-    options.control.check()?;
-    tokio::fs::create_dir_all(&options.dest_dir)
-        .await
-        .map_err(Error::Disk)?;
-    let folder = folder_name(name);
-    let dest = crate::download::claim_dir(&options.dest_dir, &folder).await?;
-    match move_tree(staged, &dest).await {
-        Ok(left_behind) => Ok((dest, category::classify(&folder, None), false, left_behind)),
-        Err(e) => {
-            // Only the empty folder this claimed; never anything with files in.
-            let _ = tokio::fs::remove_dir(&dest).await;
-            Err(e)
-        }
-    }
-}
-
-/// The folder a torrent of several files lands in, from the name the
-/// torrent gives itself — which is the torrent's to say, and so cleaned as
-/// any remote name is: `../.config/autostart` must not leave the download
-/// folder, nor arrive hidden.
-fn folder_name(name: &str) -> String {
-    let cleaned = crate::probe::sanitize(name);
-    if cleaned.is_empty() {
-        "torrent".into()
-    } else {
-        cleaned
-    }
-}
-
-/// Moves a directory: a rename where the two are on one filesystem, a copy
-/// and a removal where they are not. What it says, when it says anything,
-/// is a copy left behind that could not be removed: the files are in place,
-/// so that is a problem to note, not a failed download.
-async fn move_tree(from: &Path, to: &Path) -> Result<Option<String>, Error> {
-    if tokio::fs::rename(from, to).await.is_ok() {
-        return Ok(None);
-    }
-    let (from, to) = (from.to_path_buf(), to.to_path_buf());
-    tokio::task::spawn_blocking(move || copy_across(&from, &to))
-        .await
-        .map_err(|e| Error::Internal(e.to_string()))?
-        .map_err(Error::Disk)
-}
-
-/// A move between disks. Copied straight into `to`, a copy that
-/// failed midway left half a tree in the download folder looking finished;
-/// and a copy that succeeded but whose source could not be removed failed
-/// the row beside a whole copy, so Retry fetched it again as "name (1)".
-/// The copy goes to a hidden name beside `to` and is renamed into place
-/// only when whole; it is removed if it fails.
-fn copy_across(from: &Path, to: &Path) -> std::io::Result<Option<String>> {
-    let parent = to.parent().unwrap_or(Path::new("."));
-    let name = to
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let staging = parent.join(format!(".{name}.dm-moving"));
-    // One left by a move that was interrupted is no use to anyone.
-    let _ = std::fs::remove_dir_all(&staging);
-    if let Err(e) = copy_tree(from, &staging) {
-        let _ = std::fs::remove_dir_all(&staging);
-        return Err(e);
-    }
-    // Onto the empty folder claimed for it: Unix replaces an empty folder,
-    // Windows does not, so that goes first there.
-    if std::fs::rename(&staging, to).is_err() {
-        let _ = std::fs::remove_dir(to);
-        if let Err(e) = std::fs::rename(&staging, to) {
-            let _ = std::fs::remove_dir_all(&staging);
-            return Err(e);
-        }
-    }
-    Ok(std::fs::remove_dir_all(from).err().map(|e| {
-        format!(
-            "{} is complete, but the copy it was moved from could not be removed from {}: {e}",
-            to.display(),
-            from.display()
-        )
-    }))
-}
-
-fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
-    std::fs::create_dir_all(to)?;
-    for entry in std::fs::read_dir(from)? {
-        let entry = entry?;
-        let target = to.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_tree(&entry.path(), &target)?;
-        } else {
-            std::fs::copy(entry.path(), target)?;
-        }
-    }
-    Ok(())
 }
 
 /// How the swarm is reached when a proxy is configured.

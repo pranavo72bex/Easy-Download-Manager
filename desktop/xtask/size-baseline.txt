@@ -3,20 +3,12 @@
 # `<path> <lines>`. A file named here may not grow past its entry, any other may not pass
 # 800 lines, and none may pass 2,500. An entry is only ever lowered or removed:
 # `cargo xtask size-baseline` does both from the files as they are now.
-browser/src/content/handoff.rs 877
-browser/src/decide/streams.rs 1410
 desktop/crates/dm-core/src/download.rs 996
-desktop/crates/dm-core/src/download/assemble.rs 891
 desktop/crates/dm-core/src/download/dash.rs 2053
 desktop/crates/dm-core/src/download/hls.rs 1437
 desktop/crates/dm-core/src/download/ranged.rs 848
 desktop/crates/dm-core/src/download/ranged/attempt.rs 1140
-desktop/crates/dm-core/src/extract/sevenz/header.rs 845
-desktop/crates/dm-core/src/queue.rs 1232
-desktop/crates/dm-core/src/queue/runner.rs 808
 desktop/crates/dm-core/src/stream.rs 945
-desktop/crates/dm-core/src/torrent.rs 1000
-desktop/crates/dm-core/src/videopage/fetch.rs 967
 desktop/crates/dm-core/src/youtube.rs 1784
 desktop/crates/dm-core/src/youtube/player.rs 921
 desktop/crates/dm-gpui/src/dialogs/details.rs 820
@@ -28,10 +20,3 @@ desktop/crates/dm-gpui/src/window_tests/dialogs.rs 2120
 desktop/crates/dm-gpui/src/window_tests/downloads.rs 1777
 desktop/crates/dm-gpui/src/window_tests/lists.rs 908
 desktop/crates/dm-gpui/src/window_tests/options.rs 1004
-desktop/crates/dm-js/src/interp.rs 1676
-desktop/crates/dm-js/src/parser.rs 1701
-desktop/crates/dm-js/src/regexp.rs 970
-desktop/crates/dm-media/src/mkvmux.rs 1174
-desktop/crates/dm-media/src/mp3.rs 931
-desktop/crates/dm-media/src/mp3/tables.rs 2021
-desktop/crates/dm-protocol/src/lib.rs 1385
