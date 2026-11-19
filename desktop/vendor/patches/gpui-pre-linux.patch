@@ -1,7 +1,7 @@
 dm's change to gpui-pre-linux 0.3.12 (crates.io, Apache-2.0: Zed's
 `gpui_linux` crate as the gpui-pre snapshot publishes it), applied to the
 published crate with Cargo.lock, .cargo_vcs_info.json and .cargo-ok removed
-first. Made again by desktop/vendor/vendor.sh; explained in
+first. Made again by `cargo xtask vendor`; explained in
 desktop/vendor/README.md. Each change in the code is marked `dm(<tag>):`, the
 tag its row in that file's table. The text before each file's section says
 what its hunks do, in order; git apply skips it.

@@ -49,6 +49,7 @@ mod release;
 mod sizes;
 mod tasks;
 mod update_key;
+mod vendor;
 mod vendor_marks;
 
 use std::path::{Path, PathBuf};
@@ -63,6 +64,7 @@ fn main() {
         "build" => tasks::build(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "test" => tasks::test(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "qa" => tasks::qa(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
+        "vendor" => vendor::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "scorecard" => write_scorecard(),
         "layers" => layers().map(|()| "the crates are layered as they should be".to_string()),
         "size-baseline" => sizes::lower(&root()),
