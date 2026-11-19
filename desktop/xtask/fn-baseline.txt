@@ -3,20 +3,5 @@
 # `fn` to the line of its closing brace, with its lines then: `<path> <name> <lines>`. A
 # function named here may not grow past its entry, any other may not pass 150 lines. An
 # entry is only ever lowered or removed: `cargo xtask size-baseline` does both.
-browser/src/content/build.rs build 151
-desktop/crates/dm-core/src/dash.rs pieces_of 216
-desktop/crates/dm-core/src/download/dash.rs join_tracks 188
-desktop/crates/dm-core/src/download/hls.rs download_stream 229
-desktop/crates/dm-core/src/download/hls.rs record_live 164
-desktop/crates/dm-core/src/download/ranged/limits.rs pick_limited 157
-desktop/crates/dm-core/src/stream.rs media_playlist 207
-desktop/crates/dm-core/src/youtube/player.rs tokens 155
-desktop/crates/dm-gpui/src/dialogs/series.rs render 160
-desktop/crates/dm-gpui/src/harness/world.rs world 253
-desktop/crates/dm-gpui/src/options/pages/folders.rs folders 155
-desktop/crates/dm-gpui/src/window/menus.rs bind_keys 160
-desktop/crates/dm-gpui/src/window/table.rs row_cells 155
-desktop/crates/dm-gpui/src/window/toolbar.rs toolbar 162
-desktop/crates/dm-gpui/src/window_tests/commands.rs every_menu_item_clicked_does_what_it_says 325
 desktop/crates/dm-js/src/builtins/date.rs install 157
 desktop/crates/dm-js/src/interp.rs looped 155

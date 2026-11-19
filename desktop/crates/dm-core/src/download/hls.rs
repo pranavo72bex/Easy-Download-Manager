@@ -5,6 +5,8 @@
 
 use super::*;
 
+mod steps;
+
 /// Fetches an adaptive stream as one file.
 ///
 /// Segments rather than ranges, so almost none of the machinery above
@@ -96,110 +98,26 @@ pub(super) async fn download_stream(
             .await;
     }
 
-    // Each key once, not once per segment: a playlist of a thousand segments would otherwise
-    // be a thousand requests for the same sixteen bytes. A key that changes part-way is
-    // several (gaps row Y16).
-    let mut keys = Keys::new();
-    for declared in listed.parts.iter().filter_map(|p| p.key.as_ref()) {
-        if !keys.contains_key(&declared.uri) {
-            let body = fetch_capped(client, &declared.uri, 1024, options)
-                .await?
-                .body;
-            keys.insert(declared.uri.clone(), body);
-        }
-    }
+    let keys = steps::fetch_keys(client, &listed, options).await?;
 
     fs::create_dir_all(&options.dest_dir).await?;
 
-    /* Stopped after every segment had arrived — paused during the remux, or
-     * dm quit or killed then — the segments are still there, or in the gathered
-     * stream (kept as `.ts`), and once remuxed, in the MP4: none is fetched
-     * again. The gathered stream and the MP4 are each named only once whole
-     * (each is written under `.partial`), and the segments are removed only
-     * once the MP4 is, so whichever is here is complete. */
     let gathered = options.parts_dir.join(GATHERED);
-    let remuxed = options.parts_dir.join(REMUXED);
     // Only where the remux would run now: turned off since, or with a
     // digest that names the `.ts` bytes, an MP4 from before is not the file
     // asked for, and the stream is fetched again from its segments.
     let remuxing = remux_wanted(&listed.filename, options);
-    if !remuxing {
-        let _ = fs::remove_file(&remuxed).await;
-    }
-    if remuxing
-        && fs::metadata(&gathered).await.is_err()
-        && fs::metadata(&remuxed).await.is_ok_and(|m| m.len() > 0)
-    {
-        let stem = ts_stem(&listed.filename);
-        let (path, bytes, category) =
-            finish(&format!("{stem}.mp4"), None, &[remuxed], options).await?;
-        // Segments the remux had not yet removed when it was stopped (gaps row Y21).
-        for i in 0..listed.parts.len() {
-            let _ = fs::remove_file(part_path(&options.parts_dir, i)).await;
-        }
-        return Ok(Finished {
-            left_behind: None,
-            path,
-            bytes,
-            connections: 1,
-            category,
-            verified: options.checksum.is_some(),
-            mirrors: 1,
-        });
+    if let Some(done) = steps::remuxed_before(&listed, remuxing, &gathered, options).await? {
+        return Ok(done);
     }
 
-    /* The subtitle renditions the master lists for this rendition, carried inside the file
-     * where Options says so and there is a picture to show them over (gaps row Y20): fetched
-     * before the segments, so a stop while they come is a stop, not a file without them. A
-     * transport stream carries them only where it is put into an MP4 (not one kept as `.ts`,
-     * nor one scrambled by SAMPLE-AES, whose remux takes none). */
-    let carried = match listed.container.as_str() {
-        "m4a" | "aac" => false,
-        "ts" => remuxing && !sealed,
-        _ => true,
-    };
-    let pictured = options.quality != Quality::Audio && carried;
-    let texts = if options.subtitles && pictured && !subtitles.is_empty() {
-        super::hls_text::fetch(client, &subtitles, options)
-            .await?
-            .skipping(skipped)
-    } else {
-        super::hls_text::HlsTexts::default()
-    };
+    let texts = steps::carried_texts(
+        client, &listed, &subtitles, remuxing, sealed, skipped, options,
+    )
+    .await?;
 
-    let parts: Vec<PathBuf> = if fs::metadata(&gathered).await.is_ok() {
-        vec![gathered]
-    } else {
-        // A playlist states no size: the row shows one about, from the pieces fetched so far
-        // and how many there are, marked as such (gaps row Y22), rather than none at all.
-        let downloaded = Arc::new(AtomicU64::new(0));
-        let estimate = Arc::new(AtomicU64::new(0));
-        let meter = report.map(|tx| {
-            crate::download::ranged::watch_estimating(
-                Arc::clone(&downloaded),
-                None,
-                Some(Arc::clone(&estimate)),
-                tx,
-            )
-        });
-        let outcome = fetch_segments(
-            client,
-            &listed,
-            &keys,
-            options,
-            &downloaded,
-            Some(&estimate),
-        )
-        .await;
-        if let Some((handle, finished)) = meter {
-            let _ = finished.send(());
-            let _ = handle.await;
-        }
-        outcome?;
-        (0..listed.parts.len())
-            .map(|i| part_path(&options.parts_dir, i))
-            .collect()
-    };
+    let parts =
+        steps::gathered_or_fetched(client, &listed, &keys, gathered, options, report).await?;
     // A transport stream into an MP4 where asked and able; the `.ts` where
     // not, which is still the stream, whole. One scrambled by SAMPLE-AES is put in the clear
     // first, and must be: what it was saved as would not play.
@@ -211,24 +129,7 @@ pub(super) async fn download_stream(
             None => (parts, listed.filename.clone()),
         }
     };
-    let parts = match cut {
-        Some(window) => vec![cut_fragments_with(&parts, Some(window), &texts, options).await?],
-        // Runs, each with its set-up, as one MP4 (gaps row Y16).
-        None if runs && fragmented => {
-            vec![cut_fragments_with(&parts, None, &texts, options).await?]
-        }
-        // Subtitles to carry: the fragments made one MP4 with them; kept as they came where dm
-        // cannot make one, which is still the stream (gaps row Y20).
-        None if fragmented && !texts.is_empty() => {
-            let made = cut_fragments_with(&parts, None, &texts, options).await;
-            match made {
-                Ok(joined) => vec![joined],
-                Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
-                Err(_) => parts,
-            }
-        }
-        None => parts,
-    };
+    let parts = steps::cut_or_joined(parts, cut, runs, fragmented, &texts, options).await?;
     let (path, bytes, category) = finish(&filename, None, &parts, options).await?;
 
     Ok(Finished {
@@ -360,62 +261,9 @@ pub(super) async fn record_live(
         let _ = finished.send(());
         let _ = handle.await;
     }
-    match ended {
-        Ok(()) | Err(Error::Paused) => {}
-        Err(Error::Cancelled) => {
-            let _ = fs::remove_file(&picture_at).await;
-            let _ = fs::remove_file(&sound_file).await;
-            return Err(Error::Cancelled);
-        }
-        // Whatever stopped it, what was recorded is kept where there is any.
-        Err(e) if !recorded => {
-            let _ = fs::remove_file(&sound_file).await;
-            return Err(e);
-        }
-        Err(_) => {}
-    }
-    if !recorded {
-        let _ = fs::remove_file(&sound_file).await;
-        return Err(Error::Internal(
-            "the live stream sent nothing to record".into(),
-        ));
-    }
+    steps::kept_or_cleared(ended, recorded, &picture_at, &sound_file).await?;
     flushed?;
-    // Stopped by the person: the recording is finished, not paused, so
-    // placing it must not wait on the stop that ended it.
-    let placing = Options {
-        control: crate::control::Control::new(),
-        ..options.clone()
-    };
-    let joined = match &sound_at {
-        Some(sound) => join_live(&picture_at, sound, &filename, &placing).await,
-        None => None,
-    };
-    let (parts, filename) = match joined {
-        Some((mp4, name)) => (vec![mp4], name),
-        // Runs of a fragmented recording, each with its own set-up, as one MP4 (gaps row Y16).
-        None if remapped && !crate::tsmux::is_transport_stream(&picture_at) => {
-            let flat = cut_fragments(std::slice::from_ref(&picture_at), None, &placing).await?;
-            (vec![flat], format!("{}.mp4", media_stem(&filename)))
-        }
-        None => {
-            let parts = vec![picture_at];
-            match remux_ts(&filename, &parts, &placing).await? {
-                Some((mp4, name)) => (vec![mp4], name),
-                None => (parts, filename),
-            }
-        }
-    };
-    let (path, bytes, category) = finish(&filename, None, &parts, &placing).await?;
-    Ok(Finished {
-        left_behind: None,
-        path,
-        bytes,
-        connections: 1,
-        category,
-        verified: false,
-        mirrors: 1,
-    })
+    steps::place_live(picture_at, sound_at, filename, remapped, options).await
 }
 
 /// What one round of asking a live playlist came to.

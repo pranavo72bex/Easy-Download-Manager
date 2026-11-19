@@ -91,6 +91,20 @@ pub(super) fn folders(
         }
         p.add(native::enabled(on, row));
     }
+    custom_categories(o, p, window, cx, on, &screen);
+    let _ = theme;
+}
+
+/// Your own categories: each one's name, types and sites, and a button to delete it; and a
+/// button to add one.
+fn custom_categories(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+    on: bool,
+    screen: &Screen,
+) {
     p.add(native::enabled(
         on,
         div().child(screen.label(t("Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category."))),
@@ -160,7 +174,6 @@ pub(super) fn folders(
             cx.notify();
         }));
     p.add(native::enabled(on, div().flex().child(add)));
-    let _ = theme;
 }
 
 /// The folder the draft names for the kind at `i` in `Category::ALL`, empty for none.
