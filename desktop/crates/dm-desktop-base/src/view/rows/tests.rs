@@ -158,10 +158,17 @@ fn paused(by_schedule: bool) -> Entry {
 
 #[test]
 fn a_sign_in_is_asked_for_by_a_401_alone() {
-    assert!(needs_sign_in("the server answered 401 Unauthorized for x"));
-    assert!(!needs_sign_in(
+    let failed = |said: &str| row(State::Failed(said.into()), false);
+    assert!(needs_sign_in(&failed(
+        "the server answered 401 Unauthorized for x"
+    )));
+    assert!(!needs_sign_in(&failed(
         "the server answered 404 Not Found for /4013"
-    ));
+    )));
+    let mut refused = failed("words that name no status");
+    refused.fail_kind = Some(dm_core::FailKind::Refused(403));
+    assert!(needs_sign_in(&refused));
+    assert!(!needs_sign_in(&row(State::Queued, false)));
 }
 
 #[test]

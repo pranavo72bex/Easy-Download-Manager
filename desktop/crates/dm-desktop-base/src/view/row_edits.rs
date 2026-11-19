@@ -243,7 +243,7 @@ pub fn keep_properties(backend: &Backend, row: &Entry, edited: &Edited) -> Resul
     if changed {
         backend.set_url(row.id, edited.address)?;
     }
-    let wants_login = matches!(&row.state, State::Failed(why) if crate::rows::needs_sign_in(why));
+    let wants_login = crate::rows::needs_sign_in(row);
     if changed && wants_login {
         backend.retry(row.id);
         return Ok(true);

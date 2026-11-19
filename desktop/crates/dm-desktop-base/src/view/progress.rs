@@ -111,7 +111,7 @@ pub fn can_resume_words(row: &Entry, resumable: Option<bool>) -> Option<&'static
         }
         None if torrent => t("Yes, from the pieces it already has"),
         // The server answered, with a refusal.
-        None if matches!(&row.state, State::Failed(why) if why.contains("the server answered")) => {
+        None if matches!(row.failed_as(), Some(dm_core::FailKind::Refused(_))) => {
             t("No — the server refused it")
         }
         None if matches!(row.state, State::Failed(_)) => {

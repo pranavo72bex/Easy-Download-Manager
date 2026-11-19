@@ -571,6 +571,9 @@ impl Queue {
             }
             (outcome, _) => outcome,
         };
+        // The failure's kind, kept beside its sentence (a row that is about to replace an old
+        // version, or whose link expired, fails of the kind its error is).
+        let kind = outcome.as_ref().err().map(Error::fail_kind);
         slot.entry_mut().state = match outcome {
             Ok(finished) => {
                 // Usually the name the probe already reported, but
@@ -613,6 +616,10 @@ impl Queue {
                 None => State::Failed(error.to_string()),
             },
         };
+        let kind = kind.filter(|_| matches!(slot.entry.state, State::Failed(_)));
+        if slot.entry.fail_kind != kind {
+            slot.entry_mut().fail_kind = kind;
+        }
         // What turns a settled row into history.
         if slot.entry.state.settled() {
             slot.entry_mut().finished_at = Some(now_seconds());

@@ -57,6 +57,7 @@ fn entry(state: State) -> Entry {
         said: String::new(),
         post: None,
         posted: false,
+        fail_kind: None,
         sound: None,
         span: None,
         shape: None,

@@ -154,6 +154,11 @@ impl Queue {
             if entry.state == State::Running {
                 entry.state = State::Queued;
             }
+            // A failure saved by a dm from before failures carried their kind: its kind worked
+            // out once, from its sentence, and kept with it from now on.
+            if entry.fail_kind.is_none() {
+                entry.fail_kind = entry.failed_as();
+            }
             // Nothing restored is moving yet; a rate and a time remaining
             // from before the restart are figures about a transfer that is
             // not happening.

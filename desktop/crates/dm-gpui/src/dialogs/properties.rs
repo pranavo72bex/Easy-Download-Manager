@@ -809,8 +809,7 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
                 cx.new(|cx| InputState::new(window, cx).placeholder(t("A digest you were given")));
             // A server that wants a sign-in: the keyboard goes to Login;
             // else to the address where it can be changed, else the note.
-            let wants_login = matches!(&row.state,
-                State::Failed(why) if dm_desktop_base::rows::needs_sign_in(why));
+            let wants_login = dm_desktop_base::rows::needs_sign_in(&row);
             let editable = !matches!(row.state, State::Running | State::Completed)
                 || dm_desktop_base::rows::retrying(row.id).is_some();
             let first = match (editable, wants_login) {

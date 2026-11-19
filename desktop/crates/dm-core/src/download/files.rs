@@ -287,11 +287,14 @@ pub(super) fn adopt_part(
 /// neither the folder nor what to do about it.
 pub(super) async fn writable(dir: &Path) -> Result<(), Error> {
     let said = |e: std::io::Error| {
-        Error::Internal(format!(
-            "the folder {} cannot be written to ({e}); choose another for this download \
-             (Move/Rename) or for every download (Options › Folders)",
-            dir.display()
-        ))
+        Error::known(
+            crate::FailKind::NoRoom,
+            format!(
+                "the folder {} cannot be written to ({e}); choose another for this download \
+                 (Move/Rename) or for every download (Options › Folders)",
+                dir.display()
+            ),
+        )
     };
     fs::create_dir_all(dir).await.map_err(said)?;
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

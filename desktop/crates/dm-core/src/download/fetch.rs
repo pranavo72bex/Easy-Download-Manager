@@ -291,8 +291,9 @@ async fn page_answer(
      * apart. */
     let page = crate::videopage::is_page(info.content_type.as_deref());
     if page && is_stream() {
-        return Err(Error::Internal(
-            "the stream answered with a web page rather than the file".into(),
+        return Err(Error::known(
+            crate::FailKind::WebPage,
+            "the stream answered with a web page rather than the file",
         ));
     }
     if page && names_a_file(url) {
@@ -300,10 +301,10 @@ async fn page_answer(
             if options.accept_page {
                 info.filename = html_name(&info.filename);
             } else {
-                return Err(Error::Internal(
+                return Err(Error::known(
+                    crate::FailKind::WebPage,
                     "that link answered with a web page rather than the file — it may have \
-                     expired, or need a sign-in"
-                        .into(),
+                     expired, or need a sign-in",
                 ));
             }
         }
@@ -335,10 +336,10 @@ async fn page_answer(
             if options.accept_page {
                 info.filename = html_name(&info.filename);
             } else {
-                return Err(Error::Internal(
+                return Err(Error::known(
+                    crate::FailKind::WebPage,
                     "that address answered with a web page rather than the file; its video, if \
-                     any, comes from the browser's Download video button when the page plays"
-                        .into(),
+                     any, comes from the browser's Download video button when the page plays",
                 ));
             }
         }
