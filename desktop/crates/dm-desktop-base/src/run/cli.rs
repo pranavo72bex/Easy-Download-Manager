@@ -25,6 +25,7 @@ use std::path::Path;
 use serde_json::{json, Value};
 
 use crate::mcp::{finder, Control};
+use crate::Error;
 
 /// What was asked for.
 #[derive(Debug, PartialEq)]
@@ -44,7 +45,7 @@ pub fn is_command(word: &str) -> bool {
 
 /// The command, whether `--json` was given, and the port and token file if
 /// named, from the arguments after the program name.
-pub fn parse(args: &[String]) -> Result<(Ask, bool, Option<String>, Option<String>), String> {
+pub fn parse(args: &[String]) -> Result<(Ask, bool, Option<String>, Option<String>), Error> {
     let (mut json, mut port, mut token) = (false, None, None);
     let mut words = Vec::new();
     let mut it = args.iter();
@@ -53,7 +54,9 @@ pub fn parse(args: &[String]) -> Result<(Ask, bool, Option<String>, Option<Strin
             "--json" => json = true,
             "--port" => port = Some(it.next().ok_or("--port needs a number")?.clone()),
             "--token-file" => token = Some(it.next().ok_or("--token-file needs a path")?.clone()),
-            other if other.starts_with("--") => return Err(format!("unknown option {other}")),
+            other if other.starts_with("--") => {
+                return Err(format!("unknown option {other}").into())
+            }
             other => words.push(other.to_string()),
         }
     }
@@ -76,12 +79,12 @@ pub fn parse(args: &[String]) -> Result<(Ask, bool, Option<String>, Option<Strin
         ("status", [one]) => Ask::Status(*one),
         ("status", _) => return Err("status takes one download number".into()),
         ("pause" | "resume" | "cancel", []) => {
-            return Err(format!("{verb} needs a download number (see `list`)"))
+            return Err(format!("{verb} needs a download number (see `list`)").into())
         }
         ("pause", _) => Ask::Act("downloads.pause", ids),
         ("resume", _) => Ask::Act("downloads.resume", ids),
         ("cancel", _) => Ask::Act("downloads.cancel", ids),
-        (other, _) => return Err(format!("{other:?} is not a command")),
+        (other, _) => return Err(format!("{other:?} is not a command").into()),
     };
     Ok((ask, json, port, token))
 }
@@ -157,7 +160,7 @@ fn line(row: &Value) -> String {
 }
 
 /// Every row, as [`brief`] shows it.
-fn rows(control: &mut Control) -> Result<Vec<Value>, String> {
+fn rows(control: &mut Control) -> Result<Vec<Value>, Error> {
     let all = control.call("queue.list", json!({}))?;
     Ok(all
         .as_array()

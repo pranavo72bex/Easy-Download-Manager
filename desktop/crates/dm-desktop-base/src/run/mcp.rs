@@ -20,6 +20,8 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+use crate::Error;
+
 /// How long the running window is given to answer one request before the wait ends.
 const ANSWER_WITHIN: std::time::Duration = std::time::Duration::from_secs(90);
 
@@ -162,7 +164,7 @@ fn tools() -> Value {
 
 /// The control calls a tool is, in order: most are one method, the
 /// ones that act on ids select them first.
-fn plan(tool: &str, arguments: &Value) -> Result<Option<Vec<(&'static str, Value)>>, String> {
+fn plan(tool: &str, arguments: &Value) -> Result<Option<Vec<(&'static str, Value)>>, Error> {
     let ids = arguments.get("ids").filter(|v| !v.is_null());
     let acting = |all: &'static str, some: &'static str| match ids {
         Some(ids) => vec![(some, json!({ "ids": ids }))],
@@ -207,9 +209,9 @@ fn plan(tool: &str, arguments: &Value) -> Result<Option<Vec<(&'static str, Value
                 .and_then(Value::as_str)
                 .unwrap_or("");
             if !["low", "medium", "high", "unlimited"].contains(&preset) {
-                return Err(format!(
-                    "preset is low, medium, high or unlimited, not {preset:?}"
-                ));
+                return Err(
+                    format!("preset is low, medium, high or unlimited, not {preset:?}").into(),
+                );
             }
             vec![(
                 "command.run",
@@ -243,7 +245,7 @@ fn method_of(tool: &str) -> Option<&'static str> {
 
 /// Where the running dm listens and the token it wants, read afresh each
 /// time a connection is made.
-pub type Finder = Box<dyn Fn() -> Result<(u16, String), String> + Send>;
+pub type Finder = Box<dyn Fn() -> Result<(u16, String), Error> + Send>;
 
 /// A connection to the running dm's control protocol, made again when dm
 /// has gone and come back.
@@ -259,7 +261,7 @@ pub struct Control {
 
 impl Control {
     /// Connects to `port` with `token`, and to the same again later.
-    pub fn connect(port: u16, token: &str) -> Result<Control, String> {
+    pub fn connect(port: u16, token: &str) -> Result<Control, Error> {
         Control::connect_as(port, token, Some("mcp"))
     }
 
@@ -269,23 +271,23 @@ impl Control {
         port: u16,
         token: &str,
         client: Option<&'static str>,
-    ) -> Result<Control, String> {
+    ) -> Result<Control, Error> {
         let token = token.to_string();
         Control::with_client(Box::new(move || Ok((port, token.clone()))), client)
     }
 
     /// Connects wherever `find` says, now and on each reconnection.
-    pub fn with(find: Finder) -> Result<Control, String> {
+    pub fn with(find: Finder) -> Result<Control, Error> {
         Control::with_client(find, None)
     }
 
     /// As `with`, as an AI assistant: the window answers it only while
     /// Options allows assistants.
-    pub fn as_assistant(find: Finder) -> Result<Control, String> {
+    pub fn as_assistant(find: Finder) -> Result<Control, Error> {
         Control::with_client(find, Some("mcp"))
     }
 
-    fn with_client(find: Finder, client: Option<&'static str>) -> Result<Control, String> {
+    fn with_client(find: Finder, client: Option<&'static str>) -> Result<Control, Error> {
         let mut control = Control {
             link: None,
             find,
@@ -295,7 +297,7 @@ impl Control {
         Ok(control)
     }
 
-    fn reconnect(&mut self) -> Result<(), String> {
+    fn reconnect(&mut self) -> Result<(), Error> {
         self.link = None;
         let (port, token) = (self.find)()?;
         let stream = TcpStream::connect(("127.0.0.1", port)).map_err(|e| {
@@ -310,8 +312,8 @@ impl Control {
         // assistant for good.
         stream
             .set_read_timeout(Some(ANSWER_WITHIN))
-            .map_err(|e| e.to_string())?;
-        let replies = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
+            .map_err(Error::from_display)?;
+        let replies = BufReader::new(stream.try_clone().map_err(Error::from_display)?);
         self.link = Some((stream, replies));
         if let Err(why) = self.exchange("auth", &json!({ "token": token, "client": self.client })) {
             self.link = None;
@@ -346,7 +348,7 @@ impl Control {
         if !self.alive() {
             self.reconnect()?;
         }
-        let answer = self.exchange(method, &params);
+        let answer = self.exchange(method, &params).map_err(String::from);
         // A click, a typed word or a key is done a frame at a time: what
         // is drawn next is read after it has been.
         if answer.is_ok() && matches!(method, "ui.click" | "ui.type" | "ui.key") {
@@ -359,21 +361,21 @@ impl Control {
         answer
     }
 
-    fn exchange(&mut self, method: &str, params: &Value) -> Result<Value, String> {
+    fn exchange(&mut self, method: &str, params: &Value) -> Result<Value, Error> {
         let Some((out, replies)) = &mut self.link else {
             return Err("dm closed the connection".into());
         };
         let line = json!({ "id": 1, "method": method, "params": params });
-        writeln!(out, "{line}").map_err(|e| e.to_string())?;
+        writeln!(out, "{line}").map_err(Error::from_display)?;
         let mut reply = String::new();
         if let Err(e) = replies.read_line(&mut reply) {
             // A reply that comes late would be read as the next call's:
             // the connection is made afresh instead.
             self.link = None;
-            return Err(e.to_string());
+            return Err(Error::from_display(e));
         }
         let reply: Value =
-            serde_json::from_str(&reply).map_err(|_| "dm closed the connection".to_string())?;
+            serde_json::from_str(&reply).map_err(|_| Error::from("dm closed the connection"))?;
         if reply.get("ok") == Some(&Value::Bool(true)) {
             Ok(reply.get("result").cloned().unwrap_or(Value::Null))
         } else {
@@ -381,7 +383,7 @@ impl Control {
                 .get("error")
                 .and_then(Value::as_str)
                 .unwrap_or("dm refused")
-                .to_string())
+                .into())
         }
     }
 }
@@ -429,6 +431,7 @@ pub fn answer(message: &Value, control: &mut Control) -> Option<Value> {
                     }
                 }),
                 Err(why) => {
+                    let why = why.as_str();
                     Ok(json!({ "content": [{ "type": "text", "text": why }], "isError": true }))
                 }
             }
@@ -486,7 +489,7 @@ pub fn finder(home: &Path, port: Option<String>, token_file: Option<String>) -> 
             .and_then(|p| p.trim().parse::<u16>().ok());
         match (port, token) {
             (Some(port), Ok(token)) => Ok((port, token.trim().to_string())),
-            _ => Err("no running dm to talk to: in dm, tick Options › General › Allow AI assistants to control dm (MCP), or start dm with --control 0".to_string()),
+            _ => Err("no running dm to talk to: in dm, tick Options › General › Allow AI assistants to control dm (MCP), or start dm with --control 0".into()),
         }
     })
 }

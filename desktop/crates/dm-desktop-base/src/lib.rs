@@ -29,7 +29,8 @@
 //! In three folders, each saying what is in it: `platform` (the system's
 //! services), `view` (what the windows and dialogs say and decide) and `run`
 //! (the ways dm runs). Every module is reached from the crate's root, as
-//! `dm_desktop_base::rows`, wherever its folder is.
+//! `dm_desktop_base::rows`, wherever its folder is. What goes wrong is said
+//! in the crate's one error type, [`Error`] (gaps row A9).
 
 // Never crash on what comes from outside: no unwrap, expect or panic in
 // shipped code (tests may), checked by clippy in CI.
@@ -38,9 +39,12 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+mod error;
 mod platform;
 mod run;
 mod view;
+
+pub use error::Error;
 
 #[cfg(target_os = "macos")]
 pub use platform::opened;

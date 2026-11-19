@@ -17,6 +17,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::Error;
+
 /// Where the entry goes: `$XDG_CONFIG_HOME/autostart`, or `~/.config/autostart`.
 pub fn entry_path() -> Option<PathBuf> {
     let config = dm_core::folders::xdg_config()?;
@@ -133,10 +135,10 @@ fn exec_arg(arg: &str) -> String {
 const MARK: &str = "Comment=Download manager, waiting in the tray\n";
 
 /// Writes or removes the entry, as `wanted` says. See [`set_at`].
-pub fn set(wanted: bool) -> Result<(), String> {
+pub fn set(wanted: bool) -> Result<(), Error> {
     let path = entry_path().ok_or("no home directory to put a login entry in")?;
     let program = if wanted {
-        program().map_err(|e| e.to_string())?
+        program().map_err(Error::from_display)?
     } else {
         PathBuf::new()
     };
@@ -226,12 +228,12 @@ pub fn set_at(
     program: &Path,
     claim: bool,
     exists: impl FnOnce(&Path) -> bool,
-) -> Result<bool, String> {
+) -> Result<bool, Error> {
     if !wanted {
         return match std::fs::remove_file(path) {
             Ok(()) => Ok(true),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
-            Err(e) => Err(format!("{}: {e}", path.display())),
+            Err(e) => Err(format!("{}: {e}", path.display()).into()),
         };
     }
     let text = entry(program);
@@ -247,11 +249,11 @@ pub fn set_at(
         _ => {}
     }
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(dir).map_err(Error::from_display)?;
     }
     dm_core::write_atomic(path, text.as_bytes())
         .map(|()| true)
-        .map_err(|e| e.to_string())
+        .map_err(Error::from_display)
 }
 
 /// What `--unregister` did with the login item.
@@ -271,11 +273,11 @@ pub fn remove_at(
     path: &Path,
     this: &Path,
     exists: impl FnOnce(&Path) -> bool,
-) -> Result<Removal, String> {
+) -> Result<Removal, Error> {
     let text = match std::fs::read_to_string(path) {
         Ok(text) => text,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Removal::None),
-        Err(e) => return Err(format!("{}: {e}", path.display())),
+        Err(e) => return Err(format!("{}: {e}", path.display()).into()),
     };
     let found = entry_program(&text);
     if let Some(found) = found.as_deref().filter(|f| !removes(Some(f), this, exists)) {
@@ -284,7 +286,7 @@ pub fn remove_at(
     match std::fs::remove_file(path) {
         Ok(()) => Ok(Removal::Removed(path.display().to_string())),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Removal::None),
-        Err(e) => Err(format!("{}: {e}", path.display())),
+        Err(e) => Err(format!("{}: {e}", path.display()).into()),
     }
 }
 

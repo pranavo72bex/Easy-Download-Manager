@@ -9,8 +9,10 @@
 
 use dm_shell::{settings, shell};
 
+use crate::Error;
+
 /// The login item for `exe`, launched into the tray.
-pub fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, String> {
+pub fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, Error> {
     auto_launch::AutoLaunchBuilder::new()
         .set_app_name("dm")
         .set_app_path(&exe.to_string_lossy())
@@ -21,7 +23,7 @@ pub fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, 
         // remove.
         .set_windows_enable_mode(auto_launch::WindowsEnableMode::CurrentUser)
         .build()
-        .map_err(|e| e.to_string())
+        .map_err(Error::from_display)
 }
 
 /// The program the login item `auto-launch` wrote starts: on macOS its
@@ -62,15 +64,15 @@ pub fn login_item_turned_off_outside() -> bool {
 /// The browsers' manifests are `register::from_args`'s.
 pub fn remove_login_item() {
     use crate::autostart::{self, Removal};
-    let removed: Result<Removal, String> = if cfg!(target_os = "linux") {
+    let removed: Result<Removal, Error> = if cfg!(target_os = "linux") {
         match (autostart::entry_path(), autostart::program()) {
             (Some(path), Ok(this)) => autostart::remove_at(&path, &this, |p| p.exists()),
             (None, _) => Ok(Removal::None),
-            (_, Err(e)) => Err(e.to_string()),
+            (_, Err(e)) => Err(Error::from_display(e)),
         }
     } else {
         std::env::current_exe()
-            .map_err(|e| e.to_string())
+            .map_err(Error::from_display)
             .and_then(|exe| {
                 let found = login_item_program();
                 if let Some(found) = found
@@ -87,7 +89,7 @@ pub fn remove_login_item() {
                 if !there && !cfg!(target_os = "windows") {
                     return Ok(Removal::None);
                 }
-                launcher.disable().map_err(|e| e.to_string())?;
+                launcher.disable().map_err(Error::from_display)?;
                 Ok(if there {
                     Removal::Removed(if cfg!(target_os = "macos") {
                         "the login item (~/Library/LaunchAgents/dm.plist)".to_string()

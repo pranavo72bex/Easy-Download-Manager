@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 pub use dm_media::mp3::*;
 
+use crate::Error;
+
 /// The list line for the sound as MP3, offered after an M4A's: its size
 /// about half as much again (192 kbit/s against AAC's usual 128).
 pub fn choice_after(m4a_size: Option<u64>) -> Option<crate::videopage::Choice> {
@@ -23,10 +25,11 @@ pub fn choice_after(m4a_size: Option<u64>) -> Option<crate::videopage::Choice> {
 /// Saves the sound of `source` (an M4A, an MP4's sound, or a WebM's Opus where [`takes`]) as an
 /// MP3 at `target`, at `kbps` kbit/s (`None`: 192 for stereo, as always; [`convert_bytes`]).
 /// Returns the MP3's length.
-pub fn convert(source: &Path, target: &Path, kbps: Option<u32>) -> Result<u64, String> {
-    let bytes = convert_bytes(source, kbps)?;
+pub fn convert(source: &Path, target: &Path, kbps: Option<u32>) -> Result<u64, Error> {
+    // `to_string`, whichever error type `dm_media` gives.
+    let bytes = convert_bytes(source, kbps).map_err(|e| Error::Internal(e.to_string()))?;
     crate::write_atomic(target, &bytes)
-        .map_err(|e| format!("the MP3 could not be written: {e}"))?;
+        .map_err(|e| Error::Internal(format!("the MP3 could not be written: {e}")))?;
     Ok(bytes.len() as u64)
 }
 
@@ -36,8 +39,8 @@ pub async fn convert_async(
     source: PathBuf,
     target: PathBuf,
     kbps: Option<u32>,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     crate::heavy::run(move || convert(&source, &target, kbps))
         .await
-        .map_err(|e| format!("making the MP3 stopped: {e}"))?
+        .map_err(|e| Error::Internal(format!("making the MP3 stopped: {e}")))?
 }

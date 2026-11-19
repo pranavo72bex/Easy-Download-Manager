@@ -25,7 +25,7 @@ impl DownloadList {
         // Nothing is known of what is on disk there until it is written.
         *crate::lock(&self.inner.saved) = None;
         if let Err(problem) = self.restore(&path).await {
-            self.note(problem);
+            self.note(problem.to_string());
         }
         *crate::lock(&self.inner.store) = Some(path.clone());
         // What the download limit had used, and when the recheck queue last
@@ -63,7 +63,7 @@ impl DownloadList {
     /// to write the empty list over it, so a release that changed a field
     /// destroyed every queue on first launch, and the parts those rows
     /// pointed at were orphaned for good. It is moved aside and said.
-    pub(super) async fn restore(&self, path: &std::path::Path) -> Result<(), String> {
+    pub(super) async fn restore(&self, path: &std::path::Path) -> Result<(), Error> {
         // Only a file that is not there is no queue: one that is there and
         // cannot be read, or is not text, is kept aside as a bad one is.
         let read = match std::fs::read(path) {
@@ -85,15 +85,15 @@ impl DownloadList {
             Err(e) => {
                 let aside = crate::paths::unreadable(path);
                 return match std::fs::rename(path, &aside) {
-                    Ok(()) => Err(format!(
+                    Ok(()) => Err(Error::Internal(format!(
                         "the saved queue could not be read ({e}); it was kept as {} and the \
                          queue starts empty",
                         aside.display()
-                    )),
-                    Err(io) => Err(format!(
+                    ))),
+                    Err(io) => Err(Error::Internal(format!(
                         "the saved queue could not be read ({e}) or moved aside ({io}); it \
                          will be overwritten by the next change"
-                    )),
+                    ))),
                 };
             }
         };
@@ -131,7 +131,7 @@ impl DownloadList {
                 .collect::<Vec<Entry>>()
         })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| Error::Internal(e.to_string()))?;
         let mut slots = self.inner.slots.lock().await;
         let mut order = self.inner.order.lock().await;
         let mut highest = 0;

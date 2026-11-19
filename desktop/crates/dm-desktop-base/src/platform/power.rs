@@ -13,6 +13,8 @@
 
 pub use dm_shell::app::power::{Report, WhenDone, COUNTDOWN_SECS};
 
+use crate::Error;
+
 /// How the machine is put to sleep or shut down on one system.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Way {
@@ -90,7 +92,7 @@ fn look_for(program: &str) -> bool {
 
 /// Does `action` on this machine. That it could not be started is the
 /// answer; a refusal it gives later goes to `report`.
-pub fn run(action: WhenDone, report: Report) -> Result<(), String> {
+pub fn run(action: WhenDone, report: Report) -> Result<(), Error> {
     match way(action, std::env::consts::OS)
         .ok_or_else(|| format!("dm cannot {} on this system", action.verb()))?
     {
@@ -105,7 +107,7 @@ pub fn run(action: WhenDone, report: Report) -> Result<(), String> {
 
 /// `SetSuspendState` on a thread of its own: it returns only on waking.
 #[cfg(windows)]
-fn suspend(action: WhenDone, hibernate: bool, report: Report) -> Result<(), String> {
+fn suspend(action: WhenDone, hibernate: bool, report: Report) -> Result<(), Error> {
     std::thread::Builder::new()
         .name("dm-suspend".into())
         .spawn(move || {
@@ -123,12 +125,12 @@ fn suspend(action: WhenDone, hibernate: bool, report: Report) -> Result<(), Stri
             }
         })
         .map(|_| ())
-        .map_err(|e| format!("could not {}: {e}", action.verb()))
+        .map_err(|e| Error::from(format!("could not {}: {e}", action.verb())))
 }
 
 #[cfg(not(windows))]
-fn suspend(action: WhenDone, _hibernate: bool, _report: Report) -> Result<(), String> {
-    Err(format!("dm cannot {} on this system", action.verb()))
+fn suspend(action: WhenDone, _hibernate: bool, _report: Report) -> Result<(), Error> {
+    Err(format!("dm cannot {} on this system", action.verb()).into())
 }
 
 /// Starts `command` and waits for it on a thread of its own, telling
@@ -141,13 +143,13 @@ fn watch(
     action: WhenDone,
     command: &mut std::process::Command,
     report: Report,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let child = command
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|e| format!("could not {}: {e}", action.verb()))?;
+        .map_err(|e| Error::from(format!("could not {}: {e}", action.verb())))?;
     std::thread::spawn(move || match child.wait_with_output() {
         Ok(out) if out.status.success() => {}
         Ok(out) => {

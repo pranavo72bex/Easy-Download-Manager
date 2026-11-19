@@ -147,15 +147,15 @@ pub(super) const ZIP_AES_MAC: usize = 10;
 
 impl ZipAes {
     /// The extra field's seven bytes, or why they are no AES settings dm reads.
-    pub(super) fn parse(data: &[u8]) -> Result<ZipAes, String> {
+    pub(super) fn parse(data: &[u8]) -> Result<ZipAes, super::Error> {
         let &[v0, v1, b'A', b'E', strength, m0, m1] = data else {
-            return Err("an AES field of no known form".into());
+            return Err(super::Error::Method("an AES field of no known form".into()));
         };
         let vendor = u16::from_le_bytes([v0, v1]);
         if !(1..=2).contains(&vendor) || !(1..=3).contains(&strength) {
-            return Err(format!(
+            return Err(super::Error::Method(format!(
                 "AES of a kind dm does not know (AE-{vendor}, strength {strength})"
-            ));
+            )));
         }
         Ok(ZipAes {
             vendor,
@@ -334,8 +334,8 @@ pub(super) struct SevenAes {
 impl SevenAes {
     /// The coder's property bytes: the rounds' power in the first's low six bits, and where
     /// either of its two high bits is set a second byte of the salt's and the IV's sizes.
-    pub(super) fn parse(props: &[u8]) -> Result<SevenAes, String> {
-        let bad = || "an AES coder with properties of no known form".to_string();
+    pub(super) fn parse(props: &[u8]) -> Result<SevenAes, super::Error> {
+        let bad = || super::Error::Method("an AES coder with properties of no known form".into());
         let (&b0, rest) = props.split_first().ok_or_else(bad)?;
         let cycles = b0 & 0x3F;
         let (mut salt, mut iv) = (Vec::new(), [0u8; 16]);
@@ -355,9 +355,9 @@ impl SevenAes {
             iv.get_mut(..iv_len).unwrap_or_default().copy_from_slice(v);
         }
         if cycles > SEVEN_MOST_CYCLES && cycles != 0x3F {
-            return Err(format!(
+            return Err(super::Error::Method(format!(
                 "an AES key made with 2^{cycles} rounds, more than dm makes"
-            ));
+            )));
         }
         Ok(SevenAes { cycles, salt, iv })
     }

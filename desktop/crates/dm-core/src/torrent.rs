@@ -507,8 +507,8 @@ async fn share_until(
     proxy: Option<String>,
     no_public_discovery: bool,
     token: &CancellationToken,
-) -> Result<(), String> {
-    let connect = swarm_proxy(proxy.as_deref()).map_err(|e| e.to_string())?;
+) -> Result<(), Error> {
+    let connect = swarm_proxy(proxy.as_deref())?;
     let proxied = connect.is_some();
     let private = proxied || no_public_discovery;
     let upload_bps = u32::try_from(share.upload_kbps.saturating_mul(crate::KB))
@@ -529,13 +529,13 @@ async fn share_until(
         socks5: connect,
     })
     .await
-    .map_err(|e| format!("its session would not start: {e}"))?;
+    .map_err(|e| Error::Internal(format!("its session would not start: {e}")))?;
     let _guard = CancelOnDrop(token.clone());
     let added = session
         .add(again, only, Some(&folder))
         .await
-        .map_err(|e| format!("it could not be added again: {e}"))?;
-    let handle = added.ok_or_else(|| "it produced no handle".to_string())?;
+        .map_err(|e| Error::Internal(format!("it could not be added again: {e}")))?;
+    let handle = added.ok_or_else(|| Error::Internal("it produced no handle".into()))?;
     let listening = session.listen_addr();
     let deadline = Instant::now() + Duration::from_secs(share.minutes.saturating_mul(60));
     let goal = (size as f64 * share.ratio).ceil() as u64;
@@ -551,7 +551,7 @@ async fn share_until(
             }
             _ if !stats.finished => {
                 let _ = session.forget(handle.id(), false).await;
-                return Err("its files are no longer whole".into());
+                return Err(Error::Internal("its files are no longer whole".into()));
             }
             _ => {}
         }
