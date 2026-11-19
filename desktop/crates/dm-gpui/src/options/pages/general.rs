@@ -3,7 +3,8 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Options' General page.
+//! Options' General page, its sections in the page's order, each adding its
+//! rows under the one before.
 
 use super::*;
 
@@ -13,8 +14,21 @@ pub(super) fn general(
     window: &mut Window,
     cx: &mut Context<Options>,
 ) {
-    let (theme, screen) = (p.theme, p.screen.clone());
     let s = o.draft.clone();
+    language(p, &s);
+    appearance(o, p, window, cx, &s);
+    starting(p, cx, &s);
+    sounds(o, p, window, cx, &s);
+    backdrop(p, cx, &s);
+    pop_ups(p, cx, &s);
+    keeping(p, cx, &s);
+    the_list(p, cx, &s);
+    settings_file(p, cx);
+}
+
+/// The language the windows speak.
+fn language(p: &mut Page, s: &Settings) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     let languages: Vec<SharedString> = dm_desktop_base::i18n::LANGUAGES
         .iter()
         .map(|(_, name)| SharedString::from(*name))
@@ -35,6 +49,17 @@ pub(super) fn general(
             &screen,
         ),
     );
+}
+
+/// Appearance: the theme and the text size's slider.
+fn appearance(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+    s: &Settings,
+) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     p.section(t("Appearance"));
     let theme_words = |word: &str| {
         options::THEMES
@@ -118,6 +143,12 @@ pub(super) fn general(
                     .child(screen.label(dm_desktop_base::i18n::tf("{}%", &[&sizes.percent(now)]))),
             ),
     );
+}
+
+/// Starting and updating: signing in, closing the window, an address
+/// already listed, who may control dm, and updates.
+fn starting(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     p.section(t("Starting and updating"));
     check(
         p,
@@ -202,6 +233,16 @@ pub(super) fn general(
         true,
         |s| s.check_updates = !s.check_updates,
     );
+}
+
+/// Sounds: when one plays, and a file of one's own for each event.
+fn sounds(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+    s: &Settings,
+) {
     p.section(t("Sounds"));
     check(
         p,
@@ -282,6 +323,10 @@ pub(super) fn general(
                 .child(play),
         );
     }
+}
+
+/// The Mica backdrop's switch, under the sounds.
+fn backdrop(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     // Offered only where it can be drawn: Windows 11 22H2 and later. From
     // dm's next start, as the window is made see-through when it opens
     // (gaps row G11).
@@ -299,6 +344,11 @@ pub(super) fn general(
             "Lets the desktop show faintly through the window, as Windows' own apps do.",
         ));
     }
+}
+
+/// Pop-ups: progress, a finished download, copied links, and the questions
+/// before a download starts.
+fn pop_ups(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     p.section(t("Pop-ups"));
     check(
         p,
@@ -391,6 +441,10 @@ pub(super) fn general(
     p.hint(t(
         "Asks you to click the file again on its page, to get a link that works.",
     ));
+}
+
+/// Adding and keeping files: the server's dates.
+fn keeping(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     p.section(t("Adding and keeping files"));
     check(
         p,
@@ -404,6 +458,11 @@ pub(super) fn general(
     p.hint(t(
         "A saved file gets the date the website gives it, not today's.",
     ));
+}
+
+/// The list: what double-clicking a download does.
+fn the_list(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     p.section(t("The list"));
     p.words(t("Double-clicking a download"));
     for (word, words) in [
@@ -424,6 +483,10 @@ pub(super) fn general(
         }));
         p.add(radio);
     }
+}
+
+/// Settings file: saving the settings to a file and loading them back.
+fn settings_file(p: &mut Page, cx: &mut Context<Options>) {
     // Settings to carry to another computer, never with a password; read
     // back in, they wait here for OK.
     p.section(t("Settings file"));

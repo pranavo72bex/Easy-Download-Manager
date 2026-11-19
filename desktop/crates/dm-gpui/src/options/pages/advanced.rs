@@ -3,7 +3,8 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Options' Advanced page, with its proxy's settings.
+//! Options' Advanced page, with its proxy's settings: its sections in the
+//! page's order, each adding its rows under the one before.
 
 use super::*;
 
@@ -13,7 +14,31 @@ pub(super) fn advanced(
     window: &mut Window,
     cx: &mut Context<Options>,
 ) {
-    let (theme, screen) = (p.theme, p.screen.clone());
+    network(o, p, window, cx);
+    second_network(o, p, cx);
+    site_limits(o, p, window, cx);
+    site_rules(o, p, window, cx);
+    cookies(o, p, window, cx);
+    identity(o, p, cx);
+    // Where a proxy that cannot be one was said, the page shows it.
+    let proxy_at = p.items.len();
+    p.section(t("Proxy"));
+    proxy(o, p, window, cx);
+    if std::mem::take(&mut o.to_proxy) {
+        // Its heading at the top of the page, its settings under it.
+        o.scroll.scroll_to_top_of_item(proxy_at);
+    }
+    // A dial-up or VPN connection every download waits for, in reference
+    // A's words and order (contract B43). Windows
+    // only: the connections are the ones Windows knows.
+    if cfg!(windows) {
+        dialup::dialup(o, p, window, cx);
+    }
+    bittorrent(o, p, window, cx);
+}
+
+/// Network: the speed limit, the attempts and the waits.
+fn network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
     p.section(t("Network"));
     for (key, words, hint) in [
         (
@@ -56,6 +81,11 @@ pub(super) fn advanced(
         p.labelled(t(words), true, field);
         p.note(t(hint));
     }
+}
+
+/// A second network beside the system's, and how to use a phone as one.
+fn second_network(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     // A second network beside the one the system routes by.
     o.networks = dm_core::interfaces();
     let network_words = |o: &Options| -> Vec<SharedString> {
@@ -124,6 +154,11 @@ pub(super) fn advanced(
             p.hint(step);
         }
     }
+}
+
+/// Sites with their own connection limit, and the button adding one.
+fn site_limits(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
+    let screen = p.screen.clone();
     // Sites with their own connection limit (B57).
     p.words(t("Sites with their own connection limit:"));
     for i in 0..o.draft.host_limits.len() {
@@ -180,6 +215,12 @@ pub(super) fn advanced(
             cx.notify();
         }));
     p.add(div().flex().child(add_limit));
+}
+
+/// Sites with their own folder, speed and headers, and the button adding
+/// one.
+fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
+    let screen = p.screen.clone();
     // Sites with their own folder, speed, User-Agent and request headers (gaps row F1).
     p.words(t("Sites with their own folder, speed and headers:"));
     for i in 0..o.draft.site_rules.len() {
@@ -294,6 +335,10 @@ pub(super) fn advanced(
             cx.notify();
         }));
     p.add(div().flex().child(add_rule));
+}
+
+/// The cookies file for downloads that need a sign-in.
+fn cookies(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
     p.words(t(
         "For downloads that need a sign-in: a cookies.txt from your browser.",
     ));
@@ -339,6 +384,11 @@ pub(super) fn advanced(
             .child(choose)
             .when(has_cookies, |d| d.child(clear)),
     );
+}
+
+/// The name dm gives servers, and the switch for dm's own.
+fn identity(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     // The name dm gives servers first, and the switch for dm's own (B51).
     p.words(t("dm identifies itself to servers as:"));
     let agent = if o.draft.identify_as_dm {
@@ -365,20 +415,10 @@ pub(super) fn advanced(
     p.hint(t(
         "Sends dm's own name first. A site that refuses it is asked again with another name.",
     ));
-    // Where a proxy that cannot be one was said, the page shows it.
-    let proxy_at = p.items.len();
-    p.section(t("Proxy"));
-    proxy(o, p, window, cx);
-    if std::mem::take(&mut o.to_proxy) {
-        // Its heading at the top of the page, its settings under it.
-        o.scroll.scroll_to_top_of_item(proxy_at);
-    }
-    // A dial-up or VPN connection every download waits for, in reference
-    // A's words and order (contract B43). Windows
-    // only: the connections are the ones Windows knows.
-    if cfg!(windows) {
-        dialup::dialup(o, p, window, cx);
-    }
+}
+
+/// BitTorrent: the peers' blocklist and sharing a finished torrent.
+fn bittorrent(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
     p.section(t("BitTorrent"));
     let blocklist = input(
         o,
