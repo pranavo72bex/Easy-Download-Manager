@@ -929,5 +929,9 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "已解压到同名文件夹，压缩包已移到废纸篓",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "已解压到同名文件夹，但压缩包未能移到废纸篓",
  "not unpacked: the archive has a password": "未解压：压缩包有密码",
- "not unpacked: Extract here on its menu says why": "未解压：其菜单中的“解压到此处”会说明原因"
+ "not unpacked: Extract here on its menu says why": "未解压：其菜单中的“解压到此处”会说明原因",
+ "The same file is already here": "相同的文件已存在",
+ "A finished download in the list has this name and size.": "列表中已完成的下载有相同的名称和大小。",
+ "A file of this name and size is already in the folder.": "文件夹中已有相同名称和大小的文件。",
+ "When the same file is already here": "相同的文件已存在时"
 }

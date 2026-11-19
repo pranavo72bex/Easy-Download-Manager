@@ -335,6 +335,11 @@ row's right-click menu takes a new address by hand.
 - `this download is a form's answer, and the form is gone since dm was closed: start it again from the page it came from`
   The file was the answer to a form sent from a page, and what the form
   sent is not kept once dm closes. Fill in the form again on the page.
+- `a file of the same name and size is already in the list or in the folder, so it was not fetched again`
+  The download is the same file as a finished download or a file in its
+  folder, and dm asked **The same file is already here** (see [Questions
+  dm asks](questions.md)). Retry asks again; **Download again** there
+  downloads it.
 
 ## Mirrors and Metalinks
 

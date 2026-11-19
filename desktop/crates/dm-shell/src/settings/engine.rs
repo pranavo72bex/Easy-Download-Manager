@@ -69,6 +69,7 @@ impl Settings {
             save_name: None,
             title_hint: None,
             accept_page: false,
+            same_files: None,
             system_proxy: self.advanced.proxy.enabled
                 && self.advanced.proxy.kind == dm_core::ProxyKind::System,
             proxy_bypass: if self.advanced.proxy.enabled {

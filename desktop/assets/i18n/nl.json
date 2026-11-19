@@ -929,5 +929,9 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "uitgepakt in een map met zijn naam, en het archief naar de prullenbak verplaatst",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "uitgepakt in een map met zijn naam, maar het archief kon niet naar de prullenbak",
  "not unpacked: the archive has a password": "niet uitgepakt: het archief heeft een wachtwoord",
- "not unpacked: Extract here on its menu says why": "niet uitgepakt: 'Hier uitpakken' in zijn menu zegt waarom"
+ "not unpacked: Extract here on its menu says why": "niet uitgepakt: 'Hier uitpakken' in zijn menu zegt waarom",
+ "The same file is already here": "Hetzelfde bestand is er al",
+ "A finished download in the list has this name and size.": "Een voltooide download in de lijst heeft deze naam en grootte.",
+ "A file of this name and size is already in the folder.": "Er staat al een bestand met deze naam en grootte in de map.",
+ "When the same file is already here": "Als hetzelfde bestand er al is"
 }

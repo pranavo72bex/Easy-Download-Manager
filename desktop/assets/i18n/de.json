@@ -929,5 +929,9 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "in einen Ordner mit seinem Namen entpackt, das Archiv in den Papierkorb verschoben",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "in einen Ordner mit seinem Namen entpackt, aber das Archiv konnte nicht in den Papierkorb verschoben werden",
  "not unpacked: the archive has a password": "nicht entpackt: das Archiv hat ein Passwort",
- "not unpacked: Extract here on its menu says why": "nicht entpackt: „Hier entpacken“ in seinem Menü sagt, warum"
+ "not unpacked: Extract here on its menu says why": "nicht entpackt: „Hier entpacken“ in seinem Menü sagt, warum",
+ "The same file is already here": "Dieselbe Datei ist schon da",
+ "A finished download in the list has this name and size.": "Ein fertiger Download in der Liste hat diesen Namen und diese Größe.",
+ "A file of this name and size is already in the folder.": "Eine Datei mit diesem Namen und dieser Größe ist schon im Ordner.",
+ "When the same file is already here": "Wenn dieselbe Datei schon da ist"
 }

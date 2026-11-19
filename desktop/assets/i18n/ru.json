@@ -929,5 +929,9 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "распакован в папку с его именем, архив отправлен в корзину",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "распакован в папку с его именем, но архив не удалось отправить в корзину",
  "not unpacked: the archive has a password": "не распакован: у архива есть пароль",
- "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему"
+ "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему",
+ "The same file is already here": "Такой же файл уже есть",
+ "A finished download in the list has this name and size.": "В списке есть завершённая загрузка с таким именем и размером.",
+ "A file of this name and size is already in the folder.": "Файл с таким именем и размером уже есть в папке.",
+ "When the same file is already here": "Если такой же файл уже есть"
 }

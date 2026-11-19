@@ -123,6 +123,7 @@ mod questions;
 mod refresh;
 mod removal;
 mod rowline;
+mod same_file;
 mod sections;
 mod sorting;
 mod state;
@@ -225,6 +226,9 @@ impl Downloads {
             },
             threads: Default::default(),
         };
+        // A window asks about the same file as one already here before its body is fetched
+        // (gaps row W18); without one, nobody is asked and it is fetched as before.
+        this.backend.queue.ask_about_same_files(true);
         opening::first_settings(&mut this, window, cx);
         opening::listen(&this, hidden, window, cx);
         opening::read_on_wakes(woken, window, cx);

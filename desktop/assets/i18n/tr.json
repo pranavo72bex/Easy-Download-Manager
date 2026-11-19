@@ -929,5 +929,9 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "kendi adını taşıyan bir klasöre açıldı ve arşiv çöp kutusuna gönderildi",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "kendi adını taşıyan bir klasöre açıldı, ancak arşiv çöp kutusuna gönderilemedi",
  "not unpacked: the archive has a password": "açılmadı: arşivin parolası var",
- "not unpacked: Extract here on its menu says why": "açılmadı: menüsündeki \"Buraya çıkar\" nedenini söyler"
+ "not unpacked: Extract here on its menu says why": "açılmadı: menüsündeki \"Buraya çıkar\" nedenini söyler",
+ "The same file is already here": "Aynı dosya zaten burada",
+ "A finished download in the list has this name and size.": "Listedeki tamamlanmış bir indirme bu ada ve boyuta sahip.",
+ "A file of this name and size is already in the folder.": "Bu ad ve boyutta bir dosya klasörde zaten var.",
+ "When the same file is already here": "Aynı dosya zaten buradaysa"
 }

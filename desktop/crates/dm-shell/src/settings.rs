@@ -72,6 +72,12 @@ pub struct Settings {
     /// `"again"`, `"replace"`. Options › General undoes it.
     #[serde(default)]
     pub duplicate_choice: String,
+    /// What to do when a download is the same file as one already here (its name, size and
+    /// entity tag those of a finished download, or a file of its name and size in the folder),
+    /// remembered from the question's tick: `""` asks, or `"show"`, `"again"` (gaps row W18).
+    /// Options › General undoes it. Left out of the file while it asks.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub same_file_choice: String,
     /// Addresses typed into Add URL, newest first, without any login in
     /// them, for picking again; cleared from the dialog.
     #[serde(default)]
@@ -483,6 +489,7 @@ impl Default for Settings {
             slow_hours: SlowHours::default(),
             identify_as_dm: false,
             duplicate_choice: String::new(),
+            same_file_choice: String::new(),
             recent_urls: Vec::new(),
             last_folders: Default::default(),
             limit_mb: 0,

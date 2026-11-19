@@ -26,6 +26,12 @@ the window works.
   sets this), **Show it** chooses the download that has it, **Download
   again** adds it as a new download, **Replace the old file** downloads it
   again and replaces the old file once the new one is whole.
+- **When the same file is already here:** what happens when a download from
+  another address is the same file as a finished download or a file in the
+  folder (its name and size). **Ask me** asks (see [Questions dm
+  asks](questions.md); its **Remember my choice** sets this), **Show it**
+  shows the one already here and downloads nothing, **Download again**
+  downloads it beside it.
 - **Allow the command line to control dm:** "Lets other programs on this
   computer add and stop downloads."
 - **Allow AI assistants to control dm (MCP):** "Lets an AI assistant you

@@ -205,6 +205,8 @@ pub use download::{
     CHECKED_BESIDE, NOTES,
 };
 
+pub use download::same::{SameFile, SameFiles, SAME_FILE};
+
 pub use engine_config::{configure, EngineConfig};
 
 pub use limit::Limiter;

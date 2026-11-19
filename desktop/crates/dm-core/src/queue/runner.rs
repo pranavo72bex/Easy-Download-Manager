@@ -284,6 +284,9 @@ impl DownloadList {
                 if let Some(slot) = slots.get_mut(&id) {
                     form_lost = options_from_row(slot, &mut options, &own_parts);
                 }
+                // Compared before its body with what is already here (gaps row W18).
+                let asks = inner.asks_same.load(Ordering::SeqCst);
+                options.same_files = same_files_for(asks, &slots, id);
             }
 
             // What an earlier run already staged, which the download limit
@@ -348,6 +351,36 @@ impl DownloadList {
             sent(queue.save()).await;
         })
     }
+}
+
+/// What a run of row `id` is compared with before its body is fetched (gaps row W18): every
+/// finished row's file but those of its own address, which "Already in the list" asks about
+/// (their paths passed over in the folder). `None` where nobody is asked, a person let it
+/// through, it has bytes already, or it is to take a file's place.
+fn same_files_for(asks: bool, slots: &HashMap<Id, Slot>, id: Id) -> Option<Arc<crate::SameFiles>> {
+    let row = &slots.get(&id)?.entry;
+    if !asks || row.accept_same || row.progress.downloaded > 0 || row.replaces.is_some() {
+        return None;
+    }
+    let mut known = crate::SameFiles::default();
+    for slot in slots.values() {
+        let other = &slot.entry;
+        if other.id == id || other.state != State::Completed || other.path.is_empty() {
+            continue;
+        }
+        if other.url == row.url {
+            known.passed_over.push(PathBuf::from(&other.path));
+            continue;
+        }
+        known.finished.push(crate::SameFile {
+            name: other.filename.clone(),
+            size: other.progress.total.unwrap_or(other.progress.downloaded),
+            validator: other.validator.clone(),
+            digest: other.checksum.clone(),
+            path: PathBuf::from(&other.path),
+        });
+    }
+    Some(Arc::new(known))
 }
 
 /// Fills a run's options from its row: where it stages and lands, its cookies and form,

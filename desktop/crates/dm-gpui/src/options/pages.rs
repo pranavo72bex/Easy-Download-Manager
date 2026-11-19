@@ -50,6 +50,8 @@ const THEMES: [&str; 3] = ["system", "light", "dark"];
 const ON_CLOSE: [&str; 3] = ["ask", "tray", "exit"];
 /// What an address already listed does, by the setting's word.
 const DUPLICATE: [&str; 4] = ["", "show", "again", "replace"];
+/// What the same file as one already here does (gaps row W18), by the setting's word.
+const SAME_FILE: [&str; 3] = ["", "show", "again"];
 /// The keys a click on a link can be held with ("" for none).
 const TAKE_KEYS: [&str; 4] = ["", "alt", "shift", "ctrl"];
 /// A proxy's kinds, in the pop-up's order.
@@ -322,6 +324,11 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
         "duplicate" => {
             if let Some(word) = DUPLICATE.get(i) {
                 s.duplicate_choice = word.to_string();
+            }
+        }
+        "same-file" => {
+            if let Some(word) = SAME_FILE.get(i) {
+                s.same_file_choice = word.to_string();
             }
         }
         "keep-key" => {

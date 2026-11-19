@@ -929,5 +929,9 @@
  "unpacked into a folder of its name, and the archive sent to the Trash": "같은 이름의 폴더에 압축 풀림, 압축 파일은 휴지통으로 보냄",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "같은 이름의 폴더에 압축 풀림, 하지만 압축 파일을 휴지통으로 보내지 못함",
  "not unpacked: the archive has a password": "압축 풀지 않음: 압축 파일에 암호가 있음",
- "not unpacked: Extract here on its menu says why": "압축 풀지 않음: 메뉴의 '여기에 압축 풀기'에서 이유를 알려 줌"
+ "not unpacked: Extract here on its menu says why": "압축 풀지 않음: 메뉴의 '여기에 압축 풀기'에서 이유를 알려 줌",
+ "The same file is already here": "같은 파일이 이미 있습니다",
+ "A finished download in the list has this name and size.": "목록의 완료된 다운로드 중에 이 이름과 크기의 파일이 있습니다.",
+ "A file of this name and size is already in the folder.": "이 이름과 크기의 파일이 이미 폴더에 있습니다.",
+ "When the same file is already here": "같은 파일이 이미 있을 때"
 }
