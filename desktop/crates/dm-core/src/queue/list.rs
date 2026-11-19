@@ -41,6 +41,7 @@ impl DownloadList {
                 saves: AtomicU64::new(0),
                 saved: std::sync::Mutex::new(None),
                 changed: std::sync::Mutex::new(None),
+                whole_next: AtomicBool::new(false),
             }),
         }
     }
@@ -165,6 +166,7 @@ impl DownloadList {
                 post: None,
                 posted: false,
                 fail_kind: None,
+                keep_no_record: false,
             }),
             control: Control::new(),
             task: None,

@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Download details has **Keep no record**: once the file is whole its row leaves the list, and its address, page and sign-in go with it (from the queue file, its journal, the secrets and Add URL's Recent list); the file stays. A hand-over the extension marks as from a private window opens with it ticked (the extension still leaves a private window's downloads with the browser). Options › Downloads has **Forget finished downloads after (days, 0 for never)**, 0 at first: finished downloads older than that leave the list at start, once a day and when the number changes, their files kept.
+- `--headless`: Scheduler › Hang up modem when done hangs up the dial-up or VPN connection when the scheduled downloads end, as the window does, and When done is no longer missed when a command over the control port or a browser hand-off read the list just as the queue ran dry.
 - Fixed: an RTSP or RTMP stream whose server stopped sending was waited on for ever; after 30 seconds of silence it now ends (or fails, if nothing was recorded) with "sent nothing for 30 seconds", as an MMS stream now says too. An RTMP message arriving just as dm looked for a stop could be cut and break the stream.
 - Videos: with Options › Downloads › Embed subtitles on, an HLS stream's subtitle languages are put inside the saved MP4 too, timed to the picture.
 - YouTube: a live stream that has just ended, while YouTube is still making the video of it, is downloaded from its HLS playlist instead of failing with "the player names no stream dm can fetch".

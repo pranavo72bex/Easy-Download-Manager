@@ -109,6 +109,10 @@ impl DownloadList {
                 slot.entry_mut().headers = crate::cookies::kept_headers(&with.headers);
             }
             slot.entry_mut().fresh_link = false;
+            // From a private window: kept no record of, once whole.
+            if with.keep_no_record {
+                slot.entry_mut().keep_no_record = true;
+            }
             true
         })
         .await;
@@ -163,6 +167,7 @@ impl DownloadList {
             slot.entry_mut().cookies_once = with.cookies_once
                 && !(slot.entry.cookies.is_empty() && slot.entry.headers.is_empty());
             slot.entry_mut().replaces = with.replaces.filter(|p| !p.trim().is_empty());
+            slot.entry_mut().keep_no_record = with.keep_no_record;
             // A form's answer: the form for its own address only.
             if let Some(post) = with.post.filter(|p| p.url == url) {
                 slot.entry_mut().posted = true;

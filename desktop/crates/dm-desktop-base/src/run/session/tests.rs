@@ -344,3 +344,22 @@ fn only_what_is_the_same_for_every_driver_is_carried_on_the_platform() {
         assert_eq!(own.on_platform(&backend), None, "{own:?}");
     }
 }
+
+/// With no window as with one, the queue run dry is noted at the read that saw it (gaps row A7):
+/// a read between two ticks (a command over the control port, a hand-off) that took the change
+/// left the tick's own look with nothing new, and When done never fired with no window.
+#[test]
+fn with_no_window_a_queue_run_dry_at_a_read_between_ticks_takes_when_done() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let backend = backend(&runtime, dir.path(), Default::default());
+    let mut session = Session::default();
+    session.when_done = WhenDone::Quit;
+    // The first read primes; the next, between two ticks, finds a download finished.
+    session.note_dry(&[]);
+    session.note_dry(&[row(1, State::Completed)]);
+    // The tick's own rows show nothing new: it takes what the read noted.
+    let effects = session.tick(&backend, &[], Driver::HEADLESS);
+    assert_eq!(effects.last(), Some(&Effect::Quit), "{effects:?}");
+    assert_eq!(session.when_done, WhenDone::Nothing, "taken");
+}

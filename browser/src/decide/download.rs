@@ -59,6 +59,10 @@ pub struct Catchable {
     /// The cookie store the download was made in (Firefox's containers),
     /// whose cookies are its sign-in; `None` is the browser's default.
     pub store: Option<String>,
+    /// Started in a private window, handed over as such (`Start::private_window`) for the app
+    /// to keep no record of it (gaps row W17). False while [`first_look`] leaves a private
+    /// window's downloads with the browser (contract row B37).
+    pub private: bool,
 }
 
 impl Catchable {
@@ -136,6 +140,7 @@ pub fn first_look(item: &DownloadItem, own_id: &str) -> Result<Catchable, &'stat
         mime: text(&item.mime),
         size,
         store: Some(text(&item.cookie_store_id)).filter(|s| !s.is_empty()),
+        private: item.incognito == Some(true),
     })
 }
 

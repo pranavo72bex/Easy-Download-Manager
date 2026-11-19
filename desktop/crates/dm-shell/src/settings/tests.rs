@@ -1741,6 +1741,7 @@ const A_FULL_FILE: &str = r#"{
     "queue_starts": [{"queue": "Nightly", "at": "02:30"}],
     "remux_ts": false,
     "sound_language": "es",
+    "forget_after_days": 30,
 
     "speed_limit": 512,
     "retry_wait": 9,

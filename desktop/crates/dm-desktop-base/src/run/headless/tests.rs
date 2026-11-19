@@ -184,3 +184,37 @@ fn a_batch_reaches_the_view_but_not_a_step() {
     assert_eq!(steps[0]["ok"], json!(true), "{answered}");
     assert_eq!(steps[1]["ok"], json!(false), "{answered}");
 }
+
+/// Scheduler › Hang up modem when done is honoured with no window, as the window honours it
+/// (gaps row A7): what hanging up came to is said in English, a connection that was down is not
+/// said, and one Windows would not end is a problem.
+#[test]
+fn with_no_window_hang_up_when_done_is_carried_out_and_said() {
+    use dm_shell::dialup::HungUp;
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut dm = headless(&runtime, dir.path());
+    *dm_core::lock(&dm.hung_up) = Some(HungUp::Done("Office VPN".into()));
+    dm.carry(Effect::Scheduled { hang_up: false });
+    assert_eq!(
+        dm.said,
+        "The scheduled downloads are done: Office VPN is hung up."
+    );
+    assert!(dm_core::lock(&dm.hung_up).is_none(), "said once");
+
+    dm.said.clear();
+    *dm_core::lock(&dm.hung_up) = Some(HungUp::WasDown("Office VPN".into()));
+    dm.carry(Effect::Scheduled { hang_up: false });
+    assert_eq!(dm.said, "");
+
+    *dm_core::lock(&dm.hung_up) = Some(HungUp::NoneSet);
+    dm.carry(Effect::Scheduled { hang_up: false });
+    assert!(dm.said.contains("Dial Up / VPN"), "{}", dm.said);
+
+    *dm_core::lock(&dm.hung_up) = Some(HungUp::Failed("Office VPN".into(), "busy".into()));
+    dm.carry(Effect::Scheduled { hang_up: false });
+    assert_eq!(
+        dm.problems.last().map(String::as_str),
+        Some("Office VPN was not hung up: busy")
+    );
+}

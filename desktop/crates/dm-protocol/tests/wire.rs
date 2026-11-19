@@ -262,3 +262,37 @@ fn the_app_judges_a_caught_download_by_its_rules() {
         "a site to leave alone still holds"
     );
 }
+
+/// A hand-over from a private window says so (gaps row W17): the flag goes out at version 1,
+/// which every app reads, and reads back; a frame without it, as every released extension sends,
+/// reads as one from an ordinary window; and the app that keeps no record of one says so by name.
+#[test]
+fn a_private_windows_hand_over_says_so_and_an_older_frame_reads_as_before() {
+    let start = dm_protocol::Start {
+        id: "b1".into(),
+        url: "https://e.com/f.zip".into(),
+        private_window: true,
+        ..dm_protocol::Start::default()
+    };
+    let frame = Request::Start(start.clone()).to_frame();
+    assert_eq!(frame["private_window"], true);
+    assert_eq!(frame["protocolVersion"], 1, "every app reads it");
+    assert_eq!(Request::from_frame(&frame), Ok(Request::Start(start)));
+    let older = json!({
+        "protocolVersion": 1, "type": "download.start", "id": "b2", "url": "https://e.com/f.zip",
+    });
+    let Ok(Request::Start(read)) = Request::from_frame(&older) else {
+        panic!("an older hand-over is not read")
+    };
+    assert!(!read.private_window);
+    let ordinary = Request::Start(read).to_frame();
+    assert!(
+        ordinary.get("private_window").is_none(),
+        "sent only when set"
+    );
+    let hello = Hello {
+        features: vec![feature::KEEPS_NO_RECORD.into()],
+        ..Hello::default()
+    };
+    assert!(hello.has(feature::KEEPS_NO_RECORD));
+}

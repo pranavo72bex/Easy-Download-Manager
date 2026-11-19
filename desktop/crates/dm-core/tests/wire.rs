@@ -64,6 +64,7 @@ fn entry(state: State) -> Entry {
         mp3: false,
         gif: false,
         delete_after: None,
+        keep_no_record: false,
     }
 }
 

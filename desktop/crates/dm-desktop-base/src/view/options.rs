@@ -149,6 +149,7 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
         Tab::Downloads => &[
             "concurrency",
             "connections",
+            "forget_after_days",
             "on_complete",
             "queue_limits",
             "queue_starts",

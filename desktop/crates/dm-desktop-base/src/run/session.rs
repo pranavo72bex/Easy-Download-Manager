@@ -38,7 +38,14 @@ pub struct Session {
     /// between (after a command, an add, Download details) took the change, and When done
     /// never fired.
     dry: bool,
+    /// When the finished downloads were last looked at for those to forget, and the days
+    /// Options › Downloads said then ([`Session::forget_old`]).
+    forgot: Option<(Instant, u32)>,
 }
+
+/// How often the finished downloads are looked at for those older than Options › Downloads'
+/// "Forget finished downloads after … days": at start, once a day, and when the days change.
+const FORGET_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 
 impl Deref for Session {
     type Target = dm_shell::app::session::Session;
@@ -62,18 +69,13 @@ pub struct Driver {
     pub reads_inbox: bool,
     /// Nobody sees a countdown: Exit when done ends dm at once.
     pub nobody_sees: bool,
-    /// Whether the queue ran dry is noted at each read ([`Session::note_dry`]), as the window
-    /// does; else it is looked at in the tick, against the last read's rows.
-    pub dry_noted_at_read: bool,
 }
 
 impl Driver {
-    /// dm with no window: the inbox read, Exit when done at once, and whether the queue ran
-    /// dry looked at in the tick.
+    /// dm with no window: the inbox read, and Exit when done at once.
     pub const HEADLESS: Driver = Driver {
         reads_inbox: true,
         nobody_sees: true,
-        dry_noted_at_read: false,
     };
 
     /// The window, which takes the inbox's orders where `reads_inbox`.
@@ -81,7 +83,6 @@ impl Driver {
         Driver {
             reads_inbox,
             nobody_sees: false,
-            dry_noted_at_read: true,
         }
     }
 }
@@ -203,8 +204,9 @@ impl Session {
     }
 
     /// Whether the queue has just run dry, looked at once per read, after it, with its `rows`
-    /// (`ran_dry`): kept for the next tick's When done, where the driver notes it at each read
-    /// ([`Driver::dry_noted_at_read`]).
+    /// (`ran_dry`): kept for the next tick's When done. Every driver calls it at each of its
+    /// reads, the window's and headless's alike (gaps row A7): looked at in the tick alone, a
+    /// read between (a command over the control port, a hand-off) took the change.
     pub fn note_dry(&mut self, rows: &[Arc<Entry>]) {
         if self.app.ran_dry(rows) {
             self.dry = true;
@@ -244,7 +246,8 @@ impl Session {
         self.told(backend, rows, &mut effects);
         self.schedules(backend, rows, &mut effects);
         self.this_done(rows, &mut effects);
-        if self.queue_dry(backend, rows, driver, &mut effects) {
+        self.forget_old(backend);
+        if self.queue_dry(backend, driver, &mut effects) {
             effects.push(Effect::Quit);
         }
         effects
@@ -363,21 +366,29 @@ impl Session {
         }
     }
 
+    /// The finished downloads older than Options › Downloads' "Forget finished downloads after
+    /// … days" taken off the list, their files left (gaps row W17): at the first tick, once a
+    /// day after it, and at once when the days are changed. 0 days forgets nothing.
+    fn forget_old(&mut self, backend: &Backend) {
+        let days = backend.settings().downloads.forget_after_days;
+        let now = Instant::now();
+        let due = self
+            .forgot
+            .is_none_or(|(at, then)| then != days || now.duration_since(at) >= FORGET_EVERY);
+        if !due {
+            return;
+        }
+        self.forgot = Some((now, days));
+        if days > 0 {
+            backend.forget_finished(days);
+        }
+    }
+
     /// A queue that has run dry has finished: its own sound, where the person chose a file,
     /// and When done (`when_done_fires`). Whether dm is to end now.
-    fn queue_dry(
-        &mut self,
-        backend: &Backend,
-        rows: &[Arc<Entry>],
-        driver: Driver,
-        effects: &mut Vec<Effect>,
-    ) -> bool {
-        let dry = if driver.dry_noted_at_read {
-            std::mem::take(&mut self.dry)
-        } else {
-            self.app.ran_dry(rows)
-        };
-        if !dry {
+    fn queue_dry(&mut self, backend: &Backend, driver: Driver, effects: &mut Vec<Effect>) -> bool {
+        // Noted at each read (`note_dry`), the last before this tick included.
+        if !std::mem::take(&mut self.dry) {
             return false;
         }
         if let Some(path) = chosen_sound(&backend.settings(), "queue_done") {

@@ -282,6 +282,7 @@ FILES = {
     "fresh.bin": (8 * MiB, 512 * 1024, "plain"),      # a new install's pop-ups (B63)
     "clip-a.bin": (1 * MiB, 0, "plain"),              # Links on the clipboard, to a new folder (B67)
     "clip-b.bin": (1 * MiB, 0, "plain"),
+    "private.bin": (1 * MiB, 0, "plain"),             # Keep no record (B69)
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
@@ -1613,6 +1614,33 @@ def walk(dm, origin):
     except (OSError, subprocess.SubprocessError):
         pass
 
+    # B69 (gaps row W17): Download details' "Keep no record", ticked: once the
+    # file is whole its row goes, and the file stays. Nothing of its address is
+    # left in dm's own files: the queue, its journal, the secrets, and Add
+    # URL's Recent list in settings.json (Add URL put it there as it was typed).
+    def naming(name):
+        return sorted(p.name for p in dm.home.iterdir()
+                      if p.is_file() and name.encode() in p.read_bytes())
+    asked = dm.add(f"{files}/private.bin", then="Keep no record")
+    pause(0.6)
+    ticked = dm.dialog_texts()
+    dm.click("Start now")
+    saved = None
+    for _ in range(160):
+        saved = next((dm.home / "downloads").rglob("private.bin"), None)
+        if saved is not None and dm.row("private.bin") is None:
+            break
+        time.sleep(0.25)
+    # The queue is written again within a few seconds of a change.
+    pause(4)
+    same = saved is not None and saved.read_bytes() == DATA["private.bin"]
+    check("B69", "Download details has Keep no record; ticked, the finished download's row goes and its file stays whole",
+          asked and "Keep no record" in ticked and same and dm.row("private.bin") is None,
+          f"words {ticked[:12]}, file {saved}, row {dm.row('private.bin')}")
+    left = naming("private.bin")
+    check("B69", "and none of dm's own files names it, settings.json's Recent list included",
+          same and not left, f"named in {left}")
+
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
         now = WORK / "pictures" / f"{name}.png"
@@ -1756,6 +1784,58 @@ def new_install(origin):
             dm.proc.kill()
 
 
+def forgetting():
+    """B70 (gaps row W17): Options › Downloads has "Forget finished downloads
+    after (days, 0 for never)"; with it set, dm opened forgets a finished
+    download older than that, keeps a newer one, and leaves both files."""
+    home = WORK / "forgetting"
+    saved = home / "downloads"
+    saved.mkdir(parents=True)
+    now = int(time.time())
+    rows = []
+    for n, (name, days) in enumerate((("old.bin", 10), ("new.bin", 1)), start=1):
+        (saved / name).write_bytes(b"kept")
+        rows.append({"id": n, "url": f"http://127.0.0.1:9/{name}", "state": {"kind": "completed"},
+                     "progress": {"downloaded": 4, "total": 4, "speed": 0.0, "eta": None},
+                     "filename": name, "finished_at": now - days * 86400, "path": str(saved / name)})
+    (home / "queue.json").write_text(json.dumps(rows), encoding="utf-8")
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(saved), "theme": "dark", "popups_version": 2,
+        "show_progress": False, "show_complete": False, "forget_after_days": 7}), encoding="utf-8")
+    dm = Dm(home)
+    dm.start()
+    try:
+        for _ in range(40):
+            if dm.row("old.bin") is None:
+                break
+            time.sleep(0.25)
+        check("B70", "with 7 days set, dm opened forgets a download finished 10 days ago, keeps one of yesterday, and both files stay",
+              dm.row("old.bin") is None and dm.row("new.bin") is not None
+              and (saved / "old.bin").is_file() and (saved / "new.bin").is_file(),
+              f"rows {[r['filename'] for r in dm.rows()]}")
+        dm.call("ui.window", to="shown")
+        pause(0.6)
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        dm.click("Downloads")
+        pause(0.8)
+        words = dm.scrolled_texts("Connections per file", turns=12)
+        dm.click("Cancel")
+        pause(0.6)
+        check("B70", "Options › Downloads has Forget finished downloads after (days, 0 for never), with its note",
+              "Forget finished downloads after (days, 0 for never)" in words
+              and any(w.startswith("A finished download leaves the list") for w in words), f"{words[-16:]}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
@@ -1795,6 +1875,7 @@ def main():
     if stopped:
         sys.exit(f"\nSTOPPED, no row checked: {stopped}")
     new_install(origin)
+    forgetting()
     browser()
 
     print("\nThe contract, row by row", flush=True)

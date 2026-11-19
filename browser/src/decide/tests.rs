@@ -1050,6 +1050,7 @@ fn a_chrome_download_item_is_read_as_chrome_sends_it() {
     );
     assert_eq!(found.referrer, "https://e.com/page");
     assert_eq!(found.size, Some(2048));
+    assert!(!found.private, "not from a private window");
 }
 
 #[test]

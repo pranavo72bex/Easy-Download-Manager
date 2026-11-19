@@ -331,6 +331,8 @@ impl DownloadList {
             {
                 return;
             }
+            // Whole, a row that keeps no record goes (gaps row W17); its file stays.
+            queue.forget_if_no_record(id).await;
             // This download's place is free: the next in line starts now,
             // not at the next tick. A small file is over in a few
             // milliseconds, and its place sat empty for the rest of the

@@ -112,6 +112,10 @@ pub struct Request {
     /// dropped where no row takes it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub renews: bool,
+    /// "Keep no record": from a private browser window (`Start::private_window`), the row goes
+    /// once its file is whole (`Entry::keep_no_record`, gaps row W17).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub keep_no_record: bool,
 }
 
 mod parent;

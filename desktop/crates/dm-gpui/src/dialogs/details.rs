@@ -72,6 +72,8 @@ pub struct Handed {
     /// Caught by the browser extension (not asked for from its panel or a
     /// menu): offered "Always save here without asking".
     pub caught: bool,
+    /// From a private browser window: "Keep no record" opens ticked (gaps row W17).
+    pub keep_no_record: bool,
 }
 
 impl Handed {
@@ -113,6 +115,8 @@ pub struct Details {
     queues: Vec<String>,
     delete_after: Option<u64>,
     replace: bool,
+    /// "Keep no record" is ticked: the row goes once the file is whole (gaps row W17).
+    pub(crate) keep_no_record: bool,
     /// A video's qualities with their sizes: asked once it is known to be
     /// a video; `None` until they are read.
     choices: Option<Vec<dm_core::videopage::Choice>>,
@@ -360,6 +364,7 @@ impl Details {
             headers: self.handed.headers.clone(),
             post: self.handed.post.clone(),
             replace: self.replace && matches!(clash, Some(Clash::OnDisk { .. })),
+            keep_no_record: self.keep_no_record,
         };
         let with = file_info::options(&form, later, server_name.as_deref(), clash.as_ref());
         // Where this kind of file was put, for next time; the kind's own
@@ -380,6 +385,7 @@ impl Details {
                 self.says = Some(e.into());
             }
         }
+        self.early_keeps_no_record();
         let added = match self.early {
             // Begun while it asked: placed where it was asked to go, not
             // added again.
@@ -625,7 +631,9 @@ impl Render for Details {
             .children(quality_row)
             .children(contents_row)
             .children(part_rows.into_iter().flatten());
-        let body = self.facts(&look, single, video, size, body);
+        let body = self
+            .facts(&look, single, video, size, body)
+            .child(self.no_record_row(&look, cx));
         let body = self.warnings(&look, clash, problem, cx, body);
         let body = body.child(self.buttons(&look, cx));
 

@@ -915,5 +915,8 @@
  "Import a list": "Impor daftar",
  "Sound language": "Bahasa audio",
  "The video's own": "Bawaan video",
- "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "Jika video memiliki audio dalam beberapa bahasa, bahasa ini yang diambil; jika tidak ada, bahasa bawaan video."
+ "Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own.": "Jika video memiliki audio dalam beberapa bahasa, bahasa ini yang diambil; jika tidak ada, bahasa bawaan video.",
+ "Keep no record": "Jangan simpan riwayat",
+ "Forget finished downloads after (days, 0 for never)": "Lupakan unduhan selesai setelah (hari, 0 tidak pernah)",
+ "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "Unduhan yang selesai keluar dari daftar setelah berumur sebanyak hari itu. Berkasnya tetap di tempat ia disimpan."
 }

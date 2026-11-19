@@ -50,6 +50,17 @@ A site that allows fewer connections can be given its own number: see
   its servers whether its files have changed. 0 asks only when you start
   that queue.
 
+## Forgetting finished downloads
+
+- **Forget finished downloads after (days, 0 for never):** "A finished
+  download leaves the list once it is that many days old. Its file stays
+  where it was saved." dm looks when it starts, once a day after that, and
+  as soon as you change the number. 0, the setting at first, keeps every
+  finished download. A download that failed, one in the Recheck queue and
+  one whose **Delete file after** has still to come are kept. To forget a
+  single download as soon as it is whole, tick **Keep no record** in
+  [Download details](download-details.md).
+
 ## Watching a folder and running a command
 
 - "Watch a folder: links (.url, .webloc or a text file of links) and

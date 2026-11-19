@@ -563,3 +563,30 @@ fn options_search_finds_a_setting_on_any_page() {
     set(&mut h, "zzzz");
     h.until_shown("No setting says “zzzz”.");
 }
+
+/// "Forget finished downloads after … days" is set on Options › Downloads, put in force and
+/// written down, and Options opened again holds it; 0, the default, forgets nothing (contract row
+/// B70, gaps row W17).
+#[test]
+fn forgetting_finished_downloads_after_some_days_is_set_in_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    assert_eq!(
+        kept(&mut h).downloads.forget_after_days,
+        0,
+        "never, at first"
+    );
+    open_options(&mut h);
+    tab(&mut h, "Downloads");
+    h.fill("Forget finished downloads after (days, 0 for never)", "30");
+    ok(&mut h);
+    assert_eq!(kept(&mut h).downloads.forget_after_days, 30);
+    assert_eq!(saved_settings()["forget_after_days"], 30);
+    open_options(&mut h);
+    tab(&mut h, "Downloads");
+    let held = h.dialog(|o: &mut Options, _, _| o.draft.downloads.forget_after_days);
+    assert_eq!(held, 30, "Options opened again holds what was kept");
+    h.click("Cancel");
+    h.until("Options to close", |h| !h.dialog_open("Options"));
+}

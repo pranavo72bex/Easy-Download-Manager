@@ -31,6 +31,7 @@ mod actions;
 mod edit;
 mod family;
 mod files;
+mod forget;
 mod inspect;
 mod journal;
 mod list;
@@ -276,6 +277,12 @@ pub struct Entry {
     /// field over; one saved before it is worked out from the sentence once, as it is read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fail_kind: Option<crate::FailKind>,
+    /// "Keep no record" (gaps row W17): once the file is whole the row goes, and its address,
+    /// page and sign-in with it, the queue file written whole so no journal line keeps them; the
+    /// file stays. Ticked in Download details, and by itself for a hand-over from a private
+    /// browser window. Left out of the queue file when false, so an older dm reads it as before.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub keep_no_record: bool,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -416,6 +423,8 @@ pub struct AddOptions {
     /// The form the download is the answer to, where the browser sent one
     /// (its body, kept in memory with the row only).
     pub post: Option<crate::cookies::Posted>,
+    /// "Keep no record": the row goes once the file is whole (`Entry::keep_no_record`).
+    pub keep_no_record: bool,
 }
 
 /// Named queues that start on their own each day: each with its minute of
@@ -620,6 +629,9 @@ struct Inner {
     /// draws the change: a hand-off arriving, the schedule starting a row, a
     /// row finishing.
     changed: std::sync::Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    /// The next write is of the whole list, the journal gone with it: a row that keeps no
+    /// record went since, and the journal's lines still name it (`forget`).
+    whole_next: AtomicBool,
 }
 
 /// A queue of downloads.

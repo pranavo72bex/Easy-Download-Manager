@@ -433,6 +433,10 @@ pub mod feature {
     /// App: answers `downloads.list` with what it is fetching ([`super::Going`]). Extension:
     /// asks while its toolbar popup is open, and lists them there.
     pub const LISTS_DOWNLOADS: &str = "lists-downloads";
+    /// App: keeps no record of a download handed over from a private window
+    /// ([`super::Start::private_window`]) once its file is whole. Extension: hands one over only
+    /// to an app that says so.
+    pub const KEEPS_NO_RECORD: &str = "keeps-no-record";
 }
 
 /// A download the app is fetching, as the toolbar popup lists it ([`Reply::Downloads`]).
@@ -637,6 +641,13 @@ pub struct Start {
     /// the extension sends it only to an app whose hello says `renews`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub renews: bool,
+    /// Started in a private browser window: the app keeps no record of it once its file is
+    /// whole, its row, address, page and sign-in gone (gaps row W17). Sent only when set, at
+    /// version 1: an older app passes the key over, as it does every key it does not know, and
+    /// keeps the row as any other, so the extension sends one only to an app whose hello says
+    /// [`feature::KEEPS_NO_RECORD`]. Absent from an older extension: kept as before.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub private_window: bool,
 }
 
 /// The longest the host spends asking a server about a caught download.

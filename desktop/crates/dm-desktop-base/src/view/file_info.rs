@@ -243,6 +243,9 @@ pub struct Form {
     pub post: Option<dm_core::cookies::Posted>,
     /// Replace the file of its name once this one is whole.
     pub replace: bool,
+    /// "Keep no record": the row goes once the file is whole, with its address, page and
+    /// sign-in (gaps row W17).
+    pub keep_no_record: bool,
 }
 
 /// What Start now (`later` false) or Add for later adds, with the name the
@@ -280,6 +283,7 @@ pub fn options(
         cookies: form.cookies.clone(),
         cookies_once: form.cookies_once,
         headers: form.headers.clone(),
+        keep_no_record: form.keep_no_record,
         // The form for the first address alone, which is the one it was sent to.
         post: form.post.clone(),
         checksum: None,

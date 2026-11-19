@@ -216,6 +216,10 @@ pub struct DownloadSettings {
     /// video's own (gaps row Y10). Read by YouTube, HLS and DASH alike.
     #[serde(default)]
     pub sound_language: String,
+    /// Days after which a finished download leaves the list, its file left where it was saved
+    /// (gaps row W17); 0, the default, keeps every one.
+    #[serde(default)]
+    pub forget_after_days: u32,
 }
 
 impl Default for DownloadSettings {
@@ -234,6 +238,7 @@ impl Default for DownloadSettings {
             queue_starts: Vec::new(),
             remux_ts: true,
             sound_language: String::new(),
+            forget_after_days: 0,
         }
     }
 }
