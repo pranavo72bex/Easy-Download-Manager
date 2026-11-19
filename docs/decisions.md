@@ -8074,3 +8074,20 @@ samples into the index (in memory, as before) and each track is then replayed fr
   was once; the bytes written fall from about 2.8 times the stream to 0.9.
 * DASH and a YouTube video's two parts are left at about 2 times: freeing during their joins would
   cost refetches or cannot shorten a whole file from its front.
+
+## Step 0 answered in part (the maintainer, 2026-11-19)
+
+Asked in one set of questions, the maintainer approved:
+- **Y10's Options line** (a "Sound language" list), from the video changes; Y8, Y27 and W20 were
+  not ticked and wait.
+- **W14** (unpack when done), **W16** (back up and restore), **W17** (keep no record; forget
+  finished downloads after N days), **W18** (the same file noticed by name, size and digest).
+- **W15** (a speed graph and statistics), **W10** (follow a playlist or feed), **W11** (metered
+  connections and battery), **W12** (only through one network adapter).
+- Of the day's findings: **A9's MMS change kept**; **A7's two headless differences fixed** (Hang up
+  when done honoured; the queue running dry not missed between ticks); **actionlint and cargo-deny
+  installed on the laptop** to read CI's two failures.
+
+Each is built under the behaviour contract's rule: its rows written or changed in
+`docs/behaviour-contract.md` in the same commit, the commit naming this approval, and the window's
+pictures (`docs/behaviour-baseline/`) taken again on the Mac where a change shows in the window.
