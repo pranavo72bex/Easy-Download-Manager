@@ -540,8 +540,22 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
         |o| o.typed.bypass.clone(),
     );
     p.labelled(t("Not for these sites (fetched directly)"), own, bypass);
-    // A proxy of its own for one kind of download; the rest go through the
-    // one above.
+    per_scheme(o, p, &proxy, own, window, cx);
+    script(o, p, on, window, cx);
+}
+
+/// A proxy of its own for one kind of download; the rest go through the
+/// one above.
+fn per_scheme(
+    o: &mut Options,
+    p: &mut Page,
+    proxy: &dm_core::Proxy,
+    own: bool,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+) {
+    use dm_core::ProxyKind as Kind;
+    let (theme, screen) = (p.theme, p.screen.clone());
     for (scheme, words) in [
         ("http", t("A proxy of its own for HTTP downloads")),
         ("https", t("A proxy of its own for HTTPS downloads")),
@@ -616,6 +630,11 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
             ));
         }
     }
+}
+
+/// The automatic configuration script, and what goes through the proxy.
+fn script(o: &mut Options, p: &mut Page, on: bool, window: &mut Window, cx: &mut Context<Options>) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     let script = input(
         o,
         window,

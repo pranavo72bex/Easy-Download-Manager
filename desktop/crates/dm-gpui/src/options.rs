@@ -11,6 +11,8 @@
 //! it (`dm_desktop_base::options`); Cancel keeps nothing. The pages are
 //! drawn in `options/pages.rs`.
 
+/// What is typed in its fields put into the draft.
+mod draft;
 /// Its six pages (B43).
 pub(crate) mod pages;
 
@@ -230,199 +232,6 @@ impl Options {
         self.fields.retain(|key, _| !key.starts_with(&start));
     }
 
-    /// What was typed in field `key` put into the draft. A number out of
-    /// its range is held to it; one that is not a number is left as it was.
-    pub(crate) fn put(&mut self, key: &str, text: &str) {
-        let n = |lo: u64, hi: u64| text.trim().parse::<u64>().ok().map(|n| n.clamp(lo, hi));
-        let s = &mut self.draft;
-        let parts: Vec<&str> = key.split('.').collect();
-        let at = |i: &str| i.parse::<usize>().ok();
-        match parts.as_slice() {
-            ["types"] => self.typed.types = text.into(),
-            ["skip"] => self.typed.skip = text.into(),
-            ["once"] => self.typed.once = text.into(),
-            ["bypass"] => self.typed.bypass = text.into(),
-            ["custom", i, j] => {
-                if let (Some(i), Some(j)) = (at(i), at(j)) {
-                    if let Some(cell) = self.typed.custom.get_mut(i).and_then(|r| r.get_mut(j)) {
-                        *cell = text.into();
-                    }
-                }
-            }
-            ["download_dir"] => s.folders.download_dir = text.into(),
-            ["parts_dir"] => s.folders.parts_dir = text.into(),
-            ["category_folders", i] => {
-                if let Some(folder) = at(i).and_then(|i| s.folders.category_folders.get_mut(i)) {
-                    *folder = text.into();
-                }
-            }
-            ["min_size_kb"] => {
-                if let Some(n) = n(0, 1024 * 1024) {
-                    s.browser.catch.min_size_kb = n;
-                }
-            }
-            ["connections"] => {
-                if let Some(n) = n(1, 32) {
-                    s.downloads.connections = n as usize;
-                }
-            }
-            ["concurrency"] => {
-                if let Some(n) = n(1, 10) {
-                    s.downloads.concurrency = n as usize;
-                }
-            }
-            ["queue_limits", i, "files"] => {
-                let limit = at(i).and_then(|i| s.downloads.queue_limits.get_mut(i));
-                if let (Some(limit), Some(n)) = (limit, n(1, 10)) {
-                    limit.files = n as usize;
-                }
-            }
-            ["queue_starts", i, "at"] => {
-                if let Some(start) = at(i).and_then(|i| s.downloads.queue_starts.get_mut(i)) {
-                    start.at = text.into();
-                }
-            }
-            ["watch_folder"] => s.downloads.watch_folder = text.into(),
-            ["record_minutes"] => {
-                if let Some(n) = n(0, 1440) {
-                    s.downloads.record_minutes = n;
-                }
-            }
-            ["recheck_hours"] => {
-                if let Some(n) = n(0, 24 * 31) {
-                    s.downloads.recheck_hours = n;
-                }
-            }
-            ["on_complete"] => s.downloads.on_complete = text.into(),
-            ["speed_limit"] => {
-                if let Some(n) = n(0, 1024 * 1024) {
-                    s.advanced.speed_limit = n;
-                }
-            }
-            ["attempts"] => {
-                if let Some(n) = n(0, 100) {
-                    s.advanced.attempts = n as u32;
-                }
-            }
-            ["retry_wait"] => {
-                if let Some(n) = n(0, 3600) {
-                    s.advanced.retry_wait = n;
-                }
-            }
-            ["read_timeout"] => {
-                if let Some(n) = n(5, 600) {
-                    s.advanced.read_timeout = n;
-                }
-            }
-            ["host_limits", i, "host"] => {
-                if let Some(limit) = at(i).and_then(|i| s.advanced.host_limits.get_mut(i)) {
-                    limit.host = text.into();
-                }
-            }
-            ["host_limits", i, "connections"] => {
-                let limit = at(i).and_then(|i| s.advanced.host_limits.get_mut(i));
-                if let (Some(limit), Some(n)) = (limit, n(1, 32)) {
-                    limit.connections = n as usize;
-                }
-            }
-            ["site_rules", i, field] => {
-                if let Some(rule) = at(i).and_then(|i| s.advanced.site_rules.get_mut(i)) {
-                    match *field {
-                        "host" => rule.host = text.into(),
-                        "folder" => rule.folder = text.into(),
-                        "agent" => rule.agent = text.into(),
-                        "headers" => rule.headers = text.into(),
-                        _ => {
-                            if let Some(n) = n(0, 1024 * 1024) {
-                                rule.speed = n;
-                            }
-                        }
-                    }
-                }
-            }
-            ["cookies_file"] => {
-                // What was said about the file goes with it.
-                let before = std::mem::replace(&mut s.advanced.cookies_file, text.into());
-                if !before.is_empty() && self.says.as_ref().is_some_and(|w| w.contains(&before)) {
-                    self.says = None;
-                }
-            }
-            ["proxy", field] => {
-                let p = &mut s.advanced.proxy;
-                match *field {
-                    "host" => p.host = text.into(),
-                    "username" => p.username = text.into(),
-                    "password" => p.password = text.into(),
-                    "script" => p.script = text.into(),
-                    _ => {
-                        if let Some(n) = n(1, 65535) {
-                            p.port = n as u16;
-                        }
-                    }
-                }
-            }
-            ["per_scheme", scheme, field] => {
-                if let Some(entry) = s.advanced.proxy.per_scheme.get_mut(*scheme) {
-                    if *field == "host" {
-                        entry.host = text.into();
-                    } else if let Some(n) = n(1, 65535) {
-                        entry.port = n as u16;
-                    }
-                }
-            }
-            ["dialup", field] => {
-                let d = &mut s.advanced.dialup;
-                match *field {
-                    "username" => d.username = text.into(),
-                    "password" => d.password = text.into(),
-                    "attempts" => {
-                        if let Some(n) = n(0, u64::from(dm_shell::dialup::MOST_ATTEMPTS)) {
-                            d.attempts = n as u32;
-                        }
-                    }
-                    _ => {
-                        if let Some(n) = n(0, dm_shell::dialup::MOST_WAIT_SECONDS) {
-                            d.wait_seconds = n;
-                        }
-                    }
-                }
-            }
-            ["peer_blocklist"] => s.peer_blocklist = text.into(),
-            ["torrent_share_ratio"] => {
-                if let Ok(ratio) = text.trim().parse::<f64>() {
-                    s.torrent_share_ratio = ratio.clamp(0.1, 100.0);
-                }
-            }
-            ["torrent_share_minutes"] => {
-                if let Some(n) = n(1, 7 * 24 * 60) {
-                    s.torrent_share_minutes = n;
-                }
-            }
-            ["torrent_upload_limit"] => {
-                if let Some(n) = n(0, 1_000_000) {
-                    s.torrent_upload_limit = n;
-                }
-            }
-            ["site_logins", i, field] => {
-                if let Some(login) = at(i).and_then(|i| s.site_logins.get_mut(i)) {
-                    match *field {
-                        "host" => login.host = text.into(),
-                        "username" => login.username = text.into(),
-                        _ => login.password = text.into(),
-                    }
-                }
-            }
-            ["sounds", event] => {
-                if text.trim().is_empty() {
-                    s.sounds.remove(*event);
-                } else {
-                    s.sounds.insert(event.to_string(), text.into());
-                }
-            }
-            _ => {}
-        }
-    }
-
     /// The window's scale chosen (Appearance's slider or one of its stops):
     /// not a draft, in force at once in every window and kept whatever OK
     /// or Cancel, as View › Larger and Smaller are.
@@ -558,57 +367,9 @@ impl Render for Options {
             crate::options::pages::search(self, &wanted, theme, window, cx)
         };
         // The pages as a tab view's segments, as macOS draws them.
-        let tabs = options::TABS.iter().map(|(tab, words)| {
-            let tab = *tab;
-            let on = self.tab == tab;
-            div()
-                .id(SharedString::from(*words))
-                .role(Role::Tab)
-                // Reached by Tab, chosen by Space or Return (gaps row U2).
-                .tab_index(0)
-                .focus(move |s| s.bg(theme.stripe))
-                .aria_label(SharedString::from(t(words)))
-                .aria_selected(on)
-                .px(px(space::L))
-                .h(px(native::CONTROL - 2.0))
-                .flex()
-                .items_center()
-                .rounded(px(native::RADIUS - 1.0))
-                .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
-                .child(screen.label(t(words)))
-                .on_click(cx.listener(move |this, _, _, cx| this.show(tab, cx)))
-                // On the pages' strip, the arrows move from page to page, the keyboard's
-                // place with them, as a tab view's do (gaps row U2).
-                .on_key_down(
-                    cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
-                        let by = match event.keystroke.key.as_str() {
-                            "left" | "up" => -1,
-                            "right" | "down" => 1,
-                            _ => return,
-                        };
-                        if event.keystroke.modifiers.modified() {
-                            return;
-                        }
-                        cx.stop_propagation();
-                        let at = options::TABS
-                            .iter()
-                            .position(|(t, _)| *t == tab)
-                            .unwrap_or(0);
-                        let last = options::TABS.len() - 1;
-                        // Not round the end, where the next place to go is another control.
-                        if (by < 0 && at == 0) || (by > 0 && at == last) {
-                            return;
-                        }
-                        this.step_page(by, cx);
-                        if by > 0 {
-                            window.focus_next(cx);
-                        } else {
-                            window.focus_prev(cx);
-                        }
-                    }),
-                )
-        });
-        let restore = !options::tab_settings(self.tab).is_empty();
+        let tabs = options::TABS
+            .iter()
+            .map(|(tab, words)| self.page_tab(*tab, *words, theme, &screen, cx));
         crate::widgets::native::dialog("options", t("Options"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
@@ -674,42 +435,107 @@ impl Render for Options {
                     .gap(px(native::ROW_GAP))
                     .children(page),
             )
-            .child(
-                div()
-                    .px(px(native::MARGIN))
-                    .pb(px(native::MARGIN))
-                    .flex()
-                    .flex_col()
-                    .gap(px(native::ROW_GAP))
-                    .when_some(self.says.clone(), |d, says| {
-                        d.mt(px(native::ROW_GAP))
-                            .child(native::note(says, theme.warning, &screen))
-                    })
-                    .child(native::buttons(
-                        restore
-                            .then(|| {
-                                native::button(
-                                    "restore",
-                                    t("Restore defaults").into(),
-                                    false,
-                                    theme,
-                                    &screen,
-                                )
-                                .on_click(cx.listener(|this, _, _, cx| this.restore_defaults(cx)))
-                                .into_any_element()
-                            })
-                            .into_iter()
-                            .collect(),
-                        vec![
-                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
-                                .into_any_element(),
-                            native::button("ok", t("OK").into(), true, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
-                                .into_any_element(),
-                        ],
-                    )),
+            .child(self.footer(theme, &screen, cx))
+    }
+}
+
+impl Options {
+    /// A page's segment on the pages' strip, as a tab view's, as macOS draws them.
+    fn page_tab(
+        &self,
+        tab: Tab,
+        words: &'static str,
+        theme: Theme,
+        screen: &Screen,
+        cx: &Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let on = self.tab == tab;
+        div()
+            .id(SharedString::from(words))
+            .role(Role::Tab)
+            // Reached by Tab, chosen by Space or Return (gaps row U2).
+            .tab_index(0)
+            .focus(move |s| s.bg(theme.stripe))
+            .aria_label(SharedString::from(t(words)))
+            .aria_selected(on)
+            .px(px(space::L))
+            .h(px(native::CONTROL - 2.0))
+            .flex()
+            .items_center()
+            .rounded(px(native::RADIUS - 1.0))
+            .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
+            .child(screen.label(t(words)))
+            .on_click(cx.listener(move |this, _, _, cx| this.show(tab, cx)))
+            // On the pages' strip, the arrows move from page to page, the keyboard's
+            // place with them, as a tab view's do (gaps row U2).
+            .on_key_down(
+                cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
+                    let by = match event.keystroke.key.as_str() {
+                        "left" | "up" => -1,
+                        "right" | "down" => 1,
+                        _ => return,
+                    };
+                    if event.keystroke.modifiers.modified() {
+                        return;
+                    }
+                    cx.stop_propagation();
+                    let at = options::TABS
+                        .iter()
+                        .position(|(t, _)| *t == tab)
+                        .unwrap_or(0);
+                    let last = options::TABS.len() - 1;
+                    // Not round the end, where the next place to go is another control.
+                    if (by < 0 && at == 0) || (by > 0 && at == last) {
+                        return;
+                    }
+                    this.step_page(by, cx);
+                    if by > 0 {
+                        window.focus_next(cx);
+                    } else {
+                        window.focus_prev(cx);
+                    }
+                }),
             )
+    }
+
+    /// Under the page: what went wrong, and the buttons, Restore defaults where the page has
+    /// settings of its own.
+    fn footer(&self, theme: Theme, screen: &Screen, cx: &Context<Self>) -> gpui::Div {
+        let restore = !options::tab_settings(self.tab).is_empty();
+        div()
+            .px(px(native::MARGIN))
+            .pb(px(native::MARGIN))
+            .flex()
+            .flex_col()
+            .gap(px(native::ROW_GAP))
+            .when_some(self.says.clone(), |d, says| {
+                d.mt(px(native::ROW_GAP))
+                    .child(native::note(says, theme.warning, screen))
+            })
+            .child(native::buttons(
+                restore
+                    .then(|| {
+                        native::button(
+                            "restore",
+                            t("Restore defaults").into(),
+                            false,
+                            theme,
+                            screen,
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| this.restore_defaults(cx)))
+                        .into_any_element()
+                    })
+                    .into_iter()
+                    .collect(),
+                vec![
+                    native::button("cancel", t("Cancel").into(), false, theme, screen)
+                        .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
+                        .into_any_element(),
+                    native::button("ok", t("OK").into(), true, theme, screen)
+                        .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
+                        .into_any_element(),
+                ],
+            ))
     }
 }
 

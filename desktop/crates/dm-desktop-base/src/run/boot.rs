@@ -172,61 +172,8 @@ pub fn start(
         mut notices,
     } = runtime.block_on(shell::start(handed));
     let hidden = shell::launched_at_login(args);
-    // `--control <port>`, or DM_CONTROL: the control protocol, for tests and
-    // agents to drive the running window. Off unless asked for.
-    let control: Option<u16> = args
-        .iter()
-        .position(|a| a == "--control")
-        .and_then(|i| args.get(i + 1))
-        .cloned()
-        .or_else(|| dm_core::env::get("DM_CONTROL"))
-        .and_then(|p| p.parse().ok())
-        // Or the person's own setting (Options › General): the command line.
-        .or_else(|| (saved.general.allow_command_line || saved.general.allow_mcp).then_some(0));
-    // Open only because AI assistants are allowed (not asked for by
-    // `--control`, `DM_CONTROL` or the command-line setting): then the port
-    // answers assistants and nothing else, so the default does not hand the
-    // command line to people who never turned it on.
-    let assistants_only = !args.iter().any(|a| a == "--control")
-        && dm_core::env::get_os("DM_CONTROL").is_none()
-        && !saved.general.allow_command_line;
-
-    // The login item follows the saved setting, so a reinstall lands in the
-    // state the person last chose. Said in the window, not fatal. One the
-    // person turned off in Task Manager stays off, and so does the setting.
-    // Not for a dm run on a home of its own (`DM_HOME`: a test, a script, a
-    // portable copy): starting at login is on for a new install, and every
-    // test's fresh home would otherwise put a login item on the computer
-    // running it. Turning the setting on in Options still registers one.
-    let own_home = dm_core::env::get_os("DM_HOME").is_some_and(|h| !h.is_empty());
-    // Only whether it was turned off outside dm is asked here (a read of the
-    // registry on Windows, nothing elsewhere), since the setting must say so
-    // before the window reads it; the item itself is put in step after the
-    // window is shown (`LoginItem`).
-    let at_launch = (!own_home).then(|| {
-        crate::autostart::at_launch(
-            saved.general.start_on_login,
-            crate::login::login_item_turned_off_outside(),
-        )
-    });
-    let login_item = match at_launch {
-        None => None,
-        Some(crate::autostart::AtLaunch::TurnedOffOutside) => {
-            saved.general.start_on_login = false;
-            notices.push(match saved.save() {
-                Ok(()) => "start on login was turned off in Task Manager, so dm has turned it \
-                           off too; Options › General turns it back on"
-                    .to_string(),
-                Err(e) => format!(
-                    "start on login was turned off in Task Manager and dm leaves it off, \
-                     but the setting could not be saved: {e}"
-                ),
-            });
-            None
-        }
-        // The setting, as it is when the item is put in step.
-        Some(crate::autostart::AtLaunch::Follow(_)) => Some(LoginItem(())),
-    };
+    let (control, assistants_only) = control_port(args, &saved);
+    let login_item = login_item_at_launch(&mut saved, &mut notices);
 
     // Anything a browser handed over while the app was closed is waiting in
     // the inbox; anything that was mid-flight came back queued.
@@ -312,6 +259,74 @@ pub fn start(
         started_with,
         login_item,
     })
+}
+
+/// The control port to open, if any, and whether it is open only because AI assistants are
+/// allowed.
+fn control_port(args: &[String], saved: &dm_shell::Settings) -> (Option<u16>, bool) {
+    // `--control <port>`, or DM_CONTROL: the control protocol, for tests and
+    // agents to drive the running window. Off unless asked for.
+    let control: Option<u16> = args
+        .iter()
+        .position(|a| a == "--control")
+        .and_then(|i| args.get(i + 1))
+        .cloned()
+        .or_else(|| dm_core::env::get("DM_CONTROL"))
+        .and_then(|p| p.parse().ok())
+        // Or the person's own setting (Options › General): the command line.
+        .or_else(|| (saved.general.allow_command_line || saved.general.allow_mcp).then_some(0));
+    // Open only because AI assistants are allowed (not asked for by
+    // `--control`, `DM_CONTROL` or the command-line setting): then the port
+    // answers assistants and nothing else, so the default does not hand the
+    // command line to people who never turned it on.
+    let assistants_only = !args.iter().any(|a| a == "--control")
+        && dm_core::env::get_os("DM_CONTROL").is_none()
+        && !saved.general.allow_command_line;
+    (control, assistants_only)
+}
+
+/// The login item as dm starts: `None` where dm leaves it be, the setting (in `saved`) turned
+/// off where it was turned off outside dm, with a word for the window in `notices`.
+fn login_item_at_launch(
+    saved: &mut dm_shell::Settings,
+    notices: &mut Vec<String>,
+) -> Option<LoginItem> {
+    // The login item follows the saved setting, so a reinstall lands in the
+    // state the person last chose. Said in the window, not fatal. One the
+    // person turned off in Task Manager stays off, and so does the setting.
+    // Not for a dm run on a home of its own (`DM_HOME`: a test, a script, a
+    // portable copy): starting at login is on for a new install, and every
+    // test's fresh home would otherwise put a login item on the computer
+    // running it. Turning the setting on in Options still registers one.
+    let own_home = dm_core::env::get_os("DM_HOME").is_some_and(|h| !h.is_empty());
+    // Only whether it was turned off outside dm is asked here (a read of the
+    // registry on Windows, nothing elsewhere), since the setting must say so
+    // before the window reads it; the item itself is put in step after the
+    // window is shown (`LoginItem`).
+    let at_launch = (!own_home).then(|| {
+        crate::autostart::at_launch(
+            saved.general.start_on_login,
+            crate::login::login_item_turned_off_outside(),
+        )
+    });
+    match at_launch {
+        None => None,
+        Some(crate::autostart::AtLaunch::TurnedOffOutside) => {
+            saved.general.start_on_login = false;
+            notices.push(match saved.save() {
+                Ok(()) => "start on login was turned off in Task Manager, so dm has turned it \
+                           off too; Options › General turns it back on"
+                    .to_string(),
+                Err(e) => format!(
+                    "start on login was turned off in Task Manager and dm leaves it off, \
+                     but the setting could not be saved: {e}"
+                ),
+            });
+            None
+        }
+        // The setting, as it is when the item is put in step.
+        Some(crate::autostart::AtLaunch::Follow(_)) => Some(LoginItem(())),
+    }
 }
 
 #[cfg(test)]

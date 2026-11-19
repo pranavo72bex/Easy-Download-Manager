@@ -35,6 +35,7 @@ use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+mod opening;
 mod sections;
 
 use sections::Look;
@@ -692,38 +693,13 @@ fn open_now(
     let settings = backend.settings();
     let queues = backend.queues();
     let first = urls.first().cloned().unwrap_or_default();
-    // Begun at once while it asks, where Options says so, before the window
-    // is made: its first request then does not wait for a new window (its
-    // Direct3D or Metal surface, its fields) to be drawn.
-    let form = Form {
-        quality: handed.quality.clone(),
-        post: handed.post.clone(),
-        ..Form::default()
-    };
-    let youtube = urls.len() == 1 && dm_core::youtube::video_id(&first).is_some();
-    let early = file_info::begins_early(&settings, &urls, &form, youtube)
-        .then(|| {
-            backend
-                .add_with(
-                    &first,
-                    dm_core::AddOptions {
-                        referrer: handed.referrer.clone(),
-                        title_hint: Some(handed.title.clone()).filter(|t| !t.trim().is_empty()),
-                        cookies: handed.cookies.clone(),
-                        cookies_once: handed.cookies_once,
-                        headers: handed.headers.clone(),
-                        ..dm_core::AddOptions::default()
-                    },
-                )
-                .ok()
-        })
-        .flatten();
+    let early = opening::begun_early(&backend, &settings, &urls, &first, &handed);
     // What a window that will not open leaves to undo.
     let (gone_with, gone_view, was_handed) = (backend.clone(), view.clone(), handed.handed);
     // What the server calls the file and how big it is, asked now too,
     // before the window is made; the dialog hears the answer once it is.
     let remux = settings.downloads.remux_ts;
-    let told = ask_server(&backend, &first, urls.len(), remux, &handed);
+    let told = opening::ask_server(&backend, &first, urls.len(), remux, &handed);
     let height = if urls.len() == 1 { 360.0 } else { 300.0 };
     let bounds = Bounds::centered(None, size(px(600.0), px(height)), cx);
     let opened = crate::window::screen::open_window(
@@ -826,99 +802,15 @@ fn open_now(
                     screen,
                 }
             });
-            // Start now has the keyboard.
-            details.update(cx, |d, cx| window.focus(&d.focus, cx));
-            hear_server(&details, told, window, cx);
-            // A YouTube video's qualities are asked at once, from its own
-            // data; a page's once the server says it is one.
-            details.update(cx, |d, cx| d.ask_choices(window, cx));
-            let weak = details.downgrade();
-            window
-                .spawn(cx, async move |cx| {
-                    while zip_told.recv().await.is_ok() {
-                        if weak.update(cx, |_, cx| cx.notify()).is_err() {
-                            return;
-                        }
-                    }
-                })
-                .detach();
-            if early.is_some() {
-                let _ = view.update(cx, |v, cx| {
-                    v.read();
-                    cx.notify();
-                });
-            }
+            opening::first_moves(&details, &view, told, zip_told, early, window, cx);
             crate::widgets::native::close_is_cancel(&details, window, cx);
             cx.new(|cx| gpui_component::Root::new(details, window, cx))
         },
     );
     if let Err(e) = opened {
         dm_core::note!(error, "dm-gpui: Download details could not be opened: {e}");
-        // As Cancel ends it: the row begun for it goes, and the next
-        // hand-off is not held back behind one that is never asked.
-        if let Some(id) = early {
-            gone_with.remove_later(id);
-        }
-        let _ = gone_view.update(cx, |view, cx| {
-            if was_handed {
-                view.handed_closed();
-            }
-            view.read();
-            cx.notify();
-        });
+        opening::never_opened(early, &gone_with, &gone_view, was_handed, cx);
     }
-}
-
-/// The server asked what it calls the file and how big it is, once, as the
-/// dialog opens (not a torrent's: what the server says of a .torrent is the
-/// metainfo's few kilobytes and its file name). Asked before the dialog's
-/// window is made, so the request is not held up by it; `None` where there
-/// is nothing to ask, which is known at once.
-fn ask_server(
-    backend: &Backend,
-    url: &str,
-    count: usize,
-    remux: bool,
-    handed: &Handed,
-) -> Option<async_channel::Receiver<Probed>> {
-    let web = url.starts_with("http://") || url.starts_with("https://");
-    if count != 1 || !web || dm_core::is_torrent(url) {
-        return None;
-    }
-    let (tell, told) = async_channel::bounded(1);
-    dm_shell::app::lookups::probe_later(
-        backend,
-        url.to_string(),
-        handed.referrer.clone(),
-        handed.sign_in(&backend.settings(), url),
-        remux,
-        move |found| {
-            let _ = tell.try_send(found);
-        },
-    );
-    Some(told)
-}
-
-/// The dialog told what the server answered (`ask_server`), when it does;
-/// at once where nothing was asked.
-fn hear_server(
-    details: &Entity<Details>,
-    told: Option<async_channel::Receiver<Probed>>,
-    window: &mut Window,
-    cx: &mut App,
-) {
-    let Some(told) = told else {
-        details.update(cx, |d, cx| d.probed(Probed::default(), window, cx));
-        return;
-    };
-    let details = details.downgrade();
-    window
-        .spawn(cx, async move |cx| {
-            if let Ok(found) = told.recv().await {
-                let _ = details.update_in(cx, |d, window, cx| d.probed(found, window, cx));
-            }
-        })
-        .detach();
 }
 
 impl crate::widgets::native::CloseButton for Details {
