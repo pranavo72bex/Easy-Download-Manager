@@ -94,6 +94,12 @@ pub fn private_fetches_for(page_url: &str) -> Vec<String> {
 /// whose strings are addresses (empty: every string). `None` where no rule of the page's site
 /// names that request, which is how an answer nobody asked for is refused.
 pub fn keys_for(page_url: &str, request_url: &str) -> Option<Vec<String>> {
+    answer_rule_for(page_url, request_url).map(|answer| answer.keys)
+}
+
+/// The whole answer rule [`keys_for`] reads the keys of: its keys, the video id it must name and
+/// the keys of which only the first member is read.
+pub fn answer_rule_for(page_url: &str, request_url: &str) -> Option<dm_protocol::AnswerRule> {
     let site = super::site_of(page_url)?;
     let request = request_url.to_ascii_lowercase();
     with_served(|rules| {
@@ -101,7 +107,7 @@ pub fn keys_for(page_url: &str, request_url: &str) -> Option<Vec<String>> {
             .answers_for(&site)
             .into_iter()
             .find(|answer| request.contains(answer.url_contains.as_str()))
-            .map(|answer| answer.keys.clone())
+            .cloned()
     })
 }
 

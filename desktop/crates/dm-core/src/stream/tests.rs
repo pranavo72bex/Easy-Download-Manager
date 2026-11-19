@@ -625,6 +625,33 @@ fn a_stream_is_renamed_for_what_its_segments_turn_out_to_be() {
 }
 
 #[test]
+fn a_stream_is_named_after_the_pages_title_not_its_playlists_folder() {
+    // Vimeo's master sits under a base64 folder ("qsr=1"), Reddit's is "HLSPlaylist" (gaps 214, 205).
+    let vimeo = name_for(
+        "https://vod-adaptive.akamaized.net/a/b/v2/playlist/av/primary/prot/cXNyPTE/playlist.m3u8",
+        "mp4",
+    );
+    assert_eq!(vimeo, "cXNyPTE.mp4");
+    assert_eq!(
+        titled(&vimeo, Some(" Big Buck Bunny: the short "), None),
+        "Big Buck Bunny - the short.mp4"
+    );
+    assert_eq!(
+        titled("HLSPlaylist.m4a", Some("A song"), None),
+        "A song.m4a"
+    );
+    // A name a person typed is placed by `finish`, so the stream's own name is left alone.
+    assert_eq!(
+        titled(&vimeo, Some("Title"), Some("mine.mp4")),
+        "cXNyPTE.mp4"
+    );
+    // No title, an empty one or one made only of characters a file cannot hold: as it was.
+    assert_eq!(titled(&vimeo, None, None), "cXNyPTE.mp4");
+    assert_eq!(titled(&vimeo, Some("   "), Some(" ")), "cXNyPTE.mp4");
+    assert_eq!(titled(&vimeo, Some("???"), None), "cXNyPTE.mp4");
+}
+
+#[test]
 fn a_key_of_the_wrong_length_is_refused() {
     let why = decrypt(&[0u8; 8], &[0u8; 16], &[0u8; 16])
         .unwrap_err()

@@ -209,8 +209,8 @@ pub use schedule::{
 };
 
 pub use stream::{
-    kind_of, media_playlist, pick as pick_quality, variants as stream_variants, Kind as StreamKind,
-    Quality, Stream, Variant,
+    kind_of, media_playlist, pick as pick_quality, titled as stream_titled,
+    variants as stream_variants, Kind as StreamKind, Quality, Stream, Variant,
 };
 
 pub use torrent::{

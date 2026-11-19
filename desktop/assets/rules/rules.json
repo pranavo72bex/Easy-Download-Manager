@@ -1,6 +1,6 @@
 {
  "format": 1,
- "revision": 3,
+ "revision": 4,
  "exclude": {},
  "sites": [
   { "host": "facebook.com", "finders": [
@@ -17,7 +17,7 @@
   { "host": "vimeo.com", "finders": [
    { "player": "div.vp-video, video", "id_from_url": "vimeo\\.com/(?:video/)?(\\d{2,})" }
   ], "answers": [
-   { "url_contains": "/config", "keys": ["url"] }
+   { "url_contains": "/config", "keys": ["url"], "video_id": "video.id", "first_of": ["cdns"] }
   ] },
   { "host": "tiktok.com", "answers": [
    { "url_contains": "/api/item/detail", "keys": ["playAddr", "downloadAddr"] },

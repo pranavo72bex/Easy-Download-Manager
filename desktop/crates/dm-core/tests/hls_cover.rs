@@ -460,6 +460,17 @@ async fn a_transport_stream_picture_with_transport_stream_sound_is_joined_into_a
     assert_eq!(tracks, 2, "tracks in the file");
     let asked = site.asked();
     assert!(asked.iter().any(|(p, _)| p == "/p/a0.ts"), "{asked:?}");
+
+    // Handed over with its page's title, the joined file is named after it (gaps row 214).
+    let dir = tempdir();
+    let titled = dm_core::Options {
+        title_hint: Some("A film".into()),
+        ..options(dir.path())
+    };
+    let done = download(&client(), &format!("http://{addr}/p/master.m3u8"), &titled)
+        .await
+        .expect("the pair is joined");
+    assert_eq!(done.path.file_name().unwrap(), "A film.mp4");
 }
 
 /// A live picture whose sound is a pair dm cannot join (a transport-stream

@@ -534,11 +534,30 @@ def sites(base, origin, engine_dl, engine_home, worker):
     # finders ...), not the test page's that chrome-check's own checks put in dm's home
     # (revision 999, for 127.0.0.1 alone): written over them under a higher revision, and the
     # extension made to ask the app again, which serves them in its hello (gaps row 204).
+    # The test page's rules go back afterwards, higher again: chrome-check's own checks that
+    # follow these (rows 69, 118, 125) read them, and failed with the shipped ones left there.
+    rules = engine_home / "rules.json"
+    own = json.loads(rules.read_text(encoding="utf-8")) if rules.exists() else None
     shipped = json.loads((cc.ROOT / "desktop/assets/rules/rules.json").read_text(encoding="utf-8"))
     shipped["revision"] = 1000
-    (engine_home / "rules.json").write_text(json.dumps(shipped), encoding="utf-8")
-    worker.evaluate("dmReady.then(m => { m.forget_app();"
-                    " return m.on_page_message({type: 'dm.status'}, {id: chrome.runtime.id}); })")
+    rules.write_text(json.dumps(shipped), encoding="utf-8")
+    ask_again = ("dmReady.then(m => { m.forget_app();"
+                 " return m.on_page_message({type: 'dm.status'}, {id: chrome.runtime.id}); })")
+    worker.evaluate(ask_again)
+    try:
+        each_site(base, engine_dl, worker, results)
+    finally:
+        if own is not None:
+            own["revision"] = 1001
+            rules.write_text(json.dumps(own), encoding="utf-8")
+            worker.evaluate(ask_again)
+    print("\nSUMMARY")
+    for r in results:
+        print(f"  {r['site']:12} {r.get('result')}   lines={r.get('lines')}")
+
+
+def each_site(base, engine_dl, worker, results):
+    """Each wanted site checked in turn, with the shipped rules in dm's home."""
     if PROBE:
         # What the extension's own worker is told, tab or no tab.
         worker.evaluate("""(() => { globalThis.__dmseen = []; chrome.webRequest.onResponseStarted.addListener(d => {
@@ -558,9 +577,6 @@ def sites(base, origin, engine_dl, engine_home, worker):
         DONE.append(r)
         print("SITE", json.dumps(r, default=str), flush=True)
         cc.check(f"{name}: a whole video with sound lands in dm's folder", r.get("result") == "OK", r.get("result", ""))
-    print("\nSUMMARY")
-    for r in results:
-        print(f"  {r['site']:12} {r.get('result')}   lines={r.get('lines')}")
 
 
 DONE = []

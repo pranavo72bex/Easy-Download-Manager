@@ -164,3 +164,98 @@ fn the_shipped_site_rules_find_the_streams_of_their_sites_answers() {
         assert!(found.iter().any(|a| a == expected), "{host}: {found:?}");
     }
 }
+
+/// A player config shaped as Vimeo's: the stream from two CDNs, five files, its own video's id.
+fn vimeo_config(id: u64) -> String {
+    format!(
+        r#"{{ "video": {{ "id": {id}, "title": "A film" }},
+              "request": {{ "files": {{
+                "hls": {{ "default_cdn": "a", "cdns": {{
+                  "a": {{ "url": "https://a.example/{id}/playlist.m3u8", "origin": "gcs" }},
+                  "b": {{ "url": "https://b.example/{id}/playlist.m3u8", "origin": "gcs" }} }} }},
+                "progressive": [
+                  {{ "url": "https://f.example/{id}/1080.mp4", "quality": "1080p" }},
+                  {{ "url": "https://f.example/{id}/720.mp4", "quality": "720p" }} ] }} }} }}"#
+    )
+}
+
+fn vimeo_rule() -> dm_protocol::AnswerRule {
+    dm_protocol::AnswerRule {
+        url_contains: "/config".into(),
+        keys: keys(&["url"]),
+        video_id: "video.id".into(),
+        first_of: keys(&["cdns"]),
+    }
+}
+
+#[test]
+fn a_config_for_the_pages_video_lists_its_stream_once_and_every_file() {
+    // gaps row 214: one HLS line, not one per CDN; the files all.
+    let page = "https://vimeo.com/513177164";
+    assert_eq!(
+        addresses_by(&vimeo_config(513177164), &vimeo_rule(), page),
+        vec![
+            "https://a.example/513177164/playlist.m3u8",
+            "https://f.example/513177164/1080.mp4",
+            "https://f.example/513177164/720.mp4",
+        ]
+    );
+    // The player in its own frame names the video the same way.
+    assert_eq!(
+        addresses_by(
+            &vimeo_config(513177164),
+            &vimeo_rule(),
+            "https://player.vimeo.com/video/513177164?h=1"
+        )
+        .len(),
+        3
+    );
+}
+
+#[test]
+fn a_config_for_another_video_than_the_pages_gives_nothing() {
+    // The page's background clip has a player config of its own (gaps row 214).
+    let page = "https://vimeo.com/513177164";
+    assert!(addresses_by(&vimeo_config(42424242), &vimeo_rule(), page).is_empty());
+}
+
+#[test]
+fn where_the_page_or_the_answer_names_no_video_the_answer_is_read_as_before() {
+    // A page whose address names no video by number: a channel, a showcase, the home page.
+    for page in [
+        "https://vimeo.com/channels/staffpicks",
+        "https://vimeo.com/",
+    ] {
+        assert_eq!(
+            addresses_by(&vimeo_config(42424242), &vimeo_rule(), page).len(),
+            3,
+            "{page}"
+        );
+    }
+    // An answer without the id's path; a rule with no id path or no first_of.
+    let without_id = r#"{ "cdns": { "a": { "url": "https://a.example/p.m3u8" },
+                                    "b": { "url": "https://b.example/p.m3u8" } } }"#;
+    assert_eq!(
+        addresses_by(without_id, &vimeo_rule(), "https://vimeo.com/513177164").len(),
+        1
+    );
+    let plain = dm_protocol::AnswerRule {
+        keys: keys(&["url"]),
+        ..Default::default()
+    };
+    assert_eq!(
+        addresses_by(
+            &vimeo_config(42424242),
+            &plain,
+            "https://vimeo.com/513177164"
+        )
+        .len(),
+        4
+    );
+    // first_of on an array: its first item only.
+    let listed = r#"{ "cdns": [ { "url": "https://a.example/p.m3u8" }, { "url": "https://b.example/p.m3u8" } ] }"#;
+    assert_eq!(
+        addresses_by(listed, &vimeo_rule(), ""),
+        vec!["https://a.example/p.m3u8"]
+    );
+}

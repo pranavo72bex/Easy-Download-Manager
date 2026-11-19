@@ -7887,3 +7887,25 @@ and then dm.app around it (not `--deep`, which would sign the extension again wi
   maintainer's laptop has no `sh` (`cargo xtask package`), and through `cargo xtask` the Intel
   build would have made an x86_64 xtask the Apple silicon runner cannot run without Rosetta.
   With a Developer ID (R1), the extension must go in before notarisation, not after.
+
+## A site's answer rule names its own video and one CDN of several (2026-11-19, gaps row 214)
+
+Vimeo's page fetches two player configs (`/config`), the video's and a background clip's, and
+each names its HLS stream once per CDN: four HLS lines in the panel for one video. Two optional
+fields of `AnswerRule`, read by `decide::addresses_by`:
+
+- `video_id`, a dotted path to the answer's own video id (`video.id`): an answer is read only
+  when the page's address names that id as a path segment. Where the address names no video by
+  number (no segment of digits alone: a channel, a showcase) or the answer has nothing at that
+  path, it is read as before, so a wrong path costs a duplicate line and never the video.
+  Rejected: the finders' `id_from_url`, a JavaScript regular expression the extension's Rust has
+  no engine for (no crate added for one rule).
+- `first_of`, keys under which only the first member (an object's, an array's) is read: `cdns`.
+
+Both default to empty, and the rules format stays 1: an extension or app that does not know them
+reads them as before (no unknown-field refusal). Rules revision 4.
+
+A stream's file takes the page's title (`stream::titled`) wherever one came with it and no name
+was typed: its address names a playlist (`playlist.m3u8`, `HLSPlaylist.m3u8`) or the folder above
+it (`cXNyPTE`, base64 of `qsr=1`), never the video. The title loses a site's trailing
+"| … on <site>" of at most six words ("| Videos & Movies on Vimeo"; `clean_title`).

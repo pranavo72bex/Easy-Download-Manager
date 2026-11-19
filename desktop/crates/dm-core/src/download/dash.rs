@@ -58,7 +58,11 @@ pub(super) async fn download_dash(
         (Some(_), true) => "webm",
         (Some(_), false) => "mp4",
     };
-    let filename = stream::name_for(url, extension);
+    let filename = stream::titled(
+        &stream::name_for(url, extension),
+        options.title_hint.as_deref(),
+        options.save_name.as_deref(),
+    );
     let signature = format!("{url}\n{}", plan.signature());
     join_tracks(
         client, &tracks, &filename, extension, webm, &signature, options, report,
@@ -200,6 +204,12 @@ pub(super) async fn download_pair(
     } else {
         picture.filename.clone()
     };
+    // Vimeo's stream keeps its sound apart, so it is joined here (gaps row 214).
+    let name = stream::titled(
+        &name,
+        options.title_hint.as_deref(),
+        options.save_name.as_deref(),
+    );
     join_tracks(
         client, &refs, &name, "mp4", false, &signature, options, report,
     )

@@ -332,8 +332,8 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         let asked = get(&message, "url").as_string().unwrap_or_default();
         let body = get(&message, "body").as_string().unwrap_or_default();
         if tab >= 0.0 {
-            if let Some(keys) = decide::rules::keys_for(&page, &asked) {
-                for address in decide::addresses_in(&body, &keys) {
+            if let Some(rule) = decide::rules::answer_rule_for(&page, &asked) {
+                for address in decide::addresses_by(&body, &rule, &page) {
                     let details = to_js(&serde_json::json!({
                         "url": address,
                         "tabId": tab,

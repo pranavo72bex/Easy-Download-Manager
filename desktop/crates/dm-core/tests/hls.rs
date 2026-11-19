@@ -206,6 +206,34 @@ async fn a_playlist_is_saved_as_one_file_in_the_right_order() {
 }
 
 #[tokio::test]
+async fn a_stream_handed_over_with_its_pages_title_is_saved_under_it() {
+    // The panel sends the page's title; the playlist's folder names nothing (gaps row 214).
+    let (addr, _) = serve(false).await;
+    let dir = tempdir();
+    let titled = Options {
+        title_hint: Some("A walk: in the park".into()),
+        ..options(dir.path(), dm_core::Quality::Best)
+    };
+    let done = download(&client(), &format!("http://{addr}/v/master.m3u8"), &titled)
+        .await
+        .expect("the stream failed");
+    assert_eq!(done.path.file_name().unwrap(), "A walk - in the park.ts");
+    assert_eq!(std::fs::read(&done.path).unwrap(), whole());
+
+    // A name the person typed still wins over the title.
+    let dir = tempdir();
+    let named = Options {
+        save_name: Some("mine.ts".into()),
+        title_hint: titled.title_hint.clone(),
+        ..options(dir.path(), dm_core::Quality::Best)
+    };
+    let done = download(&client(), &format!("http://{addr}/v/master.m3u8"), &named)
+        .await
+        .expect("the stream failed");
+    assert_eq!(done.path.file_name().unwrap(), "mine.ts");
+}
+
+#[tokio::test]
 async fn a_cap_takes_the_rendition_under_it() {
     let (addr, asked) = serve(false).await;
     let dir = tempdir();

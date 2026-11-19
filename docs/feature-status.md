@@ -551,6 +551,12 @@ of them.
       checksum file's rules (`checksum::from_headers`, `Probe::digest`;
       `tests/digest_headers.rs`; gaps row W19, tested on Windows and macOS
       2026-11-18)
+- [x] A stream handed over from a page is named after the page's title,
+      through Download details too, and Vimeo's panel lists the playing
+      video's stream once and its files (`stream::titled`, the answer rule's
+      `video_id` and `first_of`, `decide::addresses_by`; `tests/hls.rs`,
+      `tests/hls_cover.rs`, `answers/tests.rs`; `sites-check.py vimeo` 63 of 63
+      on macOS in Edge, 2026-11-19; gaps row 214)
 - [x] Move/Rename on one download that failed or is stopped: the name and
       folder typed are its own, its parts go with it, and a failed or stalled
       one is tried again (`Queue::place_unfinished`, `commands::applies`;

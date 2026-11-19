@@ -208,6 +208,9 @@ pub fn span_of(part: bool, from: &str, to: &str) -> Result<Option<dm_core::Span>
 pub struct Form {
     /// The page a handed-over video came from, sent as Referer.
     pub referrer: String,
+    /// The title of that page, as the browser sent it: names a file whose own name says nothing
+    /// (a stream's playlist folder, gaps row 214).
+    pub title: String,
     /// The quality picked.
     pub quality: Option<String>,
     /// A separate sound track, fetched and joined with it.
@@ -257,7 +260,7 @@ pub fn options(
         } else {
             String::new()
         },
-        title_hint: None,
+        title_hint: Some(form.title.trim().to_string()).filter(|t| !t.is_empty()),
         save_dir: Some(form.folder.trim().to_string()).filter(|f| !f.is_empty()),
         // The server's own name, untouched, is what dm names the file
         // anyway: left for it to place as it always does.
@@ -628,5 +631,28 @@ mod playlist_tests {
         );
         assert_eq!(playlist_entry_words(0, &list.entries[0]), "1. Intro · 4:05");
         assert_eq!(playlist_entry_words(1, &list.entries[1]), "2. Outro");
+    }
+}
+
+#[cfg(test)]
+mod title_tests {
+    use super::{options, Form};
+
+    #[test]
+    fn the_pages_title_goes_with_what_download_details_adds() {
+        // gaps row 214: Download details dropped it, so a stream kept its playlist folder's name.
+        let form = Form {
+            title: " A film ".into(),
+            name: "A film.mp4".into(),
+            ..Form::default()
+        };
+        let added = options(&form, false, Some("A film.mp4"), None);
+        assert_eq!(added.title_hint.as_deref(), Some("A film"));
+        // The name dm filled in from the server (titled) is not taken for one typed.
+        assert_eq!(added.save_name, None);
+        assert_eq!(
+            options(&Form::default(), false, None, None).title_hint,
+            None
+        );
     }
 }

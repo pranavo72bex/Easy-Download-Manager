@@ -54,6 +54,11 @@ pub(super) async fn download_stream(
     if let Some(found) = first_segment_is(client, &listed, options).await {
         listed.found_to_be(found, url, options.quality);
     }
+    listed.filename = stream::titled(
+        &listed.filename,
+        options.title_hint.as_deref(),
+        options.save_name.as_deref(),
+    );
     // Trimmed exactly only where the muxer can: a fragmented MP4.
     let fragmented = listed.container == "mp4" || listed.container == "m4a";
     let cut = options
@@ -243,7 +248,11 @@ pub(super) async fn record_live(
         };
         if filename.is_empty() {
             if let Some(name) = &picture.named {
-                filename = name.clone();
+                filename = stream::titled(
+                    name,
+                    options.title_hint.as_deref(),
+                    options.save_name.as_deref(),
+                );
                 if let Some(tx) = &report {
                     let _ = tx
                         .send(Update::Named {

@@ -44,6 +44,8 @@ pub struct Handed {
     pub handed: bool,
     /// The page it came from, sent as Referer.
     pub referrer: String,
+    /// That page's title: names a stream, whose address names only its playlist (gaps row 214).
+    pub title: String,
     /// The quality picked in the browser's panel.
     pub quality: Option<String>,
     /// A separate sound track, fetched and joined with it.
@@ -174,7 +176,15 @@ impl Details {
 
     /// What the server said: its name put in Save as where nothing is
     /// typed, and a video's qualities asked for once it is one.
-    fn probed(&mut self, found: Probed, window: &mut Window, cx: &mut Context<Self>) {
+    fn probed(&mut self, mut found: Probed, window: &mut Window, cx: &mut Context<Self>) {
+        // A stream is named after the page's title, as the engine names it (gaps row 214): the
+        // server's name for it here, so Save as is not taken for a name typed.
+        let stream = dm_shell::app::lookups::stream_name(&self.first(), None, false).is_some();
+        if stream && !self.handed.title.trim().is_empty() {
+            found.name = found
+                .name
+                .map(|name| dm_core::stream_titled(&name, Some(&self.handed.title), None));
+        }
         if let Some(name) = found.name.clone() {
             if self.name.read(cx).value().is_empty() {
                 self.name.update(cx, |n, cx| n.set_value(name, window, cx));
@@ -326,6 +336,7 @@ impl Details {
         let server_name = self.server_name().map(str::to_string);
         let form = Form {
             referrer: self.handed.referrer.clone(),
+            title: self.handed.title.clone(),
             quality: self.quality.clone(),
             sound: self.handed.sound.clone(),
             span,
@@ -1243,6 +1254,7 @@ pub fn open_handed(view: WeakEntity<Downloads>, request: dm_shell::host::Request
     let handed = Handed {
         handed: true,
         referrer: request.referrer,
+        title: request.title,
         quality: request.quality,
         sound: request.sound,
         label: request.label,
@@ -1296,6 +1308,7 @@ fn open_now(
                     &first,
                     dm_core::AddOptions {
                         referrer: handed.referrer.clone(),
+                        title_hint: Some(handed.title.clone()).filter(|t| !t.trim().is_empty()),
                         cookies: handed.cookies.clone(),
                         cookies_once: handed.cookies_once,
                         headers: handed.headers.clone(),

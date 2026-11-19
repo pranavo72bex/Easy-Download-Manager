@@ -823,6 +823,28 @@ pub(crate) fn name_for(url: &str, container: &str) -> String {
     format!("{stem}.{container}")
 }
 
+/// A stream's file name with the page's title in place of the one its address gave (gaps row
+/// 214): the address names a playlist (`playlist.m3u8`, `HLSPlaylist.m3u8`) or the folder above
+/// it (`…/cXNyPTE/playlist.m3u8`), never the video, so a title the page gave wins, with the
+/// container `named` ends in. A name a person typed (`save_name`) is placed by `finish` and wins
+/// over both; without a title `named` is kept.
+pub fn titled(named: &str, title: Option<&str>, save_name: Option<&str>) -> String {
+    if save_name.is_some_and(|n| !n.trim().is_empty()) {
+        return named.to_string();
+    }
+    let extension = std::path::Path::new(named)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    title
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .and_then(|t| crate::naming::title_name(t, extension))
+        .map(|n| crate::probe::sanitize(&n))
+        .filter(|n| !n.trim().is_empty())
+        .unwrap_or_else(|| named.to_string())
+}
+
 /// The initialisation vector for one segment.
 ///
 /// The playlist's own where it declares one, otherwise the media sequence

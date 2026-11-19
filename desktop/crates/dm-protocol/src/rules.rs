@@ -154,6 +154,14 @@ pub struct AnswerRule {
     /// The JSON keys whose strings are addresses (compared exactly); empty means every string of
     /// the answer.
     pub keys: Vec<String>,
+    /// A dotted path to the answer's own video id (Vimeo's `video.id`): an answer for another
+    /// video than the page's is not read (a background clip's player config). The page's video
+    /// is the one its address names as a path segment; an address that names none by number
+    /// (no segment of digits alone), or an answer without that path, is read as before.
+    pub video_id: String,
+    /// Keys under which only the first member is read, an object's or an array's: the same
+    /// stream from several CDNs (Vimeo's `cdns`) is one line, not one per CDN.
+    pub first_of: Vec<String>,
 }
 
 impl Rules {

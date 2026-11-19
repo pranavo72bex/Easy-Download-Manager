@@ -38,18 +38,36 @@ const MEDIA_EXTENSIONS: &[&str] = &["m3u8", "mpd", "mp4", "m4v", "m4a", "webm", 
 /// taken as `https`) whose path ends in a media extension, and is not on the never-caught list.
 /// Nothing is returned for a body that is too large or is not JSON.
 pub fn addresses_in(body: &str, keys: &[String]) -> Vec<String> {
+    let rule = dm_protocol::AnswerRule {
+        keys: keys.to_vec(),
+        ..Default::default()
+    };
+    addresses_by(body, &rule, "")
+}
+
+/// [`addresses_in`] under a site's whole answer rule, for an answer to a page at `page_url`:
+/// nothing from an answer whose `video_id` is another video than the one the page's address
+/// names, and only the first member under a key of `first_of` (gaps row 214).
+pub fn addresses_by(body: &str, rule: &dm_protocol::AnswerRule, page_url: &str) -> Vec<String> {
     if body.len() > MAX_ANSWER_BYTES {
         return Vec::new();
     }
     let Ok(document) = serde_json::from_str::<Value>(body) else {
         return Vec::new();
     };
+    if !of_the_pages_video(&document, &rule.video_id, page_url) {
+        return Vec::new();
+    }
     let mut found = Vec::new();
     let mut visited = 0usize;
-    walk(
+    let walking = Walk {
+        keys: &rule.keys,
+        first_of: &rule.first_of,
+    };
+    walking.walk(
         &document,
-        keys.is_empty(),
-        keys,
+        rule.keys.is_empty(),
+        false,
         0,
         &mut visited,
         &mut found,
@@ -57,40 +75,81 @@ pub fn addresses_in(body: &str, keys: &[String]) -> Vec<String> {
     found
 }
 
-fn walk(
-    value: &Value,
-    taking: bool,
-    keys: &[String],
-    depth: usize,
-    visited: &mut usize,
-    found: &mut Vec<String>,
-) {
-    *visited += 1;
-    if depth > DEEPEST || *visited > MOST_VALUES || found.len() >= MOST_ADDRESSES {
-        return;
+/// Whether an answer is for the video the page's address names. True where the rule names no id
+/// path, the answer has nothing there, or the address names no video by number.
+fn of_the_pages_video(document: &Value, id_path: &str, page_url: &str) -> bool {
+    let id_path = id_path.trim();
+    if id_path.is_empty() {
+        return true;
     }
-    match value {
-        Value::String(text) => {
-            if taking {
-                if let Some(address) = stream_address(text) {
-                    if !found.contains(&address) {
-                        found.push(address);
+    let mut at = document;
+    for step in id_path.split('.') {
+        match at.get(step) {
+            Some(next) => at = next,
+            None => return true,
+        }
+    }
+    let id = match at {
+        Value::String(text) => text.trim().to_string(),
+        Value::Number(number) => number.to_string(),
+        _ => return true,
+    };
+    let path = page_url
+        .split_once("://")
+        .map_or(page_url, |(_, rest)| rest)
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("");
+    let segments: Vec<&str> = path.split('/').skip(1).filter(|s| !s.is_empty()).collect();
+    let numbered = |s: &&str| s.len() >= 2 && s.chars().all(|c| c.is_ascii_digit());
+    !segments.iter().any(numbered) || segments.contains(&id.as_str())
+}
+
+struct Walk<'a> {
+    keys: &'a [String],
+    first_of: &'a [String],
+}
+
+impl Walk<'_> {
+    fn walk(
+        &self,
+        value: &Value,
+        taking: bool,
+        first_only: bool,
+        depth: usize,
+        visited: &mut usize,
+        found: &mut Vec<String>,
+    ) {
+        *visited += 1;
+        if depth > DEEPEST || *visited > MOST_VALUES || found.len() >= MOST_ADDRESSES {
+            return;
+        }
+        match value {
+            Value::String(text) => {
+                if taking {
+                    if let Some(address) = stream_address(text) {
+                        if !found.contains(&address) {
+                            found.push(address);
+                        }
                     }
                 }
             }
-        }
-        Value::Array(items) => {
-            for item in items {
-                walk(item, taking, keys, depth + 1, visited, found);
+            Value::Array(items) => {
+                let take = if first_only { 1 } else { items.len() };
+                for item in items.iter().take(take) {
+                    self.walk(item, taking, false, depth + 1, visited, found);
+                }
             }
-        }
-        Value::Object(map) => {
-            for (name, item) in map {
-                let under = taking || keys.iter().any(|key| key == name);
-                walk(item, under, keys, depth + 1, visited, found);
+            Value::Object(map) => {
+                let take = if first_only { 1 } else { map.len() };
+                for (name, item) in map.iter().take(take) {
+                    let under = taking || self.keys.iter().any(|key| key == name);
+                    let first = self.first_of.iter().any(|key| key == name);
+                    self.walk(item, under, first, depth + 1, visited, found);
+                }
             }
+            _ => {}
         }
-        _ => {}
     }
 }
 

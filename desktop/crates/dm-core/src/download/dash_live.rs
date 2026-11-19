@@ -282,7 +282,11 @@ pub(super) async fn record(
                         wrote: false,
                     });
                 }
-                filename = stream::name_for(named_from, extension);
+                filename = stream::titled(
+                    &stream::name_for(named_from, extension),
+                    options.title_hint.as_deref(),
+                    options.save_name.as_deref(),
+                );
                 if let Some(tx) = &report {
                     let _ = tx
                         .send(Update::Named {

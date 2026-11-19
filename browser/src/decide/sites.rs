@@ -281,10 +281,19 @@ pub fn clean_title(title: &str, page_url: &str) -> String {
         .unwrap_or_default();
     for separator in [" - ", " | ", " – ", " — ", " · ", " • "] {
         if let Some((front, back)) = text.rsplit_once(separator) {
+            // Or a few words ending "on <site>": Vimeo's "| Videos & Movies on Vimeo" (gaps 214).
+            let words: Vec<&str> = back.split_whitespace().collect();
+            let on_site = (2..=6).contains(&words.len())
+                && words.split_last().is_some_and(|(site, before)| {
+                    plain(site) == name
+                        && before
+                            .last()
+                            .is_some_and(|on| on.eq_ignore_ascii_case("on"))
+                });
             let back = plain(back);
             if !front.trim().is_empty()
                 && !name.is_empty()
-                && (back == name || back == plain(&host))
+                && (back == name || back == plain(&host) || on_site)
             {
                 text = front.trim_end();
                 break;
@@ -319,5 +328,19 @@ mod title_tests {
         assert_eq!(clean_title("(2020) A film", page), "(2020) A film");
         assert_eq!(clean_title("Clip - Vimeo", "https://vimeo.com/12"), "Clip");
         assert_eq!(clean_title("News - BBC", "https://www.bbc.co.uk/x"), "News");
+        let vimeo = "https://vimeo.com/513177164";
+        assert_eq!(
+            clean_title("Staff Pick || Short Film | Videos & Movies on Vimeo", vimeo),
+            "Staff Pick || Short Film"
+        );
+        // "on" another site, or a sentence that only ends so, is the title's own.
+        assert_eq!(
+            clean_title("A | Watch on Other", vimeo),
+            "A | Watch on Other"
+        );
+        assert_eq!(
+            clean_title("A | one two three four five on Vimeo", vimeo),
+            "A | one two three four five on Vimeo"
+        );
     }
 }
