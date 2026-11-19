@@ -22,6 +22,15 @@ const OWNER: &[u8] = b"com.apple.streaming.transportStreamTimestamp\0";
 /// returns. Sound inside the transport stream, if it has any, is dropped
 /// for the packed one. Returns its length.
 pub fn join_packed(ts: &Path, aac: &Path, out: &Path) -> Result<u64, String> {
+    join_packed_with_text(ts, aac, out, |_| Vec::new())
+}
+
+/// [`join_packed`], with subtitles timed once the streams are read, as
+/// [`to_mp4_with_text`](super::to_mp4_with_text) times them (gaps row Y20).
+pub fn join_packed_with_text<F>(ts: &Path, aac: &Path, out: &Path, place: F) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+{
     let scratch = |what: &str| {
         let mut name = out.as_os_str().to_owned();
         name.push(format!(".{what}"));
@@ -40,7 +49,7 @@ pub fn join_packed(ts: &Path, aac: &Path, out: &Path) -> Result<u64, String> {
             return Err("its transport stream holds no picture dm can put into an MP4".into());
         }
         streams.push(read_packed(aac, scratch("packed"))?);
-        build(&mut streams, out)
+        build(&mut streams, out, place)
     })();
     for stream in &streams {
         let _ = std::fs::remove_file(&stream.path);
@@ -55,6 +64,20 @@ pub fn join_packed(ts: &Path, aac: &Path, out: &Path) -> Result<u64, String> {
 /// the sound's, are dropped. Scratch files beside `out` are gone when it returns; returns its
 /// length.
 pub fn join_ts(picture: &Path, sound: &Path, out: &Path) -> Result<u64, String> {
+    join_ts_with_text(picture, sound, out, |_| Vec::new())
+}
+
+/// [`join_ts`], with subtitles timed once the streams are read, as
+/// [`to_mp4_with_text`](super::to_mp4_with_text) times them (gaps row Y20).
+pub fn join_ts_with_text<F>(
+    picture: &Path,
+    sound: &Path,
+    out: &Path,
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+{
     let scratch = |what: &str| {
         let mut name = out.as_os_str().to_owned();
         name.push(format!(".{what}"));
@@ -97,7 +120,7 @@ pub fn join_ts(picture: &Path, sound: &Path, out: &Path) -> Result<u64, String> 
             );
         }
         streams.extend(heard);
-        build(&mut streams, out)
+        build(&mut streams, out, place)
     })();
     for stream in &streams {
         let _ = std::fs::remove_file(&stream.path);

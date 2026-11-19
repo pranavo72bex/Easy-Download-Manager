@@ -685,3 +685,51 @@ fn a_sound_language_asked_for_picks_its_rendition_or_else_the_default() {
     assert_eq!(uri(Some("de")).as_deref(), Some("en.m3u8"));
     assert_eq!(uri(Some("fr")).as_deref(), Some("en.m3u8"));
 }
+
+/// A master's subtitle renditions for a variant's group: one a language, the first of each, a
+/// forced one only where no plain one of its language is listed (gaps row Y20).
+#[test]
+fn a_variants_subtitle_group_lists_one_rendition_a_language() {
+    let row = |group: &str, rest: &str| {
+        format!("#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"{group}\",{rest}\n")
+    };
+    let master = [
+        "#EXTM3U\n".to_string(),
+        row("subs", r#"LANGUAGE="en",FORCED=YES,URI="en-forced.m3u8""#),
+        row("subs", r#"NAME="English",LANGUAGE="en",URI="subs/en.m3u8""#),
+        row(
+            "subs",
+            r#"NAME="English SDH",LANGUAGE="en",URI="en-sdh.m3u8""#,
+        ),
+        row("subs", r#"LANGUAGE="fr",FORCED=YES,URI="fr.m3u8""#),
+        row("subs", r#"LANGUAGE="x/../y",URI="odd.m3u8""#),
+        row("subs", r#"NAME="None",URI="none.m3u8""#),
+        row("subs", r#"LANGUAGE="de""#),
+        row("other", r#"LANGUAGE="es",URI="es.m3u8""#),
+        "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"subs\",LANGUAGE=\"it\",URI=\"it.m3u8\"\n".to_string(),
+        "#EXT-X-STREAM-INF:BANDWIDTH=900000,RESOLUTION=640x360,SUBTITLES=\"subs\"\n".to_string(),
+        "v.m3u8\n".to_string(),
+    ]
+    .concat();
+    let base = "https://e.com/show/master.m3u8";
+    let found = subtitle_renditions(&master, "subs", base);
+    let read: Vec<(&str, &str)> = found
+        .iter()
+        .map(|r| (r.language.as_str(), r.url.as_str()))
+        .collect();
+    assert_eq!(
+        read,
+        [
+            ("en", "https://e.com/show/subs/en.m3u8"),
+            ("fr", "https://e.com/show/fr.m3u8"),
+            ("und", "https://e.com/show/odd.m3u8"),
+        ],
+        "the plain English over the forced, the forced French as the only French, a name no \
+         file could carry and none at all both `und`, the first of them kept"
+    );
+    assert_eq!(
+        variants(&master, base)[0].subtitles.as_deref(),
+        Some("subs")
+    );
+    assert!(subtitle_renditions(&master, "missing", base).is_empty());
+}

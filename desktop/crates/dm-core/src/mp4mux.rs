@@ -24,6 +24,23 @@ pub async fn join_cut_async(
     join_cut_tagged_async(inputs, texts, out, cut, shape, Tags::default()).await
 }
 
+/// [`join_cut_placed`], off the async runtime: `place` times the subtitles from when the
+/// output starts on the inputs' own timeline, in 90 kHz ticks (gaps row Y20).
+pub async fn join_cut_placed_async<F>(
+    inputs: Vec<PathBuf>,
+    place: F,
+    out: PathBuf,
+    cut: Option<(u64, u64)>,
+    shape: Option<Shape>,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<Subtitle> + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || join_cut_placed(&inputs, place, &out, cut, shape))
+        .await
+        .map_err(|e| format!("joining stopped: {e}"))?
+}
+
 /// [`join_cut_tagged`], off the async runtime.
 pub async fn join_cut_tagged_async(
     inputs: Vec<PathBuf>,

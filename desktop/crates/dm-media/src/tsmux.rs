@@ -152,13 +152,37 @@ pub fn to_mp4(input: &Path, out: &Path) -> Result<u64, String> {
 /// segment starts in `input`), as Apple's "MPEG-2 Stream Encryption Format for HTTP Live
 /// Streaming" describes. H.264 and ADTS AAC; scrambled AC-3 is refused.
 pub fn to_mp4_clear(input: &Path, out: &Path, locks: &crate::sealed::Locks) -> Result<u64, String> {
+    to_mp4_placed(input, out, locks, |_| Vec::new())
+}
+
+/// [`to_mp4`], with subtitles timed once the stream is read (an HLS stream's WebVTT segments,
+/// gaps row Y20): `place` is given when the MP4 starts on the stream's 90 kHz clock, the
+/// earlier of its first picture and its first sound (both are started from it), and gives back
+/// the subtitles timed from there, carried as text tracks. Asked only where there is a picture.
+pub fn to_mp4_with_text<F>(input: &Path, out: &Path, place: F) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+{
+    to_mp4_placed(input, out, &crate::sealed::Locks::default(), place)
+}
+
+/// [`to_mp4_clear`], with subtitles as [`to_mp4_with_text`] times them.
+fn to_mp4_placed<F>(
+    input: &Path,
+    out: &Path,
+    locks: &crate::sealed::Locks,
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+{
     let scratch = |what: &str| {
         let mut name = out.as_os_str().to_owned();
         name.push(format!(".{what}"));
         PathBuf::from(name)
     };
     let mut streams = read_ts_locked(input, &scratch, locks)?;
-    let result = build(&mut streams, out);
+    let result = build(&mut streams, out, place);
     for stream in &streams {
         let _ = std::fs::remove_file(&stream.path);
     }
@@ -218,7 +242,10 @@ mod tracks;
 use demux::*;
 pub use headers::picture_size;
 pub(crate) use headers::*;
-pub use packed::{is_packed_aac, is_transport_stream, join_packed, join_ts};
+pub use packed::{
+    is_packed_aac, is_transport_stream, join_packed, join_packed_with_text, join_ts,
+    join_ts_with_text,
+};
 use samples::*;
 pub(crate) use sound::*;
 use tracks::*;
