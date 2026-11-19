@@ -287,6 +287,8 @@ pub fn options(
         cookies_once: form.cookies_once,
         headers: form.headers.clone(),
         keep_no_record: form.keep_no_record,
+        // A person adding it is asked if the same file is already here (gaps row W18).
+        accept_same: false,
         // The form for the first address alone, which is the one it was sent to.
         post: form.post.clone(),
         checksum: None,

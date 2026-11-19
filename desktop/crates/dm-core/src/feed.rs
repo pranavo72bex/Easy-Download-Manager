@@ -104,7 +104,7 @@ fn attribute(tag: &BytesStart, name: &str) -> Option<String> {
     let value = found
         .normalized_value(quick_xml::XmlVersion::Implicit1_0)
         .map(|v| v.into_owned())
-        .unwrap_or_else(|_| String::from_utf8_lossy(&found.value).into_owned());
+        .unwrap_or_else(|_| found.value.to_string());
     Some(value.trim().to_string())
 }
 
@@ -181,7 +181,7 @@ pub fn parse(xml: &str, address: &str) -> Option<Playlist> {
             }
             Ok(Event::CData(chunk)) => {
                 if collecting.is_some() {
-                    text.push_str(&String::from_utf8_lossy(&chunk));
+                    text.push_str(&chunk.into_inner());
                 }
             }
             Ok(Event::GeneralRef(entity)) => {
