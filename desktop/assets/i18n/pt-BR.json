@@ -970,5 +970,15 @@
  "The same file is already here": "O mesmo arquivo já está aqui",
  "A finished download in the list has this name and size.": "Um download concluído na lista tem este nome e tamanho.",
  "A file of this name and size is already in the folder.": "Um arquivo com este nome e tamanho já está na pasta.",
- "When the same file is already here": "Quando o mesmo arquivo já está aqui"
+ "When the same file is already here": "Quando o mesmo arquivo já está aqui",
+ "Check again every": "Verificar novamente a cada",
+ "hours, adding what is new to": "horas, adicionando o que for novo a",
+ "Followed": "Seguido",
+ "Checked again every {} hours; what is new goes to {}.": "Verificado novamente a cada {} horas; o que for novo vai para {}.",
+ "Stop following": "Deixar de seguir",
+ "{} has nothing new.": "{} não tem nada novo.",
+ "the followed {} could not be read: {}": "não foi possível ler {} (seguido): {}",
+ "the items {} gained could not be added: {}": "não foi possível adicionar o que {} ganhou: {}",
+ "what is followed could not be saved: {}": "não foi possível salvar o que é seguido: {}",
+ "Following {}, checked again every {} hours.": "Seguindo {}, verificado novamente a cada {} horas."
 }

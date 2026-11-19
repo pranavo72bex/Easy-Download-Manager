@@ -63,6 +63,8 @@ pub use dm_media::fmp4;
 pub use dm_media::frames;
 
 pub mod finish_trace;
+// A feed (RSS, Atom) read as a playlist, to be followed (gaps row W10).
+pub mod feed;
 // Where a person's files and the system's folders are (gaps row X1).
 pub mod folders;
 pub mod ftp;

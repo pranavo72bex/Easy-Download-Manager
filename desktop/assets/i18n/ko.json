@@ -970,5 +970,15 @@
  "The same file is already here": "같은 파일이 이미 있습니다",
  "A finished download in the list has this name and size.": "목록의 완료된 다운로드 중에 이 이름과 크기의 파일이 있습니다.",
  "A file of this name and size is already in the folder.": "이 이름과 크기의 파일이 이미 폴더에 있습니다.",
- "When the same file is already here": "같은 파일이 이미 있을 때"
+ "When the same file is already here": "같은 파일이 이미 있을 때",
+ "Check again every": "다시 확인 간격:",
+ "hours, adding what is new to": "시간마다, 새 항목 추가 대상:",
+ "Followed": "팔로우 중",
+ "Checked again every {} hours; what is new goes to {}.": "{}시간마다 다시 확인하며, 새 항목은 {}에 추가됩니다.",
+ "Stop following": "팔로우 중지",
+ "{} has nothing new.": "{}에 새 항목이 없습니다.",
+ "the followed {} could not be read: {}": "팔로우 중인 {}을(를) 읽을 수 없습니다: {}",
+ "the items {} gained could not be added: {}": "{}의 새 항목을 추가할 수 없습니다: {}",
+ "what is followed could not be saved: {}": "팔로우 정보를 저장할 수 없습니다: {}",
+ "Following {}, checked again every {} hours.": "{} 팔로우 중, {}시간마다 다시 확인합니다."
 }

@@ -970,5 +970,15 @@
  "The same file is already here": "同じファイルがすでにあります",
  "A finished download in the list has this name and size.": "一覧の完了したダウンロードに同じ名前とサイズのものがあります。",
  "A file of this name and size is already in the folder.": "同じ名前とサイズのファイルがすでにフォルダーにあります。",
- "When the same file is already here": "同じファイルがすでにあるとき"
+ "When the same file is already here": "同じファイルがすでにあるとき",
+ "Check again every": "次の間隔で再確認:",
+ "hours, adding what is new to": "時間ごと、新しいものの追加先:",
+ "Followed": "フォロー中",
+ "Checked again every {} hours; what is new goes to {}.": "{} 時間ごとに再確認し、新しいものは {} に追加します。",
+ "Stop following": "フォローをやめる",
+ "{} has nothing new.": "{} に新しいものはありません。",
+ "the followed {} could not be read: {}": "フォロー中の {} を読み込めませんでした: {}",
+ "the items {} gained could not be added: {}": "{} の新しい項目を追加できませんでした: {}",
+ "what is followed could not be saved: {}": "フォローの内容を保存できませんでした: {}",
+ "Following {}, checked again every {} hours.": "{} をフォローしました。{} 時間ごとに再確認します。"
 }

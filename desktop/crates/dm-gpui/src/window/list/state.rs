@@ -343,6 +343,13 @@ pub(crate) struct Threads {
     pub(super) search_results: Arc<Mutex<Vec<(String, Result<dm_shell::lists::Crawled, String>)>>>,
     /// When the saved searches were last looked at.
     pub(crate) searches_checked: Option<Instant>,
+    /// What readings of the playlists and feeds followed brought, as each
+    /// ends, by the followed one's address (gaps row W10).
+    #[allow(clippy::type_complexity)]
+    pub(super) follow_results:
+        Arc<Mutex<Vec<(String, Result<dm_core::youtube::Playlist, String>)>>>,
+    /// When the followed ones were last looked at.
+    pub(crate) follows_checked: Option<Instant>,
     /// What an opener said went wrong, from its thread.
     pub(super) opener_said: Arc<Mutex<Option<String>>>,
     /// What Scheduler › Hang up modem when done came to, from its thread.
@@ -363,6 +370,8 @@ impl Default for Threads {
             rechecked: Default::default(),
             search_results: Default::default(),
             searches_checked: None,
+            follow_results: Default::default(),
+            follows_checked: None,
             opener_said: Default::default(),
             hung_up: Default::default(),
             checked: Arc::new(Mutex::new(dm_shell::app::update::Update::NotAsked)),

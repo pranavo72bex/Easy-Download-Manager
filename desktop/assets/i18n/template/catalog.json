@@ -970,5 +970,15 @@
  "The same file is already here": "",
  "A finished download in the list has this name and size.": "",
  "A file of this name and size is already in the folder.": "",
- "When the same file is already here": ""
+ "When the same file is already here": "",
+ "Check again every": "",
+ "hours, adding what is new to": "",
+ "Followed": "",
+ "Checked again every {} hours; what is new goes to {}.": "",
+ "Stop following": "",
+ "{} has nothing new.": "",
+ "the followed {} could not be read: {}": "",
+ "the items {} gained could not be added: {}": "",
+ "what is followed could not be saved: {}": "",
+ "Following {}, checked again every {} hours.": ""
 }

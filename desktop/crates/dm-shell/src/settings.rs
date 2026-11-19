@@ -213,6 +213,10 @@ pub struct Settings {
     /// "Site files" searches saved to run again, by hand or on a timer.
     #[serde(default)]
     pub site_searches: Vec<crate::lists::Search>,
+    /// Playlists, channels' uploads and feeds followed: read again every so
+    /// many hours, their new items added to a queue (gaps row W10).
+    #[serde(default)]
+    pub follows: Vec<crate::app::follow::Follow>,
     /// The floating drop target: a small window over every other, which
     /// takes a link dragged onto it. Off unless chosen (View › Drop target).
     #[serde(default)]
@@ -484,6 +488,7 @@ impl Default for Settings {
             second_path: String::new(),
             sounds: Default::default(),
             site_searches: Vec::new(),
+            follows: Vec::new(),
             drop_target: false,
             last_speed_limit: 0,
             slow_hours: SlowHours::default(),

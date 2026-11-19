@@ -72,6 +72,23 @@ fn a_channel_and_a_music_playlist_open_the_playlist_dialog() {
     );
 }
 
+/// gaps row W10: a feed's address (a podcast's RSS) opens the Playlist dialog, its items listed
+/// and offered to be followed; a sitemap is a file.
+#[test]
+fn a_feed_opens_the_playlist_dialog() {
+    let settings = Settings::default();
+    let feed = "https://pod.example/show/feed.rss";
+    assert_eq!(
+        decide(feed, false, "", "", &settings, &[]).next,
+        Next::Playlist(feed.into())
+    );
+    let sitemap = "https://pod.example/sitemap.xml";
+    assert_eq!(
+        decide(sitemap, false, "", "", &settings, &[]).next,
+        Next::Details(vec![sitemap.into()])
+    );
+}
+
 #[test]
 fn several_links_a_line_each_are_a_batch_and_run_together_are_asked_about() {
     let settings = Settings::default();

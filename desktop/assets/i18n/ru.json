@@ -970,5 +970,15 @@
  "The same file is already here": "Такой же файл уже есть",
  "A finished download in the list has this name and size.": "В списке есть завершённая загрузка с таким именем и размером.",
  "A file of this name and size is already in the folder.": "Файл с таким именем и размером уже есть в папке.",
- "When the same file is already here": "Если такой же файл уже есть"
+ "When the same file is already here": "Если такой же файл уже есть",
+ "Check again every": "Проверять снова каждые",
+ "hours, adding what is new to": "ч, добавляя новое в",
+ "Followed": "Отслеживается",
+ "Checked again every {} hours; what is new goes to {}.": "Проверяется снова каждые {} ч; новое попадает в {}.",
+ "Stop following": "Перестать отслеживать",
+ "{} has nothing new.": "В {} нет ничего нового.",
+ "the followed {} could not be read: {}": "не удалось прочитать отслеживаемый {}: {}",
+ "the items {} gained could not be added: {}": "не удалось добавить новое из {}: {}",
+ "what is followed could not be saved: {}": "не удалось сохранить отслеживаемое: {}",
+ "Following {}, checked again every {} hours.": "{} отслеживается, проверка каждые {} ч."
 }

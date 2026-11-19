@@ -970,5 +970,15 @@
  "The same file is already here": "相同的文件已存在",
  "A finished download in the list has this name and size.": "列表中已完成的下载有相同的名称和大小。",
  "A file of this name and size is already in the folder.": "文件夹中已有相同名称和大小的文件。",
- "When the same file is already here": "相同的文件已存在时"
+ "When the same file is already here": "相同的文件已存在时",
+ "Check again every": "每隔",
+ "hours, adding what is new to": "小时再次检查，新内容添加到",
+ "Followed": "已关注",
+ "Checked again every {} hours; what is new goes to {}.": "每 {} 小时再次检查；新内容进入 {}。",
+ "Stop following": "取消关注",
+ "{} has nothing new.": "{} 没有新内容。",
+ "the followed {} could not be read: {}": "无法读取关注的 {}：{}",
+ "the items {} gained could not be added: {}": "无法添加 {} 的新项目：{}",
+ "what is followed could not be saved: {}": "无法保存关注内容：{}",
+ "Following {}, checked again every {} hours.": "已关注 {}，每 {} 小时再次检查。"
 }

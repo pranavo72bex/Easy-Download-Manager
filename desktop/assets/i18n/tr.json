@@ -970,5 +970,15 @@
  "The same file is already here": "Aynı dosya zaten burada",
  "A finished download in the list has this name and size.": "Listedeki tamamlanmış bir indirme bu ada ve boyuta sahip.",
  "A file of this name and size is already in the folder.": "Bu ad ve boyutta bir dosya klasörde zaten var.",
- "When the same file is already here": "Aynı dosya zaten buradaysa"
+ "When the same file is already here": "Aynı dosya zaten buradaysa",
+ "Check again every": "Şu aralıkla yeniden denetle:",
+ "hours, adding what is new to": "saatte bir, yenileri şuraya ekle:",
+ "Followed": "Takip ediliyor",
+ "Checked again every {} hours; what is new goes to {}.": "{} saatte bir yeniden denetlenir; yeniler {} kuyruğuna gider.",
+ "Stop following": "Takibi bırak",
+ "{} has nothing new.": "{} içinde yeni bir şey yok.",
+ "the followed {} could not be read: {}": "takip edilen {} okunamadı: {}",
+ "the items {} gained could not be added: {}": "{} içindeki yeni öğeler eklenemedi: {}",
+ "what is followed could not be saved: {}": "takip edilenler kaydedilemedi: {}",
+ "Following {}, checked again every {} hours.": "{} takip ediliyor, {} saatte bir yeniden denetlenecek."
 }

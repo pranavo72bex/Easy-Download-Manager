@@ -970,5 +970,15 @@
  "The same file is already here": "Hetzelfde bestand is er al",
  "A finished download in the list has this name and size.": "Een voltooide download in de lijst heeft deze naam en grootte.",
  "A file of this name and size is already in the folder.": "Er staat al een bestand met deze naam en grootte in de map.",
- "When the same file is already here": "Als hetzelfde bestand er al is"
+ "When the same file is already here": "Als hetzelfde bestand er al is",
+ "Check again every": "Opnieuw controleren elke",
+ "hours, adding what is new to": "uur, nieuwe items toevoegen aan",
+ "Followed": "Gevolgd",
+ "Checked again every {} hours; what is new goes to {}.": "Elke {} uur opnieuw gecontroleerd; nieuwe items gaan naar {}.",
+ "Stop following": "Niet meer volgen",
+ "{} has nothing new.": "{} heeft niets nieuws.",
+ "the followed {} could not be read: {}": "{} (gevolgd) kon niet worden gelezen: {}",
+ "the items {} gained could not be added: {}": "wat {} erbij kreeg kon niet worden toegevoegd: {}",
+ "what is followed could not be saved: {}": "wat gevolgd wordt kon niet worden opgeslagen: {}",
+ "Following {}, checked again every {} hours.": "{} wordt gevolgd, elke {} uur opnieuw gecontroleerd."
 }
