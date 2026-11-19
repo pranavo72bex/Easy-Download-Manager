@@ -80,7 +80,7 @@ impl<W: WindowServices> Platform for Desktop<W> {
     fn set_login_item(&self, wanted: bool) -> Result<(), String> {
         // Linux's entry is dm's own: see `autostart`.
         if cfg!(target_os = "linux") {
-            return crate::autostart::set(wanted);
+            return crate::autostart::set(wanted).map_err(String::from);
         }
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
         if wanted {
@@ -243,7 +243,7 @@ impl<W: WindowServices> Platform for Desktop<W> {
     }
 
     fn power(&self, action: WhenDone, report: Report) -> Result<(), String> {
-        crate::power::run(action, report)
+        crate::power::run(action, report).map_err(String::from)
     }
 
     fn choose_app(&self) -> Option<PathBuf> {

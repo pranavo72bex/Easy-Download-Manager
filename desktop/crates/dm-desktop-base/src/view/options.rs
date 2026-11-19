@@ -12,6 +12,7 @@
 use dm_shell::settings::Settings;
 
 use crate::i18n::{t, tf};
+use crate::Error;
 
 /// The pages of Options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -137,10 +138,10 @@ pub fn changed_only(
     opened: &Settings,
     draft: &Settings,
     now: &Settings,
-) -> Result<Settings, String> {
+) -> Result<Settings, Error> {
     let object = |s: &Settings| match serde_json::to_value(s) {
         Ok(serde_json::Value::Object(map)) => Ok(map),
-        _ => Err("the settings could not be read to save them".to_string()),
+        _ => Err(Error::from("the settings could not be read to save them")),
     };
     let (opened, draft, mut merged) = (object(opened)?, object(draft)?, object(now)?);
     for (key, value) in draft {
@@ -149,7 +150,7 @@ pub fn changed_only(
         }
     }
     serde_json::from_value(serde_json::Value::Object(merged))
-        .map_err(|e| format!("the settings could not be saved: {e}"))
+        .map_err(|e| Error::from(format!("the settings could not be saved: {e}")))
 }
 
 /// The words of a list as typed: split on spaces, commas and semicolons
@@ -323,7 +324,7 @@ pub fn ok(
         });
     }
     changed_only(opened, &wanted, now).map_err(|says| Refused {
-        says,
+        says: says.into(),
         tab: None,
         to_proxy: false,
     })

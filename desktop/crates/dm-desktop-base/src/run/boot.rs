@@ -15,6 +15,8 @@ use std::sync::{Arc, Mutex};
 use dm_shell::app::backend::{Backend, Platform};
 use dm_shell::{instance, settings, shell};
 
+use crate::Error;
+
 /// What a window is asked to do when something it shows may have changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wake {
@@ -149,7 +151,7 @@ pub fn start(
     handed: &shell::Orders,
     platform: Arc<dyn Platform>,
     wake: Arc<dyn Fn(Wake) + Send + Sync>,
-) -> Result<Booted, String> {
+) -> Result<Booted, Error> {
     // tokio's defaults, kept on purpose (gaps row 185): a worker a core for the network, and up
     // to 512 threads for blocking work, reaped after 10 s unused. Every connection's writes go to
     // those threads, each awaited before its connection reads on, so there are never more of them

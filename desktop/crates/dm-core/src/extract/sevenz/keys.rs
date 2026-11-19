@@ -80,6 +80,6 @@ pub(super) fn aes_of(folder: &Folder) -> Result<Option<SevenAes>, Error> {
     folder
         .aes
         .as_ref()
-        .map(|a| SevenAes::parse(&a.props).map_err(Error::Method))
+        .map(|a| SevenAes::parse(&a.props))
         .transpose()
 }

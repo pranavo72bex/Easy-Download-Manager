@@ -53,17 +53,17 @@ pub struct Target {
 }
 
 /// Reads an `rtmp://`, `rtmps://` or `rtmpt://` address.
-pub fn target(url: &str) -> Result<Target, String> {
+pub fn target(url: &str) -> Result<Target, Error> {
     let (scheme, rest) = url
         .trim()
         .split_once("://")
-        .ok_or("not an rtmp:// address")?;
+        .ok_or_else(|| Error::Internal("not an rtmp:// address".into()))?;
     let scheme = scheme.to_ascii_lowercase();
     let (tls, tunnel) = match scheme.as_str() {
         "rtmp" => (false, false),
         "rtmps" => (true, false),
         "rtmpt" => (false, true),
-        other => return Err(format!("dm does not speak {other}://")),
+        other => return Err(Error::Internal(format!("dm does not speak {other}://"))),
     };
     let usual = match (tls, tunnel) {
         (true, _) => 443,
@@ -86,7 +86,7 @@ pub fn target(url: &str) -> Result<Target, String> {
         .trim_end_matches(']')
         .to_string();
     if host.is_empty() {
-        return Err("the address names no server".into());
+        return Err(Error::Internal("the address names no server".into()));
     }
     let (path, query) = match path.split_once('?') {
         Some((p, q)) => (p, Some(q)),
@@ -102,7 +102,9 @@ pub fn target(url: &str) -> Result<Target, String> {
         _ => play,
     };
     if app.is_empty() || play.is_empty() {
-        return Err("the address names no application and stream".into());
+        return Err(Error::Internal(
+            "the address names no application and stream".into(),
+        ));
     }
     // An IPv6 address in brackets; any other host borrowed as it is.
     let tc_url = if host.contains(':') {

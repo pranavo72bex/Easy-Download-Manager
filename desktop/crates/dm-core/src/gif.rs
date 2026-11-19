@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 
 pub use dm_media::gif::*;
 
+use crate::Error;
+
 /// Whether a part of the video at `url` can be made a GIF here. On Linux it
 /// is made from the video's AV1 stream, which only YouTube's pages are read
 /// for by dm itself; a stream caught elsewhere is H.264.
@@ -19,19 +21,20 @@ pub fn possible_for(url: &str) -> bool {
 
 /// The part of a video at `mp4` (an H.264 MP4) saved as a GIF at `target`
 /// ([`from_video_bytes`]). Returns the GIF's length.
-pub fn from_video(mp4: &Path, target: &Path) -> Result<u64, String> {
-    let bytes = from_video_bytes(mp4)?;
+pub fn from_video(mp4: &Path, target: &Path) -> Result<u64, Error> {
+    // `to_string`, whichever error type `dm_media` gives.
+    let bytes = from_video_bytes(mp4).map_err(|e| Error::Internal(e.to_string()))?;
     crate::write_atomic(target, &bytes)
-        .map_err(|e| format!("the GIF could not be written: {e}"))?;
+        .map_err(|e| Error::Internal(format!("the GIF could not be written: {e}")))?;
     Ok(bytes.len() as u64)
 }
 
 /// [`from_video`], off the async runtime, with a turn at the computer's heavy work
 /// (`heavy`, gaps row 185).
-pub async fn from_video_async(mp4: PathBuf, target: PathBuf) -> Result<u64, String> {
+pub async fn from_video_async(mp4: PathBuf, target: PathBuf) -> Result<u64, Error> {
     crate::heavy::run(move || from_video(&mp4, &target))
         .await
-        .map_err(|e| format!("making the GIF stopped: {e}"))?
+        .map_err(|e| Error::Internal(format!("making the GIF stopped: {e}")))?
 }
 
 #[cfg(test)]

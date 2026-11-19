@@ -41,7 +41,7 @@ pub(super) async fn record_within(
     downloaded: &Arc<AtomicU64>,
     silent_for: Duration,
 ) -> Result<u64, Error> {
-    let target = target(url).map_err(Error::Internal)?;
+    let target = target(url)?;
     let mut io = open(&target).await?;
     handshake(&mut *io).await?;
     let (read_half, mut write_half) = tokio::io::split(io);

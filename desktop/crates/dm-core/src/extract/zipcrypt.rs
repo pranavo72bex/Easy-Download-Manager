@@ -49,7 +49,7 @@ pub(super) fn lock_of(entry: &ZipFile<'_, File>) -> Result<Lock, Error> {
     let Some(data) = field else {
         return Ok(Lock::Pkware);
     };
-    let aes = ZipAes::parse(&data).map_err(Error::Method)?;
+    let aes = ZipAes::parse(&data)?;
     match aes.method {
         0 | 8 => Ok(Lock::Aes(aes)),
         m => Err(Error::Method(format!("compression method {m} under AES"))),
