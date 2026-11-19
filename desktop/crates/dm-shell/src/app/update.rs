@@ -88,7 +88,7 @@ pub async fn fetch_manifest(
     client: &dm_core::reqwest::Client,
     endpoint: &str,
     key: &str,
-) -> Result<Option<String>, String> {
+) -> Result<Option<String>, crate::Error> {
     let res = dm_core::redirects::send(client.get(endpoint))
         .await
         .map_err(|e| e.to_string())?;
@@ -96,7 +96,7 @@ pub async fn fetch_manifest(
         return Ok(None);
     }
     if !res.status().is_success() {
-        return Err(format!("the server answered {}", res.status()));
+        return Err(format!("the server answered {}", res.status()).into());
     }
     let bytes = res.bytes().await.map_err(|e| e.to_string())?;
     let sig = dm_core::redirects::send(client.get(signature_at(endpoint)))
@@ -106,7 +106,7 @@ pub async fn fetch_manifest(
         return Err(UNSIGNED.into());
     }
     if !sig.status().is_success() {
-        return Err(format!("the server answered {}", sig.status()));
+        return Err(format!("the server answered {}", sig.status()).into());
     }
     let sig = sig.bytes().await.map_err(|e| e.to_string())?;
     let sig = (sig.len() <= SIGNATURE_CAP)
@@ -118,7 +118,7 @@ pub async fn fetch_manifest(
     }
     String::from_utf8(bytes.to_vec())
         .map(Some)
-        .map_err(|e| e.to_string())
+        .map_err(|e| crate::Error::from(e.to_string()))
 }
 
 /// What the update check has found so far.
@@ -275,12 +275,12 @@ pub async fn fetch_rules(
     client: &dm_core::reqwest::Client,
     entry: &RulesEntry,
     home: &std::path::Path,
-) -> Result<bool, String> {
+) -> Result<bool, crate::Error> {
     let mut res = dm_core::redirects::send(client.get(&entry.url))
         .await
         .map_err(|e| e.to_string())?;
     if !res.status().is_success() {
-        return Err(format!("the server answered {}", res.status()));
+        return Err(format!("the server answered {}", res.status()).into());
     }
     let mut body: Vec<u8> = Vec::new();
     while let Some(chunk) = res.chunk().await.map_err(|e| e.to_string())? {

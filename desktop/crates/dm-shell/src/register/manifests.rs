@@ -11,6 +11,7 @@ use std::path::Path;
 use dm_protocol::{CHROME_EXTENSION_ID, EDGE_EXTENSION_ID, FIREFOX_EXTENSION_ID, NATIVE_HOST};
 
 use super::Family;
+use crate::Error;
 
 /// Which extensions may talk to dm: the two built from this repository, the
 /// Edge Add-ons listing's, and any named — a Chrome Web Store id, or a
@@ -27,7 +28,7 @@ impl Allowed {
     /// The extensions built here and the Edge listing's, and those `named`:
     /// a 32-letter Chrome Web Store id or a Firefox add-on id (`name@host` or
     /// a `{uuid}`). Anything else is refused in words.
-    pub fn with(named: &[String]) -> Result<Self, String> {
+    pub fn with(named: &[String]) -> Result<Self, Error> {
         let mut allowed = Allowed {
             chromium: vec![
                 CHROME_EXTENSION_ID.to_string(),
@@ -48,7 +49,8 @@ impl Allowed {
                     "{id:?} is not an extension id. Chrome's is 32 letters from a to p, shown \
                      on chrome://extensions with Developer mode on; Firefox's looks like an \
                      address."
-                ));
+                )
+                .into());
             };
             if !list.iter().any(|known| known == id) {
                 list.push(id.to_string());

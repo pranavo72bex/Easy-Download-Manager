@@ -40,7 +40,11 @@ impl Place {
     /// `all`, `unfinished`, `finished`, `queue:<name>`, `custom:<name>` or
     /// `kind:<word>`. A queue or category that does not exist is refused: a
     /// place nothing is filed under showed an empty list as if it were one.
-    pub fn from_word(word: &str, queues: &[String], customs: &[String]) -> Result<Place, String> {
+    pub fn from_word(
+        word: &str,
+        queues: &[String],
+        customs: &[String],
+    ) -> Result<Place, crate::Error> {
         Ok(match word {
             "all" => Place::All,
             "unfinished" => Place::Unfinished,
@@ -48,12 +52,12 @@ impl Place {
             other => {
                 if let Some(name) = other.strip_prefix("queue:") {
                     if !queues.iter().any(|q| q == name) {
-                        return Err(format!("no queue is called {name}"));
+                        return Err(format!("no queue is called {name}").into());
                     }
                     Place::Queue(name.to_string())
                 } else if let Some(name) = other.strip_prefix("custom:") {
                     if !customs.iter().any(|c| c == name) {
-                        return Err(format!("no category is called {name}"));
+                        return Err(format!("no category is called {name}").into());
                     }
                     Place::Custom(name.to_string())
                 } else if let Some(word) = other.strip_prefix("kind:") {
@@ -63,7 +67,7 @@ impl Place {
                         .ok_or_else(|| format!("no category is called {word}"))?;
                     Place::Kind(kind)
                 } else {
-                    return Err(format!("no place is called {other}"));
+                    return Err(format!("no place is called {other}").into());
                 }
             }
         })

@@ -154,7 +154,7 @@ impl super::Dialer for Ras {
             .any(|conn| text(&conn.szEntryName).eq_ignore_ascii_case(name) && is_up(conn))
     }
 
-    fn dial(&self, name: &str, user: &str, password: &str) -> Result<(), String> {
+    fn dial(&self, name: &str, user: &str, password: &str) -> Result<(), crate::Error> {
         // SAFETY: a zeroed RASDIALPARAMSW is a valid empty value of this plain struct.
         let mut params: RASDIALPARAMSW = unsafe { std::mem::zeroed() };
         params.dwSize = std::mem::size_of::<RASDIALPARAMSW>() as u32;
@@ -183,10 +183,10 @@ impl super::Dialer for Ras {
             // SAFETY: `handle` is the one RasDialW returned.
             unsafe { RasHangUpW(handle) };
         }
-        Err(said(error))
+        Err(said(error).into())
     }
 
-    fn hang_up(&self, name: &str) -> Result<bool, String> {
+    fn hang_up(&self, name: &str) -> Result<bool, crate::Error> {
         let mine: Vec<RASCONNW> = open()
             .into_iter()
             .filter(|conn| text(&conn.szEntryName).eq_ignore_ascii_case(name))
@@ -199,7 +199,7 @@ impl super::Dialer for Ras {
             let error = unsafe { RasHangUpW(conn.hrasconn) };
             // Ended meanwhile: as good as hung up.
             if error != 0 && error != ENDED {
-                return Err(said(error));
+                return Err(said(error).into());
             }
         }
         let until = Instant::now() + ENDING;

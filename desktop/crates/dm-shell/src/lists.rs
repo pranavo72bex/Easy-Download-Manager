@@ -256,7 +256,7 @@ pub fn has_extension(link: &str, extensions: &[String]) -> bool {
 
 /// "Site files", one page deep: the page fetched, and the links on it
 /// with the wanted extensions.
-pub async fn grab(page: &str, extensions: &[String]) -> Result<Vec<String>, String> {
+pub async fn grab(page: &str, extensions: &[String]) -> Result<Vec<String>, crate::Error> {
     let search = Search {
         page: page.to_string(),
         types: extensions.to_vec(),

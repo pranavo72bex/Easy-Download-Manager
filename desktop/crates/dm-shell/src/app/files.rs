@@ -151,7 +151,7 @@ pub fn extract_later(
     url: String,
     into: Option<PathBuf>,
     done: impl FnOnce(Result<dm_core::extract::Extracted, String>) + Send + 'static,
-) -> Result<(), String> {
+) -> Result<(), crate::Error> {
     extract_later_with(path, url, into, None, move |answer| {
         done(answer.map_err(|e| e.to_string()))
     })
@@ -168,7 +168,7 @@ pub fn extract_later_with(
     into: Option<PathBuf>,
     password: Option<String>,
     done: impl FnOnce(Result<dm_core::extract::Extracted, dm_core::extract::Error>) + Send + 'static,
-) -> Result<(), String> {
+) -> Result<(), crate::Error> {
     std::thread::Builder::new()
         .name("dm-extract".into())
         .spawn(move || {
@@ -190,7 +190,7 @@ pub fn extract_later_with(
             done(answer);
         })
         .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| crate::Error::from(e.to_string()))
 }
 
 #[cfg(test)]

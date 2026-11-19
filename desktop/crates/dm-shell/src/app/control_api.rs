@@ -19,7 +19,7 @@ use serde_json::{json, Value};
 
 use super::backend::Backend;
 use super::rules::{go_on, GoOn};
-use crate::Settings;
+use crate::{Error, Settings};
 
 /// `queue.list`: every row as the queue keeps it, its address with any
 /// password masked, and a row's sign-in (cookies) and the browser's request
@@ -48,7 +48,7 @@ pub fn queue_list(rows: &[Arc<Entry>]) -> Value {
 /// window's copy up to a quarter of a second old (a script that paused and
 /// then resumed was told "it is not paused"). Answers what was done and what
 /// was skipped, and why.
-pub fn act_on(backend: &Backend, method: &str, params: &Value) -> Result<Value, String> {
+pub fn act_on(backend: &Backend, method: &str, params: &Value) -> Result<Value, Error> {
     let ids: Vec<Id> = params
         .get("ids")
         .and_then(|v| v.as_array())
@@ -98,7 +98,7 @@ pub fn act_on(backend: &Backend, method: &str, params: &Value) -> Result<Value, 
 /// `downloads.speed_limit`: an exact ceiling in KB/s (0 is none), as the
 /// settings to apply, and the limit it replaces where there was one (kept so
 /// the menu can turn it back on).
-pub fn speed_limit(applied: &Settings, params: &Value) -> Result<(Settings, Option<u64>), String> {
+pub fn speed_limit(applied: &Settings, params: &Value) -> Result<(Settings, Option<u64>), Error> {
     let kb = params
         .get("kb")
         .and_then(|v| v.as_u64())
@@ -148,7 +148,7 @@ pub fn add_asked(
     rows: &[Arc<Entry>],
     applied: &Settings,
     params: &Value,
-) -> Result<AddAsked, String> {
+) -> Result<AddAsked, Error> {
     let urls: Vec<String> = match params.get("urls").or_else(|| params.get("url")) {
         Some(Value::String(one)) => vec![one.clone()],
         Some(Value::Array(many)) => many
@@ -183,7 +183,8 @@ pub fn add_asked(
             return Err(format!(
                 "`folder` must be inside the download folder, {}",
                 applied.folders.download_dir.display()
-            ));
+            )
+            .into());
         }
     }
     // A part of a video: both ends, as "4:10" or seconds.
@@ -309,7 +310,7 @@ pub fn answer(
     match method {
         "queue.list" => Some(Ok(queue_list(rows))),
         "downloads.pause" | "downloads.resume" | "downloads.cancel" => {
-            Some(act_on(backend, method, params))
+            Some(act_on(backend, method, params).map_err(String::from))
         }
         _ => None,
     }

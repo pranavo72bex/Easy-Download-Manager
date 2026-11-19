@@ -38,7 +38,8 @@ pub fn crawl_watched_later(
     let (client, queue) = (backend.client(), backend.queue.clone());
     backend.runtime.spawn(async move {
         let options = queue.options().await;
-        done(crate::lists::crawl_watched(&client, &search, Some(&options), &watch).await);
+        let found = crate::lists::crawl_watched(&client, &search, Some(&options), &watch).await;
+        done(found.map_err(String::from));
     });
 }
 

@@ -442,7 +442,7 @@ async fn a_manifest_unsigned_signed_by_another_key_or_changed_is_refused() {
     let (pair, public) = test_pair();
     let (theirs, _) = test_pair();
     let client = dm_core::reqwest_defaults();
-    let refused = Err(UNSIGNED.to_owned());
+    let refused: Result<Option<String>, crate::Error> = Err(UNSIGNED.into());
 
     let unsigned = serve_manifest(MANIFEST.into(), None).await;
     assert_eq!(fetch_manifest(&client, &unsigned, &public).await, refused);

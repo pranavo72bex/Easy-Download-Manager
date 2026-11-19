@@ -27,8 +27,8 @@ pub fn served(home: &Path) -> Rules {
 /// this side reads and newer than what is served now (the shipped document being the floor).
 /// `Ok(true)` when it was kept, `Ok(false)` when it is not newer; the previous file is untouched
 /// on any error. Written whole under another name and moved into place.
-pub fn adopt(home: &Path, text: &str) -> Result<bool, String> {
-    let rules = Rules::parse(text)?;
+pub fn adopt(home: &Path, text: &str) -> Result<bool, crate::Error> {
+    let rules = Rules::parse(text).map_err(|e| e.to_string())?;
     if rules.revision <= served(home).revision {
         return Ok(false);
     }

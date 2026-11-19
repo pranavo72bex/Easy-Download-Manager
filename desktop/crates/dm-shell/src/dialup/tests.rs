@@ -30,16 +30,16 @@ impl Dialer for Fake {
     fn connected(&self, _: &str) -> bool {
         self.up.get()
     }
-    fn dial(&self, name: &str, user: &str, password: &str) -> Result<(), String> {
+    fn dial(&self, name: &str, user: &str, password: &str) -> Result<(), crate::Error> {
         let mut dialled = self.dialled.borrow_mut();
         dialled.push((name.into(), user.into(), password.into()));
         if dialled.len() <= self.failing {
-            Err(format!("busy line {}", dialled.len()))
+            Err(format!("busy line {}", dialled.len()).into())
         } else {
             Ok(())
         }
     }
-    fn hang_up(&self, name: &str) -> Result<bool, String> {
+    fn hang_up(&self, name: &str) -> Result<bool, crate::Error> {
         self.hung_up.borrow_mut().push(name.into());
         Ok(self.up.replace(false))
     }
@@ -177,12 +177,12 @@ impl Dialer for Slow {
     fn connected(&self, _: &str) -> bool {
         false
     }
-    fn dial(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+    fn dial(&self, _: &str, _: &str, _: &str) -> Result<(), crate::Error> {
         self.dials.fetch_add(1, Ordering::SeqCst);
         std::thread::sleep(Duration::from_millis(100));
         Err("no answer".into())
     }
-    fn hang_up(&self, _: &str) -> Result<bool, String> {
+    fn hang_up(&self, _: &str) -> Result<bool, crate::Error> {
         Ok(false)
     }
 }
@@ -285,10 +285,10 @@ impl Dialer for Refusing {
     fn connected(&self, _: &str) -> bool {
         true
     }
-    fn dial(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+    fn dial(&self, _: &str, _: &str, _: &str) -> Result<(), crate::Error> {
         Ok(())
     }
-    fn hang_up(&self, _: &str) -> Result<bool, String> {
+    fn hang_up(&self, _: &str) -> Result<bool, crate::Error> {
         Err("Access is denied. (os error 5)".into())
     }
 }
@@ -315,13 +315,13 @@ impl Dialer for Ordered {
     fn connected(&self, _: &str) -> bool {
         false
     }
-    fn dial(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+    fn dial(&self, _: &str, _: &str, _: &str) -> Result<(), crate::Error> {
         self.dialling.store(true, Ordering::SeqCst);
         std::thread::sleep(Duration::from_millis(150));
         dm_core::lock(&self.asked).push("dialled");
         Ok(())
     }
-    fn hang_up(&self, _: &str) -> Result<bool, String> {
+    fn hang_up(&self, _: &str) -> Result<bool, crate::Error> {
         dm_core::lock(&self.asked).push("hung up");
         Ok(true)
     }

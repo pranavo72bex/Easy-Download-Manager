@@ -88,10 +88,10 @@ pub trait Dialer {
     fn connected(&self, name: &str) -> bool;
     /// Dials `name` once, waiting until it is up or has failed. An empty `user`
     /// and `password` take the ones Windows keeps for it.
-    fn dial(&self, name: &str, user: &str, password: &str) -> Result<(), String>;
+    fn dial(&self, name: &str, user: &str, password: &str) -> Result<(), crate::Error>;
     /// Hangs `name` up if Windows has it open, up or still dialling, and waits
     /// for it to go: `Ok(true)` once it has, `Ok(false)` when it was not open.
-    fn hang_up(&self, name: &str) -> Result<bool, String>;
+    fn hang_up(&self, name: &str) -> Result<bool, crate::Error>;
 }
 
 /// How [`ensure`] ended.
@@ -338,7 +338,7 @@ fn hang_up_with(dialer: &dyn Dialer) -> HungUp {
     match dialer.hang_up(&name) {
         Ok(true) => HungUp::Done(name),
         Ok(false) => HungUp::WasDown(name),
-        Err(why) => HungUp::Failed(name, why),
+        Err(why) => HungUp::Failed(name, why.into()),
     }
 }
 

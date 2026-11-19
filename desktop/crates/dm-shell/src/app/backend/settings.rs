@@ -101,7 +101,7 @@ impl Backend {
                         ));
                     }
                 }
-                return Err(e);
+                return Err(e.into());
             }
         };
         for problem in problems {

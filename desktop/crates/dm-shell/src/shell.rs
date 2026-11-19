@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use dm_core::{Checksum, DownloadList, Id};
 
 use crate::host;
+use crate::Error;
 
 // Opening a file and showing it in its folder, one file for each system.
 mod opener;
@@ -179,7 +180,7 @@ fn magnet_names_a_torrent(url: &str) -> bool {
 ///
 /// A link in the list that cannot be used is skipped, not the whole paste:
 /// the rest are added, and what was skipped comes back with the reason.
-pub async fn add(queue: &DownloadList, text: &str) -> Result<Added, String> {
+pub async fn add(queue: &DownloadList, text: &str) -> Result<Added, Error> {
     let mut skipped = Vec::new();
     let urls: Vec<&str> = text
         .split_whitespace()
@@ -206,7 +207,8 @@ pub async fn add(queue: &DownloadList, text: &str) -> Result<Added, String> {
         return Err(skipped
             .into_iter()
             .next()
-            .unwrap_or_else(|| "that is not a URL dm can download".into()));
+            .unwrap_or_else(|| "that is not a URL dm can download".into())
+            .into());
     }
     wake(queue);
     Ok(Added { ids, skipped })
@@ -223,7 +225,7 @@ pub struct Added {
 
 /// A digest typed against a row: empty clears it, which is how one pasted by
 /// mistake is undone.
-pub fn checksum(text: &str) -> Result<Option<Checksum>, String> {
+pub fn checksum(text: &str) -> Result<Option<Checksum>, Error> {
     if text.trim().is_empty() {
         return Ok(None);
     }

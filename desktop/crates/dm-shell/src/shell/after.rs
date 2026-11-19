@@ -50,7 +50,7 @@ pub fn words(command: &str) -> Vec<String> {
 
 /// Runs `command` as it is, with no file: started and left running, no shell, its
 /// words split as `run_after`'s are. An error says why it could not start.
-pub fn run_program(command: &str) -> Result<(), String> {
+pub fn run_program(command: &str) -> Result<(), crate::Error> {
     let mut parts = words(command);
     if parts.is_empty() {
         return Ok(());
@@ -64,16 +64,16 @@ pub fn run_program(command: &str) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|e| {
-            format!(
+            crate::Error::from(format!(
                 "\"{program}\", to run when the scheduled downloads are done, could not start: {e}"
-            )
+            ))
         })
 }
 
 /// Runs `command` on a finished file, its path added as the last argument
 /// rather than pasted into the line, so no file name can become a command.
 /// Started and left running; an error says why it could not start.
-pub fn run_after(command: &str, file: &Path) -> Result<(), String> {
+pub fn run_after(command: &str, file: &Path) -> Result<(), crate::Error> {
     let mut parts = words(command);
     if parts.is_empty() {
         return Ok(());
@@ -88,9 +88,9 @@ pub fn run_after(command: &str, file: &Path) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|e| {
-            format!(
+            crate::Error::from(format!(
                 "\"{program}\", to run after {}, could not start: {e}",
                 file.display()
-            )
+            ))
         })
 }
