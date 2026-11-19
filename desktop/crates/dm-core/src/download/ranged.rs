@@ -8,11 +8,13 @@ use std::sync::atomic::AtomicBool;
 use super::*;
 
 mod attempt;
+mod connection;
 mod helping;
 mod limits;
 mod staged;
 
 use attempt::attempt_segment;
+use connection::Connection;
 use helping::*;
 pub(super) use limits::Limits;
 use limits::*;
@@ -341,247 +343,34 @@ pub(super) async fn run(
         let helper = ordinal >= workers.max(1);
         // Which of the connections `grow` lets in this one is.
         let grown_as = ordinal.checked_sub(grown_from);
-        let mut gate_seen = gate_seen.clone();
         let on_second = second.is_some() && ordinal % 2 == 1;
         let client = match &second {
             Some(second) if on_second => second.clone(),
             _ => client.clone(),
         };
-        let probe = Arc::clone(&probe);
-        let (job, next) = (Arc::clone(job), Arc::clone(&next));
-        let (orphans, active) = (Arc::clone(&orphans), Arc::clone(&active));
-        let (first_wave, wave_over, mut wave_over_seen) = (
-            Arc::clone(&first_wave),
-            wave_over.clone(),
-            wave_over_seen.clone(),
+        running.spawn(
+            Connection {
+                client,
+                job: Arc::clone(job),
+                probe: Arc::clone(&probe),
+                next: Arc::clone(&next),
+                orphans: Arc::clone(&orphans),
+                active: Arc::clone(&active),
+                first_wave: Arc::clone(&first_wave),
+                wave_over: wave_over.clone(),
+                wave_over_seen: wave_over_seen.clone(),
+                gate_seen: gate_seen.clone(),
+                planned,
+                resumable,
+                started,
+                helper,
+                grown_as,
+                on_second,
+                counted: !helper,
+                alone_again: false,
+            }
+            .work(),
         );
-        running.spawn(async move {
-            // However it ends, the checks are told it is done with ranges.
-            let mut leaving = Leaving {
-                job: Arc::clone(&job),
-                fetched: false,
-            };
-            /* Counted among the connections at work (`active`): one with a range of its own from
-             * the start, a helper from when it takes one, and neither while it waits as one a
-             * limiting server turned away past the most it serves at once (`limits::rejoin`). */
-            let mut counted = !helper;
-            // Whether this connection, left alone, has had its second go.
-            let mut alone_again = false;
-            if helper && grown_as.is_none() {
-                tokio::select! {
-                    () = tokio::time::sleep(HELP_AFTER) => {}
-                    _ = wave_over_seen.wait_for(|over| *over) => return Ok(()),
-                }
-                job.control.check()?;
-            }
-            'connection: loop {
-                if let Some(me) = grown_as {
-                    let let_in = tokio::select! {
-                        gate = gate_seen.wait_for(|g| g.closed || me < g.allowed) => {
-                            gate.is_ok_and(|g| me < g.allowed)
-                        }
-                        _ = wave_over_seen.wait_for(|over| *over) => false,
-                    };
-                    if !let_in {
-                        break 'connection;
-                    }
-                    job.control.check()?;
-                }
-                loop {
-                    // Turned away past the most the server serves at once: back in when one at
-                    // work is done.
-                    if !counted && !helper {
-                        rejoin(&job, &active).await?;
-                        counted = true;
-                    }
-                    let index = if job.limits.limited() {
-                        // A helper is not worth asking a server that limits connections for.
-                        if helper {
-                            break 'connection;
-                        }
-                        match limited_work(&job).await? {
-                            Some(index) => index,
-                            None => break 'connection,
-                        }
-                    } else {
-                        let counter = next.fetch_add(1, Ordering::Relaxed);
-                        let given = if counter < planned {
-                            Some(in_order(counter, planned))
-                        } else {
-                            crate::lock(&orphans).pop()
-                        };
-                        if let Some(index) = given {
-                            // An answer may have gone on into it already (`limits`).
-                            if !take(&job, index) {
-                                continue;
-                            }
-                            index
-                        } else {
-                            /* The watching ends early once the connections with
-                             * ranges of their own are done: they end only when no
-                             * range is left to halve (or a refusal, which ends a
-                             * helper here anyway), and ranges only shrink, so
-                             * there is nothing for a helper either. The last helper
-                             * to finish its range otherwise watched out its whole
-                             * window after the file was in, and the download waited
-                             * for it: 80 ms of every small slow file (gaps row 165). */
-                            // One `grow` let in has been judged worth it already.
-                            if helper
-                                && (job.limits.limited()
-                                    || (grown_as.is_none()
-                                        && !tokio::select! {
-                                            worth = slow_enough_to_help(&job, started) => worth,
-                                            _ = wave_over_seen.wait_for(|over| *over) => false,
-                                        })
-                                    // Looked at again after the watching: a refusal
-                                    // while it went on is as good as one before.
-                                    || job.limits.limited())
-                            {
-                                break 'connection;
-                            }
-                            /* A range worth halving, or a wait for one: a range can stop or slow
-                             * down, and one just asked for is judged once its bytes come. Looked at
-                             * again as soon as a range ends or is given up, or after `SPLIT_LOOK`,
-                             * and given up only once no range under way is long enough to halve. */
-                            let found = loop {
-                                // Asked for before looking, so a range that ends meanwhile still
-                                // wakes it.
-                                let moved = job.moved.notified();
-                                tokio::pin!(moved);
-                                moved.as_mut().enable();
-                                let now = tokio::time::Instant::now();
-                                let judge_from = crate::lock(&job.last_ended)
-                                    .map_or(now, |ended| ended + SPLIT_SETTLE);
-                                match split_largest(&job, now >= judge_from).await {
-                                    Halving::Range(index) => break Found::Range(index),
-                                    Halving::Nothing => break Found::Done,
-                                    Halving::Later => {}
-                                }
-                                let wake = if now < judge_from {
-                                    judge_from
-                                } else {
-                                    now + SPLIT_LOOK
-                                };
-                                tokio::select! {
-                                    () = &mut moved => {}
-                                    () = tokio::time::sleep_until(wake) => {}
-                                }
-                                job.control.check()?;
-                                // The server has turned a request away: looked at as one that
-                                // limits connections (above).
-                                if job.limits.limited() {
-                                    break Found::Again;
-                                }
-                                let orphan = crate::lock(&orphans).pop();
-                                if let Some(index) = orphan.filter(|&index| take(&job, index)) {
-                                    break Found::Range(index);
-                                }
-                                // Taken back by `grow` while it waited: it waits to be let in again.
-                                if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
-                                    if counted {
-                                        counted = false;
-                                        active.fetch_sub(1, Ordering::SeqCst);
-                                    }
-                                    continue 'connection;
-                                }
-                            };
-                            match found {
-                                Found::Range(index) => index,
-                                Found::Again => continue,
-                                Found::Done => break 'connection,
-                            }
-                        }
-                    };
-                    if !counted {
-                        counted = true;
-                        active.fetch_add(1, Ordering::SeqCst);
-                    }
-                    crate::second_path::fetched_by(&job.parts, index, on_second);
-                    let first = if index == 0 {
-                        crate::lock(&probe).take().map(Answer::Probe)
-                    } else {
-                        None
-                    };
-                    let turned_away = AtomicBool::new(false);
-                    leaving.fetched = true;
-                    let (index, fetched) = fetch_chain(
-                        &client,
-                        &job,
-                        index,
-                        resumable,
-                        &active,
-                        first,
-                        &turned_away,
-                        on_second,
-                    )
-                    .await;
-                    // A connection waiting for a range worth halving looks again.
-                    job.moved.notify_waiters();
-                    match fetched {
-                        Ok(()) => {}
-                        /* The server would not take this connection (a 429 or
-                         * 503 at once, a refused connect after its retries)
-                         * while others are working: this one steps aside and
-                         * leaves its range to them, as a server that limits
-                         * connections asks, rather than failing a download the
-                         * rest are fetching. */
-                        Err(e)
-                            if crate::retry::transient(&e) && active.load(Ordering::SeqCst) > 1 =>
-                        {
-                            give_back(&job, &orphans, index);
-                            // Only a server's refusal makes it one that limits connections;
-                            // a range that keeps failing otherwise is left to the others.
-                            if helper || !turned_away.load(Ordering::SeqCst) {
-                                break 'connection;
-                            }
-                            /* Past the most the server has served at once, it waits for a
-                             * place among those at work; within it, for the server's pace,
-                             * and looks for work again. Ending, it never came back: from the
-                             * twelfth request on, a two-at-once server's file was fetched on
-                             * one connection (gaps row 197). */
-                            if active.load(Ordering::SeqCst) > job.together.most().max(1) {
-                                counted = false;
-                                active.fetch_sub(1, Ordering::SeqCst);
-                                job.moved.notify_waiters();
-                            }
-                            continue;
-                        }
-                        /* The others stepped aside between the judgement and
-                         * now, and this is the last connection: its range is
-                         * nobody else's to fetch, so it is tried once more
-                         * here, with the tries a connection alone gets. */
-                        Err(e) if crate::retry::transient(&e) && !alone_again => {
-                            alone_again = true;
-                            // Given back, so it is this range that is tried
-                            // again and not a fresh one taken in its place.
-                            give_back(&job, &orphans, index);
-                            continue;
-                        }
-                        Err(e) => return Err(e),
-                    }
-                    alone_again = false;
-                    // The others take up its share for a moment before any is judged.
-                    *crate::lock(&job.last_ended) = Some(tokio::time::Instant::now());
-                    // Taken back by `grow`, with its piece done: it waits to be let in again.
-                    if grown_as.is_some_and(|me| me >= gate_seen.borrow().allowed) {
-                        if counted {
-                            counted = false;
-                            active.fetch_sub(1, Ordering::SeqCst);
-                        }
-                        continue 'connection;
-                    }
-                }
-            }
-            if counted {
-                active.fetch_sub(1, Ordering::SeqCst);
-                // One waiting for a place may have one now.
-                job.moved.notify_waiters();
-            }
-            if !helper && first_wave.fetch_sub(1, Ordering::SeqCst) == 1 {
-                let _ = wave_over.send(true);
-            }
-            Ok::<(), Error>(())
-        });
     }
 
     /* The first failure is the download's. The other connections are then
@@ -592,6 +381,41 @@ pub(super) async fn run(
      * adopted again. A pause or a cancel stops every connection by itself,
      * each flushing what it has, so those get a moment to; one stalled
      * where the stop does not reach it is stopped after that. */
+    let failed = ended(&mut running).await;
+    crate::finish_trace::mark("connections ended");
+    // Nothing is left for it to let in.
+    if let Some(grower) = grower {
+        grower.abort();
+    }
+    // A sync a stopped connection began goes on without it: waited for here, so nothing is
+    // written into the parts once the download has returned (`files::Stopping`).
+    job.stopping.settled().await;
+    if let Some(e) = failed {
+        return Err(e);
+    }
+    // A range given up on after the others had finished, or never taken: fetched now, on one
+    // connection, its failure this download's.
+    fetch_left(client, job, resumable).await?;
+    /* The checks handed on that no place was left for (those of a range fetched just above, or
+     * handed on before the server was seen to limit the download), and the seams of a server
+     * that limits requests, checked now that no range is being asked for; where it limits, one
+     * at a time: a check sent beside a range's request took the request the server would have
+     * taken. A refused check proves nothing, and once one is refused the rest are not asked
+     * (gaps row 197). */
+    let limited = job.limits.limited();
+    if ask_left(client, job, limited).await {
+        for index in job.limits.take_due() {
+            if !check_seams(client, job, index).await {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Waits for `run`'s connections as each ends, in whatever order: the first failure is the
+/// download's, seen when it happens, not after the connections spawned before it are done.
+async fn ended(running: &mut tokio::task::JoinSet<Result<(), Error>>) -> Option<Error> {
     let mut failed = None;
     // Once a pause or a cancel is in, how long the rest get to flush.
     let mut grace: Option<tokio::time::Instant> = None;
@@ -630,19 +454,12 @@ pub(super) async fn run(
             }
         }
     }
-    crate::finish_trace::mark("connections ended");
-    // Nothing is left for it to let in.
-    if let Some(grower) = grower {
-        grower.abort();
-    }
-    // A sync a stopped connection began goes on without it: waited for here, so nothing is
-    // written into the parts once the download has returned (`files::Stopping`).
-    job.stopping.settled().await;
-    if let Some(e) = failed {
-        return Err(e);
-    }
-    // A range given up on after the others had finished, or never taken: fetched now, on one
-    // connection, its failure this download's.
+    failed
+}
+
+/// Fetches each range given up on after the others had finished, or never taken, on one
+/// connection, its failure this download's.
+async fn fetch_left(client: &reqwest::Client, job: &Job, resumable: bool) -> Result<(), Error> {
     let left: Vec<usize> = {
         let count = job.segments.lock().await.len();
         (0..count)
@@ -668,20 +485,6 @@ pub(super) async fn run(
         )
         .await;
         fetched?;
-    }
-    /* The checks handed on that no place was left for (those of a range fetched just above, or
-     * handed on before the server was seen to limit the download), and the seams of a server
-     * that limits requests, checked now that no range is being asked for; where it limits, one
-     * at a time: a check sent beside a range's request took the request the server would have
-     * taken. A refused check proves nothing, and once one is refused the rest are not asked
-     * (gaps row 197). */
-    let limited = job.limits.limited();
-    if ask_left(client, job, limited).await {
-        for index in job.limits.take_due() {
-            if !check_seams(client, job, index).await {
-                break;
-            }
-        }
     }
     Ok(())
 }
@@ -726,14 +529,6 @@ fn give_back(job: &Job, orphans: &std::sync::Mutex<Vec<usize>>, index: usize) {
     crate::lock(&job.live[index]).taken = false;
     crate::lock(orphans).push(index);
     job.moved.notify_waiters();
-}
-
-/// What a connection waiting for a range to halve found.
-enum Found {
-    Range(usize),
-    /// The server turned a request away meanwhile: looked at again as one that limits.
-    Again,
-    Done,
 }
 
 /// The next range for a connection at work on a download whose server limits it, once the

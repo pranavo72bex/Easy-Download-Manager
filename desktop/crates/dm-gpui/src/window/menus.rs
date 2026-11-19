@@ -15,6 +15,10 @@ use dm_shell::app::commands::{Chord, Command, Key};
 use dm_shell::app::power::WhenDone;
 use gpui::{Action, App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType};
 
+mod bar_menus;
+
+use bar_menus::{downloads_menu, file_menu, help_menu, view_menu};
+
 /// What the menus show ticked, and the queues Start Queue and Stop Queue
 /// list: the menu bar is built again
 /// when any of it changes (`Downloads::refresh_menus`).
@@ -641,23 +645,7 @@ fn build(ticks: &Ticks) -> Vec<Menu> {
 /// Each of the menu bar's menus.
 fn bar(ticks: &Ticks) -> Bar {
     OFF.with(|off| off.borrow_mut().clone_from(&ticks.off));
-    let queues = &ticks.queues;
     use Command as C;
-    // Start Queue and Stop Queue list the queues; the one clicked is started
-    // or stopped, whatever the list shows (B64).
-    let on_queues = |command: Command| {
-        MenuItem::submenu(
-            Menu::new(t(command.label())).items(queues.iter().map(|queue| {
-                MenuItem::action(
-                    dm_desktop_base::i18n::name(queue),
-                    RunOnQueue {
-                        command,
-                        queue: queue.clone(),
-                    },
-                )
-            })),
-        )
-    };
     let app = Menu::new("dm").items([
         item(C::About),
         MenuItem::separator(),
@@ -679,218 +667,10 @@ fn bar(ticks: &Ticks) -> Bar {
             &[C::SiteFiles],
         ],
     );
-    let file = menu(
-        "File",
-        &[
-            &[C::StopDownload, C::ShowProgress],
-            &[
-                C::Remove,
-                C::DeleteFile,
-                C::Redownload,
-                C::UpdateLink,
-                C::CopyLink,
-                C::CopyDetails,
-                C::MoveRename,
-            ],
-            &[
-                C::OpenFile,
-                C::OpenWith,
-                C::Preview,
-                C::OpenFolder,
-                C::ExtractHere,
-                C::ExtractTo,
-                C::Properties,
-            ],
-            &[
-                C::MoveToQueue,
-                C::RemoveFromQueue,
-                C::MoveUp,
-                C::MoveDown,
-                C::SelectAll,
-            ],
-        ],
-    );
-    let mut file = file;
-    // Resume first, in the words it has for the rows chosen (Retry, Start
-    // now).
-    let resume = if ticks.resume.is_empty() {
-        Command::DownloadNow.label()
-    } else {
-        ticks.resume
-    };
-    file.items.insert(
-        0,
-        MenuItem::action(t(resume), Run(C::DownloadNow))
-            .disabled(!carried_out(C::DownloadNow) || ticks.off.contains(&C::DownloadNow)),
-    );
-    file.items.extend([
-        MenuItem::separator(),
-        MenuItem::action(t("Close"), CloseWindow),
-    ]);
-    let mut downloads = menu(
-        "Downloads",
-        &[
-            &[C::ResumeAll, C::StopAll, C::DeleteCompleted],
-            &[C::Find, C::FindNext, C::FindPrevious],
-            &[C::Scheduler],
-        ],
-    );
-    downloads.items.extend([
-        on_queues(C::StartQueue),
-        on_queues(C::StopQueue),
-        MenuItem::separator(),
-        MenuItem::submenu(
-            // Limit speed ticked while a limit is in force, and the preset
-            // that is.
-            Menu::new(t("Speed limiter")).items(speed_limiter(ticks.speed_limit).into_iter().map(
-                |choice| match choice {
-                    Some((command, ticked)) => item(command).checked(ticked),
-                    None => MenuItem::separator(),
-                },
-            )),
-        ),
-        // The choice ticked; greyed where this computer gives dm no way to
-        // do it (macOS does not hibernate), rather than failing when the
-        // queue runs dry.
-        MenuItem::submenu(
-            Menu::new(t("When done")).items(
-                [
-                    (C::WhenDoneNothing, WhenDone::Nothing),
-                    (C::WhenDoneQuit, WhenDone::Quit),
-                    (C::WhenDoneSleep, WhenDone::Sleep),
-                    (C::WhenDoneHibernate, WhenDone::Hibernate),
-                    (C::WhenDoneShutDown, WhenDone::ShutDown),
-                ]
-                .into_iter()
-                .map(|(c, w)| {
-                    item(c)
-                        .checked(ticks.when_done == w)
-                        .disabled(!w.possible(dm_desktop_base::power::available))
-                }),
-            ),
-        ),
-    ]);
-    // View: Categories, Toolbar and Drop target
-    // ticked while shown; then Columns, Customize toolbar, Text size,
-    // Language and Sort by, each ticked as it stands.
-    let columns = Menu::new(t("Columns")).items(
-        dm_desktop_base::columns::Column::ordered(&ticks.column_order)
-            .into_iter()
-            // The file name always stays.
-            .skip(1)
-            .map(|c| {
-                MenuItem::action(
-                    c.title(),
-                    crate::window::viewmenu::ToggleColumn {
-                        key: c.key().to_string(),
-                    },
-                )
-                .checked(!ticks.columns_hidden.iter().any(|h| h == c.key()))
-            }),
-    );
-    let style = dm_desktop_base::toolbar::ToolStyle::named(&ticks.toolbar_style);
-    let customize = Menu::new(t("Customize toolbar")).items(
-        dm_desktop_base::toolbar::TOOL_STYLES
-            .iter()
-            .map(|(s, words)| {
-                MenuItem::action(
-                    t(words),
-                    crate::window::viewmenu::ToolbarStyle {
-                        style: s.name().to_string(),
-                    },
-                )
-                .checked(*s == style)
-            })
-            .chain([MenuItem::separator()])
-            .chain(
-                dm_shell::app::commands::toolbar_in(&ticks.toolbar_order)
-                    .into_iter()
-                    .map(|(c, words)| {
-                        MenuItem::action(
-                            t(words),
-                            crate::window::viewmenu::ToggleToolbarButton {
-                                id: c.id().to_string(),
-                            },
-                        )
-                        .checked(!ticks.toolbar_hidden.iter().any(|h| h == c.id()))
-                    }),
-            ),
-    );
-    // Text size: how large it is now, then Larger, Smaller and Normal size,
-    // with their keys (`bind_keys`).
-    let percent = (ticks.text_size * 100.0).round() as u32;
-    let text_size = Menu::new(t("Text size")).items([
-        MenuItem::action(
-            dm_desktop_base::i18n::tf("{}%", &[&percent]),
-            crate::window::viewmenu::TextNormal,
-        )
-        .disabled(true),
-        MenuItem::separator(),
-        MenuItem::action(t("Larger"), crate::window::viewmenu::TextLarger),
-        MenuItem::action(t("Smaller"), crate::window::viewmenu::TextSmaller),
-        MenuItem::action(t("Normal size"), crate::window::viewmenu::TextNormal),
-    ]);
-    let speaks = dm_desktop_base::i18n::chosen(&ticks.language);
-    let language = Menu::new(t("Language")).items(dm_desktop_base::i18n::LANGUAGES.iter().map(
-        |(code, name)| {
-            MenuItem::action(
-                *name,
-                crate::window::viewmenu::SetLanguage {
-                    code: code.to_string(),
-                },
-            )
-            .checked(*code == speaks)
-        },
-    ));
-    let sort = Menu::new(t("Sort by")).items(
-        [
-            C::SortByName,
-            C::SortBySize,
-            C::SortByStatus,
-            C::SortByTimeLeft,
-            C::SortByRate,
-            C::SortByDate,
-            C::SortByDescription,
-        ]
-        .into_iter()
-        .map(|c| item(c).checked(ticks.sorted_by == Some(c))),
-    );
-    let view = Menu::new(t("View")).items([
-        item(C::ToggleCategories).checked(ticks.sidebar),
-        item(C::ToggleToolbar).checked(ticks.toolbar),
-        item(C::ToggleDropTarget).checked(ticks.drop_target),
-        MenuItem::separator(),
-        MenuItem::submenu(columns),
-        MenuItem::submenu(customize),
-        MenuItem::submenu(text_size),
-        MenuItem::submenu(language),
-        MenuItem::submenu(sort),
-    ]);
-    // Help: dm's guide and its topics, Tip of the day, the project's home
-    // page, support and telling a friend (gaps row 91).
-    let page =
-        |words: &str, address: String| MenuItem::action(words.to_string(), OpenPage { address });
-    let mut help = menu("Help", &[&[C::Help]]);
-    help.items.extend(
-        dm_desktop_base::project::guide_topics()
-            .into_iter()
-            .map(|(words, address)| page(words, address)),
-    );
-    help.items.extend([
-        MenuItem::action(t("Tip of the day"), TipOfTheDay),
-        MenuItem::separator(),
-        page(t("Home page"), dm_desktop_base::project::SOURCE.to_string()),
-        page(
-            t("Contact support"),
-            dm_desktop_base::project::SUPPORT.to_string(),
-        ),
-        page(
-            t("Tell a friend"),
-            dm_desktop_base::project::tell_a_friend(),
-        ),
-        MenuItem::separator(),
-        item(C::CheckForUpdates),
-    ]);
+    let file = file_menu(ticks);
+    let downloads = downloads_menu(ticks);
+    let view = view_menu(ticks);
+    let help = help_menu();
     // Edit, as every macOS program has it: the text fields' own Undo, Redo,
     // Cut, Copy and Paste (the system's actions, so its services and
     // dictation work too). The list's Select all stays in File.

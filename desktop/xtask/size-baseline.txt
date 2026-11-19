@@ -10,7 +10,7 @@ desktop/crates/dm-core/src/download.rs 996
 desktop/crates/dm-core/src/download/assemble.rs 891
 desktop/crates/dm-core/src/download/dash.rs 2132
 desktop/crates/dm-core/src/download/hls.rs 1589
-desktop/crates/dm-core/src/download/ranged.rs 1126
+desktop/crates/dm-core/src/download/ranged.rs 921
 desktop/crates/dm-core/src/download/ranged/attempt.rs 1140
 desktop/crates/dm-core/src/extract/sevenz/header.rs 845
 desktop/crates/dm-core/src/queue.rs 1232
@@ -18,17 +18,15 @@ desktop/crates/dm-core/src/queue/runner.rs 808
 desktop/crates/dm-core/src/stream.rs 1011
 desktop/crates/dm-core/src/torrent.rs 1000
 desktop/crates/dm-core/src/videopage/fetch.rs 967
-desktop/crates/dm-core/src/youtube.rs 1943
+desktop/crates/dm-core/src/youtube.rs 1784
 desktop/crates/dm-core/src/youtube/player.rs 955
 desktop/crates/dm-desktop-base/src/run/headless.rs 883
 desktop/crates/dm-desktop-base/src/view/format.rs 845
 desktop/crates/dm-gpui/src/dialogs/details.rs 928
-desktop/crates/dm-gpui/src/dialogs/properties.rs 881
 desktop/crates/dm-gpui/src/harness.rs 1404
 desktop/crates/dm-gpui/src/options.rs 889
 desktop/crates/dm-gpui/src/probe.rs 816
 desktop/crates/dm-gpui/src/window/list.rs 1740
-desktop/crates/dm-gpui/src/window/menus.rs 925
 desktop/crates/dm-gpui/src/window/table.rs 1071
 desktop/crates/dm-gpui/src/window_tests/dialogs.rs 2121
 desktop/crates/dm-gpui/src/window_tests/downloads.rs 1810
