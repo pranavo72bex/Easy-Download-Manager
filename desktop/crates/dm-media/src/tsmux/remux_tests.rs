@@ -195,3 +195,29 @@ fn segments_freed_as_they_are_read_keep_the_disk_near_the_stream() {
     let gathered = stream + samples + length;
     assert!(peak * 2 < gathered, "{peak} against {gathered} before");
 }
+
+/// A stream whose clock starts afresh part-way, as after an HLS discontinuity (the same two
+/// seconds served twice): the picture's second stretch is moved on to follow its first, a frame
+/// at 30 a second after its last picture (2.06 s, from its 0.1 s), and the subtitles are told
+/// how far (gaps row Y20).
+#[test]
+fn the_subtitles_are_told_how_far_each_stretch_after_a_discontinuity_was_moved() {
+    let dir = tempfile::tempdir().unwrap();
+    let (first, again) = (dir.path().join("first"), dir.path().join("again"));
+    std::fs::create_dir_all(&first).unwrap();
+    std::fs::create_dir_all(&again).unwrap();
+    let mut parts = segments(&first, 2, 2_000);
+    parts.extend(segments(&again, 2, 2_000));
+    let mut told = None;
+    let place = |clock: Clock| {
+        told = Some(clock);
+        Vec::new()
+    };
+    to_mp4_from_with_text(&parts, &dir.path().join("out.mp4"), Segments::Kept, place).unwrap();
+    let last = 90_000 * 49 / 25 + 9_000;
+    let expected = Clock {
+        zero: 9_000,
+        moved: vec![0, last + STEP - 9_000],
+    };
+    assert_eq!(told, Some(expected));
+}

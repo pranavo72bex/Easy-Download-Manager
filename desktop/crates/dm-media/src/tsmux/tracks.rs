@@ -282,11 +282,12 @@ pub(super) fn audio_track(stream: &Elementary, input: usize, lead: i64) -> Resul
 
 /// The MP4 of what was read, at `out`. `place` is given when the MP4 starts on the stream's
 /// 90 kHz clock (the earlier of its first picture and its first sound, which both are started
-/// from) and gives back the subtitles to carry, timed from there; asked only where there is a
-/// picture to show them over (gaps row Y20).
+/// from) with how far the picture's clock was moved at each discontinuity ([`Clock`]), and
+/// gives back the subtitles to carry, timed from there; asked only where there is a picture to
+/// show them over (gaps row Y20).
 pub(super) fn build<F>(streams: &mut [Elementary], out: &Path, place: F) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
     let mut scratch = |stream: &Elementary| -> Result<Box<dyn Source>, String> {
         let file = File::open(&stream.path)
@@ -308,7 +309,7 @@ pub(super) fn build_from<F>(
     source: &mut Sources<'_>,
 ) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
     let video = streams
         .iter()
@@ -342,10 +343,14 @@ where
         tracks.push(make(stream, files.len(), lead)?);
         files.push(source(stream)?);
     }
-    let texts = if video.is_some() {
-        place(earliest)
-    } else {
-        Vec::new()
+    let texts = match video.and_then(|i| streams.get(i)) {
+        Some(picture) => place(Clock {
+            zero: earliest,
+            moved: std::iter::once(0)
+                .chain(picture.moves.iter().copied())
+                .collect(),
+        }),
+        None => Vec::new(),
     };
     let tags = crate::mp4mux::Tags::default();
     crate::mp4mux::write_with_text_from(tracks, files, &texts, out, None, None, &tags)

@@ -549,42 +549,7 @@ pub fn join_tagged(
     out: &Path,
     tags: &crate::mp4mux::Tags,
 ) -> Result<u64, String> {
-    let mut read = Vec::new();
-    let mut webm = Vec::new();
-    for (i, path) in inputs.iter().enumerate() {
-        webm.push(is_webm(path));
-        let input = if webm.last() == Some(&true) {
-            read_input(path, i)
-                .map_err(|e| format!("{} is not a WebM dm can join: {e}", path.display()))?
-        } else {
-            from_mp4::read(path, i)
-                .map_err(|e| format!("{} is not an MP4 dm can join: {e}", path.display()))?
-        };
-        let length = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
-        let past = input.blocks.iter().any(|b| {
-            b.data_at
-                .checked_add(b.data_len)
-                .is_none_or(|end| end > length)
-        });
-        if past {
-            return Err(format!("{} is cut short", path.display()));
-        }
-        read.push(input);
-    }
-    line_up(&mut read, &webm);
-    let mut scratch_name = out.as_os_str().to_owned();
-    scratch_name.push(".text");
-    let scratch = PathBuf::from(scratch_name);
-    let mut sources = inputs.to_vec();
-    if !texts.is_empty() {
-        let mut data = Vec::new();
-        read.push(text_input(texts, inputs.len(), &mut data));
-        std::fs::write(&scratch, &data).map_err(|e| format!("subtitles: {e}"))?;
-        sources.push(scratch.clone());
-    }
-    let joined = join_read(&read, &sources, out, tags);
-    let _ = std::fs::remove_file(&scratch);
-    joined
+    placed::join_tagged_placed(inputs, |_| texts.to_vec(), out, tags)
 }
 
 /// Moves the MP4 inputs whose fragments say when they start together, so
@@ -1348,6 +1313,8 @@ pub(crate) fn mp4_tracks(path: &Path, input: usize) -> Result<Vec<crate::mp4mux:
 }
 
 mod from_mp4;
+mod placed;
+pub use placed::join_placed;
 
 /// Small WebM files made for tests (dm-core's tests too, through the `testing` feature).
 #[cfg(any(test, feature = "testing"))]

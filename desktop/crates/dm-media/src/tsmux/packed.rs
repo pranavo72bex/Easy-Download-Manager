@@ -29,7 +29,7 @@ pub fn join_packed(ts: &Path, aac: &Path, out: &Path) -> Result<u64, String> {
 /// [`to_mp4_with_text`](super::to_mp4_with_text) times them (gaps row Y20).
 pub fn join_packed_with_text<F>(ts: &Path, aac: &Path, out: &Path, place: F) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
     let scratch = |what: &str| {
         let mut name = out.as_os_str().to_owned();
@@ -76,7 +76,7 @@ pub fn join_ts_with_text<F>(
     place: F,
 ) -> Result<u64, String>
 where
-    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
     let scratch = |what: &str| {
         let mut name = out.as_os_str().to_owned();

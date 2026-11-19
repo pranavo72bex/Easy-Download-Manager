@@ -7,6 +7,8 @@ use super::hls_text::{HlsTexts, Texts};
 use super::*;
 use crate::dash::{self, Medium, Track};
 
+mod text;
+
 /// Fetches a DASH stream as one file.
 ///
 /// The manifest is read by dm (`dash`), one picture and one sound are chosen
@@ -68,45 +70,14 @@ pub(super) async fn download_dash(
     // Carried inside the file where Options says so (gaps row Y20); an `.m4a` has no picture to
     // show them over.
     let texts = if options.subtitles && plan.video.is_some() {
-        subtitles_of(client, &plan.texts, options).await
+        text::fetch(client, &plan, options).await?
     } else {
-        Vec::new()
+        Texts::Timed(Vec::new())
     };
     join_tracks(
-        client,
-        &tracks,
-        &filename,
-        extension,
-        webm,
-        &signature,
-        Texts::Timed(texts),
-        options,
-        report,
+        client, &tracks, &filename, extension, webm, &signature, texts, options, report,
     )
     .await
-}
-
-/// The subtitles a manifest lists as whole WebVTT files, fetched and read. One that cannot be
-/// had, or holds no cue, is passed over: subtitles are not worth the video.
-async fn subtitles_of(
-    client: &reqwest::Client,
-    texts: &[dash::Text],
-    options: &Options,
-) -> Vec<crate::subtitles::Subtitle> {
-    let mut read = Vec::new();
-    for text in texts {
-        let Ok(got) = fetch_capped(client, &text.url, 16 * 1024 * 1024, options).await else {
-            continue;
-        };
-        let cues = crate::subtitles::parse_vtt(&String::from_utf8_lossy(&got.body));
-        if !cues.is_empty() {
-            read.push(crate::subtitles::Subtitle {
-                language: text.language.clone(),
-                cues,
-            });
-        }
-    }
-    read
 }
 
 /// A plan joined from several periods, checked before its pieces are fetched:
@@ -587,8 +558,7 @@ const TRACK_MOST: u64 = 1 << 40;
 /// named `filename`, placed where downloads go. `signature` says what is
 /// being fetched: parts staged for something else are not adopted. `texts`
 /// are carried as subtitle tracks where an MP4 or a Matroska file is made;
-/// an HLS stream's (gaps row Y20) where an MP4 is, by the joins of transport
-/// streams too, and not in a Matroska file.
+/// an HLS stream's (gaps row Y20) by the joins of transport streams too.
 #[allow(clippy::too_many_arguments)]
 async fn join_tracks(
     client: &reqwest::Client,
@@ -705,8 +675,7 @@ async fn join_tracks(
         // Run to the end like the remux of a transport stream: cut loose
         // from a pause it would go on writing a file a resume makes afresh.
         let made = if webm || mkv {
-            crate::mkvmux::join_with_text_async(files.clone(), texts.into_timed(), partial.clone())
-                .await
+            join_mkv(files.clone(), texts, partial.clone()).await
         } else if let [picture, sound] = files.as_slice().iter().collect::<Vec<_>>()[..]
             .iter()
             .map(|p| (*p).clone())
@@ -716,7 +685,7 @@ async fn join_tracks(
             if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_packed_aac(sound) {
                 match texts {
                     Texts::Hls(texts) => {
-                        let place = move |zero| texts.timed(zero);
+                        let place = move |clock| texts.timed_on(clock);
                         let (ts, aac, out) = (picture.clone(), sound.clone(), partial.clone());
                         crate::tsmux::join_packed_with_text_async(ts, aac, out, place).await
                     }
@@ -734,7 +703,7 @@ async fn join_tracks(
             {
                 match texts {
                     Texts::Hls(texts) => {
-                        let place = move |zero| texts.timed(zero);
+                        let place = move |clock| texts.timed_on(clock);
                         let (seen, heard, out) = (picture.clone(), sound.clone(), partial.clone());
                         crate::tsmux::join_ts_with_text_async(seen, heard, out, place).await
                     }
@@ -805,6 +774,19 @@ async fn join_mp4(
                 .await
         }
         None => crate::mp4mux::join_with_text_async(files, texts, out).await,
+    }
+}
+
+/// The tracks joined into one Matroska or WebM file with `texts` as its subtitles; an HLS
+/// stream's timed from where the tracks start (`tfdt`), as [`join_mp4`] times them (gaps row
+/// Y20).
+async fn join_mkv(files: Vec<PathBuf>, texts: Texts, out: PathBuf) -> Result<u64, String> {
+    match texts {
+        Texts::Timed(texts) => crate::mkvmux::join_with_text_async(files, texts, out).await,
+        Texts::Hls(texts) => {
+            let place = move |zero| texts.timed(zero);
+            crate::mkvmux::join_placed_async(files, place, out).await
+        }
     }
 }
 

@@ -412,6 +412,8 @@ pub(super) fn take_pes(stream: &mut Elementary, pes: &[u8]) -> Result<(), String
         let at = raw_dts.unwrap_or(p) + stream.shift;
         if at - last > JUMP || last - at > JUMP_BACK {
             stream.shift += last + STEP - at;
+            // Told to the subtitles, whose stretch after the discontinuity moves with it.
+            stream.moves.push(stream.shift);
         }
     }
     let pts = raw_pts.map(|p| p + stream.shift);

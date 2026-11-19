@@ -86,3 +86,24 @@ pub fn opus_webm(path: &Path, channels: u8, pre_skip: u16, frame_ms: u16, packet
     );
     std::fs::write(path, [header, segment].concat()).unwrap();
 }
+
+/// The cues of the first subtitle track of the Matroska file at `path`: each block's time in
+/// milliseconds and its text, WebVTT's empty identifier and settings lines taken off.
+pub fn cues_in(path: &Path) -> Vec<(i64, String)> {
+    let input = read_input(path, 0).unwrap();
+    let data = std::fs::read(path).unwrap();
+    let Some(track) = input.tracks.iter().find(|t| t.kind == 0x11) else {
+        return Vec::new();
+    };
+    let per_ms = i64::try_from(SCALE_NS / input.scale.max(1)).unwrap().max(1);
+    input
+        .blocks
+        .iter()
+        .filter(|b| b.track == track.number)
+        .map(|b| {
+            let body = &data[b.data_at as usize..(b.data_at + b.data_len) as usize];
+            let text = String::from_utf8_lossy(body);
+            (b.ticks / per_ms, text.trim_start_matches('\n').to_string())
+        })
+        .collect()
+}

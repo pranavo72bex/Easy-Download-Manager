@@ -714,8 +714,10 @@ fn a_sound_language_asked_for_picks_its_dub_or_else_the_main_sound() {
     );
 }
 
+/// WebVTT files and WebVTT in pieces (a template's, a list's) are listed, the first of each
+/// language (gaps row Y20); text in MP4 pieces is not.
 #[test]
-fn whole_webvtt_files_are_listed_once_a_language_and_pieced_text_is_not() {
+fn webvtt_files_and_pieces_are_listed_once_a_language() {
     let body = r#"<Period>
   <AdaptationSet contentType="video" mimeType="video/mp4">
     <SegmentTemplate timescale="1000" duration="4000" initialization="v/init.mp4" media="v/$Number$.m4s"/>
@@ -735,24 +737,41 @@ fn whole_webvtt_files_are_listed_once_a_language_and_pieced_text_is_not() {
     <SegmentTemplate timescale="1000" duration="4000" media="de/$Number$.vtt"/>
     <Representation id="de-pieces"/>
   </AdaptationSet>
+  <AdaptationSet contentType="text" mimeType="text/vtt" lang="es">
+    <Representation id="es"><SegmentList>
+      <SegmentURL media="es/a.vtt"/><SegmentURL media="es/b.vtt"/>
+    </SegmentList></Representation>
+  </AdaptationSet>
   <AdaptationSet contentType="text" mimeType="application/mp4" codecs="stpp" lang="fr">
     <Representation id="fr"><BaseURL>subs/fr.mp4</BaseURL></Representation>
   </AdaptationSet>
 </Period>"#;
     let plan = plan(&mpd(body), URL, Quality::Best, None).unwrap();
-    let listed: Vec<(&str, &str)> = plan
+    let listed: Vec<(&str, &str, usize)> = plan
         .texts
         .iter()
-        .map(|t| (t.language.as_str(), t.url.as_str()))
+        .map(|t| {
+            (
+                t.language.as_str(),
+                t.pieces[0].url.as_str(),
+                t.pieces.len(),
+            )
+        })
         .collect();
     assert_eq!(
         listed,
         [
-            ("en", "https://cdn.example/v/show/subs/en.vtt"),
-            ("pt-BR", "https://cdn.example/v/show/subs/pt.vtt"),
-            ("und", "https://cdn.example/v/show/subs/x.vtt"),
+            ("en", "https://cdn.example/v/show/subs/en.vtt", 1),
+            ("pt-BR", "https://cdn.example/v/show/subs/pt.vtt", 1),
+            ("und", "https://cdn.example/v/show/subs/x.vtt", 1),
+            // 20 s in pieces of 4.
+            ("de", "https://cdn.example/v/show/de/1.vtt", 5),
+            ("es", "https://cdn.example/v/show/es/a.vtt", 2),
         ]
     );
+    assert_eq!(plan.texts[0].url, "https://cdn.example/v/show/subs/en.vtt");
+    let last = &plan.texts[4].pieces[1];
+    assert_eq!(last.url, "https://cdn.example/v/show/es/b.vtt");
     assert_eq!(plan.video.unwrap().id, "v720", "the picture as before");
     // Several periods: their text would start again at each, so none is listed.
     let two = format!("{body}{}", body.replace("<Period>", "<Period id=\"2\">"));
