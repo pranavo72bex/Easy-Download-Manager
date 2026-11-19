@@ -8006,3 +8006,10 @@ tests and manifest (`migration_words`).
   dependencies.
 * **History goes here and to git,** not into the code: where a behaviour was kept from the
   earlier window, the behaviour contract is what fixes it.
+
+## Newcomer pages not written (2026-11-19, gaps row D5)
+
+The maintainer, 2026-11-19: "D5 new comer dev page is not needed". The row (a download's whole
+way, how to add a site rule, an Options field or a dialog, the control port's methods, dm's home
+files, the environment switches as pages under `docs/`) is closed without them; `AGENTS.md`'s
+glossary stays as it is.

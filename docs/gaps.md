@@ -188,7 +188,7 @@ W25, W22.
 **7. Structure and docs** (pure moves, after the features so they are moved once and no feature
 is written against a file about to be split; X1, X10, A10, A6 and A19's
 widgets are taken first of all, above): A5, A11, A19 (what is left), A20, A21, A14, A8, A9, A7,
-A12, A17 (with X5), A18, A4, X7, A16; then X3, D5, D6 (with X6).
+A12, A17 (with X5), A18, A4, X7, A16; then X3, D6 (with X6). D5 (pages for a newcomer) closed 2026-11-19 at the maintainer's word: not needed.
 
 **8. The test pass, once, at the end** (every failure it finds is fixed, then only what failed is
 run again):
@@ -588,7 +588,6 @@ of 60 in the base and 16 of 98 in the window, 307 lines in all (`secretstore/too
 
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
-| D5  | Pages a newcomer needs and cannot find: one picture of a download's whole way (extension, native host, inbox, queue, engine, progress, window, the function at each hop); a glossary (written: `AGENTS.md` › Glossary, 2026-11-14); how to add a site rule, an Options field, a GPUI dialog; the download's states and what moves between them (`queue/actions.rs`, `runner.rs`); the control port's 22 methods (spread over six files, about 4,390 lines); the files in dm's home; the environment switches | OPEN · M | `docs/guide/*.md`, each under about 150 lines and pointing at one real commit; the control API's page made from the typed requests in `probe.rs` and checked as the scorecard is |
 | D6  | The reading asked of a newcomer is too long: `docs/decisions.md` is 5,717 lines in one file, this file carried 290 lines of story beside its table, `CHANGELOG.md` is 151 KB | OPEN · M | One START-HERE page; decisions as `docs/decisions/NNNN-title.md` with an index; this file the table alone, its migration story moved to `docs/history/` once G9 closes |
 
 ### R. Release and distribution
