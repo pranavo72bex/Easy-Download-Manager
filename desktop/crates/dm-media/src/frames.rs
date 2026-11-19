@@ -404,76 +404,7 @@ mod mac {
                     "the system's video decoder would not start ({status})"
                 ));
             }
-            let mut decode_time = video.start.unwrap_or(0) as i64;
-            let mut failure = None;
-            for sample in &video.samples {
-                let pts = decode_time + i64::from(sample.cts);
-                let dts = decode_time;
-                decode_time += i64::from(sample.duration);
-                // Past the part's end by more than the decoder's look-ahead.
-                if dts as f64 / scale > end + 2.0 {
-                    break;
-                }
-                let mut bytes = vec![0u8; sample.size as usize];
-                if file.seek(SeekFrom::Start(sample.offset)).is_err()
-                    || file.read_exact(&mut bytes).is_err()
-                {
-                    failure = Some("the part could not be read".to_string());
-                    break;
-                }
-                let mut block: Ref = std::ptr::null();
-                if CMBlockBufferCreateWithMemoryBlock(
-                    std::ptr::null(),
-                    bytes.as_mut_ptr().cast(),
-                    bytes.len(),
-                    kCFAllocatorNull,
-                    std::ptr::null(),
-                    0,
-                    bytes.len(),
-                    0,
-                    &mut block,
-                ) != 0
-                {
-                    continue;
-                }
-                let time = |v: i64| CmTime {
-                    value: v,
-                    timescale: video.timescale as i32,
-                    flags: 1,
-                    epoch: 0,
-                };
-                let timing = TimingInfo {
-                    duration: time(i64::from(sample.duration)),
-                    presentation: time(pts),
-                    decode: time(dts),
-                };
-                let size = bytes.len();
-                let mut buffer: Ref = std::ptr::null();
-                let made = CMSampleBufferCreateReady(
-                    std::ptr::null(),
-                    block,
-                    format,
-                    1,
-                    1,
-                    &timing,
-                    1,
-                    &size,
-                    &mut buffer,
-                );
-                CFRelease(block);
-                if made != 0 {
-                    continue;
-                }
-                let mut info = 0u32;
-                let _ = VTDecompressionSessionDecodeFrame(
-                    session,
-                    buffer,
-                    0,
-                    std::ptr::null_mut(),
-                    &mut info,
-                );
-                CFRelease(buffer);
-            }
+            let failure = decode_samples(session, format, &video, &mut file, scale, end);
             VTDecompressionSessionWaitForAsynchronousFrames(session);
             VTDecompressionSessionInvalidate(session);
             CFRelease(session);
@@ -510,6 +441,95 @@ mod mac {
             })
             .collect::<Vec<_>>();
         Ok((w as u16, h as u16, frames))
+    }
+
+    /// Decodes the samples of `video`, read from `file`, in `session`, whose pictures are
+    /// `format`, until one past the part's `end` (in seconds; `scale` ticks a second) by more
+    /// than the decoder looks ahead. Why it stopped where a sample could not be read.
+    ///
+    /// # Safety
+    ///
+    /// `session` and `format` are live, as `read` made them; the decoder's callback's
+    /// `Collected` outlives the session.
+    unsafe fn decode_samples(
+        session: Ref,
+        format: Ref,
+        video: &crate::mp4mux::Track,
+        file: &mut std::fs::File,
+        scale: f64,
+        end: f64,
+    ) -> Option<String> {
+        let mut decode_time = video.start.unwrap_or(0) as i64;
+        let mut failure = None;
+        for sample in &video.samples {
+            let pts = decode_time + i64::from(sample.cts);
+            let dts = decode_time;
+            decode_time += i64::from(sample.duration);
+            // Past the part's end by more than the decoder's look-ahead.
+            if dts as f64 / scale > end + 2.0 {
+                break;
+            }
+            let mut bytes = vec![0u8; sample.size as usize];
+            if file.seek(SeekFrom::Start(sample.offset)).is_err()
+                || file.read_exact(&mut bytes).is_err()
+            {
+                failure = Some("the part could not be read".to_string());
+                break;
+            }
+            let mut block: Ref = std::ptr::null();
+            if CMBlockBufferCreateWithMemoryBlock(
+                std::ptr::null(),
+                bytes.as_mut_ptr().cast(),
+                bytes.len(),
+                kCFAllocatorNull,
+                std::ptr::null(),
+                0,
+                bytes.len(),
+                0,
+                &mut block,
+            ) != 0
+            {
+                continue;
+            }
+            let time = |v: i64| CmTime {
+                value: v,
+                timescale: video.timescale as i32,
+                flags: 1,
+                epoch: 0,
+            };
+            let timing = TimingInfo {
+                duration: time(i64::from(sample.duration)),
+                presentation: time(pts),
+                decode: time(dts),
+            };
+            let size = bytes.len();
+            let mut buffer: Ref = std::ptr::null();
+            let made = CMSampleBufferCreateReady(
+                std::ptr::null(),
+                block,
+                format,
+                1,
+                1,
+                &timing,
+                1,
+                &size,
+                &mut buffer,
+            );
+            CFRelease(block);
+            if made != 0 {
+                continue;
+            }
+            let mut info = 0u32;
+            let _ = VTDecompressionSessionDecodeFrame(
+                session,
+                buffer,
+                0,
+                std::ptr::null_mut(),
+                &mut info,
+            );
+            CFRelease(buffer);
+        }
+        failure
     }
 
     /// The SPS and PPS of an `avc1`/`avc3` sample description (`stsd`, a

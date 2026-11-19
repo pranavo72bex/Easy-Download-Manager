@@ -50,19 +50,7 @@ pub async fn download_ftp(
      * waited for and never came, and the download failed (or, set to keep
      * trying, never ended). It is placed as it is. */
     if described.size == Some(0) {
-        let part = part_path(&options.parts_dir, 0);
-        fs::write(&part, b"").await?;
-        let (path, bytes, category) =
-            crate::download::finish(&name, None, &[part], options).await?;
-        return Ok(Finished {
-            left_behind: None,
-            path,
-            bytes,
-            connections: 1,
-            category,
-            verified: options.checksum.is_some(),
-            mirrors: 1,
-        });
+        return placed_empty(&name, options).await;
     }
     let segments = planned(&described, options).await?;
 
@@ -103,54 +91,15 @@ pub async fn download_ftp(
     let next = Arc::new(AtomicUsize::new(0));
     let mut running = Vec::new();
     for _ in 0..workers {
-        let (target, ranges, next, downloaded, options, spare) = (
+        running.push(tokio::spawn(fetch_ranges(
             target.clone(),
             Arc::clone(&ranges),
             Arc::clone(&next),
             Arc::clone(&downloaded),
             options.clone(),
             Arc::clone(&spare),
-        );
-        let resumable = described.resumable;
-        running.push(tokio::spawn(async move {
-            loop {
-                let index = next.fetch_add(1, Ordering::Relaxed);
-                let Some((segment, part)) = ranges.get(index) else {
-                    return Ok::<(), Error>(());
-                };
-                // As for HTTP: without REST each attempt starts from nothing.
-                let on_disk = || {
-                    if resumable {
-                        std::fs::metadata(part).map_or(0, |m| m.len())
-                    } else {
-                        0
-                    }
-                };
-                // A part a power cut tore can end in bytes the disk never
-                // got: its length is not the ledger. Checked once per range
-                // and run, not at each retry of this run's own writing; a
-                // server that cannot be asked is left to the fetch to say.
-                if resumable {
-                    if let Err(stopped @ (Error::Paused | Error::Cancelled)) =
-                        repair_torn_part(&target, segment, part, &options, &downloaded).await
-                    {
-                        return Err(stopped);
-                    }
-                }
-                retry::run_making_progress(&options.control, options.tries(), on_disk, || {
-                    fetch_range(
-                        &target,
-                        segment,
-                        part,
-                        resumable,
-                        &options,
-                        &downloaded,
-                        &spare,
-                    )
-                })
-                .await?;
-            }
-        }));
+            described.resumable,
+        )));
     }
     let mut outcome = Ok(());
     for worker in running {
@@ -185,6 +134,72 @@ pub async fn download_ftp(
         verified: options.checksum.is_some(),
         mirrors: 1,
     })
+}
+
+/// Places the empty file `name` as it is: it has no range to fetch.
+async fn placed_empty(name: &str, options: &Options) -> Result<Finished, Error> {
+    let part = part_path(&options.parts_dir, 0);
+    fs::write(&part, b"").await?;
+    let (path, bytes, category) = crate::download::finish(name, None, &[part], options).await?;
+    Ok(Finished {
+        left_behind: None,
+        path,
+        bytes,
+        connections: 1,
+        category,
+        verified: options.checksum.is_some(),
+        mirrors: 1,
+    })
+}
+
+/// One connection of `download_ftp`: the ranges it takes one after another, each the next
+/// one not yet taken, until none is left.
+async fn fetch_ranges(
+    target: Target,
+    ranges: Arc<Vec<(Segment, PathBuf)>>,
+    next: Arc<AtomicUsize>,
+    downloaded: Arc<AtomicU64>,
+    options: Options,
+    spare: Arc<std::sync::Mutex<Option<Session>>>,
+    resumable: bool,
+) -> Result<(), Error> {
+    loop {
+        let index = next.fetch_add(1, Ordering::Relaxed);
+        let Some((segment, part)) = ranges.get(index) else {
+            return Ok(());
+        };
+        // As for HTTP: without REST each attempt starts from nothing.
+        let on_disk = || {
+            if resumable {
+                std::fs::metadata(part).map_or(0, |m| m.len())
+            } else {
+                0
+            }
+        };
+        // A part a power cut tore can end in bytes the disk never
+        // got: its length is not the ledger. Checked once per range
+        // and run, not at each retry of this run's own writing; a
+        // server that cannot be asked is left to the fetch to say.
+        if resumable {
+            if let Err(stopped @ (Error::Paused | Error::Cancelled)) =
+                repair_torn_part(&target, segment, part, &options, &downloaded).await
+            {
+                return Err(stopped);
+            }
+        }
+        retry::run_making_progress(&options.control, options.tries(), on_disk, || {
+            fetch_range(
+                &target,
+                segment,
+                part,
+                resumable,
+                &options,
+                &downloaded,
+                &spare,
+            )
+        })
+        .await?;
+    }
 }
 
 /// The plan recorded beside the parts where it is this file's, or a new one.

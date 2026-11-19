@@ -10,7 +10,7 @@ desktop/crates/dm-core/src/download.rs 996
 desktop/crates/dm-core/src/download/assemble.rs 891
 desktop/crates/dm-core/src/download/dash.rs 2132
 desktop/crates/dm-core/src/download/hls.rs 1589
-desktop/crates/dm-core/src/download/ranged.rs 921
+desktop/crates/dm-core/src/download/ranged.rs 848
 desktop/crates/dm-core/src/download/ranged/attempt.rs 1140
 desktop/crates/dm-core/src/extract/sevenz/header.rs 845
 desktop/crates/dm-core/src/queue.rs 1232
@@ -36,14 +36,14 @@ desktop/crates/dm-js/src/builtins/object.rs 983
 desktop/crates/dm-js/src/interp.rs 1676
 desktop/crates/dm-js/src/parser.rs 1701
 desktop/crates/dm-js/src/regexp.rs 1033
-desktop/crates/dm-media/src/mkvmux.rs 1403
+desktop/crates/dm-media/src/mkvmux.rs 1207
 desktop/crates/dm-media/src/mp3.rs 931
 desktop/crates/dm-media/src/mp3/tables.rs 2021
 desktop/crates/dm-protocol/src/lib.rs 1385
 desktop/crates/dm-shell/src/app/backend.rs 1392
 desktop/crates/dm-shell/src/app/commands.rs 856
 desktop/crates/dm-shell/src/app/session.rs 824
-desktop/crates/dm-shell/src/host.rs 1340
+desktop/crates/dm-shell/src/host.rs 1249
 desktop/crates/dm-shell/src/lists.rs 847
 desktop/crates/dm-shell/src/register.rs 1531
 desktop/crates/dm-shell/src/settings.rs 1689

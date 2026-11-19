@@ -11,6 +11,7 @@ mod attempt;
 mod connection;
 mod helping;
 mod limits;
+mod segment;
 mod staged;
 
 use attempt::attempt_segment;
@@ -18,6 +19,7 @@ use connection::Connection;
 use helping::*;
 pub(super) use limits::Limits;
 use limits::*;
+use segment::*;
 pub(super) use staged::*;
 
 /// An answer a range's attempt reads where it asks for none of its own.
@@ -774,59 +776,10 @@ pub(super) async fn fetch_segment(
     // began, for telling a server that holds this connection from a link
     // that has gone quiet for everyone.
     let at_start = (AtomicU64::new(0), AtomicU64::new(0));
-    let busy = |e: &Error| {
-        let refused = matches!(
-            e,
-            Error::Refused {
-                status: 429 | 503,
-                ..
-            }
-        );
-        /* A request the server took and never answered: a server that holds
-         * connections past its limit open rather than refusing them (seen
-         * with proof.ovh.net at 16 connections, 2026-10-30). Waited out,
-         * dm's tries on each would hold the download for minutes and then
-         * fail it, where fewer connections finish it. Stepped aside while
-         * others are served, the range goes to them. Only where this
-         * request got no byte while the others did: a link gone quiet for
-         * everyone (the computer asleep, a router restarting) is retried
-         * on every connection as before, and a response that stalled after
-         * bytes came is this range's to try again. */
-        let (whole_before, own_before) = (
-            at_start.0.load(Ordering::Relaxed),
-            at_start.1.load(Ordering::Relaxed),
-        );
-        let unanswered = matches!(e, Error::Network(e) if e.is_timeout())
-            && on_disk() == own_before
-            && job.downloaded.load(Ordering::Relaxed) > whole_before;
-        /* Once the server is known to limit this download, only while another range is being
-         * fetched: one refused while none is, is asked again at the server's pace and counted
-         * against the tries, so a server that refuses everything still fails the download
-         * rather than being asked for ever. */
-        let others = active.load(Ordering::SeqCst) > 1
-            && (!job.limits.limited() || job.together.flowing() > 0);
-        let stepping_aside = (refused || unanswered) && others;
-        if stepping_aside {
-            turned_away.store(true, Ordering::SeqCst);
-            job.limits.found();
-        }
-        stepping_aside
-    };
+    let busy = |e: &Error| steps_aside(e, job, active, turned_away, &at_start, &on_disk);
     // Refused by a server that limits how often it takes a request: asked again when its pace
     // allows, not on the backoff's growing waits (`limits::Limits::turned_away`).
-    let paced = |e: &Error| {
-        let wait = job.limits.wait_left();
-        (job.limits.limited()
-            && !wait.is_zero()
-            && matches!(
-                e,
-                Error::Refused {
-                    status: 429 | 503,
-                    ..
-                }
-            ))
-        .then_some(wait.max(PACE_LEAST))
-    };
+    let paced = |e: &Error| paced_wait(e, job);
     // Only a capped stream is asked again slice by slice; without a cap the
     // ledger is not read here at all (it is a file, opened and read). Nor is
     // range 0 under the probe's answer where that was asked for the file's
@@ -885,33 +838,7 @@ pub(super) async fn fetch_segment(
         break outcome;
     };
 
-    match outcome {
-        // Asked to stop, so stop — including not treating it as a short range
-        // to be waited out.
-        Err(Error::Paused) => Err(Error::Paused),
-        Err(Error::Cancelled) => Err(Error::Cancelled),
-        /* A range that keeps arriving short is not this function's to judge.
-         * Assembly compares the whole against the length the server stated,
-         * so one place decides whether a file is complete rather than two
-         * disagreeing about it. */
-        Err(Error::Incomplete { .. }) => Ok(None),
-        /* Its seams with the ranges either side that are whole, to be asked for again: handed on
-         * to be asked beside the ranges (`hand_on`), so this connection takes its next work at
-         * once; or, where the server limits this download, asked once no range is being asked
-         * for (`run`), as a check sent beside a range's request took the request the server
-         * would have taken. */
-        Ok(onward) if resumable => {
-            crate::finish_trace::mark("a range whole");
-            if job.limits.limited() {
-                job.limits.check_later(index);
-            } else {
-                hand_on(job, index).await;
-                crate::finish_trace::mark("its seams handed on");
-            }
-            Ok(onward)
-        }
-        other => other,
-    }
+    settled(job, index, resumable, outcome).await
 }
 
 /// How many bytes before each range boundary are fetched as an overlap and

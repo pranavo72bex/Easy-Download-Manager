@@ -20,8 +20,8 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use retina::client::{
-    Credentials, InitialTimestampPolicy, PlayOptions, Session, SessionOptions, SetupOptions,
-    TcpTransportOptions, Transport,
+    Credentials, Demuxed, InitialTimestampPolicy, PlayOptions, Session, SessionOptions,
+    SetupOptions, Stream, TcpTransportOptions, Transport,
 };
 use retina::codec::{CodecItem, FrameFormat, ParametersRef};
 
@@ -154,46 +154,7 @@ async fn record_within(
     } else {
         None
     };
-    let options = SessionOptions::default()
-        .creds(creds)
-        .user_agent("dm".into());
-    let mut session = tokio::time::timeout(DESCRIBE_WITHIN, Session::describe(address, options))
-        .await
-        .map_err(|_| Error::Internal("the RTSP server did not answer".into()))?
-        .map_err(failed)?;
-
-    // The first picture and the first sound dm can put into an MP4.
-    let wanted = |media: &str, names: &[&str]| {
-        session
-            .streams()
-            .iter()
-            .position(|s| s.media() == media && names.contains(&s.encoding_name()))
-    };
-    let video = wanted("video", &["h264", "h265"]);
-    let audio = wanted("audio", &["mpeg4-generic"]);
-    if video.is_none() && audio.is_none() {
-        return Err(Error::Internal(
-            "the RTSP stream has no H.264, H.265 or AAC dm can record".into(),
-        ));
-    }
-    for i in [video, audio].into_iter().flatten() {
-        session
-            .setup(
-                i,
-                SetupOptions::default()
-                    .transport(Transport::Tcp(TcpTransportOptions::default()))
-                    .frame_format(FrameFormat::MP4),
-            )
-            .await
-            .map_err(failed)?;
-    }
-    // Permissive about the PLAY reply's timing: servers (mediamtx among
-    // them) leave `rtptime` out, and the first packet's time serves.
-    let playing = session
-        .play(PlayOptions::default().initial_timestamp(InitialTimestampPolicy::Permissive))
-        .await
-        .map_err(failed)?;
-    let mut frames = playing.demuxed().map_err(failed)?;
+    let (mut frames, video, audio) = play(address, creds).await?;
 
     let mut writer: Option<fmp4::Writer> = None;
     let mut tracks: [Option<usize>; 2] = [None, None];
@@ -265,38 +226,7 @@ async fn record_within(
             if !(known(video) && known(audio)) && started.elapsed() < PARAMETERS_WITHIN {
                 continue;
             }
-            let mut specs = Vec::new();
-            for (slot, index) in [video, audio].into_iter().enumerate() {
-                let Some(stream) = index.and_then(|i| frames.streams().get(i)) else {
-                    continue;
-                };
-                let spec = match stream.parameters() {
-                    Some(ParametersRef::Video(v)) => {
-                        let (width, height) = v.pixel_dimensions();
-                        v.mp4_sample_entry().build().ok().map(|entry| fmp4::Spec {
-                            entry,
-                            timescale: stream.clock_rate_hz(),
-                            video: true,
-                            width,
-                            height,
-                        })
-                    }
-                    Some(ParametersRef::Audio(a)) => {
-                        a.mp4_sample_entry().build().ok().map(|entry| fmp4::Spec {
-                            entry,
-                            timescale: a.clock_rate(),
-                            video: false,
-                            width: 0,
-                            height: 0,
-                        })
-                    }
-                    _ => None,
-                };
-                if let (Some(spec), Some(t)) = (spec, tracks.get_mut(slot)) {
-                    *t = Some(specs.len());
-                    specs.push(spec);
-                }
-            }
+            let specs = track_specs(frames.streams(), video, audio, &mut tracks);
             if specs.is_empty() {
                 if started.elapsed() > NEVER_SAID_AFTER {
                     stop = Some(Error::Internal(
@@ -330,6 +260,98 @@ async fn record_within(
             "the RTSP server ended the stream before sending any of it".into(),
         )),
     }
+}
+
+/// Describes the stream at `address`, sets up the first picture and the first sound dm can put
+/// into an MP4 and plays them: the frames, and the picture's and the sound's stream.
+async fn play(
+    address: url::Url,
+    creds: Option<Credentials>,
+) -> Result<(Demuxed, Option<usize>, Option<usize>), Error> {
+    let options = SessionOptions::default()
+        .creds(creds)
+        .user_agent("dm".into());
+    let mut session = tokio::time::timeout(DESCRIBE_WITHIN, Session::describe(address, options))
+        .await
+        .map_err(|_| Error::Internal("the RTSP server did not answer".into()))?
+        .map_err(failed)?;
+
+    // The first picture and the first sound dm can put into an MP4.
+    let wanted = |media: &str, names: &[&str]| {
+        session
+            .streams()
+            .iter()
+            .position(|s| s.media() == media && names.contains(&s.encoding_name()))
+    };
+    let video = wanted("video", &["h264", "h265"]);
+    let audio = wanted("audio", &["mpeg4-generic"]);
+    if video.is_none() && audio.is_none() {
+        return Err(Error::Internal(
+            "the RTSP stream has no H.264, H.265 or AAC dm can record".into(),
+        ));
+    }
+    for i in [video, audio].into_iter().flatten() {
+        session
+            .setup(
+                i,
+                SetupOptions::default()
+                    .transport(Transport::Tcp(TcpTransportOptions::default()))
+                    .frame_format(FrameFormat::MP4),
+            )
+            .await
+            .map_err(failed)?;
+    }
+    // Permissive about the PLAY reply's timing: servers (mediamtx among
+    // them) leave `rtptime` out, and the first packet's time serves.
+    let playing = session
+        .play(PlayOptions::default().initial_timestamp(InitialTimestampPolicy::Permissive))
+        .await
+        .map_err(failed)?;
+    let frames = playing.demuxed().map_err(failed)?;
+    Ok((frames, video, audio))
+}
+
+/// The file's tracks: the picture's and the sound's streams that have said what they are, each
+/// one's track in the file noted in `tracks` (0 picture, 1 sound).
+fn track_specs(
+    streams: &[Stream],
+    video: Option<usize>,
+    audio: Option<usize>,
+    tracks: &mut [Option<usize>; 2],
+) -> Vec<fmp4::Spec> {
+    let mut specs = Vec::new();
+    for (slot, index) in [video, audio].into_iter().enumerate() {
+        let Some(stream) = index.and_then(|i| streams.get(i)) else {
+            continue;
+        };
+        let spec = match stream.parameters() {
+            Some(ParametersRef::Video(v)) => {
+                let (width, height) = v.pixel_dimensions();
+                v.mp4_sample_entry().build().ok().map(|entry| fmp4::Spec {
+                    entry,
+                    timescale: stream.clock_rate_hz(),
+                    video: true,
+                    width,
+                    height,
+                })
+            }
+            Some(ParametersRef::Audio(a)) => {
+                a.mp4_sample_entry().build().ok().map(|entry| fmp4::Spec {
+                    entry,
+                    timescale: a.clock_rate(),
+                    video: false,
+                    width: 0,
+                    height: 0,
+                })
+            }
+            _ => None,
+        };
+        if let (Some(spec), Some(t)) = (spec, tracks.get_mut(slot)) {
+            *t = Some(specs.len());
+            specs.push(spec);
+        }
+    }
+    specs
 }
 
 #[cfg(test)]
