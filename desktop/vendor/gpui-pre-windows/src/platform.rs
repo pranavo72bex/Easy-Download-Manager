@@ -761,7 +761,7 @@ impl Platform for WindowsPlatform {
         system_appearance().log_err().unwrap_or_default()
     }
 
-    // dm: the app's Light or Dark (None: the system's), which upstream ignored on Windows. Each
+    // dm(theme): the app's Light or Dark (None: the system's), which upstream ignored on Windows. Each
     // window is told by a message of its own (Windows will not post `WM_SETTINGCHANGE` with its
     // string), so it takes the new look from its own message loop, outside the update that
     // asked (desktop/vendor/README.md).

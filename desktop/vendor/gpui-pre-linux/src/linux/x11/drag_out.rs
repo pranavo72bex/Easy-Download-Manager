@@ -1,4 +1,4 @@
-// dm: files dragged out of a window on X11, into a file manager, a mail or a
+// dm(x11-drag-out): files dragged out of a window on X11, into a file manager, a mail or a
 // chat (`PlatformWindow::start_external_drag`, which upstream has on macOS and
 // Wayland only). XDND is spoken as the drag's source on a connection of its
 // own, on a thread of its own, so the window's event loop goes on drawing

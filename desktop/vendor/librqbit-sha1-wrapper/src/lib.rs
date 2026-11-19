@@ -85,7 +85,7 @@ mod crypto_hash_impl {
     }
 }
 
-// dm: `sha1-ring` is the pure-Rust sha1 and sha2 crates (RustCrypto) here, in
+// dm(sha1): `sha1-ring` is the pure-Rust sha1 and sha2 crates (RustCrypto) here, in
 // place of aws-lc-rs: aws-lc is a C library built with cmake, and dm's one
 // crypto provider is ring. The sha1 crate uses the processor's SHA
 // instructions where it has them (x86 SHA-NI, ARMv8 SHA), so checking a piece
@@ -153,7 +153,7 @@ pub type Sha256 = ring_impl::Sha256Ring;
 mod tests {
     use super::{ISha1, ISha256, Sha1, Sha256};
 
-    // dm: the SHA-1 test vector of FIPS 180 ("abc"), fed in two parts, so
+    // dm(sha1): the SHA-1 test vector of FIPS 180 ("abc"), fed in two parts, so
     // the backend's streaming and its output are both checked.
     #[test]
     fn test_sha1_known_vector_abc() {

@@ -127,7 +127,7 @@ impl TorrentStorage for FilesystemStorage {
         shared: &ManagedTorrentShared,
         metadata: &TorrentMetadata,
     ) -> anyhow::Result<()> {
-        // dm: every file's name checked before any file is made (gaps row 159 b).
+        // dm(names): every file's name checked before any file is made (gaps row 159 b).
         for file_details in metadata.file_infos.iter() {
             if !file_details.attrs.padding && !plain_relative(&file_details.relative_filename) {
                 anyhow::bail!(
@@ -177,7 +177,7 @@ impl TorrentStorage for FilesystemStorage {
     }
 }
 
-/// dm: whether a torrent's file name stays in the torrent's folder: plain
+/// dm(names): whether a torrent's file name stays in the torrent's folder: plain
 /// parts only, no root, no `..`, no drive. On Windows a part such as `D:x`
 /// made `PathBuf::push` start again on drive D: (and `name:stream` names a
 /// stream of a file), so such a torrent created empty files outside the

@@ -916,7 +916,7 @@ impl X11Client {
                     return Some(());
                 }
 
-                // dm: a drag out of this window is over (`drag_out`).
+                // dm(x11-drag-out): a drag out of this window is over (`drag_out`).
                 if event.type_ == self.0.borrow().atoms._DM_DRAG_ENDED {
                     window.handle_input(PlatformInput::FileDrop(FileDropEvent::Ended));
                     return Some(());
@@ -959,7 +959,7 @@ impl X11Client {
                         || "Failed to query pointer position",
                         state.xcb_connection.query_pointer(event.window),
                     ) {
-                        // dm: in the window's points, as every other pointer
+                        // dm(x11-drop-pt): in the window's points, as every other pointer
                         // event here is: the pointer's pixels put a drop at
                         // twice its place on a screen at 2x.
                         state.xdnd_state.position = Point::new(
@@ -1008,7 +1008,7 @@ impl X11Client {
             Event::SelectionNotify(event) => {
                 let window = self.get_window(event.requestor)?;
                 let state = self.0.borrow_mut();
-                // dm: the whole of what was dropped, not its first 4 KiB (a
+                // dm(x11-drop-all): the whole of what was dropped, not its first 4 KiB (a
                 // drop of many links, or of a page's text, was cut short), in
                 // pieces until the server says nothing is left.
                 let mut value = Vec::new();
@@ -1038,7 +1038,7 @@ impl X11Client {
                 {
                     // A character cut in two loses itself, not the drop.
                     let file_list = String::from_utf8_lossy(&value);
-                    // dm: a file's address becomes its path, as before; any
+                    // dm(links): a file's address becomes its path, as before; any
                     // other line (a link dragged from a browser, offered as
                     // `text/uri-list` or as text) is handed on as the "path"
                     // it says, for the application to read as a link. Upstream

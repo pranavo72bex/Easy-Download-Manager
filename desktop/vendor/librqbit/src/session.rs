@@ -710,7 +710,7 @@ impl Session {
                 .client_name_and_version
                 .unwrap_or_else(|| crate::client_name_and_version().to_owned());
 
-            // dm: reqwest is built without a TLS provider of its own under
+            // dm(ring): reqwest is built without a TLS provider of its own under
             // `rust-tls` (Cargo.toml), and a client built with none panics.
             // ring is made the process's default unless one already is (an
             // Err here only says one is); every client this session and its
@@ -946,7 +946,7 @@ impl Session {
             bail!("Incoming ip {incoming_ip} is not in allowlist");
         }
 
-        // dm: an encrypted connection (MSE) is answered for whichever of
+        // dm(mse): an encrypted connection (MSE) is answered for whichever of
         // this session's torrents it names; a plaintext one is passed through
         // unless only encrypted ones are taken.
         let info_hashes: Vec<Id20> = self
@@ -1042,7 +1042,7 @@ impl Session {
                         }
                     }
                 },
-                // dm: every finished check is taken, a failed one too. With the
+                // dm(listener): every finished check is taken, a failed one too. With the
                 // pattern `Some(Ok(..))`, a failed check disabled this branch
                 // until the next connection came in, and the checks still
                 // under way were not polled meanwhile: an encrypted handshake,
@@ -1881,7 +1881,7 @@ mod tests {
         ));
     }
 
-    // dm: upstream's test_torrent_file_from_info_and_bytes reads
+    // dm(trim): upstream's test_torrent_file_from_info_and_bytes reads
     // resources/ubuntu-21.04-desktop-amd64.iso.torrent, and resources/ is not
     // vendored (desktop/vendor/README.md).
 }

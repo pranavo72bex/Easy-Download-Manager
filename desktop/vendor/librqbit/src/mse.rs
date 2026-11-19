@@ -1,4 +1,4 @@
-//! dm: BitTorrent Message Stream Encryption (MSE, also called PE), the
+//! dm(mse): BitTorrent Message Stream Encryption (MSE, also called PE), the
 //! obfuscated handshake and RC4 stream other clients use, so a peer that
 //! accepts only encrypted connections is reached, and one that connects
 //! encrypted is taken (desktop/vendor/README.md, dm's gaps row 150).

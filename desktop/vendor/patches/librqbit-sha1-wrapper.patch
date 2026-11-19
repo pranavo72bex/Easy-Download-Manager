@@ -1,8 +1,9 @@
 dm's change to librqbit-sha1-wrapper 9.1.0 (crates.io, Apache-2.0), applied
 to the published crate with Cargo.lock, Cargo.toml.orig, .cargo_vcs_info.json
 and .cargo-ok removed first. Made again by desktop/vendor/vendor.sh; explained
-in desktop/vendor/README.md. The text before each file's section says what
-its hunks do, in order; git apply skips it.
+in desktop/vendor/README.md (each change marked `dm(sha1):`, its row in that
+file's table). The text before each file's section says what its hunks do, in
+order; git apply skips it.
 
 Cargo.toml:
   1. The feature `sha1-ring`, the name librqbit and librqbit-core ask for, is
@@ -19,7 +20,7 @@ index 4f59e97..e1a8cc4 100644
  default = ["sha1-crypto-hash"]
  sha1-crypto-hash = ["crypto-hash"]
 -sha1-ring = ["aws-lc-rs"]
-+# dm: the name librqbit-core and librqbit ask for, kept, now backed by the
++# dm(sha1): the name librqbit-core and librqbit ask for, kept, now backed by the
 +# pure-Rust sha1 and sha2 crates rather than aws-lc-rs, which built a second
 +# crypto library in C (with cmake) beside ring (desktop/vendor/README.md).
 +sha1-ring = ["sha1", "sha2"]
@@ -57,7 +58,7 @@ index 3cffb56..e4ccee7 100644
      }
  }
  
-+// dm: `sha1-ring` is the pure-Rust sha1 and sha2 crates (RustCrypto) here, in
++// dm(sha1): `sha1-ring` is the pure-Rust sha1 and sha2 crates (RustCrypto) here, in
 +// place of aws-lc-rs: aws-lc is a C library built with cmake, and dm's one
 +// crypto provider is ring. The sha1 crate uses the processor's SHA
 +// instructions where it has them (x86 SHA-NI, ARMv8 SHA), so checking a piece
@@ -128,7 +129,7 @@ index 3cffb56..e4ccee7 100644
 -    use super::{ISha256, Sha256};
 +    use super::{ISha1, ISha256, Sha1, Sha256};
 +
-+    // dm: the SHA-1 test vector of FIPS 180 ("abc"), fed in two parts, so
++    // dm(sha1): the SHA-1 test vector of FIPS 180 ("abc"), fed in two parts, so
 +    // the backend's streaming and its output are both checked.
 +    #[test]
 +    fn test_sha1_known_vector_abc() {

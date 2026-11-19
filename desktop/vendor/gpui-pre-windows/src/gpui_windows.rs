@@ -10,7 +10,7 @@ mod directx_devices;
 mod directx_renderer;
 mod dispatcher;
 mod display;
-// dm: files dragged out of the window (desktop/vendor/README.md).
+// dm(win-drag-out): files dragged out of the window (desktop/vendor/README.md).
 mod drag_out;
 mod events;
 mod keyboard;

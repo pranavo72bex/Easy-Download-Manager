@@ -83,7 +83,7 @@ pub struct PeerConnectionOptions {
     /// one at a stream's read position after a seek, is requested only after
     /// those, so a smaller window makes streams react faster to seeks.
     pub max_request_window: Option<usize>,
-    /// dm: only encrypted connections (MSE), made and taken. Off, a peer is
+    /// dm(mse): only encrypted connections (MSE), made and taken. Off, a peer is
     /// asked in plaintext first and encrypted where it refuses that, and
     /// both kinds are taken.
     #[serde(default)]
@@ -121,7 +121,7 @@ pub(crate) async fn with_timeout<T>(
     fut.await
 }
 
-/// dm: a connection with its BitTorrent handshakes exchanged.
+/// dm(mse): a connection with its BitTorrent handshakes exchanged.
 struct Connected {
     ckind: ConnectionKind,
     handshake_supports_extended: bool,
@@ -237,7 +237,7 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
             .connect_timeout
             .unwrap_or_else(|| Duration::from_secs(10));
 
-        // dm: in plaintext first, as before; a peer that hangs up on that may
+        // dm(mse): in plaintext first, as before; a peer that hangs up on that may
         // take only encrypted connections (MSE), and is asked again so.
         let require = self.options.require_encryption;
         let connected = match self
@@ -273,7 +273,7 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
         .await
     }
 
-    /// dm: connects and exchanges BitTorrent handshakes, over an encrypted
+    /// dm(mse): connects and exchanges BitTorrent handshakes, over an encrypted
     /// connection (`crate::mse`) where `encrypted` says.
     async fn connect_and_handshake(
         &self,

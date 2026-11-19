@@ -84,7 +84,7 @@ x11rb::atom_manager! {
         _GTK_FRAME_EXTENTS,
         _GTK_EDGE_CONSTRAINTS,
         _NET_CLIENT_LIST_STACKING,
-        // dm: a drag out of the window is over (`drag_out`).
+        // dm(x11-drag-out): a drag out of the window is over (`drag_out`).
         _DM_DRAG_ENDED,
     }
 }
@@ -1304,7 +1304,7 @@ impl X11WindowStatePtr {
             // because it contains wrong values.
             if is_resize {
                 state.bounds.size = bounds.size;
-                // dm: where the window now stands, asked of the X server: a
+                // dm(x11-place): where the window now stands, asked of the X server: a
                 // window manager that moves a window as it resizes it (openbox,
                 // keeping it on the screen) left the old origin here, and a
                 // screen reader and every click aimed from it missed by as much.
@@ -1336,7 +1336,7 @@ impl X11WindowStatePtr {
             result
         };
 
-        // dm: AccessKit is told where the window now is, so a screen reader
+        // dm(x11-a11y): AccessKit is told where the window now is, so a screen reader
         // finds each control on the screen, not as if the window stood at
         // its top-left corner (nothing called `a11y_update_window_bounds`).
         self.dm_a11y_bounds();
@@ -1353,7 +1353,7 @@ impl X11WindowStatePtr {
         Ok(())
     }
 
-    /// dm: the window's frame and inside, on the screen, told to AccessKit.
+    /// dm(x11-a11y): the window's frame and inside, on the screen, told to AccessKit.
     pub(crate) fn dm_a11y_bounds(&self) {
         let mut state = self.state.borrow_mut();
         let scale = state.scale_factor;
@@ -1881,7 +1881,7 @@ impl PlatformWindow for X11Window {
         .log_err();
     }
 
-    // dm: files dragged out of the window (`drag_out`); upstream offers it
+    // dm(x11-drag-out): files dragged out of the window (`drag_out`); upstream offers it
     // on macOS and Wayland only.
     fn can_start_external_drag(&self) -> bool {
         true
@@ -2061,7 +2061,7 @@ impl PlatformWindow for X11Window {
             accesskit_unix::Adapter::new(activation_handler, action_handler, deactivation_handler);
 
         self.0.state.borrow_mut().accesskit_adapter = Some(adapter);
-        // dm: from the start, not only after the window first moves.
+        // dm(x11-a11y): from the start, not only after the window first moves.
         self.0.dm_a11y_bounds();
     }
 
@@ -2073,7 +2073,7 @@ impl PlatformWindow for X11Window {
     }
 
     fn a11y_update_window_bounds(&self) {
-        // dm: shared with `set_bounds` and `a11y_init`.
+        // dm(x11-a11y): shared with `set_bounds` and `a11y_init`.
         self.0.dm_a11y_bounds();
     }
 }
