@@ -23,8 +23,11 @@ A5 (dm-desktop-base folders, one `Mode`), A11 (`dm_core::env`, `EngineConfig`), 
 named timings), A12 (long functions split; the size gate and its baselines), A8 (`dm_core::paths`,
 format numbers, a struct per Options page), A17 and X5 (the GPUI copies as patches, `cargo xtask
 vendor`, the weekly job), X7 (`cargo xtask build`, `test`, `package`, `qa`), A7 (`Session`'s tick,
-`Downloads`' state), A9 (`FailKind`), A14 (no waiting on files on the window's thread), A21
-(`DownloadList`), the streams' silence fix, rows 215 and 216 (CI). D5, D6, X3 and X6 closed at
+`Downloads`' state), A9 (`FailKind`; then one error type per crate), A14 (no waiting on files on
+the window's thread), A21 (`DownloadList`), the streams' silence fix, rows 215 and 216 (CI). Later
+the same day: Y20's leftovers (DASH's pieced WebVTT, cues after a discontinuity, a pair in
+Matroska), A11's tests' switches, and A12 to its end: no product file over 800 lines and no
+function over 150, both baselines empty (about 110 commits ahead of `origin/main` in all). D5, D6, X3 and X6 closed at
 the maintainer's word (no developer pages).
 
 **Next, in this order:**
