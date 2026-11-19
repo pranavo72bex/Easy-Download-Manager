@@ -8,6 +8,12 @@ use super::*;
 /// The least time between two writes of the queue file.
 const SAVE_EVERY: Duration = Duration::from_millis(150);
 
+/// The most time between two writes of the queue file, however long the last one took.
+const SAVE_MOST: Duration = Duration::from_secs(5);
+
+/// The least time between two writes of what the download limit has used.
+const QUOTA_SAVE_EVERY: Duration = Duration::from_secs(10);
+
 impl Queue {
     /// Writes the queue to `path` from now on, and reads back what is there.
     ///
@@ -246,7 +252,7 @@ impl Queue {
     /// rewriting itself and the rest on the downloads.
     fn save_every(&self) -> Duration {
         let took = Duration::from_millis(self.inner.last_write_ms.load(Ordering::Relaxed));
-        SAVE_EVERY.max(took * 10).min(Duration::from_secs(5))
+        SAVE_EVERY.max(took * 10).min(SAVE_MOST)
     }
 
     /// Writes the queue now if a change is waiting for its turn, and returns
@@ -406,7 +412,7 @@ impl Queue {
     pub(super) async fn save_quota_now_and_then(&self) {
         {
             let mut saved = crate::lock(&self.inner.quota_saved);
-            if saved.is_some_and(|at| at.elapsed() < Duration::from_secs(10)) {
+            if saved.is_some_and(|at| at.elapsed() < QUOTA_SAVE_EVERY) {
                 return;
             }
             *saved = Some(std::time::Instant::now());

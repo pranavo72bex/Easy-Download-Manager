@@ -86,6 +86,9 @@ pub fn name_for(url: &str) -> String {
     format!("{stem}.{ext}")
 }
 
+/// How often a recording's watcher looks at the row's stop and at the time limit.
+const WATCH_EVERY: std::time::Duration = std::time::Duration::from_millis(100);
+
 /// Records a live stream into the folder in `options` until it ends or is stopped; returns what came of it.
 pub async fn download_live(
     url: &str,
@@ -145,7 +148,7 @@ pub async fn download_live(
             .map(|l| tokio::time::Instant::now() + l);
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(WATCH_EVERY).await;
                 match outer.wanted() {
                     crate::control::Wanted::Run => {}
                     crate::control::Wanted::Pause => return inner.pause(),

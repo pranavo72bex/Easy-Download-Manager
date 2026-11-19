@@ -269,7 +269,7 @@ fn open_now(view: WeakEntity<Downloads>, save: bool, cx: &mut App) {
         },
     );
     if let Err(e) = opened {
-        eprintln!("dm-gpui: {} could not be opened: {e}", title(save));
+        dm_core::note!(error, "dm-gpui: {} could not be opened: {e}", title(save));
     }
 }
 

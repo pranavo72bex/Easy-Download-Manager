@@ -39,6 +39,12 @@ use crate::probe::{self, WindowProbe};
 /// When done's countdown, the watched folder and the saved searches.
 const CLOCK: Duration = Duration::from_secs(1);
 
+/// How long dm waits after a wake that asks for soon, so the wakes within it are taken as one.
+const SOON: Duration = Duration::from_millis(250);
+
+/// How often the saved searches are looked at for one that is due.
+const SEARCHES_EVERY: Duration = Duration::from_secs(60);
+
 /// Hand-offs taken in one look: with nobody to ask, each goes straight in,
 /// so a batch is not left waiting a second a link.
 const HAND_OFFS_AT_ONCE: usize = 256;
@@ -102,7 +108,7 @@ pub fn run(
         }
         match woken.recv_timeout(CLOCK) {
             // Wakes within the quarter are one.
-            Ok(Wake::Soon) => std::thread::sleep(Duration::from_millis(250)),
+            Ok(Wake::Soon) => std::thread::sleep(SOON),
             Ok(Wake::Now) | Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => std::thread::sleep(CLOCK),
         }
@@ -486,7 +492,7 @@ impl Headless {
         let now = Instant::now();
         if self
             .searches_checked
-            .is_some_and(|at| now.duration_since(at) < Duration::from_secs(60))
+            .is_some_and(|at| now.duration_since(at) < SEARCHES_EVERY)
         {
             return;
         }

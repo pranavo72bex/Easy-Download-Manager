@@ -606,7 +606,7 @@ fn open_now(view: WeakEntity<Downloads>, queue: String, cx: &mut App) {
         },
     );
     if let Err(e) = opened {
-        eprintln!("dm-gpui: the Scheduler could not be opened: {e}");
+        dm_core::note!(error, "dm-gpui: the Scheduler could not be opened: {e}");
     }
 }
 

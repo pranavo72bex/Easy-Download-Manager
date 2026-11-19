@@ -601,6 +601,9 @@ pub async fn crawl_watched(
     Ok(found)
 }
 
+/// How long a server is given to answer for one file's size (`within_sizes`).
+const SIZE_WITHIN: std::time::Duration = std::time::Duration::from_secs(15);
+
 /// The files whose size is within `min_kb` and `max_kb` (0 is no limit at that end), each
 /// asked for its size once, eight at a time; one whose size the server does not say is kept,
 /// as reference A keeps it.
@@ -618,7 +621,7 @@ pub async fn within_sizes(
         .map(|file| async move {
             let size = client
                 .head(&file)
-                .timeout(std::time::Duration::from_secs(15))
+                .timeout(SIZE_WITHIN)
                 .send()
                 .await
                 .ok()

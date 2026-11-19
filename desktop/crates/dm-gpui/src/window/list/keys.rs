@@ -12,6 +12,10 @@ use dm_desktop_base::selection::{stepped, Step};
 
 use super::*;
 
+/// How long letters typed over the list are taken as one name to find (`type_to_find`): what
+/// comes after a pause this long starts again.
+const TYPED_FOR: std::time::Duration = std::time::Duration::from_secs(1);
+
 impl Downloads {
     /// A right-click on the row at `position`, at `at`: the row is chosen
     /// if it was not (a right-click on a chosen row keeps the choice), and
@@ -138,7 +142,7 @@ impl Downloads {
         let fresh = self
             .typed
             .1
-            .is_none_or(|at| now.duration_since(at) > std::time::Duration::from_secs(1));
+            .is_none_or(|at| now.duration_since(at) > TYPED_FOR);
         if fresh {
             self.typed.0.clear();
         }

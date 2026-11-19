@@ -88,6 +88,18 @@ fn untrusted_certificate(error: &reqwest::Error) -> bool {
     false
 }
 
+/// The longest wait before an attempt where the server said how long to wait ([`backoff`]).
+const RETRY_AFTER_MOST: Duration = Duration::from_secs(60);
+
+/// The longest wait before each of the first five attempts where the server said nothing.
+const BACKOFF_QUICK_MOST: Duration = Duration::from_secs(8);
+
+/// The longest wait before each later attempt where the server said nothing.
+const BACKOFF_MOST: Duration = Duration::from_secs(15);
+
+/// How often a wait before another try looks for a pause or a cancel.
+const WAIT_LOOK: Duration = Duration::from_millis(100);
+
 /// How long to wait before attempt `attempt` (zero-based).
 ///
 /// Exponential, capped, and jittered by the attempt number, so successive
@@ -104,7 +116,7 @@ pub fn backoff(attempt: u32, retry_after: Option<Duration>) -> Duration {
     if let Some(asked) = retry_after {
         let grown = Duration::from_millis(500 * 2u64.saturating_pow(attempt).min(128))
             + Duration::from_millis(u64::from(attempt) * 137 % 400);
-        return asked.max(grown).min(Duration::from_secs(60));
+        return asked.max(grown).min(RETRY_AFTER_MOST);
     }
 
     let base = Duration::from_millis(500 * 2u64.saturating_pow(attempt).min(64));
@@ -115,7 +127,11 @@ pub fn backoff(attempt: u32, retry_after: Option<Duration>) -> Duration {
     // default still outlast a router restarting or Wi-Fi coming back: five
     // quick ones were spent in twenty seconds and the download failed for
     // good.
-    let capped = base.min(Duration::from_secs(if attempt < 5 { 8 } else { 15 }));
+    let capped = base.min(if attempt < 5 {
+        BACKOFF_QUICK_MOST
+    } else {
+        BACKOFF_MOST
+    });
 
     // Deterministic jitter from the attempt number: no RNG dependency.
     let jitter = Duration::from_millis(u64::from(attempt) * 137 % 400);
@@ -398,7 +414,7 @@ impl Together {
             // Looked at every tenth of a second for a pause or a cancel, as
             // `wait` does.
             tokio::select! {
-                () = tokio::time::sleep_until(at.min(now + Duration::from_millis(100))) => {}
+                () = tokio::time::sleep_until(at.min(now + WAIT_LOOK)) => {}
                 // An error only once the sender is gone, which it is not while
                 // `self` is here to wait on.
                 _ = came.changed() => {}
@@ -638,7 +654,7 @@ async fn wait(control: &Control, total: Duration) -> Result<(), Error> {
         if now >= until {
             return Ok(());
         }
-        tokio::time::sleep((until - now).min(Duration::from_millis(100))).await;
+        tokio::time::sleep((until - now).min(WAIT_LOOK)).await;
     }
 }
 

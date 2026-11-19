@@ -83,7 +83,7 @@ pub(super) async fn or_stop<T>(
     loop {
         tokio::select! {
             done = &mut work => return done,
-            _ = tokio::time::sleep(Duration::from_millis(250)) => control.check()?,
+            _ = tokio::time::sleep(crate::control::STOP_LOOK) => control.check()?,
         }
     }
 }

@@ -7,6 +7,16 @@
 
 use super::*;
 
+/// How long a server is given to take the connection, plain, TLS or the tunnel's.
+const CONNECT_WITHIN: Duration = Duration::from_secs(15);
+
+/// How long one of the tunnel's requests is given, its answer included.
+const TUNNEL_REQUEST_WITHIN: Duration = Duration::from_secs(30);
+
+/// How long the tunnel waits for what the client writes while bytes flow, before it asks the
+/// server with nothing to send.
+const TUNNEL_QUICK: Duration = Duration::from_millis(10);
+
 pub(super) trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 
@@ -24,7 +34,7 @@ async fn open_with(
         return tunnel(target).await;
     }
     let tcp = tokio::time::timeout(
-        Duration::from_secs(15),
+        CONNECT_WITHIN,
         tokio::net::TcpStream::connect((target.host.as_str(), target.port)),
     )
     .await
@@ -63,8 +73,8 @@ pub(super) async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
     // No proxy: a stream is refused under one before it gets here.
     let http = crate::with_tls(reqwest::Client::builder())
         .no_proxy()
-        .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(30))
+        .connect_timeout(CONNECT_WITHIN)
+        .timeout(TUNNEL_REQUEST_WITHIN)
         .build()
         .map_err(|e| Error::Internal(format!("RTMPT: {e}")))?;
     let post = move |path: String, body: Vec<u8>| {
@@ -104,7 +114,7 @@ pub(super) async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
     tokio::spawn(async move {
         let (mut from_client, mut to_client) = tokio::io::split(theirs);
         let mut buffer = vec![0u8; 64 * 1024];
-        let mut wait = Duration::from_millis(10);
+        let mut wait = TUNNEL_QUICK;
         for n in 1u64.. {
             // What the client has written, or nothing after a short wait.
             let read = tokio::time::timeout(wait, from_client.read(&mut buffer)).await;
@@ -130,7 +140,7 @@ pub(super) async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
             wait = if data.is_empty() {
                 Duration::from_millis(u64::from(interval.clamp(1, 50)) * 10)
             } else {
-                Duration::from_millis(10)
+                TUNNEL_QUICK
             };
         }
         let _ = post(format!("/close/{session}/0"), vec![0]).await;

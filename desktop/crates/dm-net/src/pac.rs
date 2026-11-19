@@ -187,7 +187,7 @@ pub async fn evaluate_here(script: &str, url: &str, host: &str) -> Result<Vec<Ho
 "
         ),
         &call,
-        std::time::Duration::from_secs(5),
+        SCRIPT_RUN_WITHIN,
     )
     .await
     .map_err(|e| format!("the proxy script failed: {e}"))?;
@@ -314,6 +314,12 @@ fn first_way(hops: &[Hop]) -> Result<Option<url::Url>, String> {
 /// The most of a script that is read: a script is a few kilobytes.
 const SCRIPT_MOST: usize = 1024 * 1024;
 
+/// How long a script at a web address is given to arrive.
+const SCRIPT_FETCH_WITHIN: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// How long the script is given to answer for one address.
+const SCRIPT_RUN_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// The script at `address`, fetched once a session: a web address is fetched directly (the
 /// script says where the proxy is, so it cannot be fetched through it), a `file:` address or a
 /// path is read.
@@ -326,7 +332,7 @@ async fn text_of(address: &str) -> Result<String, String> {
     let bytes = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
         let reply = crate::client()
             .get(trimmed)
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(SCRIPT_FETCH_WITHIN)
             .send()
             .await
             .and_then(reqwest::Response::error_for_status)

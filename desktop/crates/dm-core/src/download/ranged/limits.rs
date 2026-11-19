@@ -43,6 +43,20 @@ pub(in crate::download) const PACE_MOST: Duration = Duration::from_secs(4);
 /// The least wait taken from a server's `Retry-After`: "0" is not asked again in a loop.
 pub(in crate::download) const PACE_LEAST: Duration = Duration::from_millis(100);
 
+/// The longest wait taken from a server's `Retry-After`: a minute, however long it names.
+const PACE_NAMED_MOST: Duration = Duration::from_secs(60);
+
+/// How often a request held back by the pace looks at its stop flag while it waits.
+const READY_LOOK: Duration = Duration::from_millis(100);
+
+/// How often a connection turned away looks again at whether it may rejoin, besides being woken
+/// as ranges end or connections let go.
+const REJOIN_LOOK: Duration = Duration::from_millis(250);
+
+/// How often an answer waiting at its range's end ([`BOUNDARY_WAIT`]) looks again at the next
+/// range, besides being woken when it moves.
+const BOUNDARY_LOOK: Duration = Duration::from_millis(20);
+
 /// The longest an answer that brought its range whole waits, at the range's end, on another
 /// connection's request for the next range, before letting go: asked for a halving, that request
 /// may yet be refused, and the answer then goes on into it (`continue_into`).
@@ -142,7 +156,7 @@ impl Limits {
         }
         pace.set_at = Some(now);
         let wait = named.map_or(pace.interval, |named| {
-            named.clamp(PACE_LEAST, Duration::from_secs(60))
+            named.clamp(PACE_LEAST, PACE_NAMED_MOST)
         });
         pace.next = Some(pace.next.map_or(now + wait, |next| next.max(now + wait)));
     }
@@ -162,7 +176,7 @@ impl Limits {
             if left.is_zero() {
                 return Ok(());
             }
-            tokio::time::sleep(left.min(Duration::from_millis(100))).await;
+            tokio::time::sleep(left.min(READY_LOOK)).await;
         }
     }
 
@@ -197,7 +211,7 @@ pub(in crate::download) async fn rejoin(job: &Job, active: &AtomicUsize) -> Resu
         }
         tokio::select! {
             () = &mut moved => {}
-            () = tokio::time::sleep(Duration::from_millis(250)) => {}
+            () = tokio::time::sleep(REJOIN_LOOK) => {}
         }
     }
 }
@@ -280,7 +294,7 @@ pub(in crate::download) async fn continue_into(
         }
         tokio::select! {
             () = &mut moved => {}
-            () = tokio::time::sleep_until(until.min(now + Duration::from_millis(20))) => {}
+            () = tokio::time::sleep_until(until.min(now + BOUNDARY_LOOK)) => {}
         }
     }
 }

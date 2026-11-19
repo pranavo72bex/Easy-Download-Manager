@@ -71,7 +71,7 @@ fn main() {
         boot::Claimed::Running(lock) => lock,
         boot::Claimed::HandedOff => return,
         boot::Claimed::Refused(why) => {
-            eprintln!("dm: {why}");
+            dm_core::note!(error, "dm: {why}");
             std::process::exit(1);
         }
     };
@@ -116,7 +116,7 @@ fn main() {
             booted
         }
         Err(why) => {
-            eprintln!("{why}");
+            dm_core::note!(error, "{why}");
             std::process::exit(1);
         }
     };
@@ -309,12 +309,12 @@ fn main() {
         let view = match (opened, made.borrow_mut().take()) {
             (Ok(_), Some(view)) => view,
             (Err(e), _) => {
-                eprintln!("dm-gpui: the window could not be opened: {e}");
+                dm_core::note!(error, "dm-gpui: the window could not be opened: {e}");
                 cx.quit();
                 return;
             }
             (Ok(_), None) => {
-                eprintln!("dm-gpui: the window opened without its list");
+                dm_core::note!(error, "dm-gpui: the window opened without its list");
                 cx.quit();
                 return;
             }

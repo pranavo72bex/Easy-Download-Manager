@@ -72,7 +72,7 @@ fn clock(running: bool, ticking: bool) -> Duration {
     if running {
         RUNNING
     } else if ticking {
-        Duration::from_secs(1)
+        TICKING
     } else {
         IDLE
     }
@@ -96,6 +96,16 @@ const IDLE: Duration = Duration::from_secs(30);
 
 /// How often the window reads and draws the list while a download runs.
 const RUNNING: Duration = Duration::from_millis(250);
+
+/// How often the window wakes while a clock ticks: When done's countdown, the clipboard
+/// watched.
+const TICKING: Duration = Duration::from_secs(1);
+
+/// How long after a change to the queue it is read, the burst within it taken as one.
+const SOON: Duration = Duration::from_millis(250);
+
+/// How often the saved searches are looked at for one that is due.
+const SEARCHES_EVERY: Duration = Duration::from_secs(60);
 
 /// How long a login launch waits for something to show its tray before its
 /// window opens instead.
@@ -606,7 +616,7 @@ impl Downloads {
                 // download began.
                 if wake == Wake::Soon {
                     // No later than the clock's own look, which reads it.
-                    let until = (Instant::now() + Duration::from_millis(250)).min(looked + every);
+                    let until = (Instant::now() + SOON).min(looked + every);
                     loop {
                         let timer = cx
                             .background_executor()
@@ -1521,7 +1531,7 @@ impl Downloads {
         let now = std::time::Instant::now();
         if self
             .searches_checked
-            .is_some_and(|at| now.duration_since(at) < std::time::Duration::from_secs(60))
+            .is_some_and(|at| now.duration_since(at) < SEARCHES_EVERY)
         {
             return;
         }

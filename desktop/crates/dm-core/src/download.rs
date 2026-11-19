@@ -1000,7 +1000,10 @@ async fn fetch_reporting(
                 if !matches!(why, Error::Paused | Error::Cancelled)
                     && crate::youtube::video_id(page).is_some() =>
             {
-                eprintln!("dm: the player's streams were refused ({why}); reading {page} instead");
+                crate::note!(
+                    info,
+                    "dm: the player's streams were refused ({why}); reading {page} instead"
+                );
                 discard_staged(&options.parts_dir).await;
                 let page_options = Options {
                     sound: None,

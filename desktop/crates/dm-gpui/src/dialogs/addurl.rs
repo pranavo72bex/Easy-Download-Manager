@@ -307,7 +307,7 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
         },
     );
     if let Err(e) = opened {
-        eprintln!("dm-gpui: Add URL could not be opened: {e}");
+        dm_core::note!(error, "dm-gpui: Add URL could not be opened: {e}");
     }
 }
 

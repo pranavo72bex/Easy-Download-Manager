@@ -27,6 +27,10 @@ use crate::window::zoom::px;
 /// Written once "Not now" is chosen on the add-to-browser bar.
 const BROWSER_HINT_HIDDEN: &str = "browser-hint.hidden";
 
+/// How long what was found about the browser's extension is believed before the add-to-browser
+/// bar looks into it again.
+const BROWSER_LOOKED_FOR: Duration = Duration::from_secs(3);
+
 /// The browser bar's buttons at their words' width with the macOS and Linux least width,
 /// not Windows' dialog width (`native::BUTTON_MIN`, 120): four of those left its words no
 /// room in Windows' first window.
@@ -187,7 +191,7 @@ impl Downloads {
         let stale = self
             .bars
             .browser
-            .is_none_or(|(at, _)| at.elapsed() > Duration::from_secs(3));
+            .is_none_or(|(at, _)| at.elapsed() > BROWSER_LOOKED_FOR);
         if stale && self.bars.browser_looking.is_none() {
             // Two files looked for off the window's thread, and drawn again
             // where the answer changed: a frame waited on the disk for them

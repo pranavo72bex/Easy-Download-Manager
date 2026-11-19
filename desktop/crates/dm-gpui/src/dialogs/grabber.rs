@@ -30,6 +30,9 @@ use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+/// How often the Grabber is drawn again while it reads, so its count moves.
+const LOOKING_DRAWN_EVERY: std::time::Duration = std::time::Duration::from_millis(300);
+
 /// A found file's row, in points.
 const ROW: f32 = 22.0;
 /// The rows shown before the list scrolls.
@@ -140,9 +143,7 @@ impl Grabber {
         // Drawn again while it reads, so its count moves (gaps row U25).
         let state = self.d.state.clone();
         cx.spawn_in(window, async move |this, cx| loop {
-            cx.background_executor()
-                .timer(std::time::Duration::from_millis(300))
-                .await;
+            cx.background_executor().timer(LOOKING_DRAWN_EVERY).await;
             if !matches!(*dm_core::lock(&state), Grab::Looking) {
                 return;
             }
@@ -678,7 +679,7 @@ fn open_now(view: WeakEntity<Downloads>, filled: SiteFiles, cx: &mut App) {
         },
     );
     if let Err(e) = opened {
-        eprintln!("dm-gpui: the Grabber could not be opened: {e}");
+        dm_core::note!(error, "dm-gpui: the Grabber could not be opened: {e}");
     }
 }
 

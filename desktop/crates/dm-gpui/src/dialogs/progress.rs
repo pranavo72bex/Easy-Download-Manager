@@ -823,7 +823,7 @@ pub fn open(
     match opened {
         Ok(handle) => Some(handle.into()),
         Err(e) => {
-            eprintln!("dm-gpui: a progress window could not be opened: {e}");
+            dm_core::note!(error, "dm-gpui: a progress window could not be opened: {e}");
             None
         }
     }

@@ -276,7 +276,7 @@ fn open_small<V: Render + 'static>(
     match opened {
         Ok(handle) => Some(handle.into()),
         Err(e) => {
-            eprintln!("dm-gpui: {title} could not be opened: {e}");
+            dm_core::note!(error, "dm-gpui: {title} could not be opened: {e}");
             None
         }
     }

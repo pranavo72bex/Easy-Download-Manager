@@ -145,6 +145,17 @@ mod sni {
 
     const WATCHER: &str = "org.kde.StatusNotifierWatcher";
 
+    /// How long the watcher is given to answer as the window closes (`shown`) before it is
+    /// taken as not showing.
+    const ANSWER_WITHIN: std::time::Duration = std::time::Duration::from_millis(500);
+
+    /// How often the tray item is looked at where the bus will not say when the watcher changes.
+    const LOOK_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
+
+    /// The waits, in milliseconds, before each time a new watcher is asked whether it lists the
+    /// item: at once, half a second, then 1, 2 and 4 s later.
+    const REGISTER_AGAIN_MS: [u64; 5] = [0, 500, 1_000, 2_000, 4_000];
+
     /// Whether the watcher lists this process's tray item. With `register`,
     /// one it does not list is registered again: a watcher that has just
     /// (re)started can take its bus name before it answers calls, and a
@@ -156,7 +167,7 @@ mod sni {
         // holds its name and does not answer within half a second is taken as
         // not showing (`timed_out`), not waited for.
         let Ok(connection) = zbus::blocking::connection::Builder::session()
-            .map(|b| b.method_timeout(std::time::Duration::from_millis(500)))
+            .map(|b| b.method_timeout(ANSWER_WITHIN))
             .and_then(|b| b.build())
         else {
             return false;
@@ -177,7 +188,7 @@ mod sni {
                 }
                 let mut connection = None;
                 loop {
-                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    std::thread::sleep(LOOK_EVERY);
                     if connection.is_none() {
                         connection = Connection::session().ok();
                     }
@@ -199,7 +210,7 @@ mod sni {
                 // A watcher that has just taken its name may drop a registration before it
                 // answers calls (`shown`): asked again, half a second, then 1, 2 and 4 s later,
                 // until it lists the item.
-                for wait in [0, 500, 1_000, 2_000, 4_000] {
+                for wait in REGISTER_AGAIN_MS {
                     std::thread::sleep(std::time::Duration::from_millis(wait));
                     if check(connection, true).unwrap_or(false) {
                         break;

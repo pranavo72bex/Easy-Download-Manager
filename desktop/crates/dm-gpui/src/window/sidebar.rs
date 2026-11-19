@@ -457,7 +457,7 @@ impl Downloads {
         self.panel_resizing = Some(wide);
         let due = self
             .resize_kept
-            .is_none_or(|at| at.elapsed() >= std::time::Duration::from_millis(200));
+            .is_none_or(|at| at.elapsed() >= crate::window::table::RESIZE_KEPT_EVERY);
         if due {
             self.resize_kept = Some(std::time::Instant::now());
             self.keep_panel_width(wide);

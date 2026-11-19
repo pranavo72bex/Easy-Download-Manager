@@ -7,6 +7,9 @@
 
 use super::*;
 
+/// How long the connections read once are kept before they are read again.
+const CONNECTIONS_FOR: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// The connections Windows knows (none elsewhere), read again at most every
 /// two seconds: the page is drawn every frame it is open.
 pub(super) fn known_connections() -> Vec<String> {
@@ -14,7 +17,7 @@ pub(super) fn known_connections() -> Vec<String> {
         std::sync::Mutex::new(None);
     let mut read = dm_core::lock(&READ);
     match &*read {
-        Some((at, names)) if at.elapsed() < std::time::Duration::from_secs(2) => names.clone(),
+        Some((at, names)) if at.elapsed() < CONNECTIONS_FOR => names.clone(),
         _ => {
             let names = dm_shell::dialup::connections();
             *read = Some((std::time::Instant::now(), names.clone()));

@@ -19,6 +19,10 @@ const RUN: u8 = 0;
 const PAUSE: u8 = 1;
 const CANCEL: u8 = 2;
 
+/// How often work that waits on a server looks at its [`Control`] besides: a pause or a
+/// cancel ends the wait within a quarter of a second rather than when the server next speaks.
+pub const STOP_LOOK: std::time::Duration = std::time::Duration::from_millis(250);
+
 /// What a running download has been asked to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wanted {

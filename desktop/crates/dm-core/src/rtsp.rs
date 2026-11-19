@@ -29,6 +29,23 @@ use crate::control::Control;
 use crate::fmp4;
 use crate::Error;
 
+/// How long the server is given to take the TCP connection of an `rtsps://` address.
+const CONNECT_WITHIN: Duration = Duration::from_secs(15);
+
+/// How long the server is given to describe its streams.
+const DESCRIBE_WITHIN: Duration = Duration::from_secs(20);
+
+/// How long one wait for the stream's next frame is given before it counts as the stream gone
+/// quiet ("sent nothing for 30 seconds").
+const SILENT_FOR: Duration = Duration::from_secs(30);
+
+/// How long frames are held for the streams that have not yet said what they are, before the
+/// file is begun with those that have.
+const PARAMETERS_WITHIN: Duration = Duration::from_secs(3);
+
+/// How long a stream may go without saying what its picture or sound is before it fails.
+const NEVER_SAID_AFTER: Duration = Duration::from_secs(10);
+
 /// A frame waiting for the file to start: its stream (0 picture, 1 sound),
 /// data, time in its clock, whether it is a key frame, and its length where
 /// the source says.
@@ -76,7 +93,7 @@ pub(crate) async fn bridge(
         .to_string();
     let port = address.port().unwrap_or(322);
     let tcp = tokio::time::timeout(
-        Duration::from_secs(15),
+        CONNECT_WITHIN,
         tokio::net::TcpStream::connect((host.as_str(), port)),
     )
     .await
@@ -128,11 +145,10 @@ pub async fn record(
     let options = SessionOptions::default()
         .creds(creds)
         .user_agent("dm".into());
-    let mut session =
-        tokio::time::timeout(Duration::from_secs(20), Session::describe(address, options))
-            .await
-            .map_err(|_| Error::Internal("the RTSP server did not answer".into()))?
-            .map_err(failed)?;
+    let mut session = tokio::time::timeout(DESCRIBE_WITHIN, Session::describe(address, options))
+        .await
+        .map_err(|_| Error::Internal("the RTSP server did not answer".into()))?
+        .map_err(failed)?;
 
     // The first picture and the first sound dm can put into an MP4.
     let wanted = |media: &str, names: &[&str]| {
@@ -174,8 +190,8 @@ pub async fn record(
     let mut stop = None;
     loop {
         let next = tokio::select! {
-            item = tokio::time::timeout(Duration::from_secs(30), frames.next()) => item,
-            _ = tokio::time::sleep(Duration::from_millis(250)) => {
+            item = tokio::time::timeout(SILENT_FOR, frames.next()) => item,
+            _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
                 if let Err(e) = control.check() {
                     stop = Some(e);
                     break;
@@ -227,7 +243,7 @@ pub async fn record(
                         .is_some()
                 })
             };
-            if !(known(video) && known(audio)) && started.elapsed() < Duration::from_secs(3) {
+            if !(known(video) && known(audio)) && started.elapsed() < PARAMETERS_WITHIN {
                 continue;
             }
             let mut specs = Vec::new();
@@ -263,7 +279,7 @@ pub async fn record(
                 }
             }
             if specs.is_empty() {
-                if started.elapsed() > Duration::from_secs(10) {
+                if started.elapsed() > NEVER_SAID_AFTER {
                     stop = Some(Error::Internal(
                         "the RTSP stream never said what its picture or sound is".into(),
                     ));

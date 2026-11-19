@@ -48,6 +48,10 @@ pub(super) struct Carried {
     out: Out,
 }
 
+/// How often a running download's byte count is sampled and its progress reported: four
+/// times a second, as often as a row's numbers are worth drawing.
+pub(crate) const SAMPLE_EVERY: Duration = Duration::from_millis(250);
+
 /// Samples the byte count and reports a rate until the download ends.
 ///
 /// A sampler rather than a report per chunk: chunks arrive thousands of times
@@ -100,7 +104,7 @@ pub(crate) fn watch_estimating(
              * never moves and no final state ever arrives. Waiting on both
              * means the last sample is always sent. */
             let finished = tokio::select! {
-                _ = tokio::time::sleep(Duration::from_millis(250)) => false,
+                _ = tokio::time::sleep(SAMPLE_EVERY) => false,
                 _ = &mut done_rx => true,
             };
 

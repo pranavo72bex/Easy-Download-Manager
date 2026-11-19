@@ -19,6 +19,12 @@ use serde_json::Value;
 
 use super::Choice;
 
+/// How long the page's server is given to take the connection when its qualities are listed.
+const PAGE_CONNECT_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// How long the page is given, answer and all, when its qualities are listed.
+const PAGE_WITHIN: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// Whether `url` is one YouTube's player data is read from: a watch page, a
 /// short link, or a video's embed, live, no-cookie or YouTube Music address
 /// (read from its watch page, `watch_address`); not a playlist, a channel or
@@ -70,8 +76,8 @@ pub(super) async fn fetch_choices(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
              (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
         )
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(10));
+        .connect_timeout(PAGE_CONNECT_WITHIN)
+        .timeout(PAGE_WITHIN);
     // A configuration script's choice is asked for the page's site.
     if let Some(proxy) = crate::proxy::route_for(proxy, url) {
         builder = builder.proxy(reqwest::Proxy::all(proxy).ok()?);

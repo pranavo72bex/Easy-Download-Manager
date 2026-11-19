@@ -35,6 +35,10 @@ pub struct Palette {
 
 static FOUND: Mutex<Option<Palette>> = Mutex::new(None);
 
+/// How often the computer is asked again for its accent, which a person may change while dm
+/// runs.
+const ASK_EVERY: Duration = Duration::from_secs(5);
+
 /// The computer's accent, where it says one.
 pub fn system() -> Option<Palette> {
     static WATCH: Once = Once::new();
@@ -43,7 +47,7 @@ pub fn system() -> Option<Palette> {
         let _ = std::thread::Builder::new()
             .name("dm-accent".into())
             .spawn(|| loop {
-                std::thread::sleep(Duration::from_secs(5));
+                std::thread::sleep(ASK_EVERY);
                 *dm_core::lock(&FOUND) = ask();
             });
     });

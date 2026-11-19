@@ -317,7 +317,10 @@ fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut 
             },
         );
         if let Err(e) = opened {
-            eprintln!("dm-gpui: Links on the clipboard could not be opened: {e}");
+            dm_core::note!(
+                error,
+                "dm-gpui: Links on the clipboard could not be opened: {e}"
+            );
         }
     });
 }

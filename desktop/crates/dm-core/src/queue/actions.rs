@@ -5,6 +5,14 @@
 
 use super::*;
 
+/// How often a row being moved looks at whether its run has wound down, two hundred times at
+/// most (five seconds).
+const WIND_DOWN_LOOK: std::time::Duration = std::time::Duration::from_millis(25);
+
+/// How often dm, closing, looks at whether its runs have stopped: often, as the person is
+/// waiting for dm to go.
+const CLOSING_LOOK: std::time::Duration = std::time::Duration::from_millis(10);
+
 impl Queue {
     /// Points a stopped download at another folder, its unfinished parts
     /// moved there too (they may be on the disk that filled), and puts it
@@ -91,7 +99,7 @@ impl Queue {
                 if !stopping {
                     break;
                 }
-                tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+                tokio::time::sleep(WIND_DOWN_LOOK).await;
             }
         }
         let entry = self
@@ -277,7 +285,7 @@ impl Queue {
             if left == 0 || tokio::time::Instant::now() >= deadline {
                 break left;
             }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            tokio::time::sleep(CLOSING_LOOK).await;
         };
         {
             let mut slots = self.inner.slots.lock().await;

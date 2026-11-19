@@ -248,6 +248,12 @@ the frozen standard that reference A was measured against.
    fails `cargo xtask layers`.
 11. Update `docs/parity.md` and `docs/gaps.md` with the exact
    command and result. Never record a run that did not happen.
+12. Shipped code logs with `dm_core::note!(error | warn | info, "…", values)` (dm-net's
+   `log.rs`; `crate::note!` inside dm-core, `dm_net::note!` in dm-net), which writes the
+   level and the words on standard error, never `eprintln!`. What a command-line mode
+   answers the person (`--help`, a typo, `--register`) is printed by that mode itself. A
+   wait, a timeout or a poll interval is a named `const` with a doc comment, not a
+   `Duration` written inline.
 
 ## Rules for performance and platform work
 

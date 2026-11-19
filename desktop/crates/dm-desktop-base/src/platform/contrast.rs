@@ -162,12 +162,15 @@ fn ask() -> Option<Palette> {
 /// What the system said last, and when.
 static LAST: Mutex<Option<(Instant, Option<Palette>)>> = Mutex::new(None);
 
+/// How long what the system said is believed before it is asked again.
+const ASKED_FOR: Duration = Duration::from_secs(1);
+
 /// The High Contrast palette in force, or `None`. Asked of the system at
 /// most once a second.
 pub fn system() -> Option<Palette> {
     let mut last = LAST.lock().ok()?;
     if let Some((at, found)) = *last {
-        if at.elapsed() < Duration::from_secs(1) {
+        if at.elapsed() < ASKED_FOR {
             return found;
         }
     }

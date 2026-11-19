@@ -22,6 +22,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use super::*;
 use crate::dash::{self, LiveTrack, Medium};
 
+/// How long a recording waits before asking again for a manifest that did not answer.
+const MISSED_AGAIN_AFTER: Duration = Duration::from_secs(2);
+
 /// One track of the stream as it is recorded.
 struct Recorder {
     medium: Medium,
@@ -221,7 +224,7 @@ pub(super) async fn record(
                 Err(_) if misses < 5 && recorders.iter().any(|r| r.wrote) => {
                     misses += 1;
                     if let Err(stop) = or_stop(&options.control, async {
-                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        tokio::time::sleep(MISSED_AGAIN_AFTER).await;
                         Ok(())
                     })
                     .await

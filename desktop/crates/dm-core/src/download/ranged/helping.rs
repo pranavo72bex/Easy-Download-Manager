@@ -94,6 +94,9 @@ const GROW_WINDOW: Duration = Duration::from_secs(1);
 /// a slow link takes some round trips to answer a new request.
 const GROW_FIRST_BYTES: Duration = Duration::from_secs(3);
 
+/// How often the wait for those first bytes ([`GROW_FIRST_BYTES`]) looks at whether they came.
+const GROW_LOOK: Duration = Duration::from_millis(20);
+
 /// After the added connections' first bytes, before the rate is measured: a moment for them to
 /// come up to speed.
 const GROW_SETTLE: Duration = Duration::from_millis(250);
@@ -162,7 +165,7 @@ async fn growing(
         gate.send_modify(|g| g.allowed = allowed);
         let asked = tokio::time::Instant::now();
         while job.together.flowing() < flowing + added && asked.elapsed() < GROW_FIRST_BYTES {
-            tokio::time::sleep(Duration::from_millis(20)).await;
+            tokio::time::sleep(GROW_LOOK).await;
         }
         tokio::time::sleep(GROW_SETTLE).await;
         let after = rate_over(job).await;

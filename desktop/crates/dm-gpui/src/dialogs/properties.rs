@@ -871,7 +871,7 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
                 downloads.properties_opened(id, handle.into())
             });
         }
-        Err(e) => eprintln!("dm-gpui: File properties could not be opened: {e}"),
+        Err(e) => dm_core::note!(error, "dm-gpui: File properties could not be opened: {e}"),
     }
 }
 

@@ -187,6 +187,9 @@ fn entries_of(directory: &[u8], count: u64) -> Option<Vec<ZipEntry>> {
     Some(entries)
 }
 
+/// How long one range of the archive (`range`) is given to arrive before it counts as none.
+const RANGE_WITHIN: std::time::Duration = std::time::Duration::from_secs(20);
+
 /// The bytes `low..=high` of `url`, as an exact range answer or `None`.
 async fn range(
     client: &reqwest::Client,
@@ -206,7 +209,7 @@ async fn range(
     if res.content_length().is_some_and(|n| n != wanted) {
         return None;
     }
-    let bytes = tokio::time::timeout(std::time::Duration::from_secs(20), res.bytes())
+    let bytes = tokio::time::timeout(RANGE_WITHIN, res.bytes())
         .await
         .ok()?
         .ok()?;

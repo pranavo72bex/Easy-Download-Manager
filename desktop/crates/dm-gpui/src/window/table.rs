@@ -33,6 +33,10 @@ use crate::window::zoom::px;
 /// The header's height, in points.
 pub const HEADER_HEIGHT: f32 = 24.0;
 
+/// How often a width being dragged, a column's or the side panel's, is kept in the settings
+/// while the drag goes on: a few times a second, so a drag let go anywhere is kept.
+pub(crate) const RESIZE_KEPT_EVERY: std::time::Duration = std::time::Duration::from_millis(200);
+
 /// A column's width in points; the file name takes what the others leave.
 fn width(column: Column) -> Option<f32> {
     match column {
@@ -414,7 +418,7 @@ impl Downloads {
         self.resizing = Some((column, wide));
         let due = self
             .resize_kept
-            .is_none_or(|at| at.elapsed() >= std::time::Duration::from_millis(200));
+            .is_none_or(|at| at.elapsed() >= RESIZE_KEPT_EVERY);
         if due {
             self.resize_kept = Some(std::time::Instant::now());
             self.keep_width(column, wide);

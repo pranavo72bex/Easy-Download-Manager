@@ -374,7 +374,7 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
         },
     );
     if let Err(e) = opened {
-        eprintln!("dm-gpui: Playlist could not be opened: {e}");
+        dm_core::note!(error, "dm-gpui: Playlist could not be opened: {e}");
     }
 }
 

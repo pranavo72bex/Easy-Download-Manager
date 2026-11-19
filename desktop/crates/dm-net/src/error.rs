@@ -117,6 +117,10 @@ impl Error {
     }
 }
 
+/// The longest a refusal's body is read for its explanation: no longer than a person would wait
+/// for one.
+const EXPLAINED_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
+
 impl Error {
     /// Passes a response through, or turns a refusal into an error.
     ///
@@ -180,7 +184,7 @@ impl Error {
          * gzip that unpacks to gigabytes, ran dm out of memory. */
         const MOST: usize = 64 * 1024;
         let mut head = Vec::new();
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let _ = tokio::time::timeout(EXPLAINED_WITHIN, async {
             while head.len() < MOST {
                 match res.chunk().await {
                     Ok(Some(chunk)) => head.extend_from_slice(&chunk),

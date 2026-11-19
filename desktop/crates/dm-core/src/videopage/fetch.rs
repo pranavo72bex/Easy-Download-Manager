@@ -23,6 +23,20 @@ use super::{finish_dm_tagged, remove_staging};
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error};
 
+/// A reading younger than this whose stream is refused is fetched once more after a short
+/// wait, rather than read again.
+const YOUNG_FOR: Duration = Duration::from_secs(10);
+
+/// How old a reading is let grow before that one more try: a refusal of a reading a few
+/// seconds old passes.
+const REFUSED_AGAIN_AT: Duration = Duration::from_secs(6);
+
+/// The longest wait for the site's "available at" before the streams are fetched.
+const AVAILABLE_WAIT_SECS: u64 = 10;
+
+/// The longest the video's picture is waited for: not worth holding the finished video back.
+const COVER_WITHIN: Duration = Duration::from_secs(10);
+
 /// A YouTube page read by dm itself, its streams fetched by dm's engine.
 pub async fn download_page(
     client: &reqwest::Client,
@@ -84,7 +98,10 @@ pub async fn download_page(
     // fetched: the video from its other formats, as before dm read numbered pieces (gaps row
     // Y14). Nothing new is said on the row; the log says why.
     if matches!(&outcome, Err(Error::Internal(why)) if why == crate::download::NUMBERED_UNREAD) {
-        eprintln!("dm: {url}: fetched from its formats that are not numbered pieces");
+        crate::note!(
+            info,
+            "dm: {url}: fetched from its formats that are not numbered pieces"
+        );
         for id in &numbered {
             let _ = tokio::fs::remove_dir_all(staging.join(format!(".dm-f{id}"))).await;
         }
@@ -126,9 +143,9 @@ async fn fetch_renewing(
     let mut current = (plan, read);
     wait_until_available(&current.1, options).await?;
     let mut outcome = fetch(client, &current.0, &current.1, options, report.clone()).await;
-    let young = current.1.made.elapsed() < Duration::from_secs(10);
+    let young = current.1.made.elapsed() < YOUNG_FOR;
     if young && matches!(&outcome, Err(Error::Refused { status: 403, .. })) {
-        let left = Duration::from_secs(6).saturating_sub(current.1.made.elapsed());
+        let left = REFUSED_AGAIN_AT.saturating_sub(current.1.made.elapsed());
         crate::download::or_stop(&options.control, async {
             tokio::time::sleep(left).await;
             Ok(())
@@ -251,7 +268,7 @@ async fn wait_until_available(read: &Read, options: &Options) -> Result<(), Erro
     if at <= now {
         return Ok(());
     }
-    let wait = Duration::from_secs((at - now).min(10));
+    let wait = Duration::from_secs((at - now).min(AVAILABLE_WAIT_SECS));
     crate::download::or_stop(&options.control, async {
         tokio::time::sleep(wait).await;
         Ok(())
@@ -807,7 +824,7 @@ async fn cover(client: &reqwest::Client, address: Option<&str>, options: &Option
     }
     // Ten seconds at most: a picture is not worth holding the finished video back.
     let fetching = crate::download::fetch_capped(client, address, 2 * 1024 * 1024, options);
-    match tokio::time::timeout(std::time::Duration::from_secs(10), fetching).await {
+    match tokio::time::timeout(COVER_WITHIN, fetching).await {
         Ok(Ok(got)) if crate::mp4mux::picture_kind(&got.body).is_some() => got.body.to_vec(),
         _ => Vec::new(),
     }

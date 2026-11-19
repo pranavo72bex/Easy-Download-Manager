@@ -29,6 +29,9 @@ fn lock_path(home: &Path) -> std::path::PathBuf {
 /// would otherwise exit, believing another was running when none was.
 const CLAIM_FOR: Duration = Duration::from_millis(500);
 
+/// How often a claim tries the lock again within [`CLAIM_FOR`].
+const CLAIM_LOOK: Duration = Duration::from_millis(25);
+
 /// Takes the lock for this process: `Ok(Some)` with it, `Ok(None)` when
 /// another dm has it, and an error when whether one has it cannot be told.
 ///
@@ -50,7 +53,7 @@ pub fn claim(home: &Path) -> std::io::Result<Option<File>> {
                 return Ok(Some(file));
             }
             None if std::time::Instant::now() >= deadline => return Ok(None),
-            None => std::thread::sleep(Duration::from_millis(25)),
+            None => std::thread::sleep(CLAIM_LOOK),
         }
     }
 }

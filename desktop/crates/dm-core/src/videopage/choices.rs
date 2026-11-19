@@ -269,7 +269,7 @@ async fn list_from_reading(
     match tokio::time::timeout(READING_WITHIN, reading).await {
         Ok(Ok(text)) => with_mp3(choices(&text)),
         Ok(Err(why)) => {
-            eprintln!("dm: {url}: its qualities could not be read: {why}");
+            crate::note!(warn, "dm: {url}: its qualities could not be read: {why}");
             Vec::new()
         }
         Err(_) => Vec::new(),
