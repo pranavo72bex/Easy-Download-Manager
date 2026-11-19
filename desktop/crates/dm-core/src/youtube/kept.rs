@@ -88,9 +88,16 @@ fn key_of(player_js: &str) -> String {
 static KEPT_PLAYERS: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
 
 /// The folder cut player programs are kept in between sessions (dm's own, under its home), or
-/// none. Set once at start.
+/// none. Put in force by [`crate::configure`]; set alone by tests.
+#[doc(hidden)]
 pub fn set_kept_players(dir: Option<std::path::PathBuf>) {
     *crate::lock(&KEPT_PLAYERS) = dir;
+}
+
+/// The folder cut player programs are kept in between sessions, as set last; none, only in
+/// memory.
+pub fn kept_players() -> Option<std::path::PathBuf> {
+    crate::lock(&KEPT_PLAYERS).clone()
 }
 
 /// `program` written to `path`, whole or not at all (a temporary name, then moved), and the

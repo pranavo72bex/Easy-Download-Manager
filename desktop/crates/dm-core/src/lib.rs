@@ -47,6 +47,9 @@ pub(crate) use dm_net::decode;
 
 mod download;
 
+// What the engine is told for the whole program, put in force in one place (gaps row A11).
+mod engine_config;
+
 // Every `DM_` switch of the environment, in one table, and the one way to read one (gaps row A11).
 pub mod env;
 
@@ -145,9 +148,11 @@ pub use dm_media::subtitles;
 #[cfg(test)]
 pub(crate) use dm_test_support::secrets as test_secrets;
 
-pub use second_path::{
-    interfaces, on_second, set_second_client, set_second_path, system_name, Interface,
-};
+pub use second_path::{interfaces, on_second, system_name, Interface};
+
+// A test's own second network alone; the program's is put in force by `configure`.
+#[doc(hidden)]
+pub use second_path::{set_second_client, set_second_path};
 
 mod torrent;
 
@@ -186,7 +191,11 @@ pub use checksum::{digest, Algorithm, Checksum};
 
 pub use clip::Span;
 
-pub use connect_first::{set_connect_first, ConnectFirst, Redial};
+pub use connect_first::{ConnectFirst, Redial};
+
+// A test's own hook alone; the program's is put in force by `configure`.
+#[doc(hidden)]
+pub use connect_first::set_connect_first;
 
 pub use control::{Control, Wanted};
 
@@ -195,6 +204,8 @@ pub use download::{
     nth_free_name_with, slow_part_writes_to, Finished, HostLimit, Options, Room, Update,
     CHECKED_BESIDE, NOTES,
 };
+
+pub use engine_config::{configure, EngineConfig};
 
 pub use limit::Limiter;
 
@@ -227,6 +238,7 @@ pub use stream::{
     variants as stream_variants, Kind as StreamKind, Quality, Stream, Variant,
 };
 
+#[doc(hidden)]
 pub use sound_language::set_sound_language;
 
 pub use torrent::{

@@ -547,23 +547,34 @@ pub async fn start(orders: &Orders) -> Started {
 
 /// What the settings put in force across the engine rather than on the queue:
 /// the name dm gives itself, the language of a dubbed video's sound, the
-/// dial-up or VPN connection every download waits for, and the second
-/// network. At the start and at every change, so a saved "Identify as dm only",
-/// second network or dial-up connection is in force before Options' OK.
-/// What went wrong, in words.
+/// dial-up or VPN connection every download waits for, the second network and
+/// where YouTube's cut players are kept. At the start and at every change, so a
+/// saved "Identify as dm only", second network or dial-up connection is in force
+/// before Options' OK. What went wrong, in words.
 fn engine_wide(settings: &Settings) -> Option<String> {
-    dm_core::set_identify_as_dm(settings.identify_as_dm);
-    // The language a dubbed video's sound is taken in (gaps row Y10).
-    dm_core::set_sound_language(&settings.sound_language);
-    // A dial-up or VPN connection every download waits for (`dialup.rs`).
-    crate::dialup::set(&settings.dialup);
-    // The second network, where one is chosen and no proxy is on: through
-    // a proxy every connection must go by it, and one that did not would
-    // be seen by the site from this computer's own address.
-    let second = (!settings.proxy.enabled).then_some(settings.second_path.as_str());
-    dm_core::set_second_path(second)
+    // The dial-up connection in force and the engine's hook for it, as one turn.
+    #[cfg(test)]
+    let _turn = crate::dialup::turn();
+    dm_core::configure(&engine_config(settings))
         .err()
         .map(|why| format!("downloads use one network: {why}"))
+}
+
+/// The engine's program-wide settings the saved `settings` describe (gaps row A11).
+fn engine_config(settings: &Settings) -> dm_core::EngineConfig {
+    dm_core::EngineConfig {
+        identify_as_dm: settings.identify_as_dm,
+        // The language a dubbed video's sound is taken in (gaps row Y10).
+        sound_language: settings.sound_language.clone(),
+        // A dial-up or VPN connection every download waits for (`dialup.rs`).
+        connect_first: crate::dialup::set(&settings.dialup),
+        // The second network, where one is chosen and no proxy is on: through
+        // a proxy every connection must go by it, and one that did not would
+        // be seen by the site from this computer's own address.
+        second_path: (!settings.proxy.enabled).then(|| settings.second_path.clone()),
+        // YouTube's cut players, kept between sessions under dm's home (gaps row Y13).
+        kept_players: Some(crate::settings::home().join(dm_core::paths::PLAYERS)),
+    }
 }
 
 /// Whether the client must be built again for a change from `previous`.

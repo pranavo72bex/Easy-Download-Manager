@@ -196,18 +196,19 @@ impl Drop for Turn {
 }
 
 /// Takes the settings' connection as the one to dial (`shell::apply`), and
-/// hands the engine the wait every download makes for it.
-pub fn set(dial: &DialUp) {
+/// gives the wait every download makes for it, for the engine to be handed
+/// (`EngineConfig::connect_first`); `None` when no connection is wanted.
+pub fn set(dial: &DialUp) -> Option<dm_core::ConnectFirst> {
     #[cfg(test)]
     let _turn = turn();
     let wanted = dial.wanted().then(|| dial.clone());
     let any = wanted.is_some();
     *dm_core::lock(&IN_FORCE) = wanted;
-    dm_core::set_connect_first(any.then(|| {
+    any.then(|| {
         std::sync::Arc::new(|waiting: &dyn Fn() -> bool, redialling: &dyn Fn(Redial)| {
             before_download(waiting, redialling)
         }) as dm_core::ConnectFirst
-    }));
+    })
 }
 
 #[cfg(any(windows, test))]

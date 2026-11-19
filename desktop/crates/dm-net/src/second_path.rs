@@ -112,7 +112,8 @@ pub fn system_name(interface: &str) -> Option<String> {
 
 /// Downloads' second path: the interface named, or none for `None` or an
 /// empty name. A name with no address now is refused in words, and the
-/// path is left off.
+/// path is left off. Put in force by dm-core's `configure`.
+#[doc(hidden)]
 pub fn set_second_path(name: Option<&str>) -> Result<(), String> {
     let name = name.map(str::trim).filter(|n| !n.is_empty());
     let Some(name) = name else {
@@ -146,6 +147,7 @@ pub fn set_second_path(name: Option<&str>) -> Result<(), String> {
 static NAMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// The second path's client as given: for a test, one bound to an address.
+#[doc(hidden)]
 pub fn set_second_client(client: Option<reqwest::Client>) {
     NAMED.store(false, std::sync::atomic::Ordering::SeqCst);
     put(client);

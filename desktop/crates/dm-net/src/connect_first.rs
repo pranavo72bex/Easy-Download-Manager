@@ -40,7 +40,9 @@ pub type ConnectFirst =
 
 static HOOK: Mutex<Option<ConnectFirst>> = Mutex::new(None);
 
-/// Sets what every download waits on before it goes out; `None` for nothing.
+/// Sets what every download waits on before it goes out; `None` for nothing. Put in force by
+/// dm-core's `configure`; called alone by tests.
+#[doc(hidden)]
 pub fn set_connect_first(hook: Option<ConnectFirst>) {
     *crate::lock(&HOOK) = hook;
 }

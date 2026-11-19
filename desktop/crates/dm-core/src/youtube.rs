@@ -37,6 +37,8 @@ mod playlist;
 use crate::stream::Quality;
 use crate::Error;
 use chapters::{chapters_in, largest_thumbnail, publish_date};
+pub use kept::kept_players;
+#[doc(hidden)]
 pub use kept::set_kept_players;
 use kept::{cut_program, keep_script, kept_script};
 #[cfg(test)]
