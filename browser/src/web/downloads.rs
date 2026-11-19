@@ -23,35 +23,73 @@ pub async fn on_download_created(item: JsValue) {
         id: item.id.map(|n| n as i64),
         taken: false,
     };
-    // The toolbar popup's switch: off, the browser keeps every download.
-    if !catching().await {
-        return log("debug", "left with the browser: catching is switched off");
-    }
-    let found = match first_look(&item, &own_id()) {
-        Ok(found) => found,
-        Err(why) => return log("debug", &format!("left with the browser: {why}")),
+    let Some((found, forced)) = first_checks(&item).await else {
+        return;
     };
-    let asked_for = item.url.clone().unwrap_or_default();
-    if RELEASED.with(|r| {
-        let mut released = r.borrow_mut();
-        released.take(&found.url, now()) || released.take(&asked_for, now())
-    }) {
-        return log(
-            "debug",
-            "left with the browser: given back to it a moment ago",
-        );
-    }
 
     // Held while the app is asked, so the browser does not finish it in the
     // meantime and leave the file in two places. When the rules the app last
     // sent would catch it, it is held before the app is asked at all:
     // starting the host takes long enough for a small download to finish.
     let id = JsValue::from_f64(found.id as f64);
-    let pause = || async {
-        call("downloads", "pause", std::slice::from_ref(&id))
-            .await
-            .is_ok()
+    let Some((paused, port)) = verdict_on(&found, forced, &id).await else {
+        return;
     };
+
+    let start = start_for(&found).await;
+    match handed(port, start, &found).await {
+        Ok(shown) => taken_from_browser(shown, &found, &id, &mut decided).await,
+        Err(why) => {
+            log(
+                "warn",
+                &format!(
+                    "the dm app did not take {}, so the browser keeps it: {why}",
+                    found.url
+                ),
+            );
+            notify("The browser is downloading it", &why);
+            if paused {
+                give_back(&id, &found.url).await;
+            }
+        }
+    }
+}
+
+/// Pauses the browser's download `id`; whether it is held.
+async fn pause(id: &JsValue) -> bool {
+    call("downloads", "pause", std::slice::from_ref(id))
+        .await
+        .is_ok()
+}
+
+/// What a download the browser began is, where dm may look further at it: not with catching
+/// switched off, given back a moment ago, nobody's (an advert, a beacon) or from a paused
+/// site. With whether it is the app's whatever the types and size floor say. `None` where it
+/// is left with the browser.
+async fn first_checks(item: &DownloadItem) -> Option<(Catchable, bool)> {
+    // The toolbar popup's switch: off, the browser keeps every download.
+    if !catching().await {
+        log("debug", "left with the browser: catching is switched off");
+        return None;
+    }
+    let found = match first_look(item, &own_id()) {
+        Ok(found) => found,
+        Err(why) => {
+            log("debug", &format!("left with the browser: {why}"));
+            return None;
+        }
+    };
+    let asked_for = item.url.clone().unwrap_or_default();
+    if RELEASED.with(|r| {
+        let mut released = r.borrow_mut();
+        released.take(&found.url, now()) || released.take(&asked_for, now())
+    }) {
+        log(
+            "debug",
+            "left with the browser: given back to it a moment ago",
+        );
+        return None;
+    }
     // With nothing remembered yet (before the app has ever answered), every
     // candidate is held; one the app turns out not to want is given back.
     // A site the popup takes everything from is held whatever the rules say
@@ -66,25 +104,34 @@ pub async fn on_download_created(item: JsValue) {
     if !clicked {
         ensure_served().await;
         if let Some(why) = decide::excluded::address(&found.url) {
-            return log("debug", &format!("left with the browser: {}", why.reason()));
+            log("debug", &format!("left with the browser: {}", why.reason()));
+            return None;
         }
     }
     // A site the popup has paused is the browser's, unless a click with the
     // take key held asked for this one.
     if !clicked && decide::paused_download(&paused_sites().await, &found) {
-        return log(
+        log(
             "debug",
             "left with the browser: capturing is paused for its site",
         );
+        return None;
     }
     let forced = clicked || forced_for(&found).await;
+    Some((found, forced))
+}
+
+/// Whether the app takes the download `found` (the browser's `id`), held first where the rules
+/// the app last sent would catch it. `None` where it is left with the browser, given back
+/// where it was held; otherwise whether the browser holds it, and the port asking left open.
+async fn verdict_on(found: &Catchable, forced: bool, id: &JsValue) -> Option<(bool, Option<Port>)> {
     // A browser unticked in dm's Options is taken from no more, as reference A's list of the
     // browsers it captures from (gaps row 86); its menus still hand things over.
     let browser = this_browser();
     let early = remembered_rules().await.is_none_or(|rules| {
         rules.takes_from(browser) && rules.takes(&found.candidate(), forced).is_ok()
     });
-    let mut paused = early && pause().await;
+    let mut paused = early && pause(id).await;
 
     let (app, mut port) = app().await;
     // An app that judges by its own rules as they are now is asked (gaps row A22 b): a rule
@@ -92,7 +139,7 @@ pub async fn on_download_created(item: JsValue) {
     // judged by the rules it last sent, with this extension's own reading of them.
     let asked = match &app {
         App::Present { hello, .. } if hello.has(dm_protocol::feature::JUDGES_CATCH) => {
-            let judge = decide::judge_of(&found, &hand_id("j", found.id, now()), browser, forced);
+            let judge = decide::judge_of(found, &hand_id("j", found.id, now()), browser, forced);
             let (verdict, open) = judged_by_app(port.take(), judge).await;
             port = open;
             verdict
@@ -130,27 +177,33 @@ pub async fn on_download_created(item: JsValue) {
     };
     if let Err(why) = verdict {
         if paused {
-            give_back(&id, &found.url).await;
+            give_back(id, &found.url).await;
         }
         // Said when the browser keeps a download that dm would have taken
         // had it been reachable; a type dm does not catch is not news.
         if matches!(app, App::Absent { .. }) {
             notify("The browser is downloading it", "dm could not be reached");
         }
-        return log("debug", &format!("left with the browser: {why}"));
+        log("debug", &format!("left with the browser: {why}"));
+        return None;
     }
 
     if !paused {
-        paused = pause().await;
+        paused = pause(id).await;
     }
     // Not held: it may have finished already (a small file served fast, a
     // PDF in Chromium above all); that still goes, by its address.
     if !paused {
         if let Err(why) = decide::unheld(state_of(found.id).await.as_deref()) {
-            return log("debug", &format!("left with the browser: {why}"));
+            log("debug", &format!("left with the browser: {why}"));
+            return None;
         }
     }
+    Some((paused, port))
+}
 
+/// What the app is handed for the caught download `found`.
+async fn start_for(found: &Catchable) -> Start {
     // The site's sign-in, where the popup has that on for the site, or
     // the app's Options for every site.
     let (cookies, cookies_once) = sign_in_for(&found.url, found.store.as_deref(), false).await;
@@ -190,9 +243,13 @@ pub async fn on_download_created(item: JsValue) {
                 .unwrap_or_default();
         }
     }
-    // dm refused for want of the browser's session (a link only a signed-in
-    // browser can fetch): handed over again with that session, for this one
-    // download, rather than left to download in the browser.
+    start
+}
+
+/// Hands `start` to the app. dm refused for want of the browser's session (a link only a
+/// signed-in browser can fetch): handed over again with that session, for this one download,
+/// rather than left to download in the browser.
+async fn handed(port: Option<Port>, start: Start, found: &Catchable) -> Result<bool, String> {
     let mut outcome = hand(port, start.clone(), None).await;
     if outcome
         .as_ref()
@@ -214,66 +271,55 @@ pub async fn on_download_created(item: JsValue) {
             .await;
         }
     }
-    match outcome {
-        Ok(shown) => {
-            log("info", &format!("handed {} to the dm app", found.url));
-            // Said in the browser, where the download just vanished; dm's own window may be
-            // behind it. Not where that window comes forward to ask about it (gaps row U11).
-            if !shown {
-                toast_sent(decide::taken_name(&found.filename, &found.url));
-            }
-            // Held or not, it can have finished in the browser meanwhile:
-            // a pause does not stop what Chromium has already received.
-            let (verb, what) = match decide::after_taken(state_of(found.id).await.as_deref()) {
-                decide::BrowserCopy::Cancel => ("cancelled", "cancel"),
-                decide::BrowserCopy::Remove => ("removed", "removeFile"),
-            };
-            let mut done = call("downloads", what, std::slice::from_ref(&id)).await;
-            // Finished between the look and the cancel: a fast file (a
-            // 300 KB PDF) stayed whole in the browser's folder beside dm's,
-            // its list entry erased below. Chromium's
-            // cancel of a finished download succeeds and does nothing, so
-            // the state is looked at after every cancel, and a finished copy
-            // removed.
-            if what == "cancel" {
-                for _ in 0..20 {
-                    match state_of(found.id).await.as_deref() {
-                        Some("complete") => {
-                            done = call("downloads", "removeFile", std::slice::from_ref(&id)).await;
-                            break;
-                        }
-                        Some("in_progress") => sleep(100.0).await,
-                        // Interrupted, as a cancel that took leaves it, or gone.
-                        _ => break,
-                    }
+    outcome
+}
+
+/// The app has the download `found` (the browser's `id`; `shown` where its own window came
+/// forward to ask about it): the browser's copy is cancelled or removed and its entry erased.
+async fn taken_from_browser(shown: bool, found: &Catchable, id: &JsValue, decided: &mut Decided) {
+    log("info", &format!("handed {} to the dm app", found.url));
+    // Said in the browser, where the download just vanished; dm's own window may be
+    // behind it. Not where that window comes forward to ask about it (gaps row U11).
+    if !shown {
+        toast_sent(decide::taken_name(&found.filename, &found.url));
+    }
+    // Held or not, it can have finished in the browser meanwhile:
+    // a pause does not stop what Chromium has already received.
+    let (verb, what) = match decide::after_taken(state_of(found.id).await.as_deref()) {
+        decide::BrowserCopy::Cancel => ("cancelled", "cancel"),
+        decide::BrowserCopy::Remove => ("removed", "removeFile"),
+    };
+    let mut done = call("downloads", what, std::slice::from_ref(id)).await;
+    // Finished between the look and the cancel: a fast file (a
+    // 300 KB PDF) stayed whole in the browser's folder beside dm's,
+    // its list entry erased below. Chromium's
+    // cancel of a finished download succeeds and does nothing, so
+    // the state is looked at after every cancel, and a finished copy
+    // removed.
+    if what == "cancel" {
+        for _ in 0..20 {
+            match state_of(found.id).await.as_deref() {
+                Some("complete") => {
+                    done = call("downloads", "removeFile", std::slice::from_ref(id)).await;
+                    break;
                 }
-            }
-            match done {
-                // Gone from the browser before it named the file: its Save
-                // dialog, where it would have asked, never opens.
-                Ok(_) => decided.taken = true,
-                Err(why) => log(
-                    "warn",
-                    &format!("the browser's copy could not be {verb}: {why}"),
-                ),
-            }
-            let query = to_js(&serde_json::json!({ "id": found.id }));
-            let _ = call("downloads", "erase", &[query]).await;
-        }
-        Err(why) => {
-            log(
-                "warn",
-                &format!(
-                    "the dm app did not take {}, so the browser keeps it: {why}",
-                    found.url
-                ),
-            );
-            notify("The browser is downloading it", &why);
-            if paused {
-                give_back(&id, &found.url).await;
+                Some("in_progress") => sleep(100.0).await,
+                // Interrupted, as a cancel that took leaves it, or gone.
+                _ => break,
             }
         }
     }
+    match done {
+        // Gone from the browser before it named the file: its Save
+        // dialog, where it would have asked, never opens.
+        Ok(_) => decided.taken = true,
+        Err(why) => log(
+            "warn",
+            &format!("the browser's copy could not be {verb}: {why}"),
+        ),
+    }
+    let query = to_js(&serde_json::json!({ "id": found.id }));
+    let _ = call("downloads", "erase", &[query]).await;
 }
 
 /// Asks the app whether it takes a download the browser started (`catch.judge`), on the port

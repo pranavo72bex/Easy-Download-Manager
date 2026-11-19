@@ -14,6 +14,20 @@ pub(super) fn browser(
     window: &mut Window,
     cx: &mut Context<Options>,
 ) {
+    extensions(o, p, cx);
+    // Who opens magnet links and .torrent files: Windows keeps that, not
+    // the browser.
+    #[cfg(windows)]
+    handlers(o, p, cx);
+    let c = o.draft.browser.catch.clone();
+    menu_items(p, cx, &c);
+    catching(o, p, window, cx, &c);
+    click_keys(p, &c);
+    panel_and_sign_in(p, cx, &c);
+}
+
+/// Each browser with whether its extension has talked to dm, and Add where it has not.
+fn extensions(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
     let (theme, screen) = (p.theme, p.screen.clone());
     // The extension, for someone who said not now to the bar over the list,
     // or has a second browser: each browser with whether its extension has
@@ -69,11 +83,11 @@ pub(super) fn browser(
                 .child(state),
         );
     }
-    // Who opens magnet links and .torrent files: Windows keeps that, not
-    // the browser.
-    #[cfg(windows)]
-    handlers(o, p, cx);
-    let c = o.draft.browser.catch.clone();
+}
+
+/// The items dm adds to the browser's right-click menu, each chosen.
+fn menu_items(p: &mut Page, cx: &mut Context<Options>, c: &dm_protocol::CatchRules) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     // The items dm adds to the browser's right-click menu, each chosen.
     p.words(t("Items dm adds to the browser's right-click menu"));
     for (id, _) in dm_protocol::MENU_ITEMS {
@@ -101,6 +115,17 @@ pub(super) fn browser(
         }));
         p.add(item);
     }
+}
+
+/// Whether dm takes the browser's downloads, which and from where.
+fn catching(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+    c: &dm_protocol::CatchRules,
+) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     check(
         p,
         cx,
@@ -218,6 +243,11 @@ pub(super) fn browser(
             &screen,
         ),
     ));
+}
+
+/// The keys a click on a link can be held with, to leave it with the browser or send it to dm.
+fn click_keys(p: &mut Page, c: &dm_protocol::CatchRules) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     // The keys a click on a link can be held with.
     let key_words = |key: &str| match key {
         "alt" => t("Alt").to_string(),
@@ -263,6 +293,10 @@ pub(super) fn browser(
             &screen,
         ));
     }
+}
+
+/// The panel over web videos, and the browser's sign-in with every download.
+fn panel_and_sign_in(p: &mut Page, cx: &mut Context<Options>, c: &dm_protocol::CatchRules) {
     check(
         p,
         cx,
