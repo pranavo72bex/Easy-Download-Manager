@@ -20,8 +20,8 @@ use std::time::{Duration, Instant};
 pub const RULES: &str =
     r"HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules";
 
-/// Whether the rules (`reg query`'s lines, each rule's fields joined by `|`) hold one for
-/// `program`: `App=` its path, compared as Windows compares paths, whatever case.
+/// Whether the rules (one a line, each rule's fields joined by `|`) hold one for `program`:
+/// `App=` its path, compared as Windows compares paths, whatever case.
 pub fn answered_in(rules: &str, program: &Path) -> bool {
     let want = format!("app={}", program.display()).to_lowercase();
     rules.lines().any(|line| {
@@ -31,16 +31,12 @@ pub fn answered_in(rules: &str, program: &Path) -> bool {
     })
 }
 
-/// Whether Windows has an answer for `program` yet; `None` where its rules cannot be read.
+/// Whether Windows has an answer for `program` yet; `None` where its rules cannot be read. They
+/// are read through the registry's own API, not `reg.exe` (gaps row P8).
 #[cfg(target_os = "windows")]
 pub fn answered(program: &Path) -> Option<bool> {
-    let out = dm_core::no_window(&mut std::process::Command::new("reg"))
-        .args(["query", RULES])
-        .output()
-        .ok()?;
-    out.status
-        .success()
-        .then(|| answered_in(&String::from_utf8_lossy(&out.stdout), program))
+    let rules = crate::registry::strings(RULES).ok()?;
+    Some(answered_in(&rules.join("\n"), program))
 }
 
 /// Elsewhere there is no such question.

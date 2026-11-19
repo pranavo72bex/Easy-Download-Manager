@@ -878,22 +878,21 @@ pub fn unregister_windows(
     keys.collect::<Vec<_>>().into_iter().chain(files).collect()
 }
 
-/// Runs Windows' own `reg.exe`, which every Windows has: no registry crate
-/// and no `unsafe` for six keys.
+/// Carries out one of `reg.exe`'s argument lists: `add`, `delete` and `query` through the
+/// registry's own API ([`crate::registry`]), with no program started; `export` and `import`, the
+/// `.reg` copy kept of another program's key, by `reg.exe`.
+#[cfg(windows)]
 pub fn run_reg(args: &[String]) -> Result<(), String> {
-    let out = dm_core::no_window(&mut std::process::Command::new("reg"))
-        .args(args)
-        .output()
-        .map_err(|e| format!("reg.exe could not be run: {e}"))?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "reg {}: {}",
-            args.first().map(String::as_str).unwrap_or_default(),
-            String::from_utf8_lossy(&out.stderr).trim()
-        ))
-    }
+    crate::registry::run(args)
+}
+
+/// Away from Windows there is no registry.
+#[cfg(not(windows))]
+pub fn run_reg(args: &[String]) -> Result<(), String> {
+    Err(format!(
+        "reg {}: there is no registry here",
+        args.first().map(String::as_str).unwrap_or_default()
+    ))
 }
 
 /// dm's folder in `%LOCALAPPDATA%`, where its Windows manifests live.

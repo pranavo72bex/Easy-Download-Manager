@@ -451,8 +451,9 @@ on with it, and the app drops it otherwise.
 - **Without the app it does nothing.** There is no longer a downloader in the
   browser: with no app, downloads are the browser's own.
 - **Windows has run only on CI's machines.** Windows reads host manifests
-  through the registry; `--register` writes the keys through `reg.exe`
-  (unit-tested on every OS), and CI installs the NSIS installer, runs
+  through the registry; `--register` writes the keys through the registry's
+  own API (`dm_shell::registry`, its parsing unit-tested on every OS; only
+  the `.reg` copy of another program's magnet or `.torrent` key is `reg.exe`'s), and CI installs the NSIS installer, runs
   `smoke.py` and the whole of `app-check.py` against it. A person's Windows
   desktop (a GPU driver, the tray, SmartScreen, a login item) is checked by
   hand from [windows-checklist.md](windows-checklist.md).

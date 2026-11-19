@@ -25,6 +25,7 @@ pub mod host;
 pub mod instance;
 pub mod lists;
 pub mod register;
+pub mod registry;
 pub mod settings;
 pub mod shell;
 /// The tests' logins and secrets, never written in the code.

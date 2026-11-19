@@ -64,6 +64,9 @@ windows-sys = { workspace = true, features = [
   "Win32_Storage_FileSystem",
   "Win32_System_Console",
   "Win32_System_Diagnostics_ToolHelp",
+  # Browsers' hosts, magnet links and the firewall's rules, written and read
+  # without reg.exe (registry.rs).
+  "Win32_System_Registry",
   "Win32_System_Threading",
 ] }
 

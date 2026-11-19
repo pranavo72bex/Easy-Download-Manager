@@ -7909,3 +7909,22 @@ A stream's file takes the page's title (`stream::titled`) wherever one came with
 was typed: its address names a playlist (`playlist.m3u8`, `HLSPlaylist.m3u8`) or the folder above
 it (`cXNyPTE`, base64 of `qsr=1`), never the video. The title loses a site's trailing
 "| … on <site>" of at most six words ("| Videos & Movies on Vimeo"; `clean_title`).
+
+## The registry through its own API; `.reg` copies still `reg.exe`'s (2026-11-19, gaps row P8)
+
+`register.rs` used to start `reg.exe` for every key it wrote, removed or asked about (each launch's
+check, `--register`, Options › Browser's four questions as the page opens) and `firewall.rs` for
+its reading of the rules; its note said "no registry crate and no `unsafe` for six keys". The
+count grew past twenty lists, each a program started, so `dm_shell::registry` now carries out the
+same lists through `windows-sys`'s registry calls (`RegCreateKeyExW`, `RegSetValueExW`,
+`RegDeleteTreeW`, `RegDeleteValueW`, `RegOpenKeyExW`, `RegQueryValueExW`, `RegEnumValueW`), no
+crate added (`windows-sys` was already dm-shell's).
+
+* **The lists stay `reg.exe`'s words.** `register` still builds `add … /v … /t REG_SZ /d … /f`
+  and its tests read those lists on every system; `registry::parse` turns one into a `Call`, and
+  only `registry::run` (Windows) touches the registry. A list dm does not write (another type
+  than `REG_SZ`, a root other than `HKCU` or `HKLM`, an unknown flag) is refused in words.
+* **`export` and `import` stay `reg.exe`'s.** The copy kept of another program's magnet or
+  `.torrent` key is a `.reg` file a person can open or double-click; writing and reading that
+  format whole (every value type, escapes, UTF-16) is `reg.exe`'s, and is done once per click.
+* Errors keep their shape, `reg <verb>: <Windows' words>`.
