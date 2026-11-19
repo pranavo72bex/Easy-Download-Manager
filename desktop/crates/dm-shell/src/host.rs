@@ -105,7 +105,7 @@ pub struct Request {
     pub browser: Option<String>,
     /// Handed over by the browser's extension, not given on a command line:
     /// it may take the place of a row waiting for a fresh address for the
-    /// same file (`Queue::adopt_fresh_link`) rather than be added again.
+    /// same file (`DownloadList::adopt_fresh_link`) rather than be added again.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub from_browser: bool,
     /// Only a newer address for a row waiting for one (`Start::renews`):

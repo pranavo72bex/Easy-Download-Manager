@@ -18,7 +18,7 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri};
 use axum::response::Response;
-use dm_core::{client, Queue, State as DownloadState};
+use dm_core::{client, DownloadList, State as DownloadState};
 
 mod common;
 use common::tempdir;
@@ -105,8 +105,8 @@ async fn serve_with(
     (addr, peak, asked)
 }
 
-fn queue(dir: &std::path::Path, concurrency: usize) -> Queue {
-    Queue::new(
+fn queue(dir: &std::path::Path, concurrency: usize) -> DownloadList {
+    DownloadList::new(
         client(),
         // One connection by default: these tests are about the queue's
         // states, not about how a single file is split.
@@ -1426,7 +1426,7 @@ async fn a_full_disk_pauses_and_another_folder_finishes_it() {
     let base = common::options(dir.path());
     // The download folder and dm's own parts folder are on the full disk.
     let (watched, parts) = (full.clone(), base.parts_dir.clone());
-    let q = Queue::new(
+    let q = DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,
@@ -1473,7 +1473,7 @@ async fn an_unfinished_download_given_another_folder_and_name_lands_there() {
     let taken = dir.path().join("taken");
     std::fs::write(&taken, b"a file where the folder would be").unwrap();
     let elsewhere = dir.path().join("elsewhere");
-    let q = Queue::new(
+    let q = DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,
@@ -1987,7 +1987,7 @@ async fn a_resumed_row_waits_for_its_previous_run_to_stop_before_starting_again(
      * open at once. */
     let (addr, hits, open) = serve_stalled_counting().await;
     let dir = tempdir();
-    let q = Queue::new(
+    let q = DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,
@@ -2053,7 +2053,7 @@ async fn a_queue_that_cannot_be_written_says_so_rather_than_pretending() {
         return; // root writes past permissions (a container): nothing to test
     }
     q.add(&format!("http://{addr}/f.bin")).await.unwrap();
-    // A change waits a moment for its write (`Queue::flush` is what the app
+    // A change waits a moment for its write (`DownloadList::flush` is what the app
     // does as it ends); the failure is said when the write is made.
     q.flush().await;
     let problems = q.problems();
@@ -2154,7 +2154,7 @@ async fn what_is_not_a_url_is_refused_at_the_one_door() {
 #[tokio::test]
 async fn the_queue_takes_a_magnet_but_not_a_stray_line() {
     let dir = tempdir();
-    let queue = Queue::new(client(), common::options(dir.path()), 2);
+    let queue = DownloadList::new(client(), common::options(dir.path()), 2);
 
     let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567";
     assert!(
@@ -2220,7 +2220,7 @@ async fn a_paused_row_still_stopping_holds_its_slot() {
      * download start beside it. Measured at the server: never two open. */
     let (addr, hits, open) = serve_stalled_counting().await;
     let dir = tempdir();
-    let q = Queue::new(
+    let q = DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,
@@ -3050,7 +3050,7 @@ async fn a_row_retrying_a_failing_server_lets_the_next_one_run() {
         );
     let addr = common::serve(app).await;
     let dir = tempdir();
-    let q = Queue::new(
+    let q = DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,

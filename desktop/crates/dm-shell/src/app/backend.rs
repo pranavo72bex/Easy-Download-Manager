@@ -79,7 +79,7 @@ const STOP_FOR_ADDRESS_WITHIN: std::time::Duration = std::time::Duration::from_s
 /// How often that wait looks at whether the row has stopped.
 const STOP_FOR_ADDRESS_LOOK: std::time::Duration = std::time::Duration::from_millis(25);
 
-use dm_core::{AddOptions, Connection, Entry, Id, Queue};
+use dm_core::{AddOptions, Connection, DownloadList, Entry, Id};
 
 pub use super::platform::{chooser_here, Platform};
 
@@ -89,7 +89,7 @@ pub struct Backend {
     /// The runtime the engine's work runs on.
     pub runtime: tokio::runtime::Handle,
     /// The download queue.
-    pub queue: Queue,
+    pub queue: DownloadList,
     settings: Arc<Mutex<Settings>>,
     /// What went wrong at startup — a saved proxy that could not be used, a
     /// login item that could not be written — handed to the window once.
@@ -114,7 +114,7 @@ impl Backend {
     /// Creates the backend over a queue, the settings in force, the start-up notices and the platform.
     pub fn new(
         runtime: tokio::runtime::Handle,
-        queue: Queue,
+        queue: DownloadList,
         settings: Settings,
         notices: Vec<String>,
         platform: Arc<dyn Platform>,
@@ -168,7 +168,7 @@ impl Backend {
         crate::app::errands::Answer(answer)
     }
 
-    /// Places a download begun while Download details asked (`Queue::settle_early`).
+    /// Places a download begun while Download details asked (`DownloadList::settle_early`).
     pub fn settle_early(
         &self,
         id: Id,
@@ -197,7 +197,7 @@ impl Backend {
 
     /// What the window draws from, read at once (`crate::app::snapshot`).
     /// The rows, the retries and the swarms come from one walk of the queue
-    /// (`Queue::read_shared`): three walked it three times (gaps row 210).
+    /// (`DownloadList::read_shared`): three walked it three times (gaps row 210).
     pub fn snapshot(&self) -> crate::app::snapshot::Snapshot {
         let read = self.block_on(self.queue.read_shared());
         crate::app::snapshot::Snapshot {
@@ -351,7 +351,7 @@ impl Backend {
     /// What a dm that is ending does last (Exit, a logout, a signal): every
     /// running download stopped as a pause stops it, awaited for up to
     /// [`SHUT_DOWN_WITHIN`], and put back in line for the next start; then
-    /// the queue file written (`Queue::shut_down`). Says how many runs were
+    /// the queue file written (`DownloadList::shut_down`). Says how many runs were
     /// still going at the deadline.
     pub fn shut_down(&self) -> usize {
         self.block_on(self.queue.shut_down(SHUT_DOWN_WITHIN))
@@ -765,7 +765,7 @@ impl Backend {
         self.block_on(self.queue.rename(id, name))
     }
 
-    /// Moves a finished file into `dir`; see `Queue::move_to`.
+    /// Moves a finished file into `dir`; see `DownloadList::move_to`.
     /// A folder typed as a relative path is refused, as a new download's is
     /// (`admit`): it was taken against wherever dm was started, and the file
     /// went there.
@@ -781,7 +781,7 @@ impl Backend {
 
     /// Move/Rename for a download that failed or is stopped: given the name and the folder
     /// asked for (a folder checked as `move_to` checks it), and tried again where it failed or
-    /// stalled (`Queue::place_unfinished`).
+    /// stalled (`DownloadList::place_unfinished`).
     pub fn place_unfinished(
         &self,
         id: Id,
@@ -1379,7 +1379,7 @@ pub(crate) mod testing {
             download_dir: dir.join("out"),
             ..settings
         };
-        let queue = dm_core::Queue::new(
+        let queue = dm_core::DownloadList::new(
             dm_core::client(),
             settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
             settings.concurrency,

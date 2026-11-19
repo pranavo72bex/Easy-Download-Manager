@@ -7,7 +7,7 @@
 //! the shape every dm reads, so a queue saved now still opens in an older dm; a queue saved
 //! before kinds gives each failure its kind from its sentence, once, as it is read.
 
-use dm_core::{Entry, FailKind, Queue, State};
+use dm_core::{DownloadList, Entry, FailKind, State};
 use serde_json::json;
 
 mod common;
@@ -38,7 +38,7 @@ async fn an_old_queue_file_gives_each_failure_its_kind_as_it_is_read() {
         failed(3, "the server refused the connection"),
     ]);
     std::fs::write(&store, old.to_string()).unwrap();
-    let q = Queue::new(dm_core::client(), common::options(dir.path()), 0);
+    let q = DownloadList::new(dm_core::client(), common::options(dir.path()), 0);
     q.persist_to(store).await;
     let kind = |row: Option<Entry>| row.expect("the row was not restored").fail_kind;
     assert_eq!(kind(q.get(1).await), Some(FailKind::Refused(404)));

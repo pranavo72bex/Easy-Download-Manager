@@ -55,7 +55,7 @@ fn headless(runtime: &tokio::runtime::Runtime, dir: &std::path::Path) -> Headles
         download_dir: dir.join("out"),
         ..Default::default()
     };
-    let queue = dm_core::Queue::new(
+    let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
         settings.concurrency,

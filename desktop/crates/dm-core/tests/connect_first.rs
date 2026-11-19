@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use axum::body::Body;
 use axum::extract::State;
 use axum::response::Response;
-use dm_core::{client, set_connect_first, Queue, Redial, State as Row};
+use dm_core::{client, set_connect_first, DownloadList, Redial, State as Row};
 
 mod common;
 use common::tempdir;
@@ -42,8 +42,8 @@ async fn serve() -> (std::net::SocketAddr, Asked) {
     (common::serve(app).await, asked)
 }
 
-fn queue(dir: &std::path::Path) -> Queue {
-    Queue::new(
+fn queue(dir: &std::path::Path) -> DownloadList {
+    DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,
@@ -53,7 +53,7 @@ fn queue(dir: &std::path::Path) -> Queue {
     )
 }
 
-async fn row(q: &Queue, id: dm_core::Id) -> Row {
+async fn row(q: &DownloadList, id: dm_core::Id) -> Row {
     q.get(id).await.unwrap().state
 }
 

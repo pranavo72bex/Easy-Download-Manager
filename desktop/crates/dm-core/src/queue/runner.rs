@@ -8,7 +8,7 @@ use super::*;
 /// How often the scheduler looks at the queue when nothing has woken it.
 const LOOK_EVERY: Duration = Duration::from_secs(1);
 
-impl Queue {
+impl DownloadList {
     /// Wakes a scheduler that is waiting for its next tick.
     pub(super) fn kick(&self) {
         self.inner.kick.notify_one();
@@ -725,7 +725,7 @@ fn options_from_row(slot: &mut Slot, options: &mut Options, own_parts: &std::pat
 /// Writes what a run reports on its row as it comes, until the run lets go of its sender:
 /// what it reported last, counted from what an earlier run had already `staged`.
 async fn watch_run(
-    queue: Queue,
+    queue: DownloadList,
     id: Id,
     this_run: Control,
     staged: Option<u64>,

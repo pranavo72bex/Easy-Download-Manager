@@ -225,8 +225,8 @@ pub use proxy::{
 };
 
 pub use queue::{
-    accepted, queue_names, shown_url, AddOptions, Connection, Entry, Id, Queue, SharedRead, State,
-    LINK_EXPIRED, MAIN_QUEUE, RECHECK_QUEUE, UNFINISHED,
+    accepted, queue_names, shown_url, AddOptions, Connection, DownloadList, Entry, Id, SharedRead,
+    State, LINK_EXPIRED, MAIN_QUEUE, RECHECK_QUEUE, UNFINISHED,
 };
 
 pub use schedule::{

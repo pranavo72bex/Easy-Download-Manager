@@ -17,7 +17,7 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri};
 use axum::response::Response;
-use dm_core::{client, Queue, State as DownloadState};
+use dm_core::{client, DownloadList, State as DownloadState};
 
 use common::tempdir;
 
@@ -94,7 +94,7 @@ async fn site() -> (std::net::SocketAddr, Site) {
 
 /// The file downloaded through a queue, as a person's row is.
 async fn fetched(addr: std::net::SocketAddr, dir: &std::path::Path) -> dm_core::Entry {
-    let q = Queue::new(
+    let q = DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,
@@ -257,7 +257,7 @@ async fn a_row_fetched_again_does_not_keep_an_earlier_runs_word() {
         &format!("{}  dm.zip\n", sha256_of(&served())),
     );
     let dir = tempdir();
-    let q = Queue::new(
+    let q = DownloadList::new(
         client(),
         dm_core::Options {
             connections: 1,

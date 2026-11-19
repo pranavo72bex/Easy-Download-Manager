@@ -8,7 +8,7 @@
 
 mod common;
 
-use dm_core::{AddOptions, Options, Queue};
+use dm_core::{AddOptions, DownloadList, Options};
 
 #[tokio::test]
 #[ignore]
@@ -16,7 +16,7 @@ async fn reading_back_ten_thousand_rows() {
     let dir = tempfile::tempdir().unwrap();
     let store = dir.path().join("queue.json");
     let make = || {
-        Queue::new(
+        DownloadList::new(
             dm_core::client(),
             Options {
                 ..common::options(dir.path())

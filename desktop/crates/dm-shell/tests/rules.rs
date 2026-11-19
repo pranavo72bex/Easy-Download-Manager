@@ -11,7 +11,7 @@
 use std::time::Duration;
 
 use axum::routing::get;
-use dm_core::{Categories, Control, Limiter, Options, Queue, State};
+use dm_core::{Categories, Control, DownloadList, Limiter, Options, State};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_held_download_goes_on_when_the_limit_lets_it() {
@@ -21,7 +21,7 @@ async fn a_held_download_goes_on_when_the_limit_lets_it() {
     tokio::spawn(async move { axum::serve(files, app).await.unwrap() });
 
     let dir = tempfile::tempdir().unwrap();
-    let queue = Queue::new(
+    let queue = DownloadList::new(
         dm_core::client(),
         Options {
             connections: 1,

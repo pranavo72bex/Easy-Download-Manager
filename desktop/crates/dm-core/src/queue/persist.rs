@@ -14,7 +14,7 @@ const SAVE_MOST: Duration = Duration::from_secs(5);
 /// The least time between two writes of what the download limit has used.
 const QUOTA_SAVE_EVERY: Duration = Duration::from_secs(10);
 
-impl Queue {
+impl DownloadList {
     /// Writes the queue to `path` from now on, and reads back what is there.
     ///
     /// A download manager that forgets its queue when it closes is one that
@@ -203,7 +203,7 @@ impl Queue {
     /// is paid once per interval and not once per change: a rewrite and sync
     /// of the whole list on every state change would hold 20 000 links to
     /// 13 small files a second and take a minute to cancel 2 000 of them.
-    /// [`Queue::flush`] writes what is waiting at once, for a program that
+    /// [`DownloadList::flush`] writes what is waiting at once, for a program that
     /// is about to end.
     ///
     /// A change made while a write is under way goes into the next write,

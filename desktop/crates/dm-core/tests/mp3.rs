@@ -48,7 +48,7 @@ async fn a_sound_asked_for_as_mp3_lands_as_an_mp3_of_its_length() {
     ))
     .await;
     let dir = tempdir();
-    let q = dm_core::Queue::new(client(), options(dir.path()), 1);
+    let q = dm_core::DownloadList::new(client(), options(dir.path()), 1);
     let id = q
         .add_with(
             &format!("http://{addr}/videoplayback.m4a"),

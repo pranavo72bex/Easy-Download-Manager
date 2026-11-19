@@ -59,7 +59,7 @@ fn backend(
         start_on_login,
         ..crate::Settings::default()
     };
-    let queue = dm_core::Queue::new(
+    let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.join("parts"), dm_core::Limiter::unlimited()),
         settings.concurrency,

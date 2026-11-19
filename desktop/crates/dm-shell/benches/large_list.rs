@@ -88,7 +88,7 @@ fn world() -> World {
         start_on_login: false,
         ..Settings::default()
     };
-    let queue = dm_core::Queue::new(
+    let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.path().join("parts"), dm_core::Limiter::unlimited()),
         settings.concurrency,

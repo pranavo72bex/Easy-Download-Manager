@@ -241,7 +241,7 @@ pub struct Entry {
     /// A row from the browser whose address has expired (a signed link that
     /// ran out): failed, but waiting for the browser to hand over a fresh
     /// address for the same file, which takes its place and goes on from the
-    /// parts already staged (`Queue::adopt_fresh_link`).
+    /// parts already staged (`DownloadList::adopt_fresh_link`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fresh_link: bool,
     /// A torrent's files, once its metadata is known, each with whether it
@@ -403,7 +403,7 @@ pub struct AddOptions {
     /// This download's own speed limit, in KB/s; zero for none.
     pub speed_limit: u64,
     /// Handed over by the browser: it may take the place of a row waiting
-    /// for a fresh address for the same file (`Queue::adopt_fresh_link`)
+    /// for a fresh address for the same file (`DownloadList::adopt_fresh_link`)
     /// instead of being added as another row.
     pub fresh_link_ok: bool,
     /// The form the download is the answer to, where the browser sent one
@@ -420,7 +420,7 @@ struct QueueStarts {
 }
 
 struct Slot {
-    /// Shared with the lists handed out ([`Queue::list_shared`]): a change
+    /// Shared with the lists handed out ([`DownloadList::list_shared`]): a change
     /// copies the row first if a list still holds it ([`Slot::entry_mut`]).
     entry: Arc<Entry>,
     control: Control,
@@ -556,7 +556,7 @@ struct Inner {
     queue_limits: std::sync::Mutex<HashMap<String, usize>>,
     /// Whether a scheduler is already serving this queue.
     scheduling: AtomicBool,
-    /// Set as dm ends (`Queue::shut_down`): nothing starts after it.
+    /// Set as dm ends (`DownloadList::shut_down`): nothing starts after it.
     closing: AtomicBool,
     /// Wakes a scheduler between its ticks, so a download added while
     /// others run starts now rather than at the next tick.
@@ -619,7 +619,7 @@ struct Inner {
 ///
 /// Cheap to clone; every clone talks to the same queue.
 #[derive(Clone)]
-pub struct Queue {
+pub struct DownloadList {
     inner: Arc<Inner>,
 }
 
@@ -644,10 +644,10 @@ pub fn accepted(url: &str) -> bool {
         || crate::live::is_live(url)
 }
 
-impl Queue {
+impl DownloadList {
     /// A queue that downloads with `client` and `options`, `concurrency` files at a time.
     pub fn new(client: reqwest::Client, options: Options, concurrency: usize) -> Self {
-        Queue {
+        DownloadList {
             inner: Arc::new(Inner {
                 slots: Mutex::new(HashMap::new()),
                 order: Mutex::new(Vec::new()),
@@ -1007,7 +1007,7 @@ async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
     (parts > 0 || others == 0).then_some(total)
 }
 
-/// The file a player is given for [`Queue::preview`]: what is fetched of
+/// The file a player is given for [`DownloadList::preview`]: what is fetched of
 /// `filename` under `parts`, under a name that ends as `filename` does.
 fn preview_of(parts: &std::path::Path, filename: &str) -> Result<PathBuf, String> {
     // The staged file of a ranged download, the first range's own file of

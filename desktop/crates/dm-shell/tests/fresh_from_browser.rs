@@ -15,7 +15,7 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::Response;
-use dm_core::{AddOptions, Queue, State as DownloadState};
+use dm_core::{AddOptions, DownloadList, State as DownloadState};
 use dm_shell::host::Request;
 use dm_shell::settings::Settings;
 use dm_shell::shell::{take_from_browser, Taken};
@@ -69,14 +69,14 @@ async fn site() -> std::net::SocketAddr {
     addr
 }
 
-fn queue(dir: &std::path::Path) -> (Queue, Settings) {
+fn queue(dir: &std::path::Path) -> (DownloadList, Settings) {
     let saved = Settings {
         download_dir: dir.join("out"),
         ..Settings::default()
     };
     let mut options = saved.options(dir.join("parts"), dm_core::Limiter::unlimited());
     options.attempts = 1;
-    (Queue::new(dm_core::client(), options, 1), saved)
+    (DownloadList::new(dm_core::client(), options, 1), saved)
 }
 
 /// What the extension's hand-off is filed as: from the browser, with the page.
@@ -91,7 +91,7 @@ fn handed(url: String, renews: bool) -> Request {
 }
 
 /// A row from the browser whose address has run out, waiting for a fresh one.
-async fn waiting(q: &Queue, addr: std::net::SocketAddr) -> dm_core::Id {
+async fn waiting(q: &DownloadList, addr: std::net::SocketAddr) -> dm_core::Id {
     let id = q
         .add_with(
             &format!("http://{addr}/f.bin?t=old"),

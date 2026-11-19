@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use dm_core::download_torrent;
-use dm_core::{client, Categories, Control, Limiter, Queue, State};
+use dm_core::{client, Categories, Control, DownloadList, Limiter, State};
 use dm_core::{Options, Update};
 use librqbit::spawn_utils::BlockingSpawner;
 use librqbit::{
@@ -509,7 +509,7 @@ async fn a_magnet_through_the_queue_completes_and_removing_a_paused_one_clears_i
     let data = bytes(256 * 1024, 10);
     let s = swarm("queued.bin", &[("queued.bin", data.clone())]).await;
     let dir = tempdir();
-    let q = Queue::new(client(), options(dir.path()), 2);
+    let q = DownloadList::new(client(), options(dir.path()), 2);
     let id = q.add(&s.magnet).await.expect("the queue refused a magnet");
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
@@ -582,7 +582,7 @@ async fn a_file_left_out_of_a_torrent_is_not_fetched() {
     let skip = bytes(2 * 1024 * 1024, 22);
     let s = swarm("pair", &[("keep.bin", keep.clone()), ("skip.bin", skip)]).await;
     let dir = tempdir();
-    let q = Queue::new(client(), options(dir.path()), 2);
+    let q = DownloadList::new(client(), options(dir.path()), 2);
     // Slow, so it is still running when its files are known.
     q.set_speed_limit(256 * 1024).await;
     let id = q.add(&s.torrent_url).await.unwrap();
@@ -852,7 +852,7 @@ async fn a_torrents_high_file_is_whole_before_its_low_one_starts() {
     )
     .await;
     let dir = tempdir();
-    let q = Queue::new(client(), options(dir.path()), 2);
+    let q = DownloadList::new(client(), options(dir.path()), 2);
     // Next to nothing until the priorities are set: the files are listed
     // while the torrent runs with every file wanted.
     q.set_speed_limit(1024).await;

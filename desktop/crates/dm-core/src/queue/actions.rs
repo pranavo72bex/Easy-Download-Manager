@@ -13,7 +13,7 @@ const WIND_DOWN_LOOK: std::time::Duration = std::time::Duration::from_millis(25)
 /// waiting for dm to go.
 const CLOSING_LOOK: std::time::Duration = std::time::Duration::from_millis(10);
 
-impl Queue {
+impl DownloadList {
     /// Points a stopped download at another folder, its unfinished parts
     /// moved there too (they may be on the disk that filled), and puts it
     /// back in line. Parts on a drive no longer there are left: it starts
@@ -484,7 +484,7 @@ impl Queue {
     }
 
     /// The finished downloads among `ids` as they stand, each with its place in
-    /// the list, for [`Queue::put_back`]: taking one off the list loses
+    /// the list, for [`DownloadList::put_back`]: taking one off the list loses
     /// nothing, since its file stays where it was saved.
     pub async fn finished_rows(&self, ids: &[Id]) -> Vec<(usize, Entry)> {
         let slots = self.inner.slots.lock().await;

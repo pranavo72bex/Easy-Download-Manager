@@ -16,7 +16,7 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::Response;
 use base64::Engine as _;
-use dm_core::{client, Queue, State as DownloadState};
+use dm_core::{client, DownloadList, State as DownloadState};
 use sha2::Digest as _;
 
 use common::tempdir;
@@ -125,7 +125,7 @@ async fn fetched(
     dir: &std::path::Path,
     connections: usize,
 ) -> dm_core::Entry {
-    let q = Queue::new(
+    let q = DownloadList::new(
         client(),
         dm_core::Options {
             connections,

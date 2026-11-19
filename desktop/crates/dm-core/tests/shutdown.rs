@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use axum::body::Body;
 use axum::http::HeaderMap;
 use axum::response::Response;
-use dm_core::{client, Queue, State};
+use dm_core::{client, DownloadList, State};
 
 use common::{serve, tempdir};
 
@@ -91,8 +91,8 @@ async fn server(data: Arc<Vec<u8>>, sent: Arc<AtomicUsize>) -> String {
     format!("http://{}", serve(app).await)
 }
 
-fn queue(dir: &std::path::Path) -> Queue {
-    Queue::new(
+fn queue(dir: &std::path::Path) -> DownloadList {
+    DownloadList::new(
         client(),
         dm_core::Options {
             connections: CONNECTIONS,

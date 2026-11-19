@@ -15,7 +15,7 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::Response;
-use dm_core::{client, AddOptions, Options, Queue, State as DownloadState};
+use dm_core::{client, AddOptions, DownloadList, Options, State as DownloadState};
 
 mod common;
 use common::tempdir;
@@ -87,8 +87,8 @@ async fn site() -> (std::net::SocketAddr, Site) {
     (common::serve(app).await, site)
 }
 
-fn queue(dir: &std::path::Path) -> Queue {
-    Queue::new(
+fn queue(dir: &std::path::Path) -> DownloadList {
+    DownloadList::new(
         client(),
         Options {
             connections: 4,

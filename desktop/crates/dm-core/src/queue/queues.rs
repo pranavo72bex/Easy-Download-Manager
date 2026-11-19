@@ -5,7 +5,7 @@
 
 use super::*;
 
-impl Queue {
+impl DownloadList {
     /// Starts every row waiting in a named queue, and says how many.
     pub async fn start_queue(&self, queue: &str) -> usize {
         let mut started = 0;
@@ -152,7 +152,7 @@ impl Queue {
     }
 }
 
-/// The queues `rows` name, as [`Queue::queues`] lists them: the main queue
+/// The queues `rows` name, as [`DownloadList::queues`] lists them: the main queue
 /// and the recheck queue first, then each other one where it first appears.
 /// For a reader holding the list already (the window), with no lock.
 pub fn queue_names<'a>(rows: impl IntoIterator<Item = &'a Entry>) -> Vec<String> {

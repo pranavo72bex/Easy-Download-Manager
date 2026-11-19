@@ -42,7 +42,7 @@ async fn the_browsers_request_headers_are_sent_on_every_request_of_the_row() {
     let addr = serve(token_only()).await;
     let dir = tempdir();
     let url = format!("http://{addr}/guarded.bin");
-    let q = dm_core::Queue::new(client(), options(dir.path()), 1);
+    let q = dm_core::DownloadList::new(client(), options(dir.path()), 1);
 
     // Without them: refused, as it is to anything that is not the browser.
     let bare = q.add(&url).await.unwrap();
@@ -150,7 +150,7 @@ async fn every_request_of_a_ranged_download_carries_the_browsers_headers() {
     );
     let addr = serve(app).await;
     let dir = tempdir();
-    let q = dm_core::Queue::new(
+    let q = dm_core::DownloadList::new(
         client(),
         dm_core::Options {
             connections: 4,
@@ -235,7 +235,7 @@ async fn a_user_agent_and_headers_of_the_persons_own_go_on_every_request() {
     let refused = Arc::new(AtomicUsize::new(0));
     let addr = serve(agent_only(AGENT, data.clone(), refused.clone())).await;
     let dir = tempdir();
-    let q = dm_core::Queue::new(
+    let q = dm_core::DownloadList::new(
         client(),
         dm_core::Options {
             connections: 4,

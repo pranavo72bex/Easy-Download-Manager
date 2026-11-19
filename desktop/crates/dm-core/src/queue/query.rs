@@ -6,18 +6,18 @@
 use super::*;
 
 /// The rows and what is running under them, read at once
-/// ([`Queue::read_shared`]).
+/// ([`DownloadList::read_shared`]).
 #[derive(Debug, Default)]
 pub struct SharedRead {
-    /// Every row in order, shared with the queue ([`Queue::list_shared`]).
+    /// Every row in order, shared with the queue ([`DownloadList::list_shared`]).
     pub rows: Vec<Arc<Entry>>,
-    /// The running rows a range is being retried for ([`Queue::retrying`]).
+    /// The running rows a range is being retried for ([`DownloadList::retrying`]).
     pub retrying: HashMap<Id, (u32, u32, String, std::time::Instant)>,
-    /// Each running torrent's swarm ([`Queue::swarms`]).
+    /// Each running torrent's swarm ([`DownloadList::swarms`]).
     pub swarms: HashMap<Id, crate::torrent::Swarm>,
 }
 
-impl Queue {
+impl DownloadList {
     /// Each running torrent's swarm at its last sample, by row.
     pub async fn swarms(&self) -> HashMap<Id, crate::torrent::Swarm> {
         self.inner

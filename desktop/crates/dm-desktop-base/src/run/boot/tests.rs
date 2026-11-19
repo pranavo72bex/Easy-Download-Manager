@@ -55,7 +55,7 @@ fn a_login_item_refused_after_the_window_is_up_is_said_and_wakes_the_window() {
         start_on_login: true,
         ..Default::default()
     };
-    let queue = dm_core::Queue::new(
+    let queue = dm_core::DownloadList::new(
         dm_core::client(),
         settings.options(dir.path().join("parts"), dm_core::Limiter::unlimited()),
         settings.concurrency,

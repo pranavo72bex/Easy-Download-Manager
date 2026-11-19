@@ -427,7 +427,7 @@ second time. A download the extension itself started is never caught.
 **An address that runs out.** A row from the browser whose signed address
 answers 403 or 410 waits for a fresh one (`Entry::fresh_link`). The browser's
 next hand-off of the same file takes its place (`shell::take_from_browser`,
-`Queue::adopt_fresh_link`) unless Download details asks first. The extension
+`DownloadList::adopt_fresh_link`) unless Download details asks first. The extension
 also remembers what it handed over (`decide::Handed`) and, when the page's
 player asks for one of those streams anew, offers dm that address marked
 `renews`, only to an app whose hello says it takes them: a waiting row goes
