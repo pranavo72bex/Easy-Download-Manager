@@ -8030,3 +8030,17 @@ The binary's modes are one `run::modes::Mode`, parsed in the order the two if-ch
 `--churn` and demo "Delete the file?" dialog are gone: no script, check or workflow named them
 (`human-qa.py`'s accessibility rows read `a11y_tree::windows()` through the control port, which
 stays).
+
+## HLS's subtitles timed by the writer's own first time (2026-11-19, gaps row Y20)
+
+An HLS WebVTT segment says where its cues sit on the stream's 90 kHz clock
+(`X-TIMESTAMP-MAP=MPEGTS:…,LOCAL:…`); the saved file starts at a time of its own, which only the
+writer knows once it has read its inputs: the transport-stream remux starts the file at the
+earliest first PTS of its picture and sound (`tsmux/tracks.rs` `build`, each track's lead an
+empty edit), a fragmented MP4 join at the earliest first `tfdt`. So the writers take the cues as
+a closure (`place(zero)`) called with that time, and a cue lands at
+`cue - LOCAL + (MPEGTS - zero) / 90` ms, the 33-bit wrap crossed the near way. A segment with no
+map is taken from the stream's start, as the row's work order asked; RFC 8216 reads cue 0 there
+as MPEGTS 0, to be weighed against a real stream. Cues ending before the file's start are
+dropped, one crossing it starts at 0, a cue repeated in two segments is kept once. With
+subtitles off, or none listed, every path runs as before.
