@@ -70,6 +70,13 @@ says **From** and the browser's name. With several addresses it says **and
 - **Delete file after:** **Never**, **10 minutes**, **1 hour** or **1
   day**: that long after the download finishes, its file goes to the
   Recycle Bin (the Trash on macOS) and the row leaves the list.
+- **Unpack when done:** shown for a ZIP, 7z or tar archive (by the name in
+  **Save as** or in the address). Ticked, once the download finishes its
+  files are unpacked into a new folder of its name beside it, even where
+  its kind is not ticked under **Unpack when done** in
+  [Options › Folders](options-folders.md#unpack-when-done), which also says
+  whether the archive is then kept or sent to the Trash. Nothing on disk is
+  replaced, and nothing is written outside that folder.
 
 ## Warnings
 

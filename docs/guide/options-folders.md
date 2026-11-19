@@ -31,3 +31,27 @@ works.
 
 A site can also have a folder of its own: see **Sites with their own folder,
 speed and headers:** in [Options › Advanced](options-advanced.md).
+
+## Unpack when done
+
+"A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a
+new folder of its name beside it. No file is replaced, and nothing is
+written outside that folder."
+
+- Under the heading **Unpack when done**, each kind (Videos, Audio,
+  Documents, Apps, Archives, Pictures, Other) has a box. A ZIP, 7z or tar
+  file is sorted as **Archives**, so that is the box to tick. None is ticked
+  in a new install. A single download can be unpacked without its kind:
+  tick **Unpack when done** in [Download details](download-details.md).
+- The archive is unpacked as **Extract here** unpacks it: dm checks every
+  file in it first, and if one would land outside the new folder, or is a
+  link, nothing is unpacked. Where a folder of that name is there already,
+  the new one is numbered ("pack (1)").
+- **Once it is unpacked:** **Keep the archive** (the choice in a new
+  install) leaves it where it was; **Send the archive to the Trash** moves
+  it to the Recycle Bin (the Trash on macOS) once its files are out, so it
+  can be got back. An archive that was not unpacked is always kept.
+- "An archive with a password is left as it is, and its row says so." dm
+  does not ask for a password yet.
+- What became of it is said on the download's row, after "Complete": see
+  [Notes beside a download's state](failures.md#notes-beside-a-downloads-state).

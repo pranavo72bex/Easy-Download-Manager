@@ -912,5 +912,16 @@
  "File's path": "ファイルのパス",
  "Type the file's full path, such as {}.": "{} のように、ファイルのフルパスを入力してください。",
  "Export the list": "リストをエクスポート",
- "Import a list": "リストをインポート"
+ "Import a list": "リストをインポート",
+ "Unpack when done": "完了後に展開",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "ここでチェックした種類の ZIP、7z、tar アーカイブは、完了すると隣にその名前の新しいフォルダーを作って展開されます。既存のファイルは置き換えられず、そのフォルダーの外には何も書き込まれません。",
+ "Once it is unpacked:": "展開したあと:",
+ "Keep the archive": "アーカイブを残す",
+ "Send the archive to the Trash": "アーカイブをゴミ箱へ移動",
+ "An archive with a password is left as it is, and its row says so.": "パスワード付きのアーカイブはそのまま残され、その行に表示されます。",
+ "unpacked into a folder of its name": "同じ名前のフォルダーに展開済み",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "同じ名前のフォルダーに展開済み、アーカイブはゴミ箱へ移動",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "同じ名前のフォルダーに展開済み、ただしアーカイブをゴミ箱へ移動できませんでした",
+ "not unpacked: the archive has a password": "展開されていません: アーカイブにパスワードがあります",
+ "not unpacked: Extract here on its menu says why": "展開されていません: メニューの「ここに展開」で理由がわかります"
 }

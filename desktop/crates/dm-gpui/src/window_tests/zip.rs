@@ -117,3 +117,27 @@ fn a_zip_on_a_server_that_serves_no_ranges_offers_nothing_to_take_out() {
     reading_over(&mut h);
     assert!(!h.shows("Take out"), "{:?}", h.texts());
 }
+
+/// Unpack when done, ticked in Download details for this one download (gaps row W14): once it
+/// finishes, its files are in a new folder of its name beside it, the archive is kept, and the
+/// row says so.
+#[test]
+fn unpack_when_done_ticked_in_download_details_unpacks_the_finished_zip() {
+    let world = world();
+    let mut h = open_details(&world, "plain.zip");
+    reading_over(&mut h);
+    h.click("Unpack when done");
+    h.click("Start now");
+    h.until("it to be unpacked", |h| {
+        h.rows().iter().any(|r| r.said == dm_core::NOTES[4])
+    });
+    let row = h.rows()[0].clone();
+    assert!(row.unpack, "the box went with the row");
+    let archive = std::path::Path::new(&row.path);
+    assert!(archive.is_file(), "the archive was kept");
+    let readme = archive
+        .with_file_name("plain")
+        .join("docs")
+        .join("readme.txt");
+    assert_eq!(std::fs::read(readme).unwrap(), vec![b'a'; 1000]);
+}

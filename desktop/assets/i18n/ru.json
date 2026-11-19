@@ -912,5 +912,16 @@
  "File's path": "Путь к файлу",
  "Type the file's full path, such as {}.": "Введите полный путь к файлу, например {}.",
  "Export the list": "Экспортировать список",
- "Import a list": "Импортировать список"
+ "Import a list": "Импортировать список",
+ "Unpack when done": "Распаковать по завершении",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Готовый архив ZIP, 7z или tar отмеченного здесь вида распаковывается в новую папку с его именем рядом с ним. Ни один файл не заменяется, и ничего не записывается за пределами этой папки.",
+ "Once it is unpacked:": "После распаковки:",
+ "Keep the archive": "Оставить архив",
+ "Send the archive to the Trash": "Отправить архив в корзину",
+ "An archive with a password is left as it is, and its row says so.": "Архив с паролем остаётся как есть, и его строка говорит об этом.",
+ "unpacked into a folder of its name": "распакован в папку с его именем",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "распакован в папку с его именем, архив отправлен в корзину",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "распакован в папку с его именем, но архив не удалось отправить в корзину",
+ "not unpacked: the archive has a password": "не распакован: у архива есть пароль",
+ "not unpacked: Extract here on its menu says why": "не распакован: «Извлечь сюда» в его меню скажет почему"
 }

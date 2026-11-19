@@ -912,5 +912,16 @@
  "File's path": "Dosyanın yolu",
  "Type the file's full path, such as {}.": "Dosyanın tam yolunu yazın, örneğin {}.",
  "Export the list": "Listeyi dışa aktar",
- "Import a list": "Liste içe aktar"
+ "Import a list": "Liste içe aktar",
+ "Unpack when done": "Bitince aç",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Burada işaretlenen türden biten bir ZIP, 7z veya tar arşivi, yanında kendi adını taşıyan yeni bir klasöre açılır. Hiçbir dosya değiştirilmez ve o klasörün dışına hiçbir şey yazılmaz.",
+ "Once it is unpacked:": "Açıldıktan sonra:",
+ "Keep the archive": "Arşivi sakla",
+ "Send the archive to the Trash": "Arşivi çöp kutusuna gönder",
+ "An archive with a password is left as it is, and its row says so.": "Parolalı bir arşiv olduğu gibi bırakılır ve satırı bunu söyler.",
+ "unpacked into a folder of its name": "kendi adını taşıyan bir klasöre açıldı",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "kendi adını taşıyan bir klasöre açıldı ve arşiv çöp kutusuna gönderildi",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "kendi adını taşıyan bir klasöre açıldı, ancak arşiv çöp kutusuna gönderilemedi",
+ "not unpacked: the archive has a password": "açılmadı: arşivin parolası var",
+ "not unpacked: Extract here on its menu says why": "açılmadı: menüsündeki \"Buraya çıkar\" nedenini söyler"
 }

@@ -150,8 +150,9 @@ pub struct Read {
 impl Session {
     /// Reads the queue and does what follows from it that is the
     /// application's: the command a person set to run on each finished file
-    /// (Options › Downloads). Call `changes::take` before, never after, so a
-    /// change made during the read is still owed one.
+    /// (Options › Downloads), and each finished archive unpacked where "Unpack
+    /// when done" says so (`super::unpack`). Call `changes::take` before, never
+    /// after, so a change made during the read is still owed one.
     pub fn read(&mut self, backend: &Backend, settings: &Settings) -> Read {
         // Asked before the queue is read: an adding begins only on this
         // thread (`Self::adding` takes the session), so none begins between,
@@ -165,7 +166,15 @@ impl Session {
             }
             adds.running > 0
         };
-        self.read_from(backend.snapshot(), hold_new, settings)
+        let read = self.read_from(backend.snapshot(), hold_new, settings);
+        // Unpack when done (gaps row W14), off this thread.
+        super::unpack::when_done(
+            backend,
+            settings,
+            &read.snapshot.rows,
+            &read.detected.finished,
+        );
+        read
     }
 
     /// [`Self::read`] of `snapshot`, the queue read with new rows held

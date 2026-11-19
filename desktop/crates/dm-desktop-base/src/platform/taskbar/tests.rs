@@ -40,6 +40,7 @@ fn row(state: State, downloaded: u64, total: Option<u64>, finished_at: Option<u6
         mp3: false,
         gif: false,
         delete_after: None,
+        unpack: false,
         parts_dir: String::new(),
         began_in: String::new(),
         cookies: String::new(),

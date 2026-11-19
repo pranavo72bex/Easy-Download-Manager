@@ -912,5 +912,16 @@
  "File's path": "Caminho do arquivo",
  "Type the file's full path, such as {}.": "Digite o caminho completo do arquivo, como {}.",
  "Export the list": "Exportar a lista",
- "Import a list": "Importar uma lista"
+ "Import a list": "Importar uma lista",
+ "Unpack when done": "Descompactar ao terminar",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Um arquivo ZIP, 7z ou tar concluído de um tipo marcado aqui é descompactado em uma nova pasta com o nome dele, ao lado. Nenhum arquivo é substituído, e nada é gravado fora dessa pasta.",
+ "Once it is unpacked:": "Depois de descompactado:",
+ "Keep the archive": "Manter o arquivo compactado",
+ "Send the archive to the Trash": "Enviar o arquivo compactado para a lixeira",
+ "An archive with a password is left as it is, and its row says so.": "Um arquivo compactado com senha fica como está, e a linha dele diz isso.",
+ "unpacked into a folder of its name": "descompactado em uma pasta com o nome dele",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "descompactado em uma pasta com o nome dele, e o arquivo compactado enviado para a lixeira",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "descompactado em uma pasta com o nome dele, mas o arquivo compactado não pôde ir para a lixeira",
+ "not unpacked: the archive has a password": "não descompactado: o arquivo compactado tem senha",
+ "not unpacked: Extract here on its menu says why": "não descompactado: \"Extrair aqui\" no menu dele diz por quê"
 }

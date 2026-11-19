@@ -912,5 +912,16 @@
  "File's path": "Pfad der Datei",
  "Type the file's full path, such as {}.": "Geben Sie den vollständigen Pfad der Datei ein, etwa {}.",
  "Export the list": "Liste exportieren",
- "Import a list": "Liste importieren"
+ "Import a list": "Liste importieren",
+ "Unpack when done": "Nach dem Download entpacken",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Ein fertiges ZIP-, 7z- oder tar-Archiv einer hier angehakten Art wird in einen neuen Ordner mit seinem Namen daneben entpackt. Keine Datei wird ersetzt, und nichts wird außerhalb dieses Ordners geschrieben.",
+ "Once it is unpacked:": "Nach dem Entpacken:",
+ "Keep the archive": "Archiv behalten",
+ "Send the archive to the Trash": "Archiv in den Papierkorb verschieben",
+ "An archive with a password is left as it is, and its row says so.": "Ein Archiv mit Passwort bleibt, wie es ist, und seine Zeile sagt es.",
+ "unpacked into a folder of its name": "in einen Ordner mit seinem Namen entpackt",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "in einen Ordner mit seinem Namen entpackt, das Archiv in den Papierkorb verschoben",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "in einen Ordner mit seinem Namen entpackt, aber das Archiv konnte nicht in den Papierkorb verschoben werden",
+ "not unpacked: the archive has a password": "nicht entpackt: das Archiv hat ein Passwort",
+ "not unpacked: Extract here on its menu says why": "nicht entpackt: „Hier entpacken“ in seinem Menü sagt, warum"
 }

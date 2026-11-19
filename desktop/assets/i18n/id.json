@@ -912,5 +912,16 @@
  "File's path": "Jalur berkas",
  "Type the file's full path, such as {}.": "Ketik jalur lengkap berkas, seperti {}.",
  "Export the list": "Ekspor daftar",
- "Import a list": "Impor daftar"
+ "Import a list": "Impor daftar",
+ "Unpack when done": "Ekstrak setelah selesai",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Arsip ZIP, 7z, atau tar yang selesai dari jenis yang dicentang di sini diekstrak ke folder baru bernama sama di sebelahnya. Tidak ada file yang diganti, dan tidak ada yang ditulis di luar folder itu.",
+ "Once it is unpacked:": "Setelah diekstrak:",
+ "Keep the archive": "Simpan arsipnya",
+ "Send the archive to the Trash": "Pindahkan arsip ke Tempat Sampah",
+ "An archive with a password is left as it is, and its row says so.": "Arsip dengan kata sandi dibiarkan apa adanya, dan barisnya memberi tahu.",
+ "unpacked into a folder of its name": "diekstrak ke folder bernama sama",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "diekstrak ke folder bernama sama, dan arsipnya dipindahkan ke Tempat Sampah",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "diekstrak ke folder bernama sama, tetapi arsipnya tidak dapat dipindahkan ke Tempat Sampah",
+ "not unpacked: the archive has a password": "tidak diekstrak: arsipnya memiliki kata sandi",
+ "not unpacked: Extract here on its menu says why": "tidak diekstrak: \"Ekstrak di sini\" di menunya memberi tahu alasannya"
 }

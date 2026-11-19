@@ -1728,6 +1728,8 @@ const A_FULL_FILE: &str = r#"{
     "categorize": false,
     "category_folders": ["Clips", "Music", "", "Docs"],
     "parts_dir": "/srv/parts",
+    "unpack_kinds": ["archives", "other"],
+    "unpack_trash": true,
 
     "connections": 16,
     "concurrency": 5,

@@ -223,6 +223,8 @@ pub struct Form {
     pub gif: bool,
     /// "Delete file after", in seconds.
     pub delete_after: Option<u64>,
+    /// "Unpack when done", ticked for this download (gaps row W14).
+    pub unpack: bool,
     /// The folder, as typed.
     pub folder: String,
     /// The name, as typed.
@@ -277,6 +279,7 @@ pub fn options(
         mp3: false,
         gif: form.gif && form.span.is_some(),
         delete_after: form.delete_after,
+        unpack: form.unpack,
         cookies: form.cookies.clone(),
         cookies_once: form.cookies_once,
         headers: form.headers.clone(),

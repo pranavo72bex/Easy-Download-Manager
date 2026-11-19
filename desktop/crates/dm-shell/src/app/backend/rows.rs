@@ -91,6 +91,17 @@ impl Backend {
         self.block_on(self.queue.set_delete_after(id, seconds));
     }
 
+    /// "Unpack when done" for this download alone (gaps row W14).
+    pub fn set_unpack(&self, id: Id, on: bool) {
+        self.block_on(self.queue.set_unpack(id, on));
+    }
+
+    /// What a finished download says of itself beside its state: one of `dm_core::NOTES`,
+    /// in English (what "Unpack when done" made of its archive).
+    pub fn set_said(&self, id: Id, said: &str) {
+        self.block_on(self.queue.set_said(id, said));
+    }
+
     /// Puts a download in the queue of this name.
     pub fn set_queue(&self, id: Id, queue: &str) {
         self.block_on(self.queue.set_queue(id, queue));

@@ -912,5 +912,16 @@
  "File's path": "Ruta del archivo",
  "Type the file's full path, such as {}.": "Escriba la ruta completa del archivo, como {}.",
  "Export the list": "Exportar la lista",
- "Import a list": "Importar una lista"
+ "Import a list": "Importar una lista",
+ "Unpack when done": "Descomprimir al terminar",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Un archivo ZIP, 7z o tar terminado de un tipo marcado aquí se descomprime en una carpeta nueva con su nombre, a su lado. No se reemplaza ningún archivo y no se escribe nada fuera de esa carpeta.",
+ "Once it is unpacked:": "Una vez descomprimido:",
+ "Keep the archive": "Conservar el archivo comprimido",
+ "Send the archive to the Trash": "Enviar el archivo comprimido a la papelera",
+ "An archive with a password is left as it is, and its row says so.": "Un archivo comprimido con contraseña se deja como está, y su fila lo indica.",
+ "unpacked into a folder of its name": "descomprimido en una carpeta con su nombre",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "descomprimido en una carpeta con su nombre, y el archivo comprimido enviado a la papelera",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "descomprimido en una carpeta con su nombre, pero el archivo comprimido no se pudo enviar a la papelera",
+ "not unpacked: the archive has a password": "no descomprimido: el archivo comprimido tiene contraseña",
+ "not unpacked: Extract here on its menu says why": "no descomprimido: «Extraer aquí» en su menú dice por qué"
 }

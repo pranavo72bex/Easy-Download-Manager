@@ -282,10 +282,13 @@ FILES = {
     "fresh.bin": (8 * MiB, 512 * 1024, "plain"),      # a new install's pop-ups (B63)
     "clip-a.bin": (1 * MiB, 0, "plain"),              # Links on the clipboard, to a new folder (B67)
     "clip-b.bin": (1 * MiB, 0, "plain"),
+    "kind.zip": (len(PACK), 0, "plain"),          # unpacked when done for its kind (B71)
+    "own.zip": (len(PACK), 0, "plain"),           # unpacked when done for itself, then trashed (B71)
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
 DATA["pack.zip"] = PACK
+DATA["kind.zip"] = DATA["own.zip"] = PACK
 LOG, LOCK, ACTIVE, CONNS = [], threading.Lock(), {}, [0]
 T0 = time.time()
 
@@ -1556,6 +1559,8 @@ def walk(dm, origin):
     except (OSError, subprocess.SubprocessError):
         pass
 
+    unpack_when_done(dm, files)
+
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
         now = WORK / "pictures" / f"{name}.png"
@@ -1661,6 +1666,100 @@ def clipboard_restore(held):
             subprocess.run(["pbcopy"], input=held, timeout=5)
         except (OSError, subprocess.SubprocessError):
             pass
+
+
+def unpack_when_done(dm, files):
+    """B71 (gaps row W14): Unpack when done, ticked for the Archives kind in Options ›
+    Folders (the archive kept), then for one download in Download details with "Send the
+    archive to the Trash" chosen: each ZIP's files land in a new folder of its name beside it,
+    a folder already there is not replaced, and the row says what became of the archive."""
+    def folders_page():
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        dm.click("Folders")
+        pause(0.8)
+        # Down to the page's foot, where the section is, as a person scrolls.
+        return dm.scrolled_texts("Download folder", turns=14)
+
+    def settled(name, within=60):
+        dm.wait(name, ("completed", "failed"), within)
+        end = time.time() + within
+        while time.time() < end and not (dm.row(name) or {}).get("said"):
+            time.sleep(0.25)
+        return dm.row(name) or {}
+
+    def status(row):
+        shown = dm.call("ui.inspect").get("result", {}).get("rows", [])
+        return next((x.get("status", "") for x in shown if x.get("id") == row.get("id")), "")
+
+    def holds(folder, name, data):
+        path = folder / name
+        return path.is_file() and path.read_bytes() == data
+
+    words = folders_page()
+    wanted = ("Unpack when done", "Once it is unpacked:", "Keep the archive", "Send the archive to the Trash")
+    check("B71", "Options › Folders has Unpack when done: a box for each kind, then Keep the archive or Send it to the Trash",
+          all(w in words for w in wanted + ("Archives", "Videos", "Other")), f"{words}")
+    # The last "Archives" drawn is the kind's box, below the kind's folder of that name.
+    dm.click("Archives")
+    dm.click("OK")
+    pause(0.8)
+    dm.add(f"{files}/kind.zip")
+    r = settled("kind.zip")
+    if not r.get("path"):
+        check("B71", "a ZIP of the kind ticked finishes", False, f"{r}")
+        return
+    archive = pathlib.Path(r["path"])
+    kind = archive.with_name("kind")
+    shown = status(r)
+    check("B71", "a ZIP of the kind ticked is unpacked into a folder of its name beside it, the archive kept",
+          r.get("said") == "unpacked into a folder of its name" and archive.is_file()
+          and holds(kind / "docs", "readme.txt", b"a" * 1000) and holds(kind, "setup.exe", body("setup.exe", 6 * MiB))
+          and "unpacked into a folder of its name" in shown,
+          f"said {r.get('said')!r}; status {shown!r}; {kind}: {sorted(p.name for p in kind.glob('*')) if kind.is_dir() else 'none'}")
+
+    # One download, ticked in Download details, its kind no longer ticked, with the Trash chosen;
+    # a folder of its name is there already, with a file the archive also holds.
+    where = archive.parent
+    mine = where / "own" / "docs"
+    mine.mkdir(parents=True, exist_ok=True)
+    (mine / "readme.txt").write_bytes(b"mine")
+    folders_page()
+    dm.click("Archives")
+    dm.click("Send the archive to the Trash")
+    dm.click("OK")
+    pause(0.8)
+    dm.open_add_url()
+    dm.call("ui.type", text=f"{files}/own.zip")
+    pause(0.4)
+    dm.click("OK")
+    for _ in range(40):
+        if "Download details" in dm.dialogs():
+            break
+        time.sleep(0.25)
+    pause(1.0)
+    ticked = dm.click("Unpack when done")
+    dm.click("Start now")
+    r = settled("own.zip")
+    archive = pathlib.Path(r.get("path") or where / "own.zip")
+    shown = status(r)
+    own = where / "own (1)"
+    check("B71", "one download ticked in Download details is unpacked beside a folder of its name, which is not replaced",
+          ticked and holds(own / "docs", "readme.txt", b"a" * 1000) and holds(mine, "readme.txt", b"mine"),
+          f"box clicked {ticked}; {sorted(p.name for p in where.iterdir())}")
+    check("B71", "its archive is sent to the Trash and the row says so, not File missing",
+          r.get("said") == "unpacked into a folder of its name, and the archive sent to the Trash"
+          and not archive.is_file() and "File missing" not in shown and "the archive sent to the Trash" in shown,
+          f"said {r.get('said')!r}; status {shown!r}; archive there: {archive.is_file()}")
+    # Put back as a new install has it, for the checks that follow.
+    folders_page()
+    dm.click("Keep the archive")
+    dm.click("OK")
+    pause(0.8)
 
 
 def new_install(origin):

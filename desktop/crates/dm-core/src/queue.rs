@@ -205,6 +205,10 @@ pub struct Entry {
     /// row with it ("Delete file after"); `None` keeps it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delete_after: Option<u64>,
+    /// "Unpack when done" ticked for this download (Download details): its archive is unpacked
+    /// into a folder of its name once it finishes, whatever its kind's choice (gaps row W14).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unpack: bool,
     /// Where this row's parts are staged, recorded when it first started,
     /// so the folder in the settings can change without stranding them.
     /// Empty until then.
@@ -394,6 +398,8 @@ pub struct AddOptions {
     pub gif: bool,
     /// "Delete file after", for the row it adds.
     pub delete_after: Option<u64>,
+    /// "Unpack when done", for the row it adds (`Entry::unpack`).
+    pub unpack: bool,
     /// The browser's cookies for this download's site, as a `Cookie`
     /// header, where the person switched that on for the site.
     pub cookies: String,

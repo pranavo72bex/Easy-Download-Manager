@@ -355,8 +355,11 @@ fn completed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String 
     match &row.state {
         // Its file moved or deleted since: said so in Properties and to the
         // control protocol too, as the list says it (Properties
-        // said "Complete").
-        State::Completed if gone(row) => words("File missing").into(),
+        // said "Complete"). Not an archive "Unpack when done" sent to the Trash, as its note
+        // says (gaps row W14).
+        State::Completed if gone(row) && row.said != dm_core::NOTES[5] => {
+            words("File missing").into()
+        }
         // "Delete file after": how long the file has left before it goes
         // to the Trash, the row with it.
         State::Completed if row.delete_after.is_some() => {

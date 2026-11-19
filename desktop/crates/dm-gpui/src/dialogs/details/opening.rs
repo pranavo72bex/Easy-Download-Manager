@@ -298,6 +298,7 @@ fn open_now(
                     queue: dm_core::MAIN_QUEUE.into(),
                     queues,
                     delete_after: None,
+                    unpack: false,
                     replace: false,
                     choices: None,
                     choices_asked: false,

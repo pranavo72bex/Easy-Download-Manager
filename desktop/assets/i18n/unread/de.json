@@ -94,5 +94,16 @@
  "File's path",
  "Type the file's full path, such as {}.",
  "Export the list",
- "Import a list"
+ "Import a list",
+ "Unpack when done",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.",
+ "Once it is unpacked:",
+ "Keep the archive",
+ "Send the archive to the Trash",
+ "An archive with a password is left as it is, and its row says so.",
+ "unpacked into a folder of its name",
+ "unpacked into a folder of its name, and the archive sent to the Trash",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash",
+ "not unpacked: the archive has a password",
+ "not unpacked: Extract here on its menu says why"
 ]

@@ -912,5 +912,16 @@
  "File's path": "Percorso del file",
  "Type the file's full path, such as {}.": "Digita il percorso completo del file, come {}.",
  "Export the list": "Esporta l'elenco",
- "Import a list": "Importa un elenco"
+ "Import a list": "Importa un elenco",
+ "Unpack when done": "Estrai al termine",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Un archivio ZIP, 7z o tar completato di un tipo spuntato qui viene estratto in una nuova cartella con il suo nome, accanto. Nessun file viene sostituito e nulla viene scritto fuori da quella cartella.",
+ "Once it is unpacked:": "Una volta estratto:",
+ "Keep the archive": "Conserva l'archivio",
+ "Send the archive to the Trash": "Sposta l'archivio nel cestino",
+ "An archive with a password is left as it is, and its row says so.": "Un archivio con password viene lasciato com'è, e la sua riga lo dice.",
+ "unpacked into a folder of its name": "estratto in una cartella con il suo nome",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "estratto in una cartella con il suo nome, e l'archivio spostato nel cestino",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "estratto in una cartella con il suo nome, ma l'archivio non è stato spostato nel cestino",
+ "not unpacked: the archive has a password": "non estratto: l'archivio ha una password",
+ "not unpacked: Extract here on its menu says why": "non estratto: «Estrai qui» nel suo menu dice perché"
 }

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Unpack when done: a finished ZIP, 7z or tar archive of a kind ticked in Options › Folders, or one download ticked in Download details, is unpacked into a new folder of its name beside it, under the rules of Extract here (nothing on disk replaced, nothing written outside that folder); the archive is then kept or sent to the Trash, as Options › Folders says, and the row says what became of it. An archive with a password is left packed, as dm does not ask for passwords yet.
 - Fixed: an RTSP or RTMP stream whose server stopped sending was waited on for ever; after 30 seconds of silence it now ends (or fails, if nothing was recorded) with "sent nothing for 30 seconds", as an MMS stream now says too. An RTMP message arriving just as dm looked for a stop could be cut and break the stream.
 - Videos: with Options › Downloads › Embed subtitles on, an HLS stream's subtitle languages are put inside the saved MP4 too, timed to the picture.
 - YouTube: a live stream that has just ended, while YouTube is still making the video of it, is downloaded from its HLS playlist instead of failing with "the player names no stream dm can fetch".

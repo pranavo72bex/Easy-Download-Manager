@@ -912,5 +912,16 @@
  "File's path": "Pad van het bestand",
  "Type the file's full path, such as {}.": "Typ het volledige pad van het bestand, zoals {}.",
  "Export the list": "De lijst exporteren",
- "Import a list": "Een lijst importeren"
+ "Import a list": "Een lijst importeren",
+ "Unpack when done": "Uitpakken als het klaar is",
+ "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Een voltooid ZIP-, 7z- of tar-archief van een hier aangevinkt soort wordt uitgepakt in een nieuwe map met zijn naam ernaast. Geen bestand wordt vervangen en er wordt niets buiten die map geschreven.",
+ "Once it is unpacked:": "Na het uitpakken:",
+ "Keep the archive": "Archief bewaren",
+ "Send the archive to the Trash": "Archief naar de prullenbak verplaatsen",
+ "An archive with a password is left as it is, and its row says so.": "Een archief met een wachtwoord blijft zoals het is, en zijn rij zegt dat.",
+ "unpacked into a folder of its name": "uitgepakt in een map met zijn naam",
+ "unpacked into a folder of its name, and the archive sent to the Trash": "uitgepakt in een map met zijn naam, en het archief naar de prullenbak verplaatst",
+ "unpacked into a folder of its name, but the archive could not be sent to the Trash": "uitgepakt in een map met zijn naam, maar het archief kon niet naar de prullenbak",
+ "not unpacked: the archive has a password": "niet uitgepakt: het archief heeft een wachtwoord",
+ "not unpacked: Extract here on its menu says why": "niet uitgepakt: 'Hier uitpakken' in zijn menu zegt waarom"
 }

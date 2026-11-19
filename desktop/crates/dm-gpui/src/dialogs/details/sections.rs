@@ -744,3 +744,36 @@ impl Details {
         )
     }
 }
+
+/// Unpack when done, for this download alone (gaps row W14).
+impl Details {
+    /// Its box, under the form's facts, for an archive dm unpacks (by the name in Save as or
+    /// in an address), or one ticked already: ticked, the archive is unpacked into a folder of
+    /// its name once it finishes, whatever its kind's choice in Options › Folders.
+    pub(super) fn unpack_box(
+        &self,
+        look: &Look,
+        cx: &mut Context<Self>,
+        body: gpui::Div,
+    ) -> gpui::Div {
+        let archive = |text: &str| {
+            let path = text.split(['?', '#']).next().unwrap_or(text);
+            dm_core::extract::is_archive(path.trim())
+        };
+        let name = self.name.read(cx).value().to_string();
+        let any_url = self.urls.iter().any(|u| archive(u.as_str()));
+        let shown = self.unpack || archive(name.as_str()) || any_url;
+        if !shown {
+            return body;
+        }
+        let (theme, screen) = (look.theme, &look.screen);
+        let words: SharedString = t("Unpack when done").into();
+        let check = native::checkbox("unpack", words, self.unpack, theme, screen).on_click(
+            cx.listener(|this, _, _, cx| {
+                this.unpack = !this.unpack;
+                cx.notify();
+            }),
+        );
+        body.child(look.under(check.into_any_element()))
+    }
+}
