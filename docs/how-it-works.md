@@ -598,7 +598,8 @@ desktop/
                           the system's services (tray, toasts, taskbar…)
   crates/dm-gpui/         the window shipped, in GPUI: window/ (list.rs the rows and each wake's
                           read, tick.rs, table.rs, menus.rs, the bars, theme.rs), dialogs/ (one
-                          file per window beside the main one), options.rs with options/pages.rs,
+                          file per window beside the main one), options.rs with options/pages.rs
+                          and pages/ (a file per page),
                           widgets/ (what GPUI lacks), platform/ (syswindow/, tray.rs, services,
                           drags and drops), port.rs and probe.rs (the control port); harness.rs
                           and window_tests/ the window's tests

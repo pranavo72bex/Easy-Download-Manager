@@ -133,11 +133,11 @@ fn fixture() -> Scratch {
         "Error::Internal(format!(\"{why}\"))\n",
     );
     write(
-        OPTIONS[0],
+        OPTIONS,
         "fn general() {\n    check(p, cx, \"start-on-login\", t(\"Start dm when I sign in\"), on);\n    p.hint(t(\"Lets other programs add downloads.\"));\n    let k = t(\"key:Shift\");\n    let id = format!(\"browse-{key}\");\n    let pct = tf(\"{}%\", &[&n]);\n}\n",
     );
     write(
-        OPTIONS[1],
+        &format!("{OPTIONS_PAGES}/dialup.rs"),
         "fn dialup() {\n    p.section(t(\"Dial Up / VPN\"));\n}\n",
     );
     dir
