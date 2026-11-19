@@ -16,8 +16,8 @@ desktop/crates/dm-core/src/download/ranged.rs run 400
 desktop/crates/dm-core/src/download/ranged/limits.rs pick_limited 157
 desktop/crates/dm-core/src/ftp/transfer.rs download_ftp 177
 desktop/crates/dm-core/src/probe.rs probe_get 223
-desktop/crates/dm-core/src/rtmp/session.rs record 216
-desktop/crates/dm-core/src/rtsp.rs record 186
+desktop/crates/dm-core/src/rtmp/session.rs record_within 224
+desktop/crates/dm-core/src/rtsp.rs record_within 194
 desktop/crates/dm-core/src/stream.rs media_playlist 207
 desktop/crates/dm-core/src/youtube.rs read_within 294
 desktop/crates/dm-core/src/youtube/player.rs tokens 155

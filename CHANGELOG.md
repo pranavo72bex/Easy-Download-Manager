@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed: an RTSP or RTMP stream whose server stopped sending was waited on for ever; after 30 seconds of silence it now ends (or fails, if nothing was recorded) with "sent nothing for 30 seconds", as an MMS stream now says too. An RTMP message arriving just as dm looked for a stop could be cut and break the stream.
 - Videos: with Options › Downloads › Embed subtitles on, an HLS stream's subtitle languages are put inside the saved MP4 too, timed to the picture.
 - YouTube: a live stream that has just ended, while YouTube is still making the video of it, is downloaded from its HLS playlist instead of failing with "the player names no stream dm can fetch".
 - Videos: a picture and sound the disk has no room to join are refused before the join starts, with "not enough room" and the way on, instead of failing part-way; what was fetched is kept and joined once there is room. An HLS stream with no room for its MP4 is saved as the whole `.ts`.
