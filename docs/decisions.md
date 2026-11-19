@@ -8044,3 +8044,14 @@ map is taken from the stream's start, as the row's work order asked; RFC 8216 re
 as MPEGTS 0, to be weighed against a real stream. Cues ending before the file's start are
 dropped, one crossing it starts at 0, a cue repeated in two segments is kept once. With
 subtitles off, or none listed, every path runs as before.
+
+## A format number in each saved object, not in the lists (2026-11-19, gaps row A8)
+
+`settings.json`, the Options export, `going.json`, `extension.json`, `plan.json` and `window.json`
+carry `"format": 1` (`dm_core::saved::Stamped`); a file without one reads as format 0, one with a
+higher number is read as far as this dm knows its fields (none of them refuses unknown fields).
+`queue.json`, `secrets.json` and `formats.cache.json` stay bare JSON lists, which can hold no
+field: written as an object they would be set aside as unreadable by any dm before this one, and a
+downgrade would open on an empty list. The queue's number is in its journal's first line instead.
+Reading takes a list or an object (`rows_from_slice`), so a file written either way reads. Every
+name dm keeps in its home is in `dm_core::paths`, once.
