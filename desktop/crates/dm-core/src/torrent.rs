@@ -456,7 +456,7 @@ pub async fn download_torrent(
 ) -> Result<Finished, Error> {
     // A check that makes torrents (`scripts/chrome-check.py`) holds them off the network: a
     // program at a new path listening for peers raises Windows' firewall question each run.
-    if std::env::var_os("DM_NO_SWARM").is_some_and(|v| !v.is_empty()) {
+    if crate::env::get_os("DM_NO_SWARM").is_some_and(|v| !v.is_empty()) {
         return Err(Error::Internal(
             "torrents are held off the network in this run (DM_NO_SWARM)".into(),
         ));

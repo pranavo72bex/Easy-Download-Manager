@@ -152,7 +152,7 @@ fn ask() -> Option<Palette> {
     if !cfg!(debug_assertions) {
         return None;
     }
-    match std::env::var("DM_HIGH_CONTRAST").ok()?.as_str() {
+    match dm_core::env::get("DM_HIGH_CONTRAST")?.as_str() {
         "black" => Some(Palette::BLACK),
         "white" => Some(Palette::WHITE),
         _ => None,
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn off_windows_there_is_no_high_contrast_unless_a_debug_build_is_asked_to_show_it() {
-        if cfg!(not(windows)) && std::env::var_os("DM_HIGH_CONTRAST").is_none() {
+        if cfg!(not(windows)) && dm_core::env::get_os("DM_HIGH_CONTRAST").is_none() {
             assert_eq!(system(), None);
         }
     }

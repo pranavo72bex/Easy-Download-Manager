@@ -359,7 +359,7 @@ impl Format {
     fn chunk(&self) -> Option<u64> {
         // `DM_NO_CHUNK` switches the cap off, for timing a long video
         // with and without it on a real connection (gaps.md row 22).
-        if std::env::var_os("DM_NO_CHUNK").is_some() {
+        if crate::env::get_os("DM_NO_CHUNK").is_some() {
             return None;
         }
         self.downloader_options

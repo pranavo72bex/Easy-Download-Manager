@@ -63,9 +63,9 @@ pub(crate) fn stage_by_range(parts_dir: &Path, dest_dir: &Path, by_ranges: bool)
     if ranges {
         return by_ranges;
     }
-    match std::env::var("DM_STAGE_BY_RANGE").as_deref() {
-        Ok("1") => by_ranges,
-        Ok("0") => false,
+    match crate::env::get("DM_STAGE_BY_RANGE").as_deref() {
+        Some("1") => by_ranges,
+        Some("0") => false,
         _ => by_ranges && !super::space::same_disk(parts_dir, dest_dir),
     }
 }

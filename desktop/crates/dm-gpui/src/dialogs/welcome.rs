@@ -217,7 +217,7 @@ impl Downloads {
     /// spoken to dm; not for a dm on a home of its own (tests and checks set
     /// `DM_HOME`).
     pub(crate) fn welcome_if_new(&mut self, cx: &mut Context<Self>) {
-        let own_home = std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty());
+        let own_home = dm_core::env::get_os("DM_HOME").is_some_and(|h| !h.is_empty());
         let home = dm_shell::settings::home();
         if self.hidden
             || own_home

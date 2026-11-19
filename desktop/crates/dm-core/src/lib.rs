@@ -47,6 +47,9 @@ pub(crate) use dm_net::decode;
 
 mod download;
 
+// Every `DM_` switch of the environment, in one table, and the one way to read one (gaps row A11).
+pub mod env;
+
 pub mod extract;
 
 // A file-storage service's share address, turned into the file's (gaps row W7).

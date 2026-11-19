@@ -346,7 +346,7 @@ document.body.appendChild(null);})(_yt_player);
 /// which found its answers the same as JavaScriptCore's).
 #[tokio::test]
 async fn the_live_player_answers_in_dm_js() {
-    let Some(path) = std::env::var_os("DM_JS_PLAYER") else {
+    let Some(path) = crate::env::get_os("DM_JS_PLAYER") else {
         eprintln!("DM_JS_PLAYER not set: not run");
         return;
     };

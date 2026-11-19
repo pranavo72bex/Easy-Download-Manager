@@ -149,7 +149,7 @@ pub fn set(wanted: bool) -> Result<(), String> {
 /// login item from the installed one. The rule `register::ensure_this_copy`
 /// follows for the browsers' manifests.
 pub fn may_claim() -> bool {
-    !cfg!(debug_assertions) && std::env::var_os("DM_HOME").is_none()
+    !cfg!(debug_assertions) && dm_core::env::get_os("DM_HOME").is_none()
 }
 
 /// Why `exe` may not be the login item's program, if it may not: on macOS a

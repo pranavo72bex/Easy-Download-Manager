@@ -165,10 +165,10 @@ async fn a_file_comes_over_tls_asked_for_or_from_the_first_byte() {
 async fn a_real_ftps_server_when_one_is_named() {
     use rustls::pki_types::{pem::PemObject, CertificateDer};
     use sha2::Digest;
-    let (Ok(url), Ok(ca), Ok(sha256)) = (
-        std::env::var("DM_FTPS_CHECK"),
-        std::env::var("DM_FTPS_CA"),
-        std::env::var("DM_FTPS_SHA256"),
+    let (Some(url), Some(ca), Some(sha256)) = (
+        crate::env::get("DM_FTPS_CHECK"),
+        crate::env::get("DM_FTPS_CA"),
+        crate::env::get("DM_FTPS_SHA256"),
     ) else {
         return;
     };

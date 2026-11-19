@@ -1798,7 +1798,7 @@ pub fn home() -> PathBuf {
     /* An override, so that driving a real build does not share a queue, a
      * settings file and an inbox with the copy somebody actually uses. There
      * is no other way to run this twice on one machine. */
-    if let Some(elsewhere) = std::env::var_os("DM_HOME") {
+    if let Some(elsewhere) = dm_core::env::get_os("DM_HOME") {
         return PathBuf::from(elsewhere);
     }
     // This crate's own tests save settings through the backend: written into
@@ -1843,7 +1843,7 @@ pub fn portable_home_in(program_dir: &std::path::Path) -> Option<PathBuf> {
 /// items to the installed one. To be called first thing, before any other
 /// thread starts. An explicit `DM_HOME` wins. Returns the home it chose.
 pub fn enter_portable() -> Option<PathBuf> {
-    if std::env::var_os("DM_HOME").is_some_and(|h| !h.is_empty()) {
+    if dm_core::env::get_os("DM_HOME").is_some_and(|h| !h.is_empty()) {
         return None;
     }
     let exe = std::env::current_exe().ok()?;

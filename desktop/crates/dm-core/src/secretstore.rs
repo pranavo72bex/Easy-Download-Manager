@@ -74,7 +74,7 @@ const STORE_NAME: &str = if cfg!(windows) {
 
 /// The operating system's store, where there is one and it is not switched off.
 pub fn system() -> Option<&'static dyn SecretStore> {
-    if cfg!(test) || std::env::var_os("DM_NO_SECRET_STORE").is_some() {
+    if cfg!(test) || crate::env::get_os("DM_NO_SECRET_STORE").is_some() {
         return None;
     }
     #[cfg(windows)]

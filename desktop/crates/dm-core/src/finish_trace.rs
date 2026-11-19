@@ -14,7 +14,7 @@ use std::io::Write as _;
 fn file() -> Option<&'static std::path::Path> {
     static FILE: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
     FILE.get_or_init(|| {
-        std::env::var_os("DM_FINISH_TRACE")
+        crate::env::get_os("DM_FINISH_TRACE")
             .filter(|v| !v.is_empty())
             .map(std::path::PathBuf::from)
     })
