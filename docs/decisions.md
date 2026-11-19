@@ -8013,3 +8013,8 @@ The maintainer, 2026-11-19: "D5 new comer dev page is not needed". The row (a do
 way, how to add a site rule, an Options field or a dialog, the control port's methods, dm's home
 files, the environment switches as pages under `docs/`) is closed without them; `AGENTS.md`'s
 glossary stays as it is.
+
+The same day, of that kind of change in general: "no need of these type of changes like new comer
+dev page remove it". Closed with D5: D6 (`docs/decisions.md` split into files, a START-HERE page),
+X3 (a table of which test runs on which system in `docs/testing.md`) and X6 (`docs/platforms.md`).
+Rows whose only result is a page for developers are not taken up.
