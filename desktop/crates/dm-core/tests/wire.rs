@@ -65,6 +65,7 @@ fn entry(state: State) -> Entry {
         gif: false,
         delete_after: None,
         keep_no_record: false,
+        unpack: false,
     }
 }
 

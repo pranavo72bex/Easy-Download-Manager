@@ -145,6 +145,8 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
             "category_folders",
             "download_dir",
             "parts_dir",
+            "unpack_kinds",
+            "unpack_trash",
         ],
         Tab::Downloads => &[
             "concurrency",

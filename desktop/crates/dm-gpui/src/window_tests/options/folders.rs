@@ -267,3 +267,45 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     ok(&mut h);
     assert!(kept(&mut h).advanced.site_rules.is_empty());
 }
+
+/// Unpack when done (gaps row W14): a kind ticked and "Send the archive to the Trash" chosen
+/// in Options › Folders are kept and written down, shown so when Options opens again, and
+/// undone there.
+#[test]
+fn unpack_when_done_is_chosen_for_a_kind_in_options_and_kept() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    assert!(
+        kept(&mut h).folders.unpack_kinds.is_empty(),
+        "none in a new dm"
+    );
+    open_options(&mut h);
+    tab(&mut h, "Folders");
+    h.reveal("Send the archive to the Trash");
+    // The kind's box: the last "Archives" drawn, under the kind's folder of that name.
+    h.click("Archives");
+    h.click("Send the archive to the Trash");
+    ok(&mut h);
+    let settings = kept(&mut h);
+    assert_eq!(settings.folders.unpack_kinds, [dm_core::Category::Archives]);
+    assert!(settings.folders.unpack_trash);
+    assert_eq!(
+        saved_settings()["unpack_kinds"],
+        serde_json::json!(["archives"])
+    );
+    assert_eq!(saved_settings()["unpack_trash"], true);
+
+    open_options(&mut h);
+    tab(&mut h, "Folders");
+    let shown = h.dialog(|o: &mut Options, _, _| o.draft.folders.clone());
+    assert_eq!(shown.unpack_kinds, [dm_core::Category::Archives]);
+    assert!(shown.unpack_trash);
+    h.reveal("Keep the archive");
+    h.click("Archives");
+    h.click("Keep the archive");
+    ok(&mut h);
+    let settings = kept(&mut h);
+    assert!(settings.folders.unpack_kinds.is_empty());
+    assert!(!settings.folders.unpack_trash);
+}

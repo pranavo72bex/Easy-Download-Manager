@@ -65,6 +65,32 @@ failure: the download worked.
   (often an advert). dm left them out so the file is one video. Nothing to
   do.
 
+**Unpack when done** ([Options › Folders](options-folders.md#unpack-when-done),
+or one download's box in [Download details](download-details.md)) says what
+it made of a finished archive:
+
+- `unpacked into a folder of its name`
+  Its files are in a new folder beside it, named after it (numbered, such as
+  "pack (1)", where that name was taken). The archive is kept.
+- `unpacked into a folder of its name, and the archive sent to the Trash`
+  As above, and the archive is in the Recycle Bin (the Trash on macOS), as
+  **Send the archive to the Trash** asks. The row stays, saying this rather
+  than "File missing".
+- `unpacked into a folder of its name, but the archive could not be sent to the Trash`
+  Its files are out, but the system would not take the archive (on a drive
+  with no Recycle Bin, for one). It is still where it was: delete it
+  yourself if you no longer want it.
+- `not unpacked: the archive has a password`
+  The archive is locked with a password, which dm does not ask for yet.
+  Nothing was written and the archive is kept. Unpack it with a program
+  that asks for the password.
+- `not unpacked: Extract here on its menu says why`
+  dm refused to unpack it: a file in it would land outside its folder, it
+  holds a link, it is damaged, too large, or the disk refused. Nothing was
+  written and the archive is kept. **Extract here** on the row's
+  right-click menu tries again and says the reason (see
+  [Archives (extracting)](#archives-extracting)).
+
 ## Stopped, paused and cancelled
 
 - `paused`

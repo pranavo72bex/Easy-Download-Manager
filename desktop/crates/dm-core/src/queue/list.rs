@@ -151,6 +151,7 @@ impl DownloadList {
                 mp3: false,
                 gif: false,
                 delete_after: None,
+                unpack: false,
                 parts_dir: String::new(),
                 began_in: String::new(),
                 cookies: String::new(),

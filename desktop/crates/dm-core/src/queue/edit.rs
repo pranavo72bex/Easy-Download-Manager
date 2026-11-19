@@ -162,6 +162,7 @@ impl DownloadList {
             slot.entry_mut().mp3 = with.mp3;
             slot.entry_mut().gif = with.gif && with.span.is_some();
             slot.entry_mut().delete_after = with.delete_after.filter(|s| *s > 0);
+            slot.entry_mut().unpack = with.unpack;
             slot.entry_mut().cookies = with.cookies.trim().to_string();
             slot.entry_mut().headers = crate::cookies::kept_headers(&with.headers);
             slot.entry_mut().cookies_once = with.cookies_once
@@ -228,6 +229,29 @@ impl DownloadList {
         let seconds = seconds.filter(|s| *s > 0);
         self.edit(id, |slot| {
             slot.entry_mut().delete_after = seconds;
+            true
+        })
+        .await
+    }
+
+    /// "Unpack when done" for this row alone (`Entry::unpack`); false if there is no such row.
+    pub async fn set_unpack(&self, id: Id, on: bool) -> bool {
+        self.edit(id, |slot| {
+            slot.entry_mut().unpack = on;
+            true
+        })
+        .await
+    }
+
+    /// What a finished row says of itself beside its state (`Entry::said`), one of
+    /// [`crate::NOTES`] in English: what "Unpack when done" made of its archive (gaps row W14).
+    /// False if there is no such row, or it says that already.
+    pub async fn set_said(&self, id: Id, said: &str) -> bool {
+        self.edit(id, |slot| {
+            if slot.entry.said == said {
+                return false;
+            }
+            slot.entry_mut().said = said.to_string();
             true
         })
         .await

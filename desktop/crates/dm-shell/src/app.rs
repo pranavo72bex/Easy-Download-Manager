@@ -40,5 +40,6 @@ pub mod schedule;
 pub mod search;
 pub mod session;
 pub mod snapshot;
+pub mod unpack;
 pub mod update;
 pub mod watch;

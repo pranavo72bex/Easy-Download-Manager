@@ -114,6 +114,8 @@ pub struct Details {
     queue: String,
     queues: Vec<String>,
     delete_after: Option<u64>,
+    /// "Unpack when done" ticked for this download (gaps row W14).
+    unpack: bool,
     replace: bool,
     /// "Keep no record" is ticked: the row goes once the file is whole (gaps row W17).
     pub(crate) keep_no_record: bool,
@@ -359,6 +361,7 @@ impl Details {
             description: self.note.read(cx).value().to_string(),
             queue: self.queue.clone(),
             delete_after: self.delete_after,
+            unpack: self.unpack,
             cookies: self.handed.cookies.clone(),
             cookies_once: self.handed.cookies_once,
             headers: self.handed.headers.clone(),
@@ -389,14 +392,20 @@ impl Details {
         let added = match self.early {
             // Begun while it asked: placed where it was asked to go, not
             // added again.
-            Some(id) => self.backend.settle_early(
-                id,
-                with.save_dir.clone().map(std::path::PathBuf::from),
-                with.save_name.clone(),
-                &with.description,
-                &with.queue,
-                later,
-            ),
+            Some(id) => {
+                // Unpack when done, for a row begun while it asked (gaps row W14).
+                if with.unpack {
+                    self.backend.set_unpack(id, true);
+                }
+                self.backend.settle_early(
+                    id,
+                    with.save_dir.clone().map(std::path::PathBuf::from),
+                    with.save_name.clone(),
+                    &with.description,
+                    &with.queue,
+                    later,
+                )
+            }
             None => {
                 let urls = self.urls.clone();
                 // The size it learned, kept for the row until the row knows its own: a row
@@ -634,6 +643,7 @@ impl Render for Details {
         let body = self
             .facts(&look, single, video, size, body)
             .child(self.no_record_row(&look, cx));
+        let body = self.unpack_box(&look, cx, body);
         let body = self.warnings(&look, clash, problem, cx, body);
         let body = body.child(self.buttons(&look, cx));
 

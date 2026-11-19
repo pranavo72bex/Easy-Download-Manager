@@ -300,6 +300,7 @@ fn open_now(
                     queue: dm_core::MAIN_QUEUE.into(),
                     queues,
                     delete_after: None,
+                    unpack: false,
                     replace: false,
                     keep_no_record: handed.keep_no_record,
                     choices: None,

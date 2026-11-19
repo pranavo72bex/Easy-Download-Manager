@@ -110,6 +110,25 @@ fn a_downloads_note_follows_its_state() {
     assert_eq!(status_in_english(&done), "Complete");
 }
 
+/// An archive "Unpack when done" sent to the Trash is not a missing file: its row says what
+/// became of it (gaps row W14).
+#[test]
+fn an_archive_unpacked_and_trashed_is_said_so_not_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut done = row(State::Completed, false);
+    done.path = dir.path().join("pack.zip").display().to_string();
+    set_looked(look_for(vec![(1, done.path.clone())]));
+    assert!(gone(&done));
+    done.said = dm_core::NOTES[5].into();
+    assert_eq!(
+        status_in_english(&done),
+        format!("Complete · {}", dm_core::NOTES[5])
+    );
+    done.said = dm_core::NOTES[4].into();
+    assert!(status_in_english(&done).starts_with("File missing"));
+    LOOKED.with(|l| *l.borrow_mut() = None);
+}
+
 #[test]
 fn resume_says_retry_for_failures_and_start_now_for_held_rows() {
     let resume = dm_shell::app::commands::Command::DownloadNow.label();

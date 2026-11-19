@@ -92,7 +92,58 @@ pub(super) fn folders(
         p.add(native::enabled(on, row));
     }
     custom_categories(o, p, window, cx, on, &screen);
+    unpacking(o, p, cx);
     let _ = theme;
+}
+
+/// Unpack when done (gaps row W14): the kinds whose finished archive is unpacked into a new
+/// folder of its name, and what then becomes of the archive.
+fn unpacking(o: &Options, p: &mut Page, cx: &mut Context<Options>) {
+    let (theme, screen) = (p.theme, p.screen.clone());
+    let folders = &o.draft.folders;
+    p.section(t("Unpack when done"));
+    p.words(t("A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder."));
+    let mut kinds = div().flex().flex_wrap().gap(px(space::L));
+    for (i, kind) in dm_core::Category::ALL.into_iter().enumerate() {
+        let name = dm_desktop_base::i18n::name(&dm_desktop_base::format::titled(
+            &dm_shell::app::names::category_word(kind),
+        ));
+        p.says(&name);
+        let ticked = folders.unpack_kinds.contains(&kind);
+        let id = SharedString::from(format!("unpack-{i}"));
+        let check = native::checkbox(id, name.into(), ticked, theme, &screen).on_click(
+            cx.listener(move |o, _, _, cx| {
+                let chosen = &mut o.draft.folders.unpack_kinds;
+                if chosen.contains(&kind) {
+                    chosen.retain(|k| *k != kind);
+                } else {
+                    chosen.push(kind);
+                }
+                cx.notify();
+            }),
+        );
+        kinds = kinds.child(check);
+    }
+    p.add(kinds);
+    p.words(t("Once it is unpacked:"));
+    for (trash, words) in [
+        (false, t("Keep the archive")),
+        (true, t("Send the archive to the Trash")),
+    ] {
+        let id = SharedString::from(format!("unpack-trash-{trash}"));
+        let on = folders.unpack_trash == trash;
+        let radio = native::radio(id, words.into(), on, theme, &screen).on_click(cx.listener(
+            move |o, _, _, cx| {
+                o.draft.folders.unpack_trash = trash;
+                cx.notify();
+            },
+        ));
+        p.says(words);
+        p.add(radio);
+    }
+    p.note(t(
+        "An archive with a password is left as it is, and its row says so.",
+    ));
 }
 
 /// Your own categories: each one's name, types and sites, and a button to delete it; and a

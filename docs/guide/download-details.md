@@ -73,10 +73,16 @@ says **From** and the browser's name. With several addresses it says **and
 - **Keep no record:** ticked, dm forgets the download once its file is
   whole: its row leaves the list, and its address, the page it came from
   and any sign-in sent with it go too, so nothing of it is left in dm's
-  own files. The file itself stays where it was saved. It is ticked by
-  itself for a download handed over from a private browser window. Until
+  own files. The file itself stays where it was saved. Until
   the file is whole the download is kept like any other, so it can go on
   after dm is closed.
+- **Unpack when done:** shown for a ZIP, 7z or tar archive (by the name in
+  **Save as** or in the address). Ticked, once the download finishes its
+  files are unpacked into a new folder of its name beside it, even where
+  its kind is not ticked under **Unpack when done** in
+  [Options › Folders](options-folders.md#unpack-when-done), which also says
+  whether the archive is then kept or sent to the Trash. Nothing on disk is
+  replaced, and nothing is written outside that folder.
 
 ## Warnings
 

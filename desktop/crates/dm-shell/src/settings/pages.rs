@@ -147,6 +147,13 @@ pub struct FolderSettings {
     /// A download already begun keeps the folder it began in.
     #[serde(default)]
     pub parts_dir: String,
+    /// "Unpack when done": the kinds whose finished archive (a ZIP, 7z or tar) is unpacked
+    /// into a new folder of its name beside it (gaps row W14). None in a new install.
+    #[serde(default)]
+    pub unpack_kinds: Vec<Category>,
+    /// Once an archive is unpacked when done, it is sent to the Trash rather than kept.
+    #[serde(default)]
+    pub unpack_trash: bool,
 }
 
 impl Default for FolderSettings {
@@ -161,6 +168,8 @@ impl Default for FolderSettings {
             categorize: true,
             category_folders: default_folders(),
             parts_dir: String::new(),
+            unpack_kinds: Vec::new(),
+            unpack_trash: false,
         }
     }
 }
