@@ -1702,6 +1702,7 @@ const A_FULL_FILE: &str = r#"{
     "second_path": "en5",
     "sounds": {"complete": "/srv/done.wav"},
     "site_searches": [],
+    "follows": [],
     "drop_target": true,
 
     "watch_clipboard": true,
@@ -1744,6 +1745,8 @@ const A_FULL_FILE: &str = r#"{
     "remux_ts": false,
     "sound_language": "es",
     "forget_after_days": 30,
+    "on_metered": "wait",
+    "battery_below": 20,
 
     "speed_limit": 512,
     "retry_wait": 9,
@@ -1818,6 +1821,13 @@ fn a_full_settings_file_reads_into_the_pages_and_is_written_back_the_same() {
     assert_eq!(read.folders.parts_dir, "/srv/parts");
     assert_eq!(read.downloads.connections, 16);
     assert_eq!(read.downloads.sound_language, "es");
+    assert_eq!(
+        (
+            read.downloads.on_metered.as_str(),
+            read.downloads.battery_below
+        ),
+        ("wait", 20)
+    );
     assert_eq!(read.advanced.proxy.host, "proxy.example");
     assert_eq!(read.limit_hours, 24);
     // Written back: the same keys with the same values, and no other.

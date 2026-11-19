@@ -43,6 +43,7 @@ pub(super) fn options(dir: &Path) -> Options {
         server_dates: false,
         retry_wait: 0,
         record_limit: None,
+        same_files: None,
         frame_rate: None,
         caption: None,
         format: None,

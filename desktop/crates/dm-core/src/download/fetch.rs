@@ -79,6 +79,15 @@ pub(super) async fn fetch_reporting(
         return Ok(done);
     }
 
+    // The same file as one finished or in the folder: stopped before its body, named, for the
+    // window to ask about (gaps row W18). A Metalink's name is the list's, not the file's.
+    if !metalink::is_metalink(url, info.content_type.as_deref()) {
+        if let Err(same) = same::already_here(&info, options).await {
+            announce(&report, &info).await;
+            return Err(same);
+        }
+    }
+
     let mut checksum = options.checksum.clone();
     let mut listed_mirrors = false;
     let mut sources = vec![Source {

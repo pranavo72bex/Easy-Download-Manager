@@ -43,6 +43,10 @@ pub use queues::queue_names;
 mod recheck;
 mod runner;
 mod settings;
+// Rows from a backup taken in (gaps row W16).
+mod adopt;
+mod waits;
+pub use waits::Hold;
 
 #[cfg(test)]
 use files::{copy_dir, rename_case_only};
@@ -287,6 +291,11 @@ pub struct Entry {
     /// browser window. Left out of the queue file when false, so an older dm reads it as before.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub keep_no_record: bool,
+    /// The same file as one already here was let through (gaps row W18): a person answered
+    /// Download again, or it was added where nobody is asked (the control port). Not asked about
+    /// again; left out of the queue file when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub accept_same: bool,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -431,6 +440,8 @@ pub struct AddOptions {
     pub post: Option<crate::cookies::Posted>,
     /// "Keep no record": the row goes once the file is whole (`Entry::keep_no_record`).
     pub keep_no_record: bool,
+    /// Not asked about as the same file as one already here (`Entry::accept_same`).
+    pub accept_same: bool,
 }
 
 /// Named queues that start on their own each day: each with its minute of
@@ -580,6 +591,9 @@ struct Inner {
     scheduling: AtomicBool,
     /// Set as dm ends (`DownloadList::shut_down`): nothing starts after it.
     closing: AtomicBool,
+    /// Whether a download of the same file as one already here stops before its body for a
+    /// person to be asked (gaps row W18): set by a window, never where nobody is asked.
+    asks_same: AtomicBool,
     /// Wakes a scheduler between its ticks, so a download added while
     /// others run starts now rather than at the next tick.
     kick: tokio::sync::Notify,
@@ -614,6 +628,14 @@ struct Inner {
     /// Running downloads keep the client they started with. A plain mutex:
     /// it is only ever copied out or replaced.
     client: std::sync::Mutex<reqwest::Client>,
+    /// The proxy and read timeout `client` was last built with (`set_client`), and the
+    /// network generation it was built at (`only_through::generation`): where downloads are
+    /// held to one network and its address changed since, it is built again on the new one
+    /// before the next download starts (gaps row W12).
+    client_made: std::sync::Mutex<(Option<(crate::proxy::Proxy, Duration)>, u64)>,
+    /// `only_through::restarts` as the scheduler last saw it: a change stops what runs and
+    /// puts it back in line, to go out bound to the network chosen or wait for it.
+    restarts_seen: AtomicU64,
     /// What went wrong that no row can carry: the queue file that could not
     /// be written, the parts that could not be removed. Printed to stderr
     /// these reached nobody — a Dock-launched app has no stderr — while the
@@ -638,6 +660,9 @@ struct Inner {
     /// The next write is of the whole list, the journal gone with it: a row that keeps no
     /// record went since, and the journal's lines still name it (`forget`).
     whole_next: AtomicBool,
+    /// What of the computer's state holds every download (gaps row W11: a metered connection, a
+    /// low battery), as whoever drives dm last said (`hold_for`); a leaf lock.
+    held_by: std::sync::Mutex<Option<Hold>>,
 }
 
 /// A queue of downloads.

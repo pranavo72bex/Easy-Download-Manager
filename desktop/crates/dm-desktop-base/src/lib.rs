@@ -51,8 +51,8 @@ pub use platform::opened;
 #[cfg(windows)]
 pub use platform::toast;
 pub use platform::{
-    a11y_tree, accent, autostart, awake, contrast, desktop, drops, jumplist, login, mica, power,
-    quiet, region, signals, system_theme, taskbar, wake,
+    a11y_tree, accent, autostart, awake, contrast, desktop, drops, jumplist, login, metered, mica,
+    power, quiet, region, signals, system_theme, taskbar, wake,
 };
 pub use run::{boot, cli, control, headless, mcp, modes, probe, session, wakes};
 pub use view::{
@@ -60,3 +60,5 @@ pub use view::{
     options, progress, project, row_edits, rows, save_to, scheduler, selection, toolbar, tray,
     zip_list,
 };
+// View › Statistics and a progress window's speed line (gaps row W15).
+pub use view::statistics;

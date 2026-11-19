@@ -5,9 +5,10 @@
 
 //! What the engine is told for the whole program rather than for one queue, in one place (gaps
 //! row A11): the name dm gives itself, the language of a dubbed video's sound, the connection
-//! every download waits for, the second network and the folder YouTube's cut players are kept
-//! in. [`configure`] is the one place each of them is put in force; the setters it calls are
-//! left public, hidden, for the tests that set one part alone.
+//! every download waits for, the second network, the folder YouTube's cut players are kept in
+//! and the one network downloads are held to. [`configure`] is the one place each of them is
+//! put in force; the setters it calls are left public, hidden, for the tests that set one part
+//! alone.
 
 use std::path::PathBuf;
 
@@ -34,6 +35,10 @@ pub struct EngineConfig {
     /// The folder YouTube's cut players are kept in between sessions (gaps row Y13); `None` keeps
     /// them in memory only.
     pub kept_players: Option<PathBuf>,
+    /// The one network every download is held to (Options › Advanced › Network › Only through,
+    /// gaps row W12), by its adapter's name; empty for any. Chosen, the second network is off:
+    /// a connection on it would leave by another network.
+    pub only_through: String,
 }
 
 impl std::fmt::Debug for EngineConfig {
@@ -44,6 +49,7 @@ impl std::fmt::Debug for EngineConfig {
             .field("connect_first", &self.connect_first.is_some())
             .field("second_path", &self.second_path)
             .field("kept_players", &self.kept_players)
+            .field("only_through", &self.only_through)
             .finish()
     }
 }
@@ -57,5 +63,9 @@ pub fn configure(config: &EngineConfig) -> Result<(), String> {
     crate::sound_language::set_sound_language(&config.sound_language);
     crate::connect_first::set_connect_first(config.connect_first.clone());
     crate::youtube::set_kept_players(config.kept_players.clone());
-    crate::second_path::set_second_path(config.second_path.as_deref())
+    // Downloads held to one network: no second one beside it (gaps row W12).
+    let only = config.only_through.trim();
+    crate::only_through::set_only_through(Some(only));
+    let second = config.second_path.as_deref().filter(|_| only.is_empty());
+    crate::second_path::set_second_path(second)
 }

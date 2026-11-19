@@ -50,6 +50,8 @@ const THEMES: [&str; 3] = ["system", "light", "dark"];
 const ON_CLOSE: [&str; 3] = ["ask", "tray", "exit"];
 /// What an address already listed does, by the setting's word.
 const DUPLICATE: [&str; 4] = ["", "show", "again", "replace"];
+/// What the same file as one already here does (gaps row W18), by the setting's word.
+const SAME_FILE: [&str; 3] = ["", "show", "again"];
 /// The keys a click on a link can be held with ("" for none).
 const TAKE_KEYS: [&str; 4] = ["", "alt", "shift", "ctrl"];
 /// A proxy's kinds, in the pop-up's order.
@@ -324,6 +326,11 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
                 s.duplicate_choice = word.to_string();
             }
         }
+        "same-file" => {
+            if let Some(word) = SAME_FILE.get(i) {
+                s.same_file_choice = word.to_string();
+            }
+        }
         "keep-key" => {
             if let Some(key) = dm_protocol::CLICK_KEYS.get(i) {
                 s.browser.catch.keep_key = key.to_string();
@@ -343,6 +350,12 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
         "sound-language" => {
             if let Some(tag) = options::sound_language_of(i) {
                 s.downloads.sound_language = tag.to_string();
+            }
+        }
+        // Go on, ask or wait on a metered connection (gaps row W11).
+        "on-metered" => {
+            if let Some(word) = options::ON_METERED.get(i) {
+                s.downloads.on_metered = word.to_string();
             }
         }
         "queue-limit" => {
@@ -367,6 +380,14 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
                 s.second_path.clear();
             } else if let Some(found) = o.networks.get(i - 1) {
                 s.second_path = found.name.clone();
+            }
+        }
+        // The one network every download is held to (gaps row W12).
+        "only-through" => {
+            if i == 0 {
+                s.advanced.only_through.clear();
+            } else if let Some(found) = o.networks.get(i - 1) {
+                s.advanced.only_through = found.name.clone();
             }
         }
         "dialup-connection" => {

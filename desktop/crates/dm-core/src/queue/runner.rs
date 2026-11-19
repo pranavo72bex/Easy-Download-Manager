@@ -76,12 +76,16 @@ impl DownloadList {
         if self.inner.closing.load(Ordering::SeqCst) {
             return;
         }
+        // The network downloads are held to, chosen anew or gone: what runs starts again.
+        self.restart_for_network().await;
         // Outside the window, nothing new starts and what is running is put
         // down. Pausing rather than letting it run to the end is the point:
         // the reason to set a window is a link that must be free outside it.
         // The same for a download limit whose allowance is spent: held until
         // the period rolls over, then put back as the schedule's are.
-        let spent = self.allowance_spent().is_some();
+        // So for the computer's own state, a metered connection or a low battery, where Options
+        // says to wait for it to end (gaps row W11): every row, whatever its queue.
+        let spent = self.allowance_spent().is_some() || self.held_by().is_some();
         // Every queue on the one schedule: closed, nothing more to look at. With queues on
         // schedules of their own each row is held or put back by its own queue's window.
         if spent || (!self.has_queue_schedules() && !self.window_open()) {
@@ -194,7 +198,10 @@ impl DownloadList {
     pub(super) async fn hold_for_schedule(&self) {
         // All of it where the one schedule (or the download limit) says stop; only the rows of
         // queues whose own window is closed where queues have schedules of their own.
-        let all = self.allowance_spent().is_some() || !self.has_queue_schedules();
+        // And all of it while the computer's state holds the queue (gaps row W11).
+        let all = self.allowance_spent().is_some()
+            || self.held_by().is_some()
+            || !self.has_queue_schedules();
         let held = {
             let mut slots = self.inner.slots.lock().await;
             let mut held = false;
@@ -284,6 +291,9 @@ impl DownloadList {
                 if let Some(slot) = slots.get_mut(&id) {
                     form_lost = options_from_row(slot, &mut options, &own_parts);
                 }
+                // Compared before its body with what is already here (gaps row W18).
+                let asks = inner.asks_same.load(Ordering::SeqCst);
+                options.same_files = same_files_for(asks, &slots, id);
             }
 
             // What an earlier run already staged, which the download limit
@@ -294,7 +304,6 @@ impl DownloadList {
             let (tx, rx) = tokio::sync::mpsc::channel(32);
             let watcher = tokio::spawn(watch_run(queue.clone(), id, ran_with.clone(), staged, rx));
 
-            let client = crate::lock(&inner.client).clone();
             // A dial-up or VPN connection the person chose is up before the first request, and
             // the download waits for it: never sent around it (`connect_first.rs`).
             let connected = if form_lost {
@@ -314,6 +323,14 @@ impl DownloadList {
                 ))
                 .await
             };
+            // The network downloads are held to has an address first, and the download waits
+            // for it, saying why (gaps row W12).
+            let connected = match connected {
+                Ok(()) if !form_lost => sent(network_first(&options.control, tx.clone())).await,
+                other => other,
+            };
+            // Taken once the network is there: built again where its address changed.
+            let client = queue.client_now();
             let outcome = if form_lost {
                 drop(tx);
                 Err(crate::Error::Internal(
@@ -348,6 +365,36 @@ impl DownloadList {
             sent(queue.save()).await;
         })
     }
+}
+
+/// What a run of row `id` is compared with before its body is fetched (gaps row W18): every
+/// finished row's file but those of its own address, which "Already in the list" asks about
+/// (their paths passed over in the folder). `None` where nobody is asked, a person let it
+/// through, it has bytes already, or it is to take a file's place.
+fn same_files_for(asks: bool, slots: &HashMap<Id, Slot>, id: Id) -> Option<Arc<crate::SameFiles>> {
+    let row = &slots.get(&id)?.entry;
+    if !asks || row.accept_same || row.progress.downloaded > 0 || row.replaces.is_some() {
+        return None;
+    }
+    let mut known = crate::SameFiles::default();
+    for slot in slots.values() {
+        let other = &slot.entry;
+        if other.id == id || other.state != State::Completed || other.path.is_empty() {
+            continue;
+        }
+        if other.url == row.url {
+            known.passed_over.push(PathBuf::from(&other.path));
+            continue;
+        }
+        known.finished.push(crate::SameFile {
+            name: other.filename.clone(),
+            size: other.progress.total.unwrap_or(other.progress.downloaded),
+            validator: other.validator.clone(),
+            digest: other.checksum.clone(),
+            path: PathBuf::from(&other.path),
+        });
+    }
+    Some(Arc::new(known))
 }
 
 /// Fills a run's options from its row: where it stages and lands, its cookies and form,
@@ -524,6 +571,23 @@ async fn watch_run(
         }
     }
     reported
+}
+
+/// Waits for the network downloads are held to (`only_through::before_download`), telling the
+/// row why on `told` as a retry's wait is told, until it is there or the download is stopped.
+async fn network_first(
+    control: &Control,
+    told: tokio::sync::mpsc::Sender<crate::download::Update>,
+) -> Result<(), Error> {
+    crate::only_through::before_download(control, move |look, why, wait| {
+        let _ = told.try_send(crate::download::Update::Retrying {
+            attempt: look,
+            of: 0,
+            why,
+            wait,
+        });
+    })
+    .await
 }
 
 /// `future`, boxed with `Send` named where it is made: awaited inside `tokio::spawn`, an async

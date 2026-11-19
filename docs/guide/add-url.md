@@ -31,6 +31,8 @@ again while it is open, Add URL comes to the front as it stands.
 - Several addresses separated by spaces, each of them a link, open one
   Download details for all of them.
 - A YouTube playlist address opens [Playlist](playlist.md).
+- A feed's address (RSS or Atom, such as a podcast's, ending in `.rss` or
+  named `feed`) opens [Playlist](playlist.md) too, where it can be followed.
 - An address already in the list asks **Already in the list** (see
   [Questions dm asks](questions.md#already-in-the-list)), unless you ticked
   **Remember my choice** there before or set **Options › General › When an

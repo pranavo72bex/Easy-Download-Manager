@@ -24,6 +24,8 @@ use std::path::PathBuf;
 pub use pages::{
     AdvancedSettings, BrowserSettings, DownloadSettings, FolderSettings, GeneralSettings,
 };
+// What downloading does on a metered connection (gaps row W11).
+pub use pages::{METERED_ASK, METERED_GO, METERED_WAIT};
 pub use paths::{enter_portable, full_folder, full_path, home, home_short, portable_home_in};
 pub use paths::{PORTABLE_DATA, PORTABLE_MARKER};
 pub use scale::{PanelWidths, TextSizes, SIDEBAR_WIDTH, TEXT_SIZE};
@@ -72,6 +74,12 @@ pub struct Settings {
     /// `"again"`, `"replace"`. Options › General undoes it.
     #[serde(default)]
     pub duplicate_choice: String,
+    /// What to do when a download is the same file as one already here (its name, size and
+    /// entity tag those of a finished download, or a file of its name and size in the folder),
+    /// remembered from the question's tick: `""` asks, or `"show"`, `"again"` (gaps row W18).
+    /// Options › General undoes it. Left out of the file while it asks.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub same_file_choice: String,
     /// Addresses typed into Add URL, newest first, without any login in
     /// them, for picking again; cleared from the dialog.
     #[serde(default)]
@@ -207,6 +215,10 @@ pub struct Settings {
     /// "Site files" searches saved to run again, by hand or on a timer.
     #[serde(default)]
     pub site_searches: Vec<crate::lists::Search>,
+    /// Playlists, channels' uploads and feeds followed: read again every so
+    /// many hours, their new items added to a queue (gaps row W10).
+    #[serde(default)]
+    pub follows: Vec<crate::app::follow::Follow>,
     /// The floating drop target: a small window over every other, which
     /// takes a link dragged onto it. Off unless chosen (View › Drop target).
     #[serde(default)]
@@ -478,11 +490,13 @@ impl Default for Settings {
             second_path: String::new(),
             sounds: Default::default(),
             site_searches: Vec::new(),
+            follows: Vec::new(),
             drop_target: false,
             last_speed_limit: 0,
             slow_hours: SlowHours::default(),
             identify_as_dm: false,
             duplicate_choice: String::new(),
+            same_file_choice: String::new(),
             recent_urls: Vec::new(),
             last_folders: Default::default(),
             limit_mb: 0,
@@ -529,6 +543,8 @@ mod paths;
 mod scale;
 mod secrets;
 mod sites;
+// A backup's settings read in place of these (gaps row W16).
+mod restore;
 
 #[cfg(test)]
 mod tests;

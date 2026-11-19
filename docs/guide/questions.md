@@ -126,6 +126,29 @@ exist.", with "Details:" and the server's answer, "HTTP/1.1 404 Not Found".
 
 Return and Escape: **OK**.
 
+## The same file is already here
+
+When a download's server gives the same name and size (and, where both
+have one, the same entity tag or digest) as a finished download in the
+list, or as a file already in the folder it would be saved in: it is asked
+before any of the file is downloaded. It shows the name and "A finished
+download in the list has this name and size." or "A file of this name and
+size is already in the folder." An address already in the list is asked
+about as **Already in the list** instead.
+
+- **Show it:** takes the new download off the list, nothing of it
+  downloaded, and chooses the finished download in the list, or shows the
+  file in its folder.
+- **Download again:** downloads it, saved beside the other as a numbered
+  copy.
+- **Remember my choice:** gives the same answer from now on without asking.
+  Change it back in **Options › General › When the same file is already
+  here** (**Ask me**).
+
+Return and Escape: **Show it**. Nothing is asked with no window open
+(`--headless`), nor for a download added from the command line or an AI
+assistant: the file is downloaded as before.
+
 ## Some are already in the list
 
 From **Tasks › Import…**, when some addresses in the list you open are

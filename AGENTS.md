@@ -416,6 +416,7 @@ the one to use in new code. The names in the right-hand column are the ones in t
 | **schedule** / **Scheduler** | When a queue may run, and the window that edits it. | `dm_core::Schedule` (`schedule.rs`); `dm_desktop_base::scheduler`. |
 | **quota** / **download limits** | No more than so many megabytes every so many hours. | `quota::Allowance`, `Meter`. |
 | **secret store** | Where passwords and sign-ins are kept: the system's (Credential Manager, Keychain, Secret Service), under a key. | `dm_core::secretstore`. |
+| **backup** | File › Back up dm…'s one `.dmbackup` file of the settings and the list, the sign-ins sealed with a passphrase; File › Restore… puts it back. | `dm_shell::backup`, `dm_core::secretstore::passphrase`, `DownloadList::adopt`; `dm_gpui::dialogs::backup`. |
 | **Mark of the Web** | Where a file came from, written beside it on Windows so SmartScreen treats it as downloaded. | `dm_core::motw`. |
 | **contract row** | One line of `docs/behaviour-contract.md`: what a person does and what then happens, fixed until the maintainer approves a change. | `docs/behaviour-contract.md`; checked by `scripts/human-qa.py`. |
 | **gaps row** | One line of the work list, by its number or letter and number (175, Y3, A21). | `docs/gaps.md`. |

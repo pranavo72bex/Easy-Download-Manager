@@ -32,6 +32,15 @@ impl Downloads {
         {
             dm_core::heap::give_back();
         }
+        // The downloads' speed together, for View › Statistics's average and best (gaps row
+        // W15): held in memory, never written.
+        let speed: f64 = self
+            .rows
+            .iter()
+            .filter(|r| matches!(r.state, dm_core::State::Running))
+            .map(|r| r.progress.speed)
+            .sum();
+        self.status.speeds.sample(Instant::now(), speed);
         // Windows' High Contrast turned on, off or to another theme: every
         // window drawn again in its colours (`theme.rs`), not only the one in
         // front when it next draws.
@@ -67,6 +76,7 @@ impl Downloads {
         self.take_watched(cx);
         self.say_rechecked();
         self.take_searches(cx);
+        self.take_follows(cx);
         self.weekly_update(cx);
         self.check_clipboard(cx);
         // A second launch, the browser's button or the Dock asked for the
@@ -153,6 +163,7 @@ impl Downloads {
             )),
             Effect::Scheduled { hang_up } => self.hang_up(hang_up),
             Effect::Quit => self.quit(cx),
+            Effect::AskMetered => self.ask_metered(cx),
             // Carried on the platform, above.
             Effect::Notify { .. }
             | Effect::NotifyFile { .. }
@@ -160,6 +171,31 @@ impl Downloads {
             | Effect::Open(_)
             | Effect::Reveal(_) => {}
         }
+    }
+
+    /// The connection has become metered and Options › Downloads says to ask (gaps row W11):
+    /// every download waits meanwhile; Download anyway lets them go on until the connection is
+    /// no longer metered, Wait (the default, which costs nothing) keeps them waiting until then.
+    fn ask_metered(&mut self, cx: &mut Context<Self>) {
+        let asked = crate::dialogs::question::Asked {
+            title: t("The connection is metered").into(),
+            lines: vec![t("Downloading over it may cost money or use up a data plan. Every download waits until you choose.").into()],
+            named: None,
+            detail: None,
+            toggle: None,
+            ticked: false,
+            buttons: vec![t("Wait").into(), t("Download anyway").into()],
+            default: 0,
+            escape: 0,
+        };
+        let view = cx.entity().downgrade();
+        let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
+            let _ = view.update(cx, |view, cx| {
+                view.session.answer_metered(button == 1);
+                cx.notify();
+            });
+        });
+        self.sheet(asked, None, None, answer, cx);
     }
 
     /// Scheduler › Hang up modem when done, where the schedules asked for it (`hang_up`): off

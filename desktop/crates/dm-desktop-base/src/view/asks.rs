@@ -201,6 +201,27 @@ pub fn not_found() -> DownloadAsk {
     }
 }
 
+/// B73: the server's file `name` is one already here, by its name, size and entity tag: a
+/// finished download in the list (`listed`), or a file in the folder. "Show it" (the default,
+/// which fetches nothing) shows that one; "Download again" fetches it beside it (gaps row W18).
+pub fn same_file(name: &str, listed: bool) -> DownloadAsk {
+    DownloadAsk {
+        title_english: "The same file is already here",
+        title: t("The same file is already here"),
+        lines: vec![
+            name.to_string(),
+            if listed {
+                t("A finished download in the list has this name and size.")
+            } else {
+                t("A file of this name and size is already in the folder.")
+            }
+            .to_string(),
+        ],
+        detail: None,
+        buttons: vec![t("Show it").into(), t("Download again").into()],
+    }
+}
+
 /// "Exit dm?", asked when Exit is chosen while downloads run: what it says
 /// with `busy` downloads running and `waiting` in line, and its buttons.
 /// Asked again as the list changes: a download finishing while it is open

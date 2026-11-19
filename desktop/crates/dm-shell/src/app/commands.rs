@@ -52,6 +52,11 @@ pub enum Command {
     Import,
     /// Writes the list of downloads to a file.
     Export,
+    /// Writes dm's settings, queues and list to one file, the sign-ins sealed with a passphrase
+    /// where one is given (gaps row W16).
+    BackUp,
+    /// Puts back what such a file holds.
+    Restore,
     /// Opens the dialog to download the files a web page links to.
     SiteFiles,
     /// Closes dm.
@@ -182,6 +187,8 @@ impl Command {
         Command::AddFromClipboard,
         Command::Import,
         Command::Export,
+        Command::BackUp,
+        Command::Restore,
         Command::SiteFiles,
         Command::Quit,
         Command::DownloadNow,
@@ -250,6 +257,8 @@ impl Command {
             Command::AddFromClipboard => "program.add_from_clipboard",
             Command::Import => "program.import",
             Command::Export => "program.export",
+            Command::BackUp => "program.back_up",
+            Command::Restore => "program.restore",
             Command::SiteFiles => "program.site_files",
             Command::Quit => "program.exit",
             Command::DownloadNow => "file.download_now",
@@ -322,6 +331,8 @@ impl Command {
                 | Command::AddFromClipboard
                 | Command::Import
                 | Command::Export
+                | Command::BackUp
+                | Command::Restore
                 | Command::SiteFiles
                 | Command::UpdateLink
                 | Command::DeleteFile
@@ -355,6 +366,8 @@ impl Command {
             Command::AddFromClipboard => "Add links from clipboard",
             Command::Import => "Import",
             Command::Export => "Export",
+            Command::BackUp => "Back up dm",
+            Command::Restore => "Restore",
             Command::SiteFiles => "Grabber",
             Command::Quit => "Exit",
             Command::DownloadNow => "Resume download",

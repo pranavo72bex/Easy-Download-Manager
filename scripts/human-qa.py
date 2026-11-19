@@ -285,12 +285,27 @@ FILES = {
     "private.bin": (1 * MiB, 0, "plain"),             # Keep no record (B69)
     "kind.zip": (len(PACK), 0, "plain"),          # unpacked when done for its kind (B71)
     "own.zip": (len(PACK), 0, "plain"),           # unpacked when done for itself, then trashed (B71)
+    "graph.bin": (48 * MiB, 512 * 1024, "plain"),     # running while its speed line is looked at (B74)
+    "same.bin": (1 * MiB, 0, "plain"),            # the same file from a second address (B73)
+    "ep1.mp3": (1 * MiB, 0, "plain"),             # a followed feed's items (B75)
+    "ep2.mp3": (1 * MiB, 0, "plain"),
+    "only.bin": (2 * MiB, 0, "plain"),            # held to one network (B77)
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
 DATA["pack.zip"] = PACK
 DATA["kind.zip"] = DATA["own.zip"] = PACK
 LOG, LOCK, ACTIVE, CONNS = [], threading.Lock(), {}, [0]
+# B75's feed (`/files/podcast.rss`): the items it lists now, each an episode's file beside it.
+FEED = ["ep1"]
+
+
+def podcast_feed():
+    """The stand-in podcast's RSS, its items as FEED has them, their files relative to it."""
+    items = "".join(f"<item><title>Episode {n[2:]}</title><guid>{n}</guid>"
+                    f"<enclosure url=\"{n}.mp3\" type=\"audio/mpeg\"/></item>" for n in FEED)
+    return ('<?xml version="1.0"?><rss version="2.0"><channel><title>Stand-in podcast</title>'
+            + items + "</channel></rss>")
 T0 = time.time()
 
 
@@ -317,6 +332,11 @@ def serve(c, n):
             log(ev="req", conn=n, name=name, method=method, range=rng)
             if path == "/go/target":
                 c.sendall(b"HTTP/1.1 302 Found\r\nLocation: /files/target.bin\r\nContent-Length: 0\r\n\r\n")
+                continue
+            if name == "podcast.rss":
+                feed = podcast_feed().encode()
+                c.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/rss+xml\r\nContent-Length: "
+                          + str(len(feed)).encode() + b"\r\n\r\n" + (b"" if method == "HEAD" else feed))
                 continue
             if name not in FILES:
                 c.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
@@ -387,11 +407,12 @@ def start_server():
 
     def accept():
         while True:
-            c, _ = srv.accept()
+            c, peer = srv.accept()
             with LOCK:
                 CONNS[0] += 1
                 n = CONNS[0]
-            log(ev="accept", conn=n)
+            # Where it came from: a download held to one network comes from its address (B77).
+            log(ev="accept", conn=n, peer=peer[0])
             threading.Thread(target=serve, args=(c, n), daemon=True).start()
 
     threading.Thread(target=accept, daemon=True).start()
@@ -1644,6 +1665,9 @@ def walk(dm, origin):
     check("B69", "and none of dm's own files names it, settings.json's Recent list included",
           same and not left, f"named in {left}")
     unpack_when_done(dm, files)
+    same_file_again(dm, files)
+    follow_feed(dm, files)
+    only_through(dm, files)
 
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
@@ -1846,6 +1870,208 @@ def unpack_when_done(dm, files):
     pause(0.8)
 
 
+def same_file_again(dm, files):
+    """B73 (gaps row W18): the same file from a second address (the server's same bytes under
+    the same name, the address another by its query), once the first is finished, is asked
+    about before it is fetched: Show it takes the new row off and fetches nothing; Download
+    again, with Remember my choice ticked, fetches it beside the first and keeps the answer in
+    Options › General."""
+    dm.add(f"{files}/same.bin")
+    first = dm.wait("/same.bin", ("completed",), 60)
+    title = "The same file is already here"
+
+    def copies():
+        return sorted(p.name for p in (dm.home / "downloads").rglob("same*.bin"))
+
+    dm.add(f"{files}/same.bin?mirror=2")
+    said = answer(dm, title, "Show it")
+    pause(1.5)
+    check("B73", "a second address of a finished file asks first, with Show it, Download again and "
+          "Remember my choice; Show it fetches nothing and takes the new row off",
+          first and first["state"]["kind"] == "completed" and said is not None
+          and "A finished download in the list has this name and size." in said
+          and all(w in said for w in ("Show it", "Download again", "Remember my choice"))
+          and dm.row("mirror=2") is None and copies() == ["same.bin"],
+          f"first {first and first['state']}; words {said}; row {dm.row('mirror=2')}; files {copies()}")
+
+    dm.add(f"{files}/same.bin?mirror=3")
+    end = time.time() + 40
+    while time.time() < end and title not in dm.dialogs():
+        time.sleep(0.25)
+    pause(0.5)
+    ticked = dm.click("Remember my choice")
+    dm.click("Download again")
+    r = dm.wait("mirror=3", ("completed",), 60)
+    saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("same_file_choice")
+    exact = whole(r, "same.bin")
+    check("B73", "Download again with Remember my choice fetches it beside the first, and the answer is kept",
+          ticked and r and r["state"]["kind"] == "completed" and exact[0]
+          and copies() == ["same (1).bin", "same.bin"] and saved == "again",
+          f"row {r and r['state']}; {exact[1]}; files {copies()}; kept {saved!r}")
+
+    dm.click("Options")
+    for _ in range(40):
+        if "Options" in dm.dialogs():
+            break
+        time.sleep(0.1)
+    pause(0.8)
+    dm.click("General")
+    pause(0.8)
+    general = dm.dialog_texts() + dm.scrolled_texts("Theme")
+    check("B73", "Options › General has the row that undoes the remembered answer",
+          "When the same file is already here" in general, f"{general}")
+    dm.click("Cancel")
+    pause(0.6)
+
+
+def follow_feed(dm, files):
+    """B75 (gaps row W10): a feed's address in Add URL opens the Playlist dialog, its item
+    listed; "Check again every" ticked with Add for later follows it, listed under Grabber
+    projects; the feed gains an item, and its row's Check now adds only that one, to the queue
+    chosen (the Main queue); Stop following forgets it."""
+    def follows():
+        try:
+            saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return saved.get("follows")
+
+    def waited(part, within=30):
+        end = time.time() + within
+        while time.time() < end:
+            r = dm.row(part)
+            if r:
+                return r
+            time.sleep(0.25)
+        return None
+
+    def asked(title, within=20):
+        end = time.time() + within
+        while time.time() < end:
+            if title in dm.dialogs():
+                pause(0.5)
+                return True
+            time.sleep(0.25)
+        return False
+
+    FEED[:] = ["ep1"]
+    address = f"{files}/podcast.rss"
+    dm.open_add_url()
+    dm.call("ui.type", text=address)
+    pause(0.4)
+    dm.click("OK")
+    opened = asked("Playlist")
+    words, end = [], time.time() + 30
+    while time.time() < end:
+        words = dm.dialog_texts()
+        if any("Episode 1" in w for w in words):
+            break
+        time.sleep(0.25)
+    check("B75", "a feed's address opens the Playlist dialog, its item listed, with Check again every … hours",
+          opened and any("Episode 1" in w for w in words) and "Check again every" in words
+          and "hours, adding what is new to" in words, f"{dm.dialogs()} {words}")
+    dm.click("Check again every")
+    dm.click("Add for later")
+    first = waited("/ep1.mp3")
+    kept = follows() or []
+    one = kept[0] if len(kept) == 1 else {}
+    shown = dm.texts()
+    check("B75", "Add for later adds the item and follows the feed: every 24 hours, to the Main queue, "
+          "listed under Grabber projects",
+          bool(first) and one.get("address") == address and one.get("every_hours") == 24
+          and one.get("queue") == "Main queue" and any(u.endswith("/ep1.mp3") for u in one.get("seen", []))
+          and "Stand-in podcast" in shown and "Grabber projects" in shown,
+          f"row {bool(first)}; follows {kept}; side panel has it {'Stand-in podcast' in shown}")
+
+    FEED.append("ep2")
+    dm.click("Stand-in podcast")
+    followed = asked("Followed")
+    said = dm.dialog_texts()
+    dm.click("Check now")
+    second = waited("/ep2.mp3")
+    pause(1.0)
+    ones = [r for r in dm.rows() if r.get("url", "").endswith("/ep1.mp3")]
+    check("B75", "the feed gains an item: Check now adds only that one, for later, to the queue chosen",
+          followed and any("Checked again every 24 hours" in w for w in said) and bool(second)
+          and (second or {}).get("queue") == "Main queue" and len(ones) == 1,
+          f"asked {followed} {said}; new row {second}; the first {len(ones)} times")
+
+    dm.click("Stand-in podcast")
+    asked("Followed")
+    dm.click("Stop following")
+    pause(1.0)
+    check("B75", "Stop following forgets it, its rows kept", follows() == [] and bool(dm.row("/ep2.mp3")),
+          f"follows {follows()}")
+
+
+def only_through(dm, files):
+    """B77 (gaps row W12): Options › Advanced › Network has "Only through", a pop-up of the
+    computer's networks with Any network first; one chosen and kept with OK, a download from
+    this computer's own server still completes, every connection coming from that network's
+    address rather than the loopback's; Any network puts it back."""
+    def advanced_page():
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        dm.click("Advanced")
+        pause(0.8)
+        seen = dm.dialog_texts()
+        if "Only through" not in seen:
+            # Below the page's first screen in a small window: scrolled to, as a person does.
+            dm.call("ui.scroll", text="Time out a silent connection after (seconds)", lines=3)
+            pause(0.5)
+            seen = dm.dialog_texts()
+        return seen
+
+    def kept():
+        try:
+            saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return saved.get("only_through", "")
+
+    note = ("Every download goes out over this network alone, such as your VPN's. While it is not "
+            "connected, downloads wait and say so, and go on by themselves when it is back. Torrents "
+            "and live streams do not start while one is chosen, and the second network is not used.")
+    words = advanced_page()
+    laid_out = ("Only through" in words and "Any network" in words
+                and (note in words or note in " ".join(words)))
+    before = set(words)
+    dm.click("Any network")
+    pause(0.8)
+    # The pop-up's lines: each network as "name (address)" or, on macOS, "Wi-Fi (en0)".
+    listed = [w for w in dm.dialog_texts() if w not in before and "(" in w and w.endswith(")")]
+    check("B77", "Options › Advanced › Network has Only through, Any network at first, listing the computer's networks",
+          laid_out and bool(listed), f"listed {listed}; words {words[:16]}")
+    if not listed:
+        dm.call("ui.key", key="Escape")
+        dm.click("Cancel")
+        return
+    dm.click(listed[0])
+    dm.click("OK")
+    pause(1.0)
+    chosen = kept()
+    since = len(LOG)
+    dm.add(f"{files}/only.bin")
+    r = dm.wait("only.bin", ("completed", "failed"), 60)
+    same, said = whole(r, "only.bin")
+    peers = {e.get("peer") for e in LOG[since:] if e.get("ev") == "accept"}
+    check("B77", "one chosen is kept with OK, and a download completes over it, from its address alone",
+          bool(chosen) and chosen in listed[0] and same and bool(peers) and "127.0.0.1" not in peers,
+          f"kept {chosen!r}; {said}; came from {sorted(p for p in peers if p)}")
+    # Put back as a new install has it, for the checks that follow.
+    advanced_page()
+    dm.click(chosen or listed[0])
+    pause(0.8)
+    dm.click("Any network")
+    dm.click("OK")
+    pause(1.0)
+    check("B77", "Any network puts it back", kept() == "", f"kept {kept()!r}")
+
+
 def new_install(origin):
     """B63: dm as a new install has it, nothing chosen yet: a download opens its
     progress window as it starts, and a Download complete window when it ends."""
@@ -1934,6 +2160,280 @@ def forgetting():
             dm.proc.kill()
 
 
+def backing_up():
+    """B72 (gaps row W16): File › Back up dm… writes one .dmbackup of the settings and the
+    list, the sign-ins sealed with the passphrase typed twice; File › Restore… in another dm
+    refuses a wrong passphrase in its window, restoring nothing, then with the right one puts
+    the settings in force and adds the downloads, one already listed not twice, the sign-ins
+    with them."""
+    passphrase, cookie = "qa backup 7", "session=qa-sealed-4k9"
+
+    def row(n, name, state, **more):
+        return dict({"id": n, "url": f"http://127.0.0.1:9/{name}", "state": {"kind": state},
+                     "progress": {"downloaded": 0, "total": None, "speed": 0.0, "eta": None},
+                     "filename": name}, **more)
+
+    def home_of(name, settings, rows):
+        home = WORK / name
+        (home / "downloads").mkdir(parents=True)
+        (home / "settings.json").write_text(json.dumps(dict({
+            "download_dir": str(home / "downloads"), "theme": "dark", "popups_version": 2,
+            "show_progress": False, "show_complete": False}, **settings)), encoding="utf-8")
+        (home / "queue.json").write_text(json.dumps(rows), encoding="utf-8")
+        return home
+
+    def opened(title):
+        for _ in range(60):
+            if title in dm.dialogs():
+                pause(0.8)
+                return True
+            time.sleep(0.25)
+        return False
+
+    def typed(text):
+        dm.call("ui.type", text=text)
+        pause(0.4)
+
+    backup = WORK / "dm.dmbackup"
+    home = home_of("backup-from", {"connections": 3, "site_rules": [{"host": "slow.example.com", "speed": 64}]},
+                   [row(1, "kept.bin", "paused"), row(2, "signed.bin", "paused", cookies=cookie)])
+    dm = Dm(home)
+    dm.start()
+    try:
+        dm.call("ui.window", to="shown")
+        pause(0.6)
+        dm.call("command.run", id="program.back_up")
+        shown = opened("Back up dm")
+        words = " ".join(dm.dialog_texts())
+        check("B72", "File › Back up dm… says what a backup holds, with Passphrase and Passphrase again",
+              shown and "One file of dm's settings" in words and "Passphrase again" in words, f"{dm.dialogs()}: {words[:200]}")
+        typed(passphrase)
+        dm.call("ui.key", key="Tab")
+        typed(passphrase)
+        dm.call("ui.choose", path=str(backup))
+        dm.click("Back up")
+        for _ in range(60):
+            if backup.is_file() and "Back up dm" not in dm.dialogs():
+                break
+            time.sleep(0.25)
+        text = backup.read_text(encoding="utf-8") if backup.is_file() else ""
+        try:
+            made = json.loads(text)
+        except ValueError:
+            made = {}
+        check("B72", "the backup is one JSON file of format 1: the settings, the queues' rows, the sign-ins sealed, none in clear",
+              made.get("format") == 1 and made.get("settings", {}).get("connections") == 3
+              and len(made.get("rows", [])) == 2 and made.get("sign_ins", {}).get("alg") == "chacha20poly1305"
+              and "qa-sealed-4k9" not in text,
+              f"{backup}: format {made.get('format')}, rows {len(made.get('rows', []))}, keys {sorted(made)}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+    home = home_of("backup-into", {}, [row(1, "kept.bin", "completed")])
+    dm = Dm(home)
+    dm.start()
+    try:
+        dm.call("ui.window", to="shown")
+        pause(0.6)
+        dm.call("ui.choose", path=str(backup))
+        dm.call("command.run", id="program.restore")
+        shown = opened("Restore dm")
+        words = " ".join(dm.dialog_texts())
+        check("B72", "File › Restore… says what restoring does and asks for the passphrase of the sealed sign-ins",
+              shown and "replace these, as OK in Options does" in words and "Passphrase" in words,
+              f"{dm.dialogs()}: {words[:200]}")
+        typed("not the passphrase")
+        dm.click("Restore")
+        pause(2.0)
+        words = " ".join(dm.dialog_texts())
+        check("B72", "a wrong passphrase is said in the window, which stays open, and nothing is restored",
+              "That passphrase does not open this backup's sign-ins." in words and "Restore dm" in dm.dialogs()
+              and len(dm.rows()) == 1, f"{dm.dialogs()}: {words[-200:]}; rows {len(dm.rows())}")
+        dm.call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
+        typed(passphrase)
+        dm.click("Restore")
+        for _ in range(60):
+            if "Restore dm" not in dm.dialogs() and len(dm.rows()) >= 2:
+                break
+            time.sleep(0.25)
+        pause(1.0)
+        rows = dm.rows()
+        signed = dm.row("signed.bin") or {}
+        said = dm.wait_for_text("Restored dm from", 10)
+        check("B72", "with the right one its downloads are added, one already listed not twice, the sign-ins with them",
+              len(rows) == 2 and len([r for r in rows if "kept.bin" in r.get("url", "")]) == 1
+              and signed.get("state", {}).get("kind") == "paused" and signed.get("signed_in") is True and said,
+              f"rows {[(r.get('filename'), r.get('state', {}).get('kind'), r.get('signed_in')) for r in rows]}; said {said}")
+        settings = {}
+        for _ in range(40):
+            try:
+                settings = json.loads((home / "settings.json").read_text(encoding="utf-8"))
+            except ValueError:
+                settings = {}
+            if settings.get("connections") == 3:
+                break
+            time.sleep(0.25)
+        check("B72", "and its settings are in force, as Options' OK puts them",
+              settings.get("connections") == 3
+              and any(r.get("host") == "slow.example.com" for r in settings.get("site_rules", [])),
+              f"connections {settings.get('connections')}, site rules {settings.get('site_rules')}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
+def statistics(origin):
+    """B74 (gaps row W15): a running download's progress window draws its speed
+    over the last five minutes, and View › Statistics opens with what has
+    finished, by day, by site and by category, and the speeds seen since dm
+    opened; nothing new is written."""
+    home = WORK / "statistics"
+    saved = home / "downloads"
+    saved.mkdir(parents=True)
+    now = int(time.time())
+    rows = []
+    for n, (host, name, size, days) in enumerate((("a.example", "film.mp4", 3 * MiB, 0),
+                                                  ("b.example", "notes.pdf", 1 * MiB, 2)), start=1):
+        (saved / name).write_bytes(b"kept")
+        rows.append({"id": n, "url": f"http://{host}/{name}", "state": {"kind": "completed"},
+                     "progress": {"downloaded": size, "total": size, "speed": 0.0, "eta": None},
+                     "filename": name, "finished_at": now - days * 86400, "path": str(saved / name)})
+    (home / "queue.json").write_text(json.dumps(rows), encoding="utf-8")
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(saved), "theme": "dark", "popups_version": 2,
+        "show_progress": True, "show_complete": False,
+        "ask_caught_downloads": False, "ask_panel_downloads": False}), encoding="utf-8")
+    dm = Dm(home)
+    dm.start()
+    try:
+        dm.add(f"{origin}/files/graph.bin")
+        dm.wait("graph.bin", ("running",), 20)
+        for _ in range(80):
+            if "Download progress" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(3)
+        words = dm.dialog_texts()
+        check("B74", "a running download's progress window draws its speed over the last 5 minutes",
+              "Speed over the last 5 minutes" in words, f"windows {dm.dialogs()}; words {words[:20]}")
+        dm.call("ui.key", key="Escape")
+        pause(0.8)
+        dm.click("View")
+        pause(0.5)
+        dm.click("Statistics")
+        for _ in range(40):
+            if "Statistics" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        words = dm.scrolled_texts("By category", turns=8)
+        check("B74", "View › Statistics opens with the files finished, by day, by site and by category",
+              all(w in words for w in ("Files finished", "Downloaded in all", "By day, the last 30 days",
+                                       "By site, the 10 largest", "By category", "a.example", "b.example",
+                                       "Videos", "Documents"))
+              and any(w.startswith("Busiest day: ") for w in words), f"{words[:40]}")
+        check("B74", "with the average and best speed of what ran since dm opened",
+              "Average speed" in words and "Best speed" in words and "not measured yet" not in words,
+              f"{words[-16:]}")
+        dm.call("ui.key", key="Escape")
+        pause(0.6)
+        kept = sorted(str(p.relative_to(home)) for p in home.rglob("*"))
+        check("B74", "and nothing of it is written in dm's folder",
+              not any("statistic" in k.lower() for k in kept)
+              and "statistic" not in (home / "settings.json").read_text(encoding="utf-8").lower(),
+              f"{kept}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
+def metered_waits(origin):
+    """B76 (gaps row W11): with Options › Downloads' "On a metered connection" at Wait and "On
+    battery: wait below" at 30, a download waits while the connection is metered, saying why on
+    its row, then while the battery is below 30 %, then goes on by itself once neither holds; the
+    two lines are in Options with their notes and the choices kept. The state is a stand-in a
+    debug build reads (`DM_STATE_FILE`): Windows', NetworkManager's and IOKit's own answers are
+    the engine's tests' and the platform's (`metered.rs`), not this run's."""
+    home = WORK / "metered"
+    saved = home / "downloads"
+    saved.mkdir(parents=True)
+    state = home / "state.txt"
+    state.write_text("metered\n", encoding="utf-8")
+    FILES["metered.bin"] = (8 * MiB, 1 * MiB, "plain")
+    DATA["metered.bin"] = body("metered.bin", 8 * MiB)
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(saved), "theme": "dark", "popups_version": 2,
+        "show_progress": False, "show_complete": False,
+        "on_metered": "wait", "battery_below": 30}), encoding="utf-8")
+    os.environ["DM_STATE_FILE"] = str(state)
+    dm = Dm(home)
+    try:
+        dm.start()
+    finally:
+        os.environ.pop("DM_STATE_FILE", None)
+
+    def status():
+        r = dm.row("metered.bin") or {}
+        shown = dm.call("ui.inspect").get("result", {}).get("rows", [])
+        return next((x.get("status", "") for x in shown if x.get("id") == r.get("id")), "")
+
+    def said_within(words, seconds):
+        end = time.time() + seconds
+        while time.time() < end:
+            if status() == words:
+                return True
+            time.sleep(0.25)
+        return False
+
+    try:
+        dm.call("downloads.add", urls=[f"{origin}/files/metered.bin"])
+        metered = said_within("Waiting: the connection is metered", 15)
+        r = dm.row("metered.bin") or {}
+        check("B76", "on a metered connection with Wait, a download added waits, its row saying \"Waiting: the connection is metered\", with nothing fetched",
+              metered and r.get("state", {}).get("kind") == "paused"
+              and not (r.get("progress") or {}).get("downloaded"),
+              f"status {status()!r}, state {r.get('state')}, progress {r.get('progress')}")
+        state.write_text("battery 12\n", encoding="utf-8")
+        low = said_within("Waiting: the battery is low", 15)
+        check("B76", "on the battery at 12 % with 30 set, it waits, its row saying \"Waiting: the battery is low\"",
+              low, f"status {status()!r}")
+        state.write_text("", encoding="utf-8")
+        r = dm.wait("metered.bin", {"completed", "failed"}, 60) or {}
+        check("B76", "once neither holds, it goes on by itself and finishes",
+              r.get("state", {}).get("kind") == "completed", f"state {r.get('state')}, status {status()!r}")
+        dm.call("ui.window", to="shown")
+        pause(0.6)
+        dm.click("Options")
+        for _ in range(40):
+            if "Options" in dm.dialogs():
+                break
+            time.sleep(0.1)
+        pause(0.8)
+        dm.click("Downloads")
+        pause(0.8)
+        words = dm.scrolled_texts("Connections per file", turns=14)
+        dm.click("Cancel")
+        pause(0.6)
+        joined = " ".join(words)
+        check("B76", "Options › Downloads has On a metered connection (showing Wait) and On battery: wait below (%, 0 for never), each with its note",
+              "On a metered connection" in words and "Wait" in words
+              and "On battery: wait below (%, 0 for never)" in words
+              and "Where the system marks the connection as metered" in joined
+              and "Downloads wait while the computer runs on its battery" in joined, f"{words[-20:]}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
@@ -1974,6 +2474,9 @@ def main():
         sys.exit(f"\nSTOPPED, no row checked: {stopped}")
     new_install(origin)
     forgetting()
+    backing_up()
+    statistics(origin)
+    metered_waits(origin)
     browser()
 
     print("\nThe contract, row by row", flush=True)

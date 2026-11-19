@@ -3,7 +3,9 @@
 Playlist lists the videos of a playlist so you can tick which to download.
 It opens when you give [Add URL](add-url.md) a YouTube playlist address,
 and when [Download details](download-details.md) finds that the page it
-was given holds several videos.
+was given holds several videos. A feed's address (RSS or Atom: a podcast,
+a channel's uploads, an address ending in `.rss` or named `feed`) opens it
+too, listing the feed's items: each episode's file, or each item's link.
 
 While dm reads the list it says "Reading the playlist…". If it cannot, it
 says "The playlist could not be read:" and why.
@@ -28,6 +30,29 @@ says "The playlist could not be read:" and why.
 read. With no video ticked, dm says "Pick at least one video." and the
 window stays open. Once they are added the status bar says "Added …
 downloads."
+
+## Following a playlist or a feed
+
+- **Check again every … hours, adding what is new to …:** ticked, the
+  playlist, channel or feed is followed once **Add for later** or **Start
+  now** adds its videos. Every so many hours (24 at first; 1 at least) dm
+  reads it again and adds only the videos or files it did not list before,
+  for later, to the queue chosen. A video you left unticked, or removed
+  from the list, is not added again. The status bar says "Following …,
+  checked again every … hours.", then after each reading "Added …
+  downloads to …" or "… has nothing new."
+
+Each followed playlist or feed is listed under **Grabber projects** in the
+side panel, by its title. Clicking it opens **Followed**, which says
+"Checked again every … hours; what is new goes to …." with three buttons:
+
+- **Check now:** reads it at once.
+- **Stop following:** forgets it; nothing already added is removed.
+- **Close:** leaves it as it is.
+
+If a reading fails, the status bar's problems say "the followed … could
+not be read:" and why (see [What dm's messages mean](failures.md)); it is
+tried again at its next time.
 
 ## Keys
 

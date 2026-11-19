@@ -68,6 +68,8 @@ windows = { workspace = true, features = [
   "Foundation",
   "Data_Xml_Dom",
   "UI_Notifications",
+  # Whether the connection is metered: its cost (metered.rs, gaps row W11).
+  "Networking_Connectivity",
 ] }
 windows-sys = { workspace = true, features = [
   # What --register and --help print reaches the console that started dm

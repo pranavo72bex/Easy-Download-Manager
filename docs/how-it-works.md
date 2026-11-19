@@ -585,6 +585,8 @@ desktop/
     agents.rs, limit.rs, decode.rs   the user agent a site gets, the speed ceiling, a body's
                           decoding held to a ratio
     connect_first.rs, second_path.rs   a sign-in to the network first; a second network path
+    only_through.rs       the one network every download is held to (a VPN's): each client bound
+                          to its address, FTP's sockets too; downloads wait while it is gone
     control.rs, error.rs  the stop flag a row's work checks; dm's `Error`
   crates/dm-torrent/      BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate
                           that names librqbit; a session, a torrent added to it, its stats and

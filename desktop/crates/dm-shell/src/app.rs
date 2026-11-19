@@ -24,6 +24,7 @@ pub mod detect;
 pub mod errands;
 pub mod events;
 pub mod files;
+pub mod follow;
 pub mod going;
 pub mod handoff;
 pub mod hints;

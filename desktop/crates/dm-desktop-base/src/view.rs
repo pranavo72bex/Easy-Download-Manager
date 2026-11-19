@@ -9,7 +9,7 @@
 //! and `columns` (the download list's rows and columns), `selection` and
 //! `find` (stepping and finding through it), `asks` (dm's questions), the
 //! dialogs' models (`add_url`, `file_info`, `row_edits`, `options`,
-//! `scheduler`, `grabber`, `links_import`, `save_to`, `progress`,
+//! `scheduler`, `grabber`, `links_import`, `save_to`, `progress`, `statistics`,
 //! `zip_list`), `held` (what holds a download back), `details` (the text
 //! Copy details puts on the clipboard), `project` (About's and Help's
 //! pages), `toolbar` and `tray` (their words and styles). How each is drawn,
@@ -35,6 +35,7 @@ pub mod rows;
 pub mod save_to;
 pub mod scheduler;
 pub mod selection;
+pub mod statistics;
 pub mod toolbar;
 pub mod tray;
 pub mod zip_list;

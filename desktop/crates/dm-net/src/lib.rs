@@ -8,7 +8,8 @@
 //! How dm reaches a server, whatever it then fetches: the HTTP client and its TLS, proxies and
 //! the proxy configuration script (run by dm-js), names and where a redirect may go, sign-ins
 //! (Basic, Digest, NTLM) and the browser's cookies, the shared speed ceiling, a body's
-//! decoding, the second network path, the stop flag a row's work checks, and dm's [`Error`].
+//! decoding, the second network path and the one network downloads may be held to, the stop
+//! flag a row's work checks, and dm's [`Error`].
 //! dm-core builds downloads on it and keeps its paths (`dm_core::Error`, `dm_core::client`,
 //! `dm_core::pac` and the rest).
 
@@ -46,6 +47,8 @@ pub mod limit;
 pub mod log;
 
 pub mod ntlm;
+
+pub mod only_through;
 
 pub mod pac;
 

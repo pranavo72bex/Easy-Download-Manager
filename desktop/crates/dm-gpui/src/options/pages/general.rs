@@ -203,6 +203,25 @@ fn starting(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
             &screen,
         ),
     );
+    // The same file as one already here, from another address or in the folder (gaps row
+    // W18): asked, and remembered from the question's tick; undone here.
+    let same_words = [t("Ask me"), t("Show it"), t("Download again")];
+    let same_at = SAME_FILE
+        .iter()
+        .position(|w| *w == s.same_file_choice)
+        .unwrap_or(0);
+    p.labelled(
+        t("When the same file is already here"),
+        true,
+        popup::button(
+            "same-file",
+            same_words[same_at].into(),
+            same_words.iter().map(|w| SharedString::from(*w)).collect(),
+            Some(same_at),
+            theme,
+            &screen,
+        ),
+    );
     check(
         p,
         cx,

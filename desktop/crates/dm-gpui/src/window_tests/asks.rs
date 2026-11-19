@@ -101,3 +101,37 @@ fn a_404_is_told_once_in_a_window_of_its_own() {
     assert!(!h.shows("The file doesn't exist"), "{:?}", h.texts());
     assert!(matches!(h.rows()[0].state, State::Failed(_)));
 }
+
+/// The same file from a second address (contract row B73, gaps row W18): asked about before it
+/// is fetched. Show it takes the new row off, the finished one chosen; Download again, with
+/// Remember my choice ticked, fetches it beside the first and keeps the answer.
+#[test]
+fn the_same_file_from_another_address_is_asked_about_before_it_is_fetched() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("file.zip"), "Start now");
+    h.until("the first copy to finish", finished);
+    let first = h.rows()[0].id;
+    h.add_url(&world.url("file.zip?mirror=2"), "Start now");
+    h.until_shown("The same file is already here");
+    assert!(h.shows("A finished download in the list has this name and size."));
+    assert!(h.shows("Download again") && h.shows("Remember my choice"));
+    h.click("Show it");
+    h.until("the new row to go", |h| h.rows().len() == 1);
+    assert!(h.view(|view| view.list.selected.contains(&first)));
+    assert!(!h.shows("The same file is already here"));
+
+    h.add_url(&world.url("file.zip?mirror=3"), "Start now");
+    h.until_shown("The same file is already here");
+    h.click("Remember my choice");
+    h.click("Download again");
+    h.until("both copies to finish", |h| {
+        let rows = h.rows();
+        rows.len() == 2 && rows.iter().all(|r| r.state == State::Completed)
+    });
+    assert!(h.rows().iter().any(|r| r.path.ends_with("file (1).zip")));
+    assert_eq!(
+        h.view(|view| view.backend.settings()).same_file_choice,
+        "again"
+    );
+}

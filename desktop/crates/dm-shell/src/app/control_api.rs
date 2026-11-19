@@ -207,6 +207,9 @@ pub fn add_asked(
         save_name: text("name"),
         description: text("description").unwrap_or_default(),
         span,
+        // Nobody is asked whether it is the same file as one already here: a script settles
+        // the address question itself, and is not stopped by the file's (gaps row W18).
+        accept_same: true,
         ..dm_core::AddOptions::default()
     };
     let again = params

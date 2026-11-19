@@ -217,6 +217,39 @@ pub(super) fn facts(
     })
 }
 
+/// How many bars the speed line is drawn as: one for each five seconds of its five minutes.
+const LINE_BARS: usize = 60;
+
+/// The speed over the last five minutes (gaps row W15): a bar for each five seconds, as tall
+/// as it is against the fastest, the latest at the right.
+pub(super) fn speed_line(look: &Look, line: &dm_desktop_base::statistics::SpeedLine) -> gpui::Div {
+    let theme = look.theme;
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(space::XS))
+        .child(native::note(
+            t("Speed over the last 5 minutes"),
+            theme.muted,
+            &look.screen,
+        ))
+        .child(
+            div()
+                .h(px(36.0))
+                .flex()
+                .items_end()
+                .gap(px(space::LINE))
+                .p(px(space::XXS))
+                .rounded(px(space::CORNER_S))
+                .bg(theme.stripe)
+                .children(
+                    line.bars(LINE_BARS)
+                        .into_iter()
+                        .map(|tall| div().flex_1().h(gpui::relative(tall)).bg(theme.accent)),
+                ),
+        )
+}
+
 /// A piece for each connection where the pieces are known;
 /// a plain bar where they are not.
 pub(super) fn whole_bar(

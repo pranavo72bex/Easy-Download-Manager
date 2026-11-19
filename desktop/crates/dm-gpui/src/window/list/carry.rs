@@ -117,6 +117,15 @@ impl Downloads {
                 self.export(cx);
                 true
             }
+            // File › Back up dm… and Restore… (gaps row W16).
+            Command::BackUp => {
+                self.back_up_dm(cx);
+                true
+            }
+            Command::Restore => {
+                self.restore_dm(cx);
+                true
+            }
             Command::Help => {
                 self.help();
                 cx.notify();

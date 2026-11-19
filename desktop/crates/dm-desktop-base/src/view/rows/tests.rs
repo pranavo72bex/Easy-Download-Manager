@@ -302,3 +302,22 @@ fn a_full_disk_says_which_folder() {
     row.began_in.clear();
     assert_eq!(status_in_english(&row), "Error: the disk is full");
 }
+
+/// A row held for the computer's state says why (gaps row W11), before the schedule's words;
+/// once nothing holds it, the schedule's words as before. A row a person paused says Stopped.
+#[test]
+fn a_row_held_for_a_metered_connection_or_a_low_battery_says_why() {
+    let held = row(State::Paused, true);
+    set_limit_holds(false);
+    set_hold_times(None, &dm_core::Schedule::default());
+    set_held_by(Some(dm_core::Hold::Metered));
+    assert_eq!(
+        status_in_english(&held),
+        "Waiting: the connection is metered"
+    );
+    set_held_by(Some(dm_core::Hold::Battery));
+    assert_eq!(status_in_english(&held), "Waiting: the battery is low");
+    assert!(status_in_english(&row(State::Paused, false)).starts_with("Stopped"));
+    set_held_by(None);
+    assert_eq!(status_in_english(&held), "Waiting for the schedule");
+}

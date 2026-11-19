@@ -209,6 +209,8 @@ impl Headless {
         crate::rows::set_swarms(read.snapshot.swarms);
         crate::rows::set_limit_holds(read.snapshot.allowance_spent);
         crate::rows::set_hold_times(self.backend.allowance_spent(), &settings.schedule);
+        // What of the computer's state holds the rows: their reason (gaps row W11).
+        crate::rows::set_held_by(self.backend.held_by());
         self.rows = read.snapshot.rows;
         // Once per read, as the window notes it: a read between ticks (a command over the port,
         // a hand-off) that took the change no longer leaves When done unfired (gaps row A7).
@@ -330,6 +332,9 @@ impl Headless {
             | Effect::StartedElsewhere(_)
             | Effect::Finished(_)
             | Effect::Told { .. } => {}
+            // Never asked with no window: "ask" waits, its reason said on the rows (gaps row
+            // W11).
+            Effect::AskMetered => {}
             // Carried on the platform, above.
             Effect::Notify { .. }
             | Effect::NotifyFile { .. }

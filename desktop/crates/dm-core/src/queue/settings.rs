@@ -152,9 +152,10 @@ impl DownloadList {
         crate::lock(&self.inner.quota).set(allowance);
     }
 
-    /// Whether the schedule and the download limit both let downloads run.
+    /// Whether the schedule and the download limit both let downloads run, and nothing of the
+    /// computer's state holds them (`hold_for`, gaps row W11).
     pub fn may_run(&self) -> bool {
-        self.window_open() && self.allowance_spent().is_none()
+        self.window_open() && self.allowance_spent().is_none() && self.held_by().is_none()
     }
 
     /// Whether any row is held by the schedule or the download limit, and
@@ -181,9 +182,75 @@ impl DownloadList {
         proxy: &crate::proxy::Proxy,
         read_timeout: Duration,
     ) -> Result<(), String> {
+        let generation = crate::only_through::generation();
         let client = crate::proxy::client_with_timeout(proxy, read_timeout)?;
         *crate::lock(&self.inner.client) = client;
+        *crate::lock(&self.inner.client_made) = (Some((proxy.clone(), read_timeout)), generation);
         Ok(())
+    }
+
+    /// Says what the client handed to `new` was built with: the proxy, the read timeout and
+    /// the network generation (`network_generation`) at the time, so it is built again the
+    /// same way where downloads are held to another network since (gaps row W12).
+    pub fn client_built_with(
+        &self,
+        proxy: &crate::proxy::Proxy,
+        read_timeout: Duration,
+        generation: u64,
+    ) {
+        *crate::lock(&self.inner.client_made) = (Some((proxy.clone(), read_timeout)), generation);
+    }
+
+    /// The client a download starting now goes out with: built again first where the network
+    /// downloads are held to has changed since it was built (gaps row W12), with the proxy and
+    /// read timeout it was built with, or dm's own client for one handed in at the start.
+    pub(super) fn client_now(&self) -> reqwest::Client {
+        let now = crate::only_through::generation();
+        let mut made = crate::lock(&self.inner.client_made);
+        if made.1 != now {
+            let again = match &made.0 {
+                Some((proxy, read_timeout)) => {
+                    crate::proxy::client_with_timeout(proxy, *read_timeout).ok()
+                }
+                None => Some(crate::client()),
+            };
+            if let Some(client) = again {
+                *crate::lock(&self.inner.client) = client;
+                made.1 = now;
+            }
+        }
+        drop(made);
+        crate::lock(&self.inner.client).clone()
+    }
+
+    /// Stops what runs and puts it back in line where the network downloads are held to was
+    /// chosen anew or found gone since the last look (`only_through::restarts`, gaps row W12):
+    /// started again, each goes out bound to it, or waits for it saying why.
+    pub(super) async fn restart_for_network(&self) {
+        // Looked for again, at most every few seconds.
+        let _ = crate::only_through::look();
+        let now = crate::only_through::restarts();
+        if self.inner.restarts_seen.swap(now, Ordering::SeqCst) == now {
+            return;
+        }
+        let restarted = {
+            let mut slots = self.inner.slots.lock().await;
+            let mut restarted = false;
+            for slot in slots.values_mut() {
+                if slot.entry.state == State::Running {
+                    // Started outside the schedule by a person, it stays so.
+                    let outside = slot.outside_schedule;
+                    slot.control.pause();
+                    slot.requeue();
+                    slot.outside_schedule = outside;
+                    restarted = true;
+                }
+            }
+            restarted
+        };
+        if restarted {
+            self.save().await;
+        }
     }
 
     /// One download's own speed limit, in KB/s (zero for none), in force at

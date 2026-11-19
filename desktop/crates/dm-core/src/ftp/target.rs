@@ -82,14 +82,15 @@ impl Route {
 
 /// A connection to `host:port`: direct, or through the proxy, after which
 /// it is a plain stream either way — the SOCKS handshake and the HTTP
-/// `CONNECT` both end with the bytes going straight through.
+/// `CONNECT` both end with the bytes going straight through. Every socket goes
+/// out from the network downloads are held to, where they are (gaps row W12).
 pub(super) async fn connect(
     route: Option<&Route>,
     host: &str,
     port: u16,
 ) -> Result<TcpStream, Error> {
     let Some(route) = route else {
-        return timed(TcpStream::connect((host, port))).await;
+        return timed(crate::only_through::connect_tcp(host, port)).await;
     };
     let refused =
         |e: &dyn std::fmt::Display| dropped(format!("the proxy refused the connection: {e}"));
@@ -99,11 +100,17 @@ pub(super) async fn connect(
         crate::proxy::Kind::Socks5 => {
             use tokio_socks::tcp::Socks5Stream;
             let handshake = async {
+                let socket = crate::only_through::connect_tcp(proxy.0, proxy.1).await?;
                 if route.user.is_empty() {
-                    Socks5Stream::connect(proxy, target).await
+                    Socks5Stream::connect_with_socket(socket, target).await
                 } else {
-                    Socks5Stream::connect_with_password(proxy, target, &route.user, &route.password)
-                        .await
+                    Socks5Stream::connect_with_password_and_socket(
+                        socket,
+                        target,
+                        &route.user,
+                        &route.password,
+                    )
+                    .await
                 }
             };
             tokio::time::timeout(TIMEOUT, handshake)
@@ -115,10 +122,11 @@ pub(super) async fn connect(
         crate::proxy::Kind::Socks4 => {
             use tokio_socks::tcp::Socks4Stream;
             let handshake = async {
+                let socket = crate::only_through::connect_tcp(proxy.0, proxy.1).await?;
                 if route.user.is_empty() {
-                    Socks4Stream::connect(proxy, target).await
+                    Socks4Stream::connect_with_socket(socket, target).await
                 } else {
-                    Socks4Stream::connect_with_userid(proxy, target, &route.user).await
+                    Socks4Stream::connect_with_userid_and_socket(socket, target, &route.user).await
                 }
             };
             tokio::time::timeout(TIMEOUT, handshake)
@@ -128,7 +136,7 @@ pub(super) async fn connect(
                 .map_err(|e| refused(&e))
         }
         crate::proxy::Kind::Http => {
-            let mut stream = timed(TcpStream::connect(proxy)).await?;
+            let mut stream = timed(crate::only_through::connect_tcp(proxy.0, proxy.1)).await?;
             let mut request = format!("CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n");
             if !route.user.is_empty() {
                 use base64::Engine as _;

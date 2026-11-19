@@ -99,6 +99,16 @@ it made of a finished archive:
   **Resume download** goes on from it.
 - `cancelled`
   The download was cancelled. It is not tried again.
+- "Waiting: the connection is metered"
+  Options › Downloads › On a metered connection says to wait (or to ask,
+  and **Wait** was chosen, or no window is open to ask in), and the system
+  marks the connection as metered. It is not a failure: the download goes
+  on by itself once the connection is not metered. See
+  [Options › Downloads](options-downloads.md).
+- "Waiting: the battery is low"
+  The computer runs on its battery below the level set in Options ›
+  Downloads › On battery: wait below. The download goes on by itself once
+  the computer charges or the battery is above that level again.
 
 ## The server's answer
 
@@ -191,6 +201,22 @@ it made of a finished archive:
   dm waits for the Windows dial-up or VPN connection set in **Options ›
   Advanced** before a download, and the waiting itself failed. This should
   not happen. Click **Retry**.
+- `the network … that downloads go only through is not connected`
+  Shown on a waiting row as **Waiting for the network**: downloads are held
+  to one network (**Options › Advanced › Network › Only through**), such as
+  a VPN's, and it has no address now. Nothing is sent meanwhile. dm looks for
+  it every few seconds and goes on by itself once it is back; to download
+  without it, choose **Any network** there.
+- `… cannot be held to one network, and downloads go only through …, so dm did not start it: choose Any network under Options › Advanced › Network to fetch it`
+  A torrent, or a live stream (RTMP, RTSP, MMS), makes connections dm cannot
+  hold to the one network chosen in **Options › Advanced › Network › Only
+  through**, so it is not started rather than sent around it. Choose **Any
+  network** there, then click **Retry**.
+- `… has no address the network chosen can reach`
+  An FTP server (or the proxy in front of it) has only addresses of a kind
+  the network chosen in **Only through** has none of, such as an IPv6
+  server on a VPN with an IPv4 address alone. Choose **Any network**, or
+  another network, then click **Retry**.
 - `the NTLM sign-in could not be made: no random numbers to make it with`
   The server asked for a Windows network sign-in (NTLM), which needs random
   numbers from Windows, and none came. This should not happen. Click
@@ -298,6 +324,36 @@ Torrents and proxies are under "Torrents" below.
   could not even move it aside: copy `queue.json` somewhere safe before
   adding a download.
 
+## Backups (Back up dm and Restore)
+
+- `The two passphrases differ.`
+  In "Back up dm", **Passphrase** and **Passphrase again** are not the same.
+  Type the passphrase again in both.
+- `That file is not a backup of dm.`
+  The file chosen in **File › Restore…** is not one **File › Back up dm…**
+  wrote (a settings file or a list is opened with Options' or Tasks'
+  Import). Nothing was restored.
+- `That passphrase does not open this backup's sign-ins.`
+  The passphrase is not the one the backup was made with (or the file was
+  changed since). The window stays open and nothing is restored: type it
+  again, with its capital letters, or leave it empty to restore everything
+  but the sign-ins.
+- `This backup's sign-ins were sealed by a newer dm, which this one cannot open.`
+  Update dm, or leave the passphrase empty to restore everything else.
+- `… could not be read: …`
+- `… could not be written: …`
+  The backup's file could not be opened, or written where you chose; the
+  file's error follows in plain words.
+- `The programs dm runs (after a download, at the end of the scheduled hours, the proxy script) were not restored: set them in Options.`
+  A file never sets a program for dm to run. Set them again in Options if
+  you want them.
+- `Some of its settings could not be read, so their defaults are in use: ….`
+  The backup was made by a newer dm, or was changed; the settings named
+  keep their defaults, and the rest were restored.
+- `Downloads it holds that this dm cannot read, left out: ….`
+  A newer dm's downloads this one does not know how to read; the rest were
+  added.
+
 ## Checksums
 
 A checksum is a fingerprint of a file. dm checks the finished file against
@@ -343,6 +399,11 @@ row's right-click menu takes a new address by hand.
 - `this download is a form's answer, and the form is gone since dm was closed: start it again from the page it came from`
   The file was the answer to a form sent from a page, and what the form
   sent is not kept once dm closes. Fill in the form again on the page.
+- `a file of the same name and size is already in the list or in the folder, so it was not fetched again`
+  The download is the same file as a finished download or a file in its
+  folder, and dm asked **The same file is already here** (see [Questions
+  dm asks](questions.md)). Retry asks again; **Download again** there
+  downloads it.
 
 ## Mirrors and Metalinks
 
@@ -415,6 +476,13 @@ a new dm with **Help › Check for updates**.
 - `the playlist page lists no videos (private, removed, or a sign-in wanted)`
   The playlist or channel could not be read for the reasons given. Check it
   opens in your browser.
+- `that address is not an RSS or Atom feed`
+  The address looked like a feed's (it ends in `.rss`, or is named `feed`),
+  but what came back is not a feed. Check the address in your browser.
+- `the feed took too long to read`
+  The feed's server did not answer within dm's time limit. Try again later.
+- `the feed is larger than any feed`
+  What came back was far larger than a feed is, so dm stopped reading it.
 
 ## Parts of a video ("Only a part of the video")
 

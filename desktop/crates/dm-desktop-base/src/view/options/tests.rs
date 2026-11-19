@@ -143,3 +143,16 @@ fn a_sound_language_has_its_place_in_the_pop_up_and_back() {
     assert_eq!(sound_language_at("eo"), None);
     assert_eq!(sound_language_of(SOUND_LANGUAGES.len() + 1), None);
 }
+
+/// The metered connection's pop-up (gaps row W11): go on, ask and wait in turn, and a word
+/// `settings.json` has that is none of them at go on's place.
+#[test]
+fn on_a_metered_connection_has_its_place_in_the_pop_up() {
+    assert_eq!(ON_METERED, ["go", "ask", "wait"]);
+    assert_eq!(on_metered_at("go"), 0);
+    assert_eq!(on_metered_at("ask"), 1);
+    assert_eq!(on_metered_at("wait"), 2);
+    assert_eq!(on_metered_at("sometimes"), 0);
+    assert!(tab_settings(Tab::Downloads).contains(&"on_metered"));
+    assert!(tab_settings(Tab::Downloads).contains(&"battery_below"));
+}

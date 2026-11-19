@@ -114,6 +114,7 @@ mod adding;
 mod carry;
 mod commands;
 mod complete;
+mod following;
 mod in_front;
 mod keys;
 mod later;
@@ -123,6 +124,7 @@ mod questions;
 mod refresh;
 mod removal;
 mod rowline;
+mod same_file;
 mod sections;
 mod sorting;
 mod state;
@@ -225,6 +227,9 @@ impl Downloads {
             },
             threads: Default::default(),
         };
+        // A window asks about the same file as one already here before its body is fetched
+        // (gaps row W18); without one, nobody is asked and it is fetched as before.
+        this.backend.queue.ask_about_same_files(true);
         opening::first_settings(&mut this, window, cx);
         opening::listen(&this, hidden, window, cx);
         opening::read_on_wakes(woken, window, cx);
@@ -278,11 +283,14 @@ impl Downloads {
     /// second while a download runs, whose figures nothing else tells it of
     /// (the engine reports them that often;
     /// read once a second, they moved in jumps); a second for When done's
-    /// countdown and the clipboard; else 30 seconds.
+    /// countdown and the clipboard, and while a metered connection or a low battery holds
+    /// the downloads, which go on within moments of its end (gaps row W11); else 30 seconds.
     fn clock_every(&self) -> Duration {
         clock(
             self.rows.iter().any(|r| r.state == State::Running),
-            self.session.countdown.is_some() || self.system.clipboard.on,
+            self.session.countdown.is_some()
+                || self.system.clipboard.on
+                || self.backend.held_by().is_some(),
         )
     }
 

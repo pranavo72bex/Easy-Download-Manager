@@ -28,7 +28,8 @@ extension, see the [README](../README.md).
   [Update download link](guide/update-link.md),
   [Move to queue](guide/move-to-queue.md),
   [Move/Rename](guide/move-rename.md), [Scheduler](guide/scheduler.md),
-  [Questions dm asks](guide/questions.md), [About dm](guide/about.md).
+  [Questions dm asks](guide/questions.md), [About dm](guide/about.md),
+  [Statistics](guide/statistics.md).
 
 ## Queues and the Scheduler
 
@@ -124,3 +125,31 @@ says "No file picker here: type the path." Type the file's full path under
 answered with "Type the file's full path, such as …", and a file that
 cannot be read or written is said there too; the window stays open with
 the path to be put right.
+
+## Back up and restore
+
+**File › Back up dm…** writes one `.dmbackup` file of dm's settings, queues,
+schedules, site rules, saved searches and list of downloads, to carry dm to
+another computer or keep it safe. The sign-ins (Options › Sign-ins'
+passwords, the proxy's and the dial-up connection's, a login in a
+download's address, and the cookies and headers a browser handed over) go
+in only when you type a **Passphrase** (twice: **Passphrase again**); they
+are then sealed with it, and opened with nothing else. Left empty, the
+sign-ins stay behind. Click **Back up** and choose where to save it. A
+download marked "Keep no record" is not written, nor your typed addresses
+and recent folders.
+
+**File › Restore…** opens such a file, then says what restoring does. Its
+settings, queues, schedules, site rules and saved searches replace yours,
+as **OK** in Options does, and its downloads are added to the list; those
+whose address the list holds already are left out, not added twice.
+Downloads running go on. No file on the disk is replaced: a finished
+download comes back as its record, and an unfinished one waits, paused,
+to be fetched again from its start. Where its sign-ins are sealed, type
+the passphrase; left empty, everything else is restored without them, and
+a wrong one is said in the window, which stays open, and nothing is
+restored. The programs dm runs (the command after each download, the
+program at the end of the scheduled hours, the proxy script) are never set
+from a file: set them again in Options. A backup made by a newer dm is
+read as far as this one knows its fields; what it cannot read keeps its
+default, and the status bar says so.

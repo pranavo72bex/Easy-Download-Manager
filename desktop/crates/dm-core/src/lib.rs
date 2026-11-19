@@ -31,6 +31,8 @@ mod clip;
 
 pub(crate) use dm_net::connect_first;
 
+pub(crate) use dm_net::only_through;
+
 pub(crate) use dm_net::control;
 
 pub use dm_net::cookies;
@@ -63,6 +65,8 @@ pub use dm_media::fmp4;
 pub use dm_media::frames;
 
 pub mod finish_trace;
+// A feed (RSS, Atom) read as a playlist, to be followed (gaps row W10).
+pub mod feed;
 // Where a person's files and the system's folders are (gaps row X1).
 pub mod folders;
 pub mod ftp;
@@ -197,6 +201,15 @@ pub use connect_first::{ConnectFirst, Redial};
 #[doc(hidden)]
 pub use connect_first::set_connect_first;
 
+// The one network downloads are held to (gaps row W12): a test's own adapter and list alone;
+// the program's is put in force by `configure`.
+#[doc(hidden)]
+pub use only_through::{set_lister as set_adapter_lister, set_only_through};
+
+// Changes each time the network downloads are held to, or its address, changes: a client built
+// at another is built again (`DownloadList::client_built_with`).
+pub use only_through::generation as network_generation;
+
 pub use control::{Control, Wanted};
 
 pub use download::{
@@ -204,6 +217,8 @@ pub use download::{
     nth_free_name_with, slow_part_writes_to, Finished, HostLimit, Options, Room, Update,
     CHECKED_BESIDE, NOTES,
 };
+
+pub use download::same::{SameFile, SameFiles, SAME_FILE};
 
 pub use engine_config::{configure, EngineConfig};
 
@@ -225,8 +240,8 @@ pub use proxy::{
 };
 
 pub use queue::{
-    accepted, queue_names, shown_url, AddOptions, Connection, DownloadList, Entry, Id, SharedRead,
-    State, LINK_EXPIRED, MAIN_QUEUE, RECHECK_QUEUE, UNFINISHED,
+    accepted, queue_names, shown_url, AddOptions, Connection, DownloadList, Entry, Hold, Id,
+    SharedRead, State, LINK_EXPIRED, MAIN_QUEUE, RECHECK_QUEUE, UNFINISHED,
 };
 
 pub use schedule::{

@@ -7,6 +7,8 @@
 
 pub(crate) mod about;
 pub(crate) mod addurl;
+// File › Back up dm… and Restore… (gaps row W16).
+pub(crate) mod backup;
 pub(crate) mod cliplinks;
 pub(crate) mod complete;
 pub(crate) mod details;
@@ -21,4 +23,5 @@ pub(crate) mod question;
 pub(crate) mod rowdialogs;
 pub(crate) mod scheduler;
 pub(crate) mod series;
+pub(crate) mod statistics;
 pub(crate) mod welcome;

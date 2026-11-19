@@ -125,6 +125,10 @@ impl Downloads {
                 this.tip_of_the_day(cx)
             }),
         )
+        // View › Statistics (gaps row W15).
+        .on_action(cx.listener(
+            |this, _: &crate::dialogs::statistics::ShowStatistics, _, cx| this.open_statistics(cx),
+        ))
         // View › Columns, Customize toolbar and Language.
         .on_action(
             cx.listener(|this, it: &crate::window::viewmenu::ToggleColumn, _, cx| {

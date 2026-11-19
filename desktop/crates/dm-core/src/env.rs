@@ -163,6 +163,13 @@ pub const SWITCHES: &[Switch] = &[
         test_only: true,
     },
     Switch {
+        name: "DM_STATE_FILE",
+        purpose: "A file a check writes the computer's state in (`metered`, `battery <percent>`, \
+                  a line each), which a debug build reads in place of the system's (gaps row \
+                  W11).",
+        test_only: true,
+    },
+    Switch {
         name: "DM_STRESS_TORRENT_DIR",
         purpose: "The folder `tests/torrent_stress.rs` checks paths outside of.",
         test_only: true,

@@ -55,6 +55,9 @@ pub(super) fn file_menu(ticks: &Ticks) -> Menu {
         MenuItem::action(t(resume), Run(C::DownloadNow))
             .disabled(!carried_out(C::DownloadNow) || ticks.off.contains(&C::DownloadNow)),
     );
+    // Back up dm… and Restore… (gaps row W16), before Close.
+    file.items
+        .extend([MenuItem::separator(), item(C::BackUp), item(C::Restore)]);
     file.items.extend([
         MenuItem::separator(),
         MenuItem::action(t("Close"), CloseWindow),
@@ -226,6 +229,9 @@ pub(super) fn view_menu(ticks: &Ticks) -> Menu {
         MenuItem::submenu(text_size),
         MenuItem::submenu(language),
         MenuItem::submenu(sort),
+        // What dm has done, in figures (gaps row W15).
+        MenuItem::separator(),
+        MenuItem::action(t("Statistics…"), crate::dialogs::statistics::ShowStatistics),
     ])
 }
 

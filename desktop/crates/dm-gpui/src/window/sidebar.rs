@@ -23,6 +23,8 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+mod follows;
+
 /// How wide the strip at the panel's right edge is that a press there drags, in points.
 const EDGE: f32 = 5.0;
 
@@ -252,7 +254,8 @@ fn group_heading(
 }
 
 /// The Grabber's saved searches, under their heading: a click opens the Grabber filled in
-/// with one (gaps rows U40, U41).
+/// with one (gaps rows U40, U41). The playlists and feeds followed are listed after them
+/// (gaps row W10, `follows`).
 fn projects(
     view: &Downloads,
     theme: Theme,
@@ -261,7 +264,7 @@ fn projects(
 ) -> Option<gpui::AnyElement> {
     const HEADING: &str = "Grabber projects";
     let searches = &view.known.drawn.site_searches;
-    if searches.is_empty() {
+    if searches.is_empty() && view.known.drawn.follows.is_empty() {
         return None;
     }
     let shut = view.group_shut(HEADING);
@@ -303,10 +306,16 @@ fn projects(
             })
             .collect::<Vec<_>>()
     });
+    let followed = if shut {
+        Vec::new()
+    } else {
+        follows::rows(view, theme, screen, cx)
+    };
     Some(
         div()
             .child(group_heading(HEADING, shut, theme, screen, cx))
             .children(rows.into_iter().flatten())
+            .children(followed)
             .into_any_element(),
     )
 }

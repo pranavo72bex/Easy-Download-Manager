@@ -79,7 +79,15 @@ impl Downloads {
                 )
             })
             .collect();
-        let why = dm_desktop_base::held::held_because(&settings, self.backend.allowance_spent());
+        // A metered connection or a low battery, said as the rows say it, before the schedule
+        // (gaps row W11).
+        let why = match self.backend.held_by() {
+            Some(hold) => Some(dm_desktop_base::i18n::tf(
+                "Waiting: {}",
+                &[&dm_desktop_base::i18n::t(hold.said())],
+            )),
+            None => dm_desktop_base::held::held_because(&settings, self.backend.allowance_spent()),
+        };
         let ask = dm_desktop_base::asks::outside(&names, why);
         let asked = crate::dialogs::question::Asked {
             title: ask.title.into(),

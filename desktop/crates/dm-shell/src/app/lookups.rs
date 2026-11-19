@@ -193,7 +193,8 @@ pub fn probe_links(
 }
 
 /// Reads the playlist at `url` in the background (YouTube's by dm itself;
-/// another site's from its page) and gives `done` its videos, or why not.
+/// a feed's items, RSS or Atom, as its videos (gaps row W10); another
+/// site's from its page) and gives `done` its videos, or why not.
 pub fn read_playlist_later(
     backend: &Backend,
     url: String,
@@ -204,6 +205,10 @@ pub fn read_playlist_later(
     backend.runtime.spawn(async move {
         let got = if dm_core::youtube::is_list(&url) {
             dm_core::youtube::read_playlist(&client, &url, None)
+                .await
+                .map_err(|e| e.to_string())
+        } else if dm_core::feed::looks_like_feed(&url) {
+            dm_core::feed::read_feed(&client, &url)
                 .await
                 .map_err(|e| e.to_string())
         } else {
