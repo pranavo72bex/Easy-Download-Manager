@@ -26,7 +26,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::mp4mux::{boxed, full, Edit, Sample, Track, MATRIX};
+use crate::mp4mux::{boxed, full, Edit, Sample, Source, Track, MATRIX};
 
 const PACKET: usize = 188;
 const TIMESCALE: u32 = 90_000;
@@ -139,12 +139,58 @@ struct Elementary {
     /// The key and vector of the PES being gathered, and of the one being taken.
     gathering: crate::sealed::Lock,
     lock: crate::sealed::Lock,
+    /// Where its samples go: its scratch file (`out`), counted alone, or kept to be read.
+    sink: Sink,
 }
 
-/// Puts the transport stream at `input` into an MP4 at `out`, with scratch
-/// files beside `out` that are gone when it returns. Returns its length.
+/// Puts the transport stream at `input` into an MP4 at `out`, reading it twice and writing
+/// nothing beside `out` (`replay`). Returns its length.
 pub fn to_mp4(input: &Path, out: &Path) -> Result<u64, String> {
     to_mp4_clear(input, out, &crate::sealed::Locks::default())
+}
+
+/// [`to_mp4`] of a stream read from its segments where they lie, one after another as one
+/// stream (an HLS stream's, gaps row Y21): no gathered copy of it is made. `segments` says
+/// whether each is freed once its samples are in the MP4 ([`Segments::Freed`]) or left for the
+/// caller ([`Segments::Kept`]).
+pub fn to_mp4_from(inputs: &[PathBuf], out: &Path, segments: Segments) -> Result<u64, String> {
+    to_mp4_from_with_text(inputs, out, segments, |_| Vec::new())
+}
+
+/// [`to_mp4_from`], with subtitles as [`to_mp4_with_text`] times them.
+pub fn to_mp4_from_with_text<F>(
+    inputs: &[PathBuf],
+    out: &Path,
+    segments: Segments,
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+{
+    let locks = crate::sealed::Locks::default();
+    let reading = Reading {
+        inputs,
+        locks: &locks,
+        freed: segments == Segments::Freed,
+        watch: None,
+    };
+    remux(reading, out, place)
+}
+
+/// [`to_mp4_clear`] of a stream read from its segments where they lie, each left as it is
+/// (`locks` by where each segment starts in the segments one after another).
+pub fn to_mp4_from_clear(
+    inputs: &[PathBuf],
+    out: &Path,
+    locks: &crate::sealed::Locks,
+) -> Result<u64, String> {
+    let reading = Reading {
+        inputs,
+        locks,
+        freed: false,
+        watch: None,
+    };
+    remux(reading, out, |_| Vec::new())
 }
 
 /// [`to_mp4`] of a stream whose pictures and sound are scrambled by HLS's SAMPLE-AES (gaps row
@@ -176,17 +222,14 @@ fn to_mp4_placed<F>(
 where
     F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
 {
-    let scratch = |what: &str| {
-        let mut name = out.as_os_str().to_owned();
-        name.push(format!(".{what}"));
-        PathBuf::from(name)
+    let inputs = [input.to_path_buf()];
+    let reading = Reading {
+        inputs: &inputs,
+        locks,
+        freed: false,
+        watch: None,
     };
-    let mut streams = read_ts_locked(input, &scratch, locks)?;
-    let result = build(&mut streams, out, place);
-    for stream in &streams {
-        let _ = std::fs::remove_file(&stream.path);
-    }
-    result
+    remux(reading, out, place)
 }
 
 /// What the first bytes of an MPEG-1/2 audio frame (MP3, MP2) say of its sound: what a
@@ -235,6 +278,7 @@ pub fn hevc_picture_size(sps: &[u8]) -> Option<(u32, u32)> {
 mod demux;
 mod headers;
 mod packed;
+mod replay;
 mod samples;
 mod sound;
 mod tracks;
@@ -246,9 +290,14 @@ pub use packed::{
     is_packed_aac, is_transport_stream, join_packed, join_packed_with_text, join_ts,
     join_ts_with_text,
 };
+pub use replay::Segments;
+use replay::*;
 use samples::*;
 pub(crate) use sound::*;
 use tracks::*;
+
+#[cfg(test)]
+mod remux_tests;
 
 #[cfg(test)]
 mod tests {

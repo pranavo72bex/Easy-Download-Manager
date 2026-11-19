@@ -39,42 +39,156 @@ pub(super) fn read_ts_locked(
     scratch: &dyn Fn(&str) -> PathBuf,
     locks: &crate::sealed::Locks,
 ) -> Result<Vec<Elementary>, String> {
-    let file = File::open(input).map_err(|e| format!("the stream could not be read: {e}"))?;
-    let mut reader = BufReader::with_capacity(1 << 20, file);
-    let mut packet = [0u8; PACKET];
-    let mut pmt_pids: Vec<u16> = Vec::new();
-    // PID → stream, in the order the tables named them.
-    let mut streams: Vec<(u16, Elementary)> = Vec::new();
-    let mut lost_sync = 0u32;
-    // Bytes read so far: where the packet in hand starts is this, less its length.
-    let mut consumed = 0u64;
+    let input = Joined::new(vec![input.to_path_buf()], None);
+    let mut demux = Demux::new(input, Mode::Scratch(scratch), locks);
     loop {
-        match reader.read_exact(&mut packet) {
-            Ok(()) => consumed += PACKET as u64,
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+        match demux.step() {
+            Ok(true) => {}
+            Ok(false) => return Ok(demux.into_streams()),
+            Err(why) => {
+                demux.drop_scratch();
+                return Err(why);
+            }
+        }
+    }
+}
+
+/// Where a stream's samples go as they are read out (`Elementary::sink`).
+#[derive(Default)]
+pub(super) enum Sink {
+    /// Into its scratch file (`Elementary::out`).
+    #[default]
+    Scratch,
+    /// Counted alone: what the index needs, each sample's place among the stream's samples.
+    Counted,
+    /// Kept in memory until taken (`Demux::take_kept`): one track made again as the MP4 writer
+    /// reads it (`replay`).
+    Kept(Vec<u8>),
+}
+
+/// What a [`Demux`] does with the samples it reads out.
+#[derive(Clone, Copy)]
+pub(super) enum Mode<'a> {
+    /// Each stream's into a scratch file of its own, named by this.
+    Scratch(&'a dyn Fn(&str) -> PathBuf),
+    /// Only counted: the index of every sample, and nothing written.
+    Counted,
+    /// The picture's (`true`) or the sound's kept to be read; the other's counted.
+    Kept(bool),
+}
+
+/// A transport stream read a packet at a time: the tables that say which packets are which
+/// stream, and each stream's PES packets taken as they end.
+pub(super) struct Demux<'a> {
+    reader: BufReader<Joined>,
+    mode: Mode<'a>,
+    locks: crate::sealed::Locks,
+    packet: [u8; PACKET],
+    pmt_pids: Vec<u16>,
+    /// PID → stream, in the order the tables named them.
+    streams: Vec<(u16, Elementary)>,
+    lost_sync: u32,
+    /// Bytes read so far: where the packet in hand starts is this, less its length.
+    consumed: u64,
+    /// Read to its end, and every stream's last PES taken.
+    ended: bool,
+}
+
+impl<'a> Demux<'a> {
+    /// A stream about to be read from `input`.
+    pub(super) fn new(input: Joined, mode: Mode<'a>, locks: &crate::sealed::Locks) -> Self {
+        Demux {
+            reader: BufReader::with_capacity(1 << 20, input),
+            mode,
+            locks: locks.clone(),
+            packet: [0u8; PACKET],
+            pmt_pids: Vec::new(),
+            streams: Vec::new(),
+            lost_sync: 0,
+            consumed: 0,
+            ended: false,
+        }
+    }
+
+    /// The whole stream read: its picture and sound.
+    pub(super) fn finish(mut self) -> Result<Vec<Elementary>, String> {
+        while self.step()? {}
+        Ok(self.into_streams())
+    }
+
+    /// The streams read so far.
+    pub(super) fn into_streams(self) -> Vec<Elementary> {
+        self.streams.into_iter().map(|(_, stream)| stream).collect()
+    }
+
+    /// The scratch files made so far, removed: what a stream refused leaves behind.
+    pub(super) fn drop_scratch(&self) {
+        for (_, stream) in &self.streams {
+            if !stream.path.as_os_str().is_empty() {
+                let _ = std::fs::remove_file(&stream.path);
+            }
+        }
+    }
+
+    /// The samples the kept stream has made since this was last asked, in `into` (emptied
+    /// first). Every stream's index is let go of but its last sample, the one a picture's rest
+    /// is added to (`append_to_last`): the writer reads by the first pass's index, not this.
+    pub(super) fn take_kept(&mut self, into: &mut Vec<u8>) {
+        into.clear();
+        for (_, stream) in &mut self.streams {
+            if let Sink::Kept(kept) = &mut stream.sink {
+                std::mem::swap(kept, into);
+            }
+            let before_last = stream.samples.len().saturating_sub(1);
+            stream.samples.drain(..before_last);
+        }
+    }
+
+    /// Reads the next packet: `false` once the stream is read to its end and each stream's last
+    /// PES taken.
+    pub(super) fn step(&mut self) -> Result<bool, String> {
+        if self.ended {
+            return Ok(false);
+        }
+        match self.reader.read_exact(&mut self.packet) {
+            Ok(()) => self.consumed += PACKET as u64,
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                self.end()?;
+                return Ok(false);
+            }
             Err(e) => return Err(format!("the stream could not be read: {e}")),
         }
-        if packet[0] != 0x47 {
-            // Out of step: find the next sync byte and carry on from it.
-            lost_sync += 1;
-            if lost_sync > 1000 {
-                return Err("it is not a transport stream".into());
-            }
-            let Some(at) = packet.iter().skip(1).position(|b| *b == 0x47) else {
-                continue;
-            };
-            let mut rest = vec![0u8; at + 1];
-            reader
-                .read_exact(&mut rest)
-                .map_err(|_| "the stream ends mid-packet".to_string())?;
-            consumed += rest.len() as u64;
-            let mut shifted = packet.get(at + 1..).unwrap_or_default().to_vec();
-            shifted.extend_from_slice(&rest);
-            packet.copy_from_slice(&shifted);
-            if packet[0] != 0x47 {
-                continue;
-            }
+        if self.packet[0] != 0x47 && !self.resync()? {
+            return Ok(true);
         }
+        self.take_packet()?;
+        Ok(true)
+    }
+
+    /// Out of step: finds the next sync byte and carries on from it. `false` where the packet
+    /// in hand is still not one.
+    fn resync(&mut self) -> Result<bool, String> {
+        self.lost_sync += 1;
+        if self.lost_sync > 1000 {
+            return Err("it is not a transport stream".into());
+        }
+        let Some(at) = self.packet.iter().skip(1).position(|b| *b == 0x47) else {
+            return Ok(false);
+        };
+        let mut rest = vec![0u8; at + 1];
+        self.reader
+            .read_exact(&mut rest)
+            .map_err(|_| "the stream ends mid-packet".to_string())?;
+        self.consumed += rest.len() as u64;
+        let mut shifted = self.packet.get(at + 1..).unwrap_or_default().to_vec();
+        shifted.extend_from_slice(&rest);
+        self.packet.copy_from_slice(&shifted);
+        Ok(self.packet[0] == 0x47)
+    }
+
+    /// The packet in hand: a table, or part of a stream's PES.
+    fn take_packet(&mut self) -> Result<(), String> {
+        let packet = self.packet;
         let start = packet[1] & 0x40 != 0;
         let pid = (u16::from(packet[1] & 0x1f) << 8) | u16::from(packet[2]);
         let control = (packet[3] >> 4) & 3;
@@ -83,86 +197,110 @@ pub(super) fn read_ts_locked(
             at += 1 + usize::from(packet[4]);
         }
         if control & 1 == 0 {
-            continue;
+            return Ok(());
         }
         let Some(payload) = packet.get(at..).filter(|p| !p.is_empty()) else {
-            continue;
+            return Ok(());
         };
         if pid == 0 && start {
-            pmt_pids = read_pat(payload);
-        } else if pmt_pids.contains(&pid) && start {
-            for (kind, es_pid) in read_pmt(payload) {
-                let (kind, sealed) = match kind_of(kind, locks) {
-                    Ok(read) => read,
-                    Err(why) => {
-                        for (_, stream) in &streams {
-                            let _ = std::fs::remove_file(&stream.path);
-                        }
-                        return Err(why);
-                    }
-                };
-                if OTHERS.contains(&kind) {
-                    for (_, stream) in &streams {
-                        let _ = std::fs::remove_file(&stream.path);
-                    }
-                    return Err(format!(
-                        "it carries a kind of picture or sound (stream type {kind:#04x}) dm does \
-                         not put into an MP4"
-                    ));
-                }
-                let picture = PICTURES.contains(&kind);
-                if !streams.iter().any(|(p, _)| *p == es_pid) && (picture || SOUNDS.contains(&kind))
-                {
-                    let has_kind = streams
-                        .iter()
-                        .any(|(_, s)| PICTURES.contains(&s.kind) == picture);
-                    // One picture and one sound: the first of each.
-                    if !has_kind {
-                        let path = scratch(if picture { "video" } else { "audio" });
-                        let out = File::create(&path)
-                            .map_err(|e| format!("a scratch file could not be made: {e}"))?;
-                        streams.push((
-                            es_pid,
-                            Elementary {
-                                kind,
-                                sealed,
-                                out: Some(BufWriter::with_capacity(1 << 20, out)),
-                                path,
-                                ..Elementary::default()
-                            },
-                        ));
-                    }
-                }
-            }
-        } else if let Some((_, stream)) = streams.iter_mut().find(|(p, _)| *p == pid) {
+            self.pmt_pids = read_pat(payload);
+        } else if self.pmt_pids.contains(&pid) && start {
+            self.take_pmt(payload)?;
+        } else if let Some((_, stream)) = self.streams.iter_mut().find(|(p, _)| *p == pid) {
             if start && !stream.pes.is_empty() {
                 let pes = std::mem::take(&mut stream.pes);
                 stream.lock = stream.gathering;
                 take_pes(stream, &pes)?;
             }
             if start && stream.sealed {
-                stream.gathering = locks.at(consumed.saturating_sub(PACKET as u64));
+                stream.gathering = self.locks.at(self.consumed.saturating_sub(PACKET as u64));
             }
             if start || !stream.pes.is_empty() {
                 stream.pes.extend_from_slice(payload);
             }
         }
+        Ok(())
     }
-    let mut out = Vec::new();
-    for (_, mut stream) in streams {
-        if !stream.pes.is_empty() {
-            let pes = std::mem::take(&mut stream.pes);
-            stream.lock = stream.gathering;
-            take_pes(&mut stream, &pes)?;
+
+    /// A program's table: the first picture and the first sound it names are read out.
+    fn take_pmt(&mut self, payload: &[u8]) -> Result<(), String> {
+        for (kind, es_pid) in read_pmt(payload) {
+            let (kind, sealed) = match kind_of(kind, &self.locks) {
+                Ok(read) => read,
+                Err(why) => {
+                    self.drop_scratch();
+                    return Err(why);
+                }
+            };
+            if OTHERS.contains(&kind) {
+                self.drop_scratch();
+                return Err(format!(
+                    "it carries a kind of picture or sound (stream type {kind:#04x}) dm does not \
+                     put into an MP4"
+                ));
+            }
+            let picture = PICTURES.contains(&kind);
+            if !self.streams.iter().any(|(p, _)| *p == es_pid)
+                && (picture || SOUNDS.contains(&kind))
+            {
+                let has_kind = self
+                    .streams
+                    .iter()
+                    .any(|(_, s)| PICTURES.contains(&s.kind) == picture);
+                // One picture and one sound: the first of each.
+                if !has_kind {
+                    let stream = self.open(kind, sealed, picture)?;
+                    self.streams.push((es_pid, stream));
+                }
+            }
         }
-        if let Some(mut writer) = stream.out.take() {
-            writer
-                .flush()
-                .map_err(|e| format!("a scratch file could not be written: {e}"))?;
-        }
-        out.push(stream);
+        Ok(())
     }
-    Ok(out)
+
+    /// A stream newly named, its samples going where the mode says.
+    fn open(&self, kind: u8, sealed: bool, picture: bool) -> Result<Elementary, String> {
+        let mut stream = Elementary {
+            kind,
+            sealed,
+            ..Elementary::default()
+        };
+        match self.mode {
+            Mode::Scratch(scratch) => {
+                let path = scratch(if picture { "video" } else { "audio" });
+                let out = File::create(&path)
+                    .map_err(|e| format!("a scratch file could not be made: {e}"))?;
+                stream.out = Some(BufWriter::with_capacity(1 << 20, out));
+                stream.path = path;
+            }
+            Mode::Counted => stream.sink = Sink::Counted,
+            Mode::Kept(wanted) => {
+                stream.sink = if wanted == picture {
+                    Sink::Kept(Vec::new())
+                } else {
+                    Sink::Counted
+                };
+            }
+        }
+        Ok(stream)
+    }
+
+    /// The end of the stream: each stream's last PES taken, its scratch file written out.
+    fn end(&mut self) -> Result<(), String> {
+        self.ended = true;
+        for (_, stream) in &mut self.streams {
+            if !stream.pes.is_empty() {
+                let pes = std::mem::take(&mut stream.pes);
+                stream.lock = stream.gathering;
+                take_pes(stream, &pes)?;
+            }
+            if let Some(mut writer) = stream.out.take() {
+                writer
+                    .flush()
+                    .map_err(|e| format!("a scratch file could not be written: {e}"))?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// The section a PSI packet's payload carries, past its pointer field.

@@ -412,8 +412,32 @@ fn read_inputs(
 /// for the output's own zero). Returns its length. What a transport stream's remux writes
 /// through too (`tsmux`).
 pub(crate) fn write_with_text(
+    tracks: Vec<Track>,
+    files: Vec<File>,
+    texts: &[crate::subtitles::Subtitle],
+    out: &Path,
+    cut: Option<(u64, u64)>,
+    start: Option<u64>,
+    tags: &Tags,
+) -> Result<u64, String> {
+    let files = files
+        .into_iter()
+        .map(|file| Box::new(file) as Box<dyn Source>)
+        .collect();
+    write_with_text_from(tracks, files, texts, out, cut, start, tags)
+}
+
+/// What a track's samples are read from as the file is written: a file, or bytes made as they
+/// are read, in order (a transport stream's samples made again from its segments, `tsmux`, gaps
+/// row Y21).
+pub(crate) trait Source: Read + Seek {}
+
+impl<T: Read + Seek> Source for T {}
+
+/// [`write_with_text`], each track's samples read from a [`Source`].
+pub(crate) fn write_with_text_from(
     mut tracks: Vec<Track>,
-    mut files: Vec<File>,
+    mut files: Vec<Box<dyn Source>>,
     texts: &[crate::subtitles::Subtitle],
     out: &Path,
     cut: Option<(u64, u64)>,
@@ -421,7 +445,7 @@ pub(crate) fn write_with_text(
     tags: &Tags,
 ) -> Result<u64, String> {
     if texts.is_empty() {
-        return write::write_output_tagged(&tracks, &mut files, out, cut, tags);
+        return write::write_output_tagged(&tracks, files.as_mut_slice(), out, cut, tags);
     }
     // The subtitles' samples are written to a scratch file the writer copies
     // from, as it copies the inputs'.
@@ -436,8 +460,10 @@ pub(crate) fn write_with_text(
             tracks.push(track);
         }
         std::fs::write(&scratch, &data).map_err(|e| format!("subtitles: {e}"))?;
-        files.push(File::open(&scratch).map_err(|e| format!("subtitles: {e}"))?);
-        write::write_output_tagged(&tracks, &mut files, out, cut, tags)
+        files.push(Box::new(
+            File::open(&scratch).map_err(|e| format!("subtitles: {e}"))?,
+        ));
+        write::write_output_tagged(&tracks, files.as_mut_slice(), out, cut, tags)
     })();
     let _ = std::fs::remove_file(&scratch);
     written

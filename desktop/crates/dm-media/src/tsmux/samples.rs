@@ -119,9 +119,15 @@ pub(super) fn append_to_last(
 }
 
 pub(super) fn write(stream: &mut Elementary, bytes: &[u8]) -> Result<(), String> {
-    let out = stream.out.as_mut().ok_or("a scratch file went missing")?;
-    out.write_all(bytes)
-        .map_err(|e| format!("a scratch file could not be written: {e}"))?;
+    match &mut stream.sink {
+        Sink::Scratch => {
+            let out = stream.out.as_mut().ok_or("a scratch file went missing")?;
+            out.write_all(bytes)
+                .map_err(|e| format!("a scratch file could not be written: {e}"))?;
+        }
+        Sink::Counted => {}
+        Sink::Kept(kept) => kept.extend_from_slice(bytes),
+    }
     stream.written += bytes.len() as u64;
     Ok(())
 }

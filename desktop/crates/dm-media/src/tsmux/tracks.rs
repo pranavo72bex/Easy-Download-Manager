@@ -288,6 +288,28 @@ pub(super) fn build<F>(streams: &mut [Elementary], out: &Path, place: F) -> Resu
 where
     F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
 {
+    let mut scratch = |stream: &Elementary| -> Result<Box<dyn Source>, String> {
+        let file = File::open(&stream.path)
+            .map_err(|e| format!("a scratch file could not be read: {e}"))?;
+        Ok(Box::new(file))
+    };
+    build_from(streams, out, place, &mut scratch)
+}
+
+/// What a track's samples are read from as the MP4 is written: its scratch file, or the stream
+/// read again (`replay`).
+pub(super) type Sources<'a> = dyn FnMut(&Elementary) -> Result<Box<dyn Source>, String> + 'a;
+
+/// [`build`], each track's samples read from what `source` gives for its stream.
+pub(super) fn build_from<F>(
+    streams: &mut [Elementary],
+    out: &Path,
+    place: F,
+    source: &mut Sources<'_>,
+) -> Result<u64, String>
+where
+    F: FnOnce(i64) -> Vec<crate::subtitles::Subtitle>,
+{
     let video = streams
         .iter()
         .position(|s| PICTURES.contains(&s.kind) && !s.samples.is_empty());
@@ -318,10 +340,7 @@ where
         };
         let lead = stream.first_pts.unwrap_or(earliest) - earliest;
         tracks.push(make(stream, files.len(), lead)?);
-        files.push(
-            File::open(&stream.path)
-                .map_err(|e| format!("a scratch file could not be read: {e}"))?,
-        );
+        files.push(source(stream)?);
     }
     let texts = if video.is_some() {
         place(earliest)
@@ -329,5 +348,5 @@ where
         Vec::new()
     };
     let tags = crate::mp4mux::Tags::default();
-    crate::mp4mux::write_with_text(tracks, files, &texts, out, None, None, &tags)
+    crate::mp4mux::write_with_text_from(tracks, files, &texts, out, None, None, &tags)
 }
