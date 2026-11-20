@@ -165,7 +165,10 @@ gpui_platform = { workspace = true, features = ["font-kit", "runtime_shaders"] }
 # closing it, moved, pictured.
 objc2.workspace = true
 objc2-foundation = { workspace = true, features = ["std", "NSArray", "NSGeometry", "NSString", "NSURL"] }
-objc2-app-kit = { workspace = true, features = ["std", "NSResponder", "NSView", "NSWindow", "NSScreen", "NSGraphics", "objc2-core-foundation", "block2", "NSOpenPanel", "NSSavePanel", "NSPanel"] }
+# The row menu (platform/popmenu.rs) is an NSMenu of dm's own, its items with their keys:
+# NSMenu, NSMenuItem, NSEvent's modifier flags and NSCell's tick, which GPUI's macOS crate
+# already has on.
+objc2-app-kit = { workspace = true, features = ["std", "NSResponder", "NSView", "NSWindow", "NSScreen", "NSGraphics", "objc2-core-foundation", "block2", "NSOpenPanel", "NSSavePanel", "NSPanel", "NSMenu", "NSMenuItem", "NSEvent", "NSCell"] }
 # The open and save panels' completion handler (services.rs), as rfd and
 # GPUI give theirs.
 block2.workspace = true

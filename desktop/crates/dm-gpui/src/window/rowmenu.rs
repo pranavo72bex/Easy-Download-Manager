@@ -9,12 +9,13 @@
 //! the keyboard. What does not apply to the rows chosen is greyed, a group none of whose items
 //! applies is left out, and each item's key is shown beside it where the window has one: after
 //! a tab on Windows, as its own menus write it; on Linux the drawn menu shows the key bound to
-//! each item's action itself (gaps row U27).
+//! each item's action itself; on macOS, where `NativeMenu` cannot give an item a key, dm builds
+//! the `NSMenu` itself with each item's key as its key equivalent (`platform::popmenu`, gaps row
+//! U27).
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::{Chord, Command, Key};
 use gpui::{Action, Context, Menu, MenuItem, Pixels, Point};
-use gpui_component::native_menu::NativeMenu;
 
 use crate::window::list::Downloads;
 use crate::window::menus::Run;
@@ -194,7 +195,12 @@ impl Downloads {
         if cfg!(test) {
             return;
         }
-        NativeMenu::from(row_menu(self, cfg!(target_os = "windows"))).show(at, window, cx);
+        // macOS: dm's own `NSMenu`, its items with their keys; elsewhere gpui-component's.
+        #[cfg(target_os = "macos")]
+        crate::platform::popmenu::show(row_menu(self, false), at, window, cx);
+        #[cfg(not(target_os = "macos"))]
+        gpui_component::native_menu::NativeMenu::from(row_menu(self, cfg!(windows)))
+            .show(at, window, cx);
     }
 
     /// "Delete file after" chosen in the row menu: the time set on the rows chosen that have,
