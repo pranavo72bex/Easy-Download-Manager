@@ -10,7 +10,8 @@
 //!
 //! * a line picked is fetched by the format number it was listed from;
 //! * a line whose picture the answer lacks is fetched at the nearest, not refused;
-//! * a page with no player data is listed from dm's own reading.
+//! * a page with no player data is listed from dm's own reading;
+//! * the watch page the list is read from is fetched once, for the download too (gaps row Y13).
 //!
 //! The stand-in is named by an environment variable, which is the process's: one server for
 //! every test here, each case a video id of its own.
@@ -87,6 +88,9 @@ const NO_PAGE_DATA: &str = "nopagedata1";
 /// Every stream request the stand-in was sent.
 static SEEN: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+/// The query of every watch page the stand-in was asked for.
+static WATCHED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
 /// The stand-in's origin, started once for every test here on a runtime of its own.
 fn stand_in() -> &'static str {
     static ORIGIN: OnceLock<String> = OnceLock::new();
@@ -123,6 +127,10 @@ fn stand_in() -> &'static str {
 /// the page's own player data, listing a 1080p picture (137), a 720p one (136) and the sound;
 /// none for [`NO_PAGE_DATA`].
 async fn watch_page(uri: Uri) -> Response {
+    WATCHED
+        .lock()
+        .unwrap()
+        .push(uri.query().unwrap_or("").to_string());
     let id = uri
         .query()
         .unwrap_or("")
@@ -325,4 +333,35 @@ async fn a_page_without_player_data_is_listed_from_dms_own_reading() {
         !asked.is_empty() && asked.iter().all(|i| i == "136"),
         "{asked:?}"
     );
+}
+
+/// The page the list was read from is the page the download of a line picked reads, asked the
+/// same way (its address past the check some pages ask first): fetched once for both, not once
+/// for each (gaps row Y13).
+#[tokio::test(flavor = "multi_thread")]
+async fn the_list_and_the_download_of_a_line_fetch_the_watch_page_once() {
+    stand_in();
+    let id = "onefetch001";
+    let list = videopage::list_choices(&page(id), None, None, None)
+        .await
+        .unwrap();
+    assert_eq!(list[1].quality, "720/mp4/f136", "{list:?}");
+    let dir = tempdir();
+    let done = videopage::download_page(
+        &client(),
+        &page(id),
+        &picked(dir.path(), &list[1].quality),
+        None,
+    )
+    .await
+    .expect("the line picked did not download");
+    picture_and_sound(&done.path);
+    let watched: Vec<String> = WATCHED
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|query| query.starts_with(&format!("v={id}&")))
+        .cloned()
+        .collect();
+    assert_eq!(watched, [format!("v={id}&bpctr=9999999999&has_verified=1")]);
 }
