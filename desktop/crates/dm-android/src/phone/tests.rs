@@ -288,3 +288,29 @@ fn a_finished_file_is_published_where_the_phone_says() {
     );
     assert_eq!(calls(&recorded), [format!("publish {}", file.display())]);
 }
+
+#[test]
+fn a_move_between_wifi_and_mobile_data_is_told_to_the_engine_and_the_first_read_is_not() {
+    let wifi = PhoneNetwork {
+        wifi: Some(true),
+        metered: Some(false),
+        ..PhoneNetwork::default()
+    };
+    let mobile = PhoneNetwork {
+        wifi: Some(false),
+        metered: Some(true),
+        ..PhoneNetwork::default()
+    };
+    assert!(!network_moved(None, wifi));
+    assert!(!network_moved(Some(wifi), wifi));
+    assert!(network_moved(Some(wifi), mobile));
+    assert!(network_moved(Some(mobile), wifi));
+    // A part read as unknown is no move.
+    assert!(!network_moved(Some(wifi), PhoneNetwork::default()));
+    // The battery changing is no move.
+    let low = PhoneNetwork {
+        battery_percent: Some(10),
+        ..wifi
+    };
+    assert!(!network_moved(Some(wifi), low));
+}

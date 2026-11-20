@@ -85,6 +85,8 @@ pub struct Phone<J> {
     /// The schedule's alarm as last set (`None` before the first).
     armed: Mutex<Option<Option<i64>>>,
     ongoing: Mutex<Ongoing>,
+    /// The connection as last read (`network`): a change of it is told to the engine.
+    seen_network: Mutex<Option<PhoneNetwork>>,
 }
 
 /// The wake lock and the ongoing notification as last set.
@@ -181,6 +183,7 @@ impl<J: Java> Phone<J> {
             places: Places::default(),
             armed: Mutex::new(None),
             ongoing: Mutex::default(),
+            seen_network: Mutex::new(None),
         }
     }
 
@@ -273,7 +276,14 @@ impl<J: Java> PhoneServices for Phone<J> {
     }
 
     fn network(&self) -> PhoneNetwork {
-        self.java.network()
+        let now = self.java.network();
+        let before = dm_core::lock(&self.seen_network).replace(now);
+        // Wi-Fi to mobile data or back: a torrent's swarm is asked again on the new network at
+        // once, rather than at the engine's next look at the addresses (gaps rows N8, N10).
+        if network_moved(before, now) {
+            dm_core::network_changed();
+        }
+        now
     }
 
     fn download_folders(&self) -> Result<Vec<PathBuf>, String> {
@@ -304,6 +314,16 @@ impl<J: Java> PhoneServices for Phone<J> {
 
     // `trash`: the seam's own answer. A phone has no Trash dm can reach, so the file is kept
     // and that is said.
+}
+
+/// Whether the phone moved to another kind of connection between two reads: Wi-Fi or a cable
+/// and mobile data, or metered and not. Not the first read, and not a part going unknown.
+fn network_moved(before: Option<PhoneNetwork>, now: PhoneNetwork) -> bool {
+    let Some(before) = before else {
+        return false;
+    };
+    let differs = |a: Option<bool>, b: Option<bool>| matches!((a, b), (Some(a), Some(b)) if a != b);
+    differs(before.wifi, now.wifi) || differs(before.metered, now.metered)
 }
 
 #[cfg(test)]
