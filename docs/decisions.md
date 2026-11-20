@@ -8270,3 +8270,33 @@ changing network gets its torrent's peers back without waiting for the tracker's
 finished torrent's sharing, which runs outside the rows, went on sending. Held with them now:
 paused within a tick, its minutes not counted while held, announced afresh when the hold ends.
 Also a desktop change (B76's words name downloads only), flagged in row N8 for the maintainer.
+
+## A copy across drives stops on a Cancel; what dm read and did not write is counted (2026-11-20, gaps rows 185 and 186)
+
+Coded on the Windows laptop, not compiled (the Mac builds and tests).
+
+**Undone: "Not stopped part-way, on purpose"** (2026-11-12, row 185). One part copied to another
+drive, where no rename can take it, ran to its end after a Cancel because the system's copy is
+one call. It now looks at the download's control between pieces, as the join of several parts
+does (`download/assemble/across.rs`). On Windows the copy is still `CopyFileEx`, the one row 166
+measured, called as `std::fs::copy` calls it but with a progress routine that cancels it on a
+Cancel (the system removes the file it had begun): the speed is the system's, and nothing of
+dm's own is put in its place unmeasured. Elsewhere it is the join's own loop, 32 MiB a piece
+(`copy_pieces`): on Linux each piece is the kernel's `copy_file_range`, which `std::fs::copy`
+used too; on macOS a clone cannot cross drives, so `fcopyfile` read and wrote through a buffer
+as the loop does (4 MiB). Not done: `fcopyfile` kept on macOS with its own progress callback,
+foreign-function code that could not even be type-checked on this laptop, for a copy that only
+happens when dm's home and the download folder are on two drives of a Mac. A pause still lets
+the copy finish, as it does the join and the digest.
+
+**Counted: what the ranges read and did not write** (row 186, `download/unwritten.rs`). Each
+attempt counts what it takes off its answer and, at its end, what of that it did not write, less
+what it reads on into the next range: the lead set aside for the seam's check, what came past a
+range's end, a chunk in hand at a stop. A resume's tail check counts the bytes that agreed. It
+is one count for the whole process (`dm_core::read_not_written`), not one per download: a field
+on `Job` would have grown `fetch.rs`, already past the size gate's 800 lines, and the test that
+needs it (`tests/shutdown.rs`) is alone in its process. Per download, each attempt that counts
+any says so in the finish trace (`DM_FINISH_TRACE`), with its range. Not counted: the seams'
+own checks, which are requests of their own and asked twice by design. The test prints the
+count beside its server's and holds it to nothing yet: whether the row's 16 KiB a connection is
+dm's to meet is decided from what it prints.

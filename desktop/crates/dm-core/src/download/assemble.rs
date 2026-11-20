@@ -3,6 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
+mod across;
 mod seams;
 
 use seams::leads_on_disk;
@@ -31,9 +32,10 @@ use super::*;
 /// nearly always running out of room — which is the thing this stops
 /// happening.
 ///
-/// A Cancel stops the join within a piece of [`JOIN_PIECE`] (gaps row 185), and the file it had
-/// begun goes with the error; a pause does not: every byte is here, and a join cut short would
-/// lose the parts it had used.
+/// A Cancel stops the join within a piece of [`JOIN_PIECE`] (gaps row 185), one part copied to
+/// another drive within a piece of the system's copy, and the file it had begun goes with the
+/// error; a pause does not: every byte is here, and a join cut short would lose the parts it had
+/// used.
 ///
 /// `spans`, where given, is each part's length in the file: a range's file can hold bytes past
 /// its range (an attempt that ended past where a split later cut it), which are the next range's.
@@ -73,27 +75,21 @@ pub(super) async fn join_parts(
             }
             return Ok(fs::metadata(into).await?.len());
         }
-        /* To another drive, by the system's own copy (CopyFileEx on Windows, copy_file_range
-         * on Linux, a clone or fcopyfile on macOS), which hands the bytes over in the system's
-         * own large blocks; the part goes once the copy is whole (gaps row 166). */
-        /* Not stopped part-way by a Cancel: the system's copy is one call, and its speed across
-         * drives was measured worth having (row 166). A turn of the computer's heavy work all the
-         * same (`heavy`). */
-        let (from, to) = (only.clone(), into.to_path_buf());
+        /* To another drive: on Windows by the system's own copy (CopyFileEx), which hands the
+         * bytes over in its own large blocks and whose speed across drives was measured worth
+         * having (row 166); elsewhere a piece at a time as the join copies (on Linux the kernel's
+         * own copy). Either looks at the download's control between pieces, so a Cancel stops it
+         * part-way (row 185). The part goes once the copy is whole. A turn of the computer's
+         * heavy work (`heavy`). */
+        let (from, to, control) = (only.clone(), into.to_path_buf(), control.clone());
         let copied = crate::heavy::run(move || -> Result<u64, Error> {
             if !from.exists() {
                 return Err(Error::Internal(
                     "a staged part went missing while the file was being joined".into(),
                 ));
             }
-            let mut bytes = std::fs::copy(&from, &to)?;
-            if let Some(span) = first_span.filter(|&span| span < bytes) {
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .open(&to)?
-                    .set_len(span)?;
-                bytes = span;
-            }
+            let mut stop = || crate::heavy::stopped(&control);
+            let bytes = across::copy_across(&from, &to, first_span, &mut stop)?;
             let _ = std::fs::remove_file(&from);
             Ok(bytes)
         })
@@ -179,6 +175,30 @@ pub(super) async fn copy_parts(
 /// a third of a second on a hard disk, a few hundredths on an SSD.
 const JOIN_PIECE: u64 = 32 << 20;
 
+/// The buffer a join writes through: large blocks, where `io::copy` alone moves 8 KiB at a time.
+const JOIN_BUFFER: usize = 4 << 20;
+
+/// Copies `source`, from where it stands, into `out`, as far as `left` or its end: a piece of
+/// [`JOIN_PIECE`] at a time, each by `io::copy` (on Linux the kernel's own copy), with a look at
+/// `stop` before each, so a Cancel ends it within a piece (gaps row 185).
+fn copy_pieces(
+    source: &mut std::fs::File,
+    out: &mut std::io::BufWriter<std::fs::File>,
+    mut left: u64,
+    stop: &mut dyn FnMut() -> Result<(), Error>,
+) -> Result<(), Error> {
+    while left > 0 {
+        stop()?;
+        let piece = JOIN_PIECE.min(left);
+        let copied = std::io::copy(&mut std::io::Read::take(&mut *source, piece), &mut *out)?;
+        left -= copied;
+        if copied < piece {
+            break;
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn copy_parts_blocking(
     parts: &[PathBuf],
     spans: Option<&[u64]>,
@@ -212,25 +232,17 @@ pub(super) fn copy_parts_blocking(
     } else {
         std::fs::File::create(into)?
     };
-    let mut out = std::io::BufWriter::with_capacity(4 << 20, out);
+    let mut out = std::io::BufWriter::with_capacity(JOIN_BUFFER, out);
     let skipped = usize::from(renamed);
+    // The download's control, looked at between pieces.
+    let mut stop = || crate::heavy::stopped(control);
     for (at, part) in rest.iter().enumerate() {
         let mut source = std::fs::File::open(part).map_err(|_| missing())?;
         // Copied no further than its span, where one is given.
-        let mut left = spans
+        let left = spans
             .and_then(|s| s.get(at + skipped).copied())
             .unwrap_or(u64::MAX);
-        // A piece at a time, each by `io::copy` (on Linux the kernel's own copy), with a look at
-        // the download's control between.
-        while left > 0 {
-            crate::heavy::stopped(control)?;
-            let piece = JOIN_PIECE.min(left);
-            let copied = std::io::copy(&mut std::io::Read::take(&mut source, piece), &mut out)?;
-            left -= copied;
-            if copied < piece {
-                break;
-            }
-        }
+        copy_pieces(&mut source, &mut out, left, &mut stop)?;
         drop(source);
         let _ = std::fs::remove_file(part);
     }
@@ -494,8 +506,8 @@ mod tests {
         assert_eq!(bytes, 6);
         assert_eq!(std::fs::read(&into).unwrap(), b"aaabbc");
         assert!(parts.iter().all(|p| !p.exists()));
-        // The blocking join of one part: renamed, then cut. (A copy across drives, where no
-        // rename can be made, is held by the same spans but cannot be made here.)
+        // The blocking join of one part: renamed, then cut. (One part copied across drives,
+        // where no rename can be made: `across`'s test.)
         let parts = [make("d", b"ddZZ"), make("e", b"eeeQ")];
         let into = dir.join("copied");
         let bytes = copy_parts_blocking(&parts[1..], Some(&[3]), &into, &control).unwrap();

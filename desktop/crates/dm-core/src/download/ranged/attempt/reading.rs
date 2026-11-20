@@ -93,6 +93,7 @@ impl Reading<'_> {
                     .flatten();
                 match ready {
                     Some(Ok(more)) => {
+                        self.received += more.len() as u64;
                         self.draining = Some(stopped);
                         self.carry = Some(more);
                     }
@@ -175,7 +176,12 @@ impl Reading<'_> {
                     }
                     // The window ran out with nothing arriving: judged at the top.
                     Err(_) => return Ok(ControlFlow::Break(Flow::Again)),
-                    Ok(Ok(Some(chunk))) => chunk,
+                    Ok(Ok(Some(chunk))) => {
+                        if let Ok(bytes) = &chunk {
+                            self.received += bytes.len() as u64;
+                        }
+                        chunk
+                    }
                     Ok(Ok(None)) => return Ok(ControlFlow::Break(Flow::Ended)),
                     // Paused while waiting: what has come is taken first (above).
                     Ok(Err(Error::Paused)) => {
@@ -355,8 +361,36 @@ impl Reading<'_> {
         Ok(())
     }
 
-    /// The range's end: the ledger and the plan written down, and what the attempt came to.
+    /// Counts what the attempt read and did not write, less what it hands on to the range after
+    /// it (`handed_on`), which that range writes (`unwritten`, gaps row 186).
+    pub(super) fn count_unwritten(&self, plan: &Plan, handed_on: u64) {
+        let written = self.written.saturating_sub(plan.already);
+        let left = crate::download::unwritten::left_unwritten(self.received, written, handed_on);
+        crate::download::unwritten::count(self.index, left);
+    }
+
+    /// The range's end, as `end` makes it, and what the attempt read and did not write
+    /// counted, whatever the end: what came past the range's end is counted unless it is read on
+    /// into the range after it.
     pub(super) async fn finish(
+        self,
+        plan: &Plan,
+        resumable: bool,
+    ) -> Result<Option<(usize, Carried)>, Error> {
+        let (index, received) = (self.index, self.received);
+        let written = self.written.saturating_sub(plan.already);
+        let ended = self.end(plan, resumable).await;
+        let handed_on = match &ended {
+            Ok(Some((_, carried))) => carried.rest.as_ref().map_or(0, |rest| rest.len() as u64),
+            _ => 0,
+        };
+        let left = crate::download::unwritten::left_unwritten(received, written, handed_on);
+        crate::download::unwritten::count(index, left);
+        ended
+    }
+
+    /// The range's end: the ledger and the plan written down, and what the attempt came to.
+    async fn end(
         mut self,
         plan: &Plan,
         resumable: bool,

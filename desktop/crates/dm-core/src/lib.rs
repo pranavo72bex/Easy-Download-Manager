@@ -223,8 +223,8 @@ pub use control::{Control, Wanted};
 
 pub use download::{
     download, download_reporting, free_name, free_space, names_a_document, nth_free_name,
-    nth_free_name_with, slow_part_writes_to, Finished, HostLimit, Options, Room, Update,
-    CHECKED_BESIDE, LIVE_PIECES_GONE, NOTES, NOT_UNPACKED_PASSWORD, NOT_UNPACKED_REFUSED,
+    nth_free_name_with, read_not_written, slow_part_writes_to, Finished, HostLimit, Options, Room,
+    Update, CHECKED_BESIDE, LIVE_PIECES_GONE, NOTES, NOT_UNPACKED_PASSWORD, NOT_UNPACKED_REFUSED,
     PARTS_LEFT_OUT, PREMIERE_IN_A_MOMENT, PREMIERE_IN_HOURS, PREMIERE_IN_MINUTES, PREMIERE_NOTES,
     PREMIERE_NOT_BEGUN, PROTECTED_ABOVE, UNPACKED, UNPACKED_AND_TRASHED, UNPACKED_NOT_TRASHED,
     UNPACK_NOTES,
