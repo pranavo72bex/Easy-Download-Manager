@@ -5,11 +5,12 @@
 
 //! HLS shapes that were refused (gaps row Y16), each fetched from a stream made here and served
 //! on loopback, and its finished MP4 read back whole: an initialisation segment that changes
-//! part-way (an advert break and back, its clock started afresh), and SAMPLE-AES with a clear
-//! key, in a transport stream (Apple's sample encryption of H.264 and AAC) and in fragmented MP4
-//! (Common Encryption's `cbcs`).
+//! part-way (an advert break and back, its clock started afresh), in a stream that has ended and
+//! in a live recording, and SAMPLE-AES with a clear key, in a transport stream (Apple's sample
+//! encryption of H.264 and AAC) and in fragmented MP4 (Common Encryption's `cbcs`).
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use dm_core::{client, download};
 use dm_media::fmp4::{self, Spec, Writer};
@@ -88,12 +89,10 @@ fn run(mark: u8, seconds: u32, video: Spec, rate: u32) -> Run {
     }
 }
 
-/// An advert break and back: the stream's initialisation segment changes to the advert's (another
-/// picture size, another timescale, another sound rate) and back, and each run's clock starts
-/// again at nought. The MP4 holds every sample once, in order, each decoded with its own run's
-/// set-up, picture and sound starting each run together (gaps row Y16): refused before.
-#[tokio::test]
-async fn an_advert_break_with_its_own_initialisation_segment_is_one_mp4_in_step() {
+/// An advert break and back: the main stream, the advert with its own initialisation segment
+/// (another picture size, another timescale, another sound rate), and the main stream again,
+/// each run's clock starting again at nought. Seven seconds in all.
+fn advert_break() -> [Run; 3] {
     let main = || {
         picture_spec(
             &[1, 0x64, 0, 0x1f, 0xff, 0xe1, 0, 4, 0x67, 1, 2, 3],
@@ -117,35 +116,14 @@ async fn an_advert_break_with_its_own_initialisation_segment_is_one_mp4_in_step(
         runs[0].init, runs[2].init,
         "the main stream's set-up is the same both times"
     );
-    let mut files = vec![
-        ("/v/main-init.mp4".to_string(), runs[0].init.clone()),
-        ("/v/ad-init.mp4".to_string(), runs[1].init.clone()),
-    ];
-    let mut playlist = String::from("#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n");
-    for (r, (run, map)) in runs.iter().zip(["main", "ad", "main"]).enumerate() {
-        if r > 0 {
-            playlist.push_str("#EXT-X-DISCONTINUITY\n");
-        }
-        playlist.push_str(&format!("#EXT-X-MAP:URI=\"{map}-init.mp4\"\n"));
-        for (s, segment) in run.segments.iter().enumerate() {
-            let name = format!("r{r}s{s}.m4s");
-            playlist.push_str(&format!("#EXTINF:1.0,\n{name}\n"));
-            files.push((format!("/v/{name}"), segment.clone()));
-        }
-    }
-    playlist.push_str("#EXT-X-ENDLIST\n");
-    files.push(("/v/show.m3u8".into(), playlist.into_bytes()));
-    let url = serve(files).await;
-    let dir = tempdir();
-    let done = download(&client(), &url, &common::options(dir.path()))
-        .await
-        .expect("a stream with an advert break is fetched");
-    assert!(
-        done.path.to_string_lossy().ends_with(".mp4"),
-        "{:?}",
-        done.path
-    );
-    let tracks = read_back(&done.path);
+    runs
+}
+
+/// The MP4 at `path` holds the advert break's `runs` whole: every sample once, in order, each
+/// decoded with its own run's set-up, seven seconds of picture and sound alike, and picture and
+/// sound starting each run together.
+fn assert_in_step(path: &Path, runs: &[Run]) {
+    let tracks = read_back(path);
     assert_eq!(tracks.len(), 2, "a picture and a sound");
     let (picture, sound) = (&tracks[0], &tracks[1]);
     assert_eq!((&picture.handler, &sound.handler), (b"vide", b"soun"));
@@ -192,7 +170,7 @@ async fn an_advert_break_with_its_own_initialisation_segment_is_one_mp4_in_step(
     );
     assert!((length_of(sound) - 7.0).abs() < 0.1, "{}", length_of(sound));
     let (mut p, mut s) = (0, 0);
-    for run in &runs {
+    for run in runs {
         let apart = starts_at(picture, p) - starts_at(sound, s);
         assert!(
             apart.abs() < 0.03,
@@ -201,6 +179,123 @@ async fn an_advert_break_with_its_own_initialisation_segment_is_one_mp4_in_step(
         p += run.picture.len();
         s += run.sound.len();
     }
+}
+
+/// An advert break and back: the stream's initialisation segment changes to the advert's (another
+/// picture size, another timescale, another sound rate) and back, and each run's clock starts
+/// again at nought. The MP4 holds every sample once, in order, each decoded with its own run's
+/// set-up, picture and sound starting each run together (gaps row Y16): refused before.
+#[tokio::test]
+async fn an_advert_break_with_its_own_initialisation_segment_is_one_mp4_in_step() {
+    let runs = advert_break();
+    let mut files = vec![
+        ("/v/main-init.mp4".to_string(), runs[0].init.clone()),
+        ("/v/ad-init.mp4".to_string(), runs[1].init.clone()),
+    ];
+    let mut playlist = String::from("#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n");
+    for (r, (run, map)) in runs.iter().zip(["main", "ad", "main"]).enumerate() {
+        if r > 0 {
+            playlist.push_str("#EXT-X-DISCONTINUITY\n");
+        }
+        playlist.push_str(&format!("#EXT-X-MAP:URI=\"{map}-init.mp4\"\n"));
+        for (s, segment) in run.segments.iter().enumerate() {
+            let name = format!("r{r}s{s}.m4s");
+            playlist.push_str(&format!("#EXTINF:1.0,\n{name}\n"));
+            files.push((format!("/v/{name}"), segment.clone()));
+        }
+    }
+    playlist.push_str("#EXT-X-ENDLIST\n");
+    files.push(("/v/show.m3u8".into(), playlist.into_bytes()));
+    let url = serve(files).await;
+    let dir = tempdir();
+    let done = download(&client(), &url, &common::options(dir.path()))
+        .await
+        .expect("a stream with an advert break is fetched");
+    assert!(
+        done.path.to_string_lossy().ends_with(".mp4"),
+        "{:?}",
+        done.path
+    );
+    assert_in_step(&done.path, &runs);
+}
+
+/// The same advert break in a live recording: its playlist a window of its latest three segments,
+/// one more out at each ask, stating the initialisation segment of the first it lists and of each
+/// run after it, and ended once all are out. The recording writes each changed initialisation
+/// segment before its segments, as they come, and is made one MP4 of its runs, as the stream that
+/// had ended is (gaps row Y16).
+#[tokio::test]
+async fn a_live_recordings_advert_break_is_one_mp4_in_step() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use axum::routing::get;
+
+    let runs = advert_break();
+    let maps = ["main", "ad", "main"];
+    let mut files = vec![
+        ("/v/main-init.mp4".to_string(), runs[0].init.clone()),
+        ("/v/ad-init.mp4".to_string(), runs[1].init.clone()),
+    ];
+    // Every segment in order, with the run it is of.
+    let mut listed: Vec<(usize, String)> = Vec::new();
+    for (r, run) in runs.iter().enumerate() {
+        for (s, segment) in run.segments.iter().enumerate() {
+            let name = format!("r{r}s{s}.m4s");
+            files.push((format!("/v/{name}"), segment.clone()));
+            listed.push((r, name));
+        }
+    }
+    let total = listed.len();
+    assert!(total > 5, "{total} segments, over several asks");
+    let asks = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&asks);
+    let playlist = get(move || async move {
+        let out = (counted.fetch_add(1, Ordering::SeqCst) + 1).min(total);
+        let first = out.saturating_sub(3);
+        // A run is one discontinuity on from the run before it.
+        let mut text = format!(
+            "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:{first}\n\
+             #EXT-X-DISCONTINUITY-SEQUENCE:{}\n",
+            listed[first].0
+        );
+        let mut previous: Option<usize> = None;
+        for (r, name) in &listed[first..out] {
+            if previous != Some(*r) {
+                if previous.is_some() {
+                    text.push_str("#EXT-X-DISCONTINUITY\n");
+                }
+                text.push_str(&format!("#EXT-X-MAP:URI=\"{}-init.mp4\"\n", maps[*r]));
+            }
+            previous = Some(*r);
+            text.push_str(&format!("#EXTINF:1.0,\n{name}\n"));
+        }
+        if out == total {
+            text.push_str("#EXT-X-ENDLIST\n");
+        }
+        text
+    });
+    let files: Files = Arc::new(files.into_iter().collect());
+    let app = axum::Router::new()
+        .route("/v/show.m3u8", playlist)
+        .fallback(answer)
+        .with_state(files);
+    let addr = common::serve(app).await;
+    let dir = tempdir();
+    let url = format!("http://{addr}/v/show.m3u8");
+    let done = download(&client(), &url, &common::options(dir.path()))
+        .await
+        .expect("a live stream with an advert break is recorded");
+    assert!(
+        asks.load(Ordering::SeqCst) >= total,
+        "recorded as it grew, one segment more an ask"
+    );
+    assert!(
+        done.path.to_string_lossy().ends_with(".mp4"),
+        "{:?}",
+        done.path
+    );
+    assert_in_step(&done.path, &runs);
 }
 
 /* ---- SAMPLE-AES in a transport stream ------------------------------------------------ */
