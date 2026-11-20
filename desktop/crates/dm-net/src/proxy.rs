@@ -292,25 +292,13 @@ struct Settings {
     in_force: bool,
 }
 
-#[cfg(target_os = "macos")]
+/// The network settings' proxies (macOS's `scutil --proxy`); `None` where the system has none to
+/// read.
 fn system_settings() -> Option<Settings> {
-    let out = std::process::Command::new("/usr/sbin/scutil")
-        .arg("--proxy")
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    out.status
-        .success()
-        .then(|| read_scutil(&String::from_utf8_lossy(&out.stdout)))
-}
-
-#[cfg(not(target_os = "macos"))]
-fn system_settings() -> Option<Settings> {
-    None
+    crate::platform::programs::proxy_settings().map(|text| read_scutil(&text))
 }
 
 /// `scutil --proxy`'s dictionary, read for its proxies.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn read_scutil(text: &str) -> Settings {
     let value = |key: &str| {
         text.lines().find_map(|line| {

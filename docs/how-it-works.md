@@ -261,6 +261,30 @@ settings rather than borrowing the browser's.
 The browser extension hands downloads to it once the client has been
 registered with `--register`.
 
+### The system's programs
+
+The few programs of the system's own that dm starts, each behind one named function in its
+crate's `platform` module (gaps row P8), and why each is a program and not a call. dm itself (the
+native host starting the window, Safari's relay starting the host), a program a person names (run
+when the queue is done or on a finished file, Open with's application) and a test's stand-in are
+not in this list.
+
+| Program | System | Function | What for | Why a program |
+|---|---|---|---|---|
+| `reg.exe` `export`/`import` | Windows | `dm_shell::platform::programs::reg_exe` | the `.reg` copy of another program's magnet or `.torrent` key | only `reg.exe` writes and reads the whole `.reg` format; the rest of the registry is the API's (`dm_shell::registry`) |
+| `/bin/ps -o comm= -p` | macOS, Linux | `dm_shell::platform::programs::process_name` | the browser that started the native host | no portable call names another process's program; Windows reads its process list |
+| `/usr/bin/open -a … --args --desktop` | macOS | `dm_shell::platform::programs::open_app` | dm's window from Safari's sandbox | it opens the app outside the sandbox, as a click does |
+| `open`, `open -R`; `explorer`; `xdg-open`, `gio open`, `kde-open`, `kde-open5`, `exo-open` | macOS; Windows; Linux | `dm_shell::platform::opener` | opening a finished file and showing it in its folder | each system's own opener, with its file associations |
+| `security` | macOS | `dm_core::platform::programs::secret_tool` | the keychain, where Sign-ins' passwords are kept | no new crate (`docs/decisions.md`, the secret store) |
+| `secret-tool` | Linux | `dm_core::platform::programs::secret_tool` | the session's Secret Service | no new crate and no linking to libsecret, which a build on CI would need |
+| `/usr/sbin/scutil --proxy` | macOS | `dm_net::platform::programs::proxy_settings` | the network settings' proxies | the proxy dictionary without a framework binding |
+| `/usr/sbin/networksetup -listallhardwareports` | macOS | `dm_net::platform::programs::hardware_ports` | the interfaces' names for the second path ("iPhone USB") | the hardware ports' names without a framework binding |
+| `pmset`, `osascript`; `systemctl`; `shutdown` | macOS; Linux; Windows | `dm_desktop_base::platform::power::run` | sleep, hibernate or shut down when the queue is done | each system's own way, with its own permission; Windows sleeps through `SetSuspendState` |
+| `afplay`; `canberra-gtk-play`, `paplay` | macOS; Linux | `dm_desktop_base::platform::power::play`, `play_file` | the finished and failed sounds | the system's sounds and player; Windows plays them in dm |
+| `defaults read -g` | macOS | `dm_desktop_base::platform::region` | the region and 12- or 24-hour clock | the global preferences as the system keeps them |
+| `gsettings get` | Linux | `dm_desktop_base::platform::system_theme::run` | a dark or light desktop | GNOME's settings without a D-Bus client |
+| `/usr/sbin/screencapture` | macOS | `dm_gpui::platform::syswindow` `picture` | the window's own picture (QA's baseline) | the window as the screen shows it, without its shadow |
+
 ### On Android
 
 The phone app is in development: coded, not yet run on a phone

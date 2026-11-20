@@ -3,12 +3,12 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-use std::io::Write;
-use std::process::{Command, Output, Stdio};
+use std::process::Output;
 
 use base64::Engine as _;
 
 use super::SecretStore;
+use crate::platform::programs::SECRET_TOOL as TOOL;
 
 pub struct ToolStore {
     /// macOS: the keychain file every command names, where it is not the account's default
@@ -20,11 +20,6 @@ impl ToolStore {
     /// The account's own store.
     pub const SYSTEM: ToolStore = ToolStore { keychain: None };
 }
-
-#[cfg(target_os = "macos")]
-const TOOL: &str = "security";
-#[cfg(target_os = "linux")]
-const TOOL: &str = "secret-tool";
 
 /// Whether the tool can be started at all (a lookup of a name nobody keeps).
 pub fn present() -> bool {
@@ -88,21 +83,7 @@ fn keyed(name: &str) -> std::borrow::Cow<'_, str> {
 
 /// Runs the tool, `stdin` fed to it, and gives what it printed and how it ended.
 fn run(args: &[String], stdin: Option<&[u8]>) -> Result<Output, String> {
-    let mut command = Command::new(TOOL);
-    command
-        .args(args)
-        .stdin(if stdin.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child = command.spawn().map_err(|e| format!("{TOOL}: {e}"))?;
-    if let (Some(bytes), Some(mut pipe)) = (stdin, child.stdin.take()) {
-        pipe.write_all(bytes).map_err(|e| format!("{TOOL}: {e}"))?;
-    }
-    child.wait_with_output().map_err(|e| format!("{TOOL}: {e}"))
+    crate::platform::programs::secret_tool(args, stdin)
 }
 
 fn said(output: &Output) -> String {

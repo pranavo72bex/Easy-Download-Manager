@@ -140,6 +140,8 @@ pub mod saved;
 
 mod schedule;
 
+mod platform;
+
 pub(crate) use dm_net::second_path;
 
 pub mod secretstore;

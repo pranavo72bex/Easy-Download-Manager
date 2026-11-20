@@ -20,12 +20,8 @@ pub(super) fn system_name(interface: &str) -> Option<String> {
     let mut held = crate::lock(&PORTS);
     let stale = held.as_ref().is_none_or(|(at, _)| at.elapsed() > PORTS_FOR);
     if stale {
-        let listed = std::process::Command::new("/usr/sbin/networksetup")
-            .arg("-listallhardwareports")
-            .stdin(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .map(|o| ports_of(&String::from_utf8_lossy(&o.stdout)))
+        let listed = crate::platform::programs::hardware_ports()
+            .map(|listing| ports_of(&listing))
             .unwrap_or_default();
         *held = Some((Instant::now(), listed));
     }
