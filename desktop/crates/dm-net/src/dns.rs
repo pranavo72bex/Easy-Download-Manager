@@ -17,6 +17,9 @@
 //! when judged and `127.0.0.1` when connected to (DNS rebinding) reaches nothing inside: the
 //! resolver's answer is the only one reqwest connects to. As FTP connects its data connection
 //! to the control connection's peer and not to the address the server names.
+//!
+//! A name under `.test` is asked of the benchmark's DNS server where one was given
+//! ([`ask_test_names_of`], its `slowname` case), and kept as any other.
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -24,6 +27,10 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+
+mod ask;
+
+pub use ask::ask_test_names_of;
 
 /// How long a name's addresses are kept: long enough for a download's connections and its
 /// reconnects, short enough that a server that moved is found again within a minute.
@@ -200,6 +207,10 @@ async fn look_up(name: &str) -> std::io::Result<Vec<SocketAddr>> {
     let answered: Option<Vec<SocketAddr>> = None;
     if let Some(found) = answered {
         return Ok(found);
+    }
+    // The benchmark's DNS server, for a name under `.test` (`ask`, its `slowname` case).
+    if let Some(server) = ask::server_for(name) {
+        return ask::ask(server, name).await;
     }
     // The port is the connector's to set, as reqwest's own resolver leaves it.
     Ok(tokio::net::lookup_host((name, 0)).await?.collect())

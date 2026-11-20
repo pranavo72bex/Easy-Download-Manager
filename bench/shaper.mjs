@@ -6,10 +6,12 @@
 // The line between a person and a server, for the benchmark's `wan` and `lossy` cases (gaps row
 // W2): a TCP proxy in front of the harness's server that holds every piece for the one-way delay
 // in each direction, and a server certificate made at run time for the cases served over TLS.
-// Plain Node, no packages (AGENTS.md).
+// And the `slowname` case's name that answers slowly: a DNS server over UDP (`slowDns`). Plain
+// Node, no packages (AGENTS.md).
 //
 //   node bench/shaper.mjs --self-test     the delays measured through it, the bytes through it
-//                                         whole, the certificate trusted by Node's own TLS
+//                                         whole, the certificate trusted by Node's own TLS, the
+//                                         slow name's delay and its count of questions
 //
 // What it does, and what it leaves to the server in bench.mjs:
 // - Delay: each piece read on one side is written on the other `oneWayMs` later, in order (40 ms
@@ -28,6 +30,8 @@
 //   a lost piece is modelled as what TCP does about one, its connection sending nothing for about
 //   one retransmission timeout before the piece goes again (bench.mjs `loss`).
 import net from 'node:net';
+import dgram from 'node:dgram';
+import dns from 'node:dns';
 import tls from 'node:tls';
 import https from 'node:https';
 import crypto from 'node:crypto';
@@ -177,6 +181,109 @@ export function selfSignedCert({ days = 365, name = 'dm benchmark server' } = {}
   return { cert: `-----BEGIN ${label}-----\n${b64}\n-----END ${label}-----\n`, key: privateKey.export({ type: 'pkcs8', format: 'pem' }) };
 }
 
+// ─── A name that answers slowly, for the `slowname` case (gaps row W2): a DNS server over UDP that
+// answers every question for a name under `zone` `delayMs` after it was asked. Type A is answered
+// 127.0.0.1, any other type with no records, and each with a TTL of 0, so a cache that honours it
+// keeps nothing: an app that asks again for each connection pays the delay each time, one that
+// keeps the answer pays it once. Every question is counted by name (`asked`). A name outside the
+// zone is refused at once, or passed to `upstream` (`host:port`) where the computer itself is
+// pointed here (bench/README.md). Nothing is ever answered sooner than asked; a timer can fire
+// late, by up to a tick (15.6 ms on Windows), and `late()` says by how much.
+// Resolves with { port, asked(name) -> { a, other, lateMaxMs }, late(), close() }: `lateMaxMs` the
+// most one of that name's answers went later than asked, `late()` all of them.
+export function slowDns({ delayMs = 300, port = 0, host = '127.0.0.1', zone = 'bench.test', upstream = null } = {}) {
+  const asked = new Map();
+  const late = lateness();
+  const timers = new Set();
+  const relays = new Set();
+  const sock = dgram.createSocket(net.isIPv6(host) ? 'udp6' : 'udp4');
+  let closed = false;
+  const answer = (to, bytes) => { if (!closed) sock.send(bytes, to.port, to.address, () => {}); };
+  const up = upstream && { host: upstream.slice(0, upstream.lastIndexOf(':')).replace(/^\[|\]$/g, ''), port: Number(upstream.slice(upstream.lastIndexOf(':') + 1)) };
+  sock.on('message', (msg, from) => {
+    const q = dnsQuestion(msg);
+    if (!q) return; // not one question this server reads: dropped, as a server drops it
+    const name = q.name.toLowerCase();
+    if (name === zone || name.endsWith(`.${zone}`)) {
+      const n = asked.get(name) || { a: 0, other: 0, lateMaxMs: 0 };
+      if (q.type === 1) n.a++; else n.other++;
+      asked.set(name, n);
+      const due = performance.now() + delayMs;
+      const t = setTimeout(() => {
+        timers.delete(t);
+        const by = performance.now() - due;
+        late.add(by);
+        n.lateMaxMs = Math.max(n.lateMaxMs, +by.toFixed(1));
+        answer(from, dnsAnswer(msg, q, q.type === 1 && q.cls === 1 ? [[127, 0, 0, 1]] : [], 0));
+      }, delayMs);
+      timers.add(t);
+    } else if (up) {
+      // Passed on as it came, and its answer passed back: the computer's other names still work.
+      const relay = dgram.createSocket(net.isIPv6(up.host) ? 'udp6' : 'udp4');
+      const done = () => { clearTimeout(relay.timer); if (relays.delete(relay)) { try { relay.close(); } catch { /* closed */ } } };
+      relays.add(relay);
+      relay.timer = setTimeout(done, 5000);
+      relay.on('error', done);
+      relay.on('message', (back) => { answer(from, back); done(); });
+      relay.send(msg, up.port, up.host, (e) => { if (e) done(); });
+    } else {
+      answer(from, dnsAnswer(msg, q, [], 5)); // refused
+    }
+  });
+  return new Promise((resolve, reject) => {
+    sock.once('error', reject);
+    sock.bind(port, host, () => {
+      sock.removeListener('error', reject);
+      sock.on('error', () => {});
+      resolve({
+        port: sock.address().port,
+        asked: (name) => ({ ...(asked.get(name.toLowerCase()) || { a: 0, other: 0, lateMaxMs: 0 }) }),
+        late: () => late.report(),
+        close: () => new Promise((r) => {
+          closed = true;
+          for (const t of timers) clearTimeout(t);
+          for (const relay of relays) { clearTimeout(relay.timer); try { relay.close(); } catch { /* closed */ } }
+          relays.clear();
+          sock.close(() => r());
+        }),
+      });
+    });
+  });
+}
+
+// The one question of a DNS query `msg`, or null where it is not one: { id, rd, name, type, cls,
+// end } (`rd` the recursion bit as asked, `end` where the question ends).
+export function dnsQuestion(msg) {
+  if (msg.length < 12) return null;
+  const flags = msg.readUInt16BE(2);
+  // An answer, a kind of query other than the standard one, or not one question: not read.
+  if (flags & 0x8000 || ((flags >> 11) & 0xf) !== 0 || msg.readUInt16BE(4) !== 1) return null;
+  const labels = [];
+  let at = 12;
+  for (;;) {
+    if (at >= msg.length) return null;
+    const len = msg[at];
+    if (len === 0) { at++; break; }
+    if (len > 63 || at + 1 + len > msg.length) return null; // a pointer has no place in a question
+    labels.push(msg.toString('latin1', at + 1, at + 1 + len));
+    at += 1 + len;
+  }
+  if (at + 4 > msg.length || !labels.length) return null;
+  return { id: msg.readUInt16BE(0), rd: flags & 0x0100, name: labels.join('.'), type: msg.readUInt16BE(at), cls: msg.readUInt16BE(at + 2), end: at + 4 };
+}
+
+// The answer to question `q` of query `msg`: each of `ips` (IPv4, as 4 numbers) an A record
+// pointing back at the question's name, with a TTL of 0, and `code` (0: no error; 5: refused).
+export function dnsAnswer(msg, q, ips, code) {
+  const head = Buffer.alloc(12);
+  head.writeUInt16BE(q.id, 0);
+  head.writeUInt16BE(0x8000 | 0x0400 | q.rd | 0x0080 | code, 2); // an answer, with authority, recursion as asked
+  head.writeUInt16BE(1, 4);
+  head.writeUInt16BE(ips.length, 6);
+  const records = ips.map((ip) => Buffer.from([0xc0, 12, 0, 1, 0, 1, 0, 0, 0, 0, 0, 4, ...ip]));
+  return Buffer.concat([head, msg.subarray(12, q.end), ...records]);
+}
+
 // ─── Its own workings: a server behind the shaper, measured through it.
 async function selfTest() {
   const ONE_WAY = 40;
@@ -268,6 +375,42 @@ async function selfTest() {
   });
   expect(refused !== 'accepted', `without it as an authority the certificate is refused (${refused})`);
   await line4.close(); web.close();
+
+  // 5. The slow name: Node's own resolver pointed at it. Each question answered no sooner than
+  //    the delay, and each counted; the same name asked again is slow again (TTL 0, nothing kept
+  //    at the server); a name outside the zone refused at once; a packet that is not a question
+  //    dropped, and the server still answers after it.
+  const DELAY = 300;
+  const names = await slowDns({ delayMs: DELAY });
+  const resolver = new dns.promises.Resolver({ timeout: 3000, tries: 1 });
+  resolver.setServers([`127.0.0.1:${names.port}`]);
+  const timed = async (f) => { const t = performance.now(); try { return { v: await f(), ms: performance.now() - t }; } catch (e) { return { e: e.code || e.message, ms: performance.now() - t }; } };
+  const a1 = await timed(() => resolver.resolve4('one.bench.test', { ttl: true }));
+  const a2 = await timed(() => resolver.resolve4('one.bench.test', { ttl: true }));
+  const slowOk = (r) => r.v && r.v.length === 1 && r.v[0].address === '127.0.0.1' && r.v[0].ttl === 0 && r.ms >= DELAY - 1 && r.ms < DELAY + 200;
+  expect(slowOk(a1) && slowOk(a2), `one.bench.test answered 127.0.0.1 (TTL 0) after ${a1.ms.toFixed(0)} ms, and again after ${a2.ms.toFixed(0)} ms (asked ${DELAY})`);
+  const six = await timed(() => resolver.resolve6('one.bench.test'));
+  expect(six.e === 'ENODATA' && six.ms >= DELAY - 1, `its IPv6 question answered with no records after ${six.ms.toFixed(0)} ms (${six.e || 'an address'})`);
+  const other = await timed(() => resolver.resolve4('example.com'));
+  expect(!!other.e && other.ms < DELAY, `a name outside bench.test refused at once (${other.e || 'answered'}, ${other.ms.toFixed(0)} ms)`);
+  const junk = dgram.createSocket('udp4');
+  await new Promise((r) => junk.send(Buffer.from([1, 2, 3, 4, 5, 0x81, 0x80, 0, 1, 0, 0, 0, 0, 7]), names.port, '127.0.0.1', r));
+  junk.close();
+  const a3 = await timed(() => resolver.resolve4('Two.Bench.Test'));
+  expect(a3.v?.[0] === '127.0.0.1', `after a packet that is not a question, Two.Bench.Test still answered (${a3.v?.[0] || a3.e})`);
+  const counted = names.asked('one.bench.test'), counted2 = names.asked('two.bench.test');
+  expect(counted.a === 2 && counted.other === 1 && counted2.a === 1, `the questions counted by name: one.bench.test A ${counted.a}, other ${counted.other}; two.bench.test A ${counted2.a}`);
+  const nameLate = names.late();
+  expect(nameLate.pieces === 4, `the name's answers were sent ${nameLate.meanMs} ms late on average, at most ${nameLate.maxMs}`);
+  await names.close();
+  // Pointed at by the computer, the other names are passed on: here to a second server.
+  const upstream = await slowDns({ delayMs: 0, zone: 'elsewhere.test' });
+  const front = await slowDns({ delayMs: DELAY, upstream: `127.0.0.1:${upstream.port}` });
+  resolver.setServers([`127.0.0.1:${front.port}`]);
+  const passed = await timed(() => resolver.resolve4('x.elsewhere.test'));
+  expect(passed.v?.[0] === '127.0.0.1' && passed.ms < DELAY && upstream.asked('x.elsewhere.test').a === 1 && front.asked('x.elsewhere.test').a === 0,
+    `a name outside bench.test passed on to the upstream server and its answer back (${passed.v?.[0] || passed.e}, ${passed.ms.toFixed(0)} ms)`);
+  await front.close(); await upstream.close();
 
   if (fails.length) { console.error(`shaper.mjs self-test: ${fails.length} failed`); process.exit(1); }
   console.log('shaper.mjs self-test: ok');

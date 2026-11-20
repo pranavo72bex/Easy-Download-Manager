@@ -38,7 +38,8 @@ const judged = B.metrics.filter((m) => !m.info);
 // Scenarios added to bench.mjs after the baseline was frozen (gaps row W2: what a person's line
 // adds). Reference A has not been measured on them: dm's numbers are shown, and judged by nothing,
 // until its numbers are frozen in a baseline file of their own beside this one (bench/README.md).
-const NEW_CASES = { wan: 'the 80 ms, 20 Mbit/s line over TLS', lossy: 'the 80 ms, 20 Mbit/s line with 1% of pieces stalled' };
+const NEW_CASES = { wan: 'the 80 ms, 20 Mbit/s line over TLS', lossy: 'the 80 ms, 20 Mbit/s line with 1% of pieces stalled',
+  slowname: 'a name that resolves slowly each time it is asked' };
 
 // Every floor is what the archived runs say it is.
 for (const [group, scenarios] of Object.entries(B.floors)) {
@@ -97,6 +98,13 @@ for (const sc of [...byScenario.keys()].sort((a, b) => order.indexOf(a) - order.
     report.notJudged.push(`${sc}: no baseline yet`);
     const late = median(got.dm.map((r) => r.line?.late?.meanMs));
     if (late != null) out.note += `; the line held pieces ${late} ms longer than asked on average (timers)`;
+    // `slowname`: how often each app asked for its run's name, each lookup taking the delay.
+    const asked = (rs) => median(rs.map((r) => r.lookups?.a));
+    const dmAsked = asked(got.dm), refaAsked = asked(got.refa);
+    if (dmAsked != null) {
+      const first = got.dm.find((r) => r.lookups)?.lookups;
+      out.note += `; dm asked for the name ${dmAsked} times a run (median; each answer ${first.delayMs} ms, through ${first.through})${refaAsked != null ? `, reference A ${refaAsked}` : ''}`;
+    }
   } else if (!entry?.floor) { out.note = `no reference A floor in ${group}: ${B.notMeasured?.[sc] || entry?.why || 'not measured'}`; report.notJudged.push(`${sc}: no floor`); }
   let factor = 1;
   if (spec?.scaleByCeiling) {

@@ -8,8 +8,8 @@
 //! every download waits for, the second network, the folder YouTube's cut players are kept in
 //! and the one network downloads are held to. [`configure`] is the one place each of them is
 //! put in force; the setters it calls are left public, hidden, for the tests that set one part
-//! alone. [`trust_bench_ca`] comes before all of it: the benchmark's certificate, trusted before
-//! the first client is built.
+//! alone. [`trust_bench_ca`] and [`use_bench_dns`] come before all of it: the benchmark's
+//! certificate and its DNS server, put in force before the first client is built.
 
 use std::path::{Path, PathBuf};
 
@@ -85,6 +85,35 @@ pub fn trust_bench_ca() {
     }
 }
 
+/// Has names under `.test` asked of the DNS server `DM_BENCH_DNS` names (`127.0.0.1:<port>`), in
+/// place of the system, for the benchmark's `slowname` case: a name that answers slowly
+/// (bench/README.md, "The line cases"). Called before the first client is built. Every other
+/// name goes to the system as before; an address that cannot be read is noted, and every name
+/// goes to the system.
+pub fn use_bench_dns() {
+    let Some(said) = crate::env::get("DM_BENCH_DNS").filter(|said| !said.trim().is_empty()) else {
+        return;
+    };
+    match bench_dns(&said) {
+        Ok(server) => {
+            if !dm_net::dns::ask_test_names_of(server) {
+                crate::note!(
+                    warn,
+                    "dm: DM_BENCH_DNS was given twice: the first is in force"
+                );
+            }
+        }
+        Err(why) => crate::note!(warn, "dm: DM_BENCH_DNS is not used: {why}"),
+    }
+}
+
+/// The DNS server `said` names: an address and a port (`127.0.0.1:5353`); why not, in words.
+fn bench_dns(said: &str) -> Result<std::net::SocketAddr, String> {
+    said.trim()
+        .parse()
+        .map_err(|_| format!("{said:?} is not an address and a port, as 127.0.0.1:5353"))
+}
+
 /// Trusts the certificates of the file at `path` beside the public roots; why not, in words.
 fn trust_file(path: &Path) -> Result<(), String> {
     let pem = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -105,5 +134,17 @@ mod tests {
         std::fs::write(&empty, b"no certificate here").unwrap();
         let said = trust_file(&empty).unwrap_err();
         assert!(said.contains("empty.pem"), "{said}");
+    }
+
+    #[test]
+    fn the_bench_dns_server_is_an_address_and_a_port() {
+        assert_eq!(
+            bench_dns(" 127.0.0.1:5353 "),
+            Ok(std::net::SocketAddr::from(([127, 0, 0, 1], 5353)))
+        );
+        for wrong in ["127.0.0.1", "localhost:53", "bench.test"] {
+            let said = bench_dns(wrong).unwrap_err();
+            assert!(said.contains(wrong), "{said}");
+        }
     }
 }

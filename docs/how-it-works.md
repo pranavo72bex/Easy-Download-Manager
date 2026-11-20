@@ -583,7 +583,8 @@ desktop/
                           set-up is made (the benchmark's, `DM_BENCH_CA`, read by dm-core)
     proxy.rs, pac.rs      the proxy in force, the proxy configuration script (run in dm-js through
                           javascript.rs, where a test may put a stand-in)
-    dns.rs, redirects.rs  names, and where a redirect may go
+    dns.rs, redirects.rs  names (kept a minute; under `.test`, the benchmark's DNS server where
+                          `DM_BENCH_DNS` names one, dns/ask.rs), and where a redirect may go
     auth.rs, ntlm.rs, cookies.rs   sign-ins (Basic, Digest, NTLM) and the browser's cookies
     agents.rs, limit.rs, decode.rs   the user agent a site gets, the speed ceiling, a body's
                           decoding held to a ratio

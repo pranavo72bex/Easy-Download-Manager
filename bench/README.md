@@ -19,7 +19,7 @@ So work on macOS or Linux can aim at the same target as work on Windows.
 | `compare.mjs` | Judges a results folder against the baseline, parameter by parameter. Exit 0 only when dm is better everywhere. |
 | `against-last.mjs` | Judges a results folder against an earlier run of dm's own (CI's weekly run, `.github/workflows/bench.yml`; `docs/testing.md`). It never reads the floors. |
 | `ceiling-client.mjs` | The reference client, used by the `ceiling` scenario to measure what the computer itself allows. |
-| `shaper.mjs` | The line of the `wan` and `lossy` cases: a delaying proxy, and the TLS certificate made at run time. `node bench/shaper.mjs --self-test` measures it. |
+| `shaper.mjs` | The line of the `wan` and `lossy` cases: a delaying proxy, and the TLS certificate made at run time. The slow name of the `slowname` case: a DNS server that answers late. `node bench/shaper.mjs --self-test` measures them. |
 | `refa-windows.ps1` | Answers reference A's windows during a run (Windows only). |
 | `local.example.json` | The shape of `local.json` (git-ignored), which names reference A's program on the computer that has it. |
 | `results/` | Your runs, one folder per system and date (git-ignored). |
@@ -105,6 +105,7 @@ baseline's `harness` and `scenarios`.
 | `inet` | two public 100 MB files | the network | never a floor |
 | `wan` | 32 MiB over an 80 ms line, 20 Mbit/s in all, over TLS | the line | 13.4 s; no baseline yet |
 | `lossy` | 32 MiB over the same line (plain HTTP), 1% of 16 KiB pieces stalled 250 ms | the line | 13.4 s; no baseline yet |
+| `slowname` | 64 MiB, each connection 1 MiB/s and cut after 1 to 4 MiB, under a name each lookup of which takes 300 ms | the caps and the name | 8.3 s; no baseline yet |
 
 ## The line cases: `wan` and `lossy`
 
@@ -150,6 +151,57 @@ node bench/shaper.mjs --self-test               # the shaper alone: delays, byte
   (`certutil -user -delstore Root "dm benchmark server"`).
 - **Reference A's numbers** on these, when they are measured, go in a baseline file of their own
   beside the frozen one, pinned the same way. `reference-a-baseline.json` does not change.
+
+## The slow name: `slowname`
+
+Every other case reaches its server at `127.0.0.1`, so no name is ever looked up. `slowname`
+serves `per_conn`'s 64 MiB (each connection 1 MiB/s) under a name of the run's own,
+`slowname-<app>-<rep>-<run>.bench.test`, each lookup of which takes 300 ms
+(`BENCH_SLOWNAME_MS`), and cuts every connection after 1 to 4 MiB, so a download makes about 25
+connections. An app that keeps a name's answer pays the 300 ms once; one that asks again for each
+connection pays it about 25 times, that connection idle each time. Ideal: 8.3 s on 8 connections.
+Gaps row W2's last part. No baseline yet (`compare.mjs` says so, and prints how often dm asked);
+ask for it by name:
+
+```sh
+node bench/bench.mjs slowname && node bench/compare.mjs
+BENCH_APPS=none node bench/bench.mjs selftest   # ends with the slow name, looked up twice
+node bench/shaper.mjs --self-test               # its delay, its count, a refusal, a pass-on
+```
+
+- **The name's server** is `slowDns` in `shaper.mjs`: a DNS server over UDP in the harness's
+  process, at 127.0.0.1 on a free port (`BENCH_SLOWNAME_PORT` names one). It answers every name
+  under `bench.test` with 127.0.0.1 (type A; any other type with no records), each
+  `BENCH_SLOWNAME_MS` after the question and never sooner, with a TTL of 0, so a cache that honours
+  it keeps nothing. Any other name is refused. Each run records how often the app asked for its
+  name (`lookups.a`, and `lookups.other` for other types such as IPv6) and the most an answer went
+  later than asked (`lookups.lateMaxMs`, timers). A run's name is its own, so nothing an app kept
+  from one run helps the next.
+- **dm** is started with `DM_BENCH_DNS=127.0.0.1:<port>`, a test switch (`dm_core::use_bench_dns`,
+  before the first client). It then asks that server for names under `.test` alone, in place of
+  the system (`dm_net::dns`, which keeps each name's answer for a minute: gaps row S19), and asks
+  the system for every other name as before. No administrator, and the hosts file is not touched.
+- **Reference A** looks names up through the system, which cannot be pointed at the harness's
+  server without changing the computer's DNS settings. Until a person does, the case runs for dm
+  alone, and a run beside reference A says so and leaves reference A out of it. To run both, each
+  through the system:
+  - Windows, in an administrator's PowerShell, send the names under `bench.test` alone to
+    127.0.0.1 (port 53):
+    `Add-DnsClientNrptRule -Namespace ".bench.test" -NameServers "127.0.0.1"`, then
+    `BENCH_SLOWNAME_PORT=53 BENCH_SLOWNAME_SYSTEM=1 node bench/bench.mjs slowname`. Remove the
+    rule when done:
+    `Get-DnsClientNrptRule | Where-Object Namespace -eq '.bench.test' | Remove-DnsClientNrptRule -Force`.
+  - macOS, with sudo, a file `/etc/resolver/bench.test` holding `nameserver 127.0.0.1` and
+    `port 5353`, then `BENCH_SLOWNAME_PORT=5353 BENCH_SLOWNAME_SYSTEM=1 node bench/bench.mjs
+    slowname`. Delete the file when done.
+  - A computer pointed at the server as its only DNS server: `BENCH_SLOWNAME_UPSTREAM=<its usual
+    server>:53` passes every other name on, and its answer back.
+
+  With `BENCH_SLOWNAME_SYSTEM=1` dm is not given `DM_BENCH_DNS`: both apps ask the system. The
+  harness first looks a name up through the system itself and stops if its server was not asked.
+  Whether the system keeps an answer with a TTL of 0 anyway shows in `lookups.a`.
+- **A proxy** set for the computer is asked for `*.bench.test` where it is not for 127.0.0.1: run
+  with none.
 
 ## The floors (group `standard`)
 
