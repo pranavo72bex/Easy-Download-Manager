@@ -27,8 +27,8 @@ pub(super) fn undo(
     let offset = offset as u32;
     match kind {
         DELTA => delta(channels.max(1), data, spare),
-        E8 => x86(data, offset, false),
-        E8E9 => x86(data, offset, true),
+        E8 => x86(data, offset, false, true),
+        E8E9 => x86(data, offset, true, true),
         ARM => arm(data, offset),
         _ => {}
     }
@@ -50,9 +50,14 @@ fn delta(channels: usize, data: &mut Vec<u8>, spare: &mut Vec<u8>) {
     std::mem::swap(data, spare);
 }
 
+/// RAR 4's E8 and E8E9, which count the place in the file without RAR 5's wrap at 16 MiB.
+pub(super) fn x86_rar4(data: &mut [u8], offset: u32, e9: bool) {
+    x86(data, offset, e9, false);
+}
+
 /// E8 and E8E9: after each 0xE8 (and 0xE9) byte, a 32-bit address made absolute against a
-/// 16 MiB file is made relative again.
-fn x86(data: &mut [u8], offset: u32, e9: bool) {
+/// 16 MiB file is made relative again; `wrap` counts the place within 16 MiB, as RAR 5 does.
+fn x86(data: &mut [u8], offset: u32, e9: bool, wrap: bool) {
     const FILE_SIZE: u32 = 0x0100_0000;
     let mut at = 0usize;
     while at + 4 < data.len() {
@@ -64,7 +69,8 @@ fn x86(data: &mut [u8], offset: u32, e9: bool) {
         let Some(slot) = data.get_mut(at..at + 4) else {
             break;
         };
-        let here = (at as u32).wrapping_add(offset) % FILE_SIZE;
+        let here = (at as u32).wrapping_add(offset);
+        let here = if wrap { here % FILE_SIZE } else { here };
         let addr = u32::from_le_bytes([slot[0], slot[1], slot[2], slot[3]]);
         if addr & 0x8000_0000 != 0 {
             // Negative: it stays so unless adding the place makes it not.

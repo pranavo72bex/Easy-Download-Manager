@@ -42,13 +42,13 @@ const FLUSH: u64 = 1 << 20;
 
 /// The bytes unpacked last, which a match copies from. It grows as bytes are unpacked, up to
 /// its size (a power of two), and then wraps, so a small file never costs a large window.
-struct Window {
+pub(super) struct Window {
     buf: Vec<u8>,
-    size: u64,
+    pub(super) size: u64,
 }
 
 impl Window {
-    fn new(dict: u64) -> Window {
+    pub(super) fn new(dict: u64) -> Window {
         Window {
             buf: Vec::new(),
             size: dict.clamp(MIN_WINDOW, MAX_WINDOW).next_power_of_two(),
@@ -60,7 +60,7 @@ impl Window {
     }
 
     /// Puts the byte at `pos`, the next one after the last put.
-    fn put(&mut self, pos: u64, b: u8) {
+    pub(super) fn put(&mut self, pos: u64, b: u8) {
         let i = self.index(pos);
         match self.buf.get_mut(i) {
             Some(slot) => *slot = b,
@@ -69,12 +69,12 @@ impl Window {
         }
     }
 
-    fn get(&self, pos: u64) -> u8 {
+    pub(super) fn get(&self, pos: u64) -> u8 {
         self.buf.get(self.index(pos)).copied().unwrap_or(0)
     }
 
     /// Appends the bytes from `from` up to `to` to `out`.
-    fn copy_out(&self, from: u64, to: u64, out: &mut Vec<u8>) -> Result<(), Error> {
+    pub(super) fn copy_out(&self, from: u64, to: u64, out: &mut Vec<u8>) -> Result<(), Error> {
         let mut at = from;
         while at < to {
             let i = self.index(at);
@@ -91,7 +91,7 @@ impl Window {
 
     /// Makes room for a solid file's dictionary `dict`, where `pos` bytes are unpacked: a
     /// larger one only while the window has not wrapped yet.
-    fn fit(&mut self, dict: u64, pos: u64) -> Result<(), Error> {
+    pub(super) fn fit(&mut self, dict: u64, pos: u64) -> Result<(), Error> {
         let want = dict.clamp(MIN_WINDOW, MAX_WINDOW).next_power_of_two();
         if want > self.size {
             if pos > self.buf.len() as u64 {

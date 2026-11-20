@@ -467,23 +467,51 @@ pub(super) fn rar5(archive_flags: u64, files: &[File5]) -> Vec<u8> {
 
 /// A RAR 4 archive of `files` (name, data, method byte: 0x30 stored), each with its CRC.
 pub(super) fn rar4(files: &[(&str, &[u8], u8)]) -> Vec<u8> {
+    let files: Vec<File4> = files
+        .iter()
+        .map(|&(name, data, method)| File4 {
+            name,
+            plain: data,
+            packed: data,
+            method,
+            version: 29,
+            flags: 0,
+        })
+        .collect();
+    rar4_files(&files)
+}
+
+/// One file of a RAR 4 archive: what it unpacks to, its packed bytes, its method byte, the
+/// version needed to unpack it, and its header flags (0x10: solid).
+pub(super) struct File4<'a> {
+    pub name: &'a str,
+    pub plain: &'a [u8],
+    pub packed: &'a [u8],
+    pub method: u8,
+    pub version: u8,
+    pub flags: u16,
+}
+
+/// A RAR 4 archive of `files`, each header with its CRC.
+pub(super) fn rar4_files(files: &[File4]) -> Vec<u8> {
     let mut out = super::header::OLD_SIGNATURE.to_vec();
     out.extend_from_slice(&[0, 0, 0x73, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0]);
-    for &(name, data, method) in files {
-        let mut h = vec![0x74u8, 0x00, 0x80];
-        h.extend_from_slice(&((32 + name.len()) as u16).to_le_bytes());
-        h.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        h.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    for f in files {
+        let mut h = vec![0x74u8];
+        h.extend_from_slice(&(0x8000 | f.flags).to_le_bytes());
+        h.extend_from_slice(&((32 + f.name.len()) as u16).to_le_bytes());
+        h.extend_from_slice(&(f.packed.len() as u32).to_le_bytes());
+        h.extend_from_slice(&(f.plain.len() as u32).to_le_bytes());
         h.push(2);
-        h.extend_from_slice(&crc32fast::hash(data).to_le_bytes());
-        h.extend_from_slice(&[0, 0, 0, 0, 29, method]);
-        h.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        h.extend_from_slice(&crc32fast::hash(f.plain).to_le_bytes());
+        h.extend_from_slice(&[0, 0, 0, 0, f.version, f.method]);
+        h.extend_from_slice(&(f.name.len() as u16).to_le_bytes());
         h.extend_from_slice(&0x20u32.to_le_bytes());
-        h.extend_from_slice(name.as_bytes());
+        h.extend_from_slice(f.name.as_bytes());
         let crc = (crc32fast::hash(&h) & 0xffff) as u16;
         out.extend_from_slice(&crc.to_le_bytes());
         out.extend(h);
-        out.extend_from_slice(data);
+        out.extend_from_slice(f.packed);
     }
     out.extend_from_slice(&[0x3d, 0x7b, 0x7b, 0x00, 0x40, 0x07, 0x00]);
     out

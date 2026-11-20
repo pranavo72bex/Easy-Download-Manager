@@ -11,8 +11,10 @@
 //! RAR 5 archives are read whole: files stored as they are, and RAR 5's compression (methods
 //! 1 to 5) by dm's own decompressor (`unpack.rs`: LZ77 under Huffman codes, with the DELTA,
 //! E8, E8E9 and ARM filters), solid archives (one stream across many files) included. An
-//! archive of RAR 1.5 to 4.x has its stored files extracted; its compression is refused in
-//! words. Every file's CRC32 is checked as it is written; a mismatch fails the archive and
+//! archive of RAR 1.5 to 4.x has its stored files extracted, and those packed by RAR 2.9 to
+//! 4.x unpacked by dm's own decompressor for that format (`v3.rs`: LZ under its Huffman
+//! tables, PPMd, and the standard filters); the compression of RAR 2.x and older is refused
+//! in words. Every file's CRC32 is checked as it is written; a mismatch fails the archive and
 //! removes its folder.
 //!
 //! Refused before anything is written, in plain words: an archive with a password (its list
@@ -24,6 +26,7 @@ mod header;
 mod huffman;
 mod old;
 mod unpack;
+mod v3;
 
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -102,7 +105,7 @@ pub(super) fn extract_into(archive: &Path, folder: &Path, job: &Job) -> Result<E
             return Err(e);
         }
         // A solid file carries on the stream of the compressed file before it.
-        if let Pack::Lz { solid, .. } = entry.pack {
+        if let Pack::Lz { solid, .. } | Pack::Rar4 { solid, .. } = entry.pack {
             if solid && !streamed {
                 return Err(damaged("a solid file has no file before it"));
             }
@@ -192,6 +195,7 @@ fn write_all(
 ) -> Result<usize, Error> {
     let (mut done, mut files) = (0u64, 0usize);
     let mut stream: Option<Unpacker> = None;
+    let mut stream4: Option<v3::Unpacker> = None;
     let mut archive = File::open(path)?;
     let mut buf = vec![0u8; 256 * 1024];
     (job.progress)(0, expected);
@@ -235,6 +239,18 @@ fn write_all(
                     (s, _) => *s = Some(Unpacker::new(dict)),
                 }
                 let Some(unpacker) = stream.as_mut() else {
+                    return Err(damaged("a solid file has no file before it"));
+                };
+                if entry.packed > 0 || entry.size > 0 {
+                    unpacker.file(&mut packed, entry.size, &mut |b: &[u8]| out.take(b))?;
+                }
+            }
+            Pack::Rar4 { solid, dict } => {
+                match (&mut stream4, solid) {
+                    (Some(u), true) => u.solid(dict)?,
+                    (s, _) => *s = Some(v3::Unpacker::new(dict)),
+                }
+                let Some(unpacker) = stream4.as_mut() else {
                     return Err(damaged("a solid file has no file before it"));
                 };
                 if entry.packed > 0 || entry.size > 0 {

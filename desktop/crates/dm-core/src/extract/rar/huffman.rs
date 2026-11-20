@@ -78,6 +78,37 @@ impl Bits {
         self.skip(n);
         v
     }
+
+    /// Goes back (or on) to bit `at`, as `at()` gave it.
+    pub(super) fn seek(&mut self, at: u64) {
+        self.at = at;
+    }
+
+    /// Skips to the start of the next byte, if not at one.
+    pub(super) fn align(&mut self) {
+        self.at = (self.at + 7) & !7;
+    }
+
+    /// Bits not read yet.
+    pub(super) fn left(&self) -> u64 {
+        (self.buf.len() as u64 * 8).saturating_sub(self.at)
+    }
+
+    /// Whether more bits were read than there are.
+    pub(super) fn over(&self) -> bool {
+        self.at > self.buf.len() as u64 * 8
+    }
+
+    /// Drops the bytes wholly read and appends `more`, for a stream read in pieces; `at()`
+    /// counts from the first byte kept.
+    pub(super) fn refill(&mut self, more: &[u8]) {
+        let whole = usize::try_from(self.at >> 3)
+            .unwrap_or(usize::MAX)
+            .min(self.buf.len());
+        self.buf.drain(..whole);
+        self.at -= whole as u64 * 8;
+        self.buf.extend_from_slice(more);
+    }
 }
 
 /// One Huffman table, ready to decode.
@@ -186,7 +217,7 @@ pub(super) struct Tables {
 
 /// The repeat count after a length-table code of 16 to 19: three bits and 3, or seven bits
 /// and 11.
-fn run(bits: &mut Bits, short: bool) -> usize {
+pub(super) fn run(bits: &mut Bits, short: bool) -> usize {
     if short {
         bits.take(3) as usize + 3
     } else {
@@ -194,10 +225,10 @@ fn run(bits: &mut Bits, short: bool) -> usize {
     }
 }
 
-/// The code lengths of all four tables, as a block that gives new tables starts.
-pub(super) fn read_lengths(bits: &mut Bits) -> Result<[u8; ALL], Error> {
-    // The 20 level codes' own lengths: four bits each, 15 followed by a count of zeros
-    // (none: the length 15 itself).
+/// The 20 level codes the table lengths are written with, from their own lengths: four bits
+/// each, 15 followed by a count of zeros (none: the length 15 itself). RAR 4 writes them so
+/// too.
+pub(super) fn read_levels(bits: &mut Bits) -> Decoder {
     let mut levels = [0u8; LEVELS];
     let mut i = 0;
     while i < LEVELS {
@@ -216,7 +247,12 @@ pub(super) fn read_lengths(bits: &mut Bits) -> Result<[u8; ALL], Error> {
             i += 1;
         }
     }
-    let level = Decoder::new(&levels, 7);
+    Decoder::new(&levels, 7)
+}
+
+/// The code lengths of all four tables, as a block that gives new tables starts.
+pub(super) fn read_lengths(bits: &mut Bits) -> Result<[u8; ALL], Error> {
+    let level = read_levels(bits);
     let mut table = [0u8; ALL];
     let mut i = 0;
     while i < ALL {

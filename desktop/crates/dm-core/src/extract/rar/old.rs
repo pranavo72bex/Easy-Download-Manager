@@ -5,8 +5,9 @@
 
 //! The list of a RAR archive of versions 1.5 to 4.x, read from the format's public
 //! description: blocks of a 16-bit CRC, a type, flags and a size, a file block followed by
-//! its packed bytes. dm unpacks only the files such an archive stores as they are; its
-//! compression is refused in words, by the file it names, before anything is written.
+//! its packed bytes. dm unpacks the files such an archive stores as they are, and those
+//! packed by RAR 2.9 to 4.x (unpack version 29, `v3.rs`); the compression of RAR 2.x and
+//! older is refused in words, by the file it names, before anything is written.
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -22,6 +23,8 @@ const END: u8 = 0x7b;
 
 /// Its method byte for a file stored as it is.
 const STORED: u8 = 0x30;
+/// The unpack version of RAR 2.9 to 4.x's compression.
+const VERSION_29: u8 = 29;
 
 /// Reads the list of the old-format RAR archive at `path` (its signature already checked).
 pub(super) fn read(path: &Path, max_entries: usize) -> Result<Vec<Entry>, Error> {
@@ -106,7 +109,7 @@ fn file_entry(whole: &[u8], flags: u16, data_at: u64) -> Result<Entry, Error> {
     let crc = c.u32()?;
     // The time it was changed, as DOS writes it, and the version needed to unpack it.
     c.u32()?;
-    c.byte()?;
+    let version = c.byte()?;
     let method = c.byte()?;
     let name_len = c.u16()?;
     let attributes = c.u32()?;
@@ -124,8 +127,14 @@ fn file_entry(whole: &[u8], flags: u16, data_at: u64) -> Result<Entry, Error> {
     let dir = flags & 0x00e0 == 0x00e0;
     let pack = if dir || method == STORED {
         Pack::Stored
+    } else if version == VERSION_29 {
+        Pack::Rar4 {
+            solid: flags & 0x0010 != 0,
+            // 64 KiB times a power of two, in bits 5 to 7.
+            dict: (64 << 10) << ((flags >> 5) & 7),
+        }
     } else {
-        Pack::Refused("the compression of RAR 4 and older".into())
+        Pack::Refused("the compression of RAR 2.x and older".into())
     };
     let special = match host {
         // MS-DOS, Windows: a reparse point.

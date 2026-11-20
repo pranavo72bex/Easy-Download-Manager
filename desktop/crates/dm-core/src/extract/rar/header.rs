@@ -59,6 +59,8 @@ pub(super) enum Pack {
     /// RAR 5's compression (methods 1 to 5 differ only in effort); `solid` continues the
     /// stream of the compressed file before it; `dict` is the dictionary it needs, in bytes.
     Lz { solid: bool, dict: u64 },
+    /// RAR 4's compression (unpack version 29), LZ or PPMd; `solid` and `dict` as for RAR 5.
+    Rar4 { solid: bool, dict: u64 },
     /// Something dm does not unpack, named for [`Error::Method`].
     Refused(String),
 }

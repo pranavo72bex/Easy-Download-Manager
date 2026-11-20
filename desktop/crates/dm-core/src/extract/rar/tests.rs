@@ -11,7 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use super::super::{extract, is_archive, Limits};
-use super::writer::{greedy, pack, rar4, rar5, rar5_block, vint, File5};
+use super::writer::{greedy, pack, rar4, rar4_files, rar5, rar5_block, vint, File4, File5};
 use super::*;
 use std::sync::atomic::AtomicBool;
 
@@ -227,7 +227,7 @@ fn passwords_parts_and_methods_dm_does_not_unpack_are_refused_in_words() {
 }
 
 #[test]
-fn an_old_format_archive_has_its_stored_files_extracted_and_its_packing_refused() {
+fn an_old_format_archive_has_its_stored_files_extracted_and_older_packing_refused() {
     let dir = tempfile::tempdir().unwrap();
     let archive = rar4(&[
         ("docs\\a.txt", &b"old and stored"[..], 0x30),
@@ -239,14 +239,58 @@ fn an_old_format_archive_has_its_stored_files_extracted_and_its_packing_refused(
         b"old and stored"
     );
     assert_eq!(fs::read(got.folder.join("b.txt")).unwrap(), b"two");
+    // RAR 2.x's compression (version 20).
+    let older = File4 {
+        version: 20,
+        method: 0x33,
+        ..file4("a.txt", b"packed?", b"packed?", 0)
+    };
     refused(
-        &rar4(&[("a.txt", &b"packed?"[..], 0x33)]),
-        |e| matches!(e, Error::Method(m) if m.contains("RAR 4")),
+        &rar4_files(&[older]),
+        |e| matches!(e, Error::Method(m) if m.contains("RAR 2.x")),
     );
     let mut bad = rar4(&[("a.txt", &b"crc"[..], 0x30)]);
     let at = bad.windows(3).position(|w| w == b"crc").unwrap();
     bad[at] = b'x';
     refused(&bad, |e| e.to_string().contains("does not add up"));
+}
+
+fn file4<'a>(name: &'a str, plain: &'a [u8], packed: &'a [u8], flags: u16) -> File4<'a> {
+    File4 {
+        name,
+        plain,
+        packed,
+        method: 0x33,
+        version: 29,
+        flags,
+    }
+}
+
+#[test]
+fn a_rar4_archive_has_its_packed_and_solid_files_unpacked_and_checked() {
+    use super::v3::writer as w4;
+    let one = text(3000);
+    let two: Vec<u8> = one.iter().rev().copied().collect();
+    let three = noise(500);
+    let p1 = w4::pack(&w4::greedy(&[], &one));
+    let p2 = w4::pack(&w4::greedy(&one, &two));
+    let p3 = w4::pack(&w4::greedy(&[], &three));
+    let dir = tempfile::tempdir().unwrap();
+    let archive = rar4_files(&[
+        file4("one.txt", &one, &p1, 0),
+        file4("two.txt", &two, &p2, 0x10),
+        file4("three.bin", &three, &p3, 0),
+    ]);
+    let got = run(dir.path(), "four.rar", &archive).unwrap();
+    assert_eq!(got.files, 3);
+    assert_eq!(fs::read(got.folder.join("one.txt")).unwrap(), one);
+    assert_eq!(fs::read(got.folder.join("two.txt")).unwrap(), two);
+    assert_eq!(fs::read(got.folder.join("three.bin")).unwrap(), three);
+    // A wrong CRC fails the archive; a solid file first has nothing before it.
+    let bad = rar4_files(&[file4("one.txt", &three, &p1, 0)]);
+    refused(&bad, |e| e.to_string().contains("does not add up"));
+    let alone = rar4_files(&[file4("two.txt", &two, &p2, 0x10)]);
+    refused(&alone, |e| e.to_string().contains("damaged"));
 }
 
 #[test]
