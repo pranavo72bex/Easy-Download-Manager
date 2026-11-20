@@ -31,7 +31,7 @@ use base64::Engine as _;
 use dm_core::youtube::framed::messages::kind;
 use dm_core::youtube::framed::ump::put_part;
 use dm_core::youtube::framed::wire::{Message, Writer};
-use dm_core::{client, videopage, youtube, Quality};
+use dm_core::{client, videopage, youtube, Control, Error, Quality};
 
 use common::{options, tempdir};
 use mp4_samples::tracks;
@@ -134,7 +134,8 @@ fn media() -> &'static Media {
 }
 
 /// What each framed request said: its path and query, whether it carried the config and the
-/// cookie, and the formats it asked for.
+/// cookie, the formats it asked for, those it said had begun, what it said it held of each
+/// (format, milliseconds, first and last piece) and where it said the player was.
 #[derive(Debug, Clone)]
 struct Asked {
     uri: String,
@@ -143,9 +144,23 @@ struct Asked {
     audio: Option<u64>,
     video: Option<u64>,
     lmt: Option<u64>,
+    started: Vec<u64>,
+    held: Vec<(u64, u64, u64, u64)>,
+    player_ms: Option<u64>,
 }
 
 static SEEN: Mutex<Vec<Asked>> = Mutex::new(Vec::new());
+
+/// The control of a fetch the stream pauses, once, when it is asked for the picture's piece
+/// after [`PAUSED_AFTER`] ("framedResumed").
+static PAUSING: Mutex<Option<Control>> = Mutex::new(None);
+
+/// The picture's pieces a paused fetch holds.
+const PAUSED_AFTER: u64 = 2;
+
+/// How long the stream holds back its answer to the request it paused at: longer than a fetch
+/// takes to see a pause (`STOP_LOOK`, a quarter of a second).
+const PAUSED_ANSWER_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// The stand-in's origin, started once for every test here on a runtime of its own.
 fn stand_in() -> &'static str {
@@ -320,8 +335,29 @@ async fn framed(origin: String, uri: Uri, body: Bytes) -> Response {
         audio: request.message(16).and_then(|f| f.uint(1)),
         video: request.message(17).and_then(|f| f.uint(1)),
         lmt: request.message(17).and_then(|f| f.uint(2)),
+        started: request
+            .all_bytes(2)
+            .filter_map(|f| Message(f).uint(1))
+            .collect(),
+        held: request
+            .all_bytes(3)
+            .map(Message)
+            .filter_map(|r| {
+                let itag = r.message(1)?.uint(1)?;
+                Some((itag, r.uint(3)?, r.uint(4)?, r.uint(5)?))
+            })
+            .collect(),
+        player_ms: request.uint(4),
     });
     let query = uri.query().unwrap_or("");
+    // A fetch paused part-way: the pause, then the answer held back until it is seen.
+    if query.contains("id=framedResumed") && held_of(request, 137) == Some(PAUSED_AFTER) {
+        let pausing = PAUSING.lock().unwrap().take();
+        if let Some(control) = pausing {
+            control.pause();
+            tokio::time::sleep(PAUSED_ANSWER_WAIT).await;
+        }
+    }
     let mut out = Vec::new();
     if query.contains("id=framedToken") {
         let mut status = Writer::new();
@@ -522,4 +558,106 @@ async fn a_failed_framed_stream_gives_way_to_the_formats_with_an_address() {
     assert_eq!(bytes, media().picture_bytes, "the 720p picture, whole");
     assert_eq!(seen_for(id).len(), 1, "the framed stream asked once");
     assert!(!dir.path().join("parts").exists(), "the staging is cleared");
+}
+
+/// Every file under `dir` whose name ends with `suffix` and holds `format` (`f137`), with its
+/// length.
+fn staged(dir: &std::path::Path, format: &str, suffix: &str) -> Vec<u64> {
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap().flatten() {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if path.is_dir() {
+            found.extend(staged(&path, format, suffix));
+        } else if name.ends_with(suffix) && name.contains(&format!(".{format}.")) {
+            found.push(entry.metadata().unwrap().len());
+        }
+    }
+    found
+}
+
+/// A track's samples as they can be compared: bytes, times, keyframes.
+fn samples_of(joined: &[u8], handler: &[u8; 4]) -> Vec<(Vec<u8>, u64, i64, u32, bool)> {
+    let all = tracks(joined);
+    let track = all.iter().find(|t| &t.handler == handler).unwrap();
+    track
+        .samples
+        .iter()
+        .map(|s| (s.data.clone(), s.dts, s.offset, s.duration, s.sync))
+        .collect()
+}
+
+/// A fetch paused after some pieces goes on from them: each format's file is kept beside its
+/// record, the next run's first request says what is held of each and where the player is, the
+/// stream sends only the pieces after, and the video is the one a fetch never paused makes.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_paused_framed_fetch_goes_on_from_its_last_whole_piece() {
+    stand_in();
+    let id = "framedResumed";
+    let dir = tempdir();
+    let mut opts = options(dir.path());
+    *PAUSING.lock().unwrap() = Some(opts.control.clone());
+    let why = videopage::download_page(&client(), &page(id), &opts, None)
+        .await
+        .expect_err("the paused fetch ran to its end");
+    assert!(matches!(why, Error::Paused), "{why:?}");
+
+    // Kept: the picture's first boxes and two pieces, the sound's whole, each with its record.
+    let m = media();
+    let parts = dir.path().join("parts");
+    let picture = m.picture.0.len() + m.picture.1[..PAUSED_AFTER as usize].concat().len();
+    let sound = m.sound.0.len() + m.sound.1.concat().len();
+    assert_eq!(staged(&parts, "f137", ".framed"), vec![picture as u64]);
+    assert_eq!(staged(&parts, "f140", ".framed"), vec![sound as u64]);
+    assert_eq!(staged(&parts, "f137", ".framed.held").len(), 1);
+    assert_eq!(staged(&parts, "f140", ".framed.held").len(), 1);
+
+    let before = seen_for(id).len();
+    opts.control = Control::new();
+    let done = videopage::download_page(&client(), &page(id), &opts, None)
+        .await
+        .expect("the paused fetch did not go on");
+    let again = seen_for(id)[before..].to_vec();
+    // Asked from what it held: four seconds of the picture, its pieces 1 to 2; the sound's
+    // one piece; the player where the picture's end is. Only the picture's third was left:
+    // the request sent on, then one.
+    let first = &again[0];
+    let held_ms = PAUSED_AFTER * PIECE_MS;
+    assert!(
+        first.held.contains(&(137, held_ms, 1, PAUSED_AFTER)),
+        "{again:?}"
+    );
+    assert!(first.held.contains(&(140, PIECE_MS, 1, 1)), "{again:?}");
+    assert_eq!(first.player_ms, Some(held_ms), "{again:?}");
+    let mut started = first.started.clone();
+    started.sort_unstable();
+    assert_eq!(started, vec![137, 140], "{again:?}");
+    assert_eq!(again.len(), 2, "{again:?}");
+    assert!(!parts.exists(), "the staging is cleared");
+
+    // The same picture and sound as a fetch never paused.
+    let whole_dir = tempdir();
+    let whole = videopage::download_page(
+        &client(),
+        &page("framedWhole"),
+        &options(whole_dir.path()),
+        None,
+    )
+    .await
+    .expect("the fetch never paused did not download");
+    let (resumed, whole) = (
+        std::fs::read(&done.path).unwrap(),
+        std::fs::read(&whole.path).unwrap(),
+    );
+    for handler in [b"vide", b"soun"] {
+        assert!(
+            samples_of(&resumed, handler) == samples_of(&whole, handler),
+            "the {handler:?} track differs from a fetch never paused"
+        );
+    }
+    let bytes: usize = samples_of(&resumed, b"vide")
+        .iter()
+        .map(|s| s.0.len())
+        .sum();
+    assert_eq!(bytes, PICTURE_PIECES as usize * m.picture_bytes);
 }
