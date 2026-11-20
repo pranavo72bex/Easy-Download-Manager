@@ -276,13 +276,3 @@ pub(super) fn origin() -> String {
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| "https://www.youtube.com".to_string())
 }
-
-/// A `www.youtube.com` address on the test's stand-in where one is named (`DM_YOUTUBE_HOST`),
-/// else as it is.
-pub(crate) fn on_stand_in(url: &str) -> String {
-    let url = url.trim();
-    match url.strip_prefix("https://www.youtube.com") {
-        Some(rest) if rest.starts_with('/') => format!("{}{rest}", origin()),
-        _ => url.to_string(),
-    }
-}

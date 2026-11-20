@@ -71,11 +71,8 @@ pub(super) async fn fetch_choices(
     proxy: Option<&str>,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Option<Vec<Choice>> {
-    let mut builder = crate::with_tls(reqwest::Client::builder())
-        .user_agent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-             (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-        )
+    // The client a download's reading asks with, given less time.
+    let mut builder = crate::builder()
         .connect_timeout(PAGE_CONNECT_WITHIN)
         .timeout(PAGE_WITHIN);
     // A configuration script's choice is asked for the page's site.
@@ -83,25 +80,12 @@ pub(super) async fn fetch_choices(
         builder = builder.proxy(reqwest::Proxy::all(proxy).ok()?);
     }
     let client = builder.build().ok()?;
-    // A test's stand-in for YouTube, where one is named.
-    let url = crate::youtube::on_stand_in(url);
-    let url = url.as_str();
-    // `SOCS` answers the consent page some countries are sent to first.
-    let mut cookie = String::from("SOCS=CAI");
-    if let Some(theirs) = crate::cookies::header_with(sign_in, url) {
-        cookie = format!("{theirs}; {cookie}");
-    }
-    let reply = client
-        .get(url.trim())
-        .header("Accept-Language", "en-US,en;q=0.9")
-        .header("Cookie", cookie)
-        .send()
+    // The page asked as a download's reading asks it (its address, agent and cookies), which
+    // keeps it a moment: the download of a line picked here reads it from there, not from
+    // YouTube again (gaps row Y13).
+    let page = crate::youtube::watch_page_of(&client, url, sign_in)
         .await
         .ok()?;
-    if !reply.status().is_success() {
-        return None;
-    }
-    let page = reply.text().await.ok()?;
     let list = choices_of_page(&page);
     (!list.is_empty()).then_some(list)
 }

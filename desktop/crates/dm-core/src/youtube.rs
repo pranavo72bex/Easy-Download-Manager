@@ -34,6 +34,7 @@ mod choosing;
 mod clients;
 mod itags;
 mod kept;
+mod pages;
 mod player;
 mod playlist;
 mod reading;
@@ -46,7 +47,6 @@ use chapters::{chapters_in, largest_thumbnail, publish_date};
 #[cfg(test)]
 use choosing::{choose, xtags};
 use choosing::{choose_named, ended_stream_playlist, played_from_playlist, set_dubs_aside};
-pub(crate) use clients::on_stand_in;
 #[cfg(test)]
 use clients::{ask_player, sapisid_hash};
 use clients::{
@@ -59,13 +59,16 @@ pub use kept::kept_players;
 #[doc(hidden)]
 pub use kept::set_kept_players;
 use kept::{cut_program, keep_script, kept_script};
+use pages::{forget_pages, keep_page, kept_page};
 #[cfg(test)]
 use playlist::{channel_id_in, gather, playlist_title};
 pub use playlist::{
     channel_of, is_list, playlist_id, read_playlist, Channel, Playlist, PlaylistEntry,
 };
+pub(crate) use reading::watch_page_of;
 use reading::{
-    chosen_of, cuttable_of, fetch_script, formats_of, player_script, reading_of, watch_page,
+    chosen_of, cuttable_of, fetch_script, formats_of, player_script, reading_of, watch_address_of,
+    watch_page,
 };
 pub use solving::answers;
 use solving::{has_n, plain_build, reading_json, solve, unescaped, unlocked};
@@ -520,14 +523,22 @@ pub async fn read_at(
     staging: &Path,
 ) -> Result<String, Error> {
     let id = video_id(url).ok_or_else(|| Error::Internal("not a YouTube video address".into()))?;
-    tokio::time::timeout(
+    let within = tokio::time::timeout(
         WITHIN,
         read_within(
             client, &id, quality, container, frame_rate, caption, mp4_only, codec, sign_in, staging,
         ),
-    )
-    .await
-    .map_err(|_| Error::Internal("the page took too long to read".into()))?
+    );
+    let read = match within.await {
+        Ok(read) => read,
+        Err(_) => Err(Error::Internal("the page took too long to read".into())),
+    };
+    // A page that could not be read is asked afresh next time, not read again from where it
+    // was kept (gaps row Y13).
+    if read.is_err() {
+        forget_pages(&watch_address_of(&origin(), &id));
+    }
+    read
 }
 
 #[allow(clippy::too_many_arguments)]

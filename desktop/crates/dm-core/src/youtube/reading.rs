@@ -8,19 +8,30 @@
 
 use super::*;
 
-/// The watch page of video `id`.
+/// The address a video's watch page is asked at: past the check some videos' pages ask first
+/// (`bpctr`, `has_verified`).
+pub(super) fn watch_address_of(origin: &str, id: &str) -> String {
+    format!("{origin}/watch?v={id}&bpctr=9999999999&has_verified=1")
+}
+
+/// The watch page of video `id`, asked as every read of it asks, the panel's list too
+/// ([`watch_page_of`]), and kept a moment for the next ask of the same, so the download of a
+/// line the list showed does not fetch the page again (gaps row Y13).
 pub(super) async fn watch_page(
     client: &reqwest::Client,
     origin: &str,
     id: &str,
     sign_in: Option<&crate::cookies::SignIn>,
 ) -> Result<String, Error> {
-    let watch = format!("{origin}/watch?v={id}&bpctr=9999999999&has_verified=1");
+    let watch = watch_address_of(origin, id);
     // The consent answer some countries' pages ask for first, and the
     // person's own session where the page handed one over.
     let mut cookie = String::from("PREF=hl=en&tz=UTC; SOCS=CAI");
     if let Some(theirs) = crate::cookies::header_with(sign_in, &watch) {
         cookie = format!("{theirs}; {cookie}");
+    }
+    if let Some(kept) = kept_page(&watch, &cookie) {
+        return Ok(kept);
     }
     let page = crate::redirects::send(
         client
@@ -30,7 +41,21 @@ pub(super) async fn watch_page(
             .header(reqwest::header::COOKIE, &cookie),
     )
     .await?;
-    text_capped(Error::refused_or(page).await?, PAGE_MOST).await
+    let page = Error::refused_or(page).await?;
+    let page = text_capped(page, PAGE_MOST).await?;
+    keep_page(&watch, &cookie, &page);
+    Ok(page)
+}
+
+/// The watch page of the video `url` names, as a download's reading asks it ([`watch_page`]):
+/// what the panel's list reads the video's qualities from, kept for the reading that follows.
+pub(crate) async fn watch_page_of(
+    client: &reqwest::Client,
+    url: &str,
+    sign_in: Option<&crate::cookies::SignIn>,
+) -> Result<String, Error> {
+    let id = video_id(url).ok_or_else(|| Error::Internal("not a YouTube video address".into()))?;
+    watch_page(client, &origin(), &id, sign_in).await
 }
 
 /// The player script, where its timestamp is wanted now (the page gave none) and for the
