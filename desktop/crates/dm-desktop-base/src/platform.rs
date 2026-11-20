@@ -10,8 +10,7 @@
 //! (`autostart` on Linux, `login` on macOS and Windows), `toast` (Windows'
 //! notifications), `signals` (a logout or `kill` quits dm as Exit does),
 //! `system_theme`, `contrast`, `accent` and `mica` (dark or light, High
-//! Contrast's colours, the accent colour and Windows 11's backdrop),
-//! `region` (how the computer writes numbers and dates), Windows' taskbar
+//! Contrast's colours, the accent colour and Windows 11's backdrop), Windows' taskbar
 //! button (`taskbar`'s progress, `jumplist`), `drops` (what the system's
 //! drop target takes), `opened` (links and files macOS opens with dm) and
 //! `a11y_tree` (what VoiceOver is given of each window); `metered` (whether the
@@ -33,7 +32,6 @@ pub mod mica;
 pub mod opened;
 pub mod power;
 pub mod quiet;
-pub mod region;
 pub mod signals;
 pub mod system_theme;
 pub mod taskbar;

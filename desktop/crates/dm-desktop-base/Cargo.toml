@@ -19,18 +19,14 @@ path = "src/lib.rs"
 [dependencies]
 dm-core.workspace = true
 dm-shell.workspace = true
-# Its files that are not code: desktop/assets/ (gaps row X9).
-dm-assets.workspace = true
+# What the windows and dialogs say and decide (gaps row N15), re-exported
+# under each module's old name (lib.rs): shared with the phone's window.
+dm-view.workspace = true
 serde_json.workspace = true
 # The control port's window answers, as typed shapes (probe.rs).
 serde = { workspace = true, features = ["derive"] }
 # The control protocol's token (control.rs).
 getrandom.workspace = true
-# The system's language, for the window's first one: from the OS itself,
-# since an app opened from the Dock or a login item has no LANG (i18n.rs).
-sys-locale.workspace = true
-# Addresses as a row's details say them (format.rs, details.rs).
-url.workspace = true
 # The login item on macOS and Windows (login.rs): a launch agent, the Run key.
 auto-launch.workspace = true
 # A removed file to the Recycle Bin or the Trash (desktop.rs).
@@ -118,6 +114,8 @@ zbus.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 proptest.workspace = true
+# Addresses as the fuzzed readers take them (tests/fuzz.rs).
+url.workspace = true
 
 [lints]
 workspace = true

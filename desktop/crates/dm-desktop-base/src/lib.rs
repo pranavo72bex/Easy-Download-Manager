@@ -26,10 +26,11 @@
 //! language picked, and the catalogs), `format` (how a row's numbers are
 //! said) and `details` (the text Copy details puts on the clipboard).
 //!
-//! In three folders, each saying what is in it: `platform` (the system's
-//! services), `view` (what the windows and dialogs say and decide) and `run`
-//! (the ways dm runs). Every module is reached from the crate's root, as
-//! `dm_desktop_base::rows`, wherever its folder is. What goes wrong is said
+//! In two folders, each saying what is in it: `platform` (the system's
+//! services) and `run` (the ways dm runs). What the windows and dialogs say
+//! and decide, and `region`, are dm-view's (gaps row N15), which the phone's
+//! window shares. Every module is reached from the crate's root, as
+//! `dm_desktop_base::rows`, wherever it is. What goes wrong is said
 //! in the crate's one error type, [`Error`] (gaps row A9).
 
 // Never crash on what comes from outside: no unwrap, expect or panic in
@@ -39,12 +40,12 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
-mod error;
 mod platform;
 mod run;
-mod view;
 
-pub use error::Error;
+// The crate's one error type, dm-view's, which its dialogs' models answer
+// in too (gaps row N15).
+pub use dm_view::Error;
 
 #[cfg(target_os = "macos")]
 pub use platform::opened;
@@ -52,13 +53,15 @@ pub use platform::opened;
 pub use platform::toast;
 pub use platform::{
     a11y_tree, accent, autostart, awake, contrast, desktop, drops, jumplist, login, metered, mica,
-    power, quiet, region, signals, system_theme, taskbar, wake,
+    power, quiet, signals, system_theme, taskbar, wake,
 };
 pub use run::{boot, cli, control, headless, mcp, modes, probe, session, wakes};
-pub use view::{
+// What the windows and dialogs say and decide, and how the computer writes
+// numbers and dates: dm-view's (gaps row N15), under their old names.
+pub use dm_view::{
     add_url, asks, columns, details, file_info, find, format, grabber, held, i18n, links_import,
-    options, progress, project, row_edits, rows, save_to, scheduler, selection, toolbar, tray,
-    zip_list,
+    options, progress, project, region, row_edits, rows, save_to, scheduler, selection, toolbar,
+    tray, zip_list,
 };
 // View › Statistics and a progress window's speed line (gaps row W15).
-pub use view::statistics;
+pub use dm_view::statistics;

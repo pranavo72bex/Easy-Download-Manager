@@ -56,7 +56,7 @@ fn ask() -> Option<Region> {
     // The person's own choices in Region › Additional settings, which
     // Windows keeps whatever the region's defaults are.
     let key = r"Control Panel\International";
-    let read = |name: &str| crate::autostart::registry::string(key, name);
+    let read = |name: &str| dm_shell::registry::values::string(key, name);
     let decimal = read("sDecimal")?.chars().next()?;
     let order = match read("iDate").as_deref() {
         Some("0") => Order::MonthDayYear,

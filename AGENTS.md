@@ -50,14 +50,17 @@ extension that hands it the browser's downloads.
   the same app (`docs/architecture/`). `crates/dm-desktop-base` is what the
   desktop program does that is not drawing, with no window toolkit: `Desktop`
   (the application's `Platform`), the login item, the control port, MCP, the
-  command line, the words (`i18n`, its catalogs in `assets/i18n`: a string added to the
-  window goes into every catalog, into `template/catalog.json` with an empty translation,
-  and, translated without a native speaker, into each `unread/<code>.json`; `cargo xtask
-  i18n` counts them, `docs/guide/translating.md`) and
-  numbers (`format`), and the system's services; its modules are in three folders,
-  `platform/` (the system's services), `view/` (the dialogs' models and words) and `run/`
-  (the ways dm runs, one `modes::Mode` parsed from the command line), each reached from the
-  crate's root as before (`dm_desktop_base::rows`). `crates/dm-gpui` is the
+  command line and the system's services; its modules are in two folders,
+  `platform/` (the system's services) and `run/` (the ways dm runs, one `modes::Mode`
+  parsed from the command line), each reached from the crate's root. `crates/dm-view` is
+  what the windows and dialogs say and decide, with no window toolkit and none of the
+  desktop's system crates, so the phone's window shares it (gaps row N15): the words
+  (`i18n`, its catalogs in `assets/i18n`: a string added to the window goes into every
+  catalog, into `template/catalog.json` with an empty translation, and, translated without
+  a native speaker, into each `unread/<code>.json`; `cargo xtask i18n` counts them,
+  `docs/guide/translating.md`), numbers (`format`), the rows, columns and dialogs' models
+  (`view/`) and `region`; dm-desktop-base re-exports each module under its old name
+  (`dm_desktop_base::rows`), so the window names them as before. `crates/dm-gpui` is the
   window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
   no web view, plus the tray: one file per part of the window, in five
   folders (`window/`: `list.rs` the rows and their reads, `tick.rs` what each
@@ -268,7 +271,7 @@ stands against each rule is in `docs/optimization-audit.md`, and what is
 still missing is in `docs/gaps.md`, rows 180 to 192.
 
 1. The engine never imports GPUI or any other window toolkit. `dm-core`,
-   `dm-shell`, `dm-desktop-base` and `dm-protocol` stay free of them, and
+   `dm-shell`, `dm-view`, `dm-desktop-base` and `dm-protocol` stay free of them, and
    `cargo xtask layers` refuses a change that breaks this.
 2. Render functions and event handlers never block. This rules out the file
    system, the network, `Backend` calls that `block_on` the engine, a

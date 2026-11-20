@@ -12,6 +12,8 @@
 
 use crate::Error;
 
+pub mod values;
+
 /// The part of the registry a key is in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Root {

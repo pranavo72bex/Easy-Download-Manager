@@ -14,7 +14,8 @@
 //! Copy details puts on the clipboard), `project` (About's and Help's
 //! pages), `toolbar` and `tray` (their words and styles). How each is drawn,
 //! and where, is the window's. Each is reached from the crate's root as
-//! before (`dm_desktop_base::rows`).
+//! before (`dm_view::rows`, and `dm_desktop_base::rows` through its
+//! re-export).
 
 pub mod add_url;
 pub mod asks;

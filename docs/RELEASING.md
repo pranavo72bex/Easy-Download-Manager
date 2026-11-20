@@ -88,7 +88,8 @@ page by hand. Keep the copy.
 ```sh
 # The version appears in these places and they must agree.
 $EDITOR desktop/crates/dm-gpui/Cargo.toml      # version (and dm-core's, dm-shell's,
-                                               # dm-desktop-base's: a test holds them equal)
+                                               # dm-desktop-base's, dm-view's: a test holds
+                                               # them equal)
 $EDITOR desktop/packaging/PKGBUILD             # pkgver
 
 cd desktop && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings

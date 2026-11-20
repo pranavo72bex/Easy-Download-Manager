@@ -77,13 +77,17 @@ fn wanted() -> BTreeSet<String> {
         .iter()
         .flat_map(|(_, text)| catalog(text).into_keys())
         .collect();
-    // The window's source and what it says through dm-desktop-base.
+    // The window's source and what it says through dm-desktop-base and dm-view.
     let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let base = here.join("../dm-desktop-base/src");
-    assert!(base.is_dir(), "{} is not there", base.display());
+    let view = here.join("../dm-view/src");
+    for dir in [&base, &view] {
+        assert!(dir.is_dir(), "{} is not there", dir.display());
+    }
     let files = rust_files(&here.join("src"))
         .into_iter()
-        .chain(rust_files(&base));
+        .chain(rust_files(&base))
+        .chain(rust_files(&view));
     for file in files {
         let text = std::fs::read_to_string(file).unwrap();
         // The window's source, not its tests' made-up strings.

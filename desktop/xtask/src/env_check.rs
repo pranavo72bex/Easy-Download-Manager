@@ -25,6 +25,7 @@ const SOURCES: &[&str] = &[
     "desktop/crates/dm-core/src",
     "desktop/crates/dm-shell/src",
     "desktop/crates/dm-test-support/src",
+    "desktop/crates/dm-view/src",
     "desktop/crates/dm-desktop-base/src",
     "desktop/crates/dm-gpui/src",
     "desktop/crates/dm-android/src",

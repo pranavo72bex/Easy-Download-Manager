@@ -185,9 +185,10 @@ why. Install to `/Applications` (or `make install`) and register that copy.
 engine and has no idea a screen exists; `dm-net` is how it reaches a server (the HTTP client,
 proxies, sign-ins, cookies, `Error`); `dm-media` is dm's own media code (the muxers, the MP3
 and GIF encoders, the decoders), files in and files out, which the engine calls; `dm-shell` is the settings, the
-browser hand-off, startup and the application layer; `dm-desktop-base` is what
-the program does that is not drawing (the control port, the command line,
-MCP, the words); `dm-gpui` is the window, drawn with GPUI — no web view, no
+browser hand-off, startup and the application layer; `dm-view` is what the
+windows say and decide (the words, a row's numbers, the dialogs' models), shared
+with the phone; `dm-desktop-base` is what the program does that is not drawing
+(the control port, the command line, MCP, the system's services); `dm-gpui` is the window, drawn with GPUI — no web view, no
 Electron.
 
 ```sh
@@ -600,8 +601,12 @@ desktop/
   crates/dm-safari/       Safari's extension's program (macOS): each message to `dm --native-host`
   crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup;
                           app/ the application layer every window drives
+  crates/dm-view/         what the windows say and decide, no toolkit and no system crate
+                          (gaps row N15): view/ (i18n, format, rows, columns, details, the
+                          dialogs' models) and region.rs; the phone's window shares it
   crates/dm-desktop-base/ the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,
-                          the system's services (tray, toasts, taskbar…)
+                          the system's services (tray, toasts, taskbar…); dm-view's modules
+                          re-exported under their old names
   crates/dm-gpui/         the window shipped, in GPUI: window/ (list.rs the rows and each wake's
                           read, tick.rs, table.rs, menus.rs, the bars, theme.rs), dialogs/ (one
                           file per window beside the main one), options.rs with options/pages.rs

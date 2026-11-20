@@ -1,0 +1,39 @@
+[package]
+name = "dm-view"
+# One number with dm-gpui's (its tests hold them equal): the support block's
+# version is this crate's (details.rs).
+version = "0.10.0"
+authors = ["pranavo72bex"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (desktop/deny.toml).
+publish = false
+description = "dm — what its windows and dialogs say and decide, with no window toolkit and no system service: the words, a row's numbers, the dialogs' models"
+
+# The view code every window of dm shares (gaps row N15): the desktop's window
+# through dm-desktop-base, which re-exports each module under its old name, and
+# the phone's, which may not link the desktop's system crates. `cargo xtask
+# layers` forbids it every window crate.
+[lib]
+name = "dm_view"
+path = "src/lib.rs"
+
+[dependencies]
+dm-core.workspace = true
+dm-shell.workspace = true
+# The catalogs, its files that are not code: desktop/assets/ (i18n.rs, gaps row X9).
+dm-assets.workspace = true
+# The queue's and the dialogs' JSON (asks.rs, columns.rs, details.rs).
+serde_json.workspace = true
+# The system's language, for the window's first one: from the OS itself,
+# since an app opened from the Dock or a login item has no LANG (i18n.rs).
+sys-locale.workspace = true
+# Addresses as a row's details say them (format.rs, details.rs).
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

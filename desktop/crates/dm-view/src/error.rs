@@ -3,9 +3,10 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The crate's one error type (gaps row A9): what went wrong, in the sentence a person reads,
-//! byte for byte as it was when it was a `String`. It reads as that text where text is wanted
-//! (`Deref` to `str`, compared with a `str`), and turns into a `String` where a caller keeps one.
+//! The crate's one error type (gaps row A9), and dm-desktop-base's, which re-exports it: what
+//! went wrong, in the sentence a person reads, byte for byte as it was when it was a `String`.
+//! It reads as that text where text is wanted (`Deref` to `str`, compared with a `str`), and
+//! turns into a `String` where a caller keeps one.
 
 use std::fmt;
 

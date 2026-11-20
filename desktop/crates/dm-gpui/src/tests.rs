@@ -12,6 +12,7 @@
 fn this_window_carries_the_version_dm_is_released_under() {
     for manifest in [
         include_str!("../../dm-desktop-base/Cargo.toml"),
+        include_str!("../../dm-view/Cargo.toml"),
         include_str!("../../dm-shell/Cargo.toml"),
         include_str!("../../dm-core/Cargo.toml"),
     ] {

@@ -386,6 +386,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-test-support/Cargo.toml",
+        "desktop/crates/dm-view/Cargo.toml",
         "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-gpui/Cargo.toml",
         "desktop/crates/dm-android/Cargo.toml",
@@ -410,6 +411,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-core/Cargo.toml",
         "desktop/crates/dm-shell/Cargo.toml",
         "desktop/crates/dm-test-support/Cargo.toml",
+        "desktop/crates/dm-view/Cargo.toml",
         "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-gpui/Cargo.toml",
         "desktop/crates/dm-android/Cargo.toml",
@@ -453,10 +455,18 @@ fn layers() -> Result<(), String> {
             "dm-core" => (&["dm-js", "dm-media", "dm-net", "dm-torrent"], true, false),
             // Around the window but not the window.
             "dm-shell" => (&["dm-assets", "dm-core", "dm-protocol"], true, false),
+            // What the windows and dialogs say and decide (gaps row N15): the desktop's window
+            // and the phone's share it, so it uses no window and none of the desktop's system
+            // services.
+            "dm-view" => (
+                &["dm-assets", "dm-core", "dm-protocol", "dm-shell"],
+                true,
+                false,
+            ),
             // What the desktop program does that is not drawing: any window
             // may use it, so it uses none.
             "dm-desktop-base" => (
-                &["dm-assets", "dm-core", "dm-protocol", "dm-shell"],
+                &["dm-assets", "dm-core", "dm-protocol", "dm-shell", "dm-view"],
                 true,
                 false,
             ),
@@ -467,6 +477,7 @@ fn layers() -> Result<(), String> {
                     "dm-core",
                     "dm-protocol",
                     "dm-shell",
+                    "dm-view",
                     "dm-desktop-base",
                 ],
                 false,
@@ -474,7 +485,7 @@ fn layers() -> Result<(), String> {
             ),
             // The phone's engine (gaps rows N1, N3): the application's rules over the engine,
             // with the phone's Compose window on the other side of UniFFI; no window here.
-            "dm-android" => (&["dm-core", "dm-shell"], true, false),
+            "dm-android" => (&["dm-core", "dm-shell", "dm-view"], true, false),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),
             // Safari's extension's program (gaps row R4): it starts dm's host for each message
@@ -568,6 +579,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-core",
         "desktop/crates/dm-shell",
         "desktop/crates/dm-test-support",
+        "desktop/crates/dm-view",
         "desktop/crates/dm-desktop-base",
         "desktop/crates/dm-gpui",
         "desktop/crates/dm-android",
@@ -605,6 +617,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-core",
         "desktop/crates/dm-shell",
         "desktop/crates/dm-test-support",
+        "desktop/crates/dm-view",
         "desktop/crates/dm-desktop-base",
         "desktop/crates/dm-gpui",
         "desktop/crates/dm-android",
@@ -873,6 +886,7 @@ fn privacy() -> Result<(), String> {
         "desktop/crates/dm-shell/src",
         "desktop/crates/dm-protocol/src",
         "desktop/crates/dm-safari/src",
+        "desktop/crates/dm-view/src",
         "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-gpui/src",
         "desktop/crates/dm-android/src",
