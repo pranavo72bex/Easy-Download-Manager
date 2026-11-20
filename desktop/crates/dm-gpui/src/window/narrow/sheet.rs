@@ -18,8 +18,8 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
-/// An item's height: a finger's, as a phone's menus have them.
-const ITEM_HEIGHT: f32 = 40.0;
+/// An item's height: a finger's target, as a phone's menus have them.
+const ITEM_HEIGHT: f32 = space::TOUCH;
 
 /// The sheet's widest, in points.
 const WIDEST: f32 = 320.0;
@@ -82,7 +82,7 @@ pub(super) fn drawn(
     let viewport = window.viewport_size();
     let width = (f32::from(viewport.width) - crate::window::zoom::of(2.0 * space::XL))
         .min(crate::window::zoom::of(WIDEST));
-    let top = crate::window::titlebar::height();
+    let top = crate::window::titlebar::narrow_height();
     let walked = sheet.pages.len() > 1;
     let mut panel = div()
         .id("sheet")

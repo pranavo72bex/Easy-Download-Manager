@@ -157,3 +157,91 @@ fn at_the_desktops_least_width_the_layout_is_the_desktops() {
     h.until_shown("Places");
     assert!(!h.shows("Tasks"), "{:?}", h.texts());
 }
+
+/// The top bar's search opens the desktop's own search box across it: typing narrows the cards
+/// as the desktop's box narrows the rows, how many are left said as it says it; its close
+/// clears the words and gives the bar back.
+#[test]
+fn search_at_a_phones_width_narrows_the_cards() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    add_later(&mut h, &world, &["file.zip", "page.html", "other.pdf"]);
+    h.until_shown("other.pdf");
+    let filter = dm_desktop_base::i18n::t("Filter");
+    h.person_click(filter, 1);
+    h.until("the search box open", |h| {
+        h.view(|view| view.narrow_searching())
+    });
+    h.until("the bar to give way to the box", |h| !h.shows("Places"));
+    h.type_text("page");
+    h.until("the cards narrowed", |h| {
+        h.view(|view| view.list.shown.len() == 1)
+    });
+    h.until_shown("1 shown");
+    assert!(h.shows("page.html"), "{:?}", h.texts());
+    assert!(!h.shows("file.zip"), "{:?}", h.texts());
+    h.person_click(dm_desktop_base::i18n::t("Close"), 1);
+    h.until("every card again, the bar back", |h| {
+        h.view(|view| view.list.shown.len() == 3 && !view.narrow_searching())
+    });
+    h.until_shown("Places");
+    assert!(
+        h.view(|view| view.list.filter_text.is_empty()),
+        "the words stayed"
+    );
+}
+
+/// The top bar names the place chosen, as the drawer lists it; at All, "dm".
+#[test]
+fn the_top_bar_names_the_place_chosen() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.until_shown("dm");
+    let finished = dm_desktop_base::i18n::t("Finished");
+    assert!(!h.shows(finished), "{:?}", h.texts());
+    h.update(|view, cx| {
+        view.choose(Place::Finished);
+        cx.notify();
+    });
+    h.until_shown(finished);
+}
+
+/// The list's kept place across a refresh counts cards at a phone's width: the card at the
+/// top stays there when the cards are sorted the other way under it.
+#[test]
+fn the_card_at_the_top_holds_its_place_across_a_refresh() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    let names: Vec<String> = (1..=40).map(|n| format!("part{n:02}.bin")).collect();
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    add_later(&mut h, &world, &names);
+    // By name, A to Z, whatever sort another test kept.
+    h.update(|view, cx| {
+        view.list.sort = None;
+        view.sort_by(dm_desktop_base::columns::Column::Name, cx);
+    });
+    let card = f32::from(crate::window::zoom::px(crate::window::narrow::CARD_HEIGHT));
+    h.update(|view, _| {
+        let state = view.list.scroll.0.borrow();
+        state
+            .base_handle
+            .set_offset(gpui::point(gpui::px(0.0), gpui::px(-20.0 * card)));
+    });
+    h.until("the cards laid out scrolled", |h| {
+        h.view(|view| view.list.visible.start >= 19)
+    });
+    let top = |view: &mut crate::window::list::Downloads| {
+        let offset = f32::from(view.list.scroll.0.borrow().base_handle.offset().y);
+        view.id_at((-offset / card).floor() as usize)
+    };
+    let was = h.view(top).expect("a card at the top");
+    // Sorted the other way (Z to A): the card at 20 of 0 to 39 is at 19, above it one fewer.
+    h.update(|view, cx| view.sort_by(dm_desktop_base::columns::Column::Name, cx));
+    h.until("the sort", |h| {
+        h.view(|view| view.position_of(was) == Some(19))
+    });
+    assert_eq!(h.view(top), Some(was), "the list moved");
+}

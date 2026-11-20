@@ -23,6 +23,7 @@ use crate::window::theme::Theme;
 mod cards;
 mod sheet;
 
+pub(crate) use cards::CARD_HEIGHT;
 pub(crate) use sheet::Sheet;
 
 /// The width, in logical points, below which the window is laid out as a phone's. Under the
@@ -59,6 +60,11 @@ pub(crate) struct Narrow {
     pub(crate) drawer: Option<Place>,
     /// The card pressed and when, for a long press.
     pub(crate) pressed: Option<(Id, std::time::Instant)>,
+    /// The search box opened across the top bar by its search button (or Find).
+    pub(crate) searching: bool,
+    /// Whether the last frame was laid out as a phone's: the list's kept place then counts
+    /// cards, not the table's rows (`refresh::top_row`).
+    pub(crate) laid_out: bool,
 }
 
 impl Downloads {
@@ -140,6 +146,29 @@ impl Downloads {
             .when(empty, |list| {
                 list.child(crate::window::table::empty(self, theme, cx))
             })
+    }
+
+    /// Whether the top bar shows the search box: opened by its button or Find, or words in it
+    /// (typed at a desktop's width, say) still narrowing the list.
+    pub(crate) fn narrow_searching(&self) -> bool {
+        self.layout.narrow.searching || !self.list.filter_text.trim().is_empty()
+    }
+
+    /// The top bar's search: the desktop's search box across it, the keyboard in it, its words
+    /// chosen, as Find puts them.
+    pub(crate) fn open_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.layout.narrow.drawer = None;
+        self.layout.narrow.sheet = None;
+        self.find(window, cx);
+        cx.notify();
+    }
+
+    /// The search box's close: its words cleared, as the desktop's ✕ and Escape clear them,
+    /// the top bar back, and the keyboard back to the list.
+    pub(crate) fn close_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.layout.narrow.searching = false;
+        self.clear_filter(window, cx);
+        window.focus(&self.focus, cx);
     }
 
     /// The top bar's Places: the drawer opened, or closed where open.
