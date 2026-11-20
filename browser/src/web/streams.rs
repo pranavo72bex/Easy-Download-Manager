@@ -307,7 +307,17 @@ async fn describe_playlist(tab: i64, url: &str, requester: &str) {
         return;
     }
     let page = PAGES.with(|p| p.borrow().now(tab));
-    let body = match fetch_text(url, requester, decide::PLAYLIST_READ_CAP, 4000.0).await {
+    let mut read = fetch_text(url, requester, decide::PLAYLIST_READ_CAP, 4000.0).await;
+    // Refused, asked once more a second later: Dailymotion's director of its master playlists
+    // refuses one ask in ten or so and serves the next (issue #45), as the app asks again.
+    if read
+        .as_ref()
+        .is_err_and(|why| why.ends_with("answered 403"))
+    {
+        sleep(1000.0).await;
+        read = fetch_text(url, requester, decide::PLAYLIST_READ_CAP, 4000.0).await;
+    }
+    let body = match read {
         Ok(body) => body,
         Err(why) => {
             log("debug", &format!("a playlist was not read: {why}"));

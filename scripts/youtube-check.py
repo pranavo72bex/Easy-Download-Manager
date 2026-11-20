@@ -72,6 +72,39 @@ PLAY_AT = """(() => { const b = document.querySelector('.ytp-play-button');
   return r.width > 0 ? [r.left + r.width / 2, r.top + r.height / 2] : null; })()"""
 
 
+# What YouTube's own player says of the video: its answer's playability (`OK`, or
+# `LOGIN_REQUIRED` with "Sign in to confirm you're not a bot", which a CI machine's address
+# meets, issue #45) and the error it shows over the picture, if any. A player that will not
+# play is a wall, not dm's fault: the panel stays off a player covered by its error.
+PLAYABILITY = """(() => { const p = document.querySelector('#movie_player'); let r = null;
+  try { r = p && p.getPlayerResponse && p.getPlayerResponse(); } catch (e) {}
+  const s = (r && r.playabilityStatus) || (window.ytInitialPlayerResponse || {}).playabilityStatus || {};
+  const e = document.querySelector('.ytp-error');
+  const shown = e && e.getBoundingClientRect().width > 0
+    ? (e.innerText || '').trim().split(/\\s+/).join(' ').slice(0, 160) : '';
+  return { status: s.status || '', reason: String(s.reason || '').slice(0, 160), error: shown }; })()"""
+
+
+def wall(tab):
+    """What YouTube's player says where it will not play the video, or None where it would."""
+    said = tab.evaluate(PLAYABILITY) or {}
+    if said.get("status") in ("", "OK") and not said.get("error"):
+        return None
+    return f"YouTube's player says {said.get('status') or 'no'}: {said.get('reason') or said.get('error')}"
+
+
+def key(tab, name, code, number):
+    """A key pressed and let go, as a person presses it on the focused page."""
+    for kind in ("keyDown", "keyUp"):
+        tab.call("Input.dispatchKeyEvent", type=kind, key=name, code=code, text=name if kind == "keyDown" else "",
+                 windowsVirtualKeyCode=number, nativeVirtualKeyCode=number)
+
+
+MUTED_PLAY = """(() => { const v = [...document.querySelectorAll('video')]
+  .sort((a, b) => b.clientWidth - a.clientWidth)[0]; if (!v) return 'none'; v.muted = true;
+  const p = v.play(); return p && p.then ? p.then(() => 'played', e => String(e).slice(0, 120)) : 'played'; })()"""
+
+
 def press_play(tab):
     """Starts a paused player as a person does, and says whether it plays.
 
@@ -84,10 +117,13 @@ def press_play(tab):
     def plays():
         return not (tab.evaluate(RECT) or {}).get("paused", True)
 
-    for attempt in range(3):
+    for attempt in range(5):
         # The page may be starting it itself: given a moment first.
         if cc.wait_for(plays, 2):
             return True
+        # A player that will not play (a bot check, a sign-in) is not pressed again.
+        if wall(tab):
+            return False
         rect = tab.evaluate(RECT)
         if not rect:
             return False
@@ -96,7 +132,7 @@ def press_play(tab):
             # The picture: YouTube's large play button sits there while it
             # holds the video, and a click on the picture plays it.
             cc.click_at(tab, *middle)
-        else:
+        elif attempt < 3:
             # The controls show while the pointer is over the player; then
             # the play button itself.
             cc.mouse(tab, "mouseMoved", *middle)
@@ -107,6 +143,14 @@ def press_play(tab):
             else:
                 tab.evaluate("(document.querySelector('.ytp-play-button') || document.querySelector('video'))"
                              ".click(), 1", gesture=True)
+        elif attempt == 3:
+            # YouTube's own key for play and pause, on the player given the focus.
+            tab.evaluate("(document.querySelector('#movie_player') || document.body).focus(), 1")
+            key(tab, "k", "KeyK", 75)
+        else:
+            # Where the browser lets only a silent video start by itself (Edge on a CI
+            # machine with no sound card), the picture plays muted; its download is the same.
+            tab.evaluate(MUTED_PLAY, gesture=True)
         if cc.wait_for(plays, 6):
             return True
     return plays()
@@ -138,12 +182,23 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     rect = cc.wait_for(settled, 30)
     if not cc.check("YouTube: a player is on the page", bool(rect), tab.evaluate("document.title")):
         return
+    # A player that says it will not play (Linux CI, 2026-11-19: paused and pressed in vain, the
+    # panel then off it) is said as YouTube's wall, and site-table.py tells it from dm's fault.
+    refused = cc.wait_for(lambda: wall(tab), 3)
+    if refused:
+        cc.check("YouTube: its player offers the video", False, refused)
+        return
     # The panel is offered once a video plays. Where
     # the browser's autoplay policy holds it (Chromium on Linux does), the
     # person presses play first, and so does this.
     if rect.get("paused"):
         playing = press_play(tab)
-        cc.check("YouTube: pressing play on the paused player plays it", playing, str(tab.evaluate(RECT)))
+        refused = None if playing else wall(tab)
+        if refused:
+            cc.check("YouTube: its player offers the video", False, refused)
+            return
+        cc.check("YouTube: pressing play on the paused player plays it", playing,
+                 f"{tab.evaluate(RECT)}; YouTube's player: {tab.evaluate(PLAYABILITY)}")
         tab.evaluate("window.scrollTo(0, 0), 1")
         rect = cc.wait_for(settled, 15) or rect
     cc.hover(tab, rect)

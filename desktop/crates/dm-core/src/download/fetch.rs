@@ -171,7 +171,7 @@ async fn probe_file(
     // The probe is as worth retrying as anything after it: a server that is
     // briefly busy should not fail a download before it has begun. Each
     // retry is said, as a range's is.
-    let retrying = |attempt, of, error: &Error, wait| {
+    let retrying = |attempt: u32, of: u32, error: &Error, wait: Duration| {
         if let Some(tx) = report {
             let why = error.to_string();
             let _ = tx.try_send(Update::Retrying {
@@ -191,19 +191,37 @@ async fn probe_file(
      * caps each request is not asked for more than its cap in one. */
     let capped = HINTS.try_with(|hints| hints.chunk).ok().flatten().is_some();
     let first_ask = (options.connections > 1 && !capped).then_some(crate::probe::FIRST_ASK);
-    let probed = retry::run_up_to_telling(&options.control, options.tries(), retrying, || {
-        or_stop(
-            &options.control,
-            probe_get(
-                client,
-                url,
-                options.referrer.as_deref(),
-                options.sign_in.as_ref(),
-                first_ask,
-            ),
-        )
-    })
-    .await;
+    // A playlist's address refused with a 403 is asked for again, a second, then two, later:
+    // Dailymotion's director of its master playlists refuses one ask in ten or so and serves
+    // the next (`hls::PLAYLIST_REFUSED_TRIES`, issue #45).
+    let mut refused = 0;
+    let probed = loop {
+        let probed = retry::run_up_to_telling(&options.control, options.tries(), &retrying, || {
+            or_stop(
+                &options.control,
+                probe_get(
+                    client,
+                    url,
+                    options.referrer.as_deref(),
+                    options.sign_in.as_ref(),
+                    first_ask,
+                ),
+            )
+        })
+        .await;
+        let again = matches!(probed, Err(Error::Refused { status: 403, .. }))
+            && refused < hls::PLAYLIST_REFUSED_TRIES
+            && crate::stream::kind_of(url, None).is_some();
+        if !again {
+            break probed;
+        }
+        refused += 1;
+        or_stop(&options.control, async {
+            tokio::time::sleep(Duration::from_secs(refused)).await;
+            Ok(())
+        })
+        .await?;
+    };
     /* A YouTube page refused to dm's own request (a 429 bot check, a 403
      * to a client that is not a browser) is read by dm's YouTube reader,
      * which asks as a different client. Only YouTube; other sites' videos

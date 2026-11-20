@@ -76,11 +76,13 @@ WORDS = {
     "error": "**not checked**",
 }
 
-# sites-check.py's own words for a page that showed the check no video at all, and
-# YouTube's for an address it will not serve: nothing of dm was tried.
-BLOCKED_RESULTS = ("no public video post found", "no video player appeared", "not signed in within")
-BOT_CHECK = re.compile(r"not a bot|unusual traffic|prove your humanity|just a moment|verify you are human|captcha",
-                       re.IGNORECASE)
+# sites-check.py's own words for a page that showed the check no video at all, or a sign-in
+# dialog over its player, and YouTube's for an address it will not serve (its player's
+# "Sign in to confirm you're not a bot", LOGIN_REQUIRED): nothing of dm was tried.
+BLOCKED_RESULTS = ("no public video post found", "no video player appeared", "not signed in within",
+                   "a login wall covers the player")
+BOT_CHECK = re.compile(r"not a bot|unusual traffic|prove your humanity|just a moment|verify you are human|captcha"
+                       r"|sign in to confirm|login_required", re.IGNORECASE)
 
 
 def name_of(site):
@@ -255,6 +257,11 @@ def self_test():
     assert site_status({"result": "OK"}) == "pass"
     assert site_status({"result": "no video player appeared (login wall, bot check or the page needs a click)"}) == "blocked"
     assert site_status({"result": "the panel listed no qualities"}) == "fail"
+    assert site_status({"result": "a login wall covers the player (login wall: Log in to TikTok), "
+                                  "so dm's panel stays off it"}) == "blocked"
+    assert youtube_row([{"ok": False, "name": "YouTube: its player offers the video",
+                         "detail": "YouTube's player says LOGIN_REQUIRED: Sign in to confirm you’re not a bot"}]
+                       )["status"] == "blocked"
     assert site_status({"result": "check failed: RuntimeError('x')"}) == "error"
     assert site_status({"result": "the download did not finish into dm's folder",
                         "dm_rows": [{"state": {"kind": "running"}, "progress": {"downloaded": 5}}]}) == "blocked"
