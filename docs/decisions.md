@@ -8203,3 +8203,19 @@ notifications, opening a file, the Keystore) is reached from Rust through JNI. D
 and Compose (not Rust), UniFFI (nothing to bind when both sides are Rust), egui (left on the
 desktop on 2026-11-13), GPUI on Android (no backend), one UI for desktop and phone (it would
 rewrite the desktop's window against the behaviour contract).
+
+## dm on Android with GPUI: one window for every system (2026-11-20, gaps row N1, third time)
+
+At the maintainer's word of 2026-11-20, after the Slint plan above: "UI should be share. like we
+minimize the desktop it becomes mobile view. so that we do not need separate UI", then, asked
+whether to move the desktop to Slint: "I want to do in GPUI. use GPUI and build the andorid as
+well". So the phone runs dm-gpui itself: one window code, which lays itself out as the desktop
+does at a desktop's width and as a phone's screen when narrow. GPUI has no Android platform; dm
+writes one (row N16), as it already carries its own Linux and Windows copies: GPUI draws through
+`gpui_wgpu` (wgpu speaks Vulkan and GLES on Android) and shapes text with cosmic-text (which
+reads `/system/fonts`), so the new part is the platform layer: the window from
+`android-activity`, touch as pointer events, the soft keyboard, density, and the surface lost
+and made again across pause and resume. Slint and the `dm-view` move (row N15) are dropped; the
+JNI modules written for the Slint shell (the share's intent, notifications, opening a file, the
+wake lock) are kept for the phone's platform code. The risk, said to the maintainer: no GPUI
+program has shipped on Android; the platform layer is new ground.
