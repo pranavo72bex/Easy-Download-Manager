@@ -210,6 +210,24 @@ COVER = """(() => { const allVideos = () => { const out = []; const promoted = v
   return { video: desc(v), top: topChain, around: chain, inVideo: top === v || v.contains(top) }; })()"""
 PLAY = """(() => { const allVideos = () => { const out = []; const promoted = v => { for (let e = v; e; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null)) { if (/promoted|-ad$/i.test(((e.className || '') + '').split(' ').join(' ') + ' ' + (e.localName || ''))) return true; } return false; }; const walk = r => { r.querySelectorAll('video').forEach(v => { if (!promoted(v)) out.push(v); }); r.querySelectorAll('*').forEach(e => { if (e.shadowRoot) walk(e.shadowRoot); }); }; walk(document); return out; }; const v = allVideos()[0]; if (!v) return 'none'; v.muted = true;
   const p = v.play(); return p && p.then ? 'asked' : 'played'; })()"""
+# A sign-in dialog the site laid over the page (TikTok's "Log in to TikTok", which retitles the
+# page "Log in | TikTok", issue #45): dm's panel rightly stays off a player a dialog covers.
+# With __CLICK__ true its close button is pressed, as a person would; what was found is said,
+# or null where there is none.
+WALL = """(() => { const click = __CLICK__; const words = /log ?in|sign ?in|sign up|continue with/i;
+  const seen = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0
+    && getComputedStyle(e).visibility !== 'hidden'; };
+  const dialogs = [...document.querySelectorAll('[role=dialog], [aria-modal=true], #login-modal,'
+    + ' [data-e2e*=login-modal]')].filter(d => seen(d) && d.getBoundingClientRect().width > 100);
+  const login = dialogs.find(d => words.test((d.innerText || '').slice(0, 400)));
+  if (!login) return null;
+  const close = [...login.querySelectorAll('[data-e2e*=close], [aria-label*=close i],'
+    + ' button[class*=close i], div[class*=CloseWrapper]'),
+    ...document.querySelectorAll('[data-e2e=modal-close-inner-button]')].find(seen);
+  const said = (login.innerText || '').trim().split(/\\s+/).join(' ').slice(0, 80);
+  if (click && close) { close.click(); return 'closed: ' + said; }
+  return 'login wall: ' + said; })()"""
+LOGIN_TITLE = re.compile(r"^(log ?in|sign ?in)\b|\b(log ?in|sign ?in) \|", re.IGNORECASE)
 
 
 class FrameView:
@@ -395,6 +413,10 @@ def one(base, name, site, engine_dl, worker=None):
     out["player"] = {k: rect[k] for k in ("w", "h", "src")}
     view.evaluate(PLAY, gesture=True)
     time.sleep(3)
+    # A sign-in dialog over the player is closed first, as a person closes it.
+    out["wall"] = tab.evaluate(WALL.replace("__CLICK__", "true"))
+    if out["wall"]:
+        time.sleep(1.5)
     rect = view.evaluate(RECT) or rect
     page_rect = lambda r: {**r, "x": r["x"] + ox, "y": r["y"] + oy}
     out["playing"] = not rect.get("paused", True)
@@ -439,6 +461,13 @@ def one(base, name, site, engine_dl, worker=None):
         probe = os.environ.get("SITES_EVAL")
         if PROBE and probe:
             out["eval"] = tab.evaluate(pathlib.Path(probe).read_text(encoding="utf-8"))
+        # Covered by a sign-in dialog that would not close: the site's wall, not dm's fault.
+        wall = tab.evaluate(WALL.replace("__CLICK__", "false"))
+        covered = isinstance(out["cover"], dict) and out["cover"].get("inVideo") is False
+        if covered and (wall or LOGIN_TITLE.search(out.get("title") or "")):
+            out["result"] = (f"a login wall covers the player ({wall or out['title']}), "
+                             "so dm's panel stays off it")
+            return out
         out["result"] = "the panel did not appear"
         return out
     def shot(label):
