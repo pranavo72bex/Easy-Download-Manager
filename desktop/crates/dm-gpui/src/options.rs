@@ -369,7 +369,7 @@ impl Render for Options {
         // The pages as a tab view's segments, as macOS draws them.
         let tabs = options::TABS
             .iter()
-            .map(|(tab, words)| self.page_tab(*tab, *words, theme, &screen, cx));
+            .map(|(tab, words)| self.page_tab(*tab, words, theme, &screen, cx));
         crate::widgets::native::dialog("options", t("Options"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))

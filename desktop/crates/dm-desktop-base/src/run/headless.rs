@@ -111,11 +111,13 @@ pub fn run(
             break;
         }
         // Waited for on the runtime, from this thread, which draws nothing
-        // (`Backend`'s rule).
+        // (`Backend`'s rule). The timeout is made inside the future: made out
+        // here, on a thread with no runtime entered, its timer finds none and
+        // panics, and `--headless` died as it opened its port.
         let next = dm
             .backend
             .runtime
-            .block_on(tokio::time::timeout(CLOCK, woken.recv()));
+            .block_on(async { tokio::time::timeout(CLOCK, woken.recv()).await });
         match next {
             // Wakes within the quarter are one.
             Ok(Ok(Wake::Soon)) => std::thread::sleep(SOON),

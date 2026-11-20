@@ -377,3 +377,18 @@ pub fn mp4_track(bytes: &[u8]) -> Option<(bool, Option<u32>)> {
         .filter(|h| !sound && (16..=8640).contains(h));
     Some((sound, height))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base64_is_read_in_either_alphabet_and_refused_when_it_is_not_base64() {
+        // 0xfb 0xff: "+/8" in the standard alphabet, "-_8" in the address one.
+        assert_eq!(unbase64("+/8="), Some(vec![0xfb, 0xff]));
+        assert_eq!(unbase64("-_8"), Some(vec![0xfb, 0xff]));
+        assert_eq!(unbase64("aGk"), Some(b"hi".to_vec()));
+        assert_eq!(unbase64("a b"), None);
+        assert_eq!(percent_decoded("aGk%3D%3D%zz"), "aGk==%zz");
+    }
+}

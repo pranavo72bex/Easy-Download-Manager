@@ -219,7 +219,16 @@ def pause_resume():
         row = mid(dm, "pause.bin", 2 * MB)
         check(dm.act("downloads.pause", row)["ok"], "pause refused")
         row = dm.wait("pause.bin", kinds=("paused",), seconds=10)
-        held = row["progress"]["downloaded"]
+        # The row is paused at once, and what was in flight as it stopped is
+        # counted a moment later (the runner's Update::Progress after a
+        # pause): held is the count once two reads agree, then it must stay.
+        held, deadline = row["progress"]["downloaded"], time.time() + 5
+        while time.time() < deadline:
+            time.sleep(0.3)
+            now = dm.row("pause.bin")["progress"]["downloaded"]
+            if now == held:
+                break
+            held = now
         time.sleep(1.5)
         check(dm.row("pause.bin")["progress"]["downloaded"] == held, "bytes still arriving while paused")
         check(dm.act("downloads.resume", row)["ok"], "resume refused")

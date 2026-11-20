@@ -16,6 +16,9 @@ use super::{
 };
 use crate::Error;
 
+/// A cue: a cluster's time, the track of its first block, and its position in the segment.
+type Cue = (i64, u64, u64);
+
 /// Writes the clusters to `w`, the file at `out`, from `at`, where it stands in the segment:
 /// a new one at a picture's key frame a second or more in, or before a block's offset would
 /// outgrow its 16 bits. Where they end, and the cues to them (each one's time, track and
@@ -27,7 +30,7 @@ pub(super) fn write_clusters(
     files: &mut [Positioned],
     has_video: bool,
     mut at: u64,
-) -> Result<(u64, Vec<(i64, u64, u64)>), Error> {
+) -> Result<(u64, Vec<Cue>), Error> {
     let wrote = |e: std::io::Error| format!("{} could not be written: {e}", out.display());
     let mut cues = Vec::new();
     let mut i = 0;

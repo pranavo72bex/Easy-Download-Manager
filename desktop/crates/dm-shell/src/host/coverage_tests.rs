@@ -455,3 +455,104 @@ fn a_detached_program_is_in_a_process_group_of_its_own() {
     let ours = unsafe { libc::getpgrp() }.to_string();
     assert_ne!(ids[1], ours, "left in the host's group");
 }
+
+/// The host as the browser starts it: its frames answered in the real world, in turn, until
+/// the browser's end closes.
+#[test]
+fn the_host_in_the_real_world_answers_the_browser_s_hello() {
+    let home = tempfile::tempdir().unwrap();
+    let mut input = frame(&serde_json::json!({
+        "protocolVersion": 1, "type": "engine.hello", "extensionVersion": "3.5.0"
+    }));
+    input.extend(frame(
+        &serde_json::json!({ "protocolVersion": 99, "type": "engine.hello" }),
+    ));
+    let mut output = Vec::new();
+    serve_here(home.path(), &mut input.as_slice(), &mut output);
+    let mut answers = output.as_slice();
+    assert_eq!(read_frame(&mut answers).unwrap()["type"], "engine.hello");
+    assert!(
+        read_frame(&mut answers).is_none(),
+        "a version dm does not speak got an answer"
+    );
+}
+
+/// Started in Safari's sandbox, dm's window is opened through the system: `open` that
+/// succeeds is a start, one that fails or is missing is the browser's to hear.
+#[cfg(unix)]
+#[test]
+fn the_window_opened_through_the_system_says_when_it_could_not_be() {
+    let app = Path::new("/Applications/dm.app");
+    assert!(open_through_system(Path::new("true"), app).is_ok());
+    let refused = open_through_system(Path::new("false"), app).unwrap_err();
+    assert!(
+        refused
+            .to_string()
+            .starts_with("macOS could not open /Applications/dm.app"),
+        "{refused}"
+    );
+    assert!(open_through_system(Path::new("/nowhere/open"), app).is_err());
+}
+
+/// A stand-in for YouTube's watch page (`DM_YOUTUBE_HOST`): its player data lists a 720p
+/// picture and the sound, whatever is asked.
+fn watch_page_stand_in() -> String {
+    use std::io::{BufRead, BufReader};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let mut reader = BufReader::new(&stream);
+            let mut line = String::new();
+            while reader.read_line(&mut line).is_ok_and(|n| n > 2) {
+                line.clear();
+            }
+            let player = serde_json::json!({
+                "playabilityStatus": {"status": "OK"},
+                "videoDetails": {"videoId": "standin", "isLive": false},
+                "streamingData": {"adaptiveFormats": [
+                    {"itag": 136, "mimeType": "video/mp4; codecs=\"avc1.4d401f\"", "width": 1280,
+                     "height": 720, "fps": 30, "contentLength": "2000"},
+                    {"itag": 140, "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+                     "averageBitrate": 130000, "contentLength": "500"}
+                ]}
+            });
+            let body = format!(
+                "<html><script>var ytInitialPlayerResponse = {player};var meta = 1;</script></html>"
+            );
+            let _ = (&stream).write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .as_bytes(),
+            );
+        }
+    });
+    origin
+}
+
+#[test]
+fn the_real_world_lists_a_youtube_video_s_qualities_from_its_page_and_keeps_them() {
+    std::env::set_var("DM_YOUTUBE_HOST", watch_page_stand_in());
+    let home = tempfile::tempdir().unwrap();
+    let mut here = Here {
+        home: home.path(),
+        started: false,
+    };
+    let page = "https://www.youtube.com/watch?v=standin";
+    let listed = here.formats(page, "", "").unwrap();
+    assert!(
+        listed.iter().any(|c| c.quality.starts_with("720")),
+        "{listed:?}"
+    );
+    assert!(
+        listed.iter().any(|c| c.quality == "audio/m4a"),
+        "{listed:?}"
+    );
+    assert_eq!(
+        recalled_formats(home.path(), &formats_key(page, ""), now_secs()),
+        Some(listed),
+        "the reading is kept for the next ask"
+    );
+}

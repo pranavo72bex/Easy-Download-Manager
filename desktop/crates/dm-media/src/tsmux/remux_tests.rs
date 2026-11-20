@@ -50,7 +50,7 @@ fn pes(stream_id: u8, pts: u64, body: &[u8]) -> Vec<u8> {
 
 /// Picture `n`, a key frame a second with its parameter sets: about `size` bytes.
 fn picture(n: u32, size: usize) -> Vec<u8> {
-    let key = n % 25 == 0;
+    let key = n.is_multiple_of(25);
     let mut body = vec![0, 0, 0, 1, 9, 0xf0];
     if key {
         body.extend_from_slice(&[0, 0, 0, 1, 0x67, 0x42, 0xc0, 0x1e, 0x95, 0xa0, 0x50, 0x5f]);

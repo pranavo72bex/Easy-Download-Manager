@@ -347,22 +347,7 @@ fn launch_desktop() -> std::io::Result<()> {
     // the system instead, as a person's click opens it, outside the sandbox.
     if std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some() {
         if let Some(app) = app_bundle(&executable) {
-            let opened = Command::new("/usr/bin/open")
-                .arg("-a")
-                .arg(&app)
-                .args(["--args", "--desktop"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()?;
-            return if opened.success() {
-                Ok(())
-            } else {
-                Err(std::io::Error::other(format!(
-                    "macOS could not open {} ({opened})",
-                    app.display()
-                )))
-            };
+            return open_through_system(Path::new("/usr/bin/open"), &app);
         }
     }
     let start = |breakaway: bool| {
@@ -392,6 +377,27 @@ fn launch_desktop() -> std::io::Result<()> {
         command.spawn().map(|_| ())
     };
     start(true).or_else(|_| start(false))
+}
+
+/// Opens `app` as a person's click would, through `opener` (macOS's `open`), outside the
+/// sandbox this host runs in; why not, where it could not.
+fn open_through_system(opener: &Path, app: &Path) -> std::io::Result<()> {
+    let opened = Command::new(opener)
+        .arg("-a")
+        .arg(app)
+        .args(["--args", "--desktop"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
+    if opened.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::other(format!(
+            "macOS could not open {} ({opened})",
+            app.display()
+        )))
+    }
 }
 
 /// The `.app` a program is the executable of (`dm.app/Contents/MacOS/dm-gpui` gives `dm.app`),
@@ -673,13 +679,16 @@ pub fn warm_main(_home: &Path) {}
 
 /// Runs as the browser's native messaging host until the browser closes it.
 pub fn run(home: &Path) {
-    let mut input = std::io::stdin();
-    let mut output = std::io::stdout();
+    serve_here(home, &mut std::io::stdin(), &mut std::io::stdout());
+}
+
+/// [`serve`] in the real world: a dm started, files written to `home`'s inbox.
+fn serve_here(home: &Path, input: &mut impl Read, output: &mut impl Write) {
     let mut here = Here {
         home,
         started: false,
     };
-    serve(home, &mut input, &mut output, &mut here);
+    serve(home, input, output, &mut here);
 }
 
 /// Answers each frame read from `input` on `output`, in turn, until `input` ends or `output`
