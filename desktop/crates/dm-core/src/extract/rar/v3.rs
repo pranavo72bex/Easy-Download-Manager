@@ -19,11 +19,13 @@
 //! (`unpack.rs`, whose window this shares). Every count is outside data: a match before the
 //! first byte, a filter out of bounds, a stream cut short are errors, never a panic.
 
+mod ppm;
 mod tables;
 mod vm;
 
 use std::io::Read;
 
+use self::ppm::Model;
 use self::tables::{Tables, ALL, DIST_BASE, DIST_BITS, LENGTH_BASE, LENGTH_BITS, REP};
 use self::tables::{SHORT_BASE, SHORT_BITS};
 use self::vm::Vm;
@@ -82,6 +84,12 @@ impl Input<'_> {
     /// More bits were read than there are.
     fn over(&self) -> bool {
         self.done && self.bits.over()
+    }
+
+    /// More bytes were read than there are, past the four a range coder reads ahead: a
+    /// PPMd block may still decode bytes when every byte of it is read.
+    fn far_over(&self) -> bool {
+        self.done && self.bits.over_by() > 32
     }
 }
 
@@ -206,8 +214,10 @@ pub(super) struct Unpacker {
     lengths: [u8; ALL],
     /// The tables carry on into the next solid file (else it starts with its own).
     tables_read: bool,
-    /// The stream is in PPMd, not LZ.
+    /// The stream is in PPMd, not LZ, with this model and this escape byte.
     ppm_mode: bool,
+    ppm: Option<Box<Model>>,
+    esc: u8,
     vm: Vm,
     out: Vec<u8>,
     spare: Vec<u8>,
@@ -229,6 +239,8 @@ impl Unpacker {
             lengths: [0; ALL],
             tables_read: false,
             ppm_mode: false,
+            ppm: None,
+            esc: 2,
             vm: Vm::default(),
             out: Vec::new(),
             spare: Vec::new(),
@@ -267,7 +279,12 @@ impl Unpacker {
             input.fill()?;
             // Past its size (the padding of its last byte, read as codes) or at the end of
             // its bytes, the file is done.
-            if self.pos > self.file_end || input.exhausted() {
+            let ended = if self.ppm_mode {
+                input.far_over()
+            } else {
+                input.exhausted()
+            };
+            if self.pos > self.file_end || ended {
                 break;
             }
             if self.pos >= due {
@@ -402,14 +419,134 @@ impl Unpacker {
         self.vm.add(first, &code, self.pos)
     }
 
-    /// The switch to PPMd.
-    fn ppm_start(&mut self, _input: &mut Input) -> Result<(), Error> {
-        Err(Error::Method("a RAR 4 archive packed with PPMd".into()))
+    /// The switch to PPMd: a byte of flags (the model's order in its lowest five bits, a
+    /// new model 0x20, a new escape byte 0x40), the model's memory in MiB less one for a new
+    /// model, the escape byte, then the range coder's first four bytes.
+    fn ppm_start(&mut self, input: &mut Input) -> Result<(), Error> {
+        let b = &mut input.bits;
+        let flags = b.take(8);
+        let fresh = flags & 0x20 != 0;
+        let mib = if fresh { b.take(8) } else { 0 };
+        if flags & 0x40 != 0 {
+            self.esc = b.take(8) as u8;
+        }
+        if fresh {
+            let mut order = (flags & 0x1f) + 1;
+            if order > 16 {
+                order = 16 + (order - 16) * 3;
+            }
+            if order == 1 {
+                self.ppm = None;
+                return Err(damaged("a PPMd block's order"));
+            }
+            let size = (mib + 1) << 20;
+            if !matches!(self.ppm.as_ref(), Some(m) if m.size() == size) {
+                self.ppm = Some(Box::new(Model::new(size)));
+            }
+            if let Some(m) = self.ppm.as_mut() {
+                m.start(order);
+            }
+        }
+        let Some(m) = self.ppm.as_mut() else {
+            return Err(damaged("a PPMd block carries on a model that is not there"));
+        };
+        m.init_coder(b);
+        if !m.ready() || input.over() {
+            return Err(ends_early());
+        }
+        Ok(())
     }
 
-    /// One symbol of a PPMd block; whether the file ends with it.
-    fn ppm_step(&mut self, _input: &mut Input) -> Result<bool, Error> {
-        Err(Error::Method("a RAR 4 archive packed with PPMd".into()))
+    /// The next byte of a PPMd block; `None` where the data is damaged, which ends the
+    /// block and drops its model, as the format's own reader does.
+    fn ppm_char(&mut self, input: &mut Input) -> Option<u8> {
+        let got = self
+            .ppm
+            .as_mut()
+            .and_then(|m| m.decode_char(&mut input.bits));
+        if got.is_none() {
+            self.ppm = None;
+            self.ppm_mode = false;
+        }
+        got
+    }
+
+    /// One byte of a PPMd block, or what its escape byte says: new tables (0), the file's
+    /// end (2), a filter (3), a match (4: a distance in three bytes and a length), a run of
+    /// the byte before (5: a length), the escape byte itself (anything else). Whether the
+    /// file ends.
+    fn ppm_step(&mut self, input: &mut Input) -> Result<bool, Error> {
+        let Some(ch) = self.ppm_char(input) else {
+            return Ok(true);
+        };
+        if ch == self.esc {
+            let Some(next) = self.ppm_char(input) else {
+                return Ok(true);
+            };
+            match next {
+                0 => {
+                    return match self.read_tables(input) {
+                        Ok(()) => Ok(false),
+                        Err(Error::Unreadable(_)) if self.pos >= self.file_end => Ok(true),
+                        Err(e) => Err(e),
+                    };
+                }
+                2 => return Ok(true),
+                3 => {
+                    self.ppm_filter(input)?;
+                    return Ok(false);
+                }
+                4 => {
+                    let mut dist = 0u64;
+                    for _ in 0..3 {
+                        let Some(b) = self.ppm_char(input) else {
+                            return Ok(true);
+                        };
+                        dist = (dist << 8) | u64::from(b);
+                    }
+                    let Some(len) = self.ppm_char(input) else {
+                        return Ok(true);
+                    };
+                    self.copy(u64::from(len) + 32, dist + 2)?;
+                    return Ok(false);
+                }
+                5 => {
+                    let Some(len) = self.ppm_char(input) else {
+                        return Ok(true);
+                    };
+                    self.copy(u64::from(len) + 4, 1)?;
+                    return Ok(false);
+                }
+                _ => {}
+            }
+        }
+        self.win.put(self.pos, ch);
+        self.pos += 1;
+        Ok(false)
+    }
+
+    /// A filter's record in a PPMd block, its bytes coded as the block's bytes are.
+    fn ppm_filter(&mut self, input: &mut Input) -> Result<(), Error> {
+        let cut = || damaged("a filter's record");
+        let first = self.ppm_char(input).ok_or_else(cut)?;
+        let len = match (first & 7) + 1 {
+            7 => u32::from(self.ppm_char(input).ok_or_else(cut)?) + 7,
+            8 => {
+                let high = u32::from(self.ppm_char(input).ok_or_else(cut)?);
+                let low = u32::from(self.ppm_char(input).ok_or_else(cut)?);
+                (high << 8) | low
+            }
+            n => u32::from(n),
+        };
+        if len == 0 {
+            return Err(cut());
+        }
+        let mut code = Vec::with_capacity(len as usize);
+        for _ in 0..len {
+            input.fill()?;
+            code.push(self.ppm_char(input).ok_or_else(cut)?);
+        }
+        self.vm.add(first, &code, self.pos)
     }
 
     /// Copies `len` bytes from `dist` back, one at a time, so a match may overlap itself.

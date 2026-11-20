@@ -273,6 +273,16 @@ impl Writer {
         self.tables(lengths, keep);
     }
 
+    /// The end of a block, then `block` (a PPMd block) at the next byte in place of tables.
+    pub(super) fn switch(&mut self, block: &[u8]) {
+        self.sym(256);
+        self.w.put(1, 1);
+        self.align();
+        for &b in block {
+            self.w.put(u64::from(b), 8);
+        }
+    }
+
     /// The end of the file; `next_tables` says the next one starts with its own.
     pub(super) fn end(&mut self, next_tables: bool) {
         self.sym(256);

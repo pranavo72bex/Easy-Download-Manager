@@ -96,7 +96,12 @@ impl Bits {
 
     /// Whether more bits were read than there are.
     pub(super) fn over(&self) -> bool {
-        self.at > self.buf.len() as u64 * 8
+        self.over_by() > 0
+    }
+
+    /// How many more bits were read than there are.
+    pub(super) fn over_by(&self) -> u64 {
+        self.at.saturating_sub(self.buf.len() as u64 * 8)
     }
 
     /// Drops the bytes wholly read and appends `more`, for a stream read in pieces; `at()`
