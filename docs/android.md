@@ -13,7 +13,7 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 | File | What it does |
 |------|--------------|
 | `src/android.rs` | `android_main`: the phone's services handed to `dm_desktop_base::phone::set_phone` first; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, `dm_core::folders::set_phone_folders` with the download folder: `Download/dm` in shared storage, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed |
-| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), the wake lock and the ongoing notification together (`keep_awake`), open, reveal, the clipboard, the Trash refused. Tested on the host |
+| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second), open, reveal, the clipboard, the Trash refused. Tested on the host |
 | `src/shared.rs` | What a shared intent hands over (tested on the host) |
 | `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification, the wake lock |
 | `src/android/intent.rs` | The activity's intent, read when the activity comes to the front (a thread watching gpui-android's `is_active`): SEND text and VIEW magnet or web address go to `dm_desktop_base::phone::shared`, a `.torrent` is copied into `files/dm/torrents` and goes to `phone::shared_file`; the window adds both as it adds a dropped link |
@@ -159,9 +159,10 @@ submitted. What it needs, and where dm stands:
   code, so such a link reaches dm only when Android starts the activity again; a Java
   `onNewIntent` waits for the maintainer's word, as N6's service does.
 - **Downloading in the background (N6).** The wake lock and the ongoing notification are in,
-  held while a download runs (dm's `awake` watch); the notification's words are fixed ("dm is
-  downloading") until the seam carries the count and the speed. Android may still stop a
-  process left in the background. A foreground service, a Stop All
+  held while a row runs, a queued one is due or a finished torrent is shared
+  (`awake::watch_phone` telling `PhoneServices::busy`); the notification says the count and the
+  speed in the status bar's words, changed at most once a second, and a tap brings dm to the
+  front. Android may still stop a process left in the background. A foreground service, a Stop All
   button in the notification and a Retry button on a failure each need a Java class. Whether
   to add one is the maintainer's call.
 - **First run (N9).** On Android 8 and 9, the first start downloads into the app's own folder

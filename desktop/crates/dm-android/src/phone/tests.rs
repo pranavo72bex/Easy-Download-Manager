@@ -44,8 +44,8 @@ impl Java for Arc<Recorded> {
     fn set_clipboard(&self, text: &str) {
         self.said(format!("clipboard {text}"));
     }
-    fn ongoing(&self, title: &str, _: &str) -> Result<(), String> {
-        self.said(format!("ongoing {title}"));
+    fn ongoing(&self, title: &str, body: &str) -> Result<(), String> {
+        self.said(format!("ongoing {title} / {body}"));
         Ok(())
     }
     fn end_ongoing(&self) -> Result<(), String> {
@@ -105,18 +105,65 @@ fn a_message_or_a_failure_is_posted_at_once_and_a_tap_brings_dm_back() {
 
 #[test]
 fn keeping_awake_holds_the_wake_lock_and_the_ongoing_notification_together() {
+    dm_desktop_base::i18n::set("en");
     let (phone, recorded) = phone();
+    let downloading = Busy {
+        running: 2,
+        waiting: 1,
+        bytes_per_second: 2048.0,
+        ..Busy::default()
+    };
+    phone.busy(Some(downloading));
+    // The same words again, or new ones within the second, change nothing.
+    phone.busy(Some(downloading));
+    phone.busy(Some(Busy {
+        running: 1,
+        ..downloading
+    }));
+    phone.busy(None);
+    phone.busy(None);
     phone.keep_awake(true);
     phone.keep_awake(false);
+    let rate = dm_desktop_base::format::rate(2048.0);
     assert_eq!(
         calls(&recorded),
         [
             "awake true".to_owned(),
-            format!("ongoing {ONGOING_TITLE}"),
+            format!("ongoing 2 downloading at {rate} / 1 more is waiting to start."),
+            "end ongoing".to_owned(),
+            "awake false".to_owned(),
+            "awake true".to_owned(),
+            format!(
+                "ongoing {} / {ONGOING_BODY}",
+                dm_desktop_base::tray::words()[4]
+            ),
             "end ongoing".to_owned(),
             "awake false".to_owned(),
         ]
     );
+}
+
+#[test]
+fn the_ongoing_words_change_at_most_once_a_second() {
+    let words = |title: &str| Some((title.to_owned(), ONGOING_BODY.to_owned()));
+    let start = Instant::now();
+    let mut ongoing = Ongoing::default();
+    assert_eq!(ongoing.step(None, start), Step::Keep);
+    assert_eq!(
+        ongoing.step(words("a"), start),
+        Step::Hold("a".into(), ONGOING_BODY.into())
+    );
+    assert_eq!(
+        ongoing.step(words("b"), start + Duration::from_millis(500)),
+        Step::Keep
+    );
+    assert_eq!(ongoing.step(words("a"), start + ONGOING_EVERY), Step::Keep);
+    assert_eq!(
+        ongoing.step(words("b"), start + ONGOING_EVERY),
+        Step::Say("b".into(), ONGOING_BODY.into())
+    );
+    assert_eq!(ongoing.step(None, start + ONGOING_EVERY), Step::Let);
+    assert_eq!(ongoing.step(None, start + ONGOING_EVERY), Step::Keep);
 }
 
 #[test]

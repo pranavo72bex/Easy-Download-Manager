@@ -22,7 +22,7 @@ const DONE: &str = "dm.done";
 /// The ongoing one: no sound, low in the shade.
 const RUNNING: &str = "dm.running";
 /// The ongoing notification's number; the others count up from 100.
-const ONGOING_ID: i32 = 1;
+pub(crate) const ONGOING_ID: i32 = 1;
 static NEXT_ID: AtomicI32 = AtomicI32::new(100);
 
 /// `NotificationManager.IMPORTANCE_LOW` and `IMPORTANCE_DEFAULT`.
@@ -134,23 +134,36 @@ pub(crate) fn post(title: &str, body: &str, open: Option<&str>) -> Result<(), St
 }
 
 /// The ongoing notification (gaps row N6): put up, or changed in place, while anything
-/// downloads; a tap brings dm to the front.
+/// keeps dm busy; a tap brings dm to the front.
 pub(crate) fn ongoing(title: &str, body: &str) -> Result<(), String> {
     jvm::with("show its progress", |env, context| {
-        let tap = launch(env, context)?;
-        let builder = builder(
-            env,
-            context,
-            RUNNING,
-            jni_str!("stat_sys_download"),
-            title,
-            body,
-        )?;
-        tap_opens(env, context, &builder, &tap, ONGOING_ID)?;
-        set_bool(env, &builder, jni_str!("setOngoing"), true)?;
-        set_bool(env, &builder, jni_str!("setOnlyAlertOnce"), true)?;
+        let builder = ongoing_builder(env, context, title, body)?;
         show(env, context, &builder, ONGOING_ID)
     })
+}
+
+/// The ongoing notification's builder, saying `title` and `body`, a tap on it bringing dm to
+/// the front; shown as number [`ONGOING_ID`], so whatever shows it (`ongoing`, or a
+/// foreground service's `startForeground`) shows the same one and a later show replaces it.
+pub(crate) fn ongoing_builder<'local>(
+    env: &mut Env<'local>,
+    context: &JObject<'_>,
+    title: &str,
+    body: &str,
+) -> jni::errors::Result<JObject<'local>> {
+    let tap = launch(env, context)?;
+    let builder = builder(
+        env,
+        context,
+        RUNNING,
+        jni_str!("stat_sys_download"),
+        title,
+        body,
+    )?;
+    tap_opens(env, context, &builder, &tap, ONGOING_ID)?;
+    set_bool(env, &builder, jni_str!("setOngoing"), true)?;
+    set_bool(env, &builder, jni_str!("setOnlyAlertOnce"), true)?;
+    Ok(builder)
 }
 
 /// Takes the ongoing notification down: nothing downloads.
