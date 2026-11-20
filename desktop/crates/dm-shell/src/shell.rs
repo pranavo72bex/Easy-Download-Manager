@@ -16,8 +16,8 @@ use dm_core::{Checksum, DownloadList, Id};
 use crate::host;
 use crate::Error;
 
-// Opening a file and showing it in its folder, one file for each system.
-mod opener;
+// Opening a file and showing it in its folder, one file for each system (`platform::opener`).
+use crate::platform::opener;
 use crate::settings::{self, Settings};
 #[cfg(all(test, unix, not(any(target_os = "macos", target_os = "android"))))]
 use opener::linux_open_in;

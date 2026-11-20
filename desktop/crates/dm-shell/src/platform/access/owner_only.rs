@@ -58,7 +58,7 @@ unsafe fn taken(text: *mut u16) -> String {
 }
 
 /// This process's account as a SID string (`S-1-5-21-…`).
-pub(super) fn account() -> std::io::Result<String> {
+pub(crate) fn account() -> std::io::Result<String> {
     let mut token: HANDLE = null_mut();
     // SAFETY: GetCurrentProcess is a pseudo-handle that needs no closing; `token`
     // is written only when the call succeeds.
@@ -127,7 +127,7 @@ fn protected(path: &[u16]) -> std::io::Result<bool> {
 
 /// Gives `home` an access list of its own: this account, SYSTEM and the
 /// administrators, inherited by everything in it (and by what is there already).
-pub(super) fn make(home: &Path) -> std::io::Result<()> {
+pub(crate) fn make(home: &Path) -> std::io::Result<()> {
     let path = wide(home.as_os_str());
     if protected(&path)? {
         return Ok(());
@@ -194,7 +194,7 @@ fn set(path: &[u16], sddl: &str, how: OBJECT_SECURITY_INFORMATION) -> std::io::R
 /// did not show the entry `icacls` had just added, so the test failed before it
 /// reached dm.
 #[cfg(test)]
-pub(super) mod by_hand {
+pub(crate) mod by_hand {
     use super::*;
     use windows_sys::Win32::Security::Authorization::ConvertSecurityDescriptorToStringSecurityDescriptorW;
     use windows_sys::Win32::Security::UNPROTECTED_DACL_SECURITY_INFORMATION;

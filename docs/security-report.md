@@ -249,7 +249,7 @@ computer's D: gives `Authenticated Users: Modify` and `Users: Read`
 `control.token` (the control port is open by default for MCP, and loopback is
 shared by every account on the computer), the queue and unfinished parts.
 
-**Fix.** `instance/owner_only.rs`: when dm starts, a home whose access list is
+**Fix.** `platform/access/owner_only.rs`: when dm starts, a home whose access list is
 not protected is given one of its own (nothing from its parent): full
 control for this account, SYSTEM and the administrators, inherited by what
 is in it and applied to what is there already. A home already protected is

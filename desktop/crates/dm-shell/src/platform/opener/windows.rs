@@ -9,7 +9,7 @@
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 
-use super::super::for_shell;
+use crate::shell::for_shell;
 
 /// Shows `path` selected in its folder. Passed as it is, quoted by hand: Explorer reads
 /// `/select,` and the path as one argument, and Rust's own quoting of a path with spaces wraps

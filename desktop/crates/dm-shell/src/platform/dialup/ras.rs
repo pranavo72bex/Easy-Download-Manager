@@ -66,7 +66,7 @@ fn said(error: u32) -> String {
 }
 
 /// The names of the connections in the system's phone books.
-pub(super) fn entries() -> Vec<String> {
+pub(crate) fn entries() -> Vec<String> {
     let mut size = std::mem::size_of::<RASENTRYNAMEW>() as u32;
     let mut count = 0u32;
     // SAFETY: a zeroed RASENTRYNAMEW is a valid empty value of this plain struct.
@@ -145,9 +145,9 @@ fn held(conn: &RASCONNW) -> bool {
 }
 
 /// Windows' own dialler.
-pub(super) struct Ras;
+pub(crate) struct Ras;
 
-impl super::Dialer for Ras {
+impl crate::dialup::Dialer for Ras {
     fn connected(&self, name: &str) -> bool {
         open()
             .iter()
