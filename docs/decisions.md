@@ -8186,3 +8186,37 @@ phone cannot do from the engine (open a file, show its folder) is said in words
 (`shell/opener/android.rs`); the app does it through `Platform`. Everything else takes Linux's
 answer or the fallback's, unchanged on the desktop. CI checks the build for arm64-v8a and x86_64
 with the runner's own NDK (`.github/workflows/android.yml`), no third-party action fetching one.
+
+## Right-to-left text in GPUI 0.3.12: macOS and Linux lay it out, Windows does not (2026-11-20, gaps row U35)
+
+Read from the source of `gpui-pre` 0.3.12 and its platform crates (not yet run on a screen).
+GPUI's core takes glyphs in visual order with byte indices that may run backwards
+(`line_layout.rs` wraps right-to-left runs and tests it, `line.rs` splits lines whose glyphs
+are out of byte order); it has `text_right()` and `flex_row_reverse()`, so a mirrored window is
+a matter of dm's layout code. Each platform's text system decides the rest:
+
+* macOS (`gpui-pre-apple`, CoreText): `CTLine` shapes (Arabic joining, Hebrew), runs the
+  bidirectional algorithm with the paragraph's direction from its first strong letter, and GPUI
+  takes each glyph's place from `CTRunGetPositions`, so a line is drawn right to left. Works.
+* Linux (`gpui-pre-wgpu`, cosmic-text): `ShapeLine` with `Shaping::Advanced` shapes with harfrust
+  and reorders by `unicode-bidi` (first strong letter), and GPUI takes `glyph.x`. Works.
+* Windows (`desktop/vendor/gpui-pre-windows`, DirectWrite): `IDWriteTextLayout` shapes and runs
+  the bidirectional algorithm, but GPUI's own `TextRenderer::DrawGlyphRun` ignores the run's
+  `baselineOriginX` and `bidiLevel` and places glyphs one after another from the left in the
+  order they come. DirectWrite hands a right-to-left run's glyphs in logical order, to be drawn
+  leftward from the origin, so every Arabic or Hebrew word is drawn with its letters reversed
+  (joined forms, wrong order), and a mixed line's runs keep their call order. The layout's
+  reading direction is never set either, so a paragraph is always left to right, where the
+  other two take the first strong letter.
+
+So the Arabic and Hebrew catalogs and the mirrored window wait: Windows is dm's first platform,
+and a window drawn backwards there is worse than none. The fix is a patch to dm's vendored copy
+(`direct_write.rs`, about sixty lines, no new dependency): in `DrawGlyphRun`, place a run at
+`baselineOriginX` and, for an odd `bidiLevel`, from the right edge leftward, pushing its glyphs
+in visual order; give the tab glyphs the hit-tested x; after `Draw`, sort the runs by x and take
+the width as the furthest right edge; and when the first strong letter is right to left, set the
+layout's reading direction to right to left with its maximum width set to the measured width
+(an infinite width would put the origins at infinity). Caret and selection in a text box over
+right-to-left text would then follow GPUI core's handling of out-of-order glyphs, unchecked.
+Supersedes the 2026-10-22 entry's reason (egui) but not its order of work: text first, then the
+window mirrored, then the two catalogs.
