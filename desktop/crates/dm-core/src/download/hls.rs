@@ -506,7 +506,10 @@ pub(super) async fn resolve_stream(
         let apart = chosen
             .audio
             .as_deref()
-            .and_then(|group| stream::audio_playlist(&text, group, &landed));
+            .and_then(|group| stream::audio_playlist(&text, group, &landed))
+            // One naming no group whose codecs say its segments are silent plays with the
+            // master's sound all the same, as a browser plays it (gaps row 205).
+            .or_else(|| stream::ungrouped_audio_playlist(&text, &chosen, &landed));
         // Its subtitles, which a pair or a stream of its own carries (gaps row Y20).
         let subtitles = chosen
             .subtitles

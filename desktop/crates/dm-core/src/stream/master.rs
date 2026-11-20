@@ -32,13 +32,71 @@ pub(super) fn audio_uri(master: &str, group: &str, want: Option<&str>) -> Option
     let tracks: Vec<&str> = rows
         .iter()
         .copied()
-        .filter(|l| {
-            let u = l.to_ascii_uppercase();
-            u.starts_with("#EXT-X-MEDIA")
-                && u.contains("TYPE=AUDIO")
-                && attribute(l, "GROUP-ID").as_deref() == Some(group)
-        })
+        .filter(|l| sound_track(l) && attribute(l, "GROUP-ID").as_deref() == Some(group))
         .collect();
+    chosen_uri(&tracks, want)
+}
+
+/// The playlist of the sound a rendition plays with where it names no audio group (`AUDIO=`)
+/// and its `CODECS` name a picture and no sound: its own segments are silent, and a browser's
+/// player plays it with the master's sound renditions all the same, so dm takes one of them,
+/// picked as [`audio_playlist`] picks within a group, joined onto `base`. Saved without it, the
+/// file had the picture alone (gaps row 205). `None` where the rendition names a group (its
+/// sound is that group's), says nothing of its codecs or names a sound among them, or the
+/// master lists no sound with an address.
+pub fn ungrouped_audio_playlist(master: &str, variant: &Variant, base: &str) -> Option<String> {
+    if variant.audio.is_some() || !variant.codecs.as_deref().is_some_and(picture_only) {
+        return None;
+    }
+    let want = crate::sound_language::wanted();
+    join(base, &ungrouped_audio_uri(master, want.as_deref())?).ok()
+}
+
+/// The address [`ungrouped_audio_playlist`] takes, as written: among every sound rendition of
+/// the master that has an address, whatever its group.
+pub(super) fn ungrouped_audio_uri(master: &str, want: Option<&str>) -> Option<String> {
+    let rows = lines(master);
+    let tracks: Vec<&str> = rows
+        .iter()
+        .copied()
+        .filter(|l| sound_track(l) && attribute(l, "URI").is_some())
+        .collect();
+    chosen_uri(&tracks, want)
+}
+
+/// Whether a master's line lists a sound rendition: `#EXT-X-MEDIA` of `TYPE=AUDIO`.
+fn sound_track(line: &str) -> bool {
+    let u = line.to_ascii_uppercase();
+    u.starts_with("#EXT-X-MEDIA") && u.contains("TYPE=AUDIO")
+}
+
+/// Whether a rendition's `CODECS` name a picture and nothing that could be sound: each one a
+/// picture's codec (H.264, HEVC, Dolby Vision, VP8, VP9, AV1, MPEG-4 Part 2) or a text's
+/// (WebVTT, TTML), one of them a picture's. A codec not known here may be a sound, so it is not.
+pub(super) fn picture_only(codecs: &str) -> bool {
+    const PICTURES: &[&str] = &[
+        "avc1", "avc3", "hvc1", "hev1", "dvh1", "dvhe", "dva1", "dvav", "vp8", "vp08", "vp9",
+        "vp09", "av01", "mp4v",
+    ];
+    const TEXTS: &[&str] = &["wvtt", "stpp"];
+    let families: Vec<String> = codecs
+        .split(',')
+        .map(|c| {
+            let c = c.trim().to_ascii_lowercase();
+            c.split('.').next().unwrap_or_default().to_string()
+        })
+        .filter(|c| !c.is_empty())
+        .collect();
+    families.iter().any(|f| PICTURES.contains(&f.as_str()))
+        && families
+            .iter()
+            .all(|f| PICTURES.contains(&f.as_str()) || TEXTS.contains(&f.as_str()))
+}
+
+/// The address of the track to take among a master's sound `tracks`, as written: with a language
+/// `want`ed, the track speaking it (`LANGUAGE`), a plain one before one describing the picture,
+/// the default among them before the rest; else the default track, else the first.
+fn chosen_uri(tracks: &[&str], want: Option<&str>) -> Option<String> {
     let default = |l: &&str| attribute(l, "DEFAULT").is_some_and(|d| d.eq_ignore_ascii_case("YES"));
     let spoken = want.and_then(|want| {
         tracks
@@ -132,6 +190,7 @@ pub fn variants(text: &str, base: &str) -> Vec<Variant> {
                 .and_then(|b| b.parse().ok())
                 .unwrap_or(0),
             audio: attribute(row, "AUDIO"),
+            codecs: attribute(row, "CODECS"),
             subtitles: attribute(row, "SUBTITLES"),
         });
     }
