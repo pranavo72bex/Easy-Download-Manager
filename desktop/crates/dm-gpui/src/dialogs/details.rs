@@ -638,15 +638,17 @@ impl Render for Details {
         let body = self.warnings(&look, clash, problem, cx, body);
         let body = body.child(self.buttons(&look, cx));
 
-        crate::widgets::native::dialog("download-details", t("Download details"), theme, cx)
-            .track_focus(&self.focus)
-            .on_action(cx.listener(|this, pick: &Pick, window, cx| this.pick(pick, window, cx)))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                if event.keystroke.key == "enter" {
-                    this.add(false, window, cx);
-                }
-            }))
-            .child(crate::widgets::fit::fitted(body))
+        let root =
+            crate::widgets::native::dialog("download-details", t("Download details"), theme, cx)
+                .track_focus(&self.focus)
+                .on_action(cx.listener(|this, pick: &Pick, window, cx| this.pick(pick, window, cx)))
+                .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                    if event.keystroke.key == "enter" {
+                        this.add(false, window, cx);
+                    }
+                }))
+                .child(crate::widgets::fit::fitted(body));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

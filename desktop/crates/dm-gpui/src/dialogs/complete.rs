@@ -112,7 +112,7 @@ impl Render for Complete {
         self.listed = rows.clone();
         let several = rows.len() > 1;
         let never = self.never;
-        crate::widgets::native::dialog("complete", t("Download complete"), theme, cx)
+        let root = crate::widgets::native::dialog("complete", t("Download complete"), theme, cx)
             .track_focus(&self.focus)
             // Return presses Close, the default, as Escape does: the window
             // opens of its own accord, over whatever has the keys, and a
@@ -238,8 +238,8 @@ impl Render for Complete {
                                 .into_any_element(),
                         ],
                     )),
-            ))
-            .into_any_element()
+            ));
+        crate::window::safe::kept_clear(root, window).into_any_element()
     }
 }
 

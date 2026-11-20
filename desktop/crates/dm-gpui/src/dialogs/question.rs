@@ -174,7 +174,7 @@ impl Render for Question {
         let (leading, trailing) = placed(self.asked.buttons.len(), self.asked.escape);
         let leading: Vec<_> = leading.into_iter().map(|i| button(i, cx)).collect();
         let trailing: Vec<_> = trailing.into_iter().map(|i| button(i, cx)).collect();
-        div()
+        let root = div()
             .id("question")
             .role(Role::AlertDialog)
             .aria_label(self.asked.title.clone())
@@ -264,7 +264,8 @@ impl Render for Question {
                         )
                     })
                     .child(native::buttons(leading, trailing)),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

@@ -353,7 +353,7 @@ impl Render for Progress {
         let body = self.connections_or_swarm(&look, torrent, conn_rows, cx, body);
         let body = body.child(self.buttons(&look, &row, cx));
 
-        div()
+        let root = div()
             .id(("progress", id as usize))
             .role(Role::Dialog)
             .aria_label(title(&named))
@@ -375,8 +375,8 @@ impl Render for Progress {
             )
             .size_full()
             .bg(theme.window)
-            .child(crate::widgets::fit::fitted(body))
-            .into_any_element()
+            .child(crate::widgets::fit::fitted(body));
+        crate::window::safe::kept_clear(root, window).into_any_element()
     }
 }
 

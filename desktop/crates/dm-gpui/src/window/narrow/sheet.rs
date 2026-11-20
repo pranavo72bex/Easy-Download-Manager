@@ -91,16 +91,19 @@ pub(super) fn drawn(
     let viewport = window.viewport_size();
     let width = (f32::from(viewport.width) - crate::window::zoom::of(2.0 * space::XL))
         .min(crate::window::zoom::of(WIDEST));
-    let top = crate::window::titlebar::narrow_height();
+    // Under the top bar, which sits below a phone's status bar; clear of its navigation bar
+    // (gaps row N16).
+    let safe = crate::window::safe::edges(window);
+    let top = crate::window::titlebar::narrow_height() + f32::from(safe.top);
     let walked = sheet.pages.len() > 1;
     let mut panel = div()
         .id("sheet")
         .role(Role::Menu)
         .absolute()
         .top(gpui::px(top))
-        .right(px(space::XS))
+        .right(px(space::XS) + safe.right)
         .w(gpui::px(width.max(0.0)))
-        .max_h(viewport.height - gpui::px(top) - px(space::XL))
+        .max_h(viewport.height - gpui::px(top) - safe.bottom - px(space::XL))
         .overflow_y_scroll()
         .py(px(space::XS))
         .flex()

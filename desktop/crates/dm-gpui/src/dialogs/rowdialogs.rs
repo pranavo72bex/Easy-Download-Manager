@@ -182,60 +182,69 @@ impl Render for UpdateLink {
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();
-        crate::widgets::native::dialog("update-link", t("Update download link"), theme, cx).child(
-            crate::widgets::fit::fitted(
-                native::body(theme)
-                    .child(
-                        div()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(screen.label(self.named.clone())),
-                    )
-                    .child(
-                        div()
-                            .whitespace_nowrap()
-                            .overflow_hidden()
-                            .text_ellipsis()
-                            .child(native::note(self.url.clone(), theme.muted, &screen)),
-                    )
-                    .child(screen.label(t("The download's link has expired? Paste a fresh one:")))
-                    .child(native::field(&self.address, "New address", theme))
-                    .when(self.page.is_some(), |d| {
-                        d.child(
+        let root =
+            crate::widgets::native::dialog("update-link", t("Update download link"), theme, cx)
+                .child(crate::widgets::fit::fitted(
+                    native::body(theme)
+                        .child(
                             div()
-                                .flex()
-                                .items_center()
-                                .gap(px(native::LABEL_GAP))
-                                .child(div().text_color(theme.muted).child(screen.label(t("Or:"))))
-                                .child(
-                                    native::button(
-                                        "from-browser",
-                                        t("Get it from the browser").into(),
-                                        false,
-                                        theme,
-                                        &screen,
-                                    )
-                                    .on_click(cx.listener(
-                                        |this, _, window, cx| this.take_from_browser(window, cx),
-                                    )),
-                                ),
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .child(screen.label(self.named.clone())),
                         )
-                    })
-                    .when_some(self.says.clone(), |d, says| {
-                        d.child(native::note(says, theme.warning, &screen))
-                    })
-                    .child(native::buttons(
-                        Vec::new(),
-                        vec![
-                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
-                                .into_any_element(),
-                            native::button("ok", t("OK").into(), true, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
-                                .into_any_element(),
-                        ],
-                    )),
-            ),
-        )
+                        .child(
+                            div()
+                                .whitespace_nowrap()
+                                .overflow_hidden()
+                                .text_ellipsis()
+                                .child(native::note(self.url.clone(), theme.muted, &screen)),
+                        )
+                        .child(
+                            screen.label(t("The download's link has expired? Paste a fresh one:")),
+                        )
+                        .child(native::field(&self.address, "New address", theme))
+                        .when(self.page.is_some(), |d| {
+                            d.child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(native::LABEL_GAP))
+                                    .child(
+                                        div().text_color(theme.muted).child(screen.label(t("Or:"))),
+                                    )
+                                    .child(
+                                        native::button(
+                                            "from-browser",
+                                            t("Get it from the browser").into(),
+                                            false,
+                                            theme,
+                                            &screen,
+                                        )
+                                        .on_click(
+                                            cx.listener(|this, _, window, cx| {
+                                                this.take_from_browser(window, cx)
+                                            }),
+                                        ),
+                                    ),
+                            )
+                        })
+                        .when_some(self.says.clone(), |d, says| {
+                            d.child(native::note(says, theme.warning, &screen))
+                        })
+                        .child(native::buttons(
+                            Vec::new(),
+                            vec![
+                                native::button("cancel", t("Cancel").into(), false, theme, &screen)
+                                    .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
+                                    .into_any_element(),
+                                native::button("ok", t("OK").into(), true, theme, &screen)
+                                    .on_click(
+                                        cx.listener(|this, _, window, cx| this.ok(window, cx)),
+                                    )
+                                    .into_any_element(),
+                            ],
+                        )),
+                ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 
@@ -347,8 +356,8 @@ impl Render for MoveToQueue {
                 cx.listener(move |this, _, window, cx| this.pick(shown.clone(), window, cx)),
             )
         });
-        crate::widgets::native::dialog("move-to-queue", t("Move to queue"), theme, cx).child(
-            crate::widgets::fit::fitted(
+        let root = crate::widgets::native::dialog("move-to-queue", t("Move to queue"), theme, cx)
+            .child(crate::widgets::fit::fitted(
                 native::body(theme)
                     .child(
                         div()
@@ -376,8 +385,8 @@ impl Render for MoveToQueue {
                                 .into_any_element(),
                         ],
                     )),
-            ),
-        )
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 
@@ -483,8 +492,8 @@ impl Render for MoveRenameDialog {
         let one = self.ids.len() == 1;
         let labels = [t("New name"), t("Name pattern"), t("Folder")];
         let width = native::label_width(&labels);
-        crate::widgets::native::dialog("move-rename", t("Move/Rename"), theme, cx).child(
-            crate::widgets::fit::fitted(
+        let root = crate::widgets::native::dialog("move-rename", t("Move/Rename"), theme, cx)
+            .child(crate::widgets::fit::fitted(
                 native::body(theme)
                     // A new name for one; for several, only where they go.
                     .when(one, |d| {
@@ -547,8 +556,8 @@ impl Render for MoveRenameDialog {
                                 .into_any_element(),
                         ],
                     )),
-            ),
-        )
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

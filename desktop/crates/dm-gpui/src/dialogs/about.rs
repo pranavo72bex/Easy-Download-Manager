@@ -84,7 +84,7 @@ impl Render for About {
                 })
                 .on_click(cx.listener(move |this, _, _, cx| this.open_page(page, cx)))
         });
-        div()
+        let root = div()
             .id("about")
             .role(Role::Dialog)
             .aria_label(t("About dm"))
@@ -186,7 +186,8 @@ impl Render for About {
                                 }),
                         )
                     }),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 
@@ -203,7 +204,7 @@ impl Render for Tip {
         self.screen.begin();
         let screen = self.screen.clone();
         let tips = project::tips();
-        div()
+        let root = div()
             .id("tip")
             .role(Role::Dialog)
             .aria_label(t("Tip of the day"))
@@ -241,7 +242,8 @@ impl Render for Tip {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

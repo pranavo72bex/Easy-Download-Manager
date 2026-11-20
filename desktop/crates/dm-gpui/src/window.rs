@@ -15,6 +15,7 @@ pub(crate) mod mirror;
 pub(crate) mod narrow;
 pub(crate) mod placemenu;
 pub(crate) mod rowmenu;
+pub(crate) mod safe;
 pub(crate) mod screen;
 pub(crate) mod sidebar;
 pub(crate) mod statusbar;

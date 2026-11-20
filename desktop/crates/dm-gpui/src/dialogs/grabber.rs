@@ -365,7 +365,7 @@ impl Render for Grabber {
             .children(state)
             .child(Self::buttons(theme, &screen, found_any, cx));
 
-        div()
+        let root = div()
             .id("grabber")
             .role(Role::Dialog)
             .aria_label(t("Grabber"))
@@ -380,7 +380,8 @@ impl Render for Grabber {
             }))
             .size_full()
             .bg(theme.window)
-            .child(crate::widgets::fit::fitted(body))
+            .child(crate::widgets::fit::fitted(body));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 
