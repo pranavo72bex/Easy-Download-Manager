@@ -4,21 +4,41 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! [`crate::phone::Java`] over JNI: notifications, the media index, opening a file, the
-//! system's Downloads, the clipboard, the ongoing notification and the wake lock. Every call
-//! comes from one of dm's threads; a failure is said in dm's words, never a panic.
+//! system's Downloads, the clipboard, the ongoing notification (the foreground service's,
+//! `service`), the wake lock, the schedule's alarm (`receivers`), a finished file published to
+//! the shared Download folder (`storage`) and the connection and battery (`network`). Every
+//! call comes from one of dm's threads; a failure is said in dm's words, never a panic.
 
+use std::path::{Path, PathBuf};
+
+use dm_desktop_base::phone::PhoneNetwork;
 use jni::objects::JObject;
 use jni::{jni_sig, jni_str, Env, JValue};
 
-use super::{jvm, notify, open};
+use super::storage::Storage;
+use super::{jvm, network, notify, open, receivers, service};
 use crate::phone::Java;
 
-/// The phone's Java side, as dm's services call it.
-pub(crate) struct Jni;
+/// The phone's Java side, as dm's services call it, with the phone's storage worked out at
+/// start.
+pub(crate) struct Jni {
+    storage: Storage,
+}
+
+impl Jni {
+    /// The Java side, publishing finished files as `storage` says.
+    pub(crate) fn new(storage: Storage) -> Self {
+        Jni { storage }
+    }
+}
 
 impl Java for Jni {
     fn post(&self, title: &str, body: &str, open: Option<&str>) -> Result<(), String> {
         notify::post(title, body, open)
+    }
+
+    fn post_failed(&self, title: &str, body: &str, row: u64) -> Result<(), String> {
+        notify::post_failed(title, body, row)
     }
 
     fn index(&self, path: &str) -> Result<(), String> {
@@ -115,15 +135,27 @@ impl Java for Jni {
     }
 
     fn ongoing(&self, title: &str, body: &str) -> Result<(), String> {
-        notify::ongoing(title, body)
+        service::show(title, body)
     }
 
     fn end_ongoing(&self) -> Result<(), String> {
-        notify::end_ongoing()
+        service::hide()
+    }
+
+    fn alarm(&self, at: Option<i64>) -> Result<(), String> {
+        receivers::arm(at)
     }
 
     fn stay_awake(&self, on: bool) -> Result<(), String> {
         notify::stay_awake(on)
+    }
+
+    fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String> {
+        self.storage.publish(path)
+    }
+
+    fn network(&self) -> PhoneNetwork {
+        network::read()
     }
 }
 

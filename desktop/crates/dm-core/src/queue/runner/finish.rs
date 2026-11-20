@@ -204,11 +204,61 @@ impl DownloadList {
                 crate::motw::mark(&path, &from, &referrer);
             })
             .await;
+        }
+        // On a phone, a file finished in the app's own folder is put in the shared Download
+        // folder (gaps row N9), before the row says Completed, so the row names it there.
+        #[cfg(target_os = "android")]
+        let outcome = self.publish_finished(outcome, url).await;
+        if let Ok(finished) = &outcome {
             // Put on the disk from here, not waited for, once the renames and the mark are
             // done (`download::sync_after`).
             crate::download::sync_after(finished.path.clone());
         }
         outcome
+    }
+
+    /// A finished file handed to the app's publisher (`folders/publish.rs`), off the runtime's
+    /// threads: a large file is a long copy. A torrent's files stay where its seeding reads
+    /// them, and a folder where it is; a file that could not be published stays, whole, in
+    /// dm's own folder, and the person is told why.
+    #[cfg(target_os = "android")]
+    async fn publish_finished(
+        &self,
+        outcome: Result<crate::download::Finished, Error>,
+        url: &str,
+    ) -> Result<crate::download::Finished, Error> {
+        let mut finished = match outcome {
+            Ok(finished) => finished,
+            Err(error) => return Err(error),
+        };
+        let Some(publisher) = crate::folders::publisher() else {
+            return Ok(finished);
+        };
+        if crate::torrent::is_torrent(url) {
+            return Ok(finished);
+        }
+        let path = finished.path.clone();
+        let asked = tokio::task::spawn_blocking(move || {
+            if path.is_file() {
+                crate::folders::published(&path, &*publisher)
+            } else {
+                (path, None)
+            }
+        })
+        .await;
+        match asked {
+            Ok((path, why)) => {
+                finished.path = path;
+                if let Some(why) = why {
+                    self.note(why);
+                }
+            }
+            Err(e) => self.note(format!(
+                "{} stays in dm's own folder: {e}",
+                finished.path.display()
+            )),
+        }
+        Ok(finished)
     }
 
     /// The row's state, as the run ended: Completed with its file, Paused (asked for, or out

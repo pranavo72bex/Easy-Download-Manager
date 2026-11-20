@@ -18,6 +18,14 @@ use std::path::{Path, PathBuf};
 mod phone;
 #[cfg(target_os = "android")]
 pub use phone::set_phone_folders;
+// A finished file put in the phone's shared Download folder by the app's publisher (gaps row
+// N9); built on the desktop for its tests.
+#[cfg(any(target_os = "android", test))]
+mod publish;
+#[cfg(target_os = "android")]
+pub(crate) use publish::{published, publisher};
+#[cfg(target_os = "android")]
+pub use publish::{set_publisher, Publisher};
 
 /// The environment as the process has it.
 fn process(name: &str) -> Option<OsString> {

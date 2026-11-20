@@ -4,19 +4,19 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! A link handed to dm by another app (gaps row N5): the activity's intent, read once dm's
-//! window is up and again each time the activity comes back to the front (`android.rs`),
+//! window is up (`android.rs`) and again for each new one (`DmActivity.onNewIntent`, which makes
+//! it the activity's intent and calls in through `natives`),
 //! decided by `shared.rs`, and handed to dm's window as a browser's link is
 //! (`dm_desktop_base::phone::shared`): the window adds it as it adds a link dropped on it. A
 //! `.torrent` is copied into dm's home first and handed as that file
 //! (`dm_desktop_base::phone::shared_file`), which the window adds as `file://`.
 //!
 //! Each intent is taken once: after reading it dm puts an empty intent in its place
-//! (`setIntent`), so a resume does not hand it over again. NativeActivity does not take a new
-//! intent for its own (`onNewIntent` is not passed to native code and `getIntent` keeps the
-//! first), so a link shared while dm is already open reaches it only when Android starts the
-//! activity anew; a Java `onNewIntent` is the same question as N6's service (docs/gaps.md).
+//! (`setIntent`), and one read at a time, so the first start's read and a new intent's never
+//! hand the same link over twice.
 
 use std::path::Path;
+use std::sync::Mutex;
 
 use jni::objects::JObject;
 use jni::{jni_sig, jni_str, Env, JValue};
@@ -32,6 +32,8 @@ const MOST: usize = 32 * 1024 * 1024;
 /// `torrents` is the folder a shared `.torrent` is copied into. What cannot be taken is said
 /// in a notification, as the window has nothing to show for it.
 pub(crate) fn take(torrents: &Path) {
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+    let _reading = dm_core::lock(&ONE_AT_A_TIME);
     let taken = match read() {
         Ok(Handed::Nothing) => Ok(()),
         Ok(Handed::Text(text)) => {

@@ -16,10 +16,14 @@
 //! dm's words that the phone cannot, or does nothing where nothing is the answer (a
 //! notification, the clipboard, keeping awake).
 
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use crate::drops::Dropped;
 use crate::quiet::Note;
+
+pub mod network;
+pub use network::{network, PhoneNetwork};
 
 /// What the phone does for dm, through the app. Each has an answer of its own, so the app
 /// implements only what it has.
@@ -66,11 +70,51 @@ pub trait PhoneServices: Send + Sync {
         let _ = summary;
     }
 
+    /// The schedule's next start, `minutes` from now (`None`: none), so the phone wakes dm for
+    /// it (an alarm; gaps row N12). Told every minute by the wake watch (`wake`).
+    fn next_start(&self, minutes: Option<u32>) {
+        let _ = minutes;
+    }
+
     /// Takes the file at `path` away where it can be put back; a phone has no Trash dm can
     /// reach, so by default it is refused and the file kept.
     fn trash(&self, path: &str) -> Result<(), String> {
         let _ = path;
         Err(NO_TRASH.into())
+    }
+
+    /// Puts the file a download has just finished at `path` where the phone's other apps see
+    /// it (gaps row N9: on Android 10 and up dm downloads into its own folder and the phone
+    /// hands each finished file to the shared Download folder): where it now is, `None` where
+    /// it is left where it is, or why it could not be, the file then kept. Asked by the engine
+    /// as a run finishes, before the row says Completed, on one of its blocking threads
+    /// (`dm_core::folders::set_publisher`, handed in by [`set_phone`] on Android alone); by
+    /// default every file is left where it is.
+    fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String> {
+        let _ = path;
+        Ok(None)
+    }
+
+    /// The folders dm can download into by their path on this phone (gaps row N9): on Android
+    /// 10 and up dm's own folder alone (each finished file is then published to the shared
+    /// `Download/dm`, [`PhoneServices::publish`]); on 8 and 9 also the shared `Download/dm`,
+    /// first, where storage is allowed. A folder of the storage picker's is an address, not a
+    /// path. What Browse… offers on a phone.
+    fn download_folders(&self) -> Result<Vec<PathBuf>, String> {
+        Err(NO_FOLDERS.into())
+    }
+
+    /// The folder a file dm writes for the person goes to (Export, Back up dm, Save settings
+    /// to a file): the phone has no save panel dm's window can ask (GPUI's answers none), so
+    /// the file is written here and the window says where.
+    fn save_folder(&self) -> Result<PathBuf, String> {
+        Err(NO_SAVE.into())
+    }
+
+    /// The phone's connection and battery now, for its rules (gaps row N10); all unknown by
+    /// default, which holds nothing.
+    fn network(&self) -> PhoneNetwork {
+        PhoneNetwork::default()
     }
 }
 
@@ -160,6 +204,12 @@ const NOT_YET: &str = "this phone cannot do that for dm yet";
 /// What is said when a file is to go to the Trash on a phone.
 const NO_TRASH: &str = "a phone has no Trash: the file is kept where it is";
 
+/// What is said where the phone names no folder dm can download into.
+const NO_FOLDERS: &str = "this phone names no folder dm can download into";
+
+/// What is said where the phone names no folder for a file dm writes.
+const NO_SAVE: &str = "this phone names no folder dm can save a file in";
+
 /// The phone's services, once the app has handed them in.
 static PHONE: RwLock<Option<Arc<dyn PhoneServices>>> = RwLock::new(None);
 
@@ -171,6 +221,15 @@ pub fn set_phone(services: Box<dyn PhoneServices>) {
         Ok(mut phone) => *phone = Some(services),
         Err(poisoned) => *poisoned.into_inner() = Some(services),
     }
+    // The engine asks the phone where each finished file goes (gaps row N9).
+    #[cfg(target_os = "android")]
+    dm_core::folders::set_publisher(std::sync::Arc::new(publish));
+}
+
+/// The file a download finished at `path`, published through the phone; left where it is
+/// where none is handed in.
+pub fn publish(path: &Path) -> Result<Option<PathBuf>, String> {
+    phone().map_or(Ok(None), |phone| phone.publish(path))
 }
 
 /// The phone's services, where they were handed in.
@@ -224,9 +283,40 @@ pub fn busy(summary: Option<Busy>) {
     }
 }
 
+/// Tells the phone the schedule's next start, `minutes` from now.
+pub fn next_start(minutes: Option<u32>) {
+    if let Some(phone) = phone() {
+        phone.next_start(minutes);
+    }
+}
+
 /// `path` to the phone's Trash, or refused in words.
 pub fn trash(path: &str) -> Result<(), String> {
     phone().map_or_else(|| Err(NO_TRASH.into()), |phone| phone.trash(path))
+}
+
+/// The folders dm can download into on the phone, or why there are none.
+pub fn download_folders() -> Result<Vec<PathBuf>, String> {
+    match phone().map_or_else(|| Err(NO_FOLDERS.into()), |phone| phone.download_folders()) {
+        Ok(folders) if folders.is_empty() => Err(NO_FOLDERS.into()),
+        answer => answer,
+    }
+}
+
+/// Where a file dm writes for the person, offered as `name`, goes on the phone: the save
+/// folder, made where it is not there yet, under `name` or, where something has that name,
+/// the first `name (n)` free, so nothing of the person's is written over.
+pub fn save_place(name: &str) -> Result<PathBuf, String> {
+    let folder = phone().map_or_else(|| Err(NO_SAVE.into()), |phone| phone.save_folder())?;
+    save_place_in(&folder, name)
+}
+
+/// [`save_place`] in `folder`.
+fn save_place_in(folder: &Path, name: &str) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(folder)
+        .map_err(|e| format!("{} could not be made: {e}", folder.display()))?;
+    let name = if name.is_empty() { "dm" } else { name };
+    Ok(folder.join(dm_core::free_name(folder, name)))
 }
 
 /// A link (or lines of links) the phone's share sheet handed dm: added as a link dropped on
@@ -237,113 +327,9 @@ pub fn shared(text: String) {
 
 /// A file the phone handed dm (a `.torrent` opened with dm, copied into dm's home first):
 /// added as a file dropped on the window is, the `.torrent` itself the download.
-pub fn shared_file(path: std::path::PathBuf) {
+pub fn shared_file(path: PathBuf) {
     crate::drops::arrived(Dropped::File(path));
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// With no phone handed in, or one that leaves a service out, dm says so in words and
-    /// never panics.
-    #[test]
-    fn what_the_phone_leaves_out_is_said_in_words() {
-        struct Nothing;
-        impl PhoneServices for Nothing {}
-        let nothing = Nothing;
-        assert_eq!(nothing.open("/a"), Err(NOT_YET.to_string()));
-        assert_eq!(nothing.reveal("/a"), Err(NOT_YET.to_string()));
-        assert_eq!(nothing.trash("/a"), Err(NO_TRASH.to_string()));
-        assert_eq!(nothing.clipboard(), None);
-        nothing.keep_awake(true);
-        nothing.busy(None);
-        nothing.set_clipboard("x");
-    }
-
-    fn row(id: u64, state: dm_core::State, downloaded: u64, speed: f64) -> Arc<dm_core::Entry> {
-        let row: dm_core::Entry = serde_json::from_value(serde_json::json!({
-            "id": id,
-            "url": "https://files.example/a.zip",
-            "state": serde_json::to_value(state).unwrap(),
-            "progress": {"downloaded": downloaded, "total": 100, "speed": speed, "eta": null},
-            "filename": "a.zip",
-        }))
-        .unwrap();
-        Arc::new(row)
-    }
-
-    /// Running, queued while due, or sharing keeps dm busy; queued rows the schedule holds,
-    /// finished and stopped ones do not.
-    #[test]
-    fn what_keeps_a_phone_busy() {
-        use dm_core::State;
-        let rows = vec![
-            row(1, State::Running, 10, 1000.0),
-            row(2, State::Running, 100, 5.0),
-            row(3, State::Queued, 0, 0.0),
-            row(4, State::Completed, 100, 0.0),
-            row(5, State::Paused, 3, 0.0),
-        ];
-        assert_eq!(
-            Busy::of(&rows, true, false),
-            Some(Busy {
-                running: 1,
-                finishing: 1,
-                waiting: 1,
-                seeding: false,
-                bytes_per_second: 1000.0,
-            })
-        );
-        assert_eq!(Busy::of(&rows, false, false).map(|b| b.waiting), Some(0));
-        let queued = vec![row(3, State::Queued, 0, 0.0)];
-        assert_eq!(Busy::of(&queued, false, false), None);
-        assert_eq!(Busy::of(&queued, true, false).map(|b| b.waiting), Some(1));
-        let done = vec![
-            row(4, State::Completed, 100, 0.0),
-            row(5, State::Paused, 3, 0.0),
-        ];
-        assert_eq!(Busy::of(&done, true, false), None);
-        assert_eq!(
-            Busy::of(&done, true, true),
-            Some(Busy {
-                seeding: true,
-                ..Busy::default()
-            })
-        );
-    }
-
-    /// The notification's words are the status bar's, Exit's question's and the tray's.
-    #[test]
-    fn a_busy_phone_says_it_in_dms_words() {
-        crate::i18n::set("en");
-        let busy = |running, finishing, waiting, seeding| Busy {
-            running,
-            finishing,
-            waiting,
-            seeding,
-            bytes_per_second: 2048.0,
-        };
-        let rate = crate::format::rate(2048.0);
-        assert_eq!(
-            busy(2, 0, 1, false).words(),
-            (
-                format!("2 downloading at {rate}"),
-                Some("1 more is waiting to start.".into())
-            )
-        );
-        assert_eq!(
-            busy(1, 1, 0, true).words(),
-            (format!("1 downloading at {rate}"), None)
-        );
-        assert_eq!(busy(0, 2, 0, false).words(), ("2 finishing".into(), None));
-        assert_eq!(
-            busy(0, 0, 3, false).words(),
-            ("3 downloads are waiting to start.".into(), None)
-        );
-        assert_eq!(
-            busy(0, 0, 0, true).words(),
-            (crate::tray::words()[4].to_string(), None)
-        );
-    }
-}
+mod tests;

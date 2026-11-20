@@ -7,7 +7,9 @@
 //! queue's start time, where the Scheduler says to. Windows lets any
 //! program set a wake timer (where the power plan allows them, as it does
 //! by default); macOS and Linux keep that to the administrator, so there
-//! this does nothing and the Scheduler does not offer it.
+//! this does nothing and the Scheduler does not offer it. On a phone the
+//! next start is handed to the app (`phone::next_start`), which sets an
+//! alarm for it (gaps row N12).
 
 /// Keeps a wake timer set for the next start `next` says (minutes from
 /// now), looked at again every minute so a change in the Scheduler is
@@ -19,7 +21,16 @@ pub fn watch(next: impl Fn() -> Option<u32> + Send + 'static) {
             .name("dm-wake".into())
             .spawn(move || win::run(next));
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "android")]
+    {
+        let _ = std::thread::Builder::new()
+            .name("dm-wake".into())
+            .spawn(move || loop {
+                super::phone::next_start(next());
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            });
+    }
+    #[cfg(not(any(windows, target_os = "android")))]
     let _ = next;
 }
 

@@ -7110,6 +7110,7 @@ download is asked again from the start over a client that speaks HTTP/2 from its
 (`http2_client`), its ranges sharing that one connection. reqwest's `http2` feature is the `h2`
 crate, in Rust. That client goes out directly: a server that refuses HTTP/1.1 behind a proxy dm was
 told to use is not reached. Test: `dm-core/tests/http2_only.rs`, a server that speaks HTTP/2 alone.
+
 ## 2026-11-13: The egui window removed (G9, A2, A3)
 
 At the maintainer's word of 2026-11-12 (above): the `dm-desktop` crate, its fonts (Inter,
@@ -8300,3 +8301,110 @@ any says so in the finish trace (`DM_FINISH_TRACE`), with its range. Not counted
 own checks, which are requests of their own and asked twice by design. The test prints the
 count beside its server's and holds it to nothing yet: whether the row's 16 KiB a connection is
 dm's to meet is decided from what it prints.
+
+## On Android 10 and up dm downloads into its own folder and publishes each finished file (2026-11-20, gaps row N9)
+
+Android 10 (API 29) and up let no app write the shared Download folder by path. dm's engine
+writes by path everywhere (segments at offsets, resume from the parts it staged, renames, the
+file it hands back), so rather than teach it file descriptors, dm downloads on those phones into
+its own folder on the shared storage, `getExternalFilesDir(DIRECTORY_DOWNLOADS)/dm`, which it
+writes by path, and puts each finished file in `Download/dm` through `MediaStore.Downloads`:
+inserted with `RELATIVE_PATH` `Download/dm` (a category's sub-folder kept) and `IS_PENDING` 1,
+its bytes copied in chunks through the descriptor the store lends, `IS_PENDING` 0, then dm's copy
+removed. On Android 8 and 9 the shared folder is written by path with the storage permission, as
+before, and a file finished in dm's own folder there (the permission not yet granted) is moved
+across by path. The seam is the phone's `PhoneServices::publish` (`dm_desktop_base::phone`, by
+default every file left where it is; the desktop never hands a phone in), which `set_phone`
+hands the engine on Android as `dm_core::folders::set_publisher`, a hook asked by the queue as a run finishes (`queue/runner/finish.rs`, on
+Android alone, on a blocking thread), before the row says Completed, so the row's `path`, its
+notification and an open-when-done all name the published file; that path is the store's
+`_data` (a real path, which `open.rs` turns into the file's `content://` address as before). A
+file that cannot be published (no room for the copy, the store refusing) stays whole in dm's
+folder, the row Completed there, and the person is told why. Torrents are not published: a
+torrent being seeded reads its files where librqbit has them, so they stay in dm's folder (said
+in row N9; publishing when seeding stops is owed). Dropped: publishing from the window's session
+(`Effect::Finished`, above the engine, where the row is already Completed with its old path and
+its notification already sent); handing the engine a descriptor for every write (N9's first plan,
+which touches every writer in the engine); `requestLegacyExternalStorage` (Android 10 alone, and
+ignored from 11). The storage picker (SAF) for a folder of the person's own is owed.
+
+## On Android the window's choosers are GPUI's file prompt and dm's own folders (2026-11-20, gaps row N9)
+
+dm-gpui asks every file and folder through `platform::services::ask` (and `ask_then`,
+`ask_then_in`); on a computer that is the system's own panel, unchanged. On a phone those used
+to answer as if cancelled (`can_choose_folder` false), so Browse…, Import, Export, Back up dm,
+Restore and Options' Choose… fell back to typing a path, which a phone's scoped storage makes
+meaningless. Now `can_choose_folder` is true on Android and the Android arm
+(`dm-gpui/src/platform/phone.rs`, `ask`) answers each by what dm can do with the answer:
+
+- **A file to read** (Import a list or a `.torrent`, Restore a backup, Load settings, a cookies
+  file, a sound): GPUI's own `prompt_for_paths`. gpui-android answers it with gpui-mobile's
+  `GpuiPathPicker` (ACTION_OPEN_DOCUMENT), which copies the document into the app's cache before
+  the URI's grant ends and hands back that copy's path, never a `content://` address; so dm
+  reads it as any file and needs no ContentResolver copy of its own. Left: a cookies file or a
+  sound kept by path lives in the cache, which Android may clear.
+- **A file to write** (Export, Back up dm, Save settings to a file): gpui-android's
+  `prompt_for_new_path` answers none (no ACTION_CREATE_DOCUMENT), so the file goes to the
+  phone's save folder, the shared `Download/dm` where dm may write there, else the app's own
+  folder on the storage, under the name offered or the first `name (n)` free
+  (`dm_desktop_base::phone::save_place`); the window's existing message ("Exported to …",
+  "Saved to …", the backup's) says where. A create-document picker needs Java of its own,
+  which waits for the maintainer's word.
+- **A folder to download into** (Browse… for the download folder, a category's, the parts
+  folder, Move/Rename, Save to, Choose another folder…, Extract to): only folders dm can write
+  by path, so a segmented download resumes in them: the shared `Download/dm` and the app's own
+  folder (`PhoneServices::download_folders`, found once at start by `dm-android`'s
+  `android/storage.rs`), offered by name in GPUI's prompt, which says "On a phone dm downloads
+  only into these folders."; not the storage picker's trees, whose URIs are no paths (GPUI's
+  picker refuses folders too). The fields stay editable, as on a computer.
+
+What only the phone knows comes through `PhoneServices`' new `download_folders` and
+`save_folder`, which refuse in words by default; dm-gpui calls no JNI. Dropped: writing through
+a SAF URI's output stream (no create-document picker to get one), and a folder tree from SAF as
+a download folder (row N9's own design, on its branch).
+
+**Joined with publishing (2026-11-20, the two N9 branches merged).** One `Storage`
+(`dm-android/src/android/storage.rs`) looks the shared Download folder up once and works out
+`phone::Places` from it (`storage::places`, tested on the host): on Android 10 and up dm
+downloads into its own folder alone (`Android/data/com.dm.android/files/Download/dm`), so
+Browse… offers that one, the first start downloads there and each finished file is published to
+`Download/dm` (above); the shared `Download/dm` is offered for downloads only on 8 and 9, where
+dm writes it by path once storage is allowed. A file dm writes for the person (Export, Back up
+dm) still goes to the shared `Download/dm` where the probe file could be written there (8 and 9
+with the permission, 11 and up, which let an app make its own files there by path), else to dm's
+own folder (`Places::save`); Android 10 alone keeps it in dm's own folder, not published.
+
+## A phone's rules are W11's holds (2026-11-20, gaps rows N10, N12)
+
+The phone's connection and battery are the computer state W11 already reads: on Android
+`metered::System` asks the app's `PhoneServices::network` (read through JNI from
+`ConnectivityManager` and the battery's sticky broadcast, no Java), so mobile data is W11's
+metered hold and a low battery W11's battery hold, under Options' existing lines. The phone's
+own lines (Wi-Fi only, not while roaming, Data Saver) are three more `dm_core::Hold`s on the
+same path (the schedule's pause, put back by `may_run`), read at the same tick. Dropped: a
+`Platform` callback of the engine's own for these (a second mechanism beside W11's), and
+`AlarmManager` and `BOOT_COMPLETED` for the schedule (N12), which need a receiver class: Java,
+waiting for the maintainer's word with N6's service (since given: the alarm and the phone's
+start came with dm's own Java, below). The three Options lines are built for Android alone and
+wait for the maintainer's word on their wording.
+
+## dm's own Java on Android: one small class per feature, each handing its call to Rust (2026-11-20, gaps rows N5, N6, N12)
+
+The maintainer was asked "Allow one small Java file per feature that just hands its call to
+Rust?" and answered "Yes, all four" (2026-11-20). So four classes join gpui-mobile's two, in
+`desktop/crates/dm-android/java/com/dm/android/`, package `com.dm.android`, with dm's licence
+header: `DmActivity` (gpui-mobile's activity with `onNewIntent`, N5), `DmService` (the dataSync
+foreground service, N6), `DmActionReceiver` (a notification's Retry, Stop All and Open, and the
+schedule's alarm; not exported, N6, N12) and `DmBootReceiver` (`BOOT_COMPLETED`, N12). Each does
+nothing but call a `native` method; what happens is Rust's (`src/android/natives.rs`,
+`service.rs`, `receivers.rs`). The native methods are found by exported name
+(`Java_com_dm_android_<Class>_<method>`), as gpui-android's are, not registered from
+`jvm::init`: the service and the receivers can run in a process Android started for them alone,
+where `android_main` never ran, so each class loads the library itself and each native method
+keeps the Java machine and a context first. A notification's button reaches dm through its
+inbox (the path a second launch and the desktop notification's Retry use; Stop All a new
+`stop-all` order that runs what `Command::StopAll` runs), which the engine watches whether or
+not the window is drawn; a channel polled by the window was dropped, since a window in the
+background may not tick. dm-gpui's start needs the activity's window, so neither the phone's
+start nor the schedule's alarm runs dm without it: the alarm holds a running dm up with the
+service, and otherwise, as at the phone's start, a notification asks for a tap.

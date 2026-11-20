@@ -4,36 +4,41 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The phone's Java side, reached from Rust: the process's Java machine and dm's activity, kept
-//! once at start, and the few helpers every call into Android shares. Each call goes through
-//! [`with`], which attaches the calling thread (the window's, or one of the engine's) and turns
-//! whatever Android throws into dm's words; nothing here panics.
+//! at start (or the application's context, where a receiver started the process), and the few
+//! helpers every call into Android shares. Each call goes through [`with`], which attaches the
+//! calling thread (the window's, or one of the engine's) and turns whatever Android throws into
+//! dm's words; nothing here panics.
 
 use std::ffi::c_void;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock, RwLock};
 
 use jni::errors::Error;
 use jni::objects::{JObject, JString};
 use jni::refs::Global;
 use jni::{jni_sig, jni_str, Env, JValue, JavaVM};
 
-/// What every call needs: the Java machine and dm's activity (a `Context`).
-struct Jvm {
-    vm: JavaVM,
-    activity: Global<JObject<'static>>,
-}
+/// The process's one Java machine.
+static VM: OnceLock<JavaVM> = OnceLock::new();
 
-static JVM: OnceLock<Jvm> = OnceLock::new();
+/// The `Context` every call is made with: dm's activity once it has started (`init`), else the
+/// application's, kept by a receiver or the service started without the activity (`adopt`:
+/// the phone's start, the schedule's alarm, gaps rows N6, N12).
+static CONTEXT: RwLock<Option<Arc<Global<JObject<'static>>>>> = RwLock::new(None);
 
 /// Keeps the Java machine and the activity android-activity gives (`AndroidApp::vm_as_ptr`,
 /// `activity_as_ptr`), with a global reference of dm's own to the activity, so a call from any
-/// thread can reach it for as long as the process lives.
+/// thread can reach it for as long as the process lives. The activity takes the place of an
+/// application context a receiver kept before it.
 pub(crate) fn init(vm: *mut c_void, activity: *mut c_void) -> Result<(), String> {
     if vm.is_null() || activity.is_null() {
         return Err("dm could not reach Android: it gave no Java machine or activity".into());
     }
-    // SAFETY: `vm` is android-activity's pointer to the process's one Java machine, not null
-    // (checked above) and valid for the whole process.
-    let vm = unsafe { JavaVM::from_raw(vm.cast()) };
+    // A Java machine kept already (a receiver ran first in this process) is the same one.
+    let vm = VM.get_or_init(|| {
+        // SAFETY: `vm` is android-activity's pointer to the process's one Java machine, not
+        // null (checked above) and valid for the whole process.
+        unsafe { JavaVM::from_raw(vm.cast()) }
+    });
     let raw = activity as jni::sys::jobject;
     let activity = vm
         .attach_current_thread(|env| -> jni::errors::Result<Global<JObject<'static>>> {
@@ -44,22 +49,68 @@ pub(crate) fn init(vm: *mut c_void, activity: *mut c_void) -> Result<(), String>
             env.new_global_ref(&*borrowed)
         })
         .map_err(|e| format!("dm could not reach Android: {}", words(&e)))?;
-    // A second start in the same process keeps the first: the Java machine is the same one.
-    let _ = JVM.set(Jvm { vm, activity });
+    keep(Some(Arc::new(activity)));
     Ok(())
 }
 
-/// Runs `call` with this thread attached and dm's activity, `what` saying in dm's words what was
-/// being done ("open the file") for the sentence a failure is told in.
+/// Called first by each of dm's Java entries (`natives`): keeps the Java machine and, where no
+/// context is kept yet (the process was started for a receiver or the service, not the
+/// activity), `context`'s application context, so `with` works there too.
+pub(crate) fn adopt(env: &mut Env<'_>, context: &JObject<'_>) -> jni::errors::Result<()> {
+    if VM.get().is_none() {
+        let vm = env.get_java_vm()?;
+        let _ = VM.set(vm);
+    }
+    if context.is_null() || kept().is_some() {
+        return Ok(());
+    }
+    let app = env
+        .call_method(
+            context,
+            jni_str!("getApplicationContext"),
+            jni_sig!("()Landroid/content/Context;"),
+            &[],
+        )?
+        .l()?;
+    let global = if app.is_null() {
+        env.new_global_ref(context)?
+    } else {
+        env.new_global_ref(&app)?
+    };
+    // A context kept meanwhile by another thread stands.
+    if kept().is_none() {
+        keep(Some(Arc::new(global)));
+    }
+    Ok(())
+}
+
+/// The context kept, if any.
+fn kept() -> Option<Arc<Global<JObject<'static>>>> {
+    match CONTEXT.read() {
+        Ok(held) => held.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    }
+}
+
+/// Keeps `context` in place of the one kept.
+fn keep(context: Option<Arc<Global<JObject<'static>>>>) {
+    match CONTEXT.write() {
+        Ok(mut held) => *held = context,
+        Err(poisoned) => *poisoned.into_inner() = context,
+    }
+}
+
+/// Runs `call` with this thread attached and dm's context (its activity, where it has
+/// started), `what` saying in dm's words what was being done ("open the file") for the
+/// sentence a failure is told in.
 pub(crate) fn with<T>(
     what: &str,
     call: impl FnOnce(&mut Env<'_>, &JObject<'static>) -> jni::errors::Result<T>,
 ) -> Result<T, String> {
-    let jvm = JVM
-        .get()
-        .ok_or_else(|| format!("dm could not {what}: Android was not reached at start"))?;
-    jvm.vm
-        .attach_current_thread(|env| call(env, &jvm.activity))
+    let unreached = || format!("dm could not {what}: Android was not reached at start");
+    let vm = VM.get().ok_or_else(unreached)?;
+    let context = kept().ok_or_else(unreached)?;
+    vm.attach_current_thread(|env| call(env, &context))
         .map_err(|e| format!("dm could not {what}: {}", words(&e)))
 }
 

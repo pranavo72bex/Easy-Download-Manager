@@ -172,7 +172,9 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
             "battery_below",
             "concurrency",
             "connections",
+            "data_saver_waits",
             "forget_after_days",
+            "not_roaming",
             "on_complete",
             "on_metered",
             "queue_limits",
@@ -185,6 +187,7 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
             "stream_quality",
             "subtitles",
             "watch_folder",
+            "wifi_only",
         ],
         Tab::Advanced => &[
             "attempts",
