@@ -108,7 +108,9 @@ pub fn label_height(label: &str) -> u32 {
 /// The panel's list of what a tab has loaded: manifests first, which
 /// are whole videos, then files, largest first. Two of a kind are told
 /// apart by their file name.
-pub fn panel_list(mut list: Vec<Stream>) -> Vec<Stream> {
+pub fn panel_list(list: Vec<Stream>) -> Vec<Stream> {
+    // One playlist or manifest asked for twice, each time under a fresh signature, is one line.
+    let mut list = one_line_a_stream(list);
     // Beside a playlist or manifest, the whole files a player fetched by ranges are that
     // stream's own (an HLS or DASH stream's single-file renditions), not lines of their own.
     if list
@@ -207,6 +209,65 @@ pub fn panel_list(mut list: Vec<Stream>) -> Vec<Stream> {
         }
     }
     list
+}
+
+/// Whether two addresses are one stream signed twice: the same address before its query, the
+/// same names in their queries, and the same values for the names that say which stream it is
+/// (`itag`, `id`, `mime`), as the extension's `RequestHeaders::renewed` takes the newer of two
+/// for the older when it hands a stream over.
+pub fn signed_again(a: &str, b: &str) -> bool {
+    fn split(url: &str) -> (&str, Vec<(&str, &str)>) {
+        let url = url.split('#').next().unwrap_or(url);
+        let (path, query) = url.split_once('?').unwrap_or((url, ""));
+        let pairs = query
+            .split('&')
+            .filter(|p| !p.is_empty())
+            .map(|p| p.split_once('=').unwrap_or((p, "")))
+            .collect();
+        (path, pairs)
+    }
+    let ((path_a, query_a), (path_b, query_b)) = (split(a), split(b));
+    if path_a != path_b || !path_a.starts_with("http") {
+        return false;
+    }
+    let names = |query: &[(&str, &str)]| {
+        let mut names: Vec<&str> = query.iter().map(|(n, _)| *n).collect();
+        names.sort_unstable();
+        names
+    };
+    let value = |query: &[(&str, &str)], name: &str| {
+        query
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, v)| v.to_string())
+    };
+    names(&query_a) == names(&query_b)
+        && ["itag", "id", "mime"]
+            .iter()
+            .all(|name| value(&query_a, name) == value(&query_b, name))
+}
+
+/// A playlist or manifest the player asked for again under a fresh signature (Dailymotion's
+/// player reads its video's details twice and is handed a master playlist signed anew each
+/// time, `?sec=…&dmTs=…&dmV1st=…`) as one line, where it was two of the same name: where the
+/// first was, with the newest address, which is still good, and the name of whichever was read
+/// (the newer where both were).
+fn one_line_a_stream(list: Vec<Stream>) -> Vec<Stream> {
+    let mut out: Vec<Stream> = Vec::with_capacity(list.len());
+    for stream in list {
+        let manifest = matches!(stream.kind, StreamKind::Hls | StreamKind::Dash);
+        let known = out.iter_mut().find(|known| {
+            manifest && known.kind == stream.kind && signed_again(&known.url, &stream.url)
+        });
+        match known {
+            Some(known) if stream.label == HLS_PLAIN || stream.label == DASH_PLAIN => {
+                known.url = stream.url;
+            }
+            Some(known) => *known = stream,
+            None => out.push(stream),
+        }
+    }
+    out
 }
 
 #[cfg(test)]

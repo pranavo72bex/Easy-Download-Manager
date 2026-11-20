@@ -302,6 +302,90 @@ fn two_lines_of_one_label_are_told_apart_by_their_file_names() {
     );
 }
 
+/// A master playlist's address as Dailymotion's player asks for it, signed anew each time it
+/// reads the video's details (issue #45: the panel listed "HLS stream · xby1uq2.m3u8" twice).
+fn signed(sec: &str, ts: &str, first: &str) -> String {
+    format!(
+        "https://cdndirector.dailymotion.com/cdn/manifest/video/xby1uq2.m3u8?sec={sec}\
+         &dmTs={ts}&dmV1st={first}"
+    )
+}
+
+#[test]
+fn a_playlist_asked_for_again_under_a_fresh_signature_is_one_line_at_its_newest_address() {
+    let older = signed("_Cs7QACCO7w4h0_d045clRZUK", "385853", "54F0E6B397CC4AF5");
+    let newer = signed("Lsvh5FLSRL3b0_lDsn3Xj6RY", "97888", "AA31321CEE6F20D0");
+    let list = panel_list(vec![
+        line(&older, StreamKind::Hls, None, HLS_PLAIN),
+        line(&newer, StreamKind::Hls, None, HLS_PLAIN),
+    ]);
+    assert_eq!(
+        labels(&list),
+        [HLS_PLAIN],
+        "one line, named by nothing else"
+    );
+    assert_eq!(
+        list[0].url, newer,
+        "the newest signature, which is still good"
+    );
+
+    // The one read keeps its name, whichever it was.
+    let list = panel_list(vec![
+        line(&older, StreamKind::Hls, None, "1080p HLS stream"),
+        line(&newer, StreamKind::Hls, None, HLS_PLAIN),
+    ]);
+    assert_eq!(labels(&list), ["1080p HLS stream"]);
+    assert_eq!(list[0].url, newer);
+    let list = panel_list(vec![
+        line(&older, StreamKind::Hls, None, HLS_PLAIN),
+        line(&newer, StreamKind::Hls, None, "1080p HLS stream"),
+    ]);
+    assert_eq!(labels(&list), ["1080p HLS stream"]);
+    assert_eq!(list[0].url, newer);
+
+    // Another video's playlist stays a line of its own: another path, another `id`, other
+    // query names, or a whole file rather than a playlist.
+    let list = panel_list(vec![
+        line(&older, StreamKind::Hls, None, HLS_PLAIN),
+        line(
+            "https://cdndirector.dailymotion.com/cdn/manifest/video/x9other.m3u8?sec=a&dmTs=1&dmV1st=b",
+            StreamKind::Hls,
+            None,
+            HLS_PLAIN,
+        ),
+        line(
+            "https://cdndirector.dailymotion.com/cdn/manifest/video/xby1uq2.m3u8?sec=a",
+            StreamKind::Hls,
+            None,
+            HLS_PLAIN,
+        ),
+    ]);
+    assert_eq!(list.len(), 3, "{list:?}");
+    assert!(!signed_again(
+        "https://c.example/live.m3u8?id=1&sig=a",
+        "https://c.example/live.m3u8?id=2&sig=b"
+    ));
+    assert!(signed_again(
+        "https://c.example/live.m3u8?id=1&sig=a",
+        "https://c.example/live.m3u8?sig=b&id=1#t=3"
+    ));
+    let list = panel_list(vec![
+        line(
+            "https://c.example/v.mp4?sig=a",
+            StreamKind::File,
+            Some(9 * MB),
+            "MP4 file",
+        ),
+        line(
+            "https://c.example/v.mp4?sig=b",
+            StreamKind::File,
+            Some(9 * MB),
+            "MP4 file",
+        ),
+    ]);
+    assert_eq!(list.len(), 2, "files are not playlists: {list:?}");
+}
+
 #[test]
 fn a_stream_goes_over_the_wire_as_the_extension_keeps_it() {
     let mut stream = line(

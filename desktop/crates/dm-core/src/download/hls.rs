@@ -675,6 +675,13 @@ async fn live_sound(
     })
 }
 
+/// How many times more a playlist refused with a 403 is asked for, a second, then two, apart.
+/// Dailymotion's director of its master playlists refuses one ask in ten or so with an empty
+/// 403 and serves the next (measured 2026-11-20, issue #45): its player asks again, and a
+/// download that took the first refusal for an answer failed. A real refusal costs three
+/// seconds more. The probe of a playlist's address asks again as often (`fetch::probe_file`).
+pub(super) const PLAYLIST_REFUSED_TRIES: u64 = 2;
+
 /// A playlist's text and the address it was finally served from, which
 /// its relative entries are joined against.
 pub(super) async fn fetch_playlist(
@@ -682,8 +689,21 @@ pub(super) async fn fetch_playlist(
     url: &str,
     options: &Options,
 ) -> Result<(String, String), Error> {
-    let fetched = fetch_capped(client, url, MANIFEST_CAP, options).await?;
-    Ok((fetched.text(), fetched.landed))
+    let mut refused = 0;
+    loop {
+        match fetch_capped(client, url, MANIFEST_CAP, options).await {
+            Ok(fetched) => return Ok((fetched.text(), fetched.landed)),
+            Err(Error::Refused { status: 403, .. }) if refused < PLAYLIST_REFUSED_TRIES => {
+                refused += 1;
+                or_stop(&options.control, async {
+                    tokio::time::sleep(Duration::from_secs(refused)).await;
+                    Ok(())
+                })
+                .await?;
+            }
+            Err(e) => return Err(e),
+        }
+    }
 }
 
 /// Discards staged segments that belong to a different rendition.
