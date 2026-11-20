@@ -8247,3 +8247,26 @@ and Gradle build); no other Java (N6's service, `onNewIntent`, notification butt
 word of its own. gpui-android is a stand-in, at the maintainer's word of 2026-11-20 ("when offical come we will
 shift but for now use gpui-mobile"): when Zed ships an official GPUI Android platform, dm moves
 to it and removes the copy (docs/gaps.md, Periodic).
+
+## A torrent follows the computer's network; sharing waits out a hold (2026-11-20, gaps row N8)
+
+A phone moves between Wi-Fi and mobile data, and a laptop between networks, coming back with
+another address. dm-core already noticed one network only: the adapter downloads are held to
+(`only_through::generation`, row W12), and torrents refuse to start while one is chosen. So
+dm-net's `only_through::moves` (dm-core's `network_moves`) now counts every change of the
+computer's addresses, looked at at most every two seconds from the same adapter list, plus a
+change the system reports first (`dm_core::network_changed`, for the phone's connectivity
+callback) and W12's generation. A running torrent, downloading or kept shared, that sees it
+change announces itself again: dm-torrent's `Session::reannounce` pauses and resumes it through
+librqbit's public `Session::pause`/`unpause`, which drops the peers reached from the old address
+and asks the trackers, the DHT and local discovery again from the new one; pieces and files are
+kept, nothing checked again. No socket is bound again and librqbit is not patched: the listener
+and the DHT bind every address (`[::]:0`, `0.0.0.0`), so they take peers on the new one as they
+are. librqbit counts what it sent from each start, so dm-torrent carries the count across its
+pauses (a share's ratio would start again). On the desktop this is a behaviour change: a laptop
+changing network gets its torrent's peers back without waiting for the tracker's interval.
+
+`DownloadList::hold_for` (row W11: metered connection, low battery) held downloads only; a
+finished torrent's sharing, which runs outside the rows, went on sending. Held with them now:
+paused within a tick, its minutes not counted while held, announced afresh when the hold ends.
+Also a desktop change (B76's words name downloads only), flagged in row N8 for the maintainer.

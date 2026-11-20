@@ -37,9 +37,12 @@ impl DownloadList {
     /// Holds every download for `hold`, or, with `None`, lets them go on: what runs is paused
     /// and nothing starts at the next tick, as the schedule closing does; once the hold is
     /// lifted the rows it held are put back by the schedule's watcher (`may_run`). A download a
-    /// person started outside the schedule goes on.
+    /// person started outside the schedule goes on. Every finished torrent's sharing is held
+    /// with them, and goes on when they do (gaps row N8).
     pub fn hold_for(&self, hold: Option<Hold>) {
         let before = std::mem::replace(&mut *crate::lock(&self.inner.held_by), hold);
+        // A finished torrent's sharing sends over the same connection: held with them (N8).
+        crate::torrent::hold_sharing(hold.is_some());
         if before != hold {
             self.kick();
         }
