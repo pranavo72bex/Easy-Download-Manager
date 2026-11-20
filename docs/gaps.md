@@ -11,6 +11,35 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## Resume here (2026-11-20)
+
+**Windows, 2026-11-20: coded with agents six at a time, merged, built, and `human-qa.py` run.**
+`main` is about 95 commits ahead of `origin/main` and NOT pushed (the maintainer: pull the Mac's
+CI fixes, taking theirs, and push nothing). Merged: Y13, W2 (`wan`, `lossy`, `slowname`), 205,
+U27 (and macOS's keys, dm's own NSMenu), P6, 218, 215, Y12's and 205's checks, F14's checks, 217,
+the named notes and A10's media decoders, Y5, Y16 (and its live test), Y2 (with resume and the
+context updates), W3, W4, issue #45 (row 220), and the Mac's 13c93bac, be512881, b22e4386. Not
+merged: `f10-rar` (RAR 5 and RAR 4 in dm's own code) waits for the maintainer's word on B71;
+`u27-mac-keys` (gpui-component vendored) is superseded.
+
+The debug build compiles with all of it (D:/dm-target). `human-qa.py` on it, five runs: 62, 70,
+71, 68 of 76 rows; fixed along the way: B70 (the first tick at opening), B72 (Tab in a dialog,
+and `sha2` optimised in debug builds), B75 (a follow drawn at once) and the checks' own faults
+(WALK's `tray.rs` path, B69's locked file, B74's folder name, B72's waits, B75's scroll, B77's
+held pop-up and its address on Windows, B25's Download details picture with Keep no record).
+The browser rows (B26, B33 to B36, B59) failed once with dm's first request 13 to 35 s after a
+click, a loaded laptop by every sign; they passed in the runs before. The last run stopped at
+its first picture: the screen was locked.
+
+**Next, in this order:**
+1. `human-qa.py` whole on this tree with the screen awake (from PowerShell, outside the tool's
+   sandbox: inside it the window is pictured black); report every row.
+2. On the Mac: `cargo test --workspace`, clippy and fmt on this tree (nothing of the day's rows
+   has run its tests), then the CI.
+3. The maintainer's word: B71 (RAR), row 219, Y2's two failure sentences in the window's
+   catalogs, `DM_BENCH_CA` and `DM_BENCH_DNS` read in release builds (the security review), and
+   step 0's list below.
+
 ## Resume here (2026-11-19)
 
 **Evening, 2026-11-19 (Windows):** the workspace compiles again (16df5c2f: a future that was
