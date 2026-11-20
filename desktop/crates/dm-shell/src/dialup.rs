@@ -29,7 +29,7 @@ use std::time::Duration;
 use dm_core::Redial;
 
 #[cfg(windows)]
-mod ras;
+use crate::platform::dialup::ras;
 
 #[cfg(test)]
 mod tests;

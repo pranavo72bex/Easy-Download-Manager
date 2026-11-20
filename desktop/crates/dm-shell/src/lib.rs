@@ -26,6 +26,7 @@ pub mod firewall;
 pub mod host;
 pub mod instance;
 pub mod lists;
+mod platform;
 pub mod register;
 pub mod registry;
 pub mod settings;

@@ -16,7 +16,7 @@ use std::path::Path;
 use std::time::Duration;
 
 #[cfg(windows)]
-mod owner_only;
+use crate::platform::access::owner_only;
 
 /// The file whose lock says dm is running.
 fn lock_path(home: &Path) -> std::path::PathBuf {
@@ -76,7 +76,7 @@ fn try_claim(home: &Path) -> std::io::Result<Option<File>> {
 /// token are written 0600 already, but unfinished parts are not, and a home
 /// made with the default umask (0755 on Linux) let any user on the computer
 /// list and read downloads in progress. On Windows the folder gets an access
-/// list of its own (`owner_only.rs`): a home on a second drive took the drive's,
+/// list of its own (`platform/access/owner_only.rs`): a home on a second drive took the drive's,
 /// which lets every signed-in account read and change it.
 fn private(home: &Path) {
     #[cfg(unix)]

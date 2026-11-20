@@ -103,12 +103,12 @@ pub fn open_with(path: &str, app: &Path) -> Result<(), String> {
     // A program on Windows is handed a long path's short form, which every
     // program reads, where one written before long paths would not open it.
     let shell_path = for_shell(path);
-    let p = if cfg!(windows) {
+    let p = if opener::SHORT_FORM_FOR_PROGRAMS {
         Path::new(&shell_path)
     } else {
         p
     };
-    let (program, args) = open_with_command(p, app, cfg!(target_os = "macos"));
+    let (program, args) = open_with_command(p, app, opener::OPEN_WITH_THROUGH_OPEN);
     std::process::Command::new(program)
         .args(args)
         .spawn()

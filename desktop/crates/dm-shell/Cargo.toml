@@ -54,7 +54,7 @@ harness = false
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Win32_Foundation",
-  # A dial-up or VPN connection dialled before downloads (dialup/ras.rs); a
+  # A dial-up or VPN connection dialled before downloads (platform/dialup/ras.rs); a
   # connection's status names its tunnel's addresses, which WinSock defines.
   "Win32_NetworkManagement_Rras",
   "Win32_Networking_WinSock",

@@ -6,7 +6,7 @@
 //! Android (gaps row N17): what `Desktop` asks of the shell on a desktop, asked of the phone.
 //! A file is opened and its folder shown by an intent only the app can send, so each goes
 //! through the services the app handed in (`phone`); the engine's own opener only says it
-//! cannot (`dm_shell`'s `shell/opener/android.rs`). There is no login item.
+//! cannot (`dm_shell`'s `platform/opener/android.rs`). There is no login item.
 
 use std::path::Path;
 
