@@ -57,9 +57,10 @@ pub struct Added {
 /// (gaps row N6), and every screen asks it.
 #[derive(uniffi::Object)]
 pub struct Engine {
-    /// Kept for as long as dm runs; dropped last, after the backend has stopped the downloads.
-    runtime: tokio::runtime::Runtime,
     backend: Backend,
+    /// Kept for as long as dm runs; dropped last (fields drop in order), after the backend has
+    /// stopped the downloads.
+    _runtime: tokio::runtime::Runtime,
 }
 
 #[uniffi::export]
@@ -107,7 +108,10 @@ impl Engine {
         }
         let platform = Arc::new(system::Phone::new(system));
         let backend = Backend::new(runtime.handle().clone(), queue, settings, notices, platform);
-        let engine = Engine { runtime, backend };
+        let engine = Engine {
+            backend,
+            _runtime: runtime,
+        };
         engine.download_to_by_default(PathBuf::from(downloads))?;
         Ok(Arc::new(engine))
     }

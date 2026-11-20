@@ -757,7 +757,9 @@ background with its progress in a notification, the way a phone's BitTorrent app
 **What carries over and what does not:** the engine crates hold no window code (`dm-core`,
 `dm-net`, `dm-media`, `dm-torrent`, `dm-protocol`, `dm-js`'s Rust side) and are expected to build
 for `aarch64-linux-android` once their system code is given an Android branch (A10's
-`platform/` is where it goes). The window does not carry over: GPUI has no Android backend, so
+`platform/` is where it goes). YouTube's player checks need no system engine on the phone: dm-js is
+dm's own interpreter in Rust (row F15), so row N4 (a WebView's JavaScript) was dropped on
+2026-11-20, found by reading `dm-js/src/lib.rs`. The window does not carry over: GPUI has no Android backend, so
 the phone needs a window of its own, and goal 3 above ("GPUI the only window toolkit") cannot
 hold for it as written. dm-shell's tray, login item, registry, dial-up and the browser
 extension's native host have no Android meaning.
@@ -766,14 +768,13 @@ extension's native host have no Android meaning.
 as one `cdylib`, `desktop/crates/dm-android`, bound with UniFFI; Android 8.0 (API 26) and up; the
 desktop's features in a phone's shape (`docs/decisions.md`).
 
-**Order:** N2 to N4 (the engine on the phone); N5 to N9 (the
+**Order:** N2 and N3 (the engine on the phone); N5 to N9 (the
 app a person uses); N10 to N12 (system rules); N13 and N14 (tests and release).
 
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
 | N2  | The engine has never been built for Android: no `target_os = "android"` branch anywhere, and code that assumes a desktop (`dm_core::folders`, `secretstore`, `dialup.rs`, `second_path`, the clock, `env`) | OPEN · M | `cargo check --target aarch64-linux-android` (with `cargo-ndk`) on dm-core, dm-net, dm-media, dm-torrent and dm-protocol, each failure given an Android branch behind `platform/` (A10); a CI job that keeps it building; `x86_64-linux-android` too, for the emulator |
 | N3  | Nothing exposes the engine to another language: the window and the control port reach it in-process from Rust | OPEN · M | `dm-android`: a UniFFI interface the size of the control port's methods (add, start, pause, resume, remove, list, a download's details, Options read and written, events as a callback), so the phone's window calls what the desktop's window calls and no feature is written twice; its tests in Rust on the host |
-| N4  | The YouTube solver runs the player's code in the system's JS engine (Chakra on Windows, JSC on the Mac, row 164); Android has neither as a library | OPEN · M · decide | Recommended: the system WebView's JavaScript (`WebView.evaluateJavascript` in a hidden WebView, or `JavaScriptSandbox` from androidx where the system has it), behind `dm-js`'s existing interface, so it stays the system's engine with no third-party script (row 164); tested on the emulator against the cut player |
 | N5  | No way to hand dm a link on a phone: there is no browser extension on Android's Chrome | OPEN · S | An `ACTION_SEND` (text/plain) and `ACTION_VIEW` intent filter: a link shared from any app, a magnet opened, a `.torrent` opened from Files or a browser's download all reach the same "add" as the desktop's hand-over, with the same Add dialog's choices (folder, category, start now or queue); a link copied to the clipboard offered when dm opens, as the desktop's clipboard offer |
 | N6  | Downloads stop when the phone's screen goes off or the app is left: the engine runs only while a process does | OPEN · M | A foreground service (type `dataSync`, Android 14's rules) holding the engine while anything downloads or seeds, its notification showing count, speed and Pause all; stops itself when the queue is empty and nothing seeds (Options' choice, as the desktop's); survives the app's window being swiped away |
 | N7  | No phone window: the list, a download's details, the Add dialog, Options, the queue, the categories | OPEN · L · the maintainer's word | The Compose screens N1 decides, each feature the desktop's window has (a row of `docs/parity.md`) reachable, the same words as the desktop (`desktop/assets/i18n/` read by both); a per-download notification with Pause and Open when finished |
