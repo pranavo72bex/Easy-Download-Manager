@@ -23,6 +23,17 @@ use super::Pcm;
 use crate::mf;
 use crate::Error;
 
+/// Media Foundation's AAC decoder, which a Windows "N" edition lacks until
+/// the Media Feature Pack is added.
+pub(super) fn possible() -> bool {
+    mf::aac_decoder()
+}
+
+/// Media Foundation's Opus decoder, which Windows 10 and 11 carry.
+pub(super) fn opus_possible() -> bool {
+    mf::opus_decoder()
+}
+
 /// The rate MP3 has that a sound of `native` Hz is made at: 32, 44.1 or 48
 /// kHz; the reader's resampler does the change.
 fn mp3_rate(native: u32) -> u32 {

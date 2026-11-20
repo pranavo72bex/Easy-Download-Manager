@@ -573,7 +573,8 @@ desktop/
     fmp4.rs               a fragmented MP4 written as a live stream comes (RTMP, RTSP)
     mp3.rs, gif.rs        dm's own MP3 and GIF encoders, returning the file's bytes
     aac.rs, frames.rs, mf.rs   the decoders: AAC, and a video's pictures (the system's on macOS
-                          and Windows, Media Foundation in mf.rs; AV1 by rav1d on Linux)
+                          and Windows, Media Foundation in mf.rs; AV1 by rav1d on Linux), each
+                          system's in a file of its own (frames/, mp3/decode/: macos, win, linux)
     shape.rs, subtitles.rs     a picture cropped to a shape; subtitles read and written
   crates/dm-net/          dm's network (gaps row A6): how a server is reached, whatever is fetched
     http_client.rs        the client builder, its TLS (`tls_config`, shared with RTMP, RTSP and

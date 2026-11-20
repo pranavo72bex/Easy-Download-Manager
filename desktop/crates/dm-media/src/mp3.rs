@@ -30,32 +30,14 @@ use huffman::{quantize, write_granule};
 /// "N" edition lacks until the Media Feature Pack is added; elsewhere the
 /// built-in one, `crate::aac`).
 pub fn possible() -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        true
-    }
-    #[cfg(windows)]
-    {
-        crate::mf::aac_decoder()
-    }
-    #[cfg(not(any(target_os = "macos", windows)))]
-    {
-        true
-    }
+    decode::possible()
 }
 
 /// Whether dm can make an MP3 from Opus sound here (a WebM's, as YouTube serves its sound):
 /// on Windows with Media Foundation's Opus decoder, which Windows 10 and 11 carry. macOS
 /// (AudioToolbox reads no WebM) and Linux (no Opus decoder in dm) not yet (gaps row Y25).
 pub fn opus_possible() -> bool {
-    #[cfg(windows)]
-    {
-        crate::mf::opus_decoder()
-    }
-    #[cfg(not(windows))]
-    {
-        false
-    }
+    decode::opus_possible()
 }
 
 /// Whether the finished file at `path` is a sound dm makes an MP3 from: AAC in an M4A, an MP4
