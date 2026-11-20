@@ -36,6 +36,11 @@ pub trait WindowServices: Send + Sync {
     fn clipboard(&self) -> Option<String>;
     /// Puts `text` on the clipboard.
     fn set_clipboard(&self, text: &str);
+    /// Whether dm's own copies go through the window's clipboard rather
+    /// than [`WindowServices::set_clipboard`] (`Platform::copies_through_window`).
+    fn copies_through_window(&self) -> bool {
+        false
+    }
     /// Posts a notification, one whose click opens its file where it names
     /// one. Not called on Windows, where dm posts its own toasts.
     fn say(&self, note: Note);
@@ -207,6 +212,10 @@ impl<W: WindowServices> Platform for Desktop<W> {
 
     fn set_clipboard(&self, text: &str) {
         self.window.set_clipboard(text)
+    }
+
+    fn copies_through_window(&self) -> bool {
+        self.window.copies_through_window()
     }
 
     fn reveal(&self, path: &str) -> Result<(), String> {

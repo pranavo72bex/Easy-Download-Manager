@@ -35,6 +35,13 @@ pub trait Platform: Send + Sync {
     /// Puts `text` on the clipboard (Copy link, Copy details). A platform
     /// with no clipboard keeps it nowhere.
     fn set_clipboard(&self, _text: &str) {}
+    /// Whether dm's own copies go through the window's clipboard rather
+    /// than [`Platform::set_clipboard`]: on Linux under Wayland, which the
+    /// window speaks and the system's clipboard crate here does not (gaps
+    /// row 218). A test's stand-in says no, so it takes the copy itself.
+    fn copies_through_window(&self) -> bool {
+        false
+    }
     /// Shows a finished file in the file manager.
     fn reveal(&self, path: &str) -> Result<(), String>;
     /// Opens a finished file with whatever the system opens it with.

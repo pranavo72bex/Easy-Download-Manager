@@ -186,7 +186,8 @@ impl Properties {
             settings.downloads.connections,
             &settings.folders.download_dir,
         ) {
-            view.read(cx).backend.platform.set_clipboard(&text);
+            let platform = view.read(cx).backend.platform.clone();
+            crate::platform::services::copy(&*platform, &text, cx);
             view.update(cx, |view, cx| {
                 view.say(dm_desktop_base::i18n::tn(
                     "Copied the details of {} download.||Copied the details of {} downloads.",

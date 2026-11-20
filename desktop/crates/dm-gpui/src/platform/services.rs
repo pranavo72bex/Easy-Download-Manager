@@ -14,7 +14,10 @@
 //! reached as `backend.platform`, so a test's stand-in answers for them.
 //! GPUI's clipboard needs the window's thread, and the watch reads off it
 //! every second (gaps row 183), where GPUI's Windows clipboard would copy a
-//! picture on it too. GPUI's prompts are not used: they take no kind of file
+//! picture on it too. On Linux under Wayland dm's copies go through GPUI's
+//! clipboard instead (`copy`, gaps row 218): `arboard` is built without
+//! Wayland, and with no XWayland they went nowhere; copies are made on the
+//! window's thread. GPUI's prompts are not used: they take no kind of file
 //! and no starting folder. The text fields' own Copy and Paste are
 //! gpui-component's, on GPUI's clipboard.
 
@@ -47,12 +50,35 @@ impl WindowServices for GpuiServices {
         }
     }
 
+    /// On Linux under Wayland: GPUI speaks the compositor's clipboard,
+    /// `arboard` here does not.
+    fn copies_through_window(&self) -> bool {
+        cfg!(target_os = "linux") && on_wayland(std::env::var_os("WAYLAND_DISPLAY").as_deref())
+    }
+
     /// The system's own notification centre (`crate::platform::notify`).
     fn say(&self, note: Note) {
         #[cfg(not(windows))]
         crate::platform::notify::say(note);
         #[cfg(windows)]
         let _ = note;
+    }
+}
+
+/// Whether `display` (`WAYLAND_DISPLAY`) names a Wayland display, as GPUI
+/// takes it when it picks Wayland over X11.
+fn on_wayland(display: Option<&std::ffi::OsStr>) -> bool {
+    display.is_some_and(|d| !d.is_empty())
+}
+
+/// Puts `text` on the clipboard for one of dm's own copies (Copy link, Copy
+/// details): through `platform`, so a test's stand-in takes it, or through
+/// GPUI's clipboard where `platform` says copies go through the window.
+pub fn copy(platform: &dyn dm_shell::app::platform::Platform, text: &str, cx: &gpui::App) {
+    if platform.copies_through_window() {
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string(text.to_string()));
+    } else {
+        platform.set_clipboard(text);
     }
 }
 
@@ -347,4 +373,18 @@ pub fn ask_then_in<T: 'static>(
         }
     })
     .detach();
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+
+    /// Only a named Wayland display sends dm's copies through GPUI's
+    /// clipboard (gaps row 218): an empty or missing one is X11's or none.
+    #[test]
+    fn a_named_wayland_display_is_wayland() {
+        assert!(super::on_wayland(Some(OsStr::new("wayland-0"))));
+        assert!(!super::on_wayland(Some(OsStr::new(""))));
+        assert!(!super::on_wayland(None));
+    }
 }
