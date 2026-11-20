@@ -8,8 +8,9 @@
 //! title menus and the toolbar's arrows open theirs (`NativeMenu`), so the system walks it with
 //! the keyboard. What does not apply to the rows chosen is greyed, a group none of whose items
 //! applies is left out, and each item's key is shown beside it where the window has one: after
-//! a tab on Windows, as its own menus write it; on Linux the drawn menu shows the key bound to
-//! each item's action itself (gaps row U27).
+//! a tab on Windows, as its own menus write it; on macOS (the `NSMenu` as dm's copy of
+//! gpui-component builds it, `desktop/vendor/README.md` `mac-keys`) and on Linux (the drawn
+//! menu) the menu shows the key bound to each item's action itself (gaps row U27).
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::commands::{Chord, Command, Key};

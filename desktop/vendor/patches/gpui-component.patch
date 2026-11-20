@@ -1,0 +1,233 @@
+dm's change to gpui-component 0.9.1 (crates.io, Apache-2.0: the GPUI
+component library dm-gpui's controls and system menus come from), applied to
+the published crate with Cargo.lock, .cargo_vcs_info.json and .cargo-ok
+removed first. Made again by `cargo xtask vendor`; explained in
+desktop/vendor/README.md. Each change in the code is marked `dm(<tag>):`, the
+tag its row in that file's table. The text before each file's section says
+what its hunks do, in order; git apply skips it.
+
+src/native_menu/macos.rs:
+  1. mac-keys: the imports the key equivalents need.
+  2. mac-keys: `show` looks up each item's bound key while the window can
+     be asked, before the menu is built off GPUI's call stack.
+  3. mac-keys: `run_menu` takes the keys.
+  4. mac-keys: and hands them to `build_menu`.
+  5. mac-keys: `build_menu` takes them.
+  6. mac-keys: each item's key equivalent set from its key.
+  7. mac-keys: a submenu built with the same keys, in its place.
+  8. mac-keys: `item_keys`, `collect_keys` and `bound_key` (the key bound
+     to each item's action, as the drawn fallback menu finds it),
+     `set_key_equivalent` (as GPUI's own menu bar sets one) and
+     `menu_equivalent` (GPUI's key names as AppKit's characters).
+
+diff --git a/src/native_menu/macos.rs b/src/native_menu/macos.rs
+index 4a857ee..c76a743 100644
+--- a/src/native_menu/macos.rs
++++ b/src/native_menu/macos.rs
+@@ -2,11 +2,16 @@
+ 
+ use std::{cell::Cell, sync::Arc};
+ 
+-use gpui::{Action, App, AssetSource, Pixels, Point, Window};
++use gpui::{Action, App, AssetSource, FocusHandle, KeyContext, Keystroke, Pixels, Point, Window};
+ use objc2::rc::Retained;
+-use objc2::runtime::{AnyObject, NSObject};
++use objc2::runtime::{AnyObject, NSObject, NSObjectProtocol};
+ use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send, sel};
+-use objc2_app_kit::{NSImage, NSMenu, NSMenuItem, NSView};
++use objc2_app_kit::{
++    NSDownArrowFunctionKey, NSEndFunctionKey, NSEventModifierFlags, NSF1FunctionKey,
++    NSHelpFunctionKey, NSHomeFunctionKey, NSImage, NSLeftArrowFunctionKey, NSMenu, NSMenuItem,
++    NSPageDownFunctionKey, NSPageUpFunctionKey, NSRightArrowFunctionKey, NSUpArrowFunctionKey,
++    NSView,
++};
+ use objc2_foundation::{NSData, NSPoint, NSSize, NSString};
+ use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+ 
+@@ -63,9 +68,11 @@ pub(super) fn show(
+     // Inherent `Window::window_handle` (GPUI's `AnyWindowHandle`), not the
+     // `raw_window_handle::HasWindowHandle` trait method in scope below.
+     let handle = Window::window_handle(window);
++    // dm(mac-keys): each item's key, looked up while the window can still be asked.
++    let keys = item_keys(&items, window, cx);
+ 
+     cx.spawn(async move |cx| {
+-        let action = run_menu(view_ptr, &items, asset_source.as_ref(), position);
++        let action = run_menu(view_ptr, &items, &keys, asset_source.as_ref(), position);
+         let _ = cx.update(move |app| {
+             let _ = handle.update(app, move |_, window, app| {
+                 if let Some(action) = action {
+@@ -88,6 +95,7 @@ pub(super) fn show(
+ fn run_menu(
+     view_ptr: usize,
+     items: &[NativeMenuItem],
++    keys: &[Option<Keystroke>],
+     asset_source: &dyn AssetSource,
+     position: Point<Pixels>,
+ ) -> Option<Box<dyn Action>> {
+@@ -98,7 +106,14 @@ fn run_menu(
+ 
+     let target = MenuTarget::new();
+     let mut actions: Vec<&Box<dyn Action>> = Vec::new();
+-    let ns_menu = build_menu(items, asset_source, &target, mtm, &mut actions);
++    let ns_menu = build_menu(
++        items,
++        &mut keys.iter(),
++        asset_source,
++        &target,
++        mtm,
++        &mut actions,
++    );
+ 
+     // `position` is window-relative, logical pixels, origin top-left (GPUI).
+     // AppKit view coordinates have their origin at the bottom-left, so flip y.
+@@ -119,8 +134,10 @@ fn run_menu(
+ 
+ /// Recursively build an `NSMenu`. Each actionable leaf item is given a tag equal
+ /// to its index in `actions`, so the selected tag maps back to its action.
++/// dm(mac-keys): `keys` holds each item's key, in the order the items are walked here.
+ fn build_menu<'a>(
+     items: &'a [NativeMenuItem],
++    keys: &mut std::slice::Iter<'_, Option<Keystroke>>,
+     asset_source: &dyn AssetSource,
+     target: &MenuTarget,
+     mtm: MainThreadMarker,
+@@ -156,6 +173,10 @@ fn build_menu<'a>(
+                         // `NSControlStateValueOn`
+                         ns_item.setState(1);
+                     }
++                    // dm(mac-keys): the key bound to the item's action, shown at its right.
++                    if let Some(Some(key)) = keys.next() {
++                        set_key_equivalent(&ns_item, key);
++                    }
+                     if let Some(action) = action {
+                         if !*disabled {
+                             ns_item.setTag(actions.len() as isize);
+@@ -173,7 +194,7 @@ fn build_menu<'a>(
+                 items,
+             } => {
+                 let ns_item = NSMenuItem::new(mtm);
+-                let submenu = build_menu(items, asset_source, target, mtm, actions);
++                let submenu = build_menu(items, keys, asset_source, target, mtm, actions);
+                 ns_item.setTitle(&NSString::from_str(label));
+                 ns_item.setEnabled(!*disabled);
+                 ns_item.setSubmenu(Some(&submenu));
+@@ -185,6 +206,118 @@ fn build_menu<'a>(
+     menu
+ }
+ 
++/// dm(mac-keys): the key bound to each item's action, in the order [`build_menu`] walks the
++/// items (a submenu's in its place); `None` where an item has none. Looked up as the drawn
++/// fallback menu looks its keys up: for the focused element, else wherever focus is.
++fn item_keys(items: &[NativeMenuItem], window: &Window, cx: &App) -> Vec<Option<Keystroke>> {
++    let focused = window.focused(cx);
++    let mut keys = Vec::new();
++    collect_keys(items, focused.as_ref(), window, &mut keys);
++    keys
++}
++
++/// dm(mac-keys): [`item_keys`]' walk, adding each item's key to `keys`.
++fn collect_keys(
++    items: &[NativeMenuItem],
++    focused: Option<&FocusHandle>,
++    window: &Window,
++    keys: &mut Vec<Option<Keystroke>>,
++) {
++    for item in items {
++        match item {
++            NativeMenuItem::Separator => {}
++            NativeMenuItem::Item { action, .. } => keys.push(
++                action
++                    .as_ref()
++                    .and_then(|action| bound_key(&**action, focused, window)),
++            ),
++            NativeMenuItem::Submenu { items, .. } => collect_keys(items, focused, window, keys),
++        }
++    }
++}
++
++/// dm(mac-keys): the one keystroke `action` is bound to; `None` where it has no binding or a
++/// sequence of keys, which a menu item cannot show.
++fn bound_key(
++    action: &dyn Action,
++    focused: Option<&FocusHandle>,
++    window: &Window,
++) -> Option<Keystroke> {
++    let binding = focused
++        .and_then(|handle| window.highest_precedence_binding_for_action_in(action, handle))
++        .or_else(|| {
++            window.highest_precedence_binding_for_action_in_context(action, KeyContext::default())
++        })?;
++    match binding.keystrokes() {
++        [only] => Some(only.inner().clone()),
++        _ => None,
++    }
++}
++
++/// dm(mac-keys): `key` as the item's key equivalent, set as GPUI's own menu bar sets its
++/// items' (`gpui-pre-macos` `create_menu_item`): the key's character and its modifiers' mask,
++/// not moved to another key on other keyboard layouts (as macOS 12 and later would).
++///
++/// The equivalent is only shown: a popped-up menu is not in the menu bar, so once it is closed
++/// AppKit looks for no key equivalent in it, and the key goes to the window's own binding as
++/// before. While the menu is open its tracking takes every key, so a key pressed then chooses
++/// at most this one item, dispatched once through [`MenuTarget`].
++fn set_key_equivalent(item: &NSMenuItem, key: &Keystroke) {
++    let Some(character) = menu_equivalent(&key.key) else {
++        return;
++    };
++    let mut mask = NSEventModifierFlags::empty();
++    for (held, flag) in [
++        (key.modifiers.platform, NSEventModifierFlags::Command),
++        (key.modifiers.control, NSEventModifierFlags::Control),
++        (key.modifiers.alt, NSEventModifierFlags::Option),
++        (key.modifiers.shift, NSEventModifierFlags::Shift),
++    ] {
++        if held {
++            mask |= flag;
++        }
++    }
++    // macOS 11 has no such property.
++    if item.respondsToSelector(sel!(setAllowsAutomaticKeyEquivalentLocalization:)) {
++        item.setAllowsAutomaticKeyEquivalentLocalization(false);
++    }
++    item.setKeyEquivalent(&NSString::from_str(&character));
++    item.setKeyEquivalentModifierMask(mask);
++}
++
++/// dm(mac-keys): the character AppKit takes as a menu item's key equivalent for GPUI's name of
++/// a key, as `gpui-pre-macos`' `key_to_menu_equivalent` (private to that crate) gives it: a
++/// named key's own character, a single character as it is; `None` for a name it does not know.
++fn menu_equivalent(key: &str) -> Option<String> {
++    let code = match key {
++        "space" => u32::from(b' '),
++        // A menu's key equivalent takes other characters than NSEvent reports for these two:
++        // https://developer.apple.com/documentation/appkit/nsmenuitem/keyequivalent#Discussion
++        "backspace" => 0x08,
++        "delete" => 0x7f,
++        "escape" => 0x1b,
++        "enter" => 0x0d,
++        "tab" => 0x09,
++        "up" => NSUpArrowFunctionKey,
++        "down" => NSDownArrowFunctionKey,
++        "left" => NSLeftArrowFunctionKey,
++        "right" => NSRightArrowFunctionKey,
++        "pageup" => NSPageUpFunctionKey,
++        "pagedown" => NSPageDownFunctionKey,
++        "home" => NSHomeFunctionKey,
++        "end" => NSEndFunctionKey,
++        "insert" => NSHelpFunctionKey,
++        _ if key.chars().count() == 1 => return Some(key.to_string()),
++        // F1 to F35, whose characters follow one another.
++        _ => key
++            .strip_prefix('f')
++            .and_then(|n| n.parse::<u32>().ok())
++            .filter(|n| (1..=35).contains(n))
++            .map(|n| NSF1FunctionKey + n - 1)?,
++    };
++    char::from_u32(code).map(String::from)
++}
++
+ fn ns_image_for_icon(
+     icon: &crate::Icon,
+     asset_source: &dyn AssetSource,

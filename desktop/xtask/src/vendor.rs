@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask vendor [--version <version>] [<crate>…]` (gaps rows P3, A17 and X5): makes the
-//! crates in `desktop/vendor/` again, the four of [`CRATES`] or those named. Each is the crate
+//! crates in `desktop/vendor/` again, the five of [`CRATES`] or those named. Each is the crate
 //! published on crates.io, fetched with `curl` (Windows 10 and later have it), checked against
 //! the SHA-256 held here (ring's), unpacked with `tar`, with the files dm's build does not use
 //! removed and `desktop/vendor/patches/<crate>.patch` applied with `git apply`, then put in place
@@ -45,6 +45,10 @@ pub(crate) const LIBRQBIT_VERSION: &str = "9.1.0";
 /// `desktop/Cargo.toml`).
 pub(crate) const GPUI_VERSION: &str = "0.3.12";
 
+/// The version of the gpui-component copy: the one dm-gpui pins (`gpui-component =0.9.1` in
+/// `desktop/Cargo.toml`), built for that GPUI.
+pub(crate) const GPUI_COMPONENT_VERSION: &str = "0.9.1";
+
 /// Removed from the librqbit crates: their own lock file (dm's is `desktop/Cargo.lock`), cargo's
 /// marks, the web interface (the `webui` feature), test torrents, examples and the manifest as
 /// written before publishing.
@@ -58,11 +62,11 @@ const LIBRQBIT_REMOVE: &[&str] = &[
     "Cargo.toml.orig",
 ];
 
-/// Removed from the GPUI crates: their own lock file and cargo's marks.
+/// Removed from the GPUI crates and gpui-component: their own lock file and cargo's marks.
 const GPUI_REMOVE: &[&str] = &["Cargo.lock", ".cargo_vcs_info.json", ".cargo-ok"];
 
 /// Every crate dm keeps a patched copy of, in the order they are made when none is named.
-pub(crate) const CRATES: [Vendored; 4] = [
+pub(crate) const CRATES: [Vendored; 5] = [
     Vendored {
         name: "librqbit",
         version: LIBRQBIT_VERSION,
@@ -85,6 +89,12 @@ pub(crate) const CRATES: [Vendored; 4] = [
         name: "gpui-pre-windows",
         version: GPUI_VERSION,
         sha256: "7201762420222d5b5ce5bdf0056996199212a3349bfb2457a3a0238c688681f3",
+        remove: GPUI_REMOVE,
+    },
+    Vendored {
+        name: "gpui-component",
+        version: GPUI_COMPONENT_VERSION,
+        sha256: "e155c4914bd809d966660610d596f7b57c5cd38979ca2c132215057a91f23f03",
         remove: GPUI_REMOVE,
     },
 ];
@@ -156,7 +166,7 @@ fn parse(args: &[String]) -> Result<Request, String> {
     if crates.is_empty() {
         if version.is_some() {
             return Err(format!(
-                "--version names the crates it is for: the four are not one version\n{}",
+                "--version names the crates it is for: the five are not one version\n{}",
                 usage()
             ));
         }
@@ -342,13 +352,14 @@ mod tests {
     }
 
     #[test]
-    fn the_four_copies_are_held_each_with_its_version_and_sha256() {
+    fn the_five_copies_are_held_each_with_its_version_and_sha256() {
         let names: Vec<&str> = CRATES.iter().map(|c| c.name).collect();
         let wanted = [
             "librqbit",
             "librqbit-sha1-wrapper",
             "gpui-pre-linux",
             "gpui-pre-windows",
+            "gpui-component",
         ];
         assert_eq!(names, wanted);
         for c in CRATES {
@@ -371,6 +382,7 @@ mod tests {
         assert_eq!(CRATES[1].version, LIBRQBIT_VERSION);
         assert_eq!(CRATES[2].version, GPUI_VERSION);
         assert_eq!(CRATES[3].version, GPUI_VERSION);
+        assert_eq!(CRATES[4].version, GPUI_COMPONENT_VERSION);
     }
 
     /// The copies are of the versions dm's manifest asks for, or `[patch.crates-io]` would leave
@@ -393,6 +405,10 @@ mod tests {
         assert_eq!(version("gpui"), Some(format!("={GPUI_VERSION}")));
         assert_eq!(version("gpui_platform"), Some(format!("={GPUI_VERSION}")));
         assert_eq!(version("librqbit"), Some(LIBRQBIT_VERSION.to_string()));
+        assert_eq!(
+            version("gpui-component"),
+            Some(format!("={GPUI_COMPONENT_VERSION}"))
+        );
     }
 
     #[test]
@@ -409,7 +425,7 @@ mod tests {
         }
         for path in ["webui", "resources", "examples", "Cargo.toml.orig"] {
             assert!(CRATES[0].remove.contains(&path) && CRATES[1].remove.contains(&path));
-            assert!(!CRATES[2].remove.contains(&path) && !CRATES[3].remove.contains(&path));
+            assert!(CRATES[2..].iter().all(|c| !c.remove.contains(&path)));
         }
     }
 
@@ -430,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn no_crate_named_makes_all_four_and_names_make_those() {
+    fn no_crate_named_makes_all_five_and_names_make_those() {
         let all = parse(&[]).expect("all");
         assert_eq!(all.crates, CRATES.to_vec());
         assert_eq!(all.version, None);

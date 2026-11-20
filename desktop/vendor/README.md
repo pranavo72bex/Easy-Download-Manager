@@ -7,7 +7,7 @@ itself, the copy is removed.
 
 Every copy is made the same way (gaps rows P3, A17 and X5): the published
 crate, checked against its SHA-256, with what dm's build does not use removed
-and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all four again
+and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all five again
 (`cargo xtask vendor gpui-pre-linux` one), the same on Windows, macOS and
 Linux (`desktop/xtask/src/vendor.rs`, which holds each crate's version and
 SHA-256 and what is removed from it; it needs `curl`, `tar` and `git`, which
@@ -53,6 +53,7 @@ offered to the crate's makers.
 | `ring` | reqwest's rustls without aws-lc-rs; ring installed as the process's provider | librqbit | `Cargo.toml` 2, `src/session.rs` 1 | One crate on every system | not yet |
 | `trim` | The `[[example]]` targets and the test that read `resources/` left out with the files removed | librqbit | `Cargo.toml` 1, `src/session.rs` 1 | One crate on every system | dm's alone: upstream keeps those files |
 | `sha1` | `sha1-ring` backed by the pure-Rust sha1 and sha2 crates rather than aws-lc-rs | librqbit-sha1-wrapper | `Cargo.toml` 1, `src/lib.rs` 2 | One crate on every system | not yet |
+| `mac-keys` | A system menu's items on macOS show the key bound to each one's action (the `NSMenuItem`'s key equivalent and modifiers), set as GPUI's own menu bar sets them; upstream's `NativeMenu` showed none | gpui-component | `src/native_menu/macos.rs`, 8 | Windows: dm writes the key after a tab in the item's words, which Windows' menus show at the item's right (`dm-gpui` `window/rowmenu.rs`); Linux: the drawn fallback menu shows the bound keys itself | not yet |
 
 ## librqbit and its SHA-1 wrapper (gaps row P3)
 
@@ -253,3 +254,39 @@ move. That call holds a modal loop until the drop lands, so it is made from a
 message posted to the window (`WM_DM_DRAG_OUT`), outside any update of GPUI's,
 and GPUI is then told the drag is over (`FileDropEvent::Ended`), as the X11
 copy does.
+
+## gpui-component 0.9.1
+
+`gpui-component/` is the crate published on crates.io at 0.9.1 (the GPUI
+component library dm-gpui's text fields, controls and system menus come from,
+built for the gpui-pre snapshot dm pins; licence Apache-2.0, its
+`LICENSE-APACHE`), with dm's change in `patches/gpui-component.patch` (8 hunks
+in one file). Removed and kept as for the GPUI copies; `tests/` and the tests
+in `src/` are kept as published, though they read files of upstream's
+repository that the crate does not carry and are not run here. To move to
+another version: change `GPUI_COMPONENT_VERSION` and its SHA-256 in
+`xtask/src/vendor.rs` (with the version `desktop/Cargo.toml` pins, which a test
+of that file holds it to), run `cargo xtask vendor gpui-component`, mend any
+hunk `git apply` refuses, and write the patch again as the `git diff` from the
+published crate (with the same files removed) to the mended copy.
+
+The keys of a system menu on macOS (`dm(mac-keys)` in
+`src/native_menu/macos.rs`; dm's gaps row U27): `NativeMenu`, the menu the
+system draws (an `NSMenu` on macOS, Windows' own, a drawn one on Linux), had no
+field for an item's key, so the row menu and the title menus showed none on
+macOS. Now, when the menu is shown, the key bound to each item's action is
+looked up as the drawn fallback menu looks it up (for the focused element, else
+wherever focus is; one keystroke, not a sequence) and set as the item's key
+equivalent, its character and modifiers as GPUI's own menu bar sets them
+(`gpui-pre-macos` `create_menu_item`; the mapping of key names to AppKit's
+characters is that crate's private `key_to_menu_equivalent`, written again
+here), with automatic localization of the key turned off where macOS has it
+(12 and later), as GPUI does. Every `NativeMenu` gains its keys, as on Linux:
+the row menu, the title menus, the toolbar's arrows and the pop-ups; an item
+whose action has no binding shows none. The key is shown only: a popped-up
+menu is not in the menu bar, so AppKit looks for no key equivalent in it once
+it is closed and the key goes to the window's binding as before, and while it
+is open the menu's tracking takes the key, so it chooses that one item, whose
+action is dispatched once. On Windows dm writes the key after a tab in the
+item's words (`dm-gpui` `window/rowmenu.rs`), and the Windows and Linux code
+of the crate is as published.
