@@ -23,24 +23,56 @@ src/android/jni.rs:
   3. android-only: no platform views to dispose of on quit, pause or resume.
   4. android-only: their helper functions removed.
   5. android-only: `restore_keyboard` removed with host.rs.
-  6. android-only: the deep-link and media-session JNI entries removed.
+  6. android-stack: `move_task_to_back`, Back on the first window with
+     nothing to close (`Activity.moveTaskToBack(true)`).
+  7. android-only: the deep-link and media-session JNI entries removed.
+
+src/android/layers.rs (new):
+  1. android-stack: GPUI's windows as layers on the one surface: the
+     surface's callbacks forward frames and input to the window on top, size,
+     appearance and visibility to all, active status to the top alone; Back
+     as Escape to the window on top, then a close or the task to the back.
 
 src/android/mod.rs:
-  1. android-only: the `host` and `platform_view` modules removed.
+  1. android-only: the `host` and `platform_view` modules removed;
+     android-stack: the `layers` module.
 
 src/android/platform.rs:
   1. port-0312: `Platform::platform_info` and `on_displays_changed`, on
-     AndroidPlatform and on SharedPlatform.
+     AndroidPlatform.
+  2-3. android-stack: `open_window` makes each window a layer over the
+     others (shown or not as GPUI asks), not the first window again.
+  4. port-0312: the same two on SharedPlatform.
 
 src/android/window.rs:
-  1. port-0312: the renderer's `gpu_specs` is an Option.
-  2. port-0312: `RequestFrameOptions`' new fields, by default.
-  3. port-0312: `PlatformWindow::on_display_changed`, never called.
+  1. android-stack: `repaint_in_full`, for a window uncovered.
+  2. port-0312: the renderer's `gpu_specs` is an Option.
+  3. android-stack: the window's id and layer, and `opened`.
+  4. android-stack: its Drop taking it off the stack.
+  5. android-stack: visible only on top.
+  6. android-stack: `insets`, the status and navigation bars as GPUI's
+     safe area.
+  7. android-stack: `activate` raises the window; active only on top.
+  8. android-stack: frames to the window's layer; port-0312:
+     `RequestFrameOptions`' new fields, by default.
+  9. android-stack: touches and keys to the window's layer, a key with
+     GPUI's result, which Back reads.
+  10. android-stack: active status and visibility to the window's layer.
+  11. android-stack: size to the window's layer; port-0312:
+     `PlatformWindow::on_display_changed`, never called; android-stack:
+     `on_should_close` kept for Back.
+  12. android-stack: `on_close` kept for Back.
+  13. android-stack: appearance to the window's layer.
 
 src/lib.rs:
   1. android-only: the iOS platform, components, packages, platform views,
      frame demand and target list removed; the Android module and the
-     keyboard, chrome and safe-area calls kept.
+     keyboard, chrome and safe-area calls kept; android-stack: the `stack`
+     module (in the third hunk).
+
+src/stack.rs (new):
+  1. android-stack: the stack of windows and Back's decision, plain logic
+     with its tests.
 
 diff --git a/Cargo.toml b/Cargo.toml
 index f99ddc3..2e755f3 100644
@@ -231,7 +263,7 @@ index 9a227a1..38b1062 100644
          // Truncate the u64 id to u32 — on Android the pointer-derived id
          // fits in 32 bits for the lower half, and DisplayId only stores u32.
 diff --git a/src/android/jni.rs b/src/android/jni.rs
-index 3ecfe2e..23cae0b 100644
+index 3ecfe2e..b9d872d 100644
 --- a/src/android/jni.rs
 +++ b/src/android/jni.rs
 @@ -360,15 +360,7 @@ pub fn android_app() -> Option<AndroidApp> {
@@ -403,7 +435,35 @@ index 3ecfe2e..23cae0b 100644
  
  /// Show the UI-thread EditText proxy supplied by GpuiInputActivity.
  ///
-@@ -1427,91 +1321,6 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
+@@ -1360,6 +1254,27 @@ pub fn hide_keyboard_android() {
+     }
+ }
+ 
++/// dm(android-stack): Back on the first window with nothing to close: the task to the background
++/// (`Activity.moveTaskToBack(true)`), as Android's Back leaves an app's first screen, rather than
++/// the activity finished, so the app's work goes on.
++pub(super) fn move_task_to_back() {
++    let moved = with_env(|env| {
++        let activity = activity(env)?;
++        let result = env.call_method(
++            &activity,
++            jni::jni_str!("moveTaskToBack"),
++            jni::jni_sig!("(Z)Z"),
++            &[JValue::Bool(true)],
++        );
++        env.exception_clear();
++        result.map_err(|e| e.to_string())?;
++        Ok(())
++    });
++    if let Err(why) = moved {
++        log::warn!("moveTaskToBack failed: {why}");
++    }
++}
++
+ pub(super) fn reset_keyboard_composition() {
+     let session = super::text_input::new_session();
+     let _ = with_env(|env| {
+@@ -1427,91 +1342,6 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
      }
  }
  
@@ -495,11 +555,261 @@ index 3ecfe2e..23cae0b 100644
  #[cfg(test)]
  mod tests {
      use super::*;
+diff --git a/src/android/layers.rs b/src/android/layers.rs
+new file mode 100644
+index 0000000..2eb59e1
+--- /dev/null
++++ b/src/android/layers.rs
+@@ -0,0 +1,244 @@
++//! dm(android-stack): GPUI's windows as layers on the phone's one surface.
++//!
++//! NativeActivity hands the app one `ANativeWindow` ([`AndroidWindow`]), and upstream gave
++//! every window GPUI opened that same surface, each registering its callbacks on it in place
++//! of the last: the newest window took the frames and the input, and once it closed nothing
++//! drew the one under it again. Here each GPUI window ([`super::AndroidPlatformWindow`]) keeps
++//! its callbacks in a [`Layer`] of a stack (`crate::stack`, the plain logic), and the surface's
++//! callbacks are forwarders: frames and input go to the window on top, size, appearance and
++//! visibility to every window, active status true to the top alone. A window closing that was
++//! on top has the one below repainted in full (its last frame was drawn over). Back is
++//! Escape given to the window on top, then what `crate::stack::after_back` decides.
++//!
++//! All of it runs on the loop's thread (GPUI's main thread), so the stack is a thread-local
++//! and a layer's callbacks need not be `Send`. A callback is taken out of its slot while it
++//! runs and put back after, so one that opens or closes a window (which reaches the stack) or
++//! re-enters does not find its own slot borrowed.
++
++use std::cell::{Cell, RefCell};
++use std::rc::Rc;
++use std::sync::Arc;
++
++use gpui::DispatchEventResult;
++
++use super::keyboard::{AKEYCODE_BACK, AKEY_EVENT_ACTION_DOWN, AKEY_EVENT_ACTION_UP};
++use super::window::{AndroidWindow, WindowAppearance};
++use super::{AndroidKeyEvent, DevicePixels, Size, TouchPoint};
++use crate::stack::{after_back, Back, Stack};
++
++type Slot<F> = RefCell<Option<Box<F>>>;
++
++/// What one GPUI window registered with the platform: the callbacks the surface's forwarders
++/// call while it is the window they go to.
++#[derive(Default)]
++pub(crate) struct Layer {
++    pub(crate) frame: Slot<dyn FnMut()>,
++    pub(crate) touch: Slot<dyn FnMut(TouchPoint)>,
++    pub(crate) key: Slot<dyn FnMut(AndroidKeyEvent) -> DispatchEventResult>,
++    pub(crate) resize: Slot<dyn FnMut(Size<DevicePixels>, f32)>,
++    pub(crate) appearance: Slot<dyn FnMut(WindowAppearance)>,
++    pub(crate) active: Slot<dyn FnMut(bool)>,
++    pub(crate) visible: Slot<dyn FnMut(bool)>,
++    pub(crate) should_close: Slot<dyn FnMut() -> bool>,
++    pub(crate) close: RefCell<Option<Box<dyn FnOnce()>>>,
++    /// The active status last told to the window, so each change is told once.
++    told_active: Cell<Option<bool>>,
++}
++
++/// A key's result where no window used it: Escape then goes on to Back's next step.
++pub(crate) const UNUSED: DispatchEventResult = DispatchEventResult {
++    propagate: true,
++    default_prevented: false,
++};
++
++thread_local! {
++    static STACK: RefCell<Stack<Rc<Layer>>> = RefCell::new(Stack::default());
++}
++
++/// Runs the callback in `slot`, if one is there, taken out while it runs.
++fn call<F: ?Sized, R>(slot: &Slot<F>, run: impl FnOnce(&mut F) -> R) -> Option<R> {
++    let mut callback = slot.borrow_mut().take()?;
++    let result = run(&mut *callback);
++    let mut slot = slot.borrow_mut();
++    if slot.is_none() {
++        *slot = Some(callback);
++    }
++    Some(result)
++}
++
++/// Sets the callback in `slot` (a window's registration, in place of the surface's).
++pub(crate) fn set<F: ?Sized>(slot: &Slot<F>, callback: Box<F>) {
++    *slot.borrow_mut() = Some(callback);
++}
++
++/// The window on top and its layer.
++fn top() -> Option<(u64, Rc<Layer>)> {
++    STACK.with(|stack| {
++        stack
++            .borrow()
++            .top()
++            .map(|(id, layer)| (id, Rc::clone(layer)))
++    })
++}
++
++/// Every window's layer, oldest first.
++fn all() -> Vec<(u64, Rc<Layer>)> {
++    STACK.with(|stack| {
++        stack
++            .borrow()
++            .iter()
++            .map(|(id, layer)| (id, Rc::clone(layer)))
++            .collect()
++    })
++}
++
++/// Whether window `id` is the one on top.
++pub(crate) fn is_top(id: u64) -> bool {
++    STACK.with(|stack| stack.borrow().top_id() == Some(id))
++}
++
++/// Window `id` opened on `window`'s surface, over the others where `shown`: its layer, for
++/// its callbacks.
++pub(crate) fn open(window: &Arc<AndroidWindow>, id: u64, shown: bool) -> Rc<Layer> {
++    let layer = Rc::new(Layer::default());
++    STACK.with(|stack| stack.borrow_mut().push(id, shown, Rc::clone(&layer)));
++    forward(window);
++    if shown {
++        uncovered(window);
++    }
++    layer
++}
++
++/// Window `id` brought to the top (GPUI's `activate`).
++pub(crate) fn raise(window: &AndroidWindow, id: u64) {
++    let was_top = is_top(id);
++    if STACK.with(|stack| stack.borrow_mut().raise(id)) && !was_top {
++        uncovered(window);
++    }
++}
++
++/// Window `id` closed (GPUI dropped it). Its layer is dropped after the stack is let go, as
++/// its callbacks hold GPUI's own.
++pub(crate) fn close(window: &AndroidWindow, id: u64) {
++    // `try_with`: a window dropped as the thread ends finds the stack gone, and nothing to do.
++    let Ok((was_top, removed)) = STACK.try_with(|stack| {
++        let mut stack = stack.borrow_mut();
++        let was_top = stack.top_id() == Some(id);
++        (was_top, stack.remove(id))
++    }) else {
++        return;
++    };
++    drop(removed);
++    if was_top {
++        uncovered(window);
++    }
++}
++
++/// The window now on top is new to the surface: drawn in full at the next frame (what is on
++/// the surface is another window's), and told it is active then.
++fn uncovered(window: &AndroidWindow) {
++    window.repaint_in_full();
++    super::frame_source::schedule_frame();
++}
++
++/// Tells each window whether it is active: the window on top while the app is in front, no
++/// other. Run outside GPUI's own updates (a frame, a change of focus), as GPUI's callback
++/// updates the window; those losing it are told first.
++fn settle(app_active: bool) {
++    let top = STACK.with(|stack| stack.borrow().top_id());
++    let layers = all();
++    for wanted in [false, true] {
++        for (id, layer) in &layers {
++            let active = app_active && Some(*id) == top;
++            if active != wanted || layer.told_active.get() == Some(active) {
++                continue;
++            }
++            if call(&layer.active, |told| told(active)).is_some() {
++                layer.told_active.set(Some(active));
++            }
++        }
++    }
++}
++
++/// The surface's callbacks set to forward to the layers (the same each time, so setting them
++/// again for another window changes nothing).
++fn forward(window: &Arc<AndroidWindow>) {
++    let surface = Arc::downgrade(window);
++    window.on_request_frame(move || {
++        settle(surface.upgrade().is_none_or(|surface| surface.is_active()));
++        if let Some((_, layer)) = top() {
++            call(&layer.frame, |frame| frame());
++        }
++    });
++    window.on_touch(|touch| {
++        if let Some((_, layer)) = top() {
++            call(&layer.touch, |touched| touched(touch));
++        }
++    });
++    window.on_key_event(key);
++    window.on_resize(|size, scale| {
++        for (_, layer) in all() {
++            call(&layer.resize, |resized| resized(size, scale));
++        }
++    });
++    window.on_appearance_changed(|appearance| {
++        for (_, layer) in all() {
++            call(&layer.appearance, |changed| changed(appearance));
++        }
++    });
++    window.on_active_status_change(settle);
++    window.on_visibility_change(|visible| {
++        for (_, layer) in all() {
++            call(&layer.visible, |seen| seen(visible));
++        }
++    });
++}
++
++/// A key to the window on top; Back on its release, as Android's own Back acts.
++fn key(event: AndroidKeyEvent) {
++    if event.key_code != AKEYCODE_BACK {
++        if let Some((_, layer)) = top() {
++            call(&layer.key, |key| key(event));
++        }
++        return;
++    }
++    if event.action == AKEY_EVENT_ACTION_UP {
++        back(event);
++    }
++}
++
++/// Back: Escape pressed and released in the window on top (the keyboard's mapping gives
++/// Back as Escape), then, where the window did nothing with it, the window closed or the task
++/// sent to the background.
++fn back(release: AndroidKeyEvent) {
++    let before = top();
++    let mut handled = false;
++    if let Some((_, layer)) = &before {
++        let press = AndroidKeyEvent {
++            action: AKEY_EVENT_ACTION_DOWN,
++            ..release.clone()
++        };
++        let pressed = call(&layer.key, |key| key(press)).unwrap_or(UNUSED);
++        call(&layer.key, |key| key(release));
++        handled = !pressed.propagate || pressed.default_prevented;
++    }
++    let (top_after, shown_after) = STACK.with(|stack| {
++        let stack = stack.borrow();
++        (stack.top_id(), stack.shown())
++    });
++    let top_before = before.as_ref().map(|(id, _)| *id);
++    match after_back(handled, top_before, top_after, shown_after) {
++        Back::Done => {}
++        Back::Close(_) => {
++            let Some((_, layer)) = before else { return };
++            // As the window's close button: asked first (a dialog's Cancel may keep it).
++            if call(&layer.should_close, |may| may()).unwrap_or(true) {
++                let close = layer.close.borrow_mut().take();
++                if let Some(close) = close {
++                    close();
++                }
++            }
++        }
++        Back::ToBackground => super::jni::move_task_to_back(),
++    }
++}
 diff --git a/src/android/mod.rs b/src/android/mod.rs
-index 1811cc4..847c569 100644
+index 1811cc4..202245d 100644
 --- a/src/android/mod.rs
 +++ b/src/android/mod.rs
-@@ -153,11 +153,11 @@ pub mod dispatcher;
+@@ -153,11 +153,13 @@ pub mod dispatcher;
  pub mod display;
  mod document_picker;
  pub(crate) mod frame_source;
@@ -508,13 +818,15 @@ index 1811cc4..847c569 100644
 +// over the surface) removed: dm starts through android-activity alone and shows no Java views.
  pub mod jni;
  pub mod keyboard;
++// dm(android-stack): GPUI's windows as a stack on the one surface.
++mod layers;
  pub mod platform;
 -pub mod platform_view;
  mod text_input;
  pub mod window;
  
 diff --git a/src/android/platform.rs b/src/android/platform.rs
-index 0cdea3a..cd8e785 100644
+index 0cdea3a..2441158 100644
 --- a/src/android/platform.rs
 +++ b/src/android/platform.rs
 @@ -991,6 +991,18 @@ impl Platform for AndroidPlatform {
@@ -536,7 +848,31 @@ index 0cdea3a..cd8e785 100644
      fn background_executor(&self) -> BackgroundExecutor {
          let dispatcher: Arc<dyn gpui::PlatformDispatcher> = self.state.lock().dispatcher.clone();
          BackgroundExecutor::new(dispatcher)
-@@ -1343,6 +1355,13 @@ impl Platform for SharedPlatform {
+@@ -1067,7 +1079,7 @@ impl Platform for AndroidPlatform {
+     fn open_window(
+         &self,
+         _handle: AnyWindowHandle,
+-        _options: WindowParams,
++        options: WindowParams,
+     ) -> anyhow::Result<Box<dyn PlatformWindow>> {
+         // On Android the native window is created by the system via
+         // MainEvent::InitWindow, not by the application.  If a window
+@@ -1087,8 +1099,12 @@ impl Platform for AndroidPlatform {
+             .primary()
+             .map(|d| Rc::new(d.clone()) as Rc<dyn PlatformDisplay>);
+ 
+-        Ok(Box::new(super::window::AndroidPlatformWindow::new(
+-            window, display,
++        // dm(android-stack): each window a layer over the others on the one surface, drawn
++        // over all of it whatever size it asked for (`layers.rs`).
++        Ok(Box::new(super::window::AndroidPlatformWindow::opened(
++            window,
++            display,
++            options.show,
+         )))
+     }
+ 
+@@ -1343,6 +1359,13 @@ impl Platform for SharedPlatform {
      fn gestures(&self) -> Option<Rc<dyn PlatformGestures>> {
          <AndroidPlatform as Platform>::gestures(&self.0)
      }
@@ -551,10 +887,24 @@ index 0cdea3a..cd8e785 100644
          <AndroidPlatform as Platform>::background_executor(&self.0)
      }
 diff --git a/src/android/window.rs b/src/android/window.rs
-index efd697a..cf625da 100644
+index efd697a..9aecfdd 100644
 --- a/src/android/window.rs
 +++ b/src/android/window.rs
-@@ -1032,7 +1032,8 @@ impl AndroidWindow {
+@@ -1013,6 +1013,13 @@ impl AndroidWindow {
+         state.safe_area_insets = insets;
+     }
+ 
++    /// dm(android-stack): the next frame drawn in full, as after a surface swap: a window
++    /// uncovered on the stack (`layers.rs`) has another window's last frame on the surface.
++    pub(crate) fn repaint_in_full(&self) {
++        self.force_render_once
++            .store(true, std::sync::atomic::Ordering::Release);
++    }
++
+     // ── state queries ─────────────────────────────────────────────────────────
+ 
+     /// Whether the window currently has an active wgpu surface.
+@@ -1032,7 +1039,8 @@ impl AndroidWindow {
      /// Returns GPU specs from the renderer, if available.
      pub fn gpu_specs(&self) -> Option<GpuSpecs> {
          let state = self.state.lock();
@@ -564,29 +914,471 @@ index efd697a..cf625da 100644
      }
  
      /// Whether the window is currently active / visible.
-@@ -1415,6 +1416,9 @@ impl PlatformWindow for AndroidPlatformWindow {
-             cb(RequestFrameOptions {
-                 require_presentation: false,
-                 force_render: text_dirty || surface_new,
-+                // dm(port-0312): 0.3.12's frame-request timestamp and its source, which only
-+                // GPUI's `profiler` feature reads: none taken, a vsync callback's by default.
-+                ..Default::default()
-             });
-         });
+@@ -1190,17 +1198,37 @@ pub struct AndroidPlatformWindow {
+     ime_input_callback:
+         Arc<Mutex<Box<dyn FnMut(gpui::PlatformInput) -> DispatchEventResult + Send>>>,
+     title: String,
++    // dm(android-stack): this window's place on the surface's stack of windows and the
++    // callbacks it registered, which the surface's forwarders call (`layers.rs`).
++    id: u64,
++    layer: Rc<super::layers::Layer>,
+ }
+ 
+ impl AndroidPlatformWindow {
+     /// Create a new `AndroidPlatformWindow` wrapping an existing `AndroidWindow`.
+     pub fn new(window: Arc<AndroidWindow>, display: Option<Rc<dyn PlatformDisplay>>) -> Self {
++        Self::opened(window, display, true)
++    }
++
++    /// dm(android-stack): a window opened over the others on the one surface (under the shown
++    /// ones where GPUI opens it hidden, until it is activated), drawn over the whole surface
++    /// whatever size it asked for.
++    pub(crate) fn opened(
++        window: Arc<AndroidWindow>,
++        display: Option<Rc<dyn PlatformDisplay>>,
++        shown: bool,
++    ) -> Self {
++        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
++        let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
++        let layer = super::layers::open(&window, id, shown);
+         Self {
+             window,
+             display,
+             input_handler: Rc::new(RefCell::new(None)),
+             ime_input_callback: Arc::new(Mutex::new(Box::new(|_| DispatchEventResult::default()))),
+             title: String::new(),
++            id,
++            layer,
+         }
      }
-@@ -1610,6 +1614,10 @@ impl PlatformWindow for AndroidPlatformWindow {
+ 
+@@ -1210,6 +1238,14 @@ impl AndroidPlatformWindow {
+     }
+ }
+ 
++// dm(android-stack): GPUI drops a window it closes; it leaves the stack, and the window under
++// it, where it was on top, is drawn again.
++impl Drop for AndroidPlatformWindow {
++    fn drop(&mut self) {
++        super::layers::close(&self.window, self.id);
++    }
++}
++
+ impl HasWindowHandle for AndroidPlatformWindow {
+     fn window_handle(
+         &self,
+@@ -1257,7 +1293,8 @@ impl PlatformWindow for AndroidPlatformWindow {
+     }
+ 
+     fn visibility(&self) -> WindowVisibility {
+-        if self.window.is_active() {
++        // dm(android-stack): a window under another on the stack is not seen.
++        if self.window.is_active() && super::layers::is_top(self.id) {
+             WindowVisibility::Visible
+         } else {
+             WindowVisibility::Hidden
+@@ -1273,6 +1310,22 @@ impl PlatformWindow for AndroidPlatformWindow {
+         self.bounds().size
+     }
+ 
++    // dm(android-stack): every window covers the whole surface, under the status bar and the
++    // navigation bar (edge to edge); what they cover is told as GPUI's safe area, which a
++    // window's view keeps its controls out of (`Window::insets`, `fully_visible_bounds`).
++    fn insets(&self) -> gpui::WindowInsets {
++        let insets = self.window.safe_area_insets_logical();
++        gpui::WindowInsets {
++            safe_area: gpui::Edges {
++                top: gpui::px(insets.top),
++                right: gpui::px(insets.right),
++                bottom: gpui::px(insets.bottom),
++                left: gpui::px(insets.left),
++            },
++            ..Default::default()
++        }
++    }
++
+     fn resize(&mut self, _size: gpui::Size<gpui::Pixels>) {
+         // Android windows are resized by the system, not the application.
+         // No-op: the system controls window size.
+@@ -1342,12 +1395,14 @@ impl PlatformWindow for AndroidPlatformWindow {
+     }
+ 
+     fn activate(&self) {
+-        // Android windows are always "active" when in the foreground.
+-        // The system manages window activation via the activity lifecycle.
++        // dm(android-stack): brought to the top of the stack, over the other windows; the
++        // activity itself is brought forward by the system.
++        super::layers::raise(&self.window, self.id);
+     }
+ 
+     fn is_active(&self) -> bool {
+-        self.window.is_active()
++        // dm(android-stack): the window on top alone, while the app is in front.
++        self.window.is_active() && super::layers::is_top(self.id)
+     }
+ 
+     fn is_hovered(&self) -> bool {
+@@ -1403,20 +1458,28 @@ impl PlatformWindow for AndroidPlatformWindow {
+         let send_callback = Mutex::new(send_callback);
+ 
+         let force_render_once = Arc::clone(&self.window.force_render_once);
+-        self.window.on_request_frame(move || {
+-            // Check if text input arrived since last frame — if so, force a
+-            // render so drain_pending_text() runs and the UI updates.
+-            let text_dirty =
+-                crate::TEXT_INPUT_DIRTY.swap(false, std::sync::atomic::Ordering::AcqRel);
+-            // A freshly attached surface has an empty swapchain; repaint in full.
+-            let surface_new = force_render_once.swap(false, std::sync::atomic::Ordering::AcqRel);
+-
+-            let mut cb = send_callback.lock();
+-            cb(RequestFrameOptions {
+-                require_presentation: false,
+-                force_render: text_dirty || surface_new,
+-            });
+-        });
++        // dm(android-stack): the window's own layer, which frames reach while it is on top.
++        super::layers::set(
++            &self.layer.frame,
++            Box::new(move || {
++                // Check if text input arrived since last frame — if so, force a
++                // render so drain_pending_text() runs and the UI updates.
++                let text_dirty =
++                    crate::TEXT_INPUT_DIRTY.swap(false, std::sync::atomic::Ordering::AcqRel);
++                // A freshly attached surface has an empty swapchain; repaint in full.
++                let surface_new =
++                    force_render_once.swap(false, std::sync::atomic::Ordering::AcqRel);
++
++                let mut cb = send_callback.lock();
++                cb(RequestFrameOptions {
++                    require_presentation: false,
++                    force_render: text_dirty || surface_new,
++                    // dm(port-0312): 0.3.12's frame-request timestamp and its source, which only
++                    // GPUI's `profiler` feature reads: none taken, a vsync callback's by default.
++                    ..Default::default()
++                });
++            }),
++        );
+     }
+ 
+     fn on_input(&self, callback: Box<dyn FnMut(gpui::PlatformInput) -> DispatchEventResult>) {
+@@ -1459,99 +1522,108 @@ impl PlatformWindow for AndroidPlatformWindow {
+             };
+             let mut active_touches = HashMap::new();
+             let mut fling_guard = crate::fling_guard::FlingGuard::new();
+-            self.window.on_touch(move |touch| {
+-                let phase = match touch.action {
+-                    0 => gpui::TouchPhase::Started,
+-                    1 => gpui::TouchPhase::Ended,
+-                    2 => gpui::TouchPhase::Moved,
+-                    3 => gpui::TouchPhase::Cancelled,
+-                    _ => return,
+-                };
+-                let id = if phase == gpui::TouchPhase::Started {
+-                    // Android pointer IDs are reused after release.
+-                    let id = next_touch_id();
+-                    active_touches.insert(touch.id, id);
+-                    id
+-                } else {
+-                    let Some(id) = active_touches.get(&touch.id).copied() else {
++            // dm(android-stack): the window's own layer, which touches reach while it is on top.
++            super::layers::set(
++                &self.layer.touch,
++                Box::new(move |touch: TouchPoint| {
++                    let phase = match touch.action {
++                        0 => gpui::TouchPhase::Started,
++                        1 => gpui::TouchPhase::Ended,
++                        2 => gpui::TouchPhase::Moved,
++                        3 => gpui::TouchPhase::Cancelled,
++                        _ => return,
++                    };
++                    let id = if phase == gpui::TouchPhase::Started {
++                        // Android pointer IDs are reused after release.
++                        let id = next_touch_id();
++                        active_touches.insert(touch.id, id);
++                        id
++                    } else {
++                        let Some(id) = active_touches.get(&touch.id).copied() else {
++                            return;
++                        };
++                        id
++                    };
++                    let Some(window) = window.upgrade() else {
+                         return;
+                     };
+-                    id
+-                };
+-                let Some(window) = window.upgrade() else {
+-                    return;
+-                };
+-                let scale = window.scale_factor();
+-                let event = gpui::TouchEvent {
+-                    id,
+-                    phase,
+-                    position: gpui::point(gpui::px(touch.x / scale), gpui::px(touch.y / scale)),
+-                    predicted_position: None,
+-                    force: None,
+-                };
+-                let mut cb = cb.lock();
+-                fling_guard.relay(event, &mut next_touch_id, |event| {
+-                    cb(gpui::PlatformInput::Touch(event));
+-                });
+-                if matches!(phase, gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled) {
+-                    active_touches.remove(&touch.id);
+-                }
+-            });
++                    let scale = window.scale_factor();
++                    let event = gpui::TouchEvent {
++                        id,
++                        phase,
++                        position: gpui::point(gpui::px(touch.x / scale), gpui::px(touch.y / scale)),
++                        predicted_position: None,
++                        force: None,
++                    };
++                    let mut cb = cb.lock();
++                    fling_guard.relay(event, &mut next_touch_id, |event| {
++                        cb(gpui::PlatformInput::Touch(event));
++                    });
++                    if matches!(phase, gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled) {
++                        active_touches.remove(&touch.id);
++                    }
++                }),
++            );
+         }
+ 
+         // ── Key events → PlatformInput ───────────────────────────────────
+         {
+             let cb = Arc::clone(&input_cb);
+-            self.window.on_key_event(move |key_event| {
+-                use crate::android::keyboard::{
+-                    android_key_to_keystroke, AKEY_EVENT_ACTION_DOWN, AKEY_EVENT_ACTION_UP,
+-                };
++            // dm(android-stack): the window's own layer, which keys reach while it is on top;
++            // what GPUI made of the key is handed back, which Back reads.
++            super::layers::set(
++                &self.layer.key,
++                Box::new(move |key_event: AndroidKeyEvent| {
++                    use crate::android::keyboard::{
++                        android_key_to_keystroke, AKEY_EVENT_ACTION_DOWN, AKEY_EVENT_ACTION_UP,
++                    };
+ 
+-                // On KeyDown, dispatch text through the global callback so
+-                // custom TextInput components (PENDING_TEXT) receive it.
+-                if key_event.action == AKEY_EVENT_ACTION_DOWN {
+-                    match key_event.key_code {
+-                        67 => crate::dispatch_text_input("\x08"), // KEYCODE_DEL (backspace)
+-                        21 => crate::dispatch_text_input("\x1b[D"), // DPAD_LEFT
+-                        22 => crate::dispatch_text_input("\x1b[C"), // DPAD_RIGHT
+-                        122 => crate::dispatch_text_input("\x1b[H"), // MOVE_HOME
+-                        123 => crate::dispatch_text_input("\x1b[F"), // MOVE_END
+-                        _ => {
+-                            if key_event.unicode_char != 0 {
+-                                if let Some(c) = char::from_u32(key_event.unicode_char) {
+-                                    let s = c.to_string();
+-                                    crate::dispatch_text_input(&s);
++                    // On KeyDown, dispatch text through the global callback so
++                    // custom TextInput components (PENDING_TEXT) receive it.
++                    if key_event.action == AKEY_EVENT_ACTION_DOWN {
++                        match key_event.key_code {
++                            67 => crate::dispatch_text_input("\x08"), // KEYCODE_DEL (backspace)
++                            21 => crate::dispatch_text_input("\x1b[D"), // DPAD_LEFT
++                            22 => crate::dispatch_text_input("\x1b[C"), // DPAD_RIGHT
++                            122 => crate::dispatch_text_input("\x1b[H"), // MOVE_HOME
++                            123 => crate::dispatch_text_input("\x1b[F"), // MOVE_END
++                            _ => {
++                                if key_event.unicode_char != 0 {
++                                    if let Some(c) = char::from_u32(key_event.unicode_char) {
++                                        let s = c.to_string();
++                                        crate::dispatch_text_input(&s);
++                                    }
+                                 }
++                                false
+                             }
+-                            false
+-                        }
++                        };
++                    }
++
++                    let keystroke = match android_key_to_keystroke(
++                        key_event.key_code,
++                        key_event.meta_state,
++                        key_event.unicode_char,
++                    ) {
++                        Some(ks) => ks,
++                        None => return super::layers::UNUSED, // Modifier-only or unmapped key
+                     };
+-                }
+-
+-                let keystroke = match android_key_to_keystroke(
+-                    key_event.key_code,
+-                    key_event.meta_state,
+-                    key_event.unicode_char,
+-                ) {
+-                    Some(ks) => ks,
+-                    None => return, // Modifier-only or unmapped key
+-                };
+ 
+-                let event = if key_event.action == AKEY_EVENT_ACTION_DOWN {
+-                    gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
+-                        keystroke,
+-                        is_held: false,
+-                        prefer_character_input: key_event.unicode_char != 0,
+-                    })
+-                } else if key_event.action == AKEY_EVENT_ACTION_UP {
+-                    gpui::PlatformInput::KeyUp(gpui::KeyUpEvent { keystroke })
+-                } else {
+-                    return; // ACTION_MULTIPLE or unknown
+-                };
++                    let event = if key_event.action == AKEY_EVENT_ACTION_DOWN {
++                        gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
++                            keystroke,
++                            is_held: false,
++                            prefer_character_input: key_event.unicode_char != 0,
++                        })
++                    } else if key_event.action == AKEY_EVENT_ACTION_UP {
++                        gpui::PlatformInput::KeyUp(gpui::KeyUpEvent { keystroke })
++                    } else {
++                        return super::layers::UNUSED; // ACTION_MULTIPLE or unknown
++                    };
+ 
+-                let mut guard = cb.lock();
+-                let _ = guard(event);
+-            });
++                    let mut guard = cb.lock();
++                    guard(event)
++                }),
++            );
+         }
+     }
+ 
+@@ -1562,24 +1634,32 @@ impl PlatformWindow for AndroidPlatformWindow {
+         // On Android, this callback is always invoked on the main thread.
+         let send_callback: Box<dyn FnMut(bool) + Send> = unsafe { std::mem::transmute(callback) };
+         let send_callback = Mutex::new(send_callback);
+-        self.window.on_active_status_change(move |active| {
+-            let mut cb = send_callback.lock();
+-            cb(active);
+-        });
++        // dm(android-stack): told by the stack, true while this window is on top.
++        super::layers::set(
++            &self.layer.active,
++            Box::new(move |active: bool| {
++                let mut cb = send_callback.lock();
++                cb(active);
++            }),
++        );
+     }
+ 
+     fn on_visibility_change(&self, callback: Box<dyn FnMut(WindowVisibility)>) {
+         let send_callback: Box<dyn FnMut(WindowVisibility) + Send> =
+             unsafe { std::mem::transmute(callback) };
+         let send_callback = Mutex::new(send_callback);
+-        self.window.on_visibility_change(move |visible| {
+-            let mut cb = send_callback.lock();
+-            cb(if visible {
+-                WindowVisibility::Visible
+-            } else {
+-                WindowVisibility::Hidden
+-            });
+-        });
++        // dm(android-stack): the window's own layer; every window on the stack is told.
++        super::layers::set(
++            &self.layer.visible,
++            Box::new(move |visible: bool| {
++                let mut cb = send_callback.lock();
++                cb(if visible {
++                    WindowVisibility::Visible
++                } else {
++                    WindowVisibility::Hidden
++                });
++            }),
++        );
+     }
+ 
+     fn on_hover_status_change(&self, callback: Box<dyn FnMut(bool)>) {
+@@ -1594,24 +1674,33 @@ impl PlatformWindow for AndroidPlatformWindow {
+         let send_callback: Box<dyn FnMut(gpui::Size<gpui::Pixels>, f32) + Send> =
+             unsafe { std::mem::transmute(callback) };
+         let send_callback = Arc::new(Mutex::new(send_callback));
+-        self.window.on_resize(move |device_size, scale| {
+-            let mut cb = send_callback.lock();
+-            cb(
+-                gpui::size(
+-                    gpui::px(device_size.width.0 as f32 / scale),
+-                    gpui::px(device_size.height.0 as f32 / scale),
+-                ),
+-                scale,
+-            );
+-        });
++        // dm(android-stack): every window on the stack is the surface's size.
++        super::layers::set(
++            &self.layer.resize,
++            Box::new(move |device_size: Size<DevicePixels>, scale: f32| {
++                let mut cb = send_callback.lock();
++                cb(
++                    gpui::size(
++                        gpui::px(device_size.width.0 as f32 / scale),
++                        gpui::px(device_size.height.0 as f32 / scale),
++                    ),
++                    scale,
++                );
++            }),
++        );
+     }
+ 
+     fn on_moved(&self, _callback: Box<dyn FnMut()>) {
          // Android windows don't move — they're always fullscreen.
      }
  
+-    fn on_should_close(&self, _callback: Box<dyn FnMut() -> bool>) {
+-        // Android app lifecycle is managed by the system.
 +    // dm(port-0312): `on_display_changed` is new in 0.3.12; the window never leaves the
 +    // phone's one display.
 +    fn on_display_changed(&self, _callback: Box<dyn FnMut()>) {}
 +
-     fn on_should_close(&self, _callback: Box<dyn FnMut() -> bool>) {
-         // Android app lifecycle is managed by the system.
++    fn on_should_close(&self, callback: Box<dyn FnMut() -> bool>) {
++        // dm(android-stack): asked before Back closes the window, as its close button asks.
++        super::layers::set(&self.layer.should_close, callback);
      }
+ 
+     fn on_hit_test_window_control(&self, _callback: Box<dyn FnMut() -> Option<WindowControlArea>>) {
+@@ -1619,13 +1708,9 @@ impl PlatformWindow for AndroidPlatformWindow {
+     }
+ 
+     fn on_close(&self, callback: Box<dyn FnOnce()>) {
+-        // PlatformWindow gives us Box<dyn FnOnce()> (not Send).
+-        // AndroidWindow::on_close requires Send.  On Android, the close
+-        // callback is always invoked on the main thread, so this transmute
+-        // is safe in practice.
+-        let send_callback: Box<dyn FnOnce() + Send + 'static> =
+-            unsafe { std::mem::transmute::<Box<dyn FnOnce()>, Box<dyn FnOnce() + Send>>(callback) };
+-        self.window.on_close(send_callback);
++        // dm(android-stack): what Back runs to close the window, as its close button would;
++        // kept on the window's layer (the surface's own close is never called).
++        *self.layer.close.borrow_mut() = Some(callback);
+     }
+ 
+     fn on_appearance_changed(&self, callback: Box<dyn FnMut()>) {
+@@ -1635,10 +1720,14 @@ impl PlatformWindow for AndroidPlatformWindow {
+         // On Android, this callback is always invoked on the main thread.
+         let send_callback: Box<dyn FnMut() + Send> = unsafe { std::mem::transmute(callback) };
+         let send_callback = Mutex::new(send_callback);
+-        self.window.on_appearance_changed(move |_appearance| {
+-            let mut cb = send_callback.lock();
+-            cb();
+-        });
++        // dm(android-stack): the window's own layer; every window on the stack is told.
++        super::layers::set(
++            &self.layer.appearance,
++            Box::new(move |_appearance: WindowAppearance| {
++                let mut cb = send_callback.lock();
++                cb();
++            }),
++        );
+     }
+ 
+     fn frame_waker(&self) -> Option<Rc<dyn Fn()>> {
 diff --git a/src/lib.rs b/src/lib.rs
-index 635285f..b7b5fd5 100644
+index 635285f..7bcd730 100644
 --- a/src/lib.rs
 +++ b/src/lib.rs
 @@ -1,38 +1,13 @@
@@ -667,7 +1459,7 @@ index 635285f..b7b5fd5 100644
  
  // ── Re-export the gpui crate so consumers can access types through us ────────
  
-@@ -71,17 +25,11 @@ pub use gpui;
+@@ -71,17 +25,14 @@ pub use gpui;
  
  // ── shared modules ───────────────────────────────────────────────────────────
  
@@ -683,10 +1475,13 @@ index 635285f..b7b5fd5 100644
 -pub mod packages;
 -pub mod platform_view;
 -pub mod target_platform;
++// dm(android-stack): the stack of windows on the one surface and Back's decision, plain logic.
++#[cfg_attr(not(target_os = "android"), allow(dead_code))]
++pub(crate) mod stack;
  
  // ── System chrome (status bar / navigation bar) styling ──────────────────────
  
-@@ -128,15 +76,11 @@ impl Default for SystemChromeStyle {
+@@ -128,15 +79,11 @@ impl Default for SystemChromeStyle {
  ///
  /// On unsupported platforms this is a no-op.
  pub fn set_system_chrome(style: &SystemChromeStyle) {
@@ -703,7 +1498,7 @@ index 635285f..b7b5fd5 100644
      {
          let _ = style;
      }
-@@ -163,8 +107,6 @@ pub static TEXT_INPUT_DIRTY: AtomicBool = AtomicBool::new(false);
+@@ -163,8 +110,6 @@ pub static TEXT_INPUT_DIRTY: AtomicBool = AtomicBool::new(false);
  /// to be woken, since typing does not go through GPUI's invalidator.
  pub(crate) fn mark_text_input_dirty() {
      TEXT_INPUT_DIRTY.store(true, Ordering::Release);
@@ -712,7 +1507,7 @@ index 635285f..b7b5fd5 100644
      #[cfg(target_os = "android")]
      android::frame_source::wake();
  }
-@@ -187,7 +129,7 @@ pub fn set_text_input_callback(callback: Option<TextInputCallbackFn>) {
+@@ -187,7 +132,7 @@ pub fn set_text_input_callback(callback: Option<TextInputCallbackFn>) {
  
  /// Whether a software keyboard text callback is registered. A callback that
  /// is currently being invoked counts as registered.
@@ -721,7 +1516,7 @@ index 635285f..b7b5fd5 100644
  pub(crate) fn has_text_input_callback() -> bool {
      TEXT_INPUT_CALLBACK.with(|cb| cb.try_borrow().map_or(true, |cb| cb.is_some()))
  }
-@@ -247,22 +189,11 @@ pub fn show_keyboard() {
+@@ -247,22 +192,11 @@ pub fn show_keyboard() {
  /// appropriate input type.
  /// On unsupported platforms this is a no-op.
  pub fn show_keyboard_with_type(keyboard_type: KeyboardType) {
@@ -745,7 +1540,7 @@ index 635285f..b7b5fd5 100644
      {
          let _ = keyboard_type;
      }
-@@ -274,22 +205,11 @@ pub fn show_keyboard_with_type(keyboard_type: KeyboardType) {
+@@ -274,22 +208,11 @@ pub fn show_keyboard_with_type(keyboard_type: KeyboardType) {
  /// On Android this closes the input method editor.
  /// On unsupported platforms this is a no-op.
  pub fn hide_keyboard() {
@@ -769,7 +1564,7 @@ index 635285f..b7b5fd5 100644
      {}
  }
  
-@@ -328,40 +248,19 @@ pub fn set_keyboard_height(height: f32) {
+@@ -328,40 +251,19 @@ pub fn set_keyboard_height(height: f32) {
  /// On Android use the `AndroidWindow::safe_area_insets_logical()` method instead.
  /// On unsupported platforms returns zeros.
  pub fn safe_area_insets() -> (f32, f32, f32, f32) {
@@ -810,7 +1605,7 @@ index 635285f..b7b5fd5 100644
  // ── fallback for non-mobile host builds (e.g. documentation / CI) ────────────
  
  /// Returns the platform implementation for the current mobile OS.
-@@ -371,7 +270,7 @@ pub use target_platform::{target_platform, TargetPlatform, DEFAULT_PLATFORM};
+@@ -371,7 +273,7 @@ pub use target_platform::{target_platform, TargetPlatform, DEFAULT_PLATFORM};
  ///
  /// When compiled for iOS, returns an `Rc<dyn gpui::Platform>` backed by `IosPlatform`.
  /// When compiled for Android, returns an `Rc<dyn gpui::Platform>` backed by `AndroidPlatform`.
@@ -819,3 +1614,193 @@ index 635285f..b7b5fd5 100644
  pub fn current_platform(_headless: bool) -> ! {
      panic!(
          "gpui-mobile: `current_platform` is only available when compiled for \
+diff --git a/src/stack.rs b/src/stack.rs
+new file mode 100644
+index 0000000..35da644
+--- /dev/null
++++ b/src/stack.rs
+@@ -0,0 +1,184 @@
++//! dm(android-stack): the windows GPUI opens, as a stack on the phone's one surface.
++//!
++//! A phone shows one screen, and NativeActivity hands the app one `ANativeWindow`. GPUI (and
++//! the app on it) opens many windows: a dialog, a settings window, a question. Each is a
++//! layer of this stack: the newest shown is drawn over the whole surface and given the input;
++//! when it closes, the one below it is drawn again. Back is Escape given to the window on top
++//! (so a dialog's own Escape, Cancel, closes it, and an app's in-window overlays close first);
++//! where the window does nothing with it, the window on top is closed as its close button
++//! would close it, and with only the first window left the app's task goes to the background
++//! (Android's Back on an app's first screen), so its work goes on.
++//!
++//! This file is plain logic, with no Android in it, so its tests run on any machine
++//! (`rustc --edition 2021 --test src/stack.rs`); `android/layers.rs` holds the windows'
++//! callbacks in it and does what [`after_back`] decides.
++
++/// The windows open on the surface, oldest first, each with what the platform keeps for it.
++#[derive(Debug)]
++pub(crate) struct Stack<T> {
++    layers: Vec<Layer<T>>,
++}
++
++#[derive(Debug)]
++struct Layer<T> {
++    id: u64,
++    /// Whether the window has been shown: one opened hidden (GPUI's `show: false`) is never
++    /// on top until it is activated.
++    shown: bool,
++    value: T,
++}
++
++impl<T> Default for Stack<T> {
++    fn default() -> Self {
++        Stack { layers: Vec::new() }
++    }
++}
++
++impl<T> Stack<T> {
++    /// Opens window `id` over the others; a hidden one waits under the shown ones.
++    pub(crate) fn push(&mut self, id: u64, shown: bool, value: T) {
++        self.layers.retain(|layer| layer.id != id);
++        self.layers.push(Layer { id, shown, value });
++    }
++
++    /// Closes window `id`, wherever it is in the stack, and hands back what was kept for it.
++    pub(crate) fn remove(&mut self, id: u64) -> Option<T> {
++        let at = self.layers.iter().position(|layer| layer.id == id)?;
++        Some(self.layers.remove(at).value)
++    }
++
++    /// Brings window `id` to the top, shown (GPUI's `activate`). False where it is not open.
++    pub(crate) fn raise(&mut self, id: u64) -> bool {
++        let Some(at) = self.layers.iter().position(|layer| layer.id == id) else {
++            return false;
++        };
++        let mut layer = self.layers.remove(at);
++        layer.shown = true;
++        self.layers.push(layer);
++        true
++    }
++
++    /// The window drawn and given the input: the newest shown.
++    pub(crate) fn top(&self) -> Option<(u64, &T)> {
++        self.layers
++            .iter()
++            .rev()
++            .find(|layer| layer.shown)
++            .map(|layer| (layer.id, &layer.value))
++    }
++
++    /// The id of the window on top.
++    pub(crate) fn top_id(&self) -> Option<u64> {
++        self.top().map(|(id, _)| id)
++    }
++
++    /// How many windows are shown.
++    pub(crate) fn shown(&self) -> usize {
++        self.layers.iter().filter(|layer| layer.shown).count()
++    }
++
++    /// Every window, oldest first.
++    pub(crate) fn iter(&self) -> impl Iterator<Item = (u64, &T)> {
++        self.layers.iter().map(|layer| (layer.id, &layer.value))
++    }
++}
++
++/// What Back does once the window on top has been given Escape.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub(crate) enum Back {
++    /// The window did something with it (closed an overlay, or itself): nothing more.
++    Done,
++    /// The window on top did nothing with it and windows are under it: it is closed, as its
++    /// close button closes it (asked first whether it may close).
++    Close(u64),
++    /// The first window alone, doing nothing with it: the task goes to the background (the
++    /// activity's `moveTaskToBack`), not ended, so downloads go on.
++    ToBackground,
++}
++
++/// What Back does: `handled` is whether the window on top stopped Escape (its result said so),
++/// `top_before` and `top_after` the window on top before and after Escape was given (a window
++/// that closed itself, or opened another, changed it), `shown_after` how many windows are
++/// shown after.
++pub(crate) fn after_back(
++    handled: bool,
++    top_before: Option<u64>,
++    top_after: Option<u64>,
++    shown_after: usize,
++) -> Back {
++    let Some(top) = top_before else {
++        return Back::ToBackground;
++    };
++    if handled || top_after != Some(top) {
++        return Back::Done;
++    }
++    if shown_after > 1 {
++        Back::Close(top)
++    } else {
++        Back::ToBackground
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn the_newest_shown_window_is_on_top_and_closing_it_shows_the_one_below() {
++        let mut stack = Stack::default();
++        assert_eq!(stack.top_id(), None);
++        stack.push(1, true, "main");
++        stack.push(2, true, "options");
++        stack.push(3, true, "question");
++        assert_eq!(stack.top(), Some((3, &"question")));
++        assert_eq!(stack.shown(), 3);
++        assert_eq!(stack.remove(3), Some("question"));
++        assert_eq!(stack.top_id(), Some(2));
++        // A window under the top closing leaves the top where it is.
++        assert_eq!(stack.remove(1), Some("main"));
++        assert_eq!(stack.top_id(), Some(2));
++        assert_eq!(stack.remove(1), None);
++        assert_eq!(stack.remove(2), Some("options"));
++        assert_eq!(stack.top_id(), None);
++    }
++
++    #[test]
++    fn a_hidden_window_waits_until_it_is_raised() {
++        let mut stack = Stack::default();
++        stack.push(1, true, ());
++        stack.push(2, false, ());
++        assert_eq!(stack.top_id(), Some(1));
++        assert_eq!(stack.shown(), 1);
++        assert!(stack.raise(2));
++        assert_eq!(stack.top_id(), Some(2));
++        // Raising an older window brings it over the newer.
++        assert!(stack.raise(1));
++        assert_eq!(stack.top_id(), Some(1));
++        assert_eq!(stack.iter().map(|(id, _)| id).collect::<Vec<_>>(), [2, 1]);
++        assert!(!stack.raise(9));
++    }
++
++    #[test]
++    fn a_window_pushed_twice_is_one_layer() {
++        let mut stack = Stack::default();
++        stack.push(1, true, 'a');
++        stack.push(1, true, 'b');
++        assert_eq!(stack.shown(), 1);
++        assert_eq!(stack.top(), Some((1, &'b')));
++    }
++
++    #[test]
++    fn back_closes_overlays_then_windows_then_sends_the_task_back() {
++        // The window used Escape (an overlay closed, a dialog's Cancel ran): nothing more.
++        assert_eq!(after_back(true, Some(2), Some(2), 2), Back::Done);
++        // The window closed itself, or opened a question, with Escape: nothing more.
++        assert_eq!(after_back(false, Some(2), Some(1), 1), Back::Done);
++        assert_eq!(after_back(false, Some(2), Some(3), 3), Back::Done);
++        // Ignored by a window over another: that window closes.
++        assert_eq!(after_back(false, Some(2), Some(2), 2), Back::Close(2));
++        // Ignored by the first window alone: the task to the background, dm not ended.
++        assert_eq!(after_back(false, Some(1), Some(1), 1), Back::ToBackground);
++        // No window at all.
++        assert_eq!(after_back(false, None, None, 0), Back::ToBackground);
++    }
++}

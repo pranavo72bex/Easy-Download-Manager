@@ -157,6 +157,8 @@ pub(crate) mod frame_source;
 // over the surface) removed: dm starts through android-activity alone and shows no Java views.
 pub mod jni;
 pub mod keyboard;
+// dm(android-stack): GPUI's windows as a stack on the one surface.
+mod layers;
 pub mod platform;
 mod text_input;
 pub mod window;

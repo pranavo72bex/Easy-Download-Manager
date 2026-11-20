@@ -30,6 +30,9 @@ pub(crate) mod fling_guard;
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 pub(crate) mod frame_pacer;
 pub mod momentum;
+// dm(android-stack): the stack of windows on the one surface and Back's decision, plain logic.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub(crate) mod stack;
 
 // ── System chrome (status bar / navigation bar) styling ──────────────────────
 

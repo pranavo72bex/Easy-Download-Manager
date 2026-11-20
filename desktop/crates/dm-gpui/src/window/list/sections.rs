@@ -242,10 +242,20 @@ impl Downloads {
             }),
         )
         .on_action(
-            cx.listener(|this, _: &crate::window::menus::Dismiss, _, cx| {
+            cx.listener(|this, _: &crate::window::menus::Dismiss, window, cx| {
+                // The phone's layout: its sheet or drawer closes first (gaps row N16: a
+                // phone's Back is Escape given to the window on top).
+                if crate::window::narrow::is_narrow(window) && this.narrow_back() {
+                    cx.notify();
+                    return;
+                }
                 if this.menus.place_menu.is_some() {
                     this.close_place_menu();
                     cx.notify();
+                } else if cfg!(target_os = "android") {
+                    // Nothing to close: passed on, so the phone's platform, told no one used
+                    // it, sends dm to the background as Back does on a first screen.
+                    cx.propagate();
                 }
             }),
         )

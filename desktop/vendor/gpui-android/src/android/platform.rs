@@ -1079,7 +1079,7 @@ impl Platform for AndroidPlatform {
     fn open_window(
         &self,
         _handle: AnyWindowHandle,
-        _options: WindowParams,
+        options: WindowParams,
     ) -> anyhow::Result<Box<dyn PlatformWindow>> {
         // On Android the native window is created by the system via
         // MainEvent::InitWindow, not by the application.  If a window
@@ -1099,8 +1099,12 @@ impl Platform for AndroidPlatform {
             .primary()
             .map(|d| Rc::new(d.clone()) as Rc<dyn PlatformDisplay>);
 
-        Ok(Box::new(super::window::AndroidPlatformWindow::new(
-            window, display,
+        // dm(android-stack): each window a layer over the others on the one surface, drawn
+        // over all of it whatever size it asked for (`layers.rs`).
+        Ok(Box::new(super::window::AndroidPlatformWindow::opened(
+            window,
+            display,
+            options.show,
         )))
     }
 
