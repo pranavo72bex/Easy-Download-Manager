@@ -8091,3 +8091,24 @@ Asked in one set of questions, the maintainer approved:
 Each is built under the behaviour contract's rule: its rows written or changed in
 `docs/behaviour-contract.md` in the same commit, the commit naming this approval, and the window's
 pictures (`docs/behaviour-baseline/`) taken again on the Mac where a change shows in the window.
+
+## The list and the read ask YouTube's watch page as one request, kept in memory only (2026-11-20, gaps row Y13)
+
+Both take the read's request (its address with `bpctr` and `has_verified`, `PAGE_AGENT`, its cookies), as the download is the path that must keep working; the list's parser looks only for `ytInitialPlayerResponse`, which that page carries. The page is kept in memory for two minutes (four pages, 4 MB each), keyed by the address and a digest of the Cookie header, so a page fetched signed out never serves a signed-in read, and dropped when a read of it fails. Never on disk: a signed-in page carries the session. The browser panel's list is made in the host process and so still fetches its own.
+
+## The line cases of the benchmark: delay in a proxy, rate and loss at the server (2026-11-20, gaps row W2)
+
+`bench/shaper.mjs` delays every piece 40 ms each way and holds a connection's first bytes a round trip more (the handshake). The 20 Mbit/s cap is the server's shared bucket: a cap in the proxy would leave megabytes in loopback buffers that the server counts as sent, so its last byte and `refetchedPct` would lie. A user-space proxy cannot drop a TCP segment, so `lossy` models 1% loss as a 250 ms stall of 1% of 16 KiB pieces. The certificate is made at run time, is not an authority, and is trusted by reference A's computer once (`certutil`). Both cases run only when named until reference A's numbers are frozen in a file of their own.
+
+## An HLS rendition with no audio group takes the master's sound when its codecs are a picture's alone (2026-11-20, gaps row 205)
+
+As a browser's player does. A rendition with no CODECS, with a sound codec among them, or with a codec dm does not know is left as before (an unknown codec may be a sound). Where that pair cannot be joined the download is refused, as a grouped pair is, not saved silent.
+
+## The row menu is the system's menu (2026-11-20, gaps row U27)
+
+Built as the title menus are, a `gpui::Menu` shown as a `NativeMenu`. "Delete file after" became a submenu because a system menu has no headings. Keys are shown after a tab on Windows (key names not translated), by the drawn fallback on Linux, and not on macOS, where `NativeMenu` has no key field. A script's right-click holds the menu for the control port's next click; Open, Open with… and Preview are refused to scripts in any held menu, also when asked by part of their words.
+
+## One file chooser and one clipboard path in the window (2026-11-20, gaps row P6)
+
+The chooser is `services::ask` (dm's own panels on macOS, rfd's async ones elsewhere): GPUI's `prompt_for_paths` takes neither file kinds nor a starting folder. The clipboard of dm's own code is arboard, through `Platform::clipboard` and `set_clipboard`: GPUI's needs the window's thread, the watch reads every second off it, and on Windows GPUI's read copies and hashes any picture on the clipboard. The text fields keep gpui-component's clipboard, inside the toolkit. `tray-icon` (with `muda`) and `notify-rust` stay as plumbing GPUI lacks. Known cost: on Wayland with no XWayland arboard cannot copy (row 218).
+

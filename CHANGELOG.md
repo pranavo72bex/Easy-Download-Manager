@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The row menu is the system's own menu: the system's keyboard, each item's key shown on Windows and Linux, groups that do not apply to the chosen downloads left out; Delete file after is a submenu.
+- YouTube: a download picked from the quality list no longer fetches the video's page a second time.
+- Videos: an HLS rendition whose sound is listed apart from it without naming its group is saved with that sound, not as a picture alone.
+- Browse… in Download details and Save to opens the same folder panel as every other Browse… (on Linux, zenity where there is no portal).
 - File › Back up dm… and Restore…: one `.dmbackup` file of the settings, queues, schedules, site rules, saved searches and the list of downloads, the sign-ins left out unless a passphrase is given, then sealed with it; Restore puts the settings in force as Options' OK does and adds the downloads, one already listed not twice, replacing no file on the disk; a newer dm's backup is read as far as this one knows it.
 - **View › Statistics…**: how many downloads finished and their size, by day over the last 30 days, by site (the 10 largest) and by category, each as bars, and the average and best speed since dm opened; worked out from the list dm keeps, nothing new written. A download's progress window draws its speed over the last 5 minutes under its bar.
 - A playlist, a channel's uploads or a feed can be followed: the Playlist dialog has "Check again every … hours, adding what is new to" a queue, and Add URL opens it for a feed's address too (RSS or Atom, a podcast's episodes or each item's link). dm reads it again every so many hours and adds, for later, only the videos or files it did not list before; each followed one is listed under Grabber projects, where Check now and Stop following are (gaps row W10).
