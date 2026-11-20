@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask vendor [--version <version>] [<crate>…]` (gaps rows P3, A17, X5 and N16): makes
-//! the crates in `desktop/vendor/` again, the five of [`CRATES`] or those named. Each is the
+//! the crates in `desktop/vendor/` again, the six of [`CRATES`] or those named. Each is the
 //! crate published on crates.io, or for one crates.io has not (gpui-android, from gpui-mobile)
 //! GitHub's archive of a commit, fetched with `curl` (Windows 10 and later have it), checked
 //! against the SHA-256 held here (ring's), unpacked with `tar`, with the files dm's build does
@@ -105,7 +105,7 @@ const GPUI_ANDROID_REMOVE: &[&str] = &[
 ];
 
 /// Every crate dm keeps a patched copy of, in the order they are made when none is named.
-pub(crate) const CRATES: [Vendored; 5] = [
+pub(crate) const CRATES: [Vendored; 6] = [
     Vendored {
         name: "librqbit",
         version: LIBRQBIT_VERSION,
@@ -131,6 +131,13 @@ pub(crate) const CRATES: [Vendored; 5] = [
         name: "gpui-pre-windows",
         version: GPUI_VERSION,
         sha256: "7201762420222d5b5ce5bdf0056996199212a3349bfb2457a3a0238c688681f3",
+        remove: GPUI_REMOVE,
+        source: Source::CratesIo,
+    },
+    Vendored {
+        name: "gpui-pre-wgpu",
+        version: GPUI_VERSION,
+        sha256: "dc76608d385f6d0dcbad44504b1bf669dac3b7d7ffa2885acdb7c1c358caf852",
         remove: GPUI_REMOVE,
         source: Source::CratesIo,
     },
@@ -213,7 +220,7 @@ fn parse(args: &[String]) -> Result<Request, String> {
     if crates.is_empty() {
         if version.is_some() {
             return Err(format!(
-                "--version names the crates it is for: the five are not one version\n{}",
+                "--version names the crates it is for: the six are not one version\n{}",
                 usage()
             ));
         }
@@ -442,13 +449,14 @@ mod tests {
     }
 
     #[test]
-    fn the_five_copies_are_held_each_with_its_version_and_sha256() {
+    fn the_six_copies_are_held_each_with_its_version_and_sha256() {
         let names: Vec<&str> = CRATES.iter().map(|c| c.name).collect();
         let wanted = [
             "librqbit",
             "librqbit-sha1-wrapper",
             "gpui-pre-linux",
             "gpui-pre-windows",
+            "gpui-pre-wgpu",
             "gpui-android",
         ];
         assert_eq!(names, wanted);
@@ -472,10 +480,11 @@ mod tests {
         assert_eq!(CRATES[1].version, LIBRQBIT_VERSION);
         assert_eq!(CRATES[2].version, GPUI_VERSION);
         assert_eq!(CRATES[3].version, GPUI_VERSION);
-        for c in &CRATES[..4] {
+        assert_eq!(CRATES[4].version, GPUI_VERSION);
+        for c in &CRATES[..5] {
             assert_eq!(c.source, Source::CratesIo, "{}", c.name);
         }
-        let Source::GitHub { repository, commit } = CRATES[4].source else {
+        let Source::GitHub { repository, commit } = CRATES[5].source else {
             panic!("gpui-android is made from GitHub");
         };
         assert_eq!(repository, "itsbalamurali/gpui-mobile");
@@ -535,7 +544,7 @@ mod tests {
 
     #[test]
     fn a_commit_is_fetched_as_githubs_archive_and_unpacked_in_its_folder() {
-        let android = CRATES[4];
+        let android = CRATES[5];
         let (url, file) = fetched(&android, android.version);
         assert_eq!(
             url,
@@ -564,7 +573,7 @@ mod tests {
     }
 
     #[test]
-    fn no_crate_named_makes_all_five_and_names_make_those() {
+    fn no_crate_named_makes_all_six_and_names_make_those() {
         let all = parse(&[]).expect("all");
         assert_eq!(all.crates, CRATES.to_vec());
         assert_eq!(all.version, None);

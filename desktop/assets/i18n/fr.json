@@ -881,7 +881,6 @@
  "Place menu": "Menu du lieu",
  "Row menu": "Menu de la ligne",
  "Places": "Lieux",
- "Open with": "Ouvrir avec",
  "Applications": "Applications",
  "dm settings": "Réglages de dm",
  "Download lists": "Listes de téléchargements",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "la première commence dans {} heures",
  "the premiere starts in {} minutes": "la première commence dans {} minutes",
  "the premiere starts in a moment": "la première commence dans un instant",
- "the premiere has not begun yet": "la première n'a pas encore commencé"
+ "the premiere has not begun yet": "la première n'a pas encore commencé",
+ "Choose a folder": "Choisir un dossier",
+ "Data Saver is on": "l'Économiseur de données est activé",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "Les téléchargements attendent tant que l'Économiseur de données d'Android est activé, et reprennent dès qu'il est désactivé.",
+ "Downloads wait while the phone is roaming.": "Les téléchargements attendent tant que le téléphone est en itinérance.",
+ "Not while roaming": "Pas en itinérance",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "Sur les données mobiles, les téléchargements attendent, et reprennent d'eux-mêmes en Wi-Fi.",
+ "Pause when Data Saver is on": "Suspendre quand l'Économiseur de données est activé",
+ "The file could not be chosen: {}": "Le fichier n'a pas pu être choisi : {}",
+ "the phone is not on Wi-Fi": "le téléphone n'est pas en Wi-Fi",
+ "the phone is roaming": "le téléphone est en itinérance",
+ "Wi-Fi only": "Wi-Fi uniquement"
 }

@@ -318,10 +318,9 @@ fn numeric_offset(s: &str, colon: bool, minus_sign: bool) -> Option<(&str, i32)>
         (false, rest)
     } else if let Some(rest) = s.strip_prefix('-') {
         (true, rest)
-    } else if let Some(rest) = s.strip_prefix('\u{2212}').filter(|_| minus_sign) {
-        (true, rest)
     } else {
-        return None;
+        let rest = s.strip_prefix('\u{2212}').filter(|_| minus_sign)?;
+        (true, rest)
     };
     let digits = s.as_bytes();
     let (h1, h2) = (*digits.first()?, *digits.get(1)?);

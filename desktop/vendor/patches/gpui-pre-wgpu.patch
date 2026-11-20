@@ -1,0 +1,85 @@
+dm's change to gpui-pre-wgpu 0.3.12 (crates.io, Apache-2.0: Zed's `gpui_wgpu`
+crate as the gpui-pre snapshot publishes it), applied to the published crate
+with Cargo.lock, .cargo_vcs_info.json and .cargo-ok removed first. Made again
+by `cargo xtask vendor`; explained in desktop/vendor/README.md. Each change in
+the code is marked `dm(<tag>):`, the tag its row in that file's table. The
+text before each file's section says what its hunks do, in order; git apply
+skips it.
+
+src/wgpu_context.rs:
+  1. gl-limits: an OpenGL ES adapter asked for the limits it has.
+  2. android-one-backend: the instance's backends from `backends()`.
+  3. android-one-backend: `backends()`, one backend on Android, chosen
+     before the window's surface is made.
+
+diff --git a/src/wgpu_context.rs b/src/wgpu_context.rs
+index b566578..8aff7c5 100644
+--- a/src/wgpu_context.rs
++++ b/src/wgpu_context.rs
+@@ -451,10 +451,18 @@ impl WgpuContext {
+                 .using_resolution(adapter.limits())
+                 .using_alignment(adapter.limits())
+         };
++        // dm(gl-limits): an OpenGL ES adapter (Android's emulator, phones without Vulkan, Linux
++        // without Vulkan) is asked for the limits it has: GLES cannot give the compute limits
++        // of `downlevel_defaults`, so the device was refused, and WebGL 2's have no storage
++        // buffers, which the renderer's instance data needs.
+         #[cfg(not(target_family = "wasm"))]
+-        let required_limits = wgpu::Limits::downlevel_defaults()
+-            .using_resolution(adapter.limits())
+-            .using_alignment(adapter.limits());
++        let required_limits = if adapter.get_info().backend == wgpu::Backend::Gl {
++            adapter.limits()
++        } else {
++            wgpu::Limits::downlevel_defaults()
++                .using_resolution(adapter.limits())
++                .using_alignment(adapter.limits())
++        };
+ 
+         let (device, queue) = adapter
+             .request_device(&wgpu::DeviceDescriptor {
+@@ -479,7 +487,7 @@ impl WgpuContext {
+     #[cfg(not(target_family = "wasm"))]
+     pub fn instance(display: Option<Box<dyn wgpu::wgt::WgpuHasDisplayHandle>>) -> wgpu::Instance {
+         wgpu::Instance::new(wgpu::InstanceDescriptor {
+-            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
++            backends: Self::backends(),
+             flags: wgpu::InstanceFlags::default(),
+             backend_options: wgpu::BackendOptions::default(),
+             memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
+@@ -487,6 +495,35 @@ impl WgpuContext {
+         })
+     }
+ 
++    /// The backends a window's instance is made with.
++    #[cfg(all(not(target_family = "wasm"), not(target_os = "android")))]
++    fn backends() -> wgpu::Backends {
++        wgpu::Backends::VULKAN | wgpu::Backends::GL
++    }
++
++    // dm(android-one-backend): on Android one backend, chosen before the window's surface is
++    // made. A Vulkan surface connects the window (`vkCreateAndroidSurfaceKHR`) at once, so where
++    // no Vulkan adapter then works (the emulator, phones whose Vulkan wgpu cannot use) EGL found
++    // the window "already connected" and GL failed too: the window stayed black. Vulkan where
++    // an instance with no window finds a Vulkan adapter, else GL alone; asked once.
++    #[cfg(target_os = "android")]
++    fn backends() -> wgpu::Backends {
++        static CHOSEN: std::sync::OnceLock<wgpu::Backends> = std::sync::OnceLock::new();
++        *CHOSEN.get_or_init(|| {
++            let probe = wgpu::Instance::new(wgpu::InstanceDescriptor {
++                backends: wgpu::Backends::VULKAN,
++                flags: wgpu::InstanceFlags::default(),
++                backend_options: wgpu::BackendOptions::default(),
++                memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
++                display: None,
++            });
++            let vulkan = !gpui::block_on(probe.enumerate_adapters(wgpu::Backends::VULKAN)).is_empty();
++            let chosen = if vulkan { wgpu::Backends::VULKAN } else { wgpu::Backends::GL };
++            log::info!("backend for the window: {chosen:?}");
++            chosen
++        })
++    }
++
+     pub fn check_compatible_with_surface(&self, surface: &wgpu::Surface<'_>) -> anyhow::Result<()> {
+         let caps = surface.get_capabilities(&self.adapter);
+         if caps.formats.is_empty() {

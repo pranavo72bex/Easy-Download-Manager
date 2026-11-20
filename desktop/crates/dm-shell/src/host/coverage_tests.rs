@@ -500,6 +500,10 @@ fn watch_page_stand_in() -> String {
     use std::io::{BufRead, BufReader};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let origin = format!("http://{}", listener.local_addr().unwrap());
+    // Each stream with its own address, as YouTube's are: one with neither an address nor a
+    // cipher is a framed stream's (gaps row Y2), dropped where the answer names none.
+    let video = format!("{origin}/video.mp4");
+    let audio = format!("{origin}/audio.m4a");
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let mut reader = BufReader::new(&stream);
@@ -509,12 +513,12 @@ fn watch_page_stand_in() -> String {
             }
             let player = serde_json::json!({
                 "playabilityStatus": {"status": "OK"},
-                "videoDetails": {"videoId": "standin", "isLive": false},
+                "videoDetails": {"videoId": "standin0000", "isLive": false},
                 "streamingData": {"adaptiveFormats": [
                     {"itag": 136, "mimeType": "video/mp4; codecs=\"avc1.4d401f\"", "width": 1280,
-                     "height": 720, "fps": 30, "contentLength": "2000"},
+                     "height": 720, "fps": 30, "contentLength": "2000", "url": video},
                     {"itag": 140, "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
-                     "averageBitrate": 130000, "contentLength": "500"}
+                     "averageBitrate": 130000, "contentLength": "500", "url": audio}
                 ]}
             });
             let body = format!(
@@ -540,7 +544,7 @@ fn the_real_world_lists_a_youtube_video_s_qualities_from_its_page_and_keeps_them
         home: home.path(),
         started: false,
     };
-    let page = "https://www.youtube.com/watch?v=standin";
+    let page = "https://www.youtube.com/watch?v=standin0000";
     let listed = here.formats(page, "", "").unwrap();
     assert!(
         listed.iter().any(|c| c.quality.starts_with("720")),

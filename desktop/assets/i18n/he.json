@@ -881,7 +881,6 @@
  "Place menu": "תפריט מיקום",
  "Row menu": "תפריט שורה",
  "Places": "מיקומים",
- "Open with": "פתיחה באמצעות",
  "Applications": "יישומים",
  "dm settings": "הגדרות dm",
  "Download lists": "רשימות הורדה",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "הבכורה מתחילה בעוד {} שעות",
  "the premiere starts in {} minutes": "הבכורה מתחילה בעוד {} דקות",
  "the premiere starts in a moment": "הבכורה מתחילה עוד רגע",
- "the premiere has not begun yet": "הבכורה עדיין לא התחילה"
+ "the premiere has not begun yet": "הבכורה עדיין לא התחילה",
+ "Choose a folder": "בחירת תיקייה",
+ "Data Saver is on": "חוסך הנתונים פועל",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "הורדות ממתינות כשחוסך הנתונים של Android פועל, וממשיכות כשהוא כבוי.",
+ "Downloads wait while the phone is roaming.": "הורדות ממתינות כשהטלפון בנדידה.",
+ "Not while roaming": "לא בזמן נדידה",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "בחבילת גלישה הורדות ממתינות, וממשיכות מעצמן ב-Wi-Fi.",
+ "Pause when Data Saver is on": "השהיה כשחוסך הנתונים פועל",
+ "The file could not be chosen: {}": "לא ניתן היה לבחור את הקובץ: {}",
+ "the phone is not on Wi-Fi": "הטלפון אינו מחובר ל-Wi-Fi",
+ "the phone is roaming": "הטלפון בנדידה",
+ "Wi-Fi only": "Wi-Fi בלבד"
 }

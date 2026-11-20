@@ -218,7 +218,8 @@ fn decode(t: &Tables, bits: &mut Bits) -> Op {
         256 => Op::Filter,
         257 => Op::Last,
         258..=261 => {
-            let len = length(bits, u32::from(t.len.decode(bits)));
+            let code = u32::from(t.len.decode(bits));
+            let len = length(bits, code);
             Op::Repeat((slot - 258) as usize, len)
         }
         _ => {

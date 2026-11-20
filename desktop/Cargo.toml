@@ -13,7 +13,7 @@ resolver = "2"
 members = ["crates/dm-android", "crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-media", "crates/dm-net", "crates/dm-protocol", "crates/dm-safari", "crates/dm-shell", "crates/dm-test-support", "crates/dm-torrent", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
 # A patched copy, used through [patch.crates-io] (gpui-android, which crates.io has not, by its
 # path below), not a member.
-exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows", "vendor/gpui-android"]
+exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows", "vendor/gpui-pre-wgpu", "vendor/gpui-android"]
 
 # Every dependency's version, once (gaps row X8): a crate names it with `x.workspace = true`
 # and adds its own features there; `cargo xtask layers` refuses a version written in a crate.
@@ -254,3 +254,4 @@ librqbit = { path = "vendor/librqbit" }
 librqbit-sha1-wrapper = { path = "vendor/librqbit-sha1-wrapper" }
 gpui-pre-linux = { path = "vendor/gpui-pre-linux" }
 gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
+gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu" }

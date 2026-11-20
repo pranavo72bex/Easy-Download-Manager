@@ -664,7 +664,7 @@ impl Model {
             return;
         }
         let mut p = self.found;
-        while p > stats && p.wrapping_sub(stats) % STATE == 0 {
+        while p > stats && p.wrapping_sub(stats).is_multiple_of(STATE) {
             self.swap(p, p - STATE);
             p -= STATE;
         }

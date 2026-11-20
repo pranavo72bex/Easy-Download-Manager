@@ -211,6 +211,13 @@ it made of a finished archive:
 - `TLS: …`
   dm could not set up secure connections at all. This should not happen.
   Close and open dm again; if it stays, use **Copy details** and report it.
+- `TLS: the file holds no certificate (PEM)`
+- `TLS: not a root to trust: …`
+- `TLS: a certificate to trust came after dm's TLS was set up: not in force`
+  Said only where dm was started with a certificate of its own to trust
+  (`DM_BENCH_CA`, for dm's benchmark): the file named holds no certificate,
+  holds one that cannot be a root, or came too late. dm goes on with the
+  public certificates alone. Nobody else sees these.
 - `the connection to dial could not be waited for: …`
   dm waits for the Windows dial-up or VPN connection set in **Options ›
   Advanced** before a download, and the waiting itself failed. This should
@@ -485,6 +492,16 @@ a new dm with **Help › Check for updates**.
 - `this video's streams cannot be fetched by dm's own engine`
   dm read the page but its streams are not ones dm can fetch. Try again
   later; if it stays, use **Copy details** and report it.
+- `YouTube's framed stream did not end`
+- `YouTube's framed stream asks for the video to be read again`
+- `YouTube's framed stream refused: …`
+- `YouTube's framed stream sent a compressed piece, which dm does not read`
+- `YouTube's framed stream sent a piece larger than any video's`
+- `the player's word for its framed stream is not base64`
+  Some videos' streams come from YouTube as one framed stream that dm reads
+  itself, rather than as plain files, and it stopped for the reason given.
+  Click **Retry**, which reads the video again; if it stays, use **Copy
+  details** and report it.
 - `the video was fetched but the file it named is missing`
   The picture and sound came, but the joined file was not there at the end.
   Click **Retry**.
@@ -516,6 +533,7 @@ between two times.
 - `this stream carries no index of its pieces, so a part of it cannot be cut: only a video whose streams do (YouTube's MP4) can`
 - `this video's streams are not plain files with an index, so a part of it cannot be cut`
 - `this video's streams are numbered pieces with no index, so a part of it cannot be cut`
+- `this video's streams have no index, so a part of it cannot be cut`
 - `this file has no index (moov) to cut a part by`
   A part cannot be cut from this video, for the reason given. Download the
   whole video instead.

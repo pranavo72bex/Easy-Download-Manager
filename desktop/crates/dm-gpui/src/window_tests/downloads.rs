@@ -551,9 +551,11 @@ fn a_very_big_download_is_told_about_the_scheduler_once() {
         !h.view(|view| view.backend.settings()).hinted_big,
         "said for a small file"
     );
-    // The read keeps its own copy of the rows: the size is told to the next ones.
+    // The hint reads the running rows the reads keep (`Known::busy`, gaps row 181), not the
+    // list's: the size is told to those.
     h.view(|view| {
-        for row in &mut view.rows {
+        assert!(!view.known.busy.is_empty(), "no running row kept");
+        for row in view.known.busy.values_mut() {
             std::sync::Arc::make_mut(row).progress.total = Some(6 << 30);
         }
         view.big_download_hint();

@@ -89,6 +89,16 @@ A site that allows fewer connections can be given its own number: see
   or is above it again." Their rows say "Waiting: the battery is low". 0,
   the setting at first, never waits.
 
+On a phone, three more lines follow, each off at first:
+
+- **Wi-Fi only:** "On mobile data, downloads wait, and go on by themselves
+  on Wi-Fi." Their rows say "Waiting: the phone is not on Wi-Fi".
+- **Not while roaming:** "Downloads wait while the phone is roaming." Their
+  rows say "Waiting: the phone is roaming".
+- **Pause when Data Saver is on:** "Downloads wait while Android's Data
+  Saver is on, and go on once it is off." Their rows say "Waiting: Data
+  Saver is on".
+
 A connection or a battery the system says nothing of never holds a
 download. A download you start with **Start download** while they wait
 goes on; one you paused stays paused when the wait ends.

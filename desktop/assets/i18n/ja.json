@@ -881,7 +881,6 @@
  "Place menu": "場所のメニュー",
  "Row menu": "行のメニュー",
  "Places": "場所",
- "Open with": "このアプリケーションで開く",
  "Applications": "アプリケーション",
  "dm settings": "dm の設定",
  "Download lists": "ダウンロードリスト",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "プレミア公開は{}時間後に始まります",
  "the premiere starts in {} minutes": "プレミア公開は{}分後に始まります",
  "the premiere starts in a moment": "プレミア公開はまもなく始まります",
- "the premiere has not begun yet": "プレミア公開はまだ始まっていません"
+ "the premiere has not begun yet": "プレミア公開はまだ始まっていません",
+ "Choose a folder": "フォルダーを選択",
+ "Data Saver is on": "データセーバーがオンです",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "Android のデータセーバーがオンの間はダウンロードを待ち、オフになると再開します。",
+ "Downloads wait while the phone is roaming.": "スマートフォンがローミング中の間はダウンロードを待ちます。",
+ "Not while roaming": "ローミング中は行わない",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "モバイルデータ通信中はダウンロードを待ち、Wi-Fi に接続すると自動的に再開します。",
+ "Pause when Data Saver is on": "データセーバーがオンのときは一時停止",
+ "The file could not be chosen: {}": "ファイルを選択できませんでした：{}",
+ "the phone is not on Wi-Fi": "スマートフォンが Wi-Fi に接続されていません",
+ "the phone is roaming": "スマートフォンがローミング中です",
+ "Wi-Fi only": "Wi-Fi のみ"
 }

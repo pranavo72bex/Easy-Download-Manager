@@ -167,6 +167,8 @@ fn run_time_words() -> Vec<&'static str> {
     words.extend(base::format::StepButton::ALL.iter().map(|b| b.words()));
     // What a download may say of itself on its row (`rows::note_in`).
     words.extend(dm_core::NOTES);
+    // Why every download waits for the computer's state (`rows::paused_in`).
+    words.extend(dm_core::Hold::ALL.iter().map(|h| h.said()));
     words.extend(dm_shell::app::places::place_menu_words());
     words
 }

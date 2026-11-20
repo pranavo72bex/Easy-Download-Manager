@@ -104,7 +104,7 @@ pub(super) fn tf_decode(dec: &mut RangeDecoder<'_>, span: &Span, transient: bool
     let mut tell = dec.tell();
     let lm = span.lm;
     let mut logp = if transient { 2 } else { 4 };
-    let reserve = lm > 0 && tell + logp + 1 <= budget;
+    let reserve = lm > 0 && tell + logp < budget;
     budget -= i32::from(reserve);
     let mut changed = 0usize;
     let mut curr = 0usize;

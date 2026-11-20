@@ -65,7 +65,7 @@ impl Fft {
         let mut factors = Vec::new();
         let mut rest = n.max(1);
         for p in [4, 2, 3, 5] {
-            while rest % p == 0 {
+            while rest.is_multiple_of(p) {
                 factors.push(p);
                 rest /= p;
             }
@@ -135,25 +135,30 @@ impl Fft {
 struct Imdct {
     n: usize,
     fft: Fft,
-    /// `e^(-i pi (4k + 1) / (4n))`, before and after the FFT.
+    /// `e^(-i pi (4k + 1) / (4n))`, before the FFT.
     rotation: Vec<Complex>,
+    /// `e^(-i pi k / n)`, after it: the two together turn the quarter-size FFT into the
+    /// DCT-IV, `pi (4k + 1) / (4n)` twice would be `pi / (4n)` too much.
+    after: Vec<Complex>,
 }
 
 impl Imdct {
     fn new(n: usize) -> Imdct {
+        let turn = |a: f64| Complex {
+            re: a.cos() as f32,
+            im: a.sin() as f32,
+        };
         let rotation = (0..n / 2)
-            .map(|k| {
-                let a = -PI * (4 * k + 1) as f64 / (4 * n) as f64;
-                Complex {
-                    re: a.cos() as f32,
-                    im: a.sin() as f32,
-                }
-            })
+            .map(|k| turn(-PI * (4 * k + 1) as f64 / (4 * n) as f64))
+            .collect();
+        let after = (0..n / 2)
+            .map(|k| turn(-PI * k as f64 / n as f64))
             .collect();
         Imdct {
             n,
             fft: Fft::new(n / 2),
             rotation,
+            after,
         }
     }
 
@@ -176,7 +181,7 @@ impl Imdct {
             .collect();
         let mut spectrum = vec![Complex::default(); n / 2];
         self.fft.run(&folded, &mut spectrum);
-        for (k, (z, r)) in spectrum.iter().zip(&self.rotation).enumerate() {
+        for (k, (z, r)) in spectrum.iter().zip(&self.after).enumerate() {
             let c = z.times(*r);
             out[2 * k] = c.im;
             out[n - 1 - 2 * k] = -c.re;
@@ -270,8 +275,8 @@ pub(super) fn comb_filter(
         let newer = g1[0] * buf[p - t1]
             + g1[1] * (buf[p + 1 - t1] + buf[p - 1 - t1])
             + g1[2] * (buf[p + 2 - t1] + buf[p - 2 - t1]);
-        if i < overlap {
-            let f = w[i] * w[i];
+        if let Some(&wi) = w.get(i).filter(|_| i < overlap) {
+            let f = wi * wi;
             let older = g0[0] * buf[p - t0]
                 + g0[1] * (buf[p + 1 - t0] + buf[p - 1 - t0])
                 + g0[2] * (buf[p + 2 - t0] + buf[p - 2 - t0]);

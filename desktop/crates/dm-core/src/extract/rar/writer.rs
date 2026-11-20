@@ -38,7 +38,7 @@ pub(super) struct BitWriter {
 impl BitWriter {
     pub(super) fn put(&mut self, value: u64, n: u32) {
         for i in (0..n).rev() {
-            if self.bits % 8 == 0 {
+            if self.bits.is_multiple_of(8) {
                 self.bytes.push(0);
             }
             if (value >> i) & 1 == 1 {
@@ -263,7 +263,17 @@ pub(super) fn block(tokens: &[Token], lengths: &[u8; ALL], tables: bool, last: b
     if tables {
         write_tables(&mut w, lengths);
     }
-    let codes = codes(lengths);
+    // Each table's codes are canonical on their own.
+    let mut codes_of = vec![0u32; ALL];
+    for (start, size) in [
+        (T_MAIN, MAIN),
+        (T_DIST, DIST),
+        (T_ALIGN, ALIGN),
+        (T_LEN, LEN),
+    ] {
+        codes_of[start..start + size].copy_from_slice(&codes(&lengths[start..start + size]));
+    }
+    let codes = codes_of;
     let mut all = Vec::new();
     for &t in tokens {
         pieces(t, &mut all);

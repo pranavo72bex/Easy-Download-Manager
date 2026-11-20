@@ -242,8 +242,8 @@ fn the_rfc_test_vectors_decode_to_the_encoders_final_range() {
         }
         let reference = std::fs::read(dir.join(format!("testvector{v:02}.dec"))).unwrap();
         let (mut signal, mut noise) = (0f64, 0f64);
-        for (made, want) in sound.iter().zip(reference.chunks_exact(2)) {
-            let want = f64::from(i16::from_le_bytes([want[0], want[1]]));
+        for (made, want) in sound.iter().zip(reference.as_chunks::<2>().0) {
+            let want = f64::from(i16::from_le_bytes(*want));
             let made = f64::from(made.round().clamp(-32768.0, 32767.0));
             signal += want * want;
             noise += (made - want) * (made - want);

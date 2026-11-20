@@ -29,6 +29,15 @@ pub enum Hold {
 }
 
 impl Hold {
+    /// Every hold, for what lists their words (the catalogs' check).
+    pub const ALL: [Hold; 5] = [
+        Hold::Metered,
+        Hold::Battery,
+        Hold::NotWifi,
+        Hold::Roaming,
+        Hold::DataSaver,
+    ];
+
     /// Why the rows wait, in English, as a waiting row says it after "Waiting: ".
     #[must_use]
     pub fn said(self) -> &'static str {

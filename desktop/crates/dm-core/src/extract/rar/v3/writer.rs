@@ -20,7 +20,7 @@ use super::tables::{
 
 /// One code of a RAR 4 LZ stream.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum Token {
+pub(in crate::extract::rar) enum Token {
     Lit(u8),
     /// A length and a distance, in the long form.
     Match(u64, u64),
@@ -97,7 +97,7 @@ pub(super) fn lengths_for(tokens: &[Token]) -> [u8; ALL] {
             Token::Short(dist) => {
                 let i = (0..8)
                     .rev()
-                    .find(|&i| dist - 1 >= u64::from(SHORT_BASE[i]))
+                    .find(|&i| dist > u64::from(SHORT_BASE[i]))
                     .unwrap();
                 used[263 + i] = true;
             }
@@ -118,6 +118,15 @@ pub(super) fn lengths_for(tokens: &[Token]) -> [u8; ALL] {
         }
     }
     lengths
+}
+
+/// Canonical codes for `lengths`, each of the four tables on its own.
+fn table_codes(lengths: &[u8; ALL]) -> Vec<u32> {
+    let mut out = Vec::with_capacity(ALL);
+    for (start, size) in [(T_MAIN, MAIN), (T_DIST, DIST), (T_LOW, LOW), (T_REP, REP)] {
+        out.extend(codes(&lengths[start..start + size]));
+    }
+    out
 }
 
 /// A RAR 4 stream being written.
@@ -141,7 +150,7 @@ impl Writer {
     }
 
     fn align(&mut self) {
-        while self.w.bits % 8 != 0 {
+        while !self.w.bits.is_multiple_of(8) {
             self.w.put(0, 1);
         }
     }
@@ -188,7 +197,7 @@ impl Writer {
             }
         }
         self.lengths = lengths;
-        self.codes = codes(&lengths);
+        self.codes = table_codes(&lengths);
         self.low_last = 0;
         self.low_repeats = 0;
     }
@@ -201,7 +210,7 @@ impl Writer {
             Token::Short(dist) => {
                 let i = (0..8)
                     .rev()
-                    .find(|&i| dist - 1 >= u64::from(SHORT_BASE[i]))
+                    .find(|&i| dist > u64::from(SHORT_BASE[i]))
                     .unwrap();
                 self.sym(263 + i);
                 self.w.put(
@@ -263,7 +272,7 @@ impl Writer {
     /// Codes under `lengths` without writing them: a solid file's tables carried on.
     pub(super) fn carry(&mut self, lengths: [u8; ALL]) {
         self.lengths = lengths;
-        self.codes = codes(&lengths);
+        self.codes = table_codes(&lengths);
     }
 
     /// The end of a block with new tables after it.
@@ -295,20 +304,22 @@ impl Writer {
     }
 }
 
-/// A file's whole packed stream: tables for `tokens`, the tokens, the end of the file.
-pub(super) fn pack(tokens: &[Token]) -> Vec<u8> {
+/// A file's whole packed stream: tables for `tokens`, the tokens, the end of the file. Its
+/// end says the next file starts with tables of its own, as every stream made here does: a
+/// solid file after it then reads them rather than carrying these on.
+pub(in crate::extract::rar) fn pack(tokens: &[Token]) -> Vec<u8> {
     let mut w = Writer::new();
     w.tables(lengths_for(tokens), false);
     for t in tokens {
         w.token(t);
     }
-    w.end(false);
+    w.end(true);
     w.bytes()
 }
 
 /// Tokens for `data` from a greedy matcher over its three-byte prefixes (matches of at most
 /// 255 bytes); `before` is what a solid stream unpacked already.
-pub(super) fn greedy(before: &[u8], data: &[u8]) -> Vec<Token> {
+pub(in crate::extract::rar) fn greedy(before: &[u8], data: &[u8]) -> Vec<Token> {
     let all: Vec<u8> = before.iter().chain(data).copied().collect();
     let mut last: HashMap<[u8; 3], usize> = HashMap::new();
     for (i, w) in all
@@ -397,7 +408,7 @@ pub(super) fn program(len: usize, crc: u32) -> Vec<u8> {
         .collect();
     let mut pivot_of = vec![usize::MAX; 48];
     let mut r = 0;
-    for j in 0..48 {
+    for (j, pivot) in pivot_of.iter_mut().enumerate() {
         if r == 40 {
             break;
         }
@@ -411,15 +422,15 @@ pub(super) fn program(len: usize, crc: u32) -> Vec<u8> {
                 rows[i].1 ^= rows[r].1;
             }
         }
-        pivot_of[j] = r;
+        *pivot = r;
         r += 1;
     }
     assert!(
         rows[r..].iter().all(|row| !row.1),
         "no program has this mark"
     );
-    for j in 0..48 {
-        if pivot_of[j] != usize::MAX && rows[pivot_of[j]].1 {
+    for (j, &p) in pivot_of.iter().enumerate() {
+        if p != usize::MAX && rows[p].1 {
             base[1 + j / 8] ^= 1 << (j % 8);
         }
     }

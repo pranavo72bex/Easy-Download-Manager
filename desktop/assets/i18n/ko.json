@@ -881,7 +881,6 @@
  "Place menu": "위치 메뉴",
  "Row menu": "행 메뉴",
  "Places": "위치",
- "Open with": "다음으로 열기",
  "Applications": "응용 프로그램",
  "dm settings": "dm 설정",
  "Download lists": "다운로드 목록",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "최초 공개가 {}시간 후에 시작됩니다",
  "the premiere starts in {} minutes": "최초 공개가 {}분 후에 시작됩니다",
  "the premiere starts in a moment": "최초 공개가 곧 시작됩니다",
- "the premiere has not begun yet": "최초 공개가 아직 시작되지 않았습니다"
+ "the premiere has not begun yet": "최초 공개가 아직 시작되지 않았습니다",
+ "Choose a folder": "폴더 선택",
+ "Data Saver is on": "데이터 절약 모드가 켜져 있습니다",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "Android의 데이터 절약 모드가 켜져 있는 동안 다운로드는 대기하고, 꺼지면 계속됩니다.",
+ "Downloads wait while the phone is roaming.": "휴대전화가 로밍 중인 동안 다운로드는 대기합니다.",
+ "Not while roaming": "로밍 중에는 안 함",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "모바일 데이터에서는 다운로드가 대기하고, Wi-Fi에서 저절로 계속됩니다.",
+ "Pause when Data Saver is on": "데이터 절약 모드가 켜지면 일시 중지",
+ "The file could not be chosen: {}": "파일을 선택할 수 없습니다: {}",
+ "the phone is not on Wi-Fi": "휴대전화가 Wi-Fi에 연결되어 있지 않습니다",
+ "the phone is roaming": "휴대전화가 로밍 중입니다",
+ "Wi-Fi only": "Wi-Fi에서만"
 }

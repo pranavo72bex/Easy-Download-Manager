@@ -29,7 +29,7 @@ const GUIDE: &str = "docs/user-guide.md";
 const PAGES: &str = "docs/guide";
 
 /// The file that holds `dm_core::NOTES`.
-const NOTES: &str = "desktop/crates/dm-core/src/download.rs";
+const NOTES: &str = "desktop/crates/dm-core/src/download/notes.rs";
 /// The files whose error types' `#[error("…")]` a person reads.
 const ERROR_TYPES: [&str; 2] = [
     "desktop/crates/dm-net/src/error.rs",

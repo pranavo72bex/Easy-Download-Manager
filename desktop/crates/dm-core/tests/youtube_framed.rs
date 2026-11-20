@@ -445,7 +445,7 @@ async fn the_framed_stream_s_picture_and_sound_land_and_join() {
     // config and the formats; each after the first answer with the cookie it gave.
     let seen = seen_for(id);
     assert!(seen[0].uri.starts_with("/videoplayback?") && seen[0].uri.ends_with("&rn=1"));
-    assert!(seen.len() >= 1 + PICTURE_PIECES as usize, "{seen:?}");
+    assert!(seen.len() > PICTURE_PIECES as usize, "{seen:?}");
     for (n, asked) in seen.iter().enumerate() {
         assert!(asked.uri.ends_with(&format!("&rn={}", n + 1)), "{seen:?}");
         assert!(asked.config, "request {n} did not carry the config");

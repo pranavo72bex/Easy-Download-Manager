@@ -9,7 +9,7 @@ by its path (below).
 
 Every copy is made the same way (gaps rows P3, A17 and X5): the published
 crate, checked against its SHA-256, with what dm's build does not use removed
-and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all five again
+and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all six again
 (`cargo xtask vendor gpui-pre-linux` one), the same on Windows, macOS and
 Linux (`desktop/xtask/src/vendor.rs`, which holds each crate's version and
 SHA-256 and what is removed from it, and for gpui-android the repository and
@@ -59,7 +59,19 @@ offered to the crate's makers.
 | `android-only` | gpui-mobile cut to its Android platform: the manifest written again (gpui-android, no feature flags), the iOS platform, components, packages, platform views and host-driven entry removed, and what called them | gpui-android | `Cargo.toml` 1, `src/lib.rs` 1, `src/android/mod.rs` 1, `src/android/jni.rs` 5 | Android's alone | dm's alone: upstream is all of gpui-mobile |
 | `port-0312` | Moved from gpui-pre 0.3.6 to dm's 0.3.12: `platform_info`, `on_displays_changed`, `refresh_interval`, `on_display_changed` (new in the traits), `gpu_specs` an `Option`, `RequestFrameOptions`' new fields | gpui-android | `Cargo.toml` 1, `src/android/platform.rs` 3, `src/android/display.rs` 1, `src/android/window.rs` 3 | The other copies are 0.3.12's own | not yet |
 | `android-stack` | GPUI's windows as a stack on the phone's one surface: the newest shown drawn over all of it, whatever size it asked for, and given the input; one closing uncovers the one below, drawn again in full; the status and navigation bars told as GPUI's safe area (`insets`); Back is Escape given to the window on top, then, where it did nothing with it, that window closed as its close button closes it, or, on the first window, the task sent to the background (`moveTaskToBack`) so downloads go on. Upstream gave every window the same surface, each taking its callbacks from the last, and Back was Escape alone | gpui-android | `src/stack.rs` (new) 1, `src/android/layers.rs` (new) 1, `src/android/window.rs` 17, `src/android/jni.rs` 1, `src/android/mod.rs` 1, `src/android/platform.rs` 1, `src/lib.rs` 1 | Android's alone: the desktops give each window a window of the system's | not yet |
+| `gl-limits` | An OpenGL ES adapter asked for the limits it has; upstream asked every native adapter for `downlevel_defaults`, whose compute limits GLES has not, so the device was refused and the window stayed black (on the Android emulator, and phones or Linux computers without Vulkan) | gpui-pre-wgpu | `src/wgpu_context.rs`, 1 | macOS draws with Metal; Windows with DirectX | not yet |
+| `android-one-backend` | On Android one backend, chosen before the window's surface is made: Vulkan where an instance with no window finds a Vulkan adapter, else GL alone. A Vulkan surface connects Android's window at once, so where no Vulkan adapter then worked, EGL found the window "already connected" and GL failed too | gpui-pre-wgpu | `src/wgpu_context.rs`, 1 | Android's alone: a desktop's window takes a surface of each kind | not yet |
 | `sha1` | `sha1-ring` backed by the pure-Rust sha1 and sha2 crates rather than aws-lc-rs | librqbit-sha1-wrapper | `Cargo.toml` 1, `src/lib.rs` 2 | One crate on every system | not yet |
+
+## gpui-pre-wgpu (Android's renderer)
+
+`gpui-pre-wgpu/` is the crate published on crates.io at 0.3.12, GPUI's wgpu
+renderer, which Linux and Android draw with; dm's change is in
+`patches/gpui-pre-wgpu.patch` (rows `gl-limits` and `android-one-backend`
+above). Removed: its `Cargo.lock`, `.cargo_vcs_info.json` and `.cargo-ok`.
+Found on 2026-11-20 running dm on the Android emulator: before the change the
+window stayed black with "No GPU adapter found that can configure the display
+surface".
 
 ## librqbit and its SHA-1 wrapper (gaps row P3)
 

@@ -107,33 +107,8 @@ fn boot_and_run(
         Arc::new(dm_desktop_base::desktop::Desktop {
             window: platform::services::GpuiServices,
         });
-    // With a window, GPUI's own start (the application, its platform and its text system) is
-    // made on this thread while dm boots on another, where one had waited for the other (gaps
-    // row S16). The window itself is still made once the queue is read: it shows the list from
-    // its first frame.
-    let (booted, application) = if headless {
-        (boot::start(args, handed, platform, wake.clone()), None)
-    } else {
-        std::thread::scope(|scope| {
-            let booting = std::thread::Builder::new()
-                .name("dm-boot".into())
-                .spawn_scoped(scope, {
-                    let (platform, wake) = (Arc::clone(&platform), Arc::clone(&wake));
-                    move || boot::start(args, handed, platform, wake)
-                });
-            let made = application();
-            let booted = match booting {
-                // A start that panicked panics here, as it did on this thread.
-                Ok(booting) => match booting.join() {
-                    Ok(booted) => booted,
-                    Err(panic) => std::panic::resume_unwind(panic),
-                },
-                // A thread that cannot be made: dm boots here, after GPUI's start.
-                Err(_) => boot::start(args, handed, Arc::clone(&platform), Arc::clone(&wake)),
-            };
-            (booted, Some(made))
-        })
-    };
+    let (booted, application) =
+        boot_beside_gpui(args, handed, headless, &platform, &wake, application);
     let boot::Booted {
         runtime: _runtime,
         backend,
@@ -244,6 +219,49 @@ fn boot_and_run(
         &wake,
         application,
     );
+}
+
+/// dm's start (`boot::start`) and, with a window, GPUI's: the application, its platform and its
+/// text system are made on this thread while dm boots on another, where one had waited for the
+/// other (gaps row S16). The window itself is still made once the queue is read: it shows the
+/// list from its first frame.
+fn boot_beside_gpui(
+    args: &[String],
+    handed: &dm_shell::shell::Orders,
+    headless: bool,
+    platform: &Arc<dyn dm_shell::app::backend::Platform>,
+    wake: &Arc<dyn Fn(Wake) + Send + Sync>,
+    application: impl FnOnce() -> gpui::Application,
+) -> (
+    Result<boot::Booted, dm_desktop_base::Error>,
+    Option<gpui::Application>,
+) {
+    if headless {
+        (
+            boot::start(args, handed, Arc::clone(platform), Arc::clone(wake)),
+            None,
+        )
+    } else {
+        std::thread::scope(|scope| {
+            let booting = std::thread::Builder::new()
+                .name("dm-boot".into())
+                .spawn_scoped(scope, {
+                    let (platform, wake) = (Arc::clone(platform), Arc::clone(wake));
+                    move || boot::start(args, handed, platform, wake)
+                });
+            let made = application();
+            let booted = match booting {
+                // A start that panicked panics here, as it did on this thread.
+                Ok(booting) => match booting.join() {
+                    Ok(booted) => booted,
+                    Err(panic) => std::panic::resume_unwind(panic),
+                },
+                // A thread that cannot be made: dm boots here, after GPUI's start.
+                Err(_) => boot::start(args, handed, Arc::clone(platform), Arc::clone(wake)),
+            };
+            (booted, Some(made))
+        })
+    }
 }
 
 /// What `boot_and_run` hands the window's run: the application, and what the window is made

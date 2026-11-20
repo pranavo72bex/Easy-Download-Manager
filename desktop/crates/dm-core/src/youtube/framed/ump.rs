@@ -60,10 +60,13 @@ pub fn put_part(into: &mut Vec<u8>, kind: u64, data: &[u8]) {
     into.extend_from_slice(data);
 }
 
+/// A whole part: its kind, its bytes and how many bytes it took in all.
+pub type Part<'a> = (u64, &'a [u8], usize);
+
 /// The part at the start of `data`, whole: its kind, its bytes and how many bytes it took in
 /// all. `Ok(None)` where it is not all there yet; an error where it says it is larger than
 /// [`MOST_PART`].
-pub fn part(data: &[u8]) -> Result<Option<(u64, &[u8], usize)>, String> {
+pub fn part(data: &[u8]) -> Result<Option<Part<'_>>, String> {
     let Some((kind, at)) = varint(data) else {
         return Ok(None);
     };

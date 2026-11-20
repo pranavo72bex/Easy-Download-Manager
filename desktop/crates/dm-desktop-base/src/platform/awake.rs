@@ -137,7 +137,7 @@ impl PhoneQueue {
             // The notification's words in the language the window is in.
             let language = dm_core::lock(&settings).general.language.clone();
             crate::i18n::set(crate::i18n::chosen(&language));
-            let rows = handle.block_on(phone_queue.list());
+            let rows = handle.block_on(phone_queue.list_shared());
             crate::phone::Busy::of(&rows, phone_queue.may_run(), dm_core::sharing_any())
         });
     }

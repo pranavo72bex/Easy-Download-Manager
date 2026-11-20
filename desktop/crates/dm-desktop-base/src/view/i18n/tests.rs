@@ -140,8 +140,12 @@ fn a_locale_comes_to_one_of_dms_languages() {
         (Some("ja_JP.UTF-8"), None, "ja"),
         (Some("zh-Hans-CN"), None, "zh-CN"),
         (None, Some("ko-KR"), "ko"),
+        // Arabic and Hebrew (U35).
+        (Some("ar_EG.UTF-8"), None, "ar"),
+        (None, Some("he-IL"), "he"),
         // Languages dm does not have.
-        (Some("ar_EG.UTF-8"), None, "en"),
+        (Some("hi_IN.UTF-8"), None, "en"),
+        (None, Some("vi-VN"), "en"),
         (None, None, "en"),
         (Some("@"), None, "en"),
         (Some("."), None, "en"),

@@ -621,11 +621,18 @@ fn every_row_menu_item_clicked_does_what_it_says() {
         h.click(item);
     };
 
-    // Open is refused to the script, and runs the file as a person's choice in the menu.
+    // Open is refused to the script, and runs the file as a person's choice in the menu. Its
+    // exact words are refused by the port itself ("runs a downloaded file: it is done in the
+    // window by a person"), before the held menu is walked ("is done by a person").
     h.right_click("file.zip");
     h.until_shown("Open folder");
     let refused = h.call("ui.click", serde_json::json!({ "text": "Open" }));
-    assert!(refused.is_err_and(|why| why.contains("is done by a person")));
+    assert!(
+        refused
+            .as_ref()
+            .is_err_and(|why| why.contains("by a person")),
+        "{refused:?}"
+    );
     h.pick_as_person("Open");
     h.until("Open", |h| {
         h.fake.opened.lock().unwrap().contains(&done.path)

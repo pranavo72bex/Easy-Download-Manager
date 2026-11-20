@@ -1747,12 +1747,16 @@ const A_FULL_FILE: &str = r#"{
     "forget_after_days": 30,
     "on_metered": "wait",
     "battery_below": 20,
+    "wifi_only": true,
+    "not_roaming": true,
+    "data_saver_waits": true,
 
     "speed_limit": 512,
     "retry_wait": 9,
     "cookies_file": "/srv/cookies.txt",
     "attempts": 7,
     "read_timeout": 45,
+    "only_through": "en0",
     "host_limits": [{"host": "slow.example", "connections": 2}],
     "site_rules": [
         {"host": "example.com", "folder": "/srv/example", "speed": 64, "agent": "", "headers": ""}
@@ -1828,6 +1832,10 @@ fn a_full_settings_file_reads_into_the_pages_and_is_written_back_the_same() {
         ),
         ("wait", 20)
     );
+    // A phone's Options lines (gaps row N10) and the one network (W12).
+    let phone = &read.downloads;
+    assert!(phone.wifi_only && phone.not_roaming && phone.data_saver_waits);
+    assert_eq!(read.advanced.only_through, "en0");
     assert_eq!(read.advanced.proxy.host, "proxy.example");
     assert_eq!(read.limit_hours, 24);
     // Written back: the same keys with the same values, and no other.

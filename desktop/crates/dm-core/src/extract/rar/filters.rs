@@ -88,7 +88,7 @@ fn x86(data: &mut [u8], offset: u32, e9: bool, wrap: bool) {
 /// ARM: each four-byte BL whose condition is "always" has its 24-bit offset, counted in
 /// words, made relative again.
 fn arm(data: &mut [u8], offset: u32) {
-    for (i, word) in data.chunks_exact_mut(4).enumerate() {
+    for (i, word) in data.as_chunks_mut::<4>().0.iter_mut().enumerate() {
         if word[3] != 0xeb {
             continue;
         }

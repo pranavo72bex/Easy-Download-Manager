@@ -881,7 +881,6 @@
  "Place menu": "Menu miejsca",
  "Row menu": "Menu wiersza",
  "Places": "Miejsca",
- "Open with": "Otwórz za pomocą",
  "Applications": "Aplikacje",
  "dm settings": "Ustawienia dm",
  "Download lists": "Listy pobierania",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "premiera zacznie się za {} godz.",
  "the premiere starts in {} minutes": "premiera zacznie się za {} min",
  "the premiere starts in a moment": "premiera zaraz się zacznie",
- "the premiere has not begun yet": "premiera jeszcze się nie zaczęła"
+ "the premiere has not begun yet": "premiera jeszcze się nie zaczęła",
+ "Choose a folder": "Wybierz folder",
+ "Data Saver is on": "Oszczędzanie danych jest włączone",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "Pobierania czekają, dopóki Oszczędzanie danych w Androidzie jest włączone, i ruszają dalej, gdy zostanie wyłączone.",
+ "Downloads wait while the phone is roaming.": "Pobierania czekają, dopóki telefon jest w roamingu.",
+ "Not while roaming": "Nie w roamingu",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "Na danych komórkowych pobierania czekają i same ruszają dalej przez Wi-Fi.",
+ "Pause when Data Saver is on": "Wstrzymaj, gdy Oszczędzanie danych jest włączone",
+ "The file could not be chosen: {}": "Nie udało się wybrać pliku: {}",
+ "the phone is not on Wi-Fi": "telefon nie jest połączony z Wi-Fi",
+ "the phone is roaming": "telefon jest w roamingu",
+ "Wi-Fi only": "Tylko Wi-Fi"
 }

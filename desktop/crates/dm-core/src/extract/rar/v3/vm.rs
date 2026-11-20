@@ -281,11 +281,11 @@ fn audio(data: &mut Vec<u8>, spare: &mut Vec<u8>, channels: u32) {
     for channel in 0..channels {
         let (mut prev_byte, mut prev_delta) = (0u32, 0i32);
         let mut dif = [0u32; 7];
-        let (mut d1, mut d2, mut d3) = (0i32, 0i32, 0i32);
+        let (mut d1, mut d2) = (0i32, 0i32);
         let mut k = [0i32; 3];
         let (mut i, mut count) = (channel, 0u32);
         while i < size {
-            d3 = d2;
+            let d3 = d2;
             d2 = prev_delta.wrapping_sub(d1);
             d1 = prev_delta;
             let predicted = prev_byte
@@ -320,12 +320,12 @@ fn audio(data: &mut Vec<u8>, spare: &mut Vec<u8>, channels: u32) {
 fn adapt(dif: &mut [u32; 7], k: &mut [i32; 3]) {
     let (mut least, mut which) = (dif[0], 0usize);
     dif[0] = 0;
-    for j in 1..7 {
-        if dif[j] < least {
-            least = dif[j];
+    for (j, d) in dif.iter_mut().enumerate().skip(1) {
+        if *d < least {
+            least = *d;
             which = j;
         }
-        dif[j] = 0;
+        *d = 0;
     }
     if which == 0 {
         return;

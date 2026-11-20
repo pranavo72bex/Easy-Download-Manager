@@ -484,7 +484,7 @@ impl Ctx<'_, '_> {
             for (a, b) in x.iter_mut().zip(y.iter_mut()) {
                 let tmp = *a;
                 *a = tmp - *b;
-                *b = tmp + *b;
+                *b += tmp;
             }
         } else {
             let b = part.bits;
@@ -541,6 +541,43 @@ fn take_lowband<'s>(
     scratch.clear();
     scratch.extend_from_slice(src);
     Some(scratch.as_mut_slice())
+}
+
+/// Where band `band` (`n` lines, frames of `m` blocks) folds from: its low band starting at
+/// line `low`, found from band `lowband_offset`.
+struct Fold {
+    m: usize,
+    lowband_offset: usize,
+    low: usize,
+    n: usize,
+    band: usize,
+}
+
+impl Fold {
+    /// The collapse masks of the bands the fold covers, each channel's (of `c`) or-ed.
+    fn masks(&self, collapse: &[u8], c: usize) -> (u32, u32) {
+        let m = self.m;
+        let mut fold_start = self.lowband_offset;
+        loop {
+            fold_start -= 1;
+            if fold_start == 0 || m * EBANDS[fold_start] <= self.low {
+                break;
+            }
+        }
+        let mut fold_end = self.lowband_offset - 1;
+        loop {
+            fold_end += 1;
+            if fold_end >= self.band || m * EBANDS[fold_end] >= self.low + self.n {
+                break;
+            }
+        }
+        let (mut x_cm, mut y_cm) = (0, 0);
+        for f in fold_start..fold_end.max(fold_start + 1) {
+            x_cm |= u32::from(collapse[f * c]);
+            y_cm |= u32::from(collapse[f * c + c - 1]);
+        }
+        (x_cm, y_cm)
+    }
 }
 
 /// Every band's shape, both channels (`quant_all_bands`), into `x` (and `y` for stereo), and
@@ -619,26 +656,14 @@ pub(super) fn decode_bands(
         {
             let eff = (m * EBANDS[lowband_offset]).saturating_sub(norm_offset + n);
             effective_lowband = Some(eff);
-            let mut fold_start = lowband_offset;
-            loop {
-                fold_start -= 1;
-                if fold_start == 0 || m * EBANDS[fold_start] <= eff + norm_offset {
-                    break;
-                }
-            }
-            let mut fold_end = lowband_offset - 1;
-            loop {
-                fold_end += 1;
-                if fold_end >= i || m * EBANDS[fold_end] >= eff + norm_offset + n {
-                    break;
-                }
-            }
-            x_cm = 0;
-            y_cm = 0;
-            for f in fold_start..fold_end.max(fold_start + 1) {
-                x_cm |= u32::from(collapse[f * c]);
-                y_cm |= u32::from(collapse[f * c + c - 1]);
-            }
+            let fold = Fold {
+                m,
+                lowband_offset,
+                low: eff + norm_offset,
+                n,
+                band: i,
+            };
+            (x_cm, y_cm) = fold.masks(collapse, c);
         }
         if dual_stereo && i == alloc.intensity {
             dual_stereo = false;

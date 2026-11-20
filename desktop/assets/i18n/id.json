@@ -881,7 +881,6 @@
  "Place menu": "Menu tempat",
  "Row menu": "Menu baris",
  "Places": "Tempat",
- "Open with": "Buka dengan",
  "Applications": "Aplikasi",
  "dm settings": "Pengaturan dm",
  "Download lists": "Daftar unduhan",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "tayang perdana dimulai dalam {} jam",
  "the premiere starts in {} minutes": "tayang perdana dimulai dalam {} menit",
  "the premiere starts in a moment": "tayang perdana segera dimulai",
- "the premiere has not begun yet": "tayang perdana belum dimulai"
+ "the premiere has not begun yet": "tayang perdana belum dimulai",
+ "Choose a folder": "Pilih folder",
+ "Data Saver is on": "Penghemat Data aktif",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "Unduhan menunggu selama Penghemat Data Android aktif, dan berlanjut begitu dinonaktifkan.",
+ "Downloads wait while the phone is roaming.": "Unduhan menunggu selama ponsel dalam roaming.",
+ "Not while roaming": "Tidak saat roaming",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "Pada data seluler, unduhan menunggu, dan berlanjut sendiri saat di Wi-Fi.",
+ "Pause when Data Saver is on": "Jeda saat Penghemat Data aktif",
+ "The file could not be chosen: {}": "File tidak dapat dipilih: {}",
+ "the phone is not on Wi-Fi": "ponsel tidak terhubung ke Wi-Fi",
+ "the phone is roaming": "ponsel sedang roaming",
+ "Wi-Fi only": "Hanya Wi-Fi"
 }

@@ -4,8 +4,9 @@
 
 Open the Gradle project in Android Studio, press Run, and dm comes up on an emulator or a phone.
 Gradle builds dm's Rust library itself before it packs the APK, so there is nothing to build by
-hand first. This was written on a computer without Android Studio: none of it has been run yet,
-and the first time through is its test.
+hand first. First run on a Mac (Apple M1) on 2026-11-20: the APK builds, installs and starts,
+and dm picks a renderer; the window is not drawn on the emulator (below, "The emulator on an
+Apple-silicon Mac"), so a drawn window is still to be seen on a phone.
 
 ### Install once
 
@@ -26,7 +27,9 @@ and the first time through is its test.
    the build then says which it used, or name it with `dm.ndkVersion=<version>` in
    `~/.gradle/gradle.properties`.
 5. **Android 15's platform** (API 35) comes with Android Studio; if not, SDK Platforms › Android
-   15. JDK 17 is Android Studio's own; nothing to install.
+   15. **JDK 17.** Gradle 8.14.3 does not run on Java 25, which newer Android Studios carry:
+   in Settings › Build › Gradle › Gradle JDK pick a 17 (Download JDK… › 17), or from a terminal
+   set `JAVA_HOME` to one.
 
 ### Open and run
 
@@ -57,6 +60,21 @@ see the shell's PATH; the build looks for cargo in `~/.cargo/bin` itself. A rele
 
 From a terminal instead (needs Gradle 8.14.3 or a wrapper made once with
 `gradle wrapper --gradle-version 8.14.3` in this folder): `gradle installDebug`.
+
+### The emulator on an Apple-silicon Mac
+
+GPUI's renderer needs storage buffers (OpenGL ES 3.1 or Vulkan). What the emulator offers on an
+M1 (2026-11-20, emulator 36, images API 35 and 37), none of which draws dm's window:
+
+- `-gpu host`, API 35: Vulkan through MoltenVK, which fails to compile GPUI's quad shader
+  (`prepare_gradient_color`, the emulator's log), and the device is lost.
+- `-gpu host`, API 37: that image's Vulkan driver cannot open its render node, so only OpenGL
+  ES 3.0 is offered, which has no storage buffers ("scene too large … maximum of 0").
+- `-gpu swiftshader_indirect`, API 35: Vulkan in software; making the render pipelines never
+  returns (the thread waits in `vkCreateGraphicsPipelines` on the emulator).
+
+dm itself starts in each (`adb logcat | grep gpui`: "Selected GPU adapter"). See the window on a
+phone with USB debugging; an x86-64 computer's emulator, with its GPU's own Vulkan, may also do.
 
 ### Hand dm a link, a magnet, a `.torrent`
 

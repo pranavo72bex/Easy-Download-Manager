@@ -169,7 +169,7 @@ fn the_same_file_is_a_finished_row_or_a_file_in_the_folder() {
     );
     // Only in the folder, from before dm.
     assert_eq!(
-        same_file_as(&[stopped.clone()], 2, &categories),
+        same_file_as(std::slice::from_ref(&stopped), 2, &categories),
         Some(SameAs::File(kept.clone()))
     );
     std::fs::remove_file(&kept).unwrap();

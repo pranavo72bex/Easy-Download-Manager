@@ -881,7 +881,6 @@
  "Place menu": "قائمة المكان",
  "Row menu": "قائمة الصف",
  "Places": "الأماكن",
- "Open with": "فتح باستخدام",
  "Applications": "التطبيقات",
  "dm settings": "إعدادات dm",
  "Download lists": "قوائم التنزيل",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "يبدأ العرض الأول خلال {} ساعة",
  "the premiere starts in {} minutes": "يبدأ العرض الأول خلال {} دقيقة",
  "the premiere starts in a moment": "يبدأ العرض الأول بعد لحظات",
- "the premiere has not begun yet": "لم يبدأ العرض الأول بعد"
+ "the premiere has not begun yet": "لم يبدأ العرض الأول بعد",
+ "Choose a folder": "اختيار مجلد",
+ "Data Saver is on": "توفير البيانات قيد التشغيل",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "تنتظر التنزيلات أثناء تشغيل توفير البيانات في Android، وتستأنف بمجرد إيقافه.",
+ "Downloads wait while the phone is roaming.": "تنتظر التنزيلات أثناء تجوال الهاتف.",
+ "Not while roaming": "ليس أثناء التجوال",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "على بيانات الجوّال تنتظر التنزيلات، وتستأنف من تلقاء نفسها على Wi-Fi.",
+ "Pause when Data Saver is on": "الإيقاف المؤقت عند تشغيل توفير البيانات",
+ "The file could not be chosen: {}": "تعذّر اختيار الملف: {}",
+ "the phone is not on Wi-Fi": "الهاتف غير متصل بشبكة Wi-Fi",
+ "the phone is roaming": "الهاتف في وضع التجوال",
+ "Wi-Fi only": "Wi-Fi فقط"
 }

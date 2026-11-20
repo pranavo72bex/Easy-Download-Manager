@@ -64,6 +64,7 @@ async fn cut(State(s): State<Cut>, headers: HeaderMap) -> Response {
         s.asked.lock().unwrap().push((open, range.clone()));
     }
     let mut body = s.data[a..=b].to_vec();
+    let mut cut_short = false;
     if !open && !probe {
         if s.fetches.fetch_add(1, Ordering::SeqCst) > 0 {
             return Response::builder()
@@ -73,6 +74,7 @@ async fn cut(State(s): State<Cut>, headers: HeaderMap) -> Response {
         }
         // Said whole in its length, sent to half: the connection drops there.
         body.truncate(CUT_AT.saturating_sub(a));
+        cut_short = true;
     }
     let mut answer = Response::builder()
         .header("accept-ranges", "bytes")
@@ -85,7 +87,18 @@ async fn cut(State(s): State<Cut>, headers: HeaderMap) -> Response {
             .status(StatusCode::PARTIAL_CONTENT)
             .header("content-range", format!("bytes {a}-{b}/{SIZE}"))
     };
-    answer.body(Body::from(body)).unwrap()
+    if !cut_short {
+        return answer.body(Body::from(body)).unwrap();
+    }
+    /* A body of a known size must match its Content-Length (hyper refuses one that does not):
+     * the half is a stream, then an error, which drops the connection mid-body. */
+    let parts: [Result<bytes::Bytes, std::io::Error>; 2] = [
+        Ok(bytes::Bytes::from(body)),
+        Err(std::io::Error::other("the connection drops here")),
+    ];
+    answer
+        .body(Body::from_stream(futures_util::stream::iter(parts)))
+        .unwrap()
 }
 
 /// Where a range asks to start, for one that names a start.

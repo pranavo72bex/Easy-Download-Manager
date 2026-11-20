@@ -881,7 +881,6 @@
  "Place menu": "位置菜单",
  "Row menu": "行菜单",
  "Places": "位置",
- "Open with": "打开方式",
  "Applications": "应用程序",
  "dm settings": "dm 设置",
  "Download lists": "下载列表",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "首映将在 {} 小时后开始",
  "the premiere starts in {} minutes": "首映将在 {} 分钟后开始",
  "the premiere starts in a moment": "首映即将开始",
- "the premiere has not begun yet": "首映尚未开始"
+ "the premiere has not begun yet": "首映尚未开始",
+ "Choose a folder": "选择文件夹",
+ "Data Saver is on": "流量节省程序已开启",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "Android 的流量节省程序开启时，下载会等待；关闭后继续。",
+ "Downloads wait while the phone is roaming.": "手机漫游时，下载会等待。",
+ "Not while roaming": "漫游时不下载",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "使用移动数据时，下载会等待，连上 Wi-Fi 后自动继续。",
+ "Pause when Data Saver is on": "流量节省程序开启时暂停",
+ "The file could not be chosen: {}": "无法选择该文件：{}",
+ "the phone is not on Wi-Fi": "手机未连接 Wi-Fi",
+ "the phone is roaming": "手机正在漫游",
+ "Wi-Fi only": "仅限 Wi-Fi"
 }

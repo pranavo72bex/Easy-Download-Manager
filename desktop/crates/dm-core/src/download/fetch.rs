@@ -11,10 +11,6 @@ use std::ops::ControlFlow;
 
 use super::*;
 
-// What is done once a file's bytes are in: its digest found, its date set.
-mod after;
-use after::{checksum_beside, set_server_date};
-
 /// Fetches `url`: by a path of its own where it is no plain file (a picture and its sound, a
 /// torrent, FTP, a live stream, a manifest, a page), else probed and fetched in ranges.
 pub(super) async fn fetch_reporting(
@@ -559,7 +555,7 @@ async fn fetch_found(
             let _ = to.send(Update::Note(CHECKED_BESIDE.into())).await;
         }
     }
-    set_server_date(options, &info, &path);
+    files::set_server_date(options, &info, &path);
 
     Ok(Finished {
         left_behind: None,

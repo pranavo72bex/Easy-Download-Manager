@@ -881,7 +881,6 @@
  "Place menu": "Menu van de plek",
  "Row menu": "Menu van de rij",
  "Places": "Plekken",
- "Open with": "Openen met",
  "Applications": "Programma's",
  "dm settings": "dm-instellingen",
  "Download lists": "Downloadlijsten",
@@ -1002,5 +1001,16 @@
  "the premiere starts in {} hours": "de première begint over {} uur",
  "the premiere starts in {} minutes": "de première begint over {} minuten",
  "the premiere starts in a moment": "de première begint zo",
- "the premiere has not begun yet": "de première is nog niet begonnen"
+ "the premiere has not begun yet": "de première is nog niet begonnen",
+ "Choose a folder": "Een map kiezen",
+ "Data Saver is on": "Databesparing staat aan",
+ "Downloads wait while Android's Data Saver is on, and go on once it is off.": "Downloads wachten zolang Databesparing van Android aan staat, en gaan verder zodra het uit staat.",
+ "Downloads wait while the phone is roaming.": "Downloads wachten zolang de telefoon roamt.",
+ "Not while roaming": "Niet tijdens roaming",
+ "On mobile data, downloads wait, and go on by themselves on Wi-Fi.": "Op mobiele data wachten downloads, en gaan vanzelf verder op wifi.",
+ "Pause when Data Saver is on": "Pauzeren als Databesparing aan staat",
+ "The file could not be chosen: {}": "Het bestand kon niet worden gekozen: {}",
+ "the phone is not on Wi-Fi": "de telefoon is niet met wifi verbonden",
+ "the phone is roaming": "de telefoon roamt",
+ "Wi-Fi only": "Alleen wifi"
 }

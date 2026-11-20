@@ -552,8 +552,8 @@ impl Read {
         let framed = info
             .dm_framed
             .clone()
-            .filter(|_| formats.iter().all(|f| framed_of(*f).is_some()));
-        if framed.is_none() && formats.iter().any(|f| framed_of(*f).is_some()) {
+            .filter(|_| formats.iter().all(|f| framed_of(f).is_some()));
+        if framed.is_none() && formats.iter().any(|f| framed_of(f).is_some()) {
             return None;
         }
         let stem = produced.file_stem()?.to_string_lossy().into_owned();

@@ -38,11 +38,11 @@ fn a_followed_playlist_that_gains_a_video_adds_only_that_one_to_its_queue() {
     assert_eq!(follow.seen.len(), 2);
     assert_eq!(follow.title, "Lessons");
     let settings = followed(&crate::Settings::default(), follow.clone());
-    assert_eq!(settings.follows, [follow.clone()]);
+    assert_eq!(settings.follows, std::slice::from_ref(&follow));
     // Not due before its six hours; due after.
     assert!(due_now(&settings, 1000 + 3600).is_none());
     let (due, stamped) = due_now(&settings, 1000 + 6 * 3600).unwrap();
-    assert_eq!(due, [follow.clone()]);
+    assert_eq!(due, std::slice::from_ref(&follow));
     assert_eq!(stamped.follows[0].last_run, 1000 + 6 * 3600);
 
     // Uploads come first: the new one at the top.

@@ -354,9 +354,11 @@ fn unknown_programs_and_itanium_are_refused_in_words() {
         .unwrap_err()
         .to_string()
         .contains("Itanium"));
-    // A filter given by a number never defined.
+    // A filter given by a number never defined. Bytes follow it: a code past the file's size
+    // is the padding of its last byte, never read as a record.
     let mut t = lits(b"abc");
     t.push(record(Some(5), 0, Some(3), &[], None));
+    t.extend(lits(b"def"));
     assert!(with_filters(&t).is_err());
 }
 

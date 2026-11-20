@@ -157,8 +157,8 @@ where
     let data: u64 = landed.iter().map(bytes).sum();
     // The most held beyond what is held now: the index, what is copied from inputs not shortened
     // (and the subtitles), and a chunk of a shortened one before it is let go.
-    let kept: u64 = landed.iter().filter(|l| !let_go(*l)).map(bytes).sum();
-    let largest = landed.iter().filter(|l| let_go(*l)).map(bytes).max();
+    let kept: u64 = landed.iter().filter(|l| !let_go(l)).map(bytes).sum();
+    let largest = landed.iter().filter(|l| let_go(l)).map(bytes).max();
     let need = 16 + index.len() as u64 + kept + largest.unwrap_or(0);
     if !room(host_path.as_path(), need) {
         return Err(untouched(
