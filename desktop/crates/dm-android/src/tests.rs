@@ -102,7 +102,7 @@ fn a_shared_link_is_downloaded_into_the_phones_folder_and_its_settings_round_tri
     let settings: serde_json::Value =
         serde_json::from_str(&engine.settings_json().unwrap()).unwrap();
     assert_eq!(
-        settings["folders"]["download_dir"].as_str().unwrap(),
+        settings["download_dir"].as_str().unwrap(),
         downloads.path().display().to_string()
     );
 
@@ -128,14 +128,17 @@ fn a_shared_link_is_downloaded_into_the_phones_folder_and_its_settings_round_tri
         row.path
     );
     assert!(!engine.busy());
-    assert!(system.changes.load(Ordering::Relaxed) > 0, "the phone was never told");
+    assert!(
+        system.changes.load(Ordering::Relaxed) > 0,
+        "the phone was never told"
+    );
 
     // Settings go back in whole: a change is kept, and a broken one is refused in words.
     let mut changed = settings.clone();
-    changed["general"]["watch_clipboard"] = serde_json::Value::Bool(true);
+    changed["watch_clipboard"] = serde_json::Value::Bool(true);
     let now: serde_json::Value =
         serde_json::from_str(&engine.set_settings_json(changed.to_string()).unwrap()).unwrap();
-    assert_eq!(now["general"]["watch_clipboard"], true);
+    assert_eq!(now["watch_clipboard"], true);
     assert!(matches!(
         engine.set_settings_json("{not json".into()),
         Err(EngineError::Refused(_))

@@ -32,8 +32,10 @@ pub use system::AndroidSystem;
 
 uniffi::setup_scaffolding!();
 
-/// What a call into the engine is refused with, in dm's own words for the person.
+/// What a call into the engine is refused with, in dm's own words for the person. Flat: Kotlin's
+/// exception carries the sentence as its `message`, and nothing else.
 #[derive(Debug, thiserror::Error, uniffi::Error)]
+#[uniffi(flat_error)]
 pub enum EngineError {
     /// dm could not start: its runtime or its home folder.
     #[error("{0}")]
@@ -87,6 +89,17 @@ impl Engine {
         // Set here, before the runtime's threads exist, so nothing reads the environment while
         // it changes.
         std::env::set_var("DM_HOME", &home);
+        // An app may not write to the system's temporary folder (`/data/local/tmp`): what dm
+        // stages there goes under its own home instead.
+        #[cfg(target_os = "android")]
+        {
+            let tmp = home.join("tmp");
+            std::fs::create_dir_all(&tmp)
+                .map_err(|e| EngineError::Start(format!("dm could not make its folder: {e}")))?;
+            std::env::set_var("TMPDIR", tmp);
+        }
+        // No settings saved yet: this is the app's first start.
+        let first = !Settings::path().exists();
         // A phone names no home or Downloads folder to a library: dm's folders are the ones the
         // app gave (`dm_core::folders`, gaps row N2), before the settings' defaults are read.
         // On the host, where this crate's tests run, the desktop's own are used.
@@ -117,7 +130,7 @@ impl Engine {
             backend,
             _runtime: runtime,
         };
-        engine.download_to_by_default(PathBuf::from(downloads))?;
+        engine.download_to_by_default(first, PathBuf::from(downloads))?;
         Ok(Arc::new(engine))
     }
 
@@ -125,7 +138,15 @@ impl Engine {
     /// page): what a share hands over is often a title and a link, so the links are found in
     /// it as the desktop finds them on the clipboard (`dm_shell::app::links::links_in`).
     pub fn add(&self, text: String) -> Result<Added, EngineError> {
-        let links = dm_shell::app::links::links_in(&text);
+        let mut links = dm_shell::app::links::links_in(&text);
+        // A `.torrent` opened from the phone's Files, copied into dm's folder by the app, comes
+        // as a `file://` address, which the engine reads (`dm_core::local_file`).
+        let files: Vec<String> = text
+            .split_whitespace()
+            .filter(|word| word.starts_with("file://") && !links.iter().any(|l| l == word))
+            .map(str::to_owned)
+            .collect();
+        links.extend(files);
         if links.is_empty() {
             return Err(EngineError::Refused(
                 "there is no link dm can download in what was shared".into(),
@@ -211,13 +232,16 @@ impl Engine {
         self.backend.set_speed_limit(bytes_per_second);
     }
 
-    /// Whether anything is downloading or waiting its turn: the foreground service stays while
-    /// this is so (gaps row N6).
+    /// Whether anything is downloading, waiting its turn or a finished torrent is being shared:
+    /// the foreground service stays while this is so (gaps row N6), as a phone's BitTorrent app
+    /// keeps seeding.
     pub fn busy(&self) -> bool {
-        self.backend
-            .list_shared()
-            .iter()
-            .any(|entry| !entry.state.settled() && entry.state != dm_core::State::Paused)
+        dm_core::sharing_any()
+            || self
+                .backend
+                .list_shared()
+                .iter()
+                .any(|entry| !entry.state.settled() && entry.state != dm_core::State::Paused)
     }
 
     /// The settings in force, as the JSON dm saves them as: every Options line, so the phone's
@@ -252,13 +276,11 @@ impl Engine {
 }
 
 impl Engine {
-    /// The download folder is the phone's (`downloads`) where the settings name none a phone
-    /// can write to: on the first start, the desktop's default (`dirs`' Downloads) means
-    /// nothing on Android.
-    fn download_to_by_default(&self, downloads: PathBuf) -> Result<(), EngineError> {
+    /// The download folder is the phone's (`downloads`) on the `first` start, and wherever the
+    /// settings name none that is a full path; after that, what Options says.
+    fn download_to_by_default(&self, first: bool, downloads: PathBuf) -> Result<(), EngineError> {
         let mut settings = self.backend.settings();
-        let current = &settings.folders.download_dir;
-        if current.is_absolute() && current.parent().is_some_and(|p| p.is_dir()) {
+        if !first && settings.folders.download_dir.is_absolute() {
             return Ok(());
         }
         if !downloads.is_absolute() {

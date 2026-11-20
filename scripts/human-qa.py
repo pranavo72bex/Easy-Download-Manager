@@ -399,10 +399,10 @@ def serve(c, n):
         pass
 
 
-def start_server():
+def start_server(host="127.0.0.1"):
     srv = socket.socket()
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind(("127.0.0.1", 0))
+    srv.bind((host, 0))
     srv.listen(128)
 
     def accept():
@@ -416,7 +416,7 @@ def start_server():
             threading.Thread(target=serve, args=(c, n), daemon=True).start()
 
     threading.Thread(target=accept, daemon=True).start()
-    return f"http://127.0.0.1:{srv.getsockname()[1]}"
+    return f"http://{host}:{srv.getsockname()[1]}"
 
 
 def requests(name, since=0):
@@ -1961,6 +1961,13 @@ def follow_feed(dm, files):
             time.sleep(0.25)
         return False
 
+    def side_panel_down():
+        # Grabber projects are listed under the queues: past the side panel's foot in a
+        # small window, scrolled to as a person does.
+        dm.call("ui.scroll", text="Recheck queue", lines=12)
+        pause(0.5)
+        return dm.texts()
+
     FEED[:] = ["ep1"]
     address = f"{files}/podcast.rss"
     dm.open_add_url()
@@ -1982,7 +1989,7 @@ def follow_feed(dm, files):
     first = waited("/ep1.mp3")
     kept = follows() or []
     one = kept[0] if len(kept) == 1 else {}
-    shown = dm.texts()
+    shown = side_panel_down()
     check("B75", "Add for later adds the item and follows the feed: every 24 hours, to the Main queue, "
           "listed under Grabber projects",
           bool(first) and one.get("address") == address and one.get("every_hours") == 24
@@ -1991,6 +1998,7 @@ def follow_feed(dm, files):
           f"row {bool(first)}; follows {kept}; side panel has it {'Stand-in podcast' in shown}")
 
     FEED.append("ep2")
+    side_panel_down()
     dm.click("Stand-in podcast")
     followed = asked("Followed")
     said = dm.dialog_texts()
@@ -2003,6 +2011,7 @@ def follow_feed(dm, files):
           and (second or {}).get("queue") == "Main queue" and len(ones) == 1,
           f"asked {followed} {said}; new row {second}; the first {len(ones)} times")
 
+    side_panel_down()
     dm.click("Stand-in podcast")
     asked("Followed")
     dm.click("Stop following")
@@ -2061,6 +2070,11 @@ def only_through(dm, files):
     dm.click("OK")
     pause(1.0)
     chosen = kept()
+    # On Windows a connection held to a network's address cannot reach the loopback's, as it
+    # can on macOS: the file is served on that network's own address there.
+    named = re.search(r"\((\d+\.\d+\.\d+\.\d+)\)$", listed[0])
+    if sys.platform == "win32" and named:
+        files = start_server(named.group(1)) + "/files"
     since = len(LOG)
     dm.add(f"{files}/only.bin")
     r = dm.wait("only.bin", ("completed", "failed"), 60)
