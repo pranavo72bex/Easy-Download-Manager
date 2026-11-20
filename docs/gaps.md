@@ -11,6 +11,35 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## Resume here (2026-11-20, evening): the fix-and-optimise pass
+
+The maintainer, 2026-11-20: "refine the code and make it professional and easy to manage", then
+"focus on coding part. fix and optimize code". A read-only pass (nothing built on this laptop),
+run as three workflows of agents over 13 areas, each with its own branch and worktree
+`D:\dm-wt\refine-<area>`: core-download, core-queue, core-youtube, core-streams, media,
+shell-app, shell-rest, base, net-protocol, gpui-window, gpui-dialogs, js, browser-xtask.
+Each area: find (bugs with the input that triggers them, slow code on hot paths, dead or
+duplicated code, breaks of AGENTS.md's rules) → a skeptic tries to refute each finding → the
+kept ones fixed and committed on the branch (a regression test with each bug) → an independent
+review of the diff. A fix that would change a behaviour-contract row is not applied; it is
+listed for the maintainer's word.
+
+State when pushed: the finders of nine areas had reported (60 findings in the first six: 16
+bugs, 26 slow spots, the rest duplicate or dead code and rule breaks); the runs stopped once at
+the weekly usage limit and were resumed; no branch had a commit yet. Done on `main`: 5bca6f0e
+(`cargo fmt` on `popmenu.rs`, the only file it changed).
+
+**Remaining, in this order:**
+1. Let the three workflows finish (or resume them from cache: the script is the session's
+   `refine-code-*.js`, areas passed as `args`); the finders for media, net-protocol, js and
+   browser-xtask, then verify, fix and review in all 13 areas.
+2. Merge each `refine-<area>` branch into `main` (their files are disjoint); list the fixes
+   needing the maintainer's word here.
+3. On the Mac: `cargo fmt --check`, clippy `-D warnings`, `cargo test --workspace` and `cargo
+   xtask layers` on the merged tree (nothing of the pass was compiled), then `human-qa.py`.
+4. Remove the 13 worktrees and branches once merged; the untracked empty `Cargo.toml` at the
+   repository's root is no one's and can go.
+
 ## Resume here (2026-11-20)
 
 **Windows, 2026-11-20: coded with agents six at a time, merged, built, and `human-qa.py` run.**
