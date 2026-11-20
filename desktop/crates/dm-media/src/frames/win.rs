@@ -34,6 +34,12 @@ use super::{shrink, Frame};
 use crate::mf;
 use crate::Error;
 
+/// Media Foundation's H.264 decoder, which a Windows "N" edition lacks
+/// until the Media Feature Pack is added.
+pub(super) fn possible() -> bool {
+    mf::h264_decoder()
+}
+
 /// `MFT_OUTPUT_STREAM_PROVIDES_SAMPLES` and `..._CAN_PROVIDE_SAMPLES`: the
 /// decoder makes the buffers its pictures are in.
 const PROVIDES_SAMPLES: u32 = 0x100 | 0x200;

@@ -26,37 +26,20 @@ pub fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, 
         .map_err(Error::from_display)
 }
 
-/// The program the login item `auto-launch` wrote starts: on macOS its
-/// launch agent's plist, on Windows the Run key's value. `None` when there
-/// is none or it cannot be read, which is not taken as a reason to rewrite
-/// it.
-pub fn login_item_program() -> Option<std::path::PathBuf> {
-    if cfg!(target_os = "macos") {
-        let plist = dm_core::folders::launch_agents()?.join("dm.plist");
-        let text = std::fs::read_to_string(plist).ok()?;
-        return crate::autostart::plist_program(&text);
-    }
-    #[cfg(windows)]
-    {
-        use crate::autostart::{registry, run_value_program, RUN_KEY};
-        registry::string(RUN_KEY, "dm").and_then(|value| run_value_program(&value))
-    }
-    #[cfg(not(windows))]
-    None
-}
-
-/// Whether the person turned dm's login item off outside dm: on Windows,
-/// in Task Manager's Startup tab. Elsewhere there is no such switch.
-pub fn login_item_turned_off_outside() -> bool {
-    #[cfg(windows)]
-    {
-        use crate::autostart::{registry, turned_off_in_task_manager, STARTUP_APPROVED_KEY};
-        registry::binary(STARTUP_APPROVED_KEY, "dm")
-            .is_some_and(|approved| turned_off_in_task_manager(&approved))
-    }
-    #[cfg(not(windows))]
-    false
-}
+// Each system's login item, in a file of its own, the same two calls in
+// each.
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+pub use macos::*;
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+pub use windows::*;
+#[cfg(not(any(target_os = "macos", windows)))]
+mod linux;
+#[cfg(not(any(target_os = "macos", windows)))]
+pub use linux::*;
 
 /// `--unregister`'s other half: dm's login item, removed, and what was
 /// done said. Only this copy's, or one whose program is gone: uninstalling

@@ -14,25 +14,11 @@ use crate::Error;
 
 /// Whether dm can make a GIF here: the system has a video decoder dm
 /// reads H.264 with (VideoToolbox on macOS; on Windows Media Foundation's,
-/// which a Windows "N" edition lacks until the Media Feature Pack is added).
+/// which a Windows "N" edition lacks until the Media Feature Pack is added;
+/// on Linux from the video's AV1 stream, decoded by dm's own reader,
+/// `frames/av1.rs`).
 pub fn possible() -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        true
-    }
-    #[cfg(windows)]
-    {
-        crate::mf::h264_decoder()
-    }
-    // From the video's AV1 stream, decoded by dm's own reader (`frames/av1.rs`).
-    #[cfg(target_os = "linux")]
-    {
-        true
-    }
-    #[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]
-    {
-        false
-    }
+    crate::frames::possible()
 }
 
 /// Frames a second, and the most pixels across, of a GIF made of a part.
