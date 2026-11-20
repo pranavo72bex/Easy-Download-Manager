@@ -290,12 +290,12 @@ impl Downloads {
                 this.menu_bar_by_key(window, cx);
             }),
         )
-        .on_action(
-            cx.listener(|this, _: &crate::window::menus::RowMenuByKey, window, cx| {
+        .on_action(cx.listener(
+            |this, _: &crate::window::menus::RowMenuByKey, window, cx| {
                 this.row_menu_by_key(window, cx);
                 cx.notify();
-            }),
-        )
+            },
+        ))
     }
 
     /// Under the bars and toolbar: the sidebar, beside the list's column.

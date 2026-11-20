@@ -290,8 +290,12 @@ fn an_answer_is_read_only_for_a_site_and_request_the_rules_name_and_within_1_mib
     // Not JSON: nothing.
     assert!(read(page, asked, &format!("hlsUrl={stream}")).is_empty());
     // 1 MiB exactly is read; a byte more is not.
-    let padded =
-        |pad: usize| format!(r#"{{ "hlsUrl": "{stream}", "pad": "{}" }}"#, "x".repeat(pad));
+    let padded = |pad: usize| {
+        format!(
+            r#"{{ "hlsUrl": "{stream}", "pad": "{}" }}"#,
+            "x".repeat(pad)
+        )
+    };
     let frame = padded(0).len();
     let whole = padded(MAX_ANSWER_BYTES - frame);
     assert_eq!(whole.len(), MAX_ANSWER_BYTES);

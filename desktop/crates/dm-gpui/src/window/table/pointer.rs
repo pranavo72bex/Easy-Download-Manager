@@ -25,30 +25,32 @@ pub(super) fn row_handlers(
             cx.notify();
         }),
     )
-    .on_click(cx.listener(move |view, event: &gpui::ClickEvent, window, cx| {
-        // The primary button's alone: GPUI hands the
-        // right button's click here too, after its press
-        // opens the menu above, and taken, it would choose
-        // the row by itself, so Move/Rename for two chosen
-        // rows would rename one (Linux, real input).
-        if !event.standard_click() {
-            return;
-        }
-        // A Control-click is a right-click on macOS.
-        if event.modifiers().control && cfg!(target_os = "macos") {
-            if let Some(at) = event.mouse_position() {
-                view.open_menu(id, at, window, cx);
-                cx.notify();
+    .on_click(
+        cx.listener(move |view, event: &gpui::ClickEvent, window, cx| {
+            // The primary button's alone: GPUI hands the
+            // right button's click here too, after its press
+            // opens the menu above, and taken, it would choose
+            // the row by itself, so Move/Rename for two chosen
+            // rows would rename one (Linux, real input).
+            if !event.standard_click() {
                 return;
             }
-        }
-        let held = event.modifiers();
-        view.click_row(id, held.platform || held.control, held.shift);
-        if event.click_count() == 2 {
-            view.double_click(id, cx);
-        }
-        cx.notify();
-    }))
+            // A Control-click is a right-click on macOS.
+            if event.modifiers().control && cfg!(target_os = "macos") {
+                if let Some(at) = event.mouse_position() {
+                    view.open_menu(id, at, window, cx);
+                    cx.notify();
+                    return;
+                }
+            }
+            let held = event.modifiers();
+            view.click_row(id, held.platform || held.control, held.shift);
+            if event.click_count() == 2 {
+                view.double_click(id, cx);
+            }
+            cx.notify();
+        }),
+    )
     // A finished row's file dragged out of the window
     // (`dragout`); a click without moving still chooses
     // the row, and a double-click opens it.

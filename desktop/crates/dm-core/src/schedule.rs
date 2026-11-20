@@ -113,7 +113,11 @@ impl Schedule {
         let now = clock::local_now();
         // With a once-only date set, the date decides (`open_now`).
         self.open_now(
-            (now.date.year(), now.date.month() as u8, now.date.day() as u8),
+            (
+                now.date.year(),
+                now.date.month() as u8,
+                now.date.day() as u8,
+            ),
             now.weekday_from_sunday() as u8,
             now.minute_of_day(),
         )

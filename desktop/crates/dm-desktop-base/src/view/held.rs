@@ -53,7 +53,11 @@ pub fn spent_once_now(settings: &Settings) -> Option<Settings> {
     let now = dm_core::clock::local_now();
     dm_shell::app::schedule::spent_once_put_away(
         settings,
-        (now.date.year(), now.date.month() as u8, now.date.day() as u8),
+        (
+            now.date.year(),
+            now.date.month() as u8,
+            now.date.day() as u8,
+        ),
         now.minute_of_day(),
     )
 }

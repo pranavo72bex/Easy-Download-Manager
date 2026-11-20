@@ -168,7 +168,9 @@ pub(crate) fn row_menu(view: &Downloads, hints: bool) -> Menu {
         if !items.is_empty() {
             items.push(MenuItem::separator());
         }
-        items.push(MenuItem::submenu(Menu::new(t("Delete file after")).items(times)));
+        items.push(MenuItem::submenu(
+            Menu::new(t("Delete file after")).items(times),
+        ));
     }
     Menu::new(t("Row menu")).items(items)
 }
@@ -273,7 +275,12 @@ mod tests {
         let queue = kept("Resume", |c| c == C::MoveDown);
         assert_eq!(
             commands(&queue),
-            vec![vec![C::MoveToQueue, C::RemoveFromQueue, C::MoveUp, C::MoveDown]]
+            vec![vec![
+                C::MoveToQueue,
+                C::RemoveFromQueue,
+                C::MoveUp,
+                C::MoveDown
+            ]]
         );
     }
 

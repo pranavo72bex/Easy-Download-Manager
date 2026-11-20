@@ -40,7 +40,11 @@ pub(super) fn scheduled_start(player: &Value) -> Option<u64> {
         .pointer(SLATE)
         .and_then(seconds)
         .or_else(broadcast)
-        .or_else(|| player.pointer("/upcomingEventData/startTime").and_then(seconds))
+        .or_else(|| {
+            player
+                .pointer("/upcomingEventData/startTime")
+                .and_then(seconds)
+        })
 }
 
 /// Whether the player lists any stream: a format, or a playlist.
@@ -123,7 +127,11 @@ mod tests {
         let zoned = offline(None, Some("2026-11-20T20:45:00+05:45"), true);
         assert_eq!(scheduled_start(&zoned), Some(1_795_186_800));
         // The slate's time first, where both are given.
-        let both = offline(Some(json!("1795183200")), Some("2026-11-20T15:00:00+00:00"), true);
+        let both = offline(
+            Some(json!("1795183200")),
+            Some("2026-11-20T15:00:00+00:00"),
+            true,
+        );
         assert_eq!(scheduled_start(&both), Some(1_795_183_200));
         let event = json!({"playabilityStatus": {"status": "OK"}, "videoDetails": {
             "isUpcoming": true}, "upcomingEventData": {"startTime": "1795183200"}});
@@ -133,8 +141,14 @@ mod tests {
     #[test]
     fn a_video_that_plays_or_names_no_time_is_no_premiere() {
         assert_eq!(scheduled_start(&offline(None, None, true)), None);
-        assert_eq!(scheduled_start(&offline(Some(json!("soon")), None, true)), None);
-        assert_eq!(scheduled_start(&offline(Some(json!("0")), None, true)), None);
+        assert_eq!(
+            scheduled_start(&offline(Some(json!("soon")), None, true)),
+            None
+        );
+        assert_eq!(
+            scheduled_start(&offline(Some(json!("0")), None, true)),
+            None
+        );
         let mut live = offline(Some(json!("1795183200")), None, false);
         live["playabilityStatus"]["status"] = json!("OK");
         assert_eq!(scheduled_start(&live), None);
@@ -146,8 +160,8 @@ mod tests {
     #[test]
     fn a_premieres_reading_is_its_time_and_title_alone() {
         let player = offline(Some(json!("1795183200")), None, true);
-        let read: Value = serde_json::from_str(&premiere_reading("premiere001", &player, 7))
-            .unwrap_or_default();
+        let read: Value =
+            serde_json::from_str(&premiere_reading("premiere001", &player, 7)).unwrap_or_default();
         assert_eq!(read["premiere_at"], 7);
         assert_eq!(read["title"], "Launch");
         assert!(read.get("url").is_none() && read.get("formats").is_none());

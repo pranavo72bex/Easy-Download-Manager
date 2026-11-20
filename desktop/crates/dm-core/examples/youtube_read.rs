@@ -198,8 +198,8 @@ async fn once(
                 .remote_addr()
                 .map_or(String::new(), |a| format!(" from {a}"));
             // With DM_SHOW_ADDRESS, the address refused, to be fetched by other means.
-            let shown =
-                dm_core::env::get_os("DM_SHOW_ADDRESS").map_or(String::new(), |_| format!(" {url}"));
+            let shown = dm_core::env::get_os("DM_SHOW_ADDRESS")
+                .map_or(String::new(), |_| format!(" {url}"));
             return Err(format!("{}{from}{shown}", status.as_u16()));
         }
         let bytes = answer.bytes().await.map_err(|e| e.to_string())?;

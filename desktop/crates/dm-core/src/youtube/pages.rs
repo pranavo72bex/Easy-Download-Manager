@@ -115,7 +115,10 @@ mod tests {
         let now = Instant::now();
         pages.keep(AT, key_of(PLAIN), "page", now);
         let soon = now + Duration::from_secs(60);
-        assert_eq!(pages.find(AT, &key_of(PLAIN), soon).as_deref(), Some("page"));
+        assert_eq!(
+            pages.find(AT, &key_of(PLAIN), soon).as_deref(),
+            Some("page")
+        );
         // Another video's page is not this one's.
         let other = AT.replace("aaaaaaaaaaa", "bbbbbbbbbbb");
         assert_eq!(pages.find(&other, &key_of(PLAIN), soon), None);
@@ -136,8 +139,14 @@ mod tests {
         pages.keep(AT, key_of(&signed), "theirs", now);
         let another = format!("SAPISID=two; {PLAIN}");
         assert_eq!(pages.find(AT, &key_of(&another), now), None);
-        assert_eq!(pages.find(AT, &key_of(&signed), now).as_deref(), Some("theirs"));
-        assert_eq!(pages.find(AT, &key_of(PLAIN), now).as_deref(), Some("anyone's"));
+        assert_eq!(
+            pages.find(AT, &key_of(&signed), now).as_deref(),
+            Some("theirs")
+        );
+        assert_eq!(
+            pages.find(AT, &key_of(PLAIN), now).as_deref(),
+            Some("anyone's")
+        );
     }
 
     #[test]
@@ -156,7 +165,10 @@ mod tests {
         // The same ask again replaces its page rather than keeping two.
         pages.keep(&newest, key_of(PLAIN), "again", now);
         assert_eq!(pages.0.len(), PAGES_KEPT);
-        assert_eq!(pages.find(&newest, &key_of(PLAIN), now).as_deref(), Some("again"));
+        assert_eq!(
+            pages.find(&newest, &key_of(PLAIN), now).as_deref(),
+            Some("again")
+        );
     }
 
     #[test]

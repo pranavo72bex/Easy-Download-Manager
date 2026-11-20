@@ -488,7 +488,8 @@ fn the_schedulers_program_is_kept_by_a_persons_ok_and_run_once_when_its_download
     assert!(kept(&mut h).schedule.enabled);
     assert_eq!(kept(&mut h).schedule.run_when_done, "");
     h.until("the word that the program was not changed", |h| {
-        h.said().contains("was not changed: a script was driving the window")
+        h.said()
+            .contains("was not changed: a script was driving the window")
     });
 
     // A person's OK: kept.

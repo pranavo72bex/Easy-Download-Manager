@@ -520,7 +520,10 @@ fn tab_stays_in_the_dialog_and_enter_presses_its_default() {
         h.key("tab", &[]);
         assert_eq!(front(&mut h), Some(dialog), "Tab left the dialog");
     }
-    assert!(h.view(|view| view.menus.row_menu_opened.is_none()), "Tab opened a menu behind");
+    assert!(
+        h.view(|view| view.menus.row_menu_opened.is_none()),
+        "Tab opened a menu behind"
+    );
     // Nothing in it focused but the dialog itself: Enter is Start now.
     h.dialog::<crate::dialogs::details::Details, _>(|d, window, cx| window.focus(&d.focus, cx));
     h.key("enter", &[]);

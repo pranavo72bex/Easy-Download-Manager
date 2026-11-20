@@ -233,10 +233,9 @@ pub fn section<T: Saves>(
                     theme,
                 )))
                 .child(
-                    native::button("browse", t("Browse…").into(), false, theme, screen)
-                        .on_click(
-                            cx.listener(|this: &mut T, _, window, cx| browse(this, window, cx)),
-                        ),
+                    native::button("browse", t("Browse…").into(), false, theme, screen).on_click(
+                        cx.listener(|this: &mut T, _, window, cx| browse(this, window, cx)),
+                    ),
                 ),
         )
 }

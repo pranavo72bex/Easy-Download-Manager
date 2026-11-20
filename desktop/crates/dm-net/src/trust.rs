@@ -73,7 +73,9 @@ pub(crate) fn certificates(pem: &[u8]) -> Result<Vec<CertificateDer<'static>>, c
         found.push(cert);
     }
     if found.is_empty() {
-        return Err(crate::Error::Internal("TLS: the file holds no certificate (PEM)".into()));
+        return Err(crate::Error::Internal(
+            "TLS: the file holds no certificate (PEM)".into(),
+        ));
     }
     Ok(found)
 }

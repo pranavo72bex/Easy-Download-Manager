@@ -220,6 +220,10 @@ async fn a_premiere_is_waited_for_then_recorded_as_a_live_stream() {
     );
     let why = outcome.err();
     assert!(matches!(why, Some(Error::Cancelled)), "{why:?}");
-    assert!(began.elapsed() < Duration::from_secs(10), "{:?}", began.elapsed());
+    assert!(
+        began.elapsed() < Duration::from_secs(10),
+        "{:?}",
+        began.elapsed()
+    );
     assert_eq!(asks.lock().unwrap().get(LATER), Some(&1));
 }

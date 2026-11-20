@@ -51,7 +51,9 @@ impl Date {
         }
         let last = days_in_month(year, month);
         let (month, day) = (u8::try_from(month).ok()?, u8::try_from(day).ok()?);
-        (1..=last).contains(&day).then_some(Date { year, month, day })
+        (1..=last)
+            .contains(&day)
+            .then_some(Date { year, month, day })
     }
 
     /// The year.
