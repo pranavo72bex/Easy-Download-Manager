@@ -5,15 +5,15 @@
 
 //! Android's store for the key that seals the file of secrets (gaps row N11). A phone has no
 //! keyring a library can reach and no program to run for one: its store is the Android
-//! Keystore, which only the app's Kotlin side can call. So the app hands dm a [`SecretStore`]
-//! of its own ([`set_android_store`], from `dm-android`'s foreign callback), which keeps each
-//! value sealed under an AES key that never leaves the Keystore.
+//! Keystore, which only Java's API reaches. So the app hands dm a [`SecretStore`] of its own
+//! ([`set_android_store`], from `dm-android`'s start, through JNI: its `sealed.rs` and
+//! `android/keystore.rs`), which keeps each value in a file under dm's home, sealed under an
+//! AES key that never leaves the Keystore.
 //!
-//! Still owed in N11: that callback (a JNI call in `dm-android` and its Java
-//! implementation). Until the app has handed its store in, there is none
-//! ([`super::system`] answers `None`), and the file of secrets is kept in clear in the app's
-//! own files folder, as on a desktop without a store; no key is kept in a file beside it,
-//! which would protect nothing the folder does not already.
+//! Until the app has handed its store in, there is none ([`super::system`] answers `None`),
+//! and the file of secrets is kept in clear in the app's own files folder, as on a desktop
+//! without a store; no key is kept in clear in a file beside it, which would protect nothing
+//! the folder does not already.
 //!
 //! Built on the desktop for this module's own tests alone.
 

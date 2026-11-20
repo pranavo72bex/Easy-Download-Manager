@@ -17,6 +17,8 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
+# A sealed secret's file: the Keystore's IV and ciphertext as text (`sealed.rs`, gaps row N11).
+base64.workspace = true
 dm-core.workspace = true
 # The seam the phone's services are handed to (`dm_desktop_base::phone`, gaps row N17).
 dm-desktop-base.workspace = true

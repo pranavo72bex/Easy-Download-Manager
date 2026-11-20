@@ -13,6 +13,7 @@
 mod intent;
 mod java;
 mod jvm;
+mod keystore;
 mod notify;
 mod open;
 
@@ -77,6 +78,8 @@ fn folders(app: &AndroidApp) -> Result<PathBuf, String> {
     // Set here, before dm's threads exist, so nothing reads the environment while it changes.
     std::env::set_var("DM_HOME", &home);
     std::env::set_var("TMPDIR", tmp);
+    // dm's secrets sealed by the Android Keystore (gaps row N11), before the engine starts.
+    let _ = dm_core::secretstore::set_android_store(Box::new(keystore::store(&home)));
     let downloads = downloads(app, &home);
     dm_core::folders::set_phone_folders(home.clone(), downloads);
     Ok(home)
