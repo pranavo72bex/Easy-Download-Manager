@@ -212,6 +212,11 @@ opt-level = 2
 opt-level = 2
 [profile.dev.package.gpui-pre-windows]
 opt-level = 2
+# The passphrase of a backup and of the sealed sign-ins is stretched 600,000 rounds of
+# SHA-256 (`secretstore::passphrase`): at opt-level 0 a debug build took about 18 s to back
+# dm up, past what a person (and B72's check) waits for.
+[profile.dev.package.sha2]
+opt-level = 3
 
 # The extension's WebAssembly (scripts/package.sh: `cargo build --profile extension --target
 # wasm32-unknown-unknown`), as browser/ built it as a workspace of its own: for size, and a

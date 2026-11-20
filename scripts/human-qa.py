@@ -1642,9 +1642,16 @@ def walk(dm, origin):
     # file is whole its row goes, and the file stays. Nothing of its address is
     # left in dm's own files: the queue, its journal, the secrets, and Add
     # URL's Recent list in settings.json (Add URL put it there as it was typed).
+    def holds(path, name):
+        # Windows refuses a read of a file dm holds locked (instance.lock), which
+        # holds no address.
+        try:
+            return name.encode() in path.read_bytes()
+        except PermissionError:
+            return False
+
     def naming(name):
-        return sorted(p.name for p in dm.home.iterdir()
-                      if p.is_file() and name.encode() in p.read_bytes())
+        return sorted(p.name for p in dm.home.iterdir() if p.is_file() and holds(p, name))
     asked = dm.add(f"{files}/private.bin", then="Keep no record")
     pause(0.6)
     ticked = dm.dialog_texts()
@@ -2212,7 +2219,8 @@ def backing_up():
         typed(passphrase)
         dm.call("ui.choose", path=str(backup))
         dm.click("Back up")
-        for _ in range(60):
+        # The passphrase is stretched 600,000 rounds: seconds in a debug build.
+        for _ in range(240):
             if backup.is_file() and "Back up dm" not in dm.dialogs():
                 break
             time.sleep(0.25)
@@ -2255,7 +2263,7 @@ def backing_up():
         dm.call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
         typed(passphrase)
         dm.click("Restore")
-        for _ in range(60):
+        for _ in range(240):
             if "Restore dm" not in dm.dialogs() and len(dm.rows()) >= 2:
                 break
             time.sleep(0.25)
