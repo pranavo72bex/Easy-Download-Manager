@@ -120,6 +120,12 @@ impl Downloads {
                 this.run_on_queue(run.command, &run.queue, cx)
             }),
         )
+        // The row menu's "Delete file after" (gaps row U8).
+        .on_action(
+            cx.listener(|this, it: &crate::window::rowmenu::DeleteAfter, _, cx| {
+                this.delete_after_chosen(it.seconds, cx)
+            }),
+        )
         .on_action(
             cx.listener(|this, _: &crate::window::menus::TipOfTheDay, _, cx| {
                 this.tip_of_the_day(cx)
@@ -210,22 +216,14 @@ impl Downloads {
     pub(super) fn list_keys(root: Stateful<Div>, cx: &mut Context<Self>) -> Stateful<Div> {
         root.on_action(
             cx.listener(|this, _: &crate::window::menus::SelectPrevious, _, cx| {
-                if this.menu_open() {
-                    this.step_menu(-1);
-                } else {
-                    this.step(-1);
-                }
+                this.step(-1);
                 cx.notify();
             }),
         )
         .on_action(
             cx.listener(|this, _: &crate::window::menus::SelectNext, _, cx| {
-                // In the open row menu, the arrows move along it (gaps row U6).
-                if this.menu_open() {
-                    this.step_menu(1);
-                } else {
-                    this.step(1);
-                }
+                // The row menu is the system's, which takes the arrows while it is open.
+                this.step(1);
                 cx.notify();
             }),
         )
@@ -240,17 +238,12 @@ impl Downloads {
                     cx.propagate();
                     return;
                 }
-                if this.menu_open() {
-                    this.confirm_menu(window, cx);
-                } else {
-                    this.run(dm_shell::app::commands::Command::ShowProgress, cx);
-                }
+                this.run(dm_shell::app::commands::Command::ShowProgress, cx);
             }),
         )
         .on_action(
             cx.listener(|this, _: &crate::window::menus::Dismiss, _, cx| {
-                if this.menu_open() || this.menus.place_menu.is_some() {
-                    this.close_menu();
+                if this.menus.place_menu.is_some() {
                     this.close_place_menu();
                     cx.notify();
                 }
@@ -298,8 +291,8 @@ impl Downloads {
             }),
         )
         .on_action(
-            cx.listener(|this, _: &crate::window::menus::RowMenuByKey, _, cx| {
-                this.row_menu_by_key();
+            cx.listener(|this, _: &crate::window::menus::RowMenuByKey, window, cx| {
+                this.row_menu_by_key(window, cx);
                 cx.notify();
             }),
         )

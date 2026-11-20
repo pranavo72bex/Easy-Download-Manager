@@ -129,12 +129,13 @@ pub enum ListMove {
     PageDown,
 }
 
-/// Return over the list: the open row menu's entry, else the chosen downloads' progress.
+/// Return over the list: the chosen downloads' progress.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
 pub struct Confirm;
 
-/// Escape over the list: the open row menu closed.
+/// Escape over the list: the open place menu closed (the row menu is the system's, which
+/// closes itself).
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
 pub struct Dismiss;

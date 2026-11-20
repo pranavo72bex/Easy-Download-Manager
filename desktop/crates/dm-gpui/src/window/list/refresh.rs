@@ -24,7 +24,7 @@ impl Downloads {
             self.status.problems.len(),
             self.status.said.as_ref().map(|(_, at)| *at),
             self.questions.sheets.len(),
-            self.menus.menu.is_some(),
+            self.menus.place_menu.is_some(),
             self.system.hidden,
             self.list.selected.len(),
         )

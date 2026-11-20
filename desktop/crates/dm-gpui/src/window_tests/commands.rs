@@ -613,23 +613,20 @@ fn every_row_menu_item_clicked_does_what_it_says() {
     let done = h.row("file.zip");
     let stalled = h.row("stalled.bin");
 
-    // Right-clicks the row, then the item: the menu is in front, so its item is the first of
-    // that name on screen.
+    // Right-clicks the row, then the item: the menu is the system's, which the port holds for
+    // its next click, so the item is clicked by its words and the menu closes with it.
     let right = |h: &mut Harness, name: &str, item: &str| {
         h.right_click(name);
         h.until_shown(item);
         h.click(item);
-        // A menu still open closed; Escape with none would close the dialog the item opened.
-        if h.view(|v| v.menu_open()) {
-            h.key("escape", &[]);
-        }
     };
 
-    // Open runs the file: a person's choice in the menu, a moment after the script last acted.
+    // Open is refused to the script, and runs the file as a person's choice in the menu.
     h.right_click("file.zip");
     h.until_shown("Open folder");
-    h.until_a_persons_moment();
-    h.person_click("Open", 1);
+    let refused = h.call("ui.click", serde_json::json!({ "text": "Open" }));
+    assert!(refused.is_err_and(|why| why.contains("is done by a person")));
+    h.pick_as_person("Open");
     h.until("Open", |h| {
         h.fake.opened.lock().unwrap().contains(&done.path)
     });

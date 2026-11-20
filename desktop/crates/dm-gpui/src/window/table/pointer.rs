@@ -20,12 +20,12 @@ pub(super) fn row_handlers(
 ) -> Stateful<Div> {
     r.on_mouse_down(
         gpui::MouseButton::Right,
-        cx.listener(move |view, event: &gpui::MouseDownEvent, _, cx| {
-            view.open_menu(id, event.position);
+        cx.listener(move |view, event: &gpui::MouseDownEvent, window, cx| {
+            view.open_menu(id, event.position, window, cx);
             cx.notify();
         }),
     )
-    .on_click(cx.listener(move |view, event: &gpui::ClickEvent, _, cx| {
+    .on_click(cx.listener(move |view, event: &gpui::ClickEvent, window, cx| {
         // The primary button's alone: GPUI hands the
         // right button's click here too, after its press
         // opens the menu above, and taken, it would choose
@@ -37,7 +37,7 @@ pub(super) fn row_handlers(
         // A Control-click is a right-click on macOS.
         if event.modifiers().control && cfg!(target_os = "macos") {
             if let Some(at) = event.mouse_position() {
-                view.open_menu(id, at);
+                view.open_menu(id, at, window, cx);
                 cx.notify();
                 return;
             }

@@ -3,21 +3,21 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The row menu, where a right-click (or Control-click) lands, drawn as a
-//! macOS context menu: rounded and shadowed, the item under the pointer in
-//! the selection colour, what does not apply to the rows chosen greyed.
+//! The row menu, where a right-click (or Control-click), Shift+F10 or the Menu key lands: the
+//! system's own menu (an `NSMenu` on macOS, Windows' own, a drawn one on Linux), opened as the
+//! title menus and the toolbar's arrows open theirs (`NativeMenu`), so the system walks it with
+//! the keyboard. What does not apply to the rows chosen is greyed, a group none of whose items
+//! applies is left out, and each item's key is shown beside it where the window has one: after
+//! a tab on Windows, as its own menus write it; on Linux the drawn menu shows the key bound to
+//! each item's action itself (gaps row U27).
 
 use dm_desktop_base::i18n::t;
-use dm_shell::app::commands::Command;
-use gpui::{anchored, deferred, div, prelude::*, Context, Pixels, Point, Role};
+use dm_shell::app::commands::{Chord, Command, Key};
+use gpui::{Action, Context, Menu, MenuItem, Pixels, Point};
+use gpui_component::native_menu::NativeMenu;
 
-use crate::widgets::space;
-use crate::window::a11y::Told;
 use crate::window::list::Downloads;
 use crate::window::menus::Run;
-use crate::window::screen::Screen;
-use crate::window::theme::Theme;
-use crate::window::zoom::px;
 
 /// The menu's items, in groups, each with the words it shows (the row
 /// menu's own, where it says them differently from the command's title):
@@ -55,293 +55,238 @@ fn groups(resume: &'static str) -> Vec<Vec<(Command, &'static str)>> {
     ]
 }
 
-/// What one entry of the row menu does.
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Act {
-    /// A command of the menus', on the rows chosen.
-    Run(Command),
-    /// "Delete file after" this many seconds (`None`: Never), on the rows that have a file.
-    DeleteAfter(Option<u64>),
+/// "Delete file after" this many seconds (`None`: Never), chosen in the row menu: set on the
+/// rows chosen that have, or will have, a file (gaps row U8).
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = dm, no_json)]
+pub struct DeleteAfter {
+    /// The time, in seconds; `None` for Never.
+    pub seconds: Option<u64>,
 }
 
-/// One entry: what it does, its words, whether it applies, whether it is ticked, and whether a
-/// separator (or, for "Delete file after", that heading) comes before it.
-pub struct Entry {
-    pub act: Act,
+/// One item of the row menu: what it runs, its words, and whether it applies to the rows chosen.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Item {
+    pub command: Command,
     pub words: &'static str,
     pub enabled: bool,
-    pub ticked: bool,
-    pub before: Before,
 }
 
-/// What stands above an entry.
-#[derive(Clone, Copy, PartialEq)]
-pub enum Before {
-    Nothing,
-    Separator,
-    Heading(&'static str),
+/// The row menu's groups, in order, each item with whether it applies (`applies`): a group none
+/// of whose items applies is left out, as the system's own context menus leave out what has
+/// nothing to offer; the rest keep their greyed items, in their places.
+pub(crate) fn kept(resume: &'static str, applies: impl Fn(Command) -> bool) -> Vec<Vec<Item>> {
+    groups(resume)
+        .into_iter()
+        .map(|group| {
+            group
+                .into_iter()
+                .map(|(command, words)| Item {
+                    command,
+                    words,
+                    enabled: applies(command),
+                })
+                .collect::<Vec<_>>()
+        })
+        .filter(|group| group.iter().any(|item| item.enabled))
+        .collect()
 }
 
-/// The row menu's entries for the rows chosen, in order: the menu's groups, then
-/// "Delete file after" (gaps row U8) for rows that have, or will have, a file.
-pub fn entries(view: &Downloads) -> Vec<Entry> {
-    let resume = dm_desktop_base::rows::resume_word(&view.chosen());
-    let mut all = Vec::new();
-    for (g, group) in groups(resume).into_iter().enumerate() {
-        for (n, (command, words)) in group.into_iter().enumerate() {
-            all.push(Entry {
-                act: Act::Run(command),
-                words,
-                enabled: view.enabled(command),
-                ticked: false,
-                before: if g > 0 && n == 0 {
-                    Before::Separator
-                } else {
-                    Before::Nothing
-                },
-            });
+/// Whether a row in `state` has, or will have, a file: "Delete file after" is for those.
+fn has_file(state: &dm_core::State) -> bool {
+    !matches!(state, dm_core::State::Failed(_) | dm_core::State::Cancelled)
+}
+
+/// The key that runs `command` over the list, as Windows' menus write it ("Ctrl+R", "Del"): its
+/// first chord; Copy link's is Copy's, Ctrl+C, which copies the chosen rows' links (gaps row
+/// U9). `None` where it has none.
+pub(crate) fn hint(command: Command) -> Option<String> {
+    if command == Command::CopyLink {
+        return Some("Ctrl+C".to_string());
+    }
+    command.chords().first().map(written)
+}
+
+/// A chord as Windows' menus write it.
+fn written(chord: &Chord) -> String {
+    let key = match chord.key {
+        Key::A => "A",
+        Key::F => "F",
+        Key::I => "I",
+        Key::N => "N",
+        Key::Q => "Q",
+        Key::R => "R",
+        Key::Comma => ",",
+        Key::Period => ".",
+        Key::F1 => "F1",
+        Key::F3 => "F3",
+        Key::Backspace => "Backspace",
+        Key::Delete => "Del",
+    };
+    let mut words = String::new();
+    if chord.command {
+        words.push_str("Ctrl+");
+    }
+    if chord.shift {
+        words.push_str("Shift+");
+    }
+    words.push_str(key);
+    words
+}
+
+/// The row menu for the rows chosen, as the system's menus take it: the groups that apply with
+/// a separator between, then, where a row chosen has or will have a file, "Delete file after"
+/// with its times, the one the rows share ticked. With `hints`, each item's key after a tab,
+/// which Windows' menus show at the item's right.
+pub(crate) fn row_menu(view: &Downloads, hints: bool) -> Menu {
+    let chosen = view.chosen();
+    let resume = dm_desktop_base::rows::resume_word(&chosen);
+    let mut items = Vec::new();
+    for group in kept(resume, |command| view.enabled(command)) {
+        if !items.is_empty() {
+            items.push(MenuItem::separator());
+        }
+        for item in group {
+            let words = match hint(item.command).filter(|_| hints) {
+                Some(keys) => format!("{}\t{keys}", item.words),
+                None => item.words.to_string(),
+            };
+            items.push(MenuItem::action(words, Run(item.command)).disabled(!item.enabled));
         }
     }
-    let chosen = view.chosen();
-    let with_file: Vec<_> = chosen
-        .iter()
-        .filter(|r| {
-            !matches!(
-                r.state,
-                dm_core::State::Failed(_) | dm_core::State::Cancelled
-            )
-        })
-        .collect();
-    if !with_file.is_empty() {
+    if chosen.iter().any(|r| has_file(&r.state)) {
         let shared = chosen
             .first()
             .map(|r| r.delete_after)
             .filter(|first| chosen.iter().all(|r| r.delete_after == *first));
-        for (n, (words, seconds)) in dm_desktop_base::file_info::delete_after_times()
+        let times: Vec<MenuItem> = dm_desktop_base::file_info::delete_after_times()
             .into_iter()
-            .enumerate()
-        {
-            all.push(Entry {
-                act: Act::DeleteAfter(seconds),
-                words,
-                enabled: true,
-                ticked: shared == Some(seconds),
-                before: if n == 0 {
-                    Before::Heading(t("Delete file after"))
-                } else {
-                    Before::Nothing
-                },
-            });
+            .map(|(words, seconds)| {
+                MenuItem::action(words, DeleteAfter { seconds }).checked(shared == Some(seconds))
+            })
+            .collect();
+        if !items.is_empty() {
+            items.push(MenuItem::separator());
         }
+        items.push(MenuItem::submenu(Menu::new(t("Delete file after")).items(times)));
     }
-    all
+    Menu::new(t("Row menu")).items(items)
 }
 
 impl Downloads {
-    /// Carries out the row menu's entry `act`, closing the menu: a click on it, or Return with
-    /// the keyboard on it (gaps row U6).
-    pub fn act_from_menu(&mut self, act: Act, window: &mut gpui::Window, cx: &mut Context<Self>) {
-        self.close_menu();
-        match act {
-            Act::Run(command) => window.dispatch_action(Box::new(Run(command)), cx),
-            Act::DeleteAfter(seconds) => {
-                let targets: Vec<dm_core::Id> = self
-                    .chosen()
-                    .into_iter()
-                    .filter(|r| {
-                        !matches!(
-                            r.state,
-                            dm_core::State::Failed(_) | dm_core::State::Cancelled
-                        )
-                    })
-                    .map(|r| r.id)
-                    .collect();
-                // Off the window's thread: each writes the queue.
-                self.later_then_read(
-                    move |backend| {
-                        for id in targets {
-                            backend.set_delete_after(id, seconds);
-                        }
-                    },
-                    cx,
-                );
-            }
-        }
-        cx.notify();
-    }
-
-    /// The keyboard's place in the open row menu moved by `by` entries, over those that apply,
-    /// round from one end to the other as a system menu's.
-    pub fn step_menu(&mut self, by: isize) {
-        let all = entries(self);
-        let usable: Vec<usize> = (0..all.len()).filter(|&i| all[i].enabled).collect();
-        if usable.is_empty() {
+    /// The row menu opened at `at` (window points) for the rows chosen. The control port's
+    /// click has it held for the port's next click instead, as the system's menu would wait for
+    /// a person (`probe::hold_menu`).
+    pub(crate) fn show_row_menu(
+        &mut self,
+        at: Point<Pixels>,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.menus.row_menu_opened = Some(at);
+        if crate::widgets::popup::scripting() {
+            crate::probe::hold_menu(row_menu(self, false).owned());
             return;
         }
-        let at = self
-            .menus
-            .menu_at
-            .and_then(|now| usable.iter().position(|&i| i == now));
-        let next = match at {
-            Some(p) => (p as isize + by).rem_euclid(usable.len() as isize) as usize,
-            None if by < 0 => usable.len() - 1,
-            None => 0,
-        };
-        self.menus.menu_at = usable.get(next).copied();
+        // The test platform has no menus of the system's to show.
+        if cfg!(test) {
+            return;
+        }
+        NativeMenu::from(row_menu(self, cfg!(target_os = "windows"))).show(at, window, cx);
     }
 
-    /// Return in the open row menu: the entry the keyboard is on, carried out.
-    pub fn confirm_menu(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
-        let all = entries(self);
-        if let Some(entry) = self
-            .menus
-            .menu_at
-            .and_then(|i| all.get(i))
-            .filter(|e| e.enabled)
-        {
-            let act = entry.act;
-            self.act_from_menu(act, window, cx);
-        }
+    /// "Delete file after" chosen in the row menu: the time set on the rows chosen that have,
+    /// or will have, a file.
+    pub(crate) fn delete_after_chosen(&mut self, seconds: Option<u64>, cx: &mut Context<Self>) {
+        let targets: Vec<dm_core::Id> = self
+            .chosen()
+            .into_iter()
+            .filter(|r| has_file(&r.state))
+            .map(|r| r.id)
+            .collect();
+        // Off the window's thread: each writes the queue.
+        self.later_then_read(
+            move |backend| {
+                for id in targets {
+                    backend.set_delete_after(id, seconds);
+                }
+            },
+            cx,
+        );
+        cx.notify();
     }
 }
 
-/// The row menu, open at `at` (window points).
-pub fn menu(
-    view: &Downloads,
-    at: Point<Pixels>,
-    theme: Theme,
-    screen: &Screen,
-    cx: &mut Context<Downloads>,
-) -> impl IntoElement {
-    let mut items = Vec::new();
-    for (i, entry) in entries(view).into_iter().enumerate() {
-        match entry.before {
-            Before::Nothing => {}
-            Before::Separator => items.push(separator(theme)),
-            Before::Heading(words) => {
-                items.push(separator(theme));
-                items.push(
-                    div()
-                        .mx_1()
-                        .px_2()
-                        .h(px(20.0))
-                        .flex()
-                        .items_center()
-                        .text_size(px(crate::widgets::native::SMALL_TEXT))
-                        .text_color(theme.muted)
-                        .child(screen.label(words))
-                        .into_any_element(),
-                );
-            }
-        }
-        let id: gpui::ElementId = match entry.act {
-            Act::Run(command) => command.id().into(),
-            Act::DeleteAfter(seconds) => ("delete-after", seconds.unwrap_or(0)).into(),
-        };
-        let keyed = view.menus.menu_at == Some(i);
-        let act = entry.act;
-        items.push(
-            item(id, entry.words, entry.enabled, keyed, theme)
-                .when(entry.enabled, |d| {
-                    d.on_click(cx.listener(move |view, _, window, cx| {
-                        view.act_from_menu(act, window, cx);
-                    }))
-                })
-                .when(matches!(act, Act::DeleteAfter(_)), |d| {
-                    d.child(div().w(px(14.0)).child(if entry.ticked { "✓" } else { "" }))
-                })
-                .child(screen.label(entry.words))
-                .into_any_element(),
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn commands(groups: &[Vec<Item>]) -> Vec<Vec<Command>> {
+        groups
+            .iter()
+            .map(|g| g.iter().map(|i| i.command).collect())
+            .collect()
+    }
+
+    /// Where everything applies, the four groups stand whole, in order.
+    #[test]
+    fn every_group_stands_where_all_applies() {
+        let all = kept("Resume", |_| true);
+        assert_eq!(all.len(), 4);
+        assert_eq!(all.iter().map(Vec::len).sum::<usize>(), 20);
+        assert_eq!(all[0][0].command, Command::OpenFile);
+        assert_eq!(all[3][0].command, Command::Properties);
+        assert!(all.iter().flatten().all(|i| i.enabled));
+    }
+
+    /// A group none of whose items applies is left out; one with any that does stays whole,
+    /// its others greyed in their places.
+    #[test]
+    fn groups_that_do_not_apply_are_left_out() {
+        use Command as C;
+        let some = kept("Retry", |c| matches!(c, C::CopyLink | C::Properties));
+        assert_eq!(
+            commands(&some),
+            vec![
+                vec![
+                    C::DownloadNow,
+                    C::StopDownload,
+                    C::UpdateLink,
+                    C::CopyLink,
+                    C::CopyDetails,
+                    C::Remove,
+                    C::DeleteFile,
+                ],
+                vec![C::Properties],
+            ]
+        );
+        let greyed: Vec<Command> = some[0]
+            .iter()
+            .filter(|i| !i.enabled)
+            .map(|i| i.command)
+            .collect();
+        assert_eq!(greyed.len(), 6);
+        assert!(!greyed.contains(&C::CopyLink));
+        // Resume in the words it has for the rows chosen.
+        assert_eq!(some[0][0].words, t("Retry"));
+        assert!(kept("Resume", |_| false).is_empty());
+        let queue = kept("Resume", |c| c == C::MoveDown);
+        assert_eq!(
+            commands(&queue),
+            vec![vec![C::MoveToQueue, C::RemoveFromQueue, C::MoveUp, C::MoveDown]]
         );
     }
-    panel(
-        "row-menu",
-        t("Row menu"),
-        at,
-        theme,
-        items,
-        cx,
-        Downloads::close_menu,
-    )
-}
 
-/// One item of a menu drawn as a macOS context menu: its words, greyed where it does not apply,
-/// in the selection colour under the pointer or where the keyboard is (`keyed`). The caller adds
-/// what a click does.
-pub(crate) fn item(
-    id: impl Into<gpui::ElementId>,
-    words: &'static str,
-    enabled: bool,
-    keyed: bool,
-    theme: Theme,
-) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id.into())
-        .role(Role::MenuItem)
-        .aria_label(words)
-        // Greyed, told off to a screen reader too (gaps row U23).
-        .off_if(!enabled)
-        .mx_1()
-        .px_2()
-        .h(px(22.0))
-        .rounded(px(space::CORNER_S))
-        .flex()
-        .items_center()
-        .gap_1()
-        .text_size(px(crate::widgets::native::TEXT))
-        .when(!enabled, |d| d.text_color(theme.muted).opacity(0.6))
-        .when(enabled && keyed, |d| {
-            d.bg(theme.selection).text_color(theme.on_selection)
-        })
-        .when(enabled, |d| {
-            d.hover(|s| s.bg(theme.selection).text_color(theme.on_selection))
-        })
-}
-
-/// A menu of `items` open at `at` (window points), rounded and shadowed over the window, closed
-/// by `close` at a press outside it.
-pub(crate) fn panel(
-    id: &'static str,
-    name: &'static str,
-    at: Point<Pixels>,
-    theme: Theme,
-    items: Vec<gpui::AnyElement>,
-    cx: &mut Context<Downloads>,
-    close: fn(&mut Downloads),
-) -> impl IntoElement {
-    deferred(
-        anchored().position(at).child(
-            div()
-                .id(id)
-                .role(Role::Menu)
-                .aria_label(name)
-                .min_w(px(220.0))
-                .py_1()
-                .rounded(px(space::CORNER_M))
-                .border_1()
-                .border_color(theme.separator)
-                .bg(theme.menu)
-                .shadow_lg()
-                .text_color(theme.text)
-                // The menu takes its own clicks: else a row under it would take
-                // them too, and Extract here, over another row, would choose
-                // that row first and extract it instead (Linux, real input).
-                .occlude()
-                .on_mouse_down_out(cx.listener(move |view, _, _, cx| {
-                    close(view);
-                    cx.notify();
-                }))
-                .children(items),
-        ),
-    )
-    .with_priority(1)
-}
-
-fn separator(theme: Theme) -> gpui::AnyElement {
-    div()
-        .mx_2()
-        .my_1()
-        .h(px(space::LINE))
-        .bg(theme.separator)
-        .into_any_element()
+    /// The keys shown are the window's own, as Windows writes them; an item without one has none.
+    #[test]
+    fn the_keys_are_written_as_windows_writes_them() {
+        assert_eq!(hint(Command::DownloadNow).as_deref(), Some("Ctrl+R"));
+        assert_eq!(hint(Command::StopDownload).as_deref(), Some("Ctrl+."));
+        assert_eq!(hint(Command::Properties).as_deref(), Some("Ctrl+I"));
+        assert_eq!(hint(Command::CopyLink).as_deref(), Some("Ctrl+C"));
+        assert_eq!(hint(Command::OpenFolder), None);
+        if !cfg!(target_os = "macos") {
+            assert_eq!(hint(Command::Remove).as_deref(), Some("Del"));
+        }
+    }
 }
