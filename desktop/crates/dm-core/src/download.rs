@@ -51,6 +51,7 @@ mod ranged;
 pub(crate) mod same;
 mod sidecar;
 mod space;
+mod unwritten;
 
 pub(crate) use assemble::*;
 use fetch::fetch_reporting;
@@ -69,6 +70,7 @@ pub(crate) use page_stream::{
 use per_site::refuses_unrouted;
 pub(crate) use ranged::*;
 pub use space::*;
+pub use unwritten::read_not_written;
 
 /// How a download should be carried out.
 #[derive(Debug, Clone)]

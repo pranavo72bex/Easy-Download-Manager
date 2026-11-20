@@ -170,6 +170,9 @@ async fn quitting_with_twenty_downloads_running_stops_them_within_two_seconds_an
         .iter()
         .map(|r| r.progress.downloaded)
         .sum();
+    // What dm itself read and did not write by then (`read_not_written`; this file's one test
+    // is the only one counting in its process).
+    let dms_before = dm_core::read_not_written();
     drop(first);
 
     // The next start, from the same store.
@@ -219,6 +222,19 @@ async fn quitting_with_twenty_downloads_running_stops_them_within_two_seconds_an
     println!(
         "{twice} bytes fetched twice: {before} before the restart (at most {held_by_buffers}), \
          {after} by it (at most {allowed})"
+    );
+    // Of those, what reached dm: what the ranges read and did not write (the bytes before a
+    // range set aside for its seam's check, a resume's tail compared, what came past a range's
+    // end, what was in hand at the stop), the seams' own checks apart. The rest of `before` is
+    // what the server had sent and dm never read. Said, not yet held to anything: the row's
+    // 16 KiB a connection is to be decided from it (gaps row 186).
+    let dms = dm_core::read_not_written();
+    let connections = (DOWNLOADS * CONNECTIONS) as u64;
+    println!(
+        "dm read and did not write {dms} bytes ({} a connection): {dms_before} before the \
+         restart, {} by it",
+        dms / connections,
+        dms.saturating_sub(dms_before)
     );
     assert!(
         before <= held_by_buffers,
