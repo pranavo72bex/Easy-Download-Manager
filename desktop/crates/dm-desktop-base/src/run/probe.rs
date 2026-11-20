@@ -177,6 +177,12 @@ pub struct Windows {
     pub pixels_per_point: Option<f32>,
     /// The main window, where known.
     pub main: Option<Rect>,
+    /// The main window's title as it stands, where there is a window: "dm", or while downloads
+    /// run how far and how fast before " — dm" (gaps row U16;
+    /// [`crate::taskbar::window_title`]). A script finds the main window by
+    /// [`crate::taskbar::is_main_title`], not by "dm" alone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub main_title: Option<String>,
     /// Each dialog's own window.
     pub dialogs: Vec<DialogWindow>,
 }

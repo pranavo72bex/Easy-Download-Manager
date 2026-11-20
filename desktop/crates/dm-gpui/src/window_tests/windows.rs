@@ -93,3 +93,35 @@ fn properties_of_two_downloads_open_in_windows_of_their_own() {
             == 1
     });
 }
+
+/// While a download runs, the main window's title says how far the downloads are (and how fast,
+/// once measured) before " — dm", as the port reads it; "dm" again once nothing runs (gaps row
+/// U16).
+#[test]
+fn the_main_windows_title_says_how_far_the_downloads_are() {
+    let world = world();
+    let mut h = world.harness();
+    let title = |h: &mut Harness| {
+        let windows = h.call("ui.windows", serde_json::json!({})).unwrap();
+        windows["main_title"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    };
+    h.until("the title dm", |h| title(h) == "dm");
+    // Several connections, each sending its first 64 KiB of 8 MiB and then nothing: under way.
+    h.call(
+        "downloads.add",
+        serde_json::json!({ "urls": [world.url("ranges-stall.bin")] }),
+    )
+    .unwrap();
+    h.until("the title to say how far", |h| {
+        let now = title(h);
+        now.ends_with(" — dm") && now.contains("% ")
+    });
+    h.act(|view, cx| {
+        view.select_all(cx);
+        view.run(Command::StopDownload, cx);
+    });
+    h.until("the title dm once nothing runs", |h| title(h) == "dm");
+}

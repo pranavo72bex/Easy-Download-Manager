@@ -279,6 +279,13 @@ impl WindowProbe for Probe<'_, '_> {
             (rect_of(outer), rect_of(inner))
         };
         let main = Some(frames(self.window).0);
+        // Its title as it stands (gaps row U16): what the system says, else what dm last set.
+        let main_title = Some(self.window.window_title())
+            .filter(|title| !title.is_empty())
+            .or_else(|| {
+                let handle = self.window.window_handle();
+                crate::window::screen::Screens::title_of(handle, self.cx).map(|t| t.to_string())
+            });
         let pixels_per_point = Some(self.window.scale_factor());
         let mut dialogs = Vec::new();
         // The oldest first, as they were opened.
@@ -302,6 +309,7 @@ impl WindowProbe for Probe<'_, '_> {
         Ok(probe::Windows {
             pixels_per_point,
             main,
+            main_title,
             dialogs,
         })
     }

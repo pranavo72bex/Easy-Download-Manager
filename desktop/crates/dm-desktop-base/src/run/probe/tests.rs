@@ -72,6 +72,7 @@ impl WindowProbe for Stand {
         Ok(Windows {
             pixels_per_point: Some(2.0),
             main: Some([0.0, 25.0, 900.0, 625.0]),
+            main_title: Some("37% · 4.1 MB/s — dm".into()),
             dialogs: vec![DialogWindow {
                 title: "Options".into(),
                 outer: Some([100.0, 100.0, 500.0, 400.0]),
@@ -306,6 +307,7 @@ fn the_windows_are_said_where_they_are_and_moved_and_put_away() {
         json!({
             "pixels_per_point": 2.0,
             "main": [0.0, 25.0, 900.0, 625.0],
+            "main_title": "37% · 4.1 MB/s — dm",
             "dialogs": [{ "title": "Options", "outer": [100.0, 100.0, 500.0, 400.0], "inner": null }],
         })
     );

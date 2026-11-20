@@ -192,15 +192,16 @@ def main():
     )
     ok = False
     try:
-        dm_window = window("^dm$")
+        # Titled "dm", or while downloads run how far and how fast before " — dm" (gaps row U16).
+        dm_window = window("^(dm|.* — dm)$")
         ff_window = window("links")
         if not dm_window or not ff_window:
             print("FAIL  the windows never appeared", dm_window, ff_window)
             return 1
         # Side by side, overlapping nowhere: a press on Firefox raises it,
         # and over dm it would take the drop itself.
-        for name in ("links", "^dm$"):
-            subprocess.run(["wmctrl", "-r", name.strip("^$"), "-b", "remove,maximized_vert,maximized_horz"])
+        for found in (ff_window, dm_window):
+            subprocess.run(["wmctrl", "-i", "-r", found, "-b", "remove,maximized_vert,maximized_horz"])
         xdo("windowmove", ff_window, "0", "0")
         xdo("windowsize", ff_window, "640", "780")
         xdo("windowmove", dm_window, "660", "0")

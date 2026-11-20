@@ -139,3 +139,57 @@ fn a_failure_is_red_for_a_minute_only() {
     assert_eq!(mode_of(&rows, 1030), Mode::Failed);
     assert_eq!(mode_of(&rows, 1100), Mode::Nothing);
 }
+
+/// The main window's title says how far and how fast the downloads go, before " — dm"; "dm"
+/// while nothing runs (gaps row U16).
+#[test]
+fn the_title_says_how_far_and_how_fast() {
+    let said = |r: f64| format!("{r} B/s");
+    let at = Mode::Running {
+        done: 37,
+        total: 100,
+    };
+    assert_eq!(titled(at, 4100.0, said), "37% · 4100 B/s — dm");
+    assert_eq!(titled(at, 0.0, said), "37% — dm", "no speed measured yet");
+    assert_eq!(
+        titled(Mode::Unknown, 4100.0, said),
+        "4100 B/s — dm",
+        "no size, no percentage"
+    );
+    assert_eq!(titled(Mode::Unknown, 0.0, said), MAIN_TITLE);
+    for idle in [Mode::Nothing, Mode::Paused, Mode::Failed] {
+        assert_eq!(titled(idle, 4100.0, said), MAIN_TITLE, "{idle:?}");
+    }
+    // In the numbers the list says them in.
+    let title = window_title(Mode::Running { done: 1, total: 4 }, 3.0 * 1024.0 * 1024.0);
+    assert!(
+        title.starts_with("25% · ") && title.ends_with("/s — dm"),
+        "{title}"
+    );
+}
+
+/// Scripts and the control port know the main window by its title: "dm", or one ending " — dm",
+/// which no dialog's title does.
+#[test]
+fn the_main_window_is_known_by_its_title() {
+    assert!(is_main_title("dm"));
+    assert!(is_main_title("37% · 4.1 MB/s — dm"));
+    assert!(is_main_title("4.1 MB/s — dm"));
+    assert!(!is_main_title("About dm"));
+    assert!(!is_main_title("Exit dm"));
+    assert!(!is_main_title("37% Download progress — a.bin"));
+}
+
+#[test]
+fn the_speed_is_the_running_rows_together() {
+    let mut rows = [
+        row(State::Running, 1, Some(2), None),
+        row(State::Running, 1, None, None),
+        row(State::Paused, 1, Some(2), None),
+    ];
+    for (row, speed) in rows.iter_mut().zip([100.0, 50.0, 900.0]) {
+        row.progress.speed = speed;
+    }
+    assert_eq!(rate_of(&rows), 150.0);
+    assert_eq!(rate_of::<Entry>(&[]), 0.0);
+}

@@ -8443,3 +8443,31 @@ or does changes: the same names, places, counts and order, worked out from less.
 - **W10.** The follows' timing and readings moved from the window into the application's tick
   (`dm_desktop_base::session`, `Effect::Followed`), so `--headless` follows too; each driver adds
   what a reading brought its own way, as the saved searches are.
+
+## The main window's title says how the downloads go; scripts know it by its ending (2026-11-20, gaps rows U16, U23)
+
+The main window's title was always "dm", and that title was how the QA scripts found the main
+window among dm's: xdotool's `^dm$`, `xwininfo`'s `"dm":`, `human-qa.py`'s `win32_windows(pid)["dm"]`,
+KWin's and sway's caption, AT-SPI's frame. So the scripts were taught first: the main window is
+the one titled "dm" or ending " — dm" (`dm_desktop_base::taskbar::is_main_title`), which no
+dialog's title does ("About dm" has no dash; a progress window's ends with its file's name). The
+control port never found it by its title (it holds the window's handle, and names it "dm" as it
+opens, `screen::open`), and its `ui.windows` now says `main_title` as it stands, so a script can
+check the title itself. Then the title: `taskbar::window_title` from the rows the taskbar's button
+is fed from, "37% · 4.1 MB/s — dm" while downloads run (the whole percentage of the sized ones
+together, as the Dock's bar; the speeds of all that run, in `format::rate`'s words), a speed alone
+while a size is unknown (as a progress window's title has no percentage then, B46), "dm" while
+nothing runs, paused or failed included. Set only when it changes (`screen::set_title`), which at
+a quarter-second tick is a few times a second while the speed moves. Not behind a switch: no
+contract row names the main window's title, B25's pictures are of a window with nothing running,
+and the row is in step 5, "Features with nothing to ask". Dropped: a title of its own words in the
+catalogs ("{} — dm"); the numbers and the name read the same in every language dm has.
+
+The screen-reader checks (U23) were extended while the adapters were read: what each system's
+reader can be asked depends on AccessKit's adapter GPUI links, not on dm. Windows' (0.34) gives a
+table, data items for rows and cells, a disabled button, a bar's range value, an open or shut
+state and a live region's politeness; a heading's sort only in ARIA's properties, which .NET's UI
+Automation client may not read (the check then says so, not checked). macOS's (0.26) gives no open
+or shut state and no sort. AT-SPI's (0.19) gives every push button Enabled and Sensitive, greyed or
+not; 0.21 fixed it, so Linux's greyed-button check is expected to fail until GPUI moves on, which
+is AccessKit's to fix, not a reason to drop the check.

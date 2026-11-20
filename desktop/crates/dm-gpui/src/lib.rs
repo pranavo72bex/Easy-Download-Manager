@@ -326,7 +326,10 @@ fn windowed(ready: Ready, wake: &Arc<dyn Fn(Wake) + Send + Sync>, application: g
                 // the top bar is the row under it, as a code editor's is
                 // there with the system's title bar (`titlebar.rs`).
                 titlebar: Some(TitlebarOptions {
-                    title: Some("dm".into()),
+                    // "dm"; while downloads run, how far and how fast before
+                    // it (`Downloads::taskbar_follow`, gaps row U16). Named
+                    // "dm" to the port whatever it says (`screen::open`).
+                    title: Some(dm_desktop_base::taskbar::MAIN_TITLE.into()),
                     appears_transparent: window::titlebar::DRAWN_BY_DM,
                     traffic_light_position: Some(point(
                         px(window::titlebar::traffic_lights_at().0),
@@ -345,7 +348,7 @@ fn windowed(ready: Ready, wake: &Arc<dyn Fn(Wake) + Send + Sync>, application: g
                 ..Default::default()
             },
             |window, cx| {
-                crate::window::screen::set_title(window, "dm", cx);
+                crate::window::screen::set_title(window, dm_desktop_base::taskbar::MAIN_TITLE, cx);
                 let view = cx.new(|cx| {
                     window::list::Downloads::new(
                         backend,

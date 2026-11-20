@@ -299,7 +299,8 @@ def geometry(window):
 
 
 def dm_window():
-    found = windows("--name", "^dm$")
+    # Titled "dm", or while downloads run how far and how fast before " — dm" (gaps row U16).
+    found = windows("--name", "^(dm|.* — dm)$")
     return found[0] if found else None
 
 
