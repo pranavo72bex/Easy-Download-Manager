@@ -70,6 +70,15 @@ pub fn held() -> Option<Held> {
     HELD.with(|h| h.borrow_mut().take())
 }
 
+/// The pop-up the port clicked and its window, left held: what a person would see listed.
+pub fn held_choices() -> Option<(gpui::AnyWindowHandle, Vec<SharedString>)> {
+    HELD.with(|h| {
+        h.borrow()
+            .as_ref()
+            .map(|held| (held.window, held.choices.clone()))
+    })
+}
+
 /// The pop-up the port clicked, put back (its choice was not among them).
 pub fn hold(held: Held) {
     HELD.with(|h| *h.borrow_mut() = Some(held));

@@ -45,6 +45,28 @@ impl WindowProbe for Probe<'_, '_> {
                 })
                 .collect()
         });
+        // A pop-up the port clicked lists its choices in front of its window, as a person sees
+        // them, until one is clicked (B77 reads the networks Only through offers).
+        let popup: Vec<probe::Text> = crate::widgets::popup::held_choices()
+            .map(|(held, choices)| {
+                let dialog = crate::window::screen::Screens::all(self.cx)
+                    .iter()
+                    .any(|(w, _, dialog)| *w == held && *dialog);
+                choices
+                    .into_iter()
+                    .map(|choice| probe::Text {
+                        text: choice.to_string(),
+                        rect: [0.0; 4],
+                        window: if dialog {
+                            probe::Window::Dialog
+                        } else {
+                            probe::Window::Main
+                        },
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let menu: Vec<probe::Text> = menu.into_iter().chain(popup).collect();
         // Then the dialogs, then the main window, each the reverse of the
         // order laid out: nearest the front first.
         Ok(probe::Texts::new(

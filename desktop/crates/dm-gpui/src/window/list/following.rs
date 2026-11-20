@@ -33,6 +33,9 @@ impl Downloads {
                 .problems
                 .push(tf("what is followed could not be saved: {}", &[&e])),
         }
+        // The next frame draws the settings as now, not those the last read kept: the side
+        // panel lists it at once (B75).
+        self.known.drawn_fresh = false;
         cx.notify();
     }
 
@@ -44,6 +47,7 @@ impl Downloads {
                 .problems
                 .push(tf("what is followed could not be saved: {}", &[&e]));
         }
+        self.known.drawn_fresh = false;
         cx.notify();
     }
 
