@@ -2055,6 +2055,7 @@ name = "dm-android"
 version = "0.10.0"
 dependencies = [
  "android-activity",
+ "base64 0.22.1",
  "dm-core",
  "dm-desktop-base",
  "dm-gpui",

@@ -117,9 +117,9 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
 - [ ] **A finished download's notification (N6).** It appears; tapping it opens the file.
 - [ ] **Where files land (N9).** On API 26: before storage is allowed the file goes to dm's own
       folder; once allowed, to `Download/dm`. On API 35: `Download/dm`, seen in Files.
-- [ ] **Phone's rules and secrets (N10, N11).** Nothing to try yet: no Wi-Fi-only or battery
-      Options (N10, the maintainer's word), the Keystore side of secrets not coded (N11);
-      a saved login is kept in clear in dm's private folder meanwhile.
+- [ ] **Secrets (N11).** Save a site's login in dm, close dm, open it again: the login is
+      still there, and `files/dm/secrets/` holds `.sealed` files, not the login in clear.
+- [ ] **Phone's rules (N10).** Being coded on another branch; nothing to try yet.
 - [ ] **Nothing crashed.** `adb logcat -b crash` holds nothing of `com.dm.android`.
 
 Note what broke, with the Logcat lines around it; each finding is a gaps row's next step.
