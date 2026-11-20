@@ -615,7 +615,14 @@ the address came from your browser, play the video again and click
   did not answer as dm needs to fetch it in parts.
 - `the picture and sound could not be joined: …`
   Both came, but making one video of them failed; the reason follows. Click
-  **Retry**.
+  **Retry**. Where the disk had too little room for the usual join, dm joins
+  the two in the larger track's own file, and the reason can be one of its
+  steps: `… could not be opened: …`, `… could not be written: …`, `an input
+  could not be shortened: …`, or `the disk has no room for the … bytes it
+  adds`. The tracks it had begun to change are fetched again on **Retry**.
+- `joining stopped: …`
+  The join in the track's own file ended before its end (dm was closed, or
+  the system stopped it). **Retry** fetches the changed tracks again.
 - `the live stream sent nothing to record`
 - `the live recording could not be joined: …`
   A live DASH recording got nothing, or what it got could not be made into
