@@ -103,9 +103,10 @@ def say(text):
 
 
 # A script that reports each dm window as it appears, and each change of its
-# minimized state after, as KWin sees them.
+# minimized state after, as KWin sees them. dm's by its class, or by the main window's title:
+# "dm", or while downloads run how far and how fast before " — dm" (gaps row U16).
 WATCH = """
-function dm(w) { return String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || String(w.caption) === "dm"; }
+function dm(w) { return String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || /^(dm|.* \\u2014 dm)$/.test(String(w.caption)); }
 function watch(w) {
   if (!dm(w)) return;
   %s
@@ -117,10 +118,10 @@ workspace.windowList().forEach(watch);
     say("added").replace('"added"', '"added:" + w.caption + ":" + w.resourceClass + ":" + w.minimized'),
     say("x").replace('"x"', '"minimized:" + w.minimized'),
 )
-CLOSE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || String(w.caption) === "dm") { w.closeWindow(); } });'
-RESTORE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || String(w.caption) === "dm") { w.minimized = false; %s } });' % (
+CLOSE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || /^(dm|.* \\u2014 dm)$/.test(String(w.caption))) { w.closeWindow(); } });'
+RESTORE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || /^(dm|.* \\u2014 dm)$/.test(String(w.caption))) { w.minimized = false; %s } });' % (
     say("x").replace('"x"', '"restored:" + w.minimized'))
-STATE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || String(w.caption) === "dm") { %s } });' % (
+STATE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || /^(dm|.* \\u2014 dm)$/.test(String(w.caption))) { %s } });' % (
     say("x").replace('"x"', '"state:" + w.minimized + ":" + w.hidden'))
 
 

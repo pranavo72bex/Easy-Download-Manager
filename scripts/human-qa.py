@@ -198,9 +198,24 @@ $o''' % pid
     return found
 
 
+def is_main_title(title):
+    """dm's main window by its title: "dm", or while downloads run how far and how fast before
+    " — dm", "37% · 4.1 MB/s — dm" (gaps row U16; `dm_desktop_base::taskbar::is_main_title`).
+    No dialog's title ends so: "About dm" has no dash."""
+    return title == "dm" or title.endswith(" — dm")
+
+
+def titled(windows, title):
+    """The window of `windows` (by title, as `win32_windows` gives them) that `title` names:
+    "dm" names the main window, whatever its title says now."""
+    if title == "dm":
+        return next((w for t, w in windows.items() if is_main_title(t)), None)
+    return windows.get(title)
+
+
 def win32_move(pid, title, x, y):
     """Puts a window of dm's where the system is told, as a person's drag would."""
-    window = win32_windows(pid).get(title)
+    window = titled(win32_windows(pid), title)
     if window:
         win32_run(r"[U]::SetWindowPos([IntPtr]%d, [IntPtr]::Zero, %d, %d, 0, 0, 0x0005) | Out-Null" % (window["hwnd"], x, y))
 
@@ -208,7 +223,7 @@ def win32_move(pid, title, x, y):
 def win32_front(pid, title):
     """A window of dm's brought above every other window, so that a press on its title
     bar lands on it and not on whatever else (an editor, a terminal) lies over that spot."""
-    window = win32_windows(pid).get(title)
+    window = titled(win32_windows(pid), title)
     if window:
         win32_run(r"[U]::BringWindowToTop([IntPtr]%d) | Out-Null; [U]::SetForegroundWindow([IntPtr]%d) | Out-Null; "
                   r"[U]::SetWindowPos([IntPtr]%d, [IntPtr](-1), 0, 0, 0, 0, 0x0043) | Out-Null; "
@@ -290,6 +305,10 @@ FILES = {
     "ep1.mp3": (1 * MiB, 0, "plain"),             # a followed feed's items (B75)
     "ep2.mp3": (1 * MiB, 0, "plain"),
     "only.bin": (2 * MiB, 0, "plain"),            # held to one network (B77)
+    # Running while the main window's title and what a screen reader is given are read (gaps
+    # rows U16, U23): about 48 s on eight connections; one that finishes at once beside it.
+    "told.bin": (48 * MiB, 128 * 1024, "plain"),
+    "told-done.bin": (1 * MiB, 0, "plain"),
     **{f"q{i}.bin": (8 * MiB, 256 * 1024, "plain") for i in range(1, 6)},
 }
 DATA = {n: body(n, s) for n, (s, _, _) in FILES.items()}
@@ -1314,7 +1333,7 @@ def walk(dm, origin):
         dm.open_add_url()
         pause(1.0)
         wins = win32_windows(pid)
-        aside = wins.get("dm", {}).get("rect")
+        aside = (titled(wins, "dm") or {}).get("rect")
         if aside and "Add URL" in wins:
             free = aside[2] + 20
             dm.call("ui.move_window", title="Add URL", x=free, y=40)
@@ -2462,6 +2481,140 @@ def metered_waits(origin):
             dm.proc.kill()
 
 
+# The main window's title while a download runs (gaps row U16).
+TITLED = re.compile(r"\d{1,3}% · .+/s — dm")
+
+
+def told_and_titled(origin):
+    """Gaps rows U16 and U23, on a home of their own. U16: while a download runs the main
+    window's title says how far and how fast ("37% · 4.1 MB/s — dm"), as the port and the
+    system read it, and it is "dm" again once nothing runs. U23 on macOS (`told_list`); Windows'
+    screen reader is read by `windows-a11y-check.py` and Linux's by `linux-gui-check.sh`."""
+    home = WORK / "told"
+    (home / "downloads").mkdir(parents=True)
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(home / "downloads"), "theme": "dark", "popups_version": 2,
+        "show_progress": False, "show_complete": False,
+        "ask_caught_downloads": False, "ask_panel_downloads": False}), encoding="utf-8")
+    dm = Dm(home)
+    dm.start()
+    try:
+        main_title = lambda: dm.windows().get("main_title") or ""
+        check("U16", "the main window's title is dm while nothing runs", main_title() == "dm", repr(main_title()))
+        dm.call("downloads.add", urls=[f"{origin}/files/told.bin"])
+        dm.wait("told.bin", ("running",), 20)
+        shown = ""
+        for _ in range(40):
+            shown = main_title()
+            if TITLED.fullmatch(shown):
+                break
+            time.sleep(0.25)
+        check("U16", "while a download runs it says how far and how fast: 37% · 4.1 MB/s — dm",
+              bool(TITLED.fullmatch(shown)), repr(shown))
+        # As the system has it: Windows' own list of the process's windows, AppKit's on macOS.
+        if sys.platform == "win32":
+            seen = win32_titles(dm.proc.pid)
+        elif sys.platform == "darwin":
+            seen = [w.get("title", "") for w in (dm.call("ui.accessibility").get("result") or {}).get("windows") or []]
+        else:
+            seen = None
+        if seen is not None:
+            check("U16", "and the system's own window says it so", any(TITLED.fullmatch(t) for t in seen), f"{seen}")
+        if sys.platform == "darwin":
+            told_list(dm, origin)
+        else:
+            print("  (U23: read by windows-a11y-check.py on Windows and linux-gui-check.sh on Linux)", flush=True)
+        dm.call("command.run", id="downloads.stop_all")
+        back = ""
+        for _ in range(40):
+            back = main_title()
+            if back == "dm":
+                break
+            time.sleep(0.25)
+        check("U16", "and once nothing runs it is dm again", back == "dm", repr(back))
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
+def told_list(dm, origin):
+    """Gaps row U23 on macOS, read in dm itself through NSAccessibility (`ui.accessibility`), as
+    VoiceOver is given it: the list a table named Downloads, a row for each download under the
+    headings' row, each cell named; a greyed button told off; a running download's bar valued
+    from 0 to 100; "X finished." and "X failed: reason" said in the status region. Not read
+    here: Connections' open or shut state and a heading's sort, which AccessKit's macOS adapter
+    does not give (Windows' check reads Connections)."""
+    def elements():
+        got = (dm.call("ui.accessibility").get("result") or {}).get("windows") or []
+        return next((w.get("elements", []) for w in got if is_main_title(w.get("title", ""))), [])
+
+    def named(e):
+        return e.get("title") or e.get("label") or ""
+
+    def until(found, tries=25):
+        for _ in range(tries):
+            got = found(elements())
+            if got:
+                return got
+            time.sleep(0.4)
+        return found(elements())
+
+    def buttons(es):
+        return [(named(e), e.get("enabled")) for e in es if e.get("role") == "AXButton"][:16]
+
+    def off(es):
+        return [e for e in es if e.get("role") == "AXButton" and named(e) == "Delete" and e.get("enabled") is False]
+
+    def valued(es):
+        out = []
+        for e in es:
+            if e.get("role") == "AXProgressIndicator":
+                try:
+                    out.append(float(e.get("value")))
+                except (TypeError, ValueError):
+                    pass
+        return [v for v in out if 0 <= v <= 100]
+
+    # The tree is built once it is asked for, and the cells are told once something reads.
+    until(lambda es: [e for e in es if e.get("role") == "AXRow"])
+    # Said for twelve seconds from a point of the status region of its own: read at once.
+    dm.call("downloads.add", urls=[f"{origin}/files/told-done.bin"])
+    dm.wait("told-done.bin", ("completed", "failed"), 30)
+    said = until(lambda es: [named(e) for e in es if "told-done.bin finished." in named(e)], 12)
+    check("U23", "\"X finished.\" is said in the status region", bool(said), f"{said}")
+    dm.call("downloads.add", urls=[f"{origin}/files/told-missing.bin"])
+    dm.wait("told-missing.bin", ("failed",), 30)
+    said = until(lambda es: [named(e) for e in es if "told-missing.bin failed: " in named(e)], 12)
+    check("U23", "and \"X failed: reason\"", bool(said), f"{said}")
+
+    dm.call("ui.select", ids=[])
+    pause(0.8)
+    now = elements()
+    of = lambda role: [e for e in now if e.get("role") == role]
+    tables, cells, rows = [named(e) for e in of("AXTable")], [named(e) for e in of("AXCell")], dm.rows()
+    check("U23", "the list is a table named Downloads", "Downloads" in tables, f"tables {tables}")
+    check("U23", "a row for each download under the headings' row", len(of("AXRow")) == len(rows) + 1,
+          f"{len(of('AXRow'))} rows for {len(rows)} downloads")
+    check("U23", "the headings named as the columns are",
+          all(h in cells for h in ("File Name", "Size", "Status")), f"cells {cells[:24]}")
+    check("U23", "each download's name a cell of its row",
+          all(n in cells for n in ("told.bin", "told-done.bin", "told-missing.bin")), f"cells {cells[:24]}")
+    on = [e for e in of("AXButton") if named(e) == "Add URL" and e.get("enabled") is not False]
+    check("U23", "a greyed button is told off: Delete with nothing chosen, Add URL not",
+          bool(off(now)) and bool(on), f"buttons {buttons(now)}")
+    done = dm.row("told-done.bin")
+    dm.call("ui.select", ids=[done["id"]] if done else [])
+    pause(0.8)
+    check("U23", "and no longer once a finished download is chosen",
+          bool(done) and not until(off, 5), f"buttons {buttons(elements())}")
+    bars = until(valued, 10)
+    check("U23", "the running download's bar has its value, 0 to 100",
+          bool(bars) and (dm.row("told.bin") or {}).get("state", {}).get("kind") == "running",
+          f"bars {[e.get('value') for e in elements() if e.get('role') == 'AXProgressIndicator']}")
+
+
 def main():
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
@@ -2505,6 +2658,7 @@ def main():
     backing_up()
     statistics(origin)
     metered_waits(origin)
+    told_and_titled(origin)
     browser()
 
     print("\nThe contract, row by row", flush=True)
@@ -2519,7 +2673,16 @@ def main():
             print(f"  FAIL         {row}  " + "; ".join(w for ok, w, _ in got if not ok), flush=True)
     if "WALK" in RESULTS:
         failed.append("WALK")
-    (WORK / "result.json").write_text(json.dumps({r: RESULTS.get(r, []) for r in rows + ["WALK"]}, indent=1), encoding="utf-8")
+    # The gaps rows' own checks, not the contract's (U16's title, U23's screen reader on macOS):
+    # said and counted as the walk is.
+    gaps_rows = ["U16", "U23"]
+    for row in gaps_rows:
+        got = RESULTS.get(row) or []
+        if not all(ok for ok, _, _ in got):
+            failed.append(row)
+            print(f"  FAIL         {row}  " + "; ".join(w for ok, w, _ in got if not ok), flush=True)
+    (WORK / "result.json").write_text(json.dumps({r: RESULTS.get(r, []) for r in rows + ["WALK"] + gaps_rows},
+                                                 indent=1), encoding="utf-8")
     print(f"\n{len(rows) - len([f for f in failed if f != 'WALK'])} of {len(rows)} rows hold"
           f"{'' if not failed else '; failing or not checked: ' + ', '.join(failed)}", flush=True)
     print(f"pictures and the full record: {WORK}", flush=True)

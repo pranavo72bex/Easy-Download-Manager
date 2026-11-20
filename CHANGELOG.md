@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The main window's title says how the downloads go while they run, "37% · 4.1 MB/s — dm", so a taskbar's button, the window list and the window menu tell it with the window out of sight; "dm" while nothing runs. The control port's `ui.windows` says it as `main_title`. (Coded, not yet built or run.)
 - Android, in development (coded, not yet run on a phone or an emulator; `docs/android.md`): dm's phone app is the desktop's own window. GPUI has no Android platform of its makers', so dm carries one: `desktop/vendor/gpui-android`, gpui-mobile's Android platform at a pinned commit, moved to dm's GPUI (gaps row N16). dm-gpui and dm-desktop-base build for Android, and dm-gpui is a library, `dm_gpui::run_app`, which the desktop's `main` and the phone's `android_main` both call (N3, N17). What a phone lacks (the tray, the login item, the Trash, a folder chooser, moving the window) is refused in words.
 - Android: below 600 points wide dm's window is laid out for a phone: one top bar (Places, dm, Add URL, ⋮), each download a card, the menus and the toolbar's commands in a sheet, the side panel as a drawer; a tap chooses, a second tap or a double tap opens, a long press opens the row's menu (N7). The same views and commands as the desktop's.
 - Desktop: the main window can be made narrower, down to 360 points where it stopped at 640, so the phone's layout can be seen on a computer. Its least height is unchanged, and at 600 points and wider the window is laid out as before.

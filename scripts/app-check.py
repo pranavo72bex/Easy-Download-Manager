@@ -16,7 +16,7 @@ settings name, sorted as they say.
 
 macOS and Linux; it opens the real window, so it wants a display.
 """
-import json, os, pathlib, shutil, socket, struct, subprocess, sys, tempfile, threading, time
+import json, os, pathlib, re, shutil, socket, struct, subprocess, sys, tempfile, threading, time
 
 # UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
 for _stream in (sys.stdout, sys.stderr):
@@ -228,25 +228,35 @@ def unchecked(what, why):
     print(f"  --   {what} (not checked: {why})")
 
 
+def is_main_title(title):
+    """dm's main window by its title: "dm", or while downloads run how far and how fast before
+    " — dm", "37% · 4.1 MB/s — dm" (gaps row U16; `dm_desktop_base::taskbar::is_main_title`).
+    No dialog's title ends so: "About dm" has no dash."""
+    return title == "dm" or title.endswith(" — dm")
+
+
 def windows_of(name):
     """How many windows the process shows, or None where the desktop will not say."""
     if sys.platform == "darwin":
         script = f'tell application "System Events" to count windows of process "{name}"'
         got = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
         return int(got.stdout.strip()) if got.returncode == 0 and got.stdout.strip().isdigit() else None
-    # X11 (Xvfb in the container): the mapped top-level windows titled dm.
+    # X11 (Xvfb in the container): the mapped top-level windows titled as dm's main window is.
     if shutil.which("xwininfo") and os.environ.get("DISPLAY"):
-        got = subprocess.run(["xwininfo", "-root", "-tree"], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
+        # In UTF-8, so a title's dash is printed as it is, not escaped.
+        got = subprocess.run(["xwininfo", "-root", "-tree"], capture_output=True, text=True, timeout=10, encoding="utf-8",
+                             errors="replace", env=dict(os.environ, LC_ALL="C.UTF-8"))
         if got.returncode != 0:
             return None
         mapped = 0
         for line in got.stdout.splitlines():
-            # Titled dm: `0x400001 "dm": ("dm" "dm")`. Not any line with "dm" in
-            # it: every dm window's class is dm too, a dialog's as well.
-            parts = line.split(None, 1)
-            if len(parts) < 2 or not parts[1].startswith('"dm":'):
+            # Titled so: `0x400001 "dm": ("dm" "dm")`, or "37% · 4.1 MB/s — dm" while a download
+            # runs. Not any line with "dm" in it: every dm window's class is dm too, a dialog's
+            # as well.
+            found = re.match(r'\s*(0x[0-9a-fA-F]+) "(.*)": \(', line)
+            if not found or not is_main_title(found.group(2)):
                 continue
-            ident = parts[0]
+            ident = found.group(1)
             state = subprocess.run(["xwininfo", "-id", ident], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
             if "IsViewable" in state.stdout:
                 mapped += 1

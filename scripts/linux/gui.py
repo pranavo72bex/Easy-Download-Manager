@@ -19,7 +19,9 @@ What macOS will not let this shell do:
 - drop a file of links onto the window, dragged from a GTK drag source;
 - download a file by hand: Add URL, the address typed, OK, Start now,
   Stop and Resume clicked where they are on screen, and the file checked;
-- read the window the way a Linux screen reader (Orca) does, over AT-SPI.
+- read the window the way a Linux screen reader (Orca) does, over AT-SPI: its buttons, and the
+  list as a table of rows and cells with what a greyed button, a bar and the status region say
+  (gaps row U23).
 
 Each is a real X11 event to the real binary; nothing is called directly.
 """
@@ -126,9 +128,20 @@ def wait_for(probe, seconds):
     return None
 
 
+def is_main_title(title):
+    """dm's main window by its title: "dm", or while downloads run how far and how fast before
+    " — dm", "37% · 4.1 MB/s — dm" (gaps row U16; `dm_desktop_base::taskbar::is_main_title`).
+    No dialog's title ends so: "About dm" has no dash."""
+    return title == "dm" or title.endswith(" — dm")
+
+
+# The same for xdotool's `--name`, an extended regular expression.
+MAIN_NAME = "^(dm|.* — dm)$"
+
+
 def dm_windows():
-    """dm's top-level windows that are viewable."""
-    found = x("xdotool", "search", "--onlyvisible", "--name", "^dm$").stdout.split()
+    """dm's main windows that are viewable, by their title (`is_main_title`)."""
+    found = x("xdotool", "search", "--onlyvisible", "--name", MAIN_NAME).stdout.split()
     return found
 
 
@@ -448,6 +461,12 @@ class SlowFiles:
                 self.do_GET(head=True)
 
             def do_GET(self, head=False):
+                # Not there at all: failed at once, said aloud with its reason (gaps row U23).
+                if self.path.startswith("/missing"):
+                    self.send_response(404)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
                 if self.path.startswith("/broken") and server.broken:
                     self.send_response(500)
                     self.send_header("Content-Length", "0")
@@ -1117,6 +1136,120 @@ def end_panel(parts):
         part.wait(10)
 
 
+# What a screen reader is told of the main window's list (gaps row U23), in a process of its own
+# as SPOKEN is: the tables, how many rows, the headings' and cells' names, each push button and
+# whether it can be used, each progress bar's value and what each status bar says.
+TOLD = r"""
+import json, os, pyatspi
+desktop = pyatspi.Registry.getDesktop(0)
+out = {"frames": [], "tables": [], "rows": 0, "headers": [], "cells": [], "buttons": [], "bars": [],
+       "status": []}
+def main_title(name):
+    return name == "dm" or name.endswith(" — dm")
+def walk(node, inside, depth=0):
+    if node is None or depth > 60:
+        return
+    role, name = node.getRoleName(), node.name or ""
+    if role == "frame":
+        out["frames"].append(name)
+        inside = main_title(name)
+    elif inside and role == "table":
+        out["tables"].append(name)
+    elif inside and role == "table row":
+        out["rows"] += 1
+    elif inside and role == "column header":
+        out["headers"].append(name)
+    elif inside and role == "table cell":
+        out["cells"].append(name)
+    elif inside and role == "push button":
+        out["buttons"].append([name, node.getState().contains(pyatspi.STATE_SENSITIVE)])
+    elif inside and role == "progress bar":
+        try:
+            out["bars"].append(node.queryValue().currentValue)
+        except Exception:
+            out["bars"].append(None)
+    elif inside and role == "status bar":
+        out["status"].append(name)
+    for i in range(node.childCount):
+        walk(node[i], inside, depth + 1)
+for i in range(desktop.childCount):
+    app = desktop[i]
+    if app and app.name in os.environ["DM_ATSPI_APPS"].split(","):
+        walk(app, False)
+print(json.dumps(out))
+"""
+
+
+def told():
+    """What a screen reader is told of the main window's list (`TOLD`)."""
+    out = x(sys.executable, "-c", TOLD).stdout.strip().splitlines()
+    try:
+        return json.loads(out[-1]) if out else {}
+    except ValueError:
+        return {}
+
+
+def table_as_read():
+    """Gaps row U23, read over AT-SPI as Orca reads it, on a dm and a home of their own: the
+    list a table named Downloads, a row for each download under the headings' row, its headings
+    and cells named; a greyed button told off (Delete with nothing chosen); a running download's
+    bar valued from 0 to 100; "X finished." and "X failed: reason" said in the status region.
+    Not read here: a heading's place and sort and Connections' open or shut state, which
+    AccessKit's AT-SPI adapter does not give. Returns the dm, still running."""
+    global ORACLE
+    print("\nwhat a screen reader is told of the list (gaps row U23), over AT-SPI")
+    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-told-"))
+    (home / "downloads").mkdir()
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(home / "downloads"), "show_progress": False, "show_complete": False,
+        "popups_version": 2}), encoding="utf-8")
+    files = SlowFiles()
+    app = dm_popen([str(BINARY), "--control", "0"], env=dict(os.environ, DM_HOME=str(home)),
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        if not wait_for(dm_windows, 30):
+            check("dm opens its window for the list's reading", False)
+            return app
+        ORACLE = oracle(home)
+        slow, done, gone = files.url("slow-told.bin"), files.url("small-told.bin"), files.url("missing-told.bin")
+        ORACLE("downloads.add", urls=[slow])
+        wait_for(lambda: state_of(home, slow) == "running", 20)
+        # The tree is built once a reader asks, and the cells are told once one reads.
+        wait_for(lambda: told().get("rows", 0) >= 2, 20)
+        # Said for twelve seconds from a point of the status region of its own: read at once.
+        ORACLE("downloads.add", urls=[done])
+        wait_for(lambda: state_of(home, done) in ("completed", "failed"), 30)
+        said = wait_for(lambda: [s for s in told().get("status", []) if "small-told.bin finished." in s], 10)
+        check("\"X finished.\" is said in the status region", said, str(told().get("status")))
+        ORACLE("downloads.add", urls=[gone])
+        wait_for(lambda: state_of(home, gone) == "failed", 30)
+        said = wait_for(lambda: [s for s in told().get("status", []) if "missing-told.bin failed: " in s], 10)
+        check("and \"X failed: reason\"", said, str(told().get("status")))
+
+        ORACLE("ui.select", ids=[])
+        time.sleep(1)
+        now = told()
+        cells, rows = now.get("cells", []), ORACLE("queue.list") or []
+        check("the list is a table named Downloads", "Downloads" in now.get("tables", []), str(now.get("tables")))
+        check("a row for each download under the headings' row", now.get("rows") == len(rows) + 1,
+              f"{now.get('rows')} rows for {len(rows)} downloads")
+        check("the headings named as the columns are",
+              all(h in now.get("headers", []) for h in ("File Name", "Size", "Status")), str(now.get("headers")))
+        check("each download's name a cell of its row",
+              all(n in cells for n in ("slow-told.bin", "small-told.bin", "missing-told.bin")), str(cells[:24]))
+        buttons = now.get("buttons", [])
+        # AccessKit's AT-SPI adapter before 0.21 marks every button usable (docs/gaps.md U23).
+        check("a greyed button is told off: Delete with nothing chosen, Add URL not",
+              ["Delete", False] in buttons and ["Add URL", True] in buttons, str(buttons[:16]))
+        bars = [b for b in now.get("bars", []) if isinstance(b, (int, float)) and 0 <= b <= 100]
+        check("the running download's bar has its value, 0 to 100",
+              bars and state_of(home, slow) == "running", f"{now.get('bars')}, {state_of(home, slow)}")
+        ORACLE("command.run", id="downloads.stop_all")
+        return app
+    finally:
+        files.server.shutdown()
+
+
 def tray_host_timing(env):
     """A tray host that is not there, or comes after dm: at login dm can
     start before the panel, and GNOME without its extension has none."""
@@ -1245,7 +1378,8 @@ def main():
             # itself is the reader, below.
             heard = wait_for(spoken, 20)
             frames, buttons = heard or ([], [])
-            check("a screen reader finds the window, named dm", "dm" in frames, str(frames))
+            check("a screen reader finds the window, named dm", any(is_main_title(f or "") for f in frames),
+                  str(frames))
             check("and every button in it has a name", buttons and all(b.strip() for b in buttons),
                   f"{len([b for b in buttons if not b.strip()])} of {len(buttons)} unnamed")
             check("among them Add URL", "Add URL" in buttons, str(buttons[:20]))
@@ -1349,6 +1483,8 @@ def main():
         app = start_on_login(home, env)
         end(app)
         app = tray_host_timing(env)
+        end(app)
+        app = table_as_read()
     finally:
         end(app)
     print()

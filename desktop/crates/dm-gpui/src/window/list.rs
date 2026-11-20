@@ -244,7 +244,7 @@ impl Downloads {
     pub(crate) fn wake(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let beside = self.shown_beside();
         let changed = self.read();
-        self.taskbar_follow(window);
+        self.taskbar_follow(window, cx);
         self.tick(cx);
         self.watch_asks(cx);
         let answered = self.answer_requests(window, cx);
@@ -262,22 +262,24 @@ impl Downloads {
     /// How far the downloads are, on the taskbar button, so a minimized
     /// window still says it: green while they
     /// run, yellow paused, red a minute after one failed (Windows); a bar
-    /// and a count on the Dock (macOS) and the launcher (Linux).
-    fn taskbar_follow(&mut self, window: &Window) {
+    /// and a count on the Dock (macOS) and the launcher (Linux); and in the
+    /// window's title everywhere, "37% · 4.1 MB/s — dm" (gaps row U16).
+    fn taskbar_follow(&mut self, window: &mut Window, cx: &mut gpui::App) {
         use dm_desktop_base::taskbar;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
         let mode = taskbar::mode_of(&self.rows, now);
         #[cfg(windows)]
-        if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(window) {
+        if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(&*window) {
             self.system.taskbar.show(handle.as_raw(), mode);
         }
-        #[cfg(not(windows))]
-        let _ = window;
         self.system
             .taskbar
             .show_outside(taskbar::outside_of(mode, taskbar::running_of(&self.rows)));
+        // Set only where it changed (`set_title`), and kept for the port.
+        let title = taskbar::window_title(mode, taskbar::rate_of(&self.rows));
+        crate::window::screen::set_title(window, &title, cx);
     }
 
     /// How long the window sleeps when nothing wakes it: a quarter of a
