@@ -17,14 +17,20 @@
 //! `a11y_tree` (what VoiceOver is given of each window); `metered` (whether the
 //! connection is metered and the computer on its battery, gaps row W11); `phone` (what the
 //! Android app hands in for the phone's own services, gaps row N17). Each is reached
-//! from the crate's root as before (`dm_desktop_base::quiet`).
+//! from the crate's root as before (`dm_desktop_base::quiet`), but `opened` and `toast`, one
+//! system's alone, which are reached here (`dm_desktop_base::platform::toast`). For the crate
+//! itself: `console` (a Windows program's console), `dialup` (whether the modem can be hung
+//! up), `permissions` (a file kept to this account) and `tray_host` (whether something shows
+//! the tray item). A system's `cfg` is written in this module alone (gaps row A10).
 
 pub mod a11y_tree;
 pub mod accent;
 pub mod autostart;
 pub mod awake;
+pub(crate) mod console;
 pub mod contrast;
 pub mod desktop;
+pub(crate) mod dialup;
 pub mod drops;
 pub mod jumplist;
 pub mod login;
@@ -32,6 +38,7 @@ pub mod metered;
 pub mod mica;
 #[cfg(target_os = "macos")]
 pub mod opened;
+pub(crate) mod permissions;
 pub mod phone;
 pub mod power;
 pub mod quiet;
@@ -41,4 +48,5 @@ pub mod system_theme;
 pub mod taskbar;
 #[cfg(windows)]
 pub mod toast;
+pub(crate) mod tray_host;
 pub mod wake;

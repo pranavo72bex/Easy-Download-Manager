@@ -8,7 +8,7 @@
 use super::*;
 
 /// Says a toast: one whose click opens a finished file, or a plain one.
-/// Posted by dm itself on Windows (`crate::toast`): notify-rust's kept
+/// Posted by dm itself on Windows (`crate::platform::toast`): notify-rust's kept
 /// three handles for every toast (gaps row 156).
 pub(super) fn say_on_windows(note: Note) {
     let Note {
@@ -27,8 +27,8 @@ pub(super) fn say_on_windows(note: Note) {
             // A click opens the file, its Open folder shows it in Explorer
             // (gaps row U15).
             Some(path) => {
-                let _ = crate::toast::show_file(&title, &body, button, move |what| {
-                    let _ = if what == crate::toast::FOLDER {
+                let _ = crate::platform::toast::show_file(&title, &body, button, move |what| {
+                    let _ = if what == crate::platform::toast::FOLDER {
                         shell::reveal_in_folder(&path)
                     } else {
                         shell::open_file(&path)
@@ -39,14 +39,19 @@ pub(super) fn say_on_windows(note: Note) {
                 // Its Retry tries the row again, through the running dm's
                 // inbox; a click on the toast itself brings dm forward.
                 Some(id) => {
-                    let _ = crate::toast::show_file(&title, &body, retry_words, move |what| {
-                        if what == crate::toast::FOLDER {
-                            shell::ask_running_to_retry(&dm_shell::settings::home(), id);
-                        }
-                    });
+                    let _ = crate::platform::toast::show_file(
+                        &title,
+                        &body,
+                        retry_words,
+                        move |what| {
+                            if what == crate::platform::toast::FOLDER {
+                                shell::ask_running_to_retry(&dm_shell::settings::home(), id);
+                            }
+                        },
+                    );
                 }
                 None => {
-                    let _ = crate::toast::show(&title, &body, None::<fn()>);
+                    let _ = crate::platform::toast::show(&title, &body, None::<fn()>);
                 }
             },
         }

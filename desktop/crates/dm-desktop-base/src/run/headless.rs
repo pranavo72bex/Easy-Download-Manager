@@ -355,7 +355,7 @@ impl Headless {
     /// this thread, as Windows takes a moment to end a connection, as the window does it; what
     /// it came to is said when it is known.
     fn hang_up(&mut self, hang_up: bool) {
-        if hang_up && cfg!(windows) {
+        if hang_up && crate::platform::dialup::CAN_HANG_UP {
             if let Some(hung) = dm_shell::dialup::hang_up_later(Arc::clone(&self.hung_up)) {
                 self.say_hung_up(hung);
             }

@@ -39,6 +39,10 @@ pub fn possible() -> bool {
     cfg!(windows)
 }
 
+/// Whether the schedule's next start is watched whatever Scheduler › Wake from sleep says:
+/// on a phone always, since Android stops an app left idle (its alarm, gaps row N12).
+pub(crate) const ALWAYS_WATCHED: bool = cfg!(target_os = "android");
+
 #[cfg(windows)]
 mod win {
     use windows_sys::Win32::System::Threading::{
