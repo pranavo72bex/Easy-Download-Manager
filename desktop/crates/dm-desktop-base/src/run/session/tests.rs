@@ -36,7 +36,7 @@ impl dm_shell::app::backend::Platform for Nothing {
 }
 
 /// A backend over an empty queue of its own under `dir`, with `settings`.
-fn backend(
+pub(super) fn backend(
     runtime: &tokio::runtime::Runtime,
     dir: &std::path::Path,
     settings: dm_shell::Settings,
@@ -77,7 +77,7 @@ fn row(id: Id, state: State) -> Arc<Entry> {
 }
 
 /// The window's driver, in a test that does not hold the inbox.
-fn window() -> Driver {
+pub(super) fn window() -> Driver {
     Driver::window(false)
 }
 

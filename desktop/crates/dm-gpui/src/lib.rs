@@ -91,7 +91,8 @@ pub fn run_app(args: &[String], application: impl FnOnce() -> gpui::Application)
 }
 
 /// Starts dm (`boot::start`) once the command line has asked for its window or `--headless`,
-/// and runs it until it ends: with no window for `--headless`, else in its window.
+/// and runs it until it ends: with no window for `--headless`, else in its window, whose
+/// application `application` makes while dm boots.
 fn boot_and_run(
     args: &[String],
     handed: &dm_shell::shell::Orders,
@@ -106,6 +107,33 @@ fn boot_and_run(
         Arc::new(dm_desktop_base::desktop::Desktop {
             window: platform::services::GpuiServices,
         });
+    // With a window, GPUI's own start (the application, its platform and its text system) is
+    // made on this thread while dm boots on another, where one had waited for the other (gaps
+    // row S16). The window itself is still made once the queue is read: it shows the list from
+    // its first frame.
+    let (booted, application) = if headless {
+        (boot::start(args, handed, platform, wake.clone()), None)
+    } else {
+        std::thread::scope(|scope| {
+            let booting = std::thread::Builder::new()
+                .name("dm-boot".into())
+                .spawn_scoped(scope, {
+                    let (platform, wake) = (Arc::clone(&platform), Arc::clone(&wake));
+                    move || boot::start(args, handed, platform, wake)
+                });
+            let made = application();
+            let booted = match booting {
+                // A start that panicked panics here, as it did on this thread.
+                Ok(booting) => match booting.join() {
+                    Ok(booted) => booted,
+                    Err(panic) => std::panic::resume_unwind(panic),
+                },
+                // A thread that cannot be made: dm boots here, after GPUI's start.
+                Err(_) => boot::start(args, handed, Arc::clone(&platform), Arc::clone(&wake)),
+            };
+            (booted, Some(made))
+        })
+    };
     let boot::Booted {
         runtime: _runtime,
         backend,
@@ -115,7 +143,7 @@ fn boot_and_run(
         hidden,
         login_item,
         ..
-    } = match boot::start(args, handed, platform, wake.clone()) {
+    } = match booted {
         Ok(booted) => {
             dm_core::finish_trace::mark("start: settings, client and queue read");
             booted
@@ -198,6 +226,10 @@ fn boot_and_run(
             });
     }
 
+    // Made above for a window, as dm booted.
+    let Some(application) = application else {
+        return;
+    };
     windowed(
         Ready {
             backend,
@@ -236,11 +268,7 @@ struct Ready {
 }
 
 /// dm in its window: the application run, the main window opened in it, until dm ends.
-fn windowed(
-    ready: Ready,
-    wake: &Arc<dyn Fn(Wake) + Send + Sync>,
-    application: impl FnOnce() -> gpui::Application,
-) {
+fn windowed(ready: Ready, wake: &Arc<dyn Fn(Wake) + Send + Sync>, application: gpui::Application) {
     let Ready {
         backend,
         woken,
@@ -256,7 +284,7 @@ fn windowed(
     // asked of the system before it, it held the first frame back.
     let login_item = login_item.map(|item| (item, backend.clone(), Arc::clone(wake)));
 
-    let application = application().with_assets(assets::Assets);
+    let application = application.with_assets(assets::Assets);
     // A click on the Dock icon with the window put away in the tray asks
     // for it back; without this the click would do nothing.
     {

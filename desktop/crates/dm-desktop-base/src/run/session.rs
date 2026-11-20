@@ -5,9 +5,10 @@
 
 //! The application's tick, written once for whatever drives dm (gaps row A7): the orders
 //! another dm left in the inbox, what the reads detected told (notifications, sounds), the
-//! schedules, each download's own "When this download is done", and When done as the queue
-//! runs dry. The window and dm with no window (`headless`) each call it after a read and carry
-//! out what it asks ([`Effect`]), each its own way: the window opens a dialog and says it in
+//! schedules, each download's own "When this download is done", the playlists and feeds
+//! followed, and When done as the queue runs dry. The window and dm with no window
+//! (`headless`) each call it after a read and carry out what it asks ([`Effect`]), each its
+//! own way: the window opens a dialog and says it in
 //! the language in force; with no window, what a person would be asked is settled with no one
 //! asked, and what is said is said in English, for the control port.
 
@@ -44,6 +45,9 @@ pub struct Session {
     /// The connection and the battery as last read, and this metered period's question
     /// ([`Session::answer_metered`], gaps row W11).
     waits: waits::Waits,
+    /// The followed playlists' and feeds' readings come back, and when they were last looked
+    /// at for one that is due ([`Session::check_follow`], gaps row W10).
+    follows: follows::Follows,
 }
 
 /// How often the finished downloads are looked at for those older than Options › Downloads'
@@ -183,6 +187,15 @@ pub enum Effect {
     /// ([`Session::answer_metered`]). Asked once each time it becomes metered; never with no
     /// window, where the downloads wait.
     AskMetered,
+    /// A followed playlist's, channel's or feed's reading has come back (gaps row W10): what it
+    /// lists that is new is added to its queue and said, and what it has seen kept, by the
+    /// driver ([`Session::check_follow`]).
+    Followed {
+        /// The followed one's address, as the settings keep it.
+        address: String,
+        /// Its items, or why it could not be read.
+        read: Result<dm_core::youtube::Playlist, String>,
+    },
 }
 
 impl Effect {
@@ -247,7 +260,7 @@ impl Session {
 
     /// One tick's shared work, after a read and [`Session::take_orders`], over the last read's
     /// `rows`: what the reads detected told, the schedules, each download's own "When this
-    /// download is done", and the queue run dry. What it comes to, in order, for the driver to
+    /// download is done", the playlists and feeds followed, and the queue run dry. What it comes to, in order, for the driver to
     /// carry out; [`Effect::Quit`] last where dm is to end now.
     pub fn tick(&mut self, backend: &Backend, rows: &[Arc<Entry>], driver: Driver) -> Vec<Effect> {
         let mut effects = Vec::new();
@@ -256,6 +269,9 @@ impl Session {
         self.this_done(rows, &mut effects);
         self.forget_old(backend);
         self.waits(backend, driver, &mut effects);
+        // What the followed ones brought, and those due read again: by every driver, the
+        // window's and dm's with no window alike (gaps row W10).
+        self.follows(backend, &mut effects);
         if self.queue_dry(backend, driver, &mut effects) {
             effects.push(Effect::Quit);
         }
@@ -277,7 +293,12 @@ impl Session {
         // Each failure's name and why, said aloud too (gaps row U23).
         let mut failures: Vec<(String, String)> = Vec::new();
         for read in detected {
-            for row in rows {
+            // The rows gone through only for a read that found a download finished or failed:
+            // a read of figures alone, four times a second while downloads run, went through
+            // every row (gaps row 181).
+            let told_of = !read.failed.is_empty() || !read.finished.is_empty();
+            let gone_through: &[Arc<Entry>] = if told_of { rows } else { &[] };
+            for row in gone_through {
                 if read.failed.contains(&row.id) {
                     let (name, why) = (name_of(row), crate::rows::status_of(row));
                     effects.push(Effect::Failed {
@@ -416,6 +437,7 @@ fn chosen_sound(settings: &dm_shell::Settings, event: &str) -> Option<String> {
         .filter(|p| !p.is_empty())
 }
 
+mod follows;
 mod waits;
 
 #[cfg(test)]

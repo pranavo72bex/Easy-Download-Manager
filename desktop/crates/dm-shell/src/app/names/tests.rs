@@ -169,3 +169,29 @@ fn a_kinds_folder_is_its_categorys_and_another_word_a_folder_of_that_name() {
         root.join("Work")
     );
 }
+
+/// gaps row 181: the counts of earlier rows of the same name are those of
+/// `earlier_of_the_same_name`, and the rows alike are those not yet placed bound for the same
+/// folder under one of the names asked about, in the list's order, found in the same pass.
+#[test]
+fn the_rows_alike_are_found_beside_the_counts_in_one_pass() {
+    let rows = vec![
+        row(1, "https://e.com/big.bin", State::Queued),
+        row(2, "https://e.com/small.bin", State::Queued),
+        row(3, "https://e.com/big.bin", State::Completed),
+        row(4, "https://e.com/big.bin", State::Paused),
+        row(5, "https://e.com/other.bin", State::Running),
+    ];
+    let (counts, alike) = earlier_and_alike(&rows, &[(None, "big.bin".to_string())]);
+    assert_eq!(counts, earlier_of_the_same_name(&rows));
+    assert_eq!(counts.get(&4), Some(&1), "row 1 before it");
+    // Row 3 is finished: placed, and not among them.
+    assert_eq!(alike, vec![0, 3]);
+    // Another folder is another name.
+    let (_, elsewhere) = earlier_and_alike(&rows, &[(Some("/x".into()), "big.bin".into())]);
+    assert!(elsewhere.is_empty());
+    assert!(
+        earlier_and_alike(&rows, &[]).1.is_empty(),
+        "none asked about"
+    );
+}

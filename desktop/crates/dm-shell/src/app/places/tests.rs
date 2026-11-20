@@ -107,3 +107,40 @@ fn a_place_is_read_from_its_word_and_one_that_is_not_there_refused() {
         Err("no place is called somewhere".into())
     );
 }
+
+/// gaps row 181: placing again only the rows that changed in place places and counts as
+/// placing every row again does.
+#[test]
+fn placing_the_changed_rows_alone_counts_as_placing_every_row() {
+    let mut rows = vec![
+        row(1, "http://e.com/film.mp4", State::Running, "Main"),
+        row(2, "http://e.com/song.mp3", State::Queued, "Main"),
+        row(3, "http://e.com/blob.bin", State::Queued, "Night"),
+    ];
+    let categories = Categories::default();
+    let mut some = Places::default();
+    some.place_rows(&rows, &categories);
+    // The film finishes, and the song is renamed a report.
+    rows[0] = row(1, "http://e.com/film.mp4", State::Completed, "Main");
+    rows[1] = row(2, "http://e.com/report.pdf", State::Queued, "Main");
+    some.place_at(&rows, &[0, 1], &categories);
+    let mut every = Places::default();
+    every.place_rows(&rows, &categories);
+    for place in [
+        Place::All,
+        Place::Unfinished,
+        Place::Finished,
+        Place::Kind(Category::Videos),
+        Place::Kind(Category::Audio),
+        Place::Kind(Category::Documents),
+        Place::Queue("Night".into()),
+    ] {
+        assert_eq!(
+            some.count(&place, &rows, &categories),
+            every.count(&place, &rows, &categories),
+            "{place:?}"
+        );
+    }
+    assert!(some.matches_filter("report", &rows[1]));
+    assert!(!some.matches_filter("song", &rows[1]));
+}

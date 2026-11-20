@@ -45,12 +45,21 @@ impl dm_shell::app::backend::Platform for Nothing {
 
 /// dm with no window over an empty queue of its own under `dir`.
 fn headless(runtime: &tokio::runtime::Runtime, dir: &std::path::Path) -> Headless {
+    headless_with(runtime, dir, Default::default())
+}
+
+/// [`headless`], with `settings` (their download folder under `dir`).
+fn headless_with(
+    runtime: &tokio::runtime::Runtime,
+    dir: &std::path::Path,
+    settings: dm_shell::Settings,
+) -> Headless {
     let settings = dm_shell::Settings {
         folders: dm_shell::settings::FolderSettings {
             download_dir: dir.join("out"),
-            ..Default::default()
+            ..settings.folders
         },
-        ..Default::default()
+        ..settings
     };
     let queue = dm_core::DownloadList::new(
         dm_core::client(),
@@ -210,5 +219,51 @@ fn with_no_window_hang_up_when_done_is_carried_out_and_said() {
     assert_eq!(
         dm.problems.last().map(String::as_str),
         Some("Office VPN was not hung up: busy")
+    );
+}
+
+/// gaps row W10: with no window, a followed one's reading is taken in as the window takes it:
+/// one no longer followed is let go with nothing added, and one that could not be read is a
+/// problem said in English. (What a reading adds saves what it has seen, which these tests,
+/// on the real home, do not: the window's test adds.)
+#[test]
+fn with_no_window_a_followed_ones_reading_is_taken_in() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let address = "http://127.0.0.1:9/feed.xml".to_string();
+    let settings = dm_shell::Settings {
+        follows: vec![dm_shell::app::follow::Follow {
+            address: address.clone(),
+            title: "Weekly".into(),
+            every_hours: 24,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let mut dm = headless_with(&runtime, dir.path(), settings);
+    let list = dm_core::youtube::Playlist {
+        title: "Weekly".into(),
+        entries: vec![dm_core::youtube::PlaylistEntry {
+            id: "1".into(),
+            title: "Episode 1".into(),
+            seconds: None,
+            page: Some("http://127.0.0.1:9/episode-1.mp3".into()),
+        }],
+        ..Default::default()
+    };
+    dm.carry(Effect::Followed {
+        address: "http://127.0.0.1:9/other.xml".into(),
+        read: Ok(list),
+    });
+    assert!(dm.rows.is_empty(), "not followed: nothing added");
+    assert!(dm.problems.is_empty(), "{:?}", dm.problems);
+    dm.carry(Effect::Followed {
+        address,
+        read: Err("refused".into()),
+    });
+    assert!(dm.rows.is_empty());
+    assert_eq!(
+        dm.problems,
+        vec!["the followed Weekly could not be read: refused".to_string()]
     );
 }

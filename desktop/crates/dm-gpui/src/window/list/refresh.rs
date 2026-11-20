@@ -8,6 +8,7 @@
 //! the rows in sight named and their files looked for off the window's thread, a
 //! click by the row's download, and the row at the top of the view held.
 
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -44,6 +45,22 @@ impl Downloads {
             || self.known.timed_rows > 0
     }
 
+    /// The rows running, by id: what the hints look at (`Known::busy`), kept by the reads
+    /// from what changed.
+    pub(crate) fn running_rows(&self) -> Vec<Arc<Entry>> {
+        self.known
+            .busy
+            .values()
+            .filter(|r| r.state == State::Running)
+            .cloned()
+            .collect()
+    }
+
+    /// Whether a download is running, from the rows the reads keep (`Known::busy`).
+    pub(crate) fn running_any(&self) -> bool {
+        self.known.busy.values().any(|r| r.state == State::Running)
+    }
+
     /// One read of the application into the window's rows (`Downloads::read`); whether
     /// anything the window shows may have changed.
     ///
@@ -52,10 +69,11 @@ impl Downloads {
     /// the same in the same order, only the rows that changed are taken, given their sizes and
     /// compared: at 10,000 rows with a few downloads running, each read had looked at every row
     /// several times (gaps row 181). Where only figures moved (a running download's bytes, rate,
-    /// time left), the names, places and choice worked out from the rows stand. They are worked
-    /// out again where a row was added, removed or changed otherwise; and the names of the rows
-    /// on screen and of those chosen every two seconds while anything changes, as a waiting
-    /// row's name follows its folder (`name_it_will_get_after`).
+    /// time left), the names, places and choice worked out from the rows stand. Where a few rows
+    /// changed otherwise in place, what follows from those alone is worked out again
+    /// (`restate`); every row's where a row was added, removed or moved (`place_every_row`);
+    /// and the names of the rows on screen and of those chosen every two seconds while anything
+    /// changes, as a waiting row's name follows its folder (`name_it_will_get_after`).
     pub(super) fn read_rows(&mut self) -> bool {
         let queue_changed = dm_shell::app::changes::take();
         let settings = self.backend.settings();
@@ -89,43 +107,32 @@ impl Downloads {
         // Every row's finishing words where the rows are placed again, else
         // those of the rows that changed.
         self.keep_whens(&settings.general.language, moved, taken.finished_at);
+        // Shown again where one of the rows that changed came into or left the place shown.
+        let mut shown_moved = false;
         if moved {
-            self.known.named_at = Some(Instant::now());
-            // The queues the rows name, for Start Queue's and Stop Queue's
-            // arrows, the menu bar and the side panel: worked out from the
-            // rows where they changed, not asked of the engine at each read
-            // and each tick, a pass over every row under the queue's lock
-            // each time (gaps row 181).
-            self.known.queue_list = dm_core::queue_names(self.rows.iter().map(|r| &**r));
-            // Each row by the name its file will get: a waiting second
-            // copy reads "name (1)".
-            self.known.earlier = dm_shell::app::names::earlier_of_the_same_name(&self.rows);
-            let every: Vec<usize> = (0..self.rows.len()).collect();
-            self.known.shown_names.clear();
-            self.name_rows(&every, &settings);
-            dm_desktop_base::rows::set_superseded(&self.rows);
-            // A row taken off the list is no longer chosen.
-            let ids: std::collections::HashSet<dm_core::Id> =
-                self.rows.iter().map(|r| r.id).collect();
-            self.list.selected.retain(|id| ids.contains(id));
-            self.list
-                .places
-                .place_rows(&self.rows, &settings.categories());
-        } else if changed
-            && self
-                .known
-                .named_at
-                .is_none_or(|at| at.elapsed() >= NAMES_EVERY)
-        {
-            // A waiting row's name follows its folder (a file of its name
-            // arriving there makes it "name (1)"), so while anything changes
-            // the rows on screen and those chosen are named again every two
-            // seconds; the rest are named again when the list itself changes.
-            // Every row named again every two seconds was, at 10,000 waiting
-            // rows, 5,000 looks at the disk a second (gaps row 181).
-            self.known.named_at = Some(Instant::now());
-            let seen = self.rows_seen();
-            self.name_rows(&seen, &settings);
+            self.place_every_row(&settings);
+        } else {
+            // Rows changed in place in more than their figures (a state, a name, a queue): only
+            // what follows from them is worked out again (`restate`, gaps row 181).
+            if !taken.restated.is_empty() {
+                shown_moved = self.restate(&taken.restated, &settings);
+            }
+            if changed
+                && self
+                    .known
+                    .named_at
+                    .is_none_or(|at| at.elapsed() >= NAMES_EVERY)
+            {
+                // A waiting row's name follows its folder (a file of its name
+                // arriving there makes it "name (1)"), so while anything changes
+                // the rows on screen and those chosen are named again every two
+                // seconds; the rest are named again when the list itself changes.
+                // Every row named again every two seconds was, at 10,000 waiting
+                // rows, 5,000 looks at the disk a second (gaps row 181).
+                self.known.named_at = Some(Instant::now());
+                let seen = self.rows_seen();
+                self.name_rows(&seen, &settings);
+            }
         }
         // The frame this read is for is drawn with these settings, not a
         // second copy of them.
@@ -134,8 +141,13 @@ impl Downloads {
         // Sorted again where a figure it sorts by may have moved: where a
         // row that changed compares otherwise than it did under the sort
         // (the sort is of the rows alone, its ties kept in the rows' order).
-        if moved || (changed && self.list.sort.is_some() && taken.sort_moved) {
+        if moved || shown_moved || (changed && self.list.sort.is_some() && taken.sort_moved) {
             self.reshow();
+        }
+        // Before the first frame, the rows it shows named now that they are known, the rest
+        // once it is drawn (`name_the_rest`, gaps row S16).
+        if self.known.names_owed && crate::port::FRAMES.load(Ordering::Relaxed) == 0 {
+            self.name_first_screenful();
         }
         changed
     }
@@ -181,6 +193,12 @@ impl Downloads {
         // Sorted again at any change, as every row was looked at.
         taken.sort_moved = true;
         self.known.timed_rows = rows.iter().filter(|r| timed(r)).count();
+        self.known.deleting = rows.iter().filter(|r| r.delete_after.is_some()).count();
+        self.known.busy = rows
+            .iter()
+            .filter(|r| busy(r))
+            .map(|r| (r.id, Arc::clone(r)))
+            .collect();
         self.rows = rows;
         taken
     }
@@ -210,12 +228,24 @@ impl Downloads {
             }
             taken.changed = true;
             taken.finished_at.extend(new.finished_at);
-            taken.moved |= !placed_alike(&old, new);
-            taken.sort_moved |= self.list.sort.is_some_and(|(column, _)| {
+            let sort_moved = self.list.sort.is_some_and(|(column, _)| {
                 dm_desktop_base::columns::compare(column, &old, new) != std::cmp::Ordering::Equal
             });
+            taken.sort_moved |= sort_moved;
             self.known.timed_rows = (self.known.timed_rows + usize::from(timed(new)))
                 .saturating_sub(usize::from(timed(&old)));
+            self.known.deleting = (self.known.deleting + usize::from(new.delete_after.is_some()))
+                .saturating_sub(usize::from(old.delete_after.is_some()));
+            if busy(new) {
+                self.known.busy.insert(new.id, Arc::clone(new));
+            } else {
+                self.known.busy.remove(&new.id);
+            }
+            // Changed in more than its figures: what follows from it is worked out again,
+            // for it alone where the rest stand (`restate`).
+            if !placed_alike(&old, new) {
+                taken.restated.push((i, old));
+            }
         }
         taken
     }
@@ -408,9 +438,13 @@ impl Downloads {
 struct Taken {
     /// A row is not the entry it was.
     changed: bool,
-    /// A row was added, taken away, moved, or changed in more than its figures: names, places
-    /// and the rows shown are worked out again.
+    /// A row was added, taken away or moved, or every row was taken and one changed in more
+    /// than its figures: names, places and the rows shown are worked out again, every row's.
     moved: bool,
+    /// Where the rows are the same in the same order, the places of those changed in more than
+    /// their figures, each with the row it was: what follows from them alone is worked out
+    /// again (`restate`, gaps row 181).
+    restated: Vec<(usize, Arc<Entry>)>,
     /// A changed row compares otherwise than it did under the sort chosen.
     sort_moved: bool,
     /// When the changed rows finished, for their words (`keep_whens`).
@@ -421,6 +455,13 @@ struct Taken {
 /// before the Trash.
 fn timed(row: &Entry) -> bool {
     row.state == State::Running || row.delete_after.is_some()
+}
+
+/// Whether the tick's own looks need `row` (`Known::busy`): the taskbar shows the running,
+/// the paused and a failure of the last minute; the clock, the speeds and the hints go by the
+/// running.
+pub(super) fn busy(row: &Entry) -> bool {
+    matches!(row.state, State::Running | State::Paused | State::Failed(_))
 }
 
 /// Whether a wake draws the window again: where the read found a change,
