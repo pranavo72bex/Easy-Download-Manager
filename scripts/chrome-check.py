@@ -39,6 +39,11 @@ What it proves, against a local server and nothing else on the network:
      xdotool where there is an X display), and "Download all links" works
      on a page whose page script is not in it (one still arriving, as a
      tab open before dm was installed has none) (gap 122)
+ 10. with DM_CHROME_YOUTUBE=1 (the one case that goes to the network, so off
+     by default and in CI, its rows printed as SKIP): a local page that
+     embeds a YouTube player by iframe, from youtube-nocookie.com and from
+     youtube.com, gets the panel inside the frame, and its click lists the
+     video's qualities, read by dm from the video's watch page (gaps row Y12)
 
 Everything lives in temporary directories: a profile, the browser's download
 folder, and DM_HOME for the app, whose settings, queue, inbox and lock are
@@ -49,7 +54,7 @@ messaging manifest goes into the profile's own NativeMessagingHosts, which
 Chrome for Testing reads for a --user-data-dir profile.
 """
 
-import base64, hashlib, http.server, json, os, pathlib, platform, shutil, signal, socket
+import base64, hashlib, http.server, json, os, pathlib, platform, re, shutil, signal, socket
 import socketserver, struct, subprocess, sys, tempfile, threading, time, urllib.parse
 import urllib.request
 
@@ -498,6 +503,20 @@ PLACEMENT_PAGES = {
         '<video id="v" src="/files/clip.mp4" width="640" height="360" preload="none"></video></div>', None),
 }
 PANEL_PAGES.update(PLACEMENT_PAGES)
+# An article that embeds a YouTube player by iframe, from YouTube's no-cookie host or its own
+# (gaps row Y12): "Me at the zoo", as youtube-check.py plays. The one case here that goes to the
+# network, so it is run only with DM_CHROME_YOUTUBE=1 (`embed_checks`).
+EMBED_VIDEO = "jNQXAC9IVRw"
+EMBED_HOSTS = ("www.youtube-nocookie.com", "www.youtube.com")
+EMBED_PAGES = {
+    f"/embed-{host.split('.')[1]}.html": (
+        '<!doctype html><title>an article with a YouTube player</title><h1>an article</h1>'
+        f'<iframe id="f" src="https://{host}/embed/{EMBED_VIDEO}?autoplay=1&amp;mute=1" width="640" height="360"'
+        ' style="border:0;margin:20px" allow="autoplay; encrypted-media; picture-in-picture"'
+        ' referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>', None)
+    for host in EMBED_HOSTS
+}
+PANEL_PAGES.update(EMBED_PAGES)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -1133,6 +1152,81 @@ def placement_checks(base, origin):
     check("below a site's fixed header over the player's top, the panel goes under the header (row 125)",
           state.get("shown") and state.get("y", -1) >= bar - 1 and state.get("y", 0) <= video.get("y", 0) + video.get("h", 0),
           f"panel y {state.get('y')}; header ends at {bar}; video {video}")
+
+
+EMBED_RECT = """(() => { const v = [...document.querySelectorAll('video')]
+    .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+  if (!v) return null; const r = v.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height, paused: v.paused }; })()"""
+
+# A line of the app's own list names its size ("240p MP4 — 744 KB"); the embedded player's
+# instant list ("240p") does not.
+SIZED_LINE = re.compile(r" — [\d.]+ (?:B|KB|MB|GB|TB)\b")
+
+
+def embed_checks(base, origin):
+    """A YouTube player another site embeds by iframe, from YouTube's no-cookie host and from its
+    own (gaps row Y12): the panel is offered over it, inside its frame, and its click lists the
+    video's qualities, read by dm from the video's watch page. It goes to youtube.com, so it runs
+    only with DM_CHROME_YOUTUBE=1; otherwise each row is printed as SKIP, and counts for nothing."""
+    for host in EMBED_HOSTS:
+        path = f"/embed-{host.split('.')[1]}.html"
+        offered = f"a YouTube player embedded from {host} gets the panel, inside its frame (row Y12)"
+        listed_name = (f"and its click lists the qualities of the video embedded from {host}, "
+                       "read from its watch page (row Y12)")
+        if not os.environ.get("DM_CHROME_YOUTUBE"):
+            for name in (offered, listed_name):
+                print(f"  SKIP  {name} — it goes to youtube.com: DM_CHROME_YOUTUBE=1 runs it", flush=True)
+            continue
+        try:
+            embedded(base, origin, host, path, offered, listed_name)
+        except (RuntimeError, KeyError, TypeError, OSError) as e:
+            # The page or its frame went from under the case: said, and the run goes on.
+            check(f"the embedded-player case on {host} ran to its end (row Y12)", False, repr(e)[:300])
+
+
+def embedded(base, origin, host, path, offered, listed_name):
+    """One embedded player of `embed_checks`: the panel over it, then its list."""
+    tab = panel_page(base, origin, path)
+    frame = wait_for(lambda: next((Target(t["webSocketDebuggerUrl"]) for t in targets(base)
+                                   if t["type"] == "iframe" and host in t["url"]
+                                   and f"/embed/{EMBED_VIDEO}" in t["url"]), None), 30)
+    shown, rect, box = {}, None, None
+    if frame:
+        frame.call("Runtime.enable")
+        wait_for(lambda: frame.evaluate("!!document.querySelector('dm-panel')"), 20)
+        box = tab.evaluate("(() => { const r = document.getElementById('f').getBoundingClientRect();"
+                           " return {x: r.left, y: r.top, w: r.width, h: r.height}; })()")
+        # Muted autoplay starts it; where the browser holds it, a press on the player's middle
+        # (its large play button) does, as a person's.
+        playing = lambda: (lambda r: r and r["w"] > 200 and not r["paused"] and r)(frame.evaluate(EMBED_RECT))
+        rect = wait_for(playing, 10)
+        if not rect:
+            click_at(tab, box["x"] + box["w"] / 2, box["y"] + box["h"] / 2)
+            rect = wait_for(playing, 15)
+        rect = rect or frame.evaluate(EMBED_RECT)
+    if rect and rect["w"] > 0:
+        at = {"x": box["x"] + rect["x"], "y": box["y"] + rect["y"], "w": rect["w"], "h": rect["h"]}
+        hover(tab, at)
+        shown = wait_for(lambda: (panel(frame) or {}).get("shown") and panel(frame), 5)
+        if not shown:
+            hover(tab, at)
+            shown = wait_for(lambda: (panel(frame) or {}).get("shown") and panel(frame), 5)
+        shown = shown or {}
+    check(offered, shown.get("title") == "Download video" and bool(shown.get("caret")),
+          f"no out-of-process frame of {host}/embed/{EMBED_VIDEO}" if not frame
+          else str(shown) if rect and rect["w"] > 0 else f"no player in the frame: {rect}")
+    lines = []
+    if shown:
+        click_at(tab, box["x"] + shown["x"] + 60, box["y"] + shown["y"] + shown["h"] / 2)
+        # The player's own list may come first; the app's, each line with its size, takes its
+        # place once dm has read the watch page.
+        done = wait_for(lambda: (lambda l: len(l) >= 2 and any(SIZED_LINE.search(x) for x in l) and l)(
+            (panel(frame) or {}).get("lines") or []), 60)
+        lines = done or (panel(frame) or {}).get("lines") or []
+    check(listed_name, len(lines) >= 2 and any(SIZED_LINE.search(x) for x in lines),
+          f"listed {lines}" if shown else "no panel to click")
+    tab.call("Page.navigate", url="about:blank")
 
 
 def panel_checks(base, origin, engine_dl, engine_home, worker):
@@ -2273,6 +2367,10 @@ def main():
         worker.drain(1)
         errors = worker.logged("error")
         check("the worker logged no errors", not errors, "; ".join(errors)[:500])
+
+        # 10. A YouTube player another site embeds lists its qualities (gaps row Y12). Last, and
+        # after the worker's errors are read: it is the one case that goes to the network.
+        embed_checks(base, origin)
         print("\nwhat the worker said:")
         for line in worker.logged("log", "info", "warning", "error", "debug"):
             print(f"    {line[:200]}")
