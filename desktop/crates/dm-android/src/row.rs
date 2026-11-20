@@ -3,7 +3,8 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! A row of the list as the phone draws it: the engine's `Entry`, in types Kotlin has.
+//! A row of the list as the phone draws it: the engine's `Entry`, in plain types the screens
+//! bind to their properties.
 
 use dm_core::{Entry, State, Swarm};
 

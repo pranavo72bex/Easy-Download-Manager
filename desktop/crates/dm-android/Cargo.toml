@@ -7,14 +7,20 @@ edition = "2021"
 # Never published: its paths to the other crates are this repository's
 # (desktop/deny.toml).
 publish = false
-description = "dm on Android: the desktop's engine and its rules (dm-shell's Backend) as one library the phone's Compose window calls through UniFFI (gaps rows N1, N3)"
+description = "dm on Android, all in Rust: the desktop's engine and its rules (dm-shell's Backend) under Slint screens, with the phone's services reached through JNI (gaps rows N1, N3, N5, N6)"
+# `cargo run -p dm-android` opens the phone's window on the computer, at a phone's size.
+default-run = "dm-android"
 
 [lib]
 name = "dm_android"
 path = "src/lib.rs"
-# `cdylib` is the `libdm_android.so` the APK carries; `lib` is for this crate's own tests and
-# for the bindings generator, which reads the interface out of the built library.
+# `cdylib` is the `libdm_android.so` the APK carries, whose `android_main` Android's
+# NativeActivity starts; `lib` is for the window on the computer (`src/main.rs`) and the tests.
 crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "dm-android"
+path = "src/main.rs"
 
 [dependencies]
 dm-core.workspace = true
@@ -23,6 +29,16 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 
+# The window on a computer: winit, drawn in software (no GPU library to build or find).
+[target.'cfg(not(target_os = "android"))'.dependencies]
+slint = { workspace = true, features = ["backend-winit", "renderer-software"] }
+
+# On the phone: Slint's Android backend (android-activity 0.6, NativeActivity) and JNI for what
+# only Android has (the shared link, notifications, the wake lock, the clipboard).
+[target.'cfg(target_os = "android")'.dependencies]
+slint = { workspace = true, features = ["backend-android-activity-06"] }
+jni.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -30,3 +46,113 @@ axum.workspace = true
 
 [lints]
 workspace = true
+
+# `cargo apk build -p dm-android --lib --release` (cargo-apk 0.10, docs/android.md) reads this to
+# write the APK's AndroidManifest.xml. The activity is Android's own NativeActivity (an APK
+# without Java code), which runs `android_main` in `src/android/mod.rs`.
+[package.metadata.android]
+package = "com.dm.android"
+apk_name = "dm"
+build_targets = ["aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"]
+strip = "strip"
+
+# Android 8.0 and up (gaps row N1); built against Android 15.
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 35
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
+
+# Held while a download runs, so the processor does not sleep under it (gaps row N6).
+[[package.metadata.android.uses_permission]]
+name = "android.permission.WAKE_LOCK"
+
+# Asked for at start on Android 13 and up (`android::notify::ask_permission`).
+[[package.metadata.android.uses_permission]]
+name = "android.permission.POST_NOTIFICATIONS"
+
+# Android 10 and up let an app write its own files to the public Download folder without it;
+# Android 8 and 9 need it.
+[[package.metadata.android.uses_permission]]
+name = "android.permission.WRITE_EXTERNAL_STORAGE"
+max_sdk_version = 28
+
+[package.metadata.android.application]
+label = "dm"
+theme = "@android:style/Theme.DeviceDefault.NoActionBar"
+
+[package.metadata.android.application.activity]
+# The window is drawn again on these rather than the activity made anew (which would start
+# `android_main` a second time).
+config_changes = "orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|density|uiMode|locale|fontScale"
+# One dm: a link shared while it runs goes to the running one.
+launch_mode = "singleTask"
+exported = true
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER"]
+
+# A link shared from any app (the system's share sheet).
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.SEND"]
+categories = ["android.intent.category.DEFAULT"]
+
+[[package.metadata.android.application.activity.intent_filter.data]]
+mime_type = "text/plain"
+
+# A magnet link opened in a browser or another app.
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.VIEW"]
+categories = ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
+
+[[package.metadata.android.application.activity.intent_filter.data]]
+scheme = "magnet"
+
+# A `.torrent` opened from Files, a browser's downloads or a mail, by its type.
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.VIEW"]
+categories = ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
+
+[[package.metadata.android.application.activity.intent_filter.data]]
+scheme = "content"
+mime_type = "application/x-bittorrent"
+
+[[package.metadata.android.application.activity.intent_filter.data]]
+scheme = "file"
+mime_type = "application/x-bittorrent"
+
+# A `.torrent` whose type the sender did not give, by its name. A path pattern is matched only
+# with a host given (`*`), and Android's pattern stops at the first dot it meets, hence a second
+# pattern for names with dots before `.torrent`. Literal strings: the manifest must hold `\\.`.
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.VIEW"]
+categories = ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
+
+[[package.metadata.android.application.activity.intent_filter.data]]
+scheme = "content"
+host = "*"
+mime_type = "*/*"
+path_pattern = '.*\\.torrent'
+
+[[package.metadata.android.application.activity.intent_filter.data]]
+scheme = "content"
+host = "*"
+mime_type = "*/*"
+path_pattern = '.*\\..*\\.torrent'
+
+[[package.metadata.android.application.activity.intent_filter.data]]
+scheme = "file"
+host = "*"
+mime_type = "*/*"
+path_pattern = '.*\\.torrent'
+
+[[package.metadata.android.application.activity.intent_filter.data]]
+scheme = "file"
+host = "*"
+mime_type = "*/*"
+path_pattern = '.*\\..*\\.torrent'

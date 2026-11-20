@@ -3,16 +3,17 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! What the engine asks of the phone, written in Kotlin by the app (`AndroidSystem`) and seen
-//! by the application as dm-shell's `Platform`, as the desktop's `platform.rs` is.
+//! What the engine asks of the phone (`AndroidSystem`), answered through JNI by `android/` on a
+//! phone and by `src/main.rs` on a computer, and seen by the application as dm-shell's
+//! `Platform`, as the desktop's `platform.rs` is.
 
 use std::sync::Arc;
 
 use dm_shell::app::platform::Platform;
 use dm_shell::app::power::{Report, WhenDone};
 
-/// The phone's side, implemented by the app in Kotlin. Each call comes from one of the
-/// engine's threads, never the window's: the app posts what draws to its main thread.
+/// The phone's side. Each call comes from one of the engine's threads, never the window's:
+/// what draws is posted to the window's thread (`app::refresh`).
 pub trait AndroidSystem: Send + Sync {
     /// A notification: `path` is the finished file a tap opens, `failed` the row a Retry
     /// button tries again; neither for a plain message.
@@ -49,8 +50,8 @@ fn outcome(why_not: Option<String>) -> Result<(), String> {
 
 impl Platform for Phone {
     fn set_login_item(&self, _wanted: bool) -> Result<(), String> {
-        // A phone has no login item: dm's service starts again on its own after a reboot where
-        // a download was running (gaps row N12).
+        // A phone has no login item: dm starting again after a reboot where a download was
+        // running is gaps row N12's.
         Ok(())
     }
 

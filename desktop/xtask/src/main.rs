@@ -371,6 +371,8 @@ const GUI: &[&str] = &[
     "gpui_platform",
     "gpui-component",
     "gpui-base",
+    // The phone's window (dm-android alone, gaps row N1).
+    "slint",
 ];
 const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
 
@@ -472,9 +474,9 @@ fn layers() -> Result<(), String> {
                 false,
                 false,
             ),
-            // The phone's engine (gaps rows N1, N3): the application's rules over the engine,
-            // with the phone's Compose window on the other side of UniFFI; no window here.
-            "dm-android" => (&["dm-core", "dm-shell"], true, false),
+            // The phone's app (gaps rows N1, N3): the application's rules over the engine, under
+            // its own Slint window, so a window toolkit is allowed here.
+            "dm-android" => (&["dm-core", "dm-shell"], false, false),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),
             // Safari's extension's program (gaps row R4): it starts dm's host for each message

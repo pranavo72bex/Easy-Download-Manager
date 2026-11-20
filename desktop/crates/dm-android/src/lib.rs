@@ -3,14 +3,16 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! dm on Android (gaps rows N1 and N3): the desktop's engine and the application's rules, the
-//! same `Backend` the desktop's window and the headless run drive, as one library the phone's
-//! Compose window calls through UniFFI. Nothing a download does is written here: each call is
-//! one of `Backend`'s, so a feature works on the phone as it does on the desktop, and a fix to
-//! it is made once.
+//! dm on Android, all in Rust (gaps rows N1, N3): the desktop's engine and the application's
+//! rules, the same `Backend` the desktop's window and the headless run drive, under the phone's
+//! Slint window (`app`). Nothing a download does is written here: each call is one of
+//! `Backend`'s, so a feature works on the phone as it does on the desktop, and a fix to it is
+//! made once.
 //!
 //! What the phone does for the engine (a notification, the clipboard, opening a file) is asked
-//! of the app through [`AndroidSystem`], which `system.rs` turns into dm-shell's `Platform`.
+//! through [`AndroidSystem`], which `system.rs` turns into dm-shell's `Platform`; on a phone
+//! `android/` answers it through JNI and starts everything from `android_main`, and on a
+//! computer `src/main.rs` runs the same window at a phone's size.
 
 #![cfg_attr(
     not(test),
@@ -24,14 +26,21 @@ use dm_shell::app::backend::Backend;
 use dm_shell::settings::Settings;
 use dm_shell::shell;
 
+#[cfg(target_os = "android")]
+mod android;
+pub mod app;
+#[cfg(any(target_os = "android", test))]
+mod ongoing;
 mod row;
+#[cfg(any(target_os = "android", test))]
+mod shared;
 mod system;
 
 pub use row::{Row, RowState, TorrentSwarm};
 pub use system::AndroidSystem;
 
-/// What a call into the engine is refused with, in dm's own words for the person. Flat: Kotlin's
-/// exception carries the sentence as its `message`, and nothing else.
+/// What a call into the engine is refused with, in dm's own words for the person: the sentence
+/// the screens show, and nothing else.
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
     /// dm could not start: its runtime or its home folder.
@@ -52,8 +61,8 @@ pub struct Added {
 }
 
 /// dm's engine, running for as long as this object lives: the queue, the settings in force and
-/// the runtime every download runs on. The app makes one, in its foreground service
-/// (gaps row N6), and every screen asks it.
+/// the runtime every download runs on. `android_main` makes one at start (on a computer,
+/// `src/main.rs`), and every screen asks it.
 pub struct Engine {
     backend: Backend,
     /// Kept for as long as dm runs; dropped last (fields drop in order), after the backend has
@@ -227,8 +236,8 @@ impl Engine {
     }
 
     /// Whether anything is downloading, waiting its turn or a finished torrent is being shared:
-    /// the foreground service stays while this is so (gaps row N6), as a phone's BitTorrent app
-    /// keeps seeding.
+    /// the ongoing notification and the wake lock stay while this is so (gaps row N6), as a
+    /// phone's BitTorrent app keeps seeding.
     pub fn busy(&self) -> bool {
         dm_core::sharing_any()
             || self
@@ -263,7 +272,7 @@ impl Engine {
     }
 
     /// Stops the downloads, saving each to be resumed, and writes the list down; how many were
-    /// stopped. Called when the service ends.
+    /// stopped. Called when the window closes.
     pub fn shut_down(&self) -> u32 {
         count(self.backend.shut_down())
     }
@@ -297,7 +306,7 @@ impl Drop for Engine {
     }
 }
 
-/// A count for Kotlin, which has no `usize`.
+/// A count as the screens show it: Slint's numbers are 32-bit.
 fn count(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)
 }

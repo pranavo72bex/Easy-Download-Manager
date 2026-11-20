@@ -1,11 +1,12 @@
 name: Android, the engine built
 
-# dm on Android (gaps rows N1, N2): the phone's library, desktop/crates/dm-android, is the
-# desktop's engine and its rules (dm-core, dm-net, dm-media, dm-torrent, dm-shell) bound to
-# Kotlin through UniFFI. This keeps it building for the phone's two kinds of processor, the
-# ARM of phones (arm64-v8a) and the x86_64 of the emulator, with the Android NDK the runner
-# already carries, so a desktop change that breaks Android is seen before it lands; and runs
-# dm-android's own tests on the runner itself. No APK yet (row N14).
+# dm on Android, all in Rust (gaps rows N1, N2, N14): desktop/crates/dm-android is the
+# desktop's engine and its rules (dm-core, dm-net, dm-media, dm-torrent, dm-shell) under Slint
+# screens, with the phone's services through JNI. This keeps it building for the phone's two
+# kinds of processor, the ARM of phones (arm64-v8a) and the x86_64 of the emulator, with the
+# Android NDK the runner already carries, so a desktop change that breaks Android is seen
+# before it lands; runs dm-android's own tests on the runner itself; and packages the APK for
+# the emulator with cargo-apk (no Gradle), kept as the run's artifact (docs/android.md).
 on:
   push:
     branches: [main]
@@ -33,7 +34,7 @@ env:
 
 jobs:
   android:
-    name: Android (arm64-v8a, x86_64)
+    name: Android (arm64-v8a, x86_64, the APK)
     runs-on: ubuntu-latest
     # A hang is a failure, not hours of waiting.
     timeout-minutes: 60
@@ -62,3 +63,26 @@ jobs:
         run: cargo ndk --platform 26 -t arm64-v8a -t x86_64 check -p dm-android --locked
       - name: dm-android's tests, on the runner
         run: cargo test -p dm-android --locked
+      # The APK (row N14): cargo-apk writes the manifest from dm-android's
+      # [package.metadata.android] and packs libdm_android.so with the SDK's aapt, zipalign and
+      # apksigner. Android 15's platform (target_sdk 35) and its build tools, from the runner's
+      # own SDK; Slint's Android backend compiles a small Java helper with the runner's javac.
+      - name: Android 15's platform and build tools
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
+      - name: cargo-apk
+        run: cargo install cargo-apk --version 0.10.0 --locked
+      # Signed with a key made for this run alone: an APK to install on an emulator or a test
+      # phone, not a release (a release is signed with dm's own key, row N14).
+      - name: A key for this run
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/ci.keystore" -storepass android -keypass android \
+            -alias ci -keyalg RSA -keysize 2048 -validity 7 -dname "CN=dm CI"
+          echo "CARGO_APK_RELEASE_KEYSTORE=$RUNNER_TEMP/ci.keystore" >> "$GITHUB_ENV"
+          echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+      - name: The APK, for the emulator (x86_64)
+        run: cargo apk build -p dm-android --lib --release --target x86_64-linux-android
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dm-android-x86_64-apk
+          path: desktop/target/release/apk/dm.apk
+          if-no-files-found: error

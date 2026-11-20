@@ -5,7 +5,7 @@
 
 //! The phone's engine on the host: started in a home of its own, handed a link as a share
 //! would hand it, and the file downloaded, paused and resumed through the same calls the
-//! Compose window makes (gaps row N3).
+//! phone's screens make (gaps row N3).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};

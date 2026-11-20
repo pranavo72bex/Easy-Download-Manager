@@ -1,0 +1,287 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! A link handed to dm by another app (gaps row N5): the activity's intent, read at start and
+//! again each time the activity is resumed, decided by `shared.rs`, and added. Until the
+//! screens' Add sheet exists (N7) it is added at once and a notification says what was added
+//! or why not.
+//!
+//! Each intent is taken once: after reading it dm puts an empty intent in its place
+//! (`setIntent`), so a resume does not add it again. NativeActivity does not take a new intent
+//! for its own (`onNewIntent` is not passed to native code and `getIntent` keeps the first), so
+//! a link shared while dm is already open reaches it only when Android starts the activity anew;
+//! a Java `onNewIntent` is the same question as N6's service (docs/gaps.md).
+
+use std::path::Path;
+
+use jni::objects::JObject;
+use jni::{jni_sig, jni_str, Env, JValue};
+
+use super::{jvm, notify};
+use crate::shared::{self, Handed};
+use crate::Engine;
+
+/// The biggest `.torrent` dm copies in: far above any real one, so a wrong file is not read
+/// into memory whole.
+const MOST: usize = 32 * 1024 * 1024;
+
+/// Reads the activity's intent, if it hands dm anything, and adds it; `torrents` is the folder
+/// a shared `.torrent` is copied into.
+pub(crate) fn take(engine: &Engine, torrents: &Path) {
+    let text = match read() {
+        Ok(Handed::Nothing) => return,
+        Ok(Handed::Text(text)) => Ok(text),
+        Ok(Handed::File(uri)) => copy(&uri, torrents),
+        Err(why) => Err(why),
+    };
+    let told = match text.map(|text| engine.add(text)) {
+        Ok(Ok(added)) => {
+            let names: Vec<String> = added
+                .ids
+                .iter()
+                .filter_map(|id| engine.row(*id).map(|row| row.name))
+                .collect();
+            let mut body = names.join(", ");
+            if !added.skipped.is_empty() {
+                if !body.is_empty() {
+                    body.push_str("; ");
+                }
+                body.push_str(&format!("left out: {}", added.skipped.join("; ")));
+            }
+            let title = match added.ids.len() {
+                0 => "dm added nothing".to_owned(),
+                1 => "dm added a download".to_owned(),
+                n => format!("dm added {n} downloads"),
+            };
+            notify::post(&title, &body, None)
+        }
+        Ok(Err(why)) => notify::post("dm could not add it", &why.to_string(), None),
+        Err(why) => notify::post("dm could not take what was shared", &why, None),
+    };
+    // Without the permission to notify, the window's list still shows what was added.
+    let _ = told;
+}
+
+/// What the activity's intent hands over; the intent is then replaced by an empty one.
+fn read() -> Result<Handed, String> {
+    jvm::with("read what was shared", |env, activity| {
+        let intent = env
+            .call_method(
+                activity,
+                jni_str!("getIntent"),
+                jni_sig!("()Landroid/content/Intent;"),
+                &[],
+            )?
+            .l()?;
+        if intent.is_null() {
+            return Ok(Handed::Nothing);
+        }
+        let action = string_call(env, &intent, StringCall::Action)?;
+        let text = if action.as_deref() == Some(shared::SEND) {
+            let key = env.new_string("android.intent.extra.TEXT")?;
+            let text = env
+                .call_method(
+                    &intent,
+                    jni_str!("getStringExtra"),
+                    jni_sig!("(Ljava/lang/String;)Ljava/lang/String;"),
+                    &[JValue::Object(&key)],
+                )?
+                .l()?;
+            jvm::string_of(env, text)?
+        } else {
+            None
+        };
+        let data = string_call(env, &intent, StringCall::Data)?;
+        let handed = shared::handed(action.as_deref(), text.as_deref(), data.as_deref());
+        if handed != Handed::Nothing {
+            let empty = env.new_object(jni_str!("android/content/Intent"), jni_sig!("()V"), &[])?;
+            env.call_method(
+                activity,
+                jni_str!("setIntent"),
+                jni_sig!("(Landroid/content/Intent;)V"),
+                &[JValue::Object(&empty)],
+            )?;
+        }
+        Ok(handed)
+    })
+}
+
+/// The intent's string getters dm reads.
+enum StringCall {
+    Action,
+    Data,
+}
+
+/// `intent.getAction()` or `intent.getDataString()`.
+fn string_call(
+    env: &mut Env<'_>,
+    intent: &JObject<'_>,
+    which: StringCall,
+) -> jni::errors::Result<Option<String>> {
+    let name = match which {
+        StringCall::Action => jni_str!("getAction"),
+        StringCall::Data => jni_str!("getDataString"),
+    };
+    let value = env
+        .call_method(intent, name, jni_sig!("()Ljava/lang/String;"), &[])?
+        .l()?;
+    jvm::string_of(env, value)
+}
+
+/// Copies the file at `uri` (a `.torrent` from Files, a browser or a mail) into `torrents`,
+/// giving the `file://` address dm adds.
+fn copy(uri: &str, torrents: &Path) -> Result<String, String> {
+    // The name first, in a call of its own: a sender that does not answer the question (a
+    // `file://` address has no provider to ask) still lets the file be read.
+    let display = jvm::with("read the file's name", |env, context| {
+        display_name(env, context, uri)
+    })
+    .ok()
+    .flatten();
+    let last = jvm::with("read the file's name", |env, _| {
+        let parsed = parse(env, uri)?;
+        let last = env
+            .call_method(
+                &parsed,
+                jni_str!("getLastPathSegment"),
+                jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )?
+            .l()?;
+        jvm::string_of(env, last)
+    })
+    .ok()
+    .flatten();
+    let bytes = jvm::with("read the .torrent", |env, context| {
+        read_all(env, context, uri)
+    })?;
+    if bytes.len() > MOST {
+        return Err("the file shared is too big to be a .torrent".into());
+    }
+    std::fs::create_dir_all(torrents)
+        .map_err(|e| format!("dm could not make its folder for torrents: {e}"))?;
+    let path = torrents.join(shared::torrent_name(display.as_deref(), last.as_deref()));
+    std::fs::write(&path, &bytes).map_err(|e| format!("dm could not keep the .torrent: {e}"))?;
+    Ok(format!("file://{}", path.display()))
+}
+
+/// `Uri.parse(uri)`.
+fn parse<'local>(env: &mut Env<'local>, uri: &str) -> jni::errors::Result<JObject<'local>> {
+    let text = env.new_string(uri)?;
+    env.call_static_method(
+        jni_str!("android/net/Uri"),
+        jni_str!("parse"),
+        jni_sig!("(Ljava/lang/String;)Landroid/net/Uri;"),
+        &[JValue::Object(&text)],
+    )?
+    .l()
+}
+
+/// The `ContentResolver` of `context`.
+fn resolver<'local>(
+    env: &mut Env<'local>,
+    context: &JObject<'_>,
+) -> jni::errors::Result<JObject<'local>> {
+    env.call_method(
+        context,
+        jni_str!("getContentResolver"),
+        jni_sig!("()Landroid/content/ContentResolver;"),
+        &[],
+    )?
+    .l()
+}
+
+/// The name the sending app gives the file (`OpenableColumns.DISPLAY_NAME`), where it gives one.
+fn display_name(
+    env: &mut Env<'_>,
+    context: &JObject<'_>,
+    uri: &str,
+) -> jni::errors::Result<Option<String>> {
+    let parsed = parse(env, uri)?;
+    let resolver = resolver(env, context)?;
+    let column = env.new_string("_display_name")?;
+    let projection = env.new_object_array(1, jni_str!("java/lang/String"), &column)?;
+    let cursor = env
+        .call_method(
+            &resolver,
+            jni_str!("query"),
+            jni_sig!(
+                "(Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;"
+            ),
+            &[
+                JValue::Object(&parsed),
+                JValue::Object(&projection),
+                JValue::Object(&JObject::null()),
+                JValue::Object(&JObject::null()),
+                JValue::Object(&JObject::null()),
+            ],
+        )?
+        .l()?;
+    if cursor.is_null() {
+        return Ok(None);
+    }
+    let name = if env
+        .call_method(&cursor, jni_str!("moveToFirst"), jni_sig!("()Z"), &[])?
+        .z()?
+    {
+        let name = env
+            .call_method(
+                &cursor,
+                jni_str!("getString"),
+                jni_sig!("(I)Ljava/lang/String;"),
+                &[JValue::Int(0)],
+            )?
+            .l()?;
+        jvm::string_of(env, name)?
+    } else {
+        None
+    };
+    env.call_method(&cursor, jni_str!("close"), jni_sig!("()V"), &[])?;
+    Ok(name)
+}
+
+/// Every byte of the file at `uri`, through `ContentResolver.openInputStream`, up to just past
+/// [`MOST`]. A read Android refuses halfway leaves the stream to the collector to close.
+fn read_all(env: &mut Env<'_>, context: &JObject<'_>, uri: &str) -> jni::errors::Result<Vec<u8>> {
+    const CHUNK: usize = 64 * 1024;
+    let parsed = parse(env, uri)?;
+    let resolver = resolver(env, context)?;
+    let stream = env
+        .call_method(
+            &resolver,
+            jni_str!("openInputStream"),
+            jni_sig!("(Landroid/net/Uri;)Ljava/io/InputStream;"),
+            &[JValue::Object(&parsed)],
+        )?
+        .l()?;
+    if stream.is_null() {
+        return Err(jni::errors::Error::NullPtr("the shared file's stream"));
+    }
+    let buffer = env.new_byte_array(CHUNK)?;
+    let mut chunk = vec![0i8; CHUNK];
+    let mut bytes = Vec::new();
+    loop {
+        let read = env
+            .call_method(
+                &stream,
+                jni_str!("read"),
+                jni_sig!("([B)I"),
+                &[JValue::Object(&buffer)],
+            )?
+            .i()?;
+        // -1 at the end; never more than the buffer holds.
+        let Ok(read) = usize::try_from(read) else {
+            break;
+        };
+        let read = read.min(CHUNK);
+        buffer.get_region(env, 0, &mut chunk[..read])?;
+        bytes.extend(chunk[..read].iter().map(|b| b.to_ne_bytes()[0]));
+        if bytes.len() > MOST {
+            break;
+        }
+    }
+    env.call_method(&stream, jni_str!("close"), jni_sig!("()V"), &[])?;
+    Ok(bytes)
+}
