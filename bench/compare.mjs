@@ -35,6 +35,10 @@ if (digest !== PINNED) die(2, `bench/reference-a-baseline.json was changed (SHA-
 const B = JSON.parse(text);
 const median = (xs) => { const v = xs.filter((x) => x != null).sort((a, b) => a - b); if (!v.length) return null; const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
 const judged = B.metrics.filter((m) => !m.info);
+// Scenarios added to bench.mjs after the baseline was frozen (gaps row W2: what a person's line
+// adds). Reference A has not been measured on them: dm's numbers are shown, and judged by nothing,
+// until its numbers are frozen in a baseline file of their own beside this one (bench/README.md).
+const NEW_CASES = { wan: 'the 80 ms, 20 Mbit/s line over TLS', lossy: 'the 80 ms, 20 Mbit/s line with 1% of pieces stalled' };
 
 // Every floor is what the archived runs say it is.
 for (const [group, scenarios] of Object.entries(B.floors)) {
@@ -63,7 +67,7 @@ const ceilingHere = results.find((r) => r.j.scenario === 'ceiling')?.j;
 const byScenario = new Map();
 for (const { f, j } of results) {
   if (!Array.isArray(j.runs) || !j.scenario || j.scenario === 'inet') continue;
-  const e = byScenario.get(j.scenario) || { files: [], dm: [], refa: [], meta: j.meta };
+  const e = byScenario.get(j.scenario) || { files: [], dm: [], refa: [], meta: j.meta, label: j.label, params: j.params };
   e.files.push(path.basename(f));
   for (const r of j.runs) {
     const run = { ...r, transferSeconds: r.seconds != null && r.firstRequestMs != null ? r.seconds - r.firstRequestMs / 1000 : null };
@@ -78,16 +82,22 @@ if (!B.floors[group]) die(2, `No group ${group} in the baseline (${Object.keys(B
 
 // ─── Judging.
 const report = { baseline: { digest, frozen: B.frozen }, group, system: anyMeta.system || null, dmBinary: anyMeta.dmBinary || null, scenarios: [], worse: [], notJudged: [] };
-const order = ['idle', 'fast', 'per_conn', 'flaky', 'outage', 'batch', 'big40'];
+const order = ['idle', 'fast', 'per_conn', 'flaky', 'outage', 'batch', 'big40', ...Object.keys(NEW_CASES)];
 for (const sc of [...byScenario.keys()].sort((a, b) => order.indexOf(a) - order.indexOf(b))) {
   const got = byScenario.get(sc);
   const entry = B.floors[group][sc];
   const spec = B.scenarios[sc];
-  const out = { scenario: sc, label: spec?.label, dmRuns: got.dm.length, whole: got.dm.filter((r) => r.ok).length, rows: [] };
+  const fresh = !spec && sc in NEW_CASES;
+  const out = { scenario: sc, label: spec?.label || got.label, dmRuns: got.dm.length, whole: got.dm.filter((r) => r.ok).length, rows: [] };
   report.scenarios.push(out);
   if (!got.dm.length) { out.note = 'no dm runs'; continue; }
   if (out.whole < got.dm.length) report.worse.push(`${sc}: ${got.dm.length - out.whole} of ${got.dm.length} dm runs did not end with every file whole`);
-  if (!entry?.floor) { out.note = `no reference A floor in ${group}: ${B.notMeasured?.[sc] || entry?.why || 'not measured'}`; report.notJudged.push(`${sc}: no floor`); }
+  if (fresh) {
+    out.note = `no baseline yet: reference A has not been measured on ${NEW_CASES[sc]}; dm's numbers are recorded, not judged${got.params?.rttMs && got.params.tls === false && sc === 'wan' ? ' (this run was plain HTTP: BENCH_WAN_TLS=0)' : ''}`;
+    report.notJudged.push(`${sc}: no baseline yet`);
+    const late = median(got.dm.map((r) => r.line?.late?.meanMs));
+    if (late != null) out.note += `; the line held pieces ${late} ms longer than asked on average (timers)`;
+  } else if (!entry?.floor) { out.note = `no reference A floor in ${group}: ${B.notMeasured?.[sc] || entry?.why || 'not measured'}`; report.notJudged.push(`${sc}: no floor`); }
   let factor = 1;
   if (spec?.scaleByCeiling) {
     const here = ceilingHere?.results?.[spec.scaleByCeiling]?.best;
@@ -104,7 +114,12 @@ for (const sc of [...byScenario.keys()].sort((a, b) => order.indexOf(a) - order.
     if (entry?.floor && !f && !m.info) continue; // a parameter this scenario does not judge (idle: memory and CPU only)
     const row = { metric: m.key, unit: m.unit, dmMedian: median(vals), dmBest: vals.length ? Math.min(...vals) : null, dmWorst: vals.length ? Math.max(...vals) : null, refaThisRun: refaHere };
     if (m.info) { row.refaMedian = f?.median ?? null; row.verdict = 'recorded'; }
-    else if (!f) row.verdict = 'no floor';
+    else if (!f && fresh) {
+      // Beside reference A on the same computer the same run, the gaps row's test (dm's median
+      // better than reference A's) is shown, and judged by nothing until a baseline is frozen.
+      const said = refaHere == null || row.dmMedian == null ? '' : row.dmMedian < refaHere ? ', dm better this run' : ', dm not better this run';
+      row.verdict = `no baseline yet${said}`;
+    } else if (!f) row.verdict = 'no floor';
     else if (!vals.length) row.verdict = 'not sampled here';
     else if (m.time && factor === null) { row.floor = f.best; row.verdict = 'not judged: no ceiling'; }
     else {

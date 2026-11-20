@@ -19,6 +19,7 @@ So work on macOS or Linux can aim at the same target as work on Windows.
 | `compare.mjs` | Judges a results folder against the baseline, parameter by parameter. Exit 0 only when dm is better everywhere. |
 | `against-last.mjs` | Judges a results folder against an earlier run of dm's own (CI's weekly run, `.github/workflows/bench.yml`; `docs/testing.md`). It never reads the floors. |
 | `ceiling-client.mjs` | The reference client, used by the `ceiling` scenario to measure what the computer itself allows. |
+| `shaper.mjs` | The line of the `wan` and `lossy` cases: a delaying proxy, and the TLS certificate made at run time. `node bench/shaper.mjs --self-test` measures it. |
 | `refa-windows.ps1` | Answers reference A's windows during a run (Windows only). |
 | `local.example.json` | The shape of `local.json` (git-ignored), which names reference A's program on the computer that has it. |
 | `results/` | Your runs, one folder per system and date (git-ignored). |
@@ -102,6 +103,52 @@ baseline's `harness` and `scenarios`.
 | `big40` | 512 MiB, 40 MiB/s shared | the computer here, the cap elsewhere | 12.8 s |
 | `ceiling` | the reference client, 8 ranges into 8 files, per scenario | the computer | - |
 | `inet` | two public 100 MB files | the network | never a floor |
+| `wan` | 32 MiB over an 80 ms line, 20 Mbit/s in all, over TLS | the line | 13.4 s; no baseline yet |
+| `lossy` | 32 MiB over the same line (plain HTTP), 1% of 16 KiB pieces stalled 250 ms | the line | 13.4 s; no baseline yet |
+
+## The line cases: `wan` and `lossy`
+
+Every scenario above is a loopback server, so what a person's own connection adds is not
+measured by them: a round trip for each new connection and another for its TLS, a cap shared by
+every connection, a line that loses packets (gaps row W2). `wan` and `lossy` put a line between
+the app and the same server. They were added after the baseline was frozen: reference A has no
+numbers on them yet, so `compare.mjs` shows dm's as "no baseline yet" (and, in a run beside
+reference A, whether dm's median was better than reference A's that run) and judges nothing.
+They are not in the default list; ask for them by name:
+
+```sh
+node bench/bench.mjs wan lossy && node bench/compare.mjs
+BENCH_WAN_TLS=0 node bench/bench.mjs wan       # wan over plain HTTP (see "TLS" below)
+BENCH_APPS=none node bench/bench.mjs selftest   # the line alone, through curl: round trips, rate, stalls
+node bench/shaper.mjs --self-test               # the shaper alone: delays, bytes whole, the certificate
+```
+
+- **The delay** is `shaper.mjs`, a TCP proxy in the harness's process: each piece is written on
+  the other side 40 ms after it was read, in each direction. The kernel accepts a loopback
+  connection at once, so the first bytes a client sends are held a round trip more: the TCP
+  handshake. TLS's round trip is real, because the TLS server is behind the proxy.
+- **The 20 Mbit/s** (2,500,000 bytes a second) is the server's shared token bucket, the one
+  `flaky`, `outage` and `big40` use. Not the proxy's: a cap there would leave megabytes in the
+  loopback sockets between the server and the proxy, which the server would count as sent, and
+  its last byte would be seconds early.
+- **The loss** is not packet loss. A proxy in user space cannot drop a TCP segment; the kernel
+  under it would only send it again. 1% loss is modelled as what TCP does about a lost segment:
+  in 1 of 100 pieces of 16 KiB, at the sender, the connection sends nothing for 250 ms (about one
+  retransmission timeout at an 80 ms round trip), then the piece goes. Each run records its
+  stalls (`line.lossStalls`).
+- **Timers fire late**, never early: by up to a tick of the system timer (15.6 ms on Windows) and
+  more on a busy computer. Each run records by how much the pieces were held longer than asked
+  (`line.late`), and `compare.mjs` prints it. Both apps run beside each other see the same line.
+- **TLS.** `wan`'s server certificate (ECDSA P-256, for 127.0.0.1 and localhost, not an authority)
+  is made by `shaper.mjs` with Node's crypto the first time and kept in `<work>/tls` for a year.
+  dm is started with `DM_BENCH_CA` naming it. **dm does not read `DM_BENCH_CA` yet** (dm trusts
+  the public roots alone), so until it does, `wan` over TLS ends with no file whole and
+  `BENCH_WAN_TLS=0` measures the delay and the cap without TLS. Reference A takes the system's
+  roots: on the Windows computer that has it, trust the certificate once for the user,
+  `certutil -user -addstore Root %TEMP%\dm-bench\tls\bench-server.pem`, and remove it when done
+  (`certutil -user -delstore Root "dm benchmark server"`).
+- **Reference A's numbers** on these, when they are measured, go in a baseline file of their own
+  beside the frozen one, pinned the same way. `reference-a-baseline.json` does not change.
 
 ## The floors (group `standard`)
 
