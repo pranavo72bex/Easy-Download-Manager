@@ -8,9 +8,10 @@
 //! every download waits for, the second network, the folder YouTube's cut players are kept in
 //! and the one network downloads are held to. [`configure`] is the one place each of them is
 //! put in force; the setters it calls are left public, hidden, for the tests that set one part
-//! alone.
+//! alone. [`trust_bench_ca`] comes before all of it: the benchmark's certificate, trusted before
+//! the first client is built.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::ConnectFirst;
 
@@ -68,4 +69,41 @@ pub fn configure(config: &EngineConfig) -> Result<(), String> {
     crate::only_through::set_only_through(Some(only));
     let second = config.second_path.as_deref().filter(|_| only.is_empty());
     crate::second_path::set_second_path(second)
+}
+
+/// Trusts the certificate file `DM_BENCH_CA` names beside the public roots, for the benchmark's
+/// `wan` case, served over TLS with a certificate of its own (bench/README.md, "The line cases").
+/// Called before the first client is built, which sets dm's TLS up once for every client and
+/// stream protocol. A file that cannot be read or holds no certificate is noted, and dm runs on
+/// with the public roots alone.
+pub fn trust_bench_ca() {
+    let Some(path) = crate::env::get_os("DM_BENCH_CA").filter(|path| !path.is_empty()) else {
+        return;
+    };
+    if let Err(why) = trust_file(Path::new(&path)) {
+        crate::note!(warn, "dm: DM_BENCH_CA is not trusted: {why}");
+    }
+}
+
+/// Trusts the certificates of the file at `path` beside the public roots; why not, in words.
+fn trust_file(path: &Path) -> Result<(), String> {
+    let pem = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    dm_net::trust::trust_also(&pem).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_file_missing_or_with_no_certificate_is_refused_with_its_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing.pem");
+        let said = trust_file(&missing).unwrap_err();
+        assert!(said.contains("missing.pem"), "{said}");
+        let empty = dir.path().join("empty.pem");
+        std::fs::write(&empty, b"no certificate here").unwrap();
+        let said = trust_file(&empty).unwrap_err();
+        assert!(said.contains("empty.pem"), "{said}");
+    }
 }

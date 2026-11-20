@@ -235,7 +235,7 @@ mod redirect_tests {
     use tokio_rustls::rustls;
 
     /// A secure server that sends every request on to `to`.
-    async fn sending_on(to: String) -> (u16, Vec<u8>) {
+    pub(super) async fn sending_on(to: String) -> (u16, Vec<u8>) {
         let made = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
         let cert = made.cert.der().to_vec();
         let key =
@@ -322,22 +322,53 @@ mod redirect_tests {
     }
 }
 
-/// TLS as a stream server is checked: the public roots, no client
-/// certificate. Shared with dm-core's stream protocols (RTMP, `rtsps://`, FTPS) and every
-/// HTTP client ([`with_tls`]). Made once: the roots were read into a store again
-/// for every client built, a one-off request's included (gaps row S14).
+#[cfg(test)]
+mod trust_tests {
+    use tokio_rustls::rustls::pki_types::CertificateDer;
+
+    /// dm's TLS made with a certificate trusted beside the public roots (the benchmark's,
+    /// `DM_BENCH_CA`): the server that shows it is answered, where the public roots alone
+    /// refuse it (`a_client_dm_builds_speaks_tls_with_the_public_roots_alone`).
+    #[tokio::test]
+    async fn a_certificate_trusted_beside_the_public_roots_is_answered() {
+        let (port, cert) = super::redirect_tests::sending_on("http://127.0.0.1:9/x".into()).await;
+        let config = super::make_tls_config(vec![CertificateDer::from(cert)]).unwrap();
+        let client = super::builder()
+            .tls_backend_preconfigured((*config).clone())
+            .build()
+            .unwrap();
+        let answer = client
+            .get(format!("https://localhost:{port}/f.bin"))
+            .send()
+            .await
+            .unwrap();
+        // dm follows no redirect itself here: the server's own answer, over TLS.
+        assert_eq!(answer.status(), 302);
+    }
+}
+
+/// TLS as a stream server is checked: the public roots, beside them any certificate
+/// [`trust_also`](crate::trust::trust_also) was given before (the benchmark's, `DM_BENCH_CA`),
+/// no client certificate. Shared with dm-core's stream protocols (RTMP, `rtsps://`, FTPS) and
+/// every HTTP client ([`with_tls`]). Made once: the roots were read into a store again for every
+/// client built, a one-off request's included (gaps row S14).
 pub fn tls_config() -> Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>, crate::Error> {
     static MADE: std::sync::OnceLock<
         Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>, String>,
     > = std::sync::OnceLock::new();
-    MADE.get_or_init(|| make_tls_config().map_err(|e| e.to_string()))
+    MADE.get_or_init(|| make_tls_config(crate::trust::sealed_roots()).map_err(|e| e.to_string()))
         .clone()
         .map_err(crate::Error::Internal)
 }
 
-fn make_tls_config() -> Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>, crate::Error> {
+/// [`tls_config`] made, trusting `also` beside the public roots.
+fn make_tls_config(
+    also: Vec<tokio_rustls::rustls::pki_types::CertificateDer<'static>>,
+) -> Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>, crate::Error> {
     let mut roots = tokio_rustls::rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    // Each was checked as a root when it was given (`trust::certificates`): none is left out.
+    roots.add_parsable_certificates(also);
     // The provider named rather than taken from the process's default:
     // ring is the only one compiled in (gaps row P7), but whether a default
     // is installed depends on whether a torrent session has started yet.

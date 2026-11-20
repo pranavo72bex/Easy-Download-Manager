@@ -60,6 +60,8 @@ pub mod redirects;
 
 pub mod second_path;
 
+pub mod trust;
+
 /// The tests' logins and secrets, never written in the code.
 #[cfg(test)]
 pub(crate) use dm_test_support::secrets as test_secrets;

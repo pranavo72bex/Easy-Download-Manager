@@ -31,8 +31,8 @@
 //   BENCH_REPS            repetitions for fast, per_conn and flaky
 //   BENCH_TAG             suffix for the result files' names
 //   BENCH_CURL            curl for `selftest` (default: Windows' own on Windows)
-//   BENCH_WAN_TLS         0 serves `wan` over plain HTTP (until dm can be told to trust the
-//                         harness's certificate: DM_BENCH_CA, bench/README.md)
+//   BENCH_WAN_TLS         0 serves `wan` over plain HTTP (dm trusts the harness's certificate
+//                         through DM_BENCH_CA: bench/README.md)
 //   BENCH_REFA_EXE, BENCH_REFA_PROCESS, BENCH_REFA_TITLE   reference A (or bench/local.json)
 import http from 'node:http';
 import https from 'node:https';
@@ -399,8 +399,8 @@ class Dm {
     fs.mkdirSync(this.downloads, { recursive: true });
     fs.writeFileSync(path.join(this.home, 'settings.json'), JSON.stringify({ download_dir: this.downloads, ...(process.env.BENCH_DM_CONNECTIONS ? { connections: Number(process.env.BENCH_DM_CONNECTIONS) } : {}) }));
     this.t0 = Date.now();
-    // DM_BENCH_CA: the harness's certificate, for the `wan` case served over TLS. dm does not
-    // read it yet (bench/README.md, "The line cases").
+    // DM_BENCH_CA: the harness's certificate, which dm trusts beside the public roots for the
+    // `wan` case served over TLS (bench/README.md, "The line cases").
     this.proc = spawn(DM, ['--control', '0'], { env: { ...process.env, DM_HOME: this.home, ...(tls ? { DM_BENCH_CA: tls.certFile } : {}) }, stdio: 'ignore' });
     watched.set(this.proc.pid, 'dm');
     const portFile = path.join(this.home, 'control.port');

@@ -220,7 +220,7 @@ pub use download::{
 
 pub use download::same::{SameFile, SameFiles, SAME_FILE};
 
-pub use engine_config::{configure, EngineConfig};
+pub use engine_config::{configure, trust_bench_ca, EngineConfig};
 
 pub use limit::Limiter;
 

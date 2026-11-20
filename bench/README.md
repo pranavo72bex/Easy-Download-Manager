@@ -141,9 +141,10 @@ node bench/shaper.mjs --self-test               # the shaper alone: delays, byte
   (`line.late`), and `compare.mjs` prints it. Both apps run beside each other see the same line.
 - **TLS.** `wan`'s server certificate (ECDSA P-256, for 127.0.0.1 and localhost, not an authority)
   is made by `shaper.mjs` with Node's crypto the first time and kept in `<work>/tls` for a year.
-  dm is started with `DM_BENCH_CA` naming it. **dm does not read `DM_BENCH_CA` yet** (dm trusts
-  the public roots alone), so until it does, `wan` over TLS ends with no file whole and
-  `BENCH_WAN_TLS=0` measures the delay and the cap without TLS. Reference A takes the system's
+  dm is started with `DM_BENCH_CA` naming it, and trusts it beside the public roots for that run
+  alone (`dm_core::trust_bench_ca`, before its first client; a file it cannot read is noted on
+  standard error and dm keeps the public roots alone). `BENCH_WAN_TLS=0` measures the delay and
+  the cap without TLS. Reference A takes the system's
   roots: on the Windows computer that has it, trust the certificate once for the user,
   `certutil -user -addstore Root %TEMP%\dm-bench\tls\bench-server.pem`, and remove it when done
   (`certutil -user -delstore Root "dm benchmark server"`).

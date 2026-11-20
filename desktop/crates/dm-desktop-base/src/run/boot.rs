@@ -160,6 +160,9 @@ pub fn start(
     // runtime, so it never holds the threads the writes need. A smaller pool would queue writes
     // behind one another under the most connections dm runs.
     let runtime = tokio::runtime::Runtime::new().map_err(|e| format!("dm could not start: {e}"))?;
+    // The benchmark's certificate (`DM_BENCH_CA`), trusted before the first client below sets
+    // dm's TLS up for the whole run.
+    dm_core::trust_bench_ca();
     // One client for the engine's one-off requests, on this one runtime (gaps row S14).
     dm_core::share_one_client();
     // YouTube's cut players are kept under dm's home from `shell::start` on, with the rest of
