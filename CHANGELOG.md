@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- YouTube: a paused or failed download over the framed stream goes on from its last whole piece instead of starting again.
 - macOS: the row menu shows each item's key.
 - The benchmark has a `slowname` case: a name that takes 300 ms to resolve, each time.
 - YouTube: a premiere or a live stream not begun yet is waited for, its row saying when it starts, then recorded.
