@@ -12,6 +12,8 @@
 //     scenarios: idle fast per_conn flaky outage batch big40 ceiling   (default: all of these)
 //                wan lossy (a line between app and server, bench/shaper.mjs; asked by name: no
 //                reference A baseline yet)
+//                slowname (the file under a name whose every lookup takes 300 ms: asked by name,
+//                no baseline yet, dm alone unless the computer's DNS is pointed at the harness)
 //                inet (public internet, never a floor)   selftest (the server alone)
 //
 // The server, the bytes it serves and the scenarios below are the standard the baseline was
@@ -33,6 +35,13 @@
 //   BENCH_CURL            curl for `selftest` (default: Windows' own on Windows)
 //   BENCH_WAN_TLS         0 serves `wan` over plain HTTP (dm trusts the harness's certificate
 //                         through DM_BENCH_CA: bench/README.md)
+//   BENCH_SLOWNAME_MS     how long each lookup of `slowname`'s name takes (default 300)
+//   BENCH_SLOWNAME_PORT   the port its DNS server answers on, at 127.0.0.1 (default: any free one;
+//                         53 where the computer is pointed at it)
+//   BENCH_SLOWNAME_SYSTEM 1: the computer's own DNS sends names under bench.test to that server,
+//                         so both apps look the name up through the system (bench/README.md)
+//   BENCH_SLOWNAME_UPSTREAM  host:port the server passes every other name on to, for a computer
+//                         pointed at it as its only DNS server
 //   BENCH_REFA_EXE, BENCH_REFA_PROCESS, BENCH_REFA_TITLE   reference A (or bench/local.json)
 import http from 'node:http';
 import https from 'node:https';
@@ -44,7 +53,8 @@ import crypto from 'node:crypto';
 import readline from 'node:readline';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { shaper, selfSignedCert } from './shaper.mjs';
+import dns from 'node:dns';
+import { shaper, selfSignedCert, slowDns } from './shaper.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -260,6 +270,35 @@ async function lineFor(sc) {
   const line = await shaper({ target: { port: target }, oneWayMs: sc.rttMs / 2 });
   return { scheme: sc.tls ? 'https' : 'http', port: line.port, line };
 }
+// ─── The `slowname` case's name (gaps row W2): a DNS server in this process (bench/shaper.mjs
+// `slowDns`) that answers every name under bench.test with 127.0.0.1, each lookup BENCH_SLOWNAME_MS
+// after it was asked, and counts the questions. dm is told of it by DM_BENCH_DNS, and asks it for
+// names under .test alone. Reference A takes the system's resolver, which only a person can point
+// here (BENCH_SLOWNAME_SYSTEM=1): until then the case runs for dm alone.
+const NAME_MS = Number(process.env.BENCH_SLOWNAME_MS || 300);
+const NAME_SYSTEM = process.env.BENCH_SLOWNAME_SYSTEM === '1';
+let nameServer = null;
+async function namesUp() {
+  if (nameServer) return nameServer;
+  nameServer = await slowDns({ delayMs: NAME_MS, port: Number(process.env.BENCH_SLOWNAME_PORT || 0), upstream: process.env.BENCH_SLOWNAME_UPSTREAM || null });
+  console.log(`# slow name: *.bench.test answered after ${NAME_MS} ms at 127.0.0.1:${nameServer.port}${NAME_SYSTEM ? ' (the computer is pointed at it: both apps ask the system)' : ' (dm is given it as DM_BENCH_DNS)'}`);
+  if (NAME_SYSTEM) {
+    // The computer's own lookup, as reference A makes it (asynchronous: the server is this process).
+    const probe = `probe-${RUN}.bench.test`, t = Date.now();
+    const got = await dns.promises.lookup(probe, { family: 4 }).catch((e) => ({ address: e.code || e.message }));
+    const ms = Date.now() - t;
+    if (got.address !== '127.0.0.1' || !nameServer.asked(probe).a) {
+      console.error(`BENCH_SLOWNAME_SYSTEM=1, but the computer did not ask 127.0.0.1:${nameServer.port} for ${probe} (${got.address}, ${ms} ms): point it at the server first, with BENCH_SLOWNAME_PORT=53 (bench/README.md)`);
+      process.exit(2);
+    }
+    console.log(`# the computer's own lookup of ${probe} took ${ms} ms (asked ${NAME_MS})`);
+  }
+  return nameServer;
+}
+// Whether `app` runs case `sc`: reference A asks the system for a name, so it runs the slow name
+// only where the computer is pointed at the harness's server.
+const runsCase = (app, sc) => !(sc.nameMs && app === 'refa' && !NAME_SYSTEM);
+
 setInterval(() => {
   for (const run of runs.values()) if (run.firstReq !== null && !run.closed) run.timeline.push([Date.now() - run.firstReq, run.served]);
 }, 250).unref();
@@ -401,7 +440,10 @@ class Dm {
     this.t0 = Date.now();
     // DM_BENCH_CA: the harness's certificate, which dm trusts beside the public roots for the
     // `wan` case served over TLS (bench/README.md, "The line cases").
-    this.proc = spawn(DM, ['--control', '0'], { env: { ...process.env, DM_HOME: this.home, ...(tls ? { DM_BENCH_CA: tls.certFile } : {}) }, stdio: 'ignore' });
+    // DM_BENCH_DNS: the slow name's server, which dm asks names under .test of (`slowname`),
+    // unless the computer itself is pointed at it.
+    const named = nameServer && !NAME_SYSTEM ? { DM_BENCH_DNS: `127.0.0.1:${nameServer.port}` } : {};
+    this.proc = spawn(DM, ['--control', '0'], { env: { ...process.env, DM_HOME: this.home, ...(tls ? { DM_BENCH_CA: tls.certFile } : {}), ...named }, stdio: 'ignore' });
     watched.set(this.proc.pid, 'dm');
     const portFile = path.join(this.home, 'control.port');
     for (let i = 0; i < 400; i++) { if (fs.existsSync(portFile) && fs.readFileSync(portFile, 'utf8').trim()) break; await sleep(50); }
@@ -520,13 +562,18 @@ async function once(app, name, sc, rep) {
   const run = newRun(key, sc, files);
   const names = [...files.keys()];
   const via = await lineFor(sc);
-  const urls = names.map((n) => `${via.scheme}://127.0.0.1:${via.port}/f/${key}/${n}`);
+  // `slowname`: a name of the run's own under bench.test, so no app has it from a run before.
+  const host = sc.nameMs ? `${key}.bench.test` : '127.0.0.1';
+  const urls = names.map((n) => `${via.scheme}://${host}:${via.port}/f/${key}/${n}`);
   const gate = () => run.firstReq === null;
   const r = app === 'refa'
     ? await runRefa(urls, names, sc.size, path.join(process.env.BENCH_REFA_DIR || path.join(WORK, 'refa'), key), sc.timeoutMs, sc.queue, gate)
     : await runDm(urls, names, sc.size, sc.timeoutMs, gate);
   run.closed = true;
   const line = via.line ? { oneWayMs: sc.rttMs / 2, tls: !!sc.tls, late: via.line.late(), connections: via.line.connections(), lossStalls: sc.loss ? run.stalls : undefined } : undefined;
+  // `slowname`: how often the app asked for its name (type A, and any other type), through what, and
+  // the most an answer of its went later than asked (timers).
+  const lookups = sc.nameMs ? { host, delayMs: sc.nameMs, through: NAME_SYSTEM ? 'system' : 'DM_BENCH_DNS', ...nameServer.asked(host) } : undefined;
   if (via.line) await via.line.close();
   let whole = 0;
   for (let i = 0; i < names.length; i++) {
@@ -547,7 +594,7 @@ async function once(app, name, sc, rep) {
     outageAtMs: run.outage ? run.outage.start - run.firstReq : null,
     perRequest: run.requests.slice(0, 60).map((q) => [q.t - run.firstReq, q.sent ?? 0, q.range, q.dropped ? 'dropped' : '']),
     ...usage(app, r.t0, r.t1 || Date.now(), app === 'dm' ? dm?.proc?.pid ?? null : null),
-    states: r.states, errors: r.errors, line, timeline: run.timeline.filter((_, i) => i % 2 === 0),
+    states: r.states, errors: r.errors, line, lookups, timeline: run.timeline.filter((_, i) => i % 2 === 0),
   };
   runs.delete(key);
   console.log(JSON.stringify({ ...res, timeline: undefined, perRequest: undefined }));
@@ -574,18 +621,27 @@ const SC = {
   lossy:    { size: 32 * MiB, total: 2500000, rttMs: 80, loss: { p: 0.01, piece: 16384, stallMs: 250 },
               label: '32 MiB over an 80 ms line at 20 Mbit/s in all, 1% of 16 KiB pieces stalled 250 ms',
               reps: Number(process.env.BENCH_REPS || 2), timeoutMs: 300000 },
+  // A name that resolves slowly: per_conn's file under a name of the run's own whose every lookup
+  // takes BENCH_SLOWNAME_MS, and every connection cut after 1 to 4 MiB, so the download makes about
+  // 25 connections. An app that keeps the name's answer pays the lookup once; one that asks again
+  // for each connection pays it each time, its connection idle meanwhile. The server's answers have
+  // a TTL of 0, so only an app's own keeping keeps them.
+  slowname: { size: 64 * MiB, perConn: 1 * MiB, cut: [1 * MiB, 4 * MiB], nameMs: NAME_MS,
+              label: `64 MiB under a name that takes ${NAME_MS} ms to resolve each time, each connection 1 MiB/s and cut after 1-4 MiB`,
+              reps: Number(process.env.BENCH_REPS || 2), timeoutMs: 240000 },
 };
 const DATA = {}, SHAS = {};
 
 async function scenario(name) {
   const sc = SC[name];
+  if (WITH_REFA && !runsCase('refa', sc)) console.log(`# ${name}: dm alone; reference A looks names up through the system, which is not pointed at the slow name (BENCH_SLOWNAME_SYSTEM, bench/README.md)`);
   DATA[name] = []; SHAS[name] = [];
   for (let i = 0; i < (sc.files || 1); i++) { const d = makeData(sc.size, 1000 + i * 7 + name.length); DATA[name].push(d); SHAS[name].push(sha(d)); }
   const out = [];
   for (let rep = 1; rep <= sc.reps; rep++) {
     // Each repetition alternates which app goes first.
     const order = rep % 2 ? ['refa', 'dm'] : ['dm', 'refa'];
-    for (const app of order.filter((a) => APPS.includes(a))) { out.push(await once(app, name, sc, rep)); await sleep(3000); }
+    for (const app of order.filter((a) => APPS.includes(a) && runsCase(a, sc))) { out.push(await once(app, name, sc, rep)); await sleep(3000); }
   }
   delete DATA[name];
   const { reps, timeoutMs, label, ...params } = sc;
@@ -705,6 +761,17 @@ async function selftest() {
     await via.line.close();
     runs.delete(key);
   }
+  // The slow name: Node's own resolver asks its server (as dm does, through DM_BENCH_DNS) for the
+  // same name twice, each answer no sooner than the delay.
+  const ns = await namesUp();
+  const resolver = new dns.promises.Resolver({ timeout: 3000, tries: 1 });
+  resolver.setServers([`127.0.0.1:${ns.port}`]);
+  for (const i of [1, 2]) {
+    const t = Date.now();
+    const got = await resolver.resolve4(`self-${RUN}.bench.test`).catch((e) => [e.code || e.message]);
+    console.log(`slow name: lookup ${i} of self-${RUN}.bench.test gave ${got.join(', ')} after ${Date.now() - t} ms (asked ${NAME_MS})`);
+  }
+  console.log('slow name: questions counted', JSON.stringify(ns.asked(`self-${RUN}.bench.test`)), '; answers sent late by', JSON.stringify(ns.late()));
   closerOff();
 }
 
@@ -714,6 +781,8 @@ for (const s of todo) if (!(s in SC) && !['inet', 'idle', 'selftest', 'ceiling']
 console.log(`# apps ${APPS.join(', ')}; dm ${DM || '-'}; results in ${OUT}`);
 // The certificate before dm starts, whichever scenario starts it: dm is given it once, at start.
 if (todo.some((s) => SC[s]?.tls)) { tls = benchCert(); console.log(`# TLS certificate ${tls.certFile} (dm is given it as DM_BENCH_CA)`); }
+// The slow name's server before dm starts, likewise: dm is given it once, at start.
+if (todo.some((s) => SC[s]?.nameMs)) await namesUp();
 startSampler();
 await sleep(1500);
 try {
@@ -726,5 +795,6 @@ try {
   if (sampler) { if (WIN) sampler.kill(); else clearInterval(sampler); }
   server.close();
   if (tlsServer) tlsServer.close();
+  if (nameServer) nameServer.close();
   setTimeout(() => process.exit(0), 500);
 }

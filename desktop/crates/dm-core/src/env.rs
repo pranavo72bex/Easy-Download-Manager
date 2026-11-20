@@ -63,6 +63,13 @@ pub const SWITCHES: &[Switch] = &[
         test_only: true,
     },
     Switch {
+        name: "DM_BENCH_DNS",
+        purpose: "A DNS server (`127.0.0.1:<port>`) dm asks names under `.test` of, in place of \
+                  the system, for the benchmark's `slowname` case: a name that answers slowly \
+                  (bench/README.md).",
+        test_only: true,
+    },
+    Switch {
         name: "DM_BENCH_SMALL",
         purpose: "Leaves out `tests/throughput.rs`'s half-gigabyte cases, which take minutes in a \
                   debug build.",
