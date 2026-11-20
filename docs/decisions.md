@@ -8140,3 +8140,11 @@ A transport stream cannot be cleared in place, so its locks are written to `trac
 
 The protobuf and UMP readers are dm's own. A framed format is used only where nothing with an address gives its quality, and an answer whose formats are all framed only after every other client was asked; a framed stream that fails falls back to the formats with addresses. No proof-of-origin token is minted (a decision of its own, not taken): where the stream asks one, dm says so. The message field numbers are from the protocol's published descriptions and unchecked against the service until a live run.
 
+## macOS's row menu is an NSMenu of dm's own, gpui-component not vendored (2026-11-20, gaps row U27)
+
+NativeMenu (gpui-component 0.9.1) has no key equivalent, and vendoring the whole crate (4.4 MB) for one field was judged too heavy. On macOS the row menu alone is built by `platform/popmenu.rs` from the same `gpui::Menu`, its keys looked up as the drawn menu does and set as GPUI's menu bar sets them, popped up and dispatched as NativeMenu does. The title menus and toolbar arrows stay on NativeMenu and show no keys on macOS.
+
+## A slow name in the benchmark through dm's own question for `.test` names (2026-11-20, gaps row W2)
+
+dm could not be pointed at a DNS server, and the hosts file needs an administrator. `DM_BENCH_DNS` makes dm ask a named server for names under `.test` alone (reserved for testing, so no real name is ever sent there), and every other name of the system as before. Reference A asks the system, so it joins the case only where a person has pointed the system at the harness's server. Like `DM_BENCH_CA`, the switch is read in release builds: on the security review's list.
+
