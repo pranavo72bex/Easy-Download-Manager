@@ -96,6 +96,7 @@ pub async fn download_page(
         .filter(|s| s.numbered)
         .map(|s| s.id.clone())
         .collect();
+    let framed = plan.framed.is_some();
     let mut outcome = fetch_renewing(client, url, plan, read, options, report.clone(), false).await;
     // Numbered pieces whose first does not say how many follow, or none of which could be
     // fetched: the video from its other formats, as before dm read numbered pieces (gaps row
@@ -119,6 +120,25 @@ pub async fn download_page(
             },
             Err(why) => Err(why),
         };
+    }
+    // The framed stream failed (gaps row Y2), its words checked against no live server: the
+    // video from its formats with an address, where it has any, as before dm read the framed
+    // stream. Where it has none, the framed stream's own failure stands.
+    if framed && matches!(&outcome, Err(e) if !matches!(e, Error::Paused | Error::Cancelled)) {
+        let plain = match resolve(url, options, true).await {
+            Ok(read) => read
+                .plan(staging)
+                .filter(|p| p.framed.is_none())
+                .map(|plan| (plan, read)),
+            Err(_) => None,
+        };
+        if let Some((plan, read)) = plain {
+            crate::note!(
+                info,
+                "dm: {url}: the framed stream failed; fetched from the formats with an address"
+            );
+            outcome = fetch_renewing(client, url, plan, read, options, report.clone(), true).await;
+        }
     }
     match outcome {
         Ok(done) => Ok(done),
@@ -325,6 +345,10 @@ struct Info {
     /// Its chapters, written into the file.
     #[serde(default)]
     chapters: Option<Vec<Chapter>>,
+    /// The framed stream its formats are fetched from, where dm's reading chose one served by
+    /// it alone (gaps row Y2).
+    #[serde(default)]
+    dm_framed: Option<crate::youtube::framed::Framed>,
 }
 
 /// A chapter of a video: where it starts, in seconds, and its name.
@@ -362,6 +386,9 @@ struct Format {
     dm_init_range: Option<String>,
     #[serde(default)]
     dm_index_range: Option<String>,
+    /// dm's own reading's word on how the framed stream names this format.
+    #[serde(default)]
+    dm_framed: Option<crate::youtube::framed::Pick>,
 }
 
 /// A "start-end" byte range, both ends inclusive.
@@ -404,6 +431,8 @@ struct Subtitle {
 struct Plan {
     streams: Vec<Stream>,
     produced: PathBuf,
+    /// The framed stream every stream is fetched from at once, where they are its (gaps row Y2).
+    framed: Option<crate::youtube::framed::Framed>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -431,6 +460,8 @@ struct Stream {
     /// Served only as numbered pieces (`http_dash_segments`, `&sq=N`), fetched by the DASH
     /// piece fetcher rather than as one file (gaps row Y14).
     numbered: bool,
+    /// How the plan's framed stream names it, where it is fetched from that.
+    framed: Option<crate::youtube::framed::Pick>,
 }
 
 impl Stream {
@@ -483,6 +514,20 @@ impl Read {
             _ => vec![&info.single],
         };
         let joined = formats.len() > 1;
+        // The framed stream's formats, all of them or none, fetched from the address it names
+        // (gaps row Y2).
+        let framed_of = |format: &Format| {
+            let ours = format.protocol.as_deref() == Some(crate::youtube::framed::PROTOCOL)
+                && info.read_by.as_deref() == Some("dm");
+            format.dm_framed.clone().filter(|_| ours)
+        };
+        let framed = info
+            .dm_framed
+            .clone()
+            .filter(|_| formats.iter().all(|f| framed_of(*f).is_some()));
+        if framed.is_none() && formats.iter().any(|f| framed_of(*f).is_some()) {
+            return None;
+        }
         let stem = produced.file_stem()?.to_string_lossy().into_owned();
         let dir = produced.parent()?;
         let mut streams = Vec::new();
@@ -491,8 +536,13 @@ impl Read {
             // dm's own reading of a stream served as numbered pieces (gaps row Y14).
             let numbered = format.protocol.as_deref() == Some("http_dash_segments")
                 && info.read_by.as_deref() == Some("dm");
-            let url = format.url.as_deref()?;
-            if !(plain || numbered) || !(url.starts_with("https://") || url.starts_with("http://"))
+            let pick = framed.as_ref().and_then(|_| framed_of(format));
+            let url = match &framed {
+                Some(stream) => stream.url.as_str(),
+                None => format.url.as_deref()?,
+            };
+            if !(plain || numbered || pick.is_some())
+                || !(url.starts_with("https://") || url.starts_with("http://"))
             {
                 return None;
             }
@@ -536,9 +586,14 @@ impl Read {
                 init: range_of(format.dm_init_range.as_deref()),
                 index: range_of(format.dm_index_range.as_deref()),
                 numbered,
+                framed: pick,
             });
         }
-        Some(Plan { streams, produced })
+        Some(Plan {
+            streams,
+            produced,
+            framed,
+        })
     }
 }
 
@@ -581,7 +636,11 @@ impl Plan {
                 }
             })
             .collect();
-        Plan { streams, produced }
+        Plan {
+            streams,
+            produced,
+            framed: self.framed.clone(),
+        }
     }
 }
 
