@@ -738,8 +738,49 @@ to W20 (what people ask for), W21 to W26 (trust and reach).
 `docs/decisions.md`, 2026-10-24 and 2026-11-13): sending a link from a phone; cutting advertising
 or sponsor segments out of a video; paid file-host accounts and link-unlocking services; catching
 downloads other programs start (row F11 holds its smallest form); toolbar icon sets of a person's
-own; a stream a DRM system protects, which dm never decrypts. A phone app of dm's own is not
-listed: it is another product, not a row.
+own; a stream a DRM system protects, which dm never decrypts. A phone app was not listed here
+on 2026-11-17; the maintainer asked for one on 2026-11-20 (rows N below).
+
+## Android (rows N, the maintainer, 2026-11-20)
+
+The maintainer, 2026-11-20: "we will make it android app too. all feature should work like
+desktop. we can share the link in the our download manager and it will downlaod and it will
+work like a bittorrent android app". Listed only: nothing here is coded or run. Found by reading
+the tree at c010a3dc, not by running anything, so each row's first step is to see the gap happen.
+
+**What is meant:** dm on Android phones and tablets with the desktop's features (segmented HTTP
+with resume, the queue and its schedule, YouTube and the streams, BitTorrent with magnets and
+`.torrent` files, Options, the categories), started by sharing a link to dm from any app (the
+system's share sheet) or by opening a magnet or `.torrent` with it, and downloading on in the
+background with its progress in a notification, the way a phone's BitTorrent apps do.
+
+**What carries over and what does not:** the engine crates hold no window code (`dm-core`,
+`dm-net`, `dm-media`, `dm-torrent`, `dm-protocol`, `dm-js`'s Rust side) and are expected to build
+for `aarch64-linux-android` once their system code is given an Android branch (A10's
+`platform/` is where it goes). The window does not carry over: GPUI has no Android backend, so
+the phone needs a window of its own, and goal 3 above ("GPUI the only window toolkit") cannot
+hold for it as written. dm-shell's tray, login item, registry, dial-up and the browser
+extension's native host have no Android meaning.
+
+**Order:** N1 (the decisions) before anything; N2 to N4 (the engine on the phone); N5 to N9 (the
+app a person uses); N10 to N12 (system rules); N13 and N14 (tests and release).
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| N1  | Nothing decides how the phone app is built: the window's toolkit, where the code lives, the lowest Android version, and whether "work like desktop" means the desktop's window (menus, toolbar, Options' pages) or the same features in a phone's shape | OPEN · decide · the maintainer's word | Recommended, to record in `docs/decisions.md`: a `mobile/android/` Gradle project, its window in Jetpack Compose (Kotlin: the system's own toolkit, the only one with the share sheet, notifications and storage pickers first-hand), over the Rust engine as one `cdylib` (`desktop/crates/dm-android`) bound with UniFFI; Android 8.0 (API 26) and up; the same features in a phone's shape (a list, a details sheet, Options as one scrolling page), not the desktop's window shrunk. Goal 3 amended to "GPUI the only window toolkit on desktop". Asked of the maintainer before N2 |
+| N2  | The engine has never been built for Android: no `target_os = "android"` branch anywhere, and code that assumes a desktop (`dm_core::folders`, `secretstore`, `dialup.rs`, `second_path`, the clock, `env`) | OPEN · M | `cargo check --target aarch64-linux-android` (with `cargo-ndk`) on dm-core, dm-net, dm-media, dm-torrent and dm-protocol, each failure given an Android branch behind `platform/` (A10); a CI job that keeps it building; `x86_64-linux-android` too, for the emulator |
+| N3  | Nothing exposes the engine to another language: the window and the control port reach it in-process from Rust | OPEN · M | `dm-android`: a UniFFI interface the size of the control port's methods (add, start, pause, resume, remove, list, a download's details, Options read and written, events as a callback), so the phone's window calls what the desktop's window calls and no feature is written twice; its tests in Rust on the host |
+| N4  | The YouTube solver runs the player's code in the system's JS engine (Chakra on Windows, JSC on the Mac, row 164); Android has neither as a library | OPEN · M · decide | Recommended: the system WebView's JavaScript (`WebView.evaluateJavascript` in a hidden WebView, or `JavaScriptSandbox` from androidx where the system has it), behind `dm-js`'s existing interface, so it stays the system's engine with no third-party script (row 164); tested on the emulator against the cut player |
+| N5  | No way to hand dm a link on a phone: there is no browser extension on Android's Chrome | OPEN · S | An `ACTION_SEND` (text/plain) and `ACTION_VIEW` intent filter: a link shared from any app, a magnet opened, a `.torrent` opened from Files or a browser's download all reach the same "add" as the desktop's hand-over, with the same Add dialog's choices (folder, category, start now or queue); a link copied to the clipboard offered when dm opens, as the desktop's clipboard offer |
+| N6  | Downloads stop when the phone's screen goes off or the app is left: the engine runs only while a process does | OPEN · M | A foreground service (type `dataSync`, Android 14's rules) holding the engine while anything downloads or seeds, its notification showing count, speed and Pause all; stops itself when the queue is empty and nothing seeds (Options' choice, as the desktop's); survives the app's window being swiped away |
+| N7  | No phone window: the list, a download's details, the Add dialog, Options, the queue, the categories | OPEN · L · the maintainer's word | The Compose screens N1 decides, each feature the desktop's window has (a row of `docs/parity.md`) reachable, the same words as the desktop (`desktop/assets/i18n/` read by both); a per-download notification with Pause and Open when finished |
+| N8  | BitTorrent on the phone: `dm-torrent` (vendored librqbit) never built for Android; a phone changes network and sleeps | OPEN · M | N2 for `dm-torrent`; a torrent's files and priorities, peers and seeding ratio in the details screen as on the desktop; listening port re-bound when the network changes; seeding paused on mobile data unless Options says (N10) |
+| N9  | Where files land: Android 10 and up give no free access to the disk, so the desktop's folders (`dm_core::folders`) mean nothing | OPEN · M | Downloads to the system's Download folder through MediaStore by default, a folder of the person's own through the storage picker (SAF, a kept permission); the categories' folders as SAF trees; resume and segmented writes on a file descriptor the engine is given (N3) |
+| N10 | A phone's rules the desktop has no Options for: Wi-Fi only, not while roaming, not on low battery, the system's data saver | OPEN · S · the maintainer's word | Options lines on the phone alone, honoured by the engine through a `Platform` callback the service answers from `ConnectivityManager` and `BatteryManager`; a download held by one says so in its status |
+| N11 | Secrets sealed in the system's store: no Android branch of `secretstore` | OPEN · S | Android Keystore (an AES key that never leaves it) sealing what `secretstore` seals on the desktop, reached through N3's callback |
+| N12 | Android kills idle apps and limits work started from the background; the scheduler (start at, stop at) relies on a running process | OPEN · S | The schedule's times set as `AlarmManager` exact alarms (the permission asked for once, with its reason) that start the service; a download restarted after the phone reboots if it was running (`BOOT_COMPLETED`) |
+| N13 | No tests and no QA on Android: `human-qa.py` drives a desktop window | OPEN · M | Rust tests of `dm-android` on the host; Compose UI tests on the emulator in CI (`x86_64`, API 26 and the newest); a phone section of `docs/behaviour-contract.md` (the maintainer's word) and a QA script that runs it on a visible emulator, as `human-qa.py` does on the desktop |
+| N14 | Nothing to install: no APK, no store | OPEN · S · R1's rule | A release APK (arm64-v8a, armeabi-v7a, x86_64) built by CI at a tag and attached to the release, signed with a key of dm's own (free); F-Droid, which is free, as the store; Google Play needs a fee and is BLOCKED as R1 and R4 are, until the maintainer says |
 
 ## GPUI migration: picking it up (rows G1 to G9)
 
