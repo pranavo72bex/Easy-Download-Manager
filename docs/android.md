@@ -13,7 +13,7 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 | File | What it does |
 |------|--------------|
 | `src/android.rs` | `android_main`: the phone's services handed to `dm_desktop_base::phone::set_phone` first; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, `dm_core::folders::set_phone_folders` with the download folder: `Download/dm` in shared storage, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed |
-| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), a failure's with Retry, the wake lock and the ongoing notification together (`keep_awake`), the schedule's alarm set when its time changes (`next_start`), open, reveal, the clipboard, the Trash refused. Tested on the host |
+| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), a failure's with Retry, the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second; the foreground service starts and stops with the notification), the schedule's alarm set when its time changes (`next_start`), open, reveal, the clipboard, the Trash refused. Tested on the host |
 | `src/wakeup.rs` | When the schedule's alarm goes off (a minute early, as the desktop's wake timer) and what the phone's start does (tested on the host) |
 | `src/shared.rs` | What a shared intent hands over (tested on the host) |
 | `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification, the wake lock |
@@ -224,13 +224,15 @@ submitted. What it needs, and where dm stands:
   been checked for `aarch64-linux-android` (with a stand-in C compiler for ring), not linked
   with the NDK, packed or run. The narrow layout that makes the window a phone's is N7's.
 - **A link shared while dm is open (N5).** `DmActivity.onNewIntent` hands it to Rust; coded,
-  not run (the checklist above).
-- **Downloading in the background (N6).** The wake lock, the ongoing notification, the
-  foreground service, Stop All and Retry are coded, not run; the notification's words are fixed
-  ("dm is downloading") until the seam carries the count and the speed.
-- **The schedule and the phone's start (N12).** Coded, not run. Neither starts dm without its
-  window: a notification asks for a tap. The exact-alarm permission is not asked for with its
-  reason yet (without it the alarm is inexact).
+  not compiled or run (the checklist above).
+- **Downloading in the background (N6).** The wake lock and the ongoing notification are in,
+  held while a row runs, a queued one is due or a finished torrent is shared
+  (`awake::watch_phone` telling `PhoneServices::busy`); the notification says the count and the
+  speed in the status bar's words, changed at most once a second, and a tap brings dm to the
+  front. The foreground service, Stop All and Retry are coded, not compiled or run.
+- **The schedule and the phone's start (N12).** Coded, not compiled or run. Neither starts dm
+  without its window: a notification asks for a tap. The exact-alarm permission is not asked
+  for with its reason yet (without it the alarm is inexact).
 - **First run (N9).** On Android 8 and 9, the first start downloads into the app's own folder
   until storage is granted. On Android 10, the shared Download folder cannot be written by path
   at all.

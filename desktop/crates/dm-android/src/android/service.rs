@@ -7,12 +7,12 @@
 //! through `natives`). While it runs Android keeps dm's process, so downloads go on with dm in
 //! the background or the screen off.
 //!
-//! dm-desktop-base's awake watch says when dm becomes busy and when not
-//! (`PhoneServices::keep_awake`, `crate::phone`); the ongoing notification it puts up ([`show`])
-//! starts the service, whose start (`started`) makes that notification its own with
-//! `startForeground`, built by `notify`'s builder from the words kept here. Later words change
-//! it in place (the same number). When dm is no longer busy ([`hide`]) the service stops and
-//! the notification goes. A start Android refuses (Android 12 and up, from the background) is
+//! dm-desktop-base's awake watch says what keeps dm busy and when nothing does
+//! (`PhoneServices::busy`, `Phone::busy` in `crate::phone`); the ongoing notification it puts
+//! up ([`show`], through `Java::ongoing`) starts the service, whose start (`started`) makes
+//! that notification its own with `startForeground`, built by `notify::ongoing_builder` from
+//! the words kept here. Later words change it in place (the same number). When dm is no longer
+//! busy ([`hide`]) the service stops and the notification goes. A start Android refuses (Android 12 and up, from the background) is
 //! said and leaves the plain ongoing notification and the wake lock to do what they can.
 //!
 //! The service is never stopped from outside before it has called `startForeground` (Android
@@ -185,7 +185,15 @@ pub(crate) fn started(service: Global<JObject<'static>>) -> Result<(), String> {
         (held.wanted, held.title.clone(), held.body.clone())
     };
     jvm::with("keep downloading in the background", |env, _| {
-        let built = notify::ongoing_notification(env, &service, &title, &body)?;
+        let builder = notify::ongoing_builder(env, &service, &title, &body)?;
+        let built = env
+            .call_method(
+                &builder,
+                jni_str!("build"),
+                jni_sig!("()Landroid/app/Notification;"),
+                &[],
+            )?
+            .l()?;
         foreground(env, &service, &built)
     })?;
     if !wanted {

@@ -160,26 +160,21 @@ pub(crate) fn post_failed(title: &str, body: &str, row: u64) -> Result<(), Strin
 }
 
 /// The ongoing notification (gaps row N6): put up, or changed in place, while anything
-/// downloads; a tap brings dm to the front. While the foreground service runs it is the
+/// keeps dm busy; a tap brings dm to the front. While the foreground service runs it is the
 /// service's own (the same number), changed in place here.
 pub(crate) fn ongoing(title: &str, body: &str) -> Result<(), String> {
     jvm::with("show its progress", |env, context| {
-        let built = ongoing_notification(env, context, title, body)?;
-        let manager = jvm::service(env, context, "notification")?;
-        env.call_method(
-            &manager,
-            jni_str!("notify"),
-            jni_sig!("(ILandroid/app/Notification;)V"),
-            &[JValue::Int(ONGOING_ID), JValue::Object(&built)],
-        )?;
-        Ok(())
+        let builder = ongoing_builder(env, context, title, body)?;
+        show(env, context, &builder, ONGOING_ID)
     })
 }
 
-/// The ongoing notification, built: its words, a tap that brings dm to the front, and Stop
-/// All, which stops every download as the window's Stop All does (`receivers`). The foreground
-/// service starts with it (`service`).
-pub(crate) fn ongoing_notification<'local>(
+/// The ongoing notification's builder, saying `title` and `body`, a tap on it bringing dm to
+/// the front, with Stop All, which stops every download as the window's Stop All does
+/// (`receivers`); shown as number [`ONGOING_ID`], so whatever shows it (`ongoing`, or the
+/// foreground service's `startForeground`, `service`) shows the same one and a later show
+/// replaces it.
+pub(crate) fn ongoing_builder<'local>(
     env: &mut Env<'local>,
     context: &JObject<'_>,
     title: &str,
@@ -207,13 +202,7 @@ pub(crate) fn ongoing_notification<'local>(
         -1,
         ONGOING_ID,
     )?;
-    env.call_method(
-        &builder,
-        jni_str!("build"),
-        jni_sig!("()Landroid/app/Notification;"),
-        &[],
-    )?
-    .l()
+    Ok(builder)
 }
 
 /// Takes notification `id` down (a failure's, once its Retry is pressed).

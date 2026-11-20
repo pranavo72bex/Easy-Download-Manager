@@ -59,6 +59,36 @@ pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
     let _ = busy;
 }
 
+/// On a phone: tells it what keeps dm busy (`phone::busy`), each time the queue changes and
+/// once a second while anything does, so its ongoing notification follows the count and the
+/// speed and its wake lock is held while a row runs, a queued one is due or a finished torrent
+/// is shared (gaps row N6). `summary` reads the queue; the phone decides what to show and
+/// when. Its own thread, as `watch`'s.
+pub fn watch_phone(summary: impl Fn() -> Option<crate::phone::Busy> + Send + 'static) {
+    let (nudge, nudged) = std::sync::mpsc::sync_channel::<()>(1);
+    dm_shell::app::changes::subscribe(move || {
+        let _ = nudge.try_send(());
+    });
+    let _ = std::thread::Builder::new()
+        .name("dm-awake".into())
+        .spawn(move || loop {
+            let busy = summary();
+            let held = busy.is_some();
+            crate::phone::busy(busy);
+            let looked_again = if held {
+                // Seeding and the speed change with no change to the queue's rows.
+                nudged.recv_timeout(std::time::Duration::from_secs(1))
+            } else {
+                nudged
+                    .recv()
+                    .map_err(|_| std::sync::mpsc::RecvTimeoutError::Disconnected)
+            };
+            if looked_again == Err(std::sync::mpsc::RecvTimeoutError::Disconnected) {
+                return;
+            }
+        });
+}
+
 // Holds the system awake, or lets it sleep: the phone's wake lock, or
 // Windows' thread state.
 #[cfg(target_os = "android")]
