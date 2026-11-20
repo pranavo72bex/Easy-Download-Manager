@@ -4,15 +4,19 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The phone's services as dm's window asks for them (`dm_desktop_base::phone::PhoneServices`,
-//! gaps rows N3, N6, N17), made of the calls into Android that `android/java.rs` makes through
-//! JNI ([`Java`]). What each service does with those calls is decided here, where the host's
-//! tests reach it: a finished file indexed before its notification, the wake lock and the
-//! ongoing notification together for as long as dm is busy, its words at most once a second,
-//! a finished file published to the shared Download folder (gaps row N9), the Trash refused.
+//! gaps rows N3, N6, N9, N10, N12, N17), made of the calls into Android that `android/java.rs`
+//! makes through JNI ([`Java`]). What each service does with those calls is decided here, where
+//! the host's tests reach it: a finished file indexed before its notification, a failure's with
+//! Retry, the wake lock and the ongoing notification together for as long as dm is busy, its
+//! words at most once a second (the foreground service starting and stopping with the
+//! notification, `android/service.rs`), the schedule's alarm set only when its time changes, a
+//! finished file published to the shared Download folder and the folders dm writes by path
+//! offered to the window's choosers (N9), the connection and battery for the phone's rules
+//! (N10), the Trash refused.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use dm_desktop_base::phone::{Busy, PhoneNetwork, PhoneServices};
 use dm_desktop_base::quiet::Note;
@@ -23,6 +27,9 @@ pub trait Java: Send + Sync + 'static {
     /// A message in the shade: `open` is a finished file a tap opens; without one a tap brings
     /// dm to the front.
     fn post(&self, title: &str, body: &str, open: Option<&str>) -> Result<(), String>;
+    /// A failed download's message, with a Retry button that tries row `row` again; a tap
+    /// brings dm to the front.
+    fn post_failed(&self, title: &str, body: &str, row: u64) -> Result<(), String>;
     /// Adds the finished file at `path` to the phone's media index, so a tap lends it to
     /// another app by a `content://` address.
     fn index(&self, path: &str) -> Result<(), String>;
@@ -47,6 +54,16 @@ pub trait Java: Send + Sync + 'static {
     /// The phone's connection and battery now, for its rules (gaps row N10); what a call could
     /// not read is unknown, which holds nothing.
     fn network(&self) -> PhoneNetwork;
+    /// Sets the schedule's alarm for `at` (milliseconds since 1970), or clears it.
+    fn alarm(&self, at: Option<i64>) -> Result<(), String>;
+    /// The time now, in milliseconds since 1970.
+    fn now(&self) -> i64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since| {
+                i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
+            })
+    }
 }
 
 /// The ongoing notification's second line where [`Busy::words`] has none.
@@ -65,6 +82,8 @@ pub struct Phone<J> {
     java: Arc<J>,
     index_wait: Duration,
     places: Places,
+    /// The schedule's alarm as last set (`None` before the first).
+    armed: Mutex<Option<Option<i64>>>,
     ongoing: Mutex<Ongoing>,
 }
 
@@ -160,6 +179,7 @@ impl<J: Java> Phone<J> {
             java: Arc::new(java),
             index_wait: INDEX_WAIT,
             places: Places::default(),
+            armed: Mutex::new(None),
             ongoing: Mutex::default(),
         }
     }
@@ -173,12 +193,17 @@ impl<J: Java> Phone<J> {
 
 impl<J: Java> PhoneServices for Phone<J> {
     fn notify(&self, note: Note) {
-        // A Retry button on a failure needs a broadcast receiver, a Java class (docs/gaps.md,
-        // N6); until then a failure's notification brings dm to the front, where the row's
-        // Retry is.
         let Note {
-            title, body, path, ..
+            title,
+            body,
+            path,
+            retry,
         } = note;
+        // A failure: Retry on it, which tries the row again as the window's Retry does.
+        if let (None, Some(row)) = (&path, retry) {
+            let _ = self.java.post_failed(&title, &body, row);
+            return;
+        }
         let Some(path) = path else {
             // Without the permission to notify, the window still shows it.
             let _ = self.java.post(&title, &body, None);
@@ -263,6 +288,18 @@ impl<J: Java> PhoneServices for Phone<J> {
             .or_else(|| self.places.first())
             .cloned()
             .ok_or_else(|| "this phone gave dm no folder on its storage to save in".into())
+    }
+
+    fn next_start(&self, minutes: Option<u32>) {
+        let at = minutes.map(|minutes| crate::wakeup::alarm_at(self.java.now(), minutes));
+        let mut armed = dm_core::lock(&self.armed);
+        if *armed == Some(at) {
+            return;
+        }
+        // Kept only once set, so a refusal is tried again at the next look.
+        if self.java.alarm(at).is_ok() {
+            *armed = Some(at);
+        }
     }
 
     // `trash`: the seam's own answer. A phone has no Trash dm can reach, so the file is kept

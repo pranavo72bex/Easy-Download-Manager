@@ -70,6 +70,12 @@ pub trait PhoneServices: Send + Sync {
         let _ = summary;
     }
 
+    /// The schedule's next start, `minutes` from now (`None`: none), so the phone wakes dm for
+    /// it (an alarm; gaps row N12). Told every minute by the wake watch (`wake`).
+    fn next_start(&self, minutes: Option<u32>) {
+        let _ = minutes;
+    }
+
     /// Takes the file at `path` away where it can be put back; a phone has no Trash dm can
     /// reach, so by default it is refused and the file kept.
     fn trash(&self, path: &str) -> Result<(), String> {
@@ -273,6 +279,13 @@ pub fn keep_awake(on: bool) {
 pub fn busy(summary: Option<Busy>) {
     if let Some(phone) = phone() {
         phone.busy(summary);
+    }
+}
+
+/// Tells the phone the schedule's next start, `minutes` from now.
+pub fn next_start(minutes: Option<u32>) {
+    if let Some(phone) = phone() {
+        phone.next_start(minutes);
     }
 }
 

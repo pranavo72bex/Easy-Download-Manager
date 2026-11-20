@@ -30,3 +30,4 @@ mod sealed;
 mod shared;
 #[cfg(any(target_os = "android", test))]
 mod storage;
+pub mod wakeup;

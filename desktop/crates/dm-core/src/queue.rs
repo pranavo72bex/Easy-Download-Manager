@@ -36,6 +36,7 @@ mod inspect;
 mod journal;
 mod list;
 mod persist;
+pub use persist::saved_rows;
 mod query;
 pub use query::SharedRead;
 mod queues;

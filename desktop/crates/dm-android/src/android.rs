@@ -3,21 +3,28 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! dm on the phone: `android_main`, which the activity (gpui-mobile's `GpuiInputActivity`, a
-//! NativeActivity, in `java/`) starts through android-activity. It hands dm's window the phone's
-//! services (`crate::phone`, over `java`), sets dm's folders, and runs dm-gpui's own window
-//! (`dm_gpui::run_app`, gaps rows N3, N17) on GPUI's Android platform (gpui-android, N16).
-//! What only a phone has is reached through JNI: the link another app hands over (`intent`),
-//! notifications and the wake lock (`notify`), opening a file (`open`), where downloads land,
-//! the folders dm writes by path and where a finished one is published (`storage`).
+//! dm on the phone: `android_main`, which the activity (`com.dm.android.DmActivity`, over
+//! gpui-mobile's `GpuiInputActivity`, a NativeActivity, in `java/`) starts through
+//! android-activity. It hands dm's window the phone's services (`crate::phone`, over `java`),
+//! sets dm's folders, and runs dm-gpui's own window (`dm_gpui::run_app`, gaps rows N3, N17) on
+//! GPUI's Android platform (gpui-android, N16). What only a phone has is reached through JNI:
+//! the link another app hands over (`intent`), notifications and the wake lock (`notify`),
+//! opening a file (`open`), where downloads land, the folders dm writes by path and where a
+//! finished one is published (`storage`), the connection and the battery (`network`), dm's
+//! secrets sealed by the Keystore (`keystore`), the foreground service (`service`), the
+//! notification's buttons, the schedule's alarm and the phone's start (`receivers`), and the
+//! native methods of dm's Java classes (`natives`).
 
 mod intent;
 mod java;
 mod jvm;
 mod keystore;
+mod natives;
 mod network;
 mod notify;
 mod open;
+mod receivers;
+mod service;
 mod storage;
 
 use std::path::{Path, PathBuf};
@@ -27,20 +34,20 @@ use std::time::Duration;
 use android_activity::AndroidApp;
 use gpui_android::android::{jni as gpui_jni, AndroidPlatform, SharedPlatform};
 
-/// How often the activity's coming back to the front is looked for (a share may have started
-/// it again).
+/// How often the activity's first coming to the front is looked for.
 const LOOK: Duration = Duration::from_millis(500);
 
 /// Where dm's activity hands over (android-activity finds it by this name), on its own thread
 /// once the activity is made; its window comes later, on the activity's InitWindow, inside
-/// GPUI's run. In order: dm's home and the phone's storage (where downloads land, and how a
-/// finished one is published, gaps row N9), the phone's services handed to dm (before anything
-/// of dm's runs), dm's folders, then dm-gpui's start of dm (its engine, its settings, the
-/// queue) and its window in GPUI's application on gpui-android, until the activity is
-/// destroyed. GPUI's quit then stops the downloads, each saved to be resumed (dm-gpui's
-/// `on_app_quit`), and the process is left, so the next start begins afresh (android-activity
-/// would otherwise run this again in the same process, with gpui-android's platform already
-/// made).
+/// GPUI's run. In order: dm's home and the phone's storage (where downloads land, what Browse…
+/// offers and how a finished one is published, gaps row N9), the phone's services handed to dm
+/// (before anything of dm's runs), dm's folders and its secrets' store, dm said to run in this
+/// process (for the receivers and a new intent), then dm-gpui's start of dm (its engine, its
+/// settings, the queue) and its window in GPUI's application on gpui-android, until the
+/// activity is destroyed. GPUI's quit then stops the downloads, each saved to be resumed
+/// (dm-gpui's `on_app_quit`), and the process is left, so the next start begins afresh
+/// (android-activity would otherwise run this again in the same process, with gpui-android's
+/// platform already made).
 #[no_mangle]
 fn android_main(app: AndroidApp) {
     gpui_android::android::init_logger();
@@ -65,6 +72,8 @@ fn android_main(app: AndroidApp) {
     let phone = crate::phone::Phone::new(java::Jni::new(storage)).with_places(places);
     dm_desktop_base::phone::set_phone(Box::new(phone));
     folders(&home, downloads);
+    // dm runs in this process now: a receiver's Retry or Stop All and a new intent find it.
+    receivers::dm_started(home.clone());
     // Each of these only makes the phone friendlier; dm runs without them.
     let _ = open::allow_file_uris();
     let _ = notify::channels();
@@ -100,28 +109,20 @@ fn folders(home: &Path, downloads: PathBuf) {
     dm_core::folders::set_phone_folders(home.to_path_buf(), downloads);
 }
 
-/// Watches, on a thread of its own, for the activity coming to the front: the first time (dm's
-/// window is up) the permissions are asked for, and each time what the activity's intent hands
-/// over goes to dm's window (`intent`), so a link shared to dm, at its start or later, appears
-/// in the window as a browser's does. A `.torrent` is copied into `torrents` first.
+/// Waits, on a thread of its own, for the activity's first coming to the front (dm's window is
+/// up): the permissions are asked for, and what the activity's intent hands over goes to dm's
+/// window (`intent`), so a link shared to dm as it starts appears in the window as a browser's
+/// does. A `.torrent` is copied into `torrents` first. A link shared later comes to the running
+/// activity as a new intent (`DmActivity.onNewIntent`, `natives`), so the thread then ends.
 fn watch(platform: Arc<AndroidPlatform>, torrents: PathBuf) {
     let watched = std::thread::Builder::new()
         .name("dm-intent".into())
         .spawn(move || {
-            let mut was_active = false;
-            let mut asked = false;
-            loop {
+            while !platform.is_active() {
                 std::thread::sleep(LOOK);
-                let active = platform.is_active();
-                if active && !was_active {
-                    if !asked {
-                        let _ = notify::ask_permissions();
-                        asked = true;
-                    }
-                    intent::take(&torrents);
-                }
-                was_active = active;
             }
+            let _ = notify::ask_permissions();
+            intent::take(&torrents);
         });
     if let Err(e) = watched {
         dm_core::note!(warn, "dm could not watch for shared links: {e}");

@@ -105,15 +105,16 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
       finishes; the file is in Files › Downloads › dm. Stop it halfway and Resume: it goes on
       from where it was.
 - [ ] **A shared link (N5).** Shared to dm while dm is closed: dm opens and the link is added
-      as a link dropped on the window is. Shared while dm is open: known not to arrive yet
-      (N5's `onNewIntent`, the maintainer's word). Text with no link in it: nothing added.
+      as a link dropped on the window is. Shared while dm is open: it arrives at once
+      (`DmActivity.onNewIntent`; "Checked by hand" below). Text with no link in it: nothing
+      added.
 - [ ] **A magnet and a `.torrent` (N5, N8).** Each opens dm and adds the torrent; the magnet's
       name appears once its metadata comes; it downloads. Switch the emulator's network off and
       on (the status bar's Wi-Fi) mid-way: it carries on.
 - [ ] **In the background (N6).** With a download running, press Home: an ongoing notification
       "dm is downloading" is up while it runs and goes when nothing runs. Lock the screen for a
-      minute: the download went on. Stop All and Retry buttons are not there yet (a Java class,
-      the maintainer's word). On Android 13 and up dm asks to post notifications once.
+      minute: the download went on. Stop All, Retry and the foreground service: "Checked by
+      hand" below. On Android 13 and up dm asks to post notifications once.
 - [ ] **A finished download's notification (N6).** It appears; tapping it opens the file.
 - [ ] **Where files land (N9).** On API 26: before storage is allowed the file goes to dm's own
       folder; once allowed, to `Download/dm`. On API 35: `Download/dm`, seen in Files.
@@ -126,7 +127,12 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
       Cancel leaves the field as it was.
 - [ ] **Secrets (N11).** Save a site's login in dm, close dm, open it again: the login is
       still there, and `files/dm/secrets/` holds `.sealed` files, not the login in clear.
-- [ ] **Phone's rules (N10).** Being coded on another branch; nothing to try yet.
+- [ ] **Phone's rules (N10).** Options › Downloads has "Wi-Fi only", "Not while roaming" and
+      "Pause when Data Saver is on" (on a phone alone). Wi-Fi only on, the emulator's Wi-Fi off
+      (mobile data on): a running download waits, its row saying "the phone is not on Wi-Fi",
+      and goes on with Wi-Fi back. "On a metered connection: wait" holds on mobile data, and the
+      battery line below its level off the charger (`adb shell dumpsys battery set level 10`,
+      `unplug`).
 - [ ] **Nothing crashed.** `adb logcat -b crash` holds nothing of `com.dm.android`.
 
 Note what broke, with the Logcat lines around it; each finding is a gaps row's next step.
@@ -143,15 +149,20 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 
 | File | What it does |
 |------|--------------|
-| `src/android.rs` | `android_main`: dm's home (`files/dm`) and the phone's storage (`android/storage.rs`) first; the phone's services handed to `dm_desktop_base::phone::set_phone`; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, `dm_core::folders::set_phone_folders` with the download folder: dm's own folder on the shared storage on Android 10 and up, else `Download/dm` in shared storage where dm may write it, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed |
-| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second), open, reveal, the clipboard, a finished file published to `Download/dm` (`publish`), the folders dm downloads and saves into (`Places`: Browse…'s choices, Export's folder), the Trash refused. Tested on the host |
+| `src/android.rs` | `android_main`: dm's home (`files/dm`) and the phone's storage (`android/storage.rs`) first; the phone's services handed to `dm_desktop_base::phone::set_phone`; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, the Keystore's store for secrets, `dm_core::folders::set_phone_folders` with the download folder: dm's own folder on the shared storage on Android 10 and up, else `Download/dm` in shared storage where dm may write it, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed. dm said to run in this process (`receivers::dm_started`) once its folders are set, for a receiver's Retry or Stop All and a new intent |
+| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), a failure's with Retry, the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second; the foreground service starts and stops with the notification), the schedule's alarm set when its time changes (`next_start`), open, reveal, the clipboard, a finished file published to `Download/dm` (`publish`), the folders dm downloads and saves into (`Places`: Browse…'s choices, Export's folder), the connection and battery for the phone's rules (`network`), the Trash refused. Tested on the host |
+| `src/wakeup.rs` | When the schedule's alarm goes off (a minute early, as the desktop's wake timer) and what the phone's start does (tested on the host) |
 | `src/shared.rs` | What a shared intent hands over (tested on the host) |
 | `src/storage.rs`, `src/android/storage.rs` | The phone's storage, worked out once at start (gaps row N9): the shared Download folder looked up once, the folders dm writes by path, each probed with a file (`phone::Places`: the default download folder, what Browse… offers, where Export writes), where downloads land (dm's own folder on Android 10 and up) and each finished file put in `Download/dm` through the media store, or by path on 8 and 9; the decisions tested on the host |
-| `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification, the wake lock, publishing a finished file (`storage`) |
-| `src/android/intent.rs` | The activity's intent, read when the activity comes to the front (a thread watching gpui-android's `is_active`): SEND text and VIEW magnet or web address go to `dm_desktop_base::phone::shared`, a `.torrent` is copied into `files/dm/torrents` and goes to `phone::shared_file`; the window adds both as it adds a dropped link |
-| `src/android/notify.rs` | Notification channels and messages, the ongoing notification, the partial wake lock, the permissions asked for once the window is up |
-| `src/android/open.rs`, `jvm.rs` | Opening a file; the Java machine and the activity, kept once at start |
-| `java/` | The activity's Java classes (below) |
+| `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification (the foreground service's), the wake lock, the schedule's alarm, publishing a finished file (`storage`), the connection and battery (`network`) |
+| `src/android/network.rs` | The connection and the battery for the phone's rules (gaps row N10): `ConnectivityManager`'s active network (metered, roaming, Wi-Fi or a cable), Data Saver, the battery's sticky broadcast; what they mean decided in `dm_desktop_base::phone::network` |
+| `src/android/intent.rs` | The activity's intent, read once dm's window is up (a thread waiting for gpui-android's `is_active` the first time) and for each new one (`DmActivity.onNewIntent`), one read at a time: SEND text and VIEW magnet or web address go to `dm_desktop_base::phone::shared`, a `.torrent` is copied into `files/dm/torrents` and goes to `phone::shared_file`; the window adds both as it adds a dropped link |
+| `src/android/notify.rs` | Notification channels and messages, a failure's Retry and the ongoing notification's Stop All (broadcasts to `DmActionReceiver`), the ongoing notification, the partial wake lock, the permissions asked for once the window is up |
+| `src/android/service.rs` | The foreground service (`DmService`, dataSync): started when dm becomes busy (the ongoing notification is its `startForeground` notification), stopped when not; Android 15's `onTimeout` stops it cleanly |
+| `src/android/receivers.rs` | What `DmActionReceiver` and `DmBootReceiver` hand over: Retry and Stop All left in the running dm's inbox, Open, the schedule's alarm (`AlarmManager`), the phone's start |
+| `src/android/natives.rs` | The native methods of dm's Java classes, by their exported `Java_com_dm_android_<Class>_<method>` names |
+| `src/android/open.rs`, `jvm.rs` | Opening a file; the Java machine and dm's context (the activity, or the application's where a receiver started the process) |
+| `java/` | The Java classes (below) |
 | `android/` | The Gradle project that makes the APK: `app/src/main/AndroidManifest.xml` (package `com.dm.android`, Android 8.0 (API 26) and up, built against API 35, the permissions and the intent filters) and `app/build.gradle.kts` |
 
 dm-gpui's start does the rest as on a computer: the engine, the settings, the queue, the window,
@@ -164,15 +175,55 @@ check `phone.rs` and `shared.rs`.
 NativeActivity alone cannot hold the soft keyboard's composition (an IME's `InputConnection`
 lives on Android's UI thread), and gpui-android calls these classes by name through JNI, so
 they are fixed by its symbols. Java and Gradle as gpui-mobile has them, at the maintainer's word
-(2026-11-20, "use gpui-mobile."); no other Java (N6's service, `onNewIntent`, notification
-buttons) without a word of its own:
+(2026-11-20, "use gpui-mobile."). dm's own four, one per feature, each small and doing nothing
+but hand its event to Rust through a `native` method, at the maintainer's word (2026-11-20,
+asked "Allow one small Java file per feature that just hands its call to Rust?": "Yes, all
+four"). Gradle compiles all of `java/` (`java.srcDirs("../../java")`).
+
+Their native methods are found by exported name, `Java_com_dm_android_<Class>_<method>`
+(`src/android/natives.rs`), as gpui-android's are, not registered from `jvm::init`: Android
+starts dm's process for the service or a receiver alone (the phone's start, an alarm), before
+or without `android_main`, so each class loads `libdm_android.so` itself (`System.loadLibrary`
+in a static block; the activity through gpui-mobile's `onCreate`), and each native method keeps
+the Java machine and a context first (`jvm::adopt`).
 
 | Class | From | Why |
 |-------|------|-----|
 | `dev.gpui.mobile.GpuiInputActivity` | gpui-mobile, unchanged | The activity the manifest names: a NativeActivity with a hidden `EditText` whose `InputConnection` reports composition and commits to `Java_dev_gpui_mobile_GpuiInputActivity_nativeIme` (gpui-android `jni.rs`), and `gpuiShowKeyboard`/`gpuiHideKeyboard`/`gpuiResetComposition`, which gpui-android calls. It also loads `libdm_android.so` with `System.loadLibrary` so the JNI methods resolve |
 | `dev.gpui.mobile.GpuiPathPicker` | gpui-mobile, unchanged | GPUI's `prompt_for_paths`: the system's document picker, the documents imported into the app's cache as paths; dm's Import, Restore and Choose… ask through it (N9) |
+| `com.dm.android.DmActivity` | dm (N5) | The activity the manifest names: `GpuiInputActivity` with `onNewIntent` made the activity's intent (`setIntent`) and handed to Rust (`newIntent`), so a link shared while dm is open reaches the window's Add at once |
+| `com.dm.android.DmService` | dm (N6) | The foreground service, type dataSync, not exported: `onStartCommand` (`started`), `onTimeout` (Android 15, `timedOut`), `onDestroy` (`stopped`) handed to Rust, which calls `startForeground`, `stopForeground` and `stopSelf` |
+| `com.dm.android.DmActionReceiver` | dm (N6, N12) | Not exported: `com.dm.android.RETRY` (the row in `com.dm.android.ROW`), `STOP_ALL`, `OPEN` and `SCHEDULE`, with the notification's number, handed to Rust (`received`) |
+| `com.dm.android.DmBootReceiver` | dm (N12) | `BOOT_COMPLETED` (exported, the sender holding `RECEIVE_BOOT_COMPLETED`) handed to Rust (`booted`) |
 
-Both are taken under GPL-3.0-or-later, as gpui-android is.
+gpui-mobile's two are taken under GPL-3.0-or-later, as gpui-android is; dm's four carry dm's
+licence header.
+
+### How a notification's button reaches dm
+
+A button is a `PendingIntent.getBroadcast` (immutable) to `DmActionReceiver`. Rust leaves the
+order in the running dm's inbox (`dm_shell::shell`), the path a second launch and the desktop
+notification's Retry already use, which the engine's own watcher takes up whether or not the
+window is drawn: Retry is `ask_running_to_retry` (the row tried again, as the window's Retry),
+Stop All is `ask_running_to_stop_all` (`stop-all`, which the watcher carries out as
+`Command::StopAll` does: `DownloadList::pause_all`). The window follows from the queue's change.
+A dm that is not running takes them at its next start.
+
+### The schedule and the phone's start
+
+dm-desktop-base's wake watch hands the schedule's next start to the phone every minute
+(`PhoneServices::next_start`; on a phone always, not only where "wake the computer" is ticked);
+`Phone` sets an `AlarmManager` alarm for it, a minute early, only when its time changes
+(`setExactAndAllowWhileIdle`, or `setAndAllowWhileIdle` where Android 12 and up do not allow
+dm exact alarms), and keeps its time in `files/dm/next-start`. The alarm sends `SCHEDULE`:
+where dm runs, the foreground service holds it up for three minutes (an exact alarm lets an app
+start one from the background) and dm's own schedule starts the queue; where the process was
+started for the alarm, a notification says the schedule is due and its tap opens dm. dm's
+window needs the activity (GPUI draws in it), so neither the alarm nor the phone's start runs
+dm without it. At the phone's start (`BOOT_COMPLETED`) the alarm is set again from
+`next-start`, and where the saved list (`dm_core::saved_rows`) has downloads that were running
+or waiting, or the schedule's time went by, a notification says "dm has downloads to resume"
+(or "dm's schedule is due"); its tap opens dm, whose start goes on with them.
 
 ## Building the APK
 
@@ -233,7 +284,7 @@ No action of anyone else's boots the emulator: the runner's own SDK tools do it 
 line, and `sdkmanager` checks each package it fetches.
 
 `scripts/android-emulator-check.sh` installs the debug APK with its permissions granted, starts
-`com.dm.android/dev.gpui.mobile.GpuiInputActivity` and, 20 seconds later, needs dm's process
+`com.dm.android/com.dm.android.DmActivity` and, 20 seconds later, needs dm's process
 (`pidof`), its activity as the resumed one (`dumpsys activity activities`) and dm's window
 not blank (`screencap`, the status and navigation bars left out: at least 16 colours, and 2 % of
 the pixels unlike the commonest, the background). Then it stops dm, serves 3 MiB of random bytes from the
@@ -242,9 +293,33 @@ share (`am start -a android.intent.action.SEND -t text/plain --es android.intent
 http://10.0.2.2:8765/dm-ci-probe.bin`), and needs the file whole (its SHA-256) within two
 minutes in one of the folders dm downloads to (`Download/dm`, the app's own folder on shared
 storage, or `files/` read through `run-as`), nothing of dm's in logcat's crash buffer, and dm
-still running. dm is stopped before the share because NativeActivity hands a running dm no new
-intent (N5). The artifact holds `screen.png`, `logcat.txt`, `activity.txt`, `gfxinfo.txt`,
+still running. dm is stopped before the share, so the share starts it (a share to a running dm
+is N5's `onNewIntent`, on the checklist below). The artifact holds `screen.png`, `logcat.txt`, `activity.txt`, `gfxinfo.txt`,
 `surfaces.txt`, `notifications.txt`, `server.log` and the emulator's log.
+
+### Checked by hand on a phone or the emulator (not yet run)
+
+The script does not reach these; each needs a run with its result written in gaps rows N5, N6
+and N12:
+
+- [ ] A link shared while dm is open (`am start -a android.intent.action.SEND -t text/plain
+  --es android.intent.extra.TEXT <url>` with dm in front) reaches the window's Add at once,
+  once; a `.torrent` the same way.
+- [ ] A download started, then Home and the screen off for ten minutes: it goes on (`adb shell
+  dumpsys activity services com.dm.android` shows `DmService` foreground, type dataSync); the
+  ongoing notification is the service's; when nothing runs the service and the notification go.
+- [ ] Stop All in the ongoing notification stops every download, each resumable.
+- [ ] A failure's notification shows Retry; pressing it tries the row again and the
+  notification goes.
+- [ ] Android 15: the service's time running out (six hours of dataSync a day) ends it cleanly
+  through `onTimeout`, with no crash; dm downloads on while the process lives.
+- [ ] Android 12 and up from the background: a refused `startForegroundService` is logged in
+  dm's words and the plain ongoing notification stays.
+- [ ] A queue start set in the Scheduler two minutes ahead: `adb shell dumpsys alarm` shows
+  dm's alarm (exact where allowed); with dm in the background the queue starts on time.
+- [ ] `adb reboot` with a download running: after the start, "dm has downloads to resume";
+  its tap opens dm and the download goes on; a schedule set before the reboot is in `dumpsys
+  alarm` again.
 
 ## A release
 
@@ -310,16 +385,16 @@ submitted. What it needs, and where dm stands:
 - **dm's window on a phone (N3, N16, N17, N7).** `android_main` runs dm-gpui's window; it has
   been checked for `aarch64-linux-android` (with a stand-in C compiler for ring), not linked
   with the NDK, packed or run. The narrow layout that makes the window a phone's is N7's.
-- **A link shared while dm is open (N5).** NativeActivity does not pass `onNewIntent` to native
-  code, so such a link reaches dm only when Android starts the activity again; a Java
-  `onNewIntent` waits for the maintainer's word, as N6's service does.
+- **A link shared while dm is open (N5).** `DmActivity.onNewIntent` hands it to Rust; coded,
+  not compiled or run (the checklist above).
 - **Downloading in the background (N6).** The wake lock and the ongoing notification are in,
   held while a row runs, a queued one is due or a finished torrent is shared
   (`awake::watch_phone` telling `PhoneServices::busy`); the notification says the count and the
   speed in the status bar's words, changed at most once a second, and a tap brings dm to the
-  front. Android may still stop a process left in the background. A foreground service, a Stop All
-  button in the notification and a Retry button on a failure each need a Java class. Whether
-  to add one is the maintainer's call.
+  front. The foreground service, Stop All and Retry are coded, not compiled or run.
+- **The schedule and the phone's start (N12).** Coded, not compiled or run. Neither starts dm
+  without its window: a notification asks for a tap. The exact-alarm permission is not asked
+  for with its reason yet (without it the alarm is inexact).
 - **Where files land (N9).** On Android 10 and up dm downloads into its own folder on the
   shared storage (`Android/data/com.dm.android/files/Download/dm`) and puts each finished file
   in `Download/dm` through the media store (`src/storage.rs`, `src/android/storage.rs`); on 8
@@ -343,14 +418,14 @@ follows. A row that needs what is not built yet says so (N5, N6, N7, N17).
 | ID | A person does | What must happen | Reference A |
 |---|---|---|---|
 | P01 | Shares a link from another app (a browser's Share › dm) while dm is not open | dm opens and adds the download at once; it starts, its card shows its progress, and a notification "dm added a download" names it. The file lands in `Download/dm`, which the Files app shows (on Android 8 and 9 once storage is allowed; else in dm's own folder on the phone's storage). With N7's Add sheet, the sheet opens instead, as Download details does (B02) | no phone app; as B02 and B03 |
-| P02 | Shares a link while dm is already open | The same as P01, in the open dm. Not yet: NativeActivity hands a running dm no new intent, so it needs a Java `onNewIntent` (N5), the maintainer's word | no phone app; as P01 |
+| P02 | Shares a link while dm is already open | The same as P01, in the open dm (`DmActivity.onNewIntent`, N5; coded, not run) | no phone app; as P01 |
 | P03 | Shares text with no link in it | Nothing is added; a notification "dm added nothing" (or "dm could not add it") says why | no phone app; as B01 |
 | P04 | Opens a magnet link (taps it in a browser, picks dm) | dm opens and adds the torrent; its name appears once its metadata arrives, and it downloads as the desktop's torrents do | no phone app; dm's own torrent rows |
 | P05 | Opens a `.torrent` (from Files, a browser's downloads or a mail, picks dm) | dm copies it into its own folder under the name the sending app gave and adds it, as P04; a file that is not a torrent is refused in words and nothing is added | no phone app; dm's own torrent rows |
 | P06 | Opens dm on a phone (a narrow screen) | A top bar (dm's name, Add, an overflow menu holding the desktop's menus and toolbar), each download a card (name, bar, size, speed, time left), no table of columns and no side panels. Not yet: N7 and N17 | no phone app; the desktop's layout (B25) at a phone's width |
 | P07 | Taps the top bar's menu button | A drawer slides in with the categories and the queues, as the desktop's side panel lists them; tapping one shows only its downloads and closes the drawer. Not yet: N7 | no phone app; as the desktop's categories |
 | P08 | Taps a download's card | Its details open as a full screen (address, folder, size, connections, Stop / Resume, Delete), with a Back that returns to the list where it was. Not yet: N7 | no phone app; as the desktop's properties |
-| P09 | Leaves dm (Home, another app) with downloads running | They go on; an ongoing notification says "dm: N downloads running" with the speed and the count waiting, changed at most once a second, and goes away when nothing runs. A foreground service, so that Android does not stop dm later, is N6's and the maintainer's word | no phone app; downloads run with the window closed (the desktop's tray) |
+| P09 | Leaves dm (Home, another app) with downloads running | They go on; an ongoing notification says "dm: N downloads running" with the speed and the count waiting, changed at most once a second, and goes away when nothing runs. A foreground service (N6, coded, not run) keeps Android from stopping dm | no phone app; downloads run with the window closed (the desktop's tray) |
 | P10 | Taps a finished download's notification | The file opens in the app the phone uses for its type; with none, Android says so. A failed download's notification opens dm | no phone app; as the desktop's "Download complete" Open |
-| P11 | Taps Stop All in the ongoing notification | Every running download stops, keeps what it fetched and can be resumed (B04, B05); the notification goes. Not yet: a notification's button needs a broadcast receiver, a Java class (N6), the maintainer's word | no phone app; as Stop all on the desktop |
+| P11 | Taps Stop All in the ongoing notification | Every running download stops, keeps what it fetched and can be resumed (B04, B05); the notification goes (`DmActionReceiver`, N6; coded, not run) | no phone app; as Stop all on the desktop |
 | P12 | Turns the phone sideways, or changes its font size | The same window, laid out again for the new size; no download restarts and dm is not started again | no phone app |
