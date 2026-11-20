@@ -12,6 +12,7 @@
 mod busy;
 mod intent;
 mod jvm;
+mod network;
 mod notify;
 mod open;
 mod system;

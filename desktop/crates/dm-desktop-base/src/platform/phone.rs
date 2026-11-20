@@ -21,6 +21,9 @@ use std::sync::{Arc, RwLock};
 use crate::drops::Dropped;
 use crate::quiet::Note;
 
+pub mod network;
+pub use network::{network, PhoneNetwork};
+
 /// What the phone does for dm, through the app. Each has an answer of its own, so the app
 /// implements only what it has.
 pub trait PhoneServices: Send + Sync {
@@ -62,6 +65,12 @@ pub trait PhoneServices: Send + Sync {
     fn trash(&self, path: &str) -> Result<(), String> {
         let _ = path;
         Err(NO_TRASH.into())
+    }
+
+    /// The phone's connection and battery now, for its rules (gaps row N10); all unknown by
+    /// default, which holds nothing.
+    fn network(&self) -> PhoneNetwork {
+        PhoneNetwork::default()
     }
 }
 

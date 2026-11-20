@@ -27,6 +27,7 @@ mod on_linux;
 mod on_macos;
 #[cfg(windows)]
 mod on_windows;
+pub mod phone;
 
 /// The computer's battery, where it has one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -50,6 +51,12 @@ pub struct Reading {
 pub trait Source: Send {
     /// What the state is now. Called every few seconds, and only while Options asks for it.
     fn read(&self) -> Reading;
+
+    /// What a phone says of its connection and battery, for its own rules (gaps row N10);
+    /// nothing, by default.
+    fn phone(&self) -> crate::phone::PhoneNetwork {
+        crate::phone::PhoneNetwork::default()
+    }
 }
 
 /// The computer dm runs on, read by its own calls.
@@ -65,6 +72,10 @@ impl Source for System {
             metered: metered_now(),
             battery: battery_now(),
         }
+    }
+
+    fn phone(&self) -> crate::phone::PhoneNetwork {
+        crate::phone::network()
     }
 }
 
@@ -116,8 +127,14 @@ fn metered_now() -> Option<bool> {
     on_linux::metered()
 }
 
+/// Whether the connection is metered, as the phone says (gaps row N10).
+#[cfg(target_os = "android")]
+fn metered_now() -> Option<bool> {
+    phone::metered_now()
+}
+
 /// Nothing here says whether the connection is metered.
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "android")))]
 fn metered_now() -> Option<bool> {
     None
 }
@@ -140,8 +157,19 @@ fn battery_now() -> Option<Battery> {
     on_macos::battery()
 }
 
+/// The battery, as the phone says (gaps row N10).
+#[cfg(target_os = "android")]
+fn battery_now() -> Option<Battery> {
+    phone::battery_now()
+}
+
 /// Nothing here says what the battery is.
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(
+    windows,
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "android"
+)))]
 fn battery_now() -> Option<Battery> {
     None
 }

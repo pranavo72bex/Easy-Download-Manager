@@ -8224,3 +8224,16 @@ and Gradle build); no other Java (N6's service, `onNewIntent`, notification butt
 word of its own. gpui-android is a stand-in, at the maintainer's word of 2026-11-20 ("when offical come we will
 shift but for now use gpui-mobile"): when Zed ships an official GPUI Android platform, dm moves
 to it and removes the copy (docs/gaps.md, Periodic).
+
+## A phone's rules are W11's holds (2026-11-20, gaps rows N10, N12)
+
+The phone's connection and battery are the computer state W11 already reads: on Android
+`metered::System` asks the app's `PhoneServices::network` (read through JNI from
+`ConnectivityManager` and the battery's sticky broadcast, no Java), so mobile data is W11's
+metered hold and a low battery W11's battery hold, under Options' existing lines. The phone's
+own lines (Wi-Fi only, not while roaming, Data Saver) are three more `dm_core::Hold`s on the
+same path (the schedule's pause, put back by `may_run`), read at the same tick. Dropped: a
+`Platform` callback of the engine's own for these (a second mechanism beside W11's), and
+`AlarmManager` and `BOOT_COMPLETED` for the schedule (N12), which need a receiver class: Java,
+waiting for the maintainer's word with N6's service. The three Options lines are built for
+Android alone and wait for the maintainer's word on their wording.

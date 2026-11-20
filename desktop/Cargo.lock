@@ -2058,6 +2058,7 @@ dependencies = [
  "async-channel",
  "axum",
  "dm-core",
+ "dm-desktop-base",
  "dm-shell",
  "gpui-android",
  "gpui-pre",

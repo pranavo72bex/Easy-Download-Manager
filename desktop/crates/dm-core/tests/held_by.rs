@@ -135,4 +135,8 @@ async fn a_persons_pause_is_not_undone_when_the_hold_ends() {
 fn each_hold_says_why() {
     assert_eq!(Hold::Metered.said(), "the connection is metered");
     assert_eq!(Hold::Battery.said(), "the battery is low");
+    // A phone's own rules (gaps row N10).
+    assert_eq!(Hold::NotWifi.said(), "the phone is not on Wi-Fi");
+    assert_eq!(Hold::Roaming.said(), "the phone is roaming");
+    assert_eq!(Hold::DataSaver.said(), "Data Saver is on");
 }

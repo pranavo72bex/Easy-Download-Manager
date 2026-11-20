@@ -20,6 +20,12 @@ pub enum Hold {
     Metered,
     /// The computer runs on its battery, below the level Options says to wait under.
     Battery,
+    /// A phone off Wi-Fi (and off a cable), where its Options say Wi-Fi only (gaps row N10).
+    NotWifi,
+    /// A phone roaming, where its Options say not while roaming (gaps row N10).
+    Roaming,
+    /// A phone's Data Saver on, where its Options say to wait while it is (gaps row N10).
+    DataSaver,
 }
 
 impl Hold {
@@ -29,6 +35,9 @@ impl Hold {
         match self {
             Hold::Metered => "the connection is metered",
             Hold::Battery => "the battery is low",
+            Hold::NotWifi => "the phone is not on Wi-Fi",
+            Hold::Roaming => "the phone is roaming",
+            Hold::DataSaver => "Data Saver is on",
         }
     }
 }
