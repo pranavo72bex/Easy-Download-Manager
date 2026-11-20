@@ -13,14 +13,13 @@ use crate::harness::world::world;
 /// a queue that does nothing is not taken for a broken one (gaps row U37).
 #[test]
 fn a_shut_schedule_is_said_to_hold_the_downloads() {
-    use chrono::Timelike;
     let world = world();
-    let now = chrono::Local::now();
+    let now = dm_core::clock::local_now();
     let mut settings = world.settings();
     settings.schedule = dm_core::Schedule {
         enabled: true,
-        from: format!("{:02}:{:02}", (now.hour() + 2) % 24, now.minute()),
-        to: format!("{:02}:{:02}", (now.hour() + 3) % 24, now.minute()),
+        from: format!("{:02}:{:02}", (now.hour + 2) % 24, now.minute),
+        to: format!("{:02}:{:02}", (now.hour + 3) % 24, now.minute),
         ..dm_core::Schedule::default()
     };
     let mut h = world.harness_with(settings);

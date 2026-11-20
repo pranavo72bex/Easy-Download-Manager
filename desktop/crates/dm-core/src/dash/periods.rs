@@ -96,13 +96,8 @@ pub(super) fn periods_of(root: &Node, now: Option<f64>) -> Vec<PeriodAt<'_>> {
 /// no zone is taken as UTC, as the manifest's clock is.
 pub(super) fn unix_seconds(text: &str) -> Option<f64> {
     let text = text.trim();
-    let millis = match chrono::DateTime::parse_from_rfc3339(text) {
-        Ok(at) => at.timestamp_millis(),
-        Err(_) => chrono::NaiveDateTime::parse_from_str(text, "%Y-%m-%dT%H:%M:%S%.f")
-            .ok()?
-            .and_utc()
-            .timestamp_millis(),
-    };
+    let at = crate::clock::rfc3339(text).or_else(|| crate::clock::iso_utc(text))?;
+    let millis = at.unix_millis();
     Some(millis as f64 / 1000.0)
 }
 

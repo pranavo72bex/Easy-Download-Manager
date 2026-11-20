@@ -142,23 +142,28 @@ pub const MONTHS: [&str; 12] = [
 /// year, and the year too before that — "3 Mar" of two years ago read as
 /// this spring.
 pub fn when(seconds: Option<u64>) -> String {
-    use chrono::{Datelike, Local, TimeZone};
     let Some(seconds) = seconds else {
         return String::new();
     };
-    let Some(at) = Local.timestamp_opt(seconds as i64, 0).single() else {
+    let Some(at) = dm_core::clock::local_at(seconds as i64) else {
         return String::new();
     };
-    let today = Local::now().date_naive();
+    let today = dm_core::clock::local_now().date;
     let region = crate::region::system();
-    if at.date_naive() == today {
+    if at.date == today {
         // On a 12-hour clock where the computer keeps one.
         return if region.is_some_and(|r| r.hour12) {
-            at.format("%-I:%M %p").to_string()
+            let hour = match at.hour % 12 {
+                0 => 12,
+                hour => hour,
+            };
+            let noon = if at.hour < 12 { "AM" } else { "PM" };
+            format!("{hour}:{:02} {noon}", at.minute)
         } else {
-            at.format("%H:%M").to_string()
+            format!("{:02}:{:02}", at.hour, at.minute)
         };
     }
+    let at = at.date;
     let month = MONTHS
         .get(at.month0() as usize)
         .copied()
@@ -181,7 +186,7 @@ pub fn when(seconds: Option<u64>) -> String {
 
 /// [`when`]'s words for many times, kept: worked out where a time is new,
 /// and all again where the day, the zone's offset or the language changed.
-/// Asking chrono's `Local` looks at the disk for the zone now and then
+/// Asking the system for the zone looks at the disk now and then
 /// (`/etc/localtime`, at most once a second), which a window's frame must
 /// not (gaps row 180): the window keeps these as it reads the queue, and its
 /// frames look them up.
@@ -189,7 +194,7 @@ pub fn when(seconds: Option<u64>) -> String {
 pub struct Whens {
     /// The day, the zone's offset from UTC in seconds and the language the
     /// words were worked out for.
-    kept_for: Option<(chrono::NaiveDate, i32, String)>,
+    kept_for: Option<(dm_core::clock::Date, i32, String)>,
     words: std::collections::HashMap<u64, String>,
 }
 
@@ -198,12 +203,8 @@ impl Whens {
     /// where not, they are let go, and `true` says each time is to be kept
     /// again.
     pub fn renew(&mut self, language: &str) -> bool {
-        let now = chrono::Local::now();
-        let wanted = (
-            now.date_naive(),
-            now.offset().local_minus_utc(),
-            language.to_string(),
-        );
+        let now = dm_core::clock::local_now();
+        let wanted = (now.date, now.offset, language.to_string());
         if self.kept_for.as_ref() == Some(&wanted) {
             return false;
         }

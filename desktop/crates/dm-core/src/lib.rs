@@ -25,6 +25,10 @@ pub use dm_net::auth;
 
 mod category;
 
+// The clock and calendar (gaps row 215): the time now, this computer's offset, the dates
+// servers and people write; dm-net's, so every crate above it reads them the same.
+pub use dm_net::clock;
+
 mod checksum;
 
 mod clip;

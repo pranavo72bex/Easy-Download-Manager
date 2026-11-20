@@ -200,8 +200,6 @@ gpui = { workspace = true, features = ["test-support"] }
 axum.workspace = true
 futures-util.workspace = true
 tokio = { workspace = true, features = ["full"] }
-# The time now, for a test's schedule that is shut.
-chrono = { workspace = true, features = ["default"] }
 # A real archive for the tests that extract one.
 zip.workspace = true
 

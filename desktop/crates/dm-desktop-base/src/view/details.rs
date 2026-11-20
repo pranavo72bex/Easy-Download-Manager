@@ -153,9 +153,14 @@ pub fn blocks_for(
     connections: usize,
     download_dir: &std::path::Path,
 ) -> Option<(String, usize)> {
-    let when = chrono::Local::now()
-        .format("%Y-%m-%d %H:%M UTC%:z")
-        .to_string();
+    let now = dm_core::clock::local_now();
+    let when = format!(
+        "{} {:02}:{:02} UTC{}",
+        now.date,
+        now.hour,
+        now.minute,
+        now.offset_text()
+    );
     let setting = Setting {
         version: env!("CARGO_PKG_VERSION"),
         os: std::env::consts::OS,

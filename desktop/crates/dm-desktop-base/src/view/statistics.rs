@@ -12,7 +12,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
-use chrono::{Datelike, NaiveDate, TimeZone};
+use dm_core::clock::{Date, Zone};
 use dm_core::{Category, Entry, State};
 
 use crate::format;
@@ -36,7 +36,7 @@ pub struct Share {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Day {
     /// The day, on this computer's clock.
-    pub date: NaiveDate,
+    pub date: Date,
     /// The bytes of the downloads that finished that day.
     pub bytes: u64,
 }
@@ -63,10 +63,10 @@ pub struct Statistics {
 impl Statistics {
     /// The figures of `rows` as of `today`, each finish placed on a day by `zone` (this
     /// computer's offset from UTC), with the speeds `speeds` has seen.
-    pub fn of<'a, Z: TimeZone>(
+    pub fn of<'a>(
         rows: impl IntoIterator<Item = &'a Entry>,
-        today: NaiveDate,
-        zone: &Z,
+        today: Date,
+        zone: Zone,
         speeds: &SpeedsSeen,
     ) -> Statistics {
         let mut days = vec![0u64; DAYS];
@@ -79,9 +79,10 @@ impl Statistics {
             bytes = bytes.saturating_add(size);
             let finished = row
                 .finished_at
-                .and_then(|s| zone.timestamp_opt(s as i64, 0).single())
-                .map(|at| at.date_naive());
-            if let Some(ago) = finished.map(|day| (today - day).num_days()) {
+                .and_then(|s| zone.at(s as i64))
+                .map(|at| at.date);
+            let ago = finished.map(|day| today.days_since_epoch() - day.days_since_epoch());
+            if let Some(ago) = ago {
                 if (0..DAYS as i64).contains(&ago) {
                     let at = DAYS - 1 - ago as usize;
                     days[at] = days[at].saturating_add(size);
@@ -99,7 +100,7 @@ impl Statistics {
             .into_iter()
             .enumerate()
             .map(|(n, bytes)| Day {
-                date: today - chrono::Days::new((DAYS - 1 - n) as u64),
+                date: today.add_days(-((DAYS - 1 - n) as i64)).unwrap_or(today),
                 bytes,
             })
             .collect();
@@ -129,8 +130,8 @@ impl Statistics {
 
     /// The figures of `rows` today, on this computer's clock.
     pub fn now<'a>(rows: impl IntoIterator<Item = &'a Entry>, speeds: &SpeedsSeen) -> Statistics {
-        let today = chrono::Local::now().date_naive();
-        Statistics::of(rows, today, &chrono::Local, speeds)
+        let today = dm_core::clock::local_now().date;
+        Statistics::of(rows, today, Zone::Local, speeds)
     }
 
     /// The most bytes any day of [`Statistics::days`] has, for the bars to be drawn against.
@@ -163,7 +164,7 @@ pub fn kind_name(kind: Category) -> String {
 }
 
 /// A day of "By day" in words: "19 Nov", the month in the language in force.
-pub fn day_words(date: NaiveDate) -> String {
+pub fn day_words(date: Date) -> String {
     let month = format::MONTHS
         .get(date.month0() as usize)
         .copied()

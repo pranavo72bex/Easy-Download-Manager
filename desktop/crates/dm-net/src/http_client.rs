@@ -366,9 +366,9 @@ pub fn retry_after(headers: &reqwest::header::HeaderMap) -> Option<std::time::Du
      * that is wrong cannot turn "in two minutes" into "a day ago" or "next
      * week". Without a `Date` there is nothing safe to measure from, and the
      * hint is left alone. */
-    let at = chrono::DateTime::parse_from_rfc2822(value).ok()?;
+    let at = crate::clock::rfc2822(value)?;
     let now = headers.get(reqwest::header::DATE)?.to_str().ok()?;
-    let now = chrono::DateTime::parse_from_rfc2822(now.trim()).ok()?;
-    let wait = (at - now).num_seconds().max(0);
+    let now = crate::clock::rfc2822(now.trim())?;
+    let wait = at.seconds_since(now).max(0);
     Some(std::time::Duration::from_secs(wait as u64))
 }
