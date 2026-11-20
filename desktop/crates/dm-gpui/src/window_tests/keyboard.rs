@@ -211,23 +211,24 @@ fn menus_open_from_the_keyboard() {
     add_later(&mut h, &world, &["file.zip"]);
     h.select("file.zip");
     h.key("f10", &["shift"]);
-    h.until("the row menu", |h| h.view(|view| view.menu_open()));
-    let props = h.bounds_of("Properties");
+    // The menu is the system's, which takes the keys while it is open: where it opened is
+    // what the window knows of it.
+    h.until("the row menu", |h| {
+        h.view(|view| view.menus.row_menu_opened.is_some())
+    });
+    let at = h.view(|view| view.menus.row_menu_opened).unwrap();
     let row = h.bounds_of("file.zip");
-    // Under the row, not over the places beside the list.
+    // At the row, not over the places beside the list.
     assert!(
-        props.left() >= row.left() - gpui::px(30.0) && props.top() >= row.top(),
-        "the menu at {props:?} is not under the row at {row:?}"
+        at.x >= row.left() - gpui::px(50.0)
+            && at.y >= row.top()
+            && at.y <= row.bottom() + gpui::px(20.0),
+        "the menu at {at:?} is not at the row at {row:?}"
     );
-    h.key("escape", &[]);
-    h.until("the row menu shut", |h| h.view(|view| !view.menu_open()));
+    h.view(|view| view.menus.row_menu_opened = None);
     h.key("menu", &[]);
     h.until("the row menu by the Menu key", |h| {
-        h.view(|view| view.menu_open())
-    });
-    h.key("escape", &[]);
-    h.until("the row menu shut again", |h| {
-        h.view(|view| !view.menu_open())
+        h.view(|view| view.menus.row_menu_opened.is_some())
     });
     h.key("f10", &[]);
     h.until("the first of the window's menus", |h| {
@@ -519,7 +520,7 @@ fn tab_stays_in_the_dialog_and_enter_presses_its_default() {
         h.key("tab", &[]);
         assert_eq!(front(&mut h), Some(dialog), "Tab left the dialog");
     }
-    assert!(!h.view(|view| view.menu_open()), "Tab opened a menu behind");
+    assert!(h.view(|view| view.menus.row_menu_opened.is_none()), "Tab opened a menu behind");
     // Nothing in it focused but the dialog itself: Enter is Start now.
     h.dialog::<crate::dialogs::details::Details, _>(|d, window, cx| window.focus(&d.focus, cx));
     h.key("enter", &[]);

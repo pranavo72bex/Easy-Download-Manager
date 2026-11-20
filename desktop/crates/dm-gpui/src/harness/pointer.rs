@@ -23,6 +23,21 @@ impl Harness {
         self.press_at(window, at.center(), clicks);
     }
 
+    /// Picks `words` in the menu of the system's the port opened (the row menu), as a person's
+    /// pick does: its action sent to the main window, not held against a script's moment, so
+    /// Open and Open with… run as a person's choice of them does.
+    pub(crate) fn pick_as_person(&mut self, words: &str) {
+        let Some(action) = crate::probe::held_action(words) else {
+            panic!("no menu the port opened says {words:?}: {:?}", self.texts());
+        };
+        self.view(|view| view.port.scripted = Default::default());
+        let main = self.window;
+        self.cx.update(|cx| {
+            let _ = main.update(cx, |_, window, cx| window.dispatch_action(action, cx));
+        });
+        self.step();
+    }
+
     /// Waits until a script's last act is long enough ago for a person's click to run a file.
     pub(crate) fn until_a_persons_moment(&mut self) {
         self.until_within(

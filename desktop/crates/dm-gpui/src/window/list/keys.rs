@@ -21,15 +21,20 @@ impl Downloads {
     /// if it was not (a right-click on a chosen row keeps the choice), and
     /// the row menu opens there. The keyboard's place moves to it:
     /// the arrows and Shift go on from the row clicked.
-    pub fn open_menu(&mut self, id: dm_core::Id, at: gpui::Point<gpui::Pixels>) {
+    pub fn open_menu(
+        &mut self,
+        id: dm_core::Id,
+        at: gpui::Point<gpui::Pixels>,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
         if self.position_of(id).is_some() {
             if !self.list.selected.contains(&id) {
                 self.list.selected = [id].into();
                 self.list.anchor = Some(id);
             }
             self.list.cursor = Some(id);
-            self.menus.menu = Some(at);
-            self.menus.menu_at = None;
+            self.show_row_menu(at, window, cx);
         }
     }
 
@@ -66,17 +71,6 @@ impl Downloads {
         if !range {
             self.list.anchor = anchor;
         }
-    }
-
-    /// Closes the row menu.
-    pub fn close_menu(&mut self) {
-        self.menus.menu = None;
-        self.menus.menu_at = None;
-    }
-
-    /// Whether the row menu is open.
-    pub(crate) fn menu_open(&self) -> bool {
-        self.menus.menu.is_some()
     }
 
     /// Moves the choice one row up (`-1`) or down (`1`), as the arrow keys
@@ -194,7 +188,11 @@ impl Downloads {
 
     /// The row menu at the keyboard's place, as a right-click on that row opens it: Shift+F10
     /// and the Menu key.
-    pub(crate) fn row_menu_by_key(&mut self) {
+    pub(crate) fn row_menu_by_key(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let Some(at) = self
             .list
             .cursor
@@ -207,9 +205,7 @@ impl Downloads {
         let offset = f32::from(self.list.scroll.0.borrow().base_handle.offset().y);
         let y = top + offset + (at as f32 + 0.5) * ROW_HEIGHT;
         let x = f32::from(self.list.scroll.0.borrow().base_handle.bounds().origin.x) + 40.0;
-        self.menus.menu = Some(gpui::point(gpui::px(x), gpui::px(y)));
-        // Opened by a key, the keyboard is on its first entry that applies.
-        self.menus.menu_at = None;
-        self.step_menu(1);
+        // Opened by a key, the system's menu has the keyboard.
+        self.show_row_menu(gpui::point(gpui::px(x), gpui::px(y)), window, cx);
     }
 }

@@ -59,6 +59,12 @@ pub fn scripted<R>(click: impl FnOnce() -> R) -> R {
     done
 }
 
+/// Whether the click being given is the control port's: a menu of the system's it opens is
+/// held for the port instead (the row menu's, `probe::hold_menu`).
+pub fn scripting() -> bool {
+    SCRIPTED.with(|s| s.get())
+}
+
 /// The pop-up the port clicked, taken.
 pub fn held() -> Option<Held> {
     HELD.with(|h| h.borrow_mut().take())

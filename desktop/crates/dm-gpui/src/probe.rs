@@ -242,6 +242,27 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
+/// Holds `menu` as the menu the port opened: a menu of the system's that the port's click
+/// opened (the row menu), which waits for its next click, as a person's would.
+pub(crate) fn hold_menu(menu: gpui::OwnedMenu) {
+    OPEN_MENU.with(|m| *m.borrow_mut() = Some(menu));
+}
+
+/// The action of the item saying `words` in the menu the port opened, the menu taken: a
+/// person's pick of it, which may be what runs a downloaded file, as the port's may not.
+#[cfg(test)]
+pub(crate) fn held_action(words: &str) -> Option<Box<dyn gpui::Action>> {
+    let menu = OPEN_MENU.with(|m| m.borrow_mut().take())?;
+    menu.items.iter().find_map(|item| match item {
+        gpui::OwnedMenuItem::Action { name, action, .. }
+            if name.trim_end_matches('…') == words.trim_end_matches('…') =>
+        {
+            Some(action.boxed_clone())
+        }
+        _ => None,
+    })
+}
+
 impl Probe<'_, '_> {
     /// A click the menu bar takes: an item of the menu open (a submenu
     /// opens in its place; an action runs in the main window, as the
@@ -259,6 +280,23 @@ impl Probe<'_, '_> {
             })
         };
         if let Some(menu) = OPEN_MENU.with(|m| m.borrow_mut().take()) {
+            // What runs a downloaded file is a person's to pick (the row menu's Open, Open
+            // with…, Preview), asked for by a part of its words too; the menu stays open, as a
+            // person's would.
+            let part = words.to_lowercase();
+            let runs_a_file = menu.items.iter().find_map(|item| match item {
+                gpui::OwnedMenuItem::Action { name, .. }
+                    if (same(name) || name.to_lowercase().contains(&part))
+                        && probe::is_run_a_file(name) =>
+                {
+                    Some(name.clone())
+                }
+                _ => None,
+            });
+            if let Some(name) = runs_a_file {
+                OPEN_MENU.with(|m| *m.borrow_mut() = Some(menu));
+                return Some(Err(format!("{name} is done by a person")));
+            }
             for item in &menu.items {
                 match item {
                     gpui::OwnedMenuItem::Submenu(sub) if same(&sub.name) => {

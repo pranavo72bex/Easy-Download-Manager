@@ -6,22 +6,23 @@
 //! A place's right-click menu in the side panel (gaps row U12): a category's Open folder and
 //! Add or edit categories…, Unfinished's Resume all and Stop All, Finished's Delete Completed,
 //! a queue's Start Queue, Stop Queue and Scheduler…. Its items come from
-//! `dm_shell::app::places::place_menu`, drawn as the row menu is (`rowmenu::panel`).
+//! `dm_shell::app::places::place_menu`, drawn as a macOS context menu: rounded and shadowed,
+//! the item under the pointer in the selection colour.
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::places::{folder_of, place_menu, Place, PlaceAction};
-use gpui::{prelude::*, Context, Pixels, Point};
+use gpui::{anchored, deferred, div, prelude::*, Context, Pixels, Point, Role};
 
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::menus::Run;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
+use crate::window::zoom::px;
 
 impl Downloads {
-    /// Opens `place`'s menu at `at`, the place chosen first, as a right-click chooses it; the
-    /// row menu closed.
+    /// Opens `place`'s menu at `at`, the place chosen first, as a right-click chooses it.
     pub fn open_place_menu(&mut self, place: Place, at: Point<Pixels>) {
-        self.close_menu();
         self.choose(place.clone());
         self.menus.place_menu = Some((place, at));
     }
@@ -69,12 +70,12 @@ pub fn menu(
     screen: &Screen,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let items = place_menu(place)
+    let items: Vec<gpui::AnyElement> = place_menu(place)
         .into_iter()
         .enumerate()
         .map(|(n, (words, action))| {
             let place = place.clone();
-            crate::window::rowmenu::item(("place-menu", n), t(words), true, false, theme)
+            item(("place-menu", n), t(words), theme)
                 .on_click(cx.listener(move |view, _, window, cx| {
                     view.act_on_place(place.clone(), action, window, cx);
                 }))
@@ -82,13 +83,50 @@ pub fn menu(
                 .into_any_element()
         })
         .collect();
-    crate::window::rowmenu::panel(
-        "place-menu",
-        t("Place menu"),
-        at,
-        theme,
-        items,
-        cx,
-        Downloads::close_place_menu,
+    deferred(
+        anchored().position(at).child(
+            div()
+                .id("place-menu")
+                .role(Role::Menu)
+                .aria_label(t("Place menu"))
+                .min_w(px(220.0))
+                .py_1()
+                .rounded(px(space::CORNER_M))
+                .border_1()
+                .border_color(theme.separator)
+                .bg(theme.menu)
+                .shadow_lg()
+                .text_color(theme.text)
+                // The menu takes its own clicks: else a place or row under it would take them too.
+                .occlude()
+                .on_mouse_down_out(cx.listener(|view, _, _, cx| {
+                    view.close_place_menu();
+                    cx.notify();
+                }))
+                .children(items),
+        ),
     )
+    .with_priority(1)
+}
+
+/// One item of the menu: its words, in the selection colour under the pointer. The caller adds
+/// what a click does.
+fn item(
+    id: impl Into<gpui::ElementId>,
+    words: &'static str,
+    theme: Theme,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id.into())
+        .role(Role::MenuItem)
+        .aria_label(words)
+        .mx_1()
+        .px_2()
+        .h(px(22.0))
+        .rounded(px(space::CORNER_S))
+        .flex()
+        .items_center()
+        .gap_1()
+        .text_size(px(crate::widgets::native::TEXT))
+        .hover(|s| s.bg(theme.selection).text_color(theme.on_selection))
 }

@@ -240,10 +240,9 @@ impl OpenWindows {
 /// The menus: the row menu, a place's menu and the menu bar.
 #[derive(Default)]
 pub(crate) struct Menus {
-    /// The row menu, open where it was asked for.
-    pub(super) menu: Option<Point<Pixels>>,
-    /// The keyboard's place in the open row menu, by entry (`rowmenu::entries`).
-    pub(crate) menu_at: Option<usize>,
+    /// Where the row menu last opened: what a test reads, as the system's menu itself is not
+    /// the window's to see (`Downloads::show_row_menu`).
+    pub(crate) row_menu_opened: Option<Point<Pixels>>,
     /// A place's right-click menu, open where it was asked for (`placemenu`).
     pub(crate) place_menu: Option<(Place, Point<Pixels>)>,
     /// What the menu bar was last built with (its queues and ticks); none
