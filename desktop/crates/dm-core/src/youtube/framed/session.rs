@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 
 use tokio::io::AsyncWriteExt as _;
 
+use super::context::Contexts;
 use super::messages::{self, kind, Ask, FormatStart, Held, MediaHeader, NextAsk};
 use super::record::{self, Record};
 use super::ump::Reader;
@@ -129,6 +130,8 @@ struct Heard {
     next: Option<NextAsk>,
     /// The stream's protection status, where it said one.
     protection: Option<u64>,
+    /// Its context updates and sending policies, in order: each part's kind and bytes.
+    contexts: Vec<(u64, Vec<u8>)>,
 }
 
 /// What every request of one fetch is made with.
@@ -210,6 +213,8 @@ async fn ask_until_whole(
 ) -> Result<u32, Error> {
     let mut url = run.framed.url.clone();
     let mut cookie: Option<Vec<u8>> = None;
+    // The contexts the stream gives, sent back in every request after.
+    let mut contexts = Contexts::default();
     let (mut idle, mut failures, mut asked) = (0u32, 0u32, 0u32);
     let mut pending = false;
     while !tracks.iter().all(Track::done) {
@@ -219,7 +224,7 @@ async fn ask_until_whole(
                 "YouTube's framed stream did not end".into(),
             ));
         }
-        let body = ask_of(tracks, config, run.framed, cookie.as_deref()).body();
+        let body = ask_of(tracks, config, run.framed, cookie.as_deref(), &contexts).body();
         let heard = match answered(run, &url, asked, body, tracks).await {
             Ok(heard) => {
                 failures = 0;
@@ -232,6 +237,9 @@ async fn ask_until_whole(
             }
             Err(e) => return Err(e),
         };
+        for (part, data) in &heard.contexts {
+            contexts.take(*part, data);
+        }
         if let Some(next) = heard.next {
             cookie = next.cookie.or(cookie);
             if let Some(ms) = next.backoff_ms.filter(|ms| *ms > 0) {
@@ -278,13 +286,14 @@ async fn wait(options: &Options, spell: Duration) -> Result<(), Error> {
     .await
 }
 
-/// The next request: every format asked for, what is held of each, and where the player is
-/// (the least any unfinished format holds).
+/// The next request: every format asked for, what is held of each, where the player is (the
+/// least any unfinished format holds), and the contexts the stream gave to be sent back.
 fn ask_of<'a>(
     tracks: &'a [Track<'_>],
     config: &'a [u8],
     framed: &'a Framed,
     cookie: Option<&'a [u8]>,
+    contexts: &'a Contexts,
 ) -> Ask<'a> {
     let picks = |video: bool| {
         tracks
@@ -324,6 +333,8 @@ fn ask_of<'a>(
             })
             .collect(),
         cookie,
+        contexts: contexts.sent(),
+        unsent: contexts.unsent(),
     }
 }
 
@@ -445,7 +456,8 @@ fn of_itag(tracks: &[Track<'_>], itag: Option<u64>) -> Option<usize> {
 }
 
 /// What one part says, taken: a piece's header or its media, a format's first word, the
-/// policy, a redirect, a refusal. The header id of a piece the part ends, where it ends one.
+/// policy, a context to send back, a redirect, a refusal. The header id of a piece the part
+/// ends, where it ends one.
 fn take(
     part: u64,
     data: &[u8],
@@ -504,6 +516,9 @@ fn take(
             }
         }
         kind::NEXT_REQUEST_POLICY => heard.next = Some(NextAsk::read(data)),
+        kind::SABR_CONTEXT_UPDATE | kind::SABR_CONTEXT_SENDING_POLICY => {
+            heard.contexts.push((part, data.to_vec()));
+        }
         kind::REDIRECT => {
             // On to the web only; to plain `http` only from a stand-in that is.
             let plain = url.starts_with("http://");

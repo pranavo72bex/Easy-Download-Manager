@@ -20,6 +20,7 @@ use serde_json::{json, Value};
 
 use super::{Format, PlayerClient};
 
+pub mod context;
 pub mod messages;
 mod record;
 mod session;
