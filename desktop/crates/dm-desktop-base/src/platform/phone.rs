@@ -72,6 +72,18 @@ pub trait PhoneServices: Send + Sync {
         let _ = path;
         Err(NO_TRASH.into())
     }
+
+    /// Puts the file a download has just finished at `path` where the phone's other apps see
+    /// it (gaps row N9: on Android 10 and up dm downloads into its own folder and the phone
+    /// hands each finished file to the shared Download folder): where it now is, `None` where
+    /// it is left where it is, or why it could not be, the file then kept. Asked by the engine
+    /// as a run finishes, before the row says Completed, on one of its blocking threads
+    /// (`dm_core::folders::set_publisher`, handed in by [`set_phone`] on Android alone); by
+    /// default every file is left where it is.
+    fn publish(&self, path: &std::path::Path) -> Result<Option<std::path::PathBuf>, String> {
+        let _ = path;
+        Ok(None)
+    }
 }
 
 /// What keeps dm busy on a phone, for its wake lock and its ongoing notification (gaps row N6).
@@ -171,6 +183,15 @@ pub fn set_phone(services: Box<dyn PhoneServices>) {
         Ok(mut phone) => *phone = Some(services),
         Err(poisoned) => *poisoned.into_inner() = Some(services),
     }
+    // The engine asks the phone where each finished file goes (gaps row N9).
+    #[cfg(target_os = "android")]
+    dm_core::folders::set_publisher(std::sync::Arc::new(publish));
+}
+
+/// The file a download finished at `path`, published through the phone; left where it is
+/// where none is handed in.
+pub fn publish(path: &std::path::Path) -> Result<Option<std::path::PathBuf>, String> {
+    phone().map_or(Ok(None), |phone| phone.publish(path))
 }
 
 /// The phone's services, where they were handed in.
@@ -259,6 +280,7 @@ mod tests {
         nothing.keep_awake(true);
         nothing.busy(None);
         nothing.set_clipboard("x");
+        assert_eq!(nothing.publish(std::path::Path::new("/a")), Ok(None));
     }
 
     fn row(id: u64, state: dm_core::State, downloaded: u64, speed: f64) -> Arc<dm_core::Entry> {

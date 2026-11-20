@@ -8,8 +8,9 @@
 //! JNI ([`Java`]). What each service does with those calls is decided here, where the host's
 //! tests reach it: a finished file indexed before its notification, the wake lock and the
 //! ongoing notification together for as long as dm is busy, its words at most once a second,
-//! the Trash refused.
+//! a finished file published to the shared Download folder (gaps row N9), the Trash refused.
 
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -39,6 +40,10 @@ pub trait Java: Send + Sync + 'static {
     fn end_ongoing(&self) -> Result<(), String>;
     /// Holds the processor awake while `on` (a partial wake lock), and lets it sleep after.
     fn stay_awake(&self, on: bool) -> Result<(), String>;
+    /// Puts the finished file at `path` in the shared `Download/dm` where it is in one of dm's
+    /// own folders (gaps row N9): where it now is, `None` where it is left, or why it could not
+    /// be, the file then kept. Asked on one of the engine's blocking threads.
+    fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String>;
 }
 
 /// The ongoing notification's second line where [`Busy::words`] has none.
@@ -197,6 +202,10 @@ impl<J: Java> PhoneServices for Phone<J> {
             }
             Step::Keep => {}
         }
+    }
+
+    fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String> {
+        self.java.publish(path)
     }
 
     // `trash`: the seam's own answer. A phone has no Trash dm can reach, so the file is kept

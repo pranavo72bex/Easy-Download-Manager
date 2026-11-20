@@ -28,3 +28,5 @@ pub mod phone;
 mod sealed;
 #[cfg(any(target_os = "android", test))]
 mod shared;
+#[cfg(any(target_os = "android", test))]
+mod storage;

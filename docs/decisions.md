@@ -8270,3 +8270,28 @@ changing network gets its torrent's peers back without waiting for the tracker's
 finished torrent's sharing, which runs outside the rows, went on sending. Held with them now:
 paused within a tick, its minutes not counted while held, announced afresh when the hold ends.
 Also a desktop change (B76's words name downloads only), flagged in row N8 for the maintainer.
+## On Android 10 and up dm downloads into its own folder and publishes each finished file (2026-11-20, gaps row N9)
+
+Android 10 (API 29) and up let no app write the shared Download folder by path. dm's engine
+writes by path everywhere (segments at offsets, resume from the parts it staged, renames, the
+file it hands back), so rather than teach it file descriptors, dm downloads on those phones into
+its own folder on the shared storage, `getExternalFilesDir(DIRECTORY_DOWNLOADS)/dm`, which it
+writes by path, and puts each finished file in `Download/dm` through `MediaStore.Downloads`:
+inserted with `RELATIVE_PATH` `Download/dm` (a category's sub-folder kept) and `IS_PENDING` 1,
+its bytes copied in chunks through the descriptor the store lends, `IS_PENDING` 0, then dm's copy
+removed. On Android 8 and 9 the shared folder is written by path with the storage permission, as
+before, and a file finished in dm's own folder there (the permission not yet granted) is moved
+across by path. The seam is the phone's `PhoneServices::publish` (`dm_desktop_base::phone`, by
+default every file left where it is; the desktop never hands a phone in), which `set_phone`
+hands the engine on Android as `dm_core::folders::set_publisher`, a hook asked by the queue as a run finishes (`queue/runner/finish.rs`, on
+Android alone, on a blocking thread), before the row says Completed, so the row's `path`, its
+notification and an open-when-done all name the published file; that path is the store's
+`_data` (a real path, which `open.rs` turns into the file's `content://` address as before). A
+file that cannot be published (no room for the copy, the store refusing) stays whole in dm's
+folder, the row Completed there, and the person is told why. Torrents are not published: a
+torrent being seeded reads its files where librqbit has them, so they stay in dm's folder (said
+in row N9; publishing when seeding stops is owed). Dropped: publishing from the window's session
+(`Effect::Finished`, above the engine, where the row is already Completed with its old path and
+its notification already sent); handing the engine a descriptor for every write (N9's first plan,
+which touches every writer in the engine); `requestLegacyExternalStorage` (Android 10 alone, and
+ignored from 11). The storage picker (SAF) for a folder of the person's own is owed.

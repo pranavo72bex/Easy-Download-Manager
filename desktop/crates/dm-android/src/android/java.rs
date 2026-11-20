@@ -4,17 +4,31 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! [`crate::phone::Java`] over JNI: notifications, the media index, opening a file, the
-//! system's Downloads, the clipboard, the ongoing notification and the wake lock. Every call
-//! comes from one of dm's threads; a failure is said in dm's words, never a panic.
+//! system's Downloads, the clipboard, the ongoing notification, the wake lock and a finished
+//! file published to the shared Download folder (`storage`). Every call comes from one of dm's
+//! threads; a failure is said in dm's words, never a panic.
+
+use std::path::{Path, PathBuf};
 
 use jni::objects::JObject;
 use jni::{jni_sig, jni_str, Env, JValue};
 
+use super::storage::Storage;
 use super::{jvm, notify, open};
 use crate::phone::Java;
 
-/// The phone's Java side, as dm's services call it.
-pub(crate) struct Jni;
+/// The phone's Java side, as dm's services call it, with the phone's storage worked out at
+/// start.
+pub(crate) struct Jni {
+    storage: Storage,
+}
+
+impl Jni {
+    /// The Java side, publishing finished files as `storage` says.
+    pub(crate) fn new(storage: Storage) -> Self {
+        Jni { storage }
+    }
+}
 
 impl Java for Jni {
     fn post(&self, title: &str, body: &str, open: Option<&str>) -> Result<(), String> {
@@ -124,6 +138,10 @@ impl Java for Jni {
 
     fn stay_awake(&self, on: bool) -> Result<(), String> {
         notify::stay_awake(on)
+    }
+
+    fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String> {
+        self.storage.publish(path)
     }
 }
 

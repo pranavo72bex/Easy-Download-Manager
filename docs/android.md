@@ -136,10 +136,11 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 
 | File | What it does |
 |------|--------------|
-| `src/android.rs` | `android_main`: the phone's services handed to `dm_desktop_base::phone::set_phone` first; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, `dm_core::folders::set_phone_folders` with the download folder: `Download/dm` in shared storage, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed |
-| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second), open, reveal, the clipboard, the Trash refused. Tested on the host |
+| `src/android.rs` | `android_main`: dm's home (`files/dm`) and the phone's storage (`android/storage.rs`) first; the phone's services handed to `dm_desktop_base::phone::set_phone`; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, `dm_core::folders::set_phone_folders` with the download folder: dm's own folder on the shared storage on Android 10 and up, else `Download/dm` in shared storage where dm may write it, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed |
+| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second), open, reveal, the clipboard, a finished file published to `Download/dm` (`publish`), the Trash refused. Tested on the host |
 | `src/shared.rs` | What a shared intent hands over (tested on the host) |
-| `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification, the wake lock |
+| `src/storage.rs`, `src/android/storage.rs` | Where downloads land (dm's own folder on Android 10 and up) and each finished file put in `Download/dm` through the media store, or by path on 8 and 9 (gaps row N9); the decisions tested on the host |
+| `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification, the wake lock, publishing a finished file (`storage`) |
 | `src/android/intent.rs` | The activity's intent, read when the activity comes to the front (a thread watching gpui-android's `is_active`): SEND text and VIEW magnet or web address go to `dm_desktop_base::phone::shared`, a `.torrent` is copied into `files/dm/torrents` and goes to `phone::shared_file`; the window adds both as it adds a dropped link |
 | `src/android/notify.rs` | Notification channels and messages, the ongoing notification, the partial wake lock, the permissions asked for once the window is up |
 | `src/android/open.rs`, `jvm.rs` | Opening a file; the Java machine and the activity, kept once at start |
@@ -312,9 +313,13 @@ submitted. What it needs, and where dm stands:
   front. Android may still stop a process left in the background. A foreground service, a Stop All
   button in the notification and a Retry button on a failure each need a Java class. Whether
   to add one is the maintainer's call.
-- **First run (N9).** On Android 8 and 9, the first start downloads into the app's own folder
-  until storage is granted. On Android 10, the shared Download folder cannot be written by path
-  at all.
+- **Where files land (N9).** On Android 10 and up dm downloads into its own folder on the
+  shared storage (`Android/data/com.dm.android/files/Download/dm`) and puts each finished file
+  in `Download/dm` through the media store (`src/storage.rs`, `src/android/storage.rs`); on 8
+  and 9 it writes `Download/dm` by path once storage is granted (the first start, before it is,
+  downloads into dm's own folder, and a file finished there is moved across). A torrent's files
+  stay in dm's folder, where its seeding reads them. A folder of the person's own through the
+  system's storage picker is owed.
 - **Testing (N13, N14).** None of the Android code has been run yet: the emulator job and the
   release job are written but have had no run. Also owed: dm's release key in the repository's
   secrets (the maintainer's), the phone's contract rows (below, waiting for the maintainer's

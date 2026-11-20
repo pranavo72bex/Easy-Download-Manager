@@ -56,6 +56,10 @@ impl Java for Arc<Recorded> {
         self.said(format!("awake {on}"));
         Err("no permission".into())
     }
+    fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String> {
+        self.said(format!("publish {}", path.display()));
+        Ok(Some(PathBuf::from("/sdcard/Download/dm").join(path.file_name().unwrap())))
+    }
 }
 
 fn phone() -> (Phone<Arc<Recorded>>, Arc<Recorded>) {
