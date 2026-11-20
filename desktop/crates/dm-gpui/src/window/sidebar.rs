@@ -126,13 +126,25 @@ pub fn sidebar(
         .flex_none()
         .h_full()
         .bg(crate::window::theme::frame(theme.sidebar))
-        .border_r_1()
+        // On the window's right where it is mirrored, its border and edge on its left (gaps
+        // row U35).
+        .map(|panel| {
+            if crate::window::mirror::rtl() {
+                panel.border_l_1()
+            } else {
+                panel.border_r_1()
+            }
+        })
         .border_color(theme.separator)
         // Its edge dragged: the pointer's distance from the panel's left is its width, held
-        // between the least and the most as it moves.
+        // between the least and the most as it moves (from its right where mirrored).
         .on_drag_move::<ResizingPanel>(cx.listener(
             |view, event: &gpui::DragMoveEvent<ResizingPanel>, _, cx| {
-                let wide = f32::from(event.event.position.x - event.bounds.left());
+                let wide = if crate::window::mirror::rtl() {
+                    f32::from(event.bounds.right() - event.event.position.x)
+                } else {
+                    f32::from(event.event.position.x - event.bounds.left())
+                };
                 view.resize_panel(wide / crate::window::zoom::factor(), cx);
             },
         ))
@@ -193,7 +205,13 @@ pub fn sidebar(
                 .id("sidebar-edge")
                 .absolute()
                 .top_0()
-                .right_0()
+                .map(|edge| {
+                    if crate::window::mirror::rtl() {
+                        edge.left_0()
+                    } else {
+                        edge.right_0()
+                    }
+                })
                 .h_full()
                 .w(px(EDGE))
                 .cursor(gpui::CursorStyle::ResizeLeftRight)
@@ -221,6 +239,7 @@ fn group_heading(
         .pt_3()
         .pb_1()
         .flex()
+        .map(crate::window::mirror::row)
         .items_center()
         .gap_1()
         .text_size(px(crate::widgets::native::SMALL_TEXT))
@@ -285,6 +304,7 @@ fn projects(
                     .h(px(26.0))
                     .rounded(px(crate::widgets::native::RADIUS))
                     .flex()
+                    .map(crate::window::mirror::row)
                     .items_center()
                     .gap_2()
                     .text_size(px(crate::widgets::native::TEXT))
@@ -364,6 +384,9 @@ fn place_row(
             .h(px(26.0))
             .rounded(px(crate::widgets::native::RADIUS))
             .flex()
+            // Its picture and name on the right, its count on the left, where the window is
+            // mirrored (gaps row U35).
+            .map(crate::window::mirror::row)
             .items_center()
             .justify_between()
             // Between a long name's ellipsis and the count; unseen while the name fits.
@@ -399,6 +422,7 @@ fn place_row(
             .child(
                 div()
                     .flex()
+                    .map(crate::window::mirror::row)
                     .items_center()
                     .gap_2()
                     .min_w_0()

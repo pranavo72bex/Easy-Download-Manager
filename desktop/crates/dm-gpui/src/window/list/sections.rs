@@ -309,6 +309,8 @@ impl Downloads {
     ) -> Div {
         div()
             .flex()
+            // The side panel on the right where the window is mirrored (gaps row U35).
+            .map(crate::window::mirror::row)
             .flex_1()
             .min_h_0()
             .when(self.layout.show_sidebar, |row| {
@@ -388,6 +390,9 @@ impl Downloads {
         empty: bool,
         cx: &mut Context<Self>,
     ) -> Div {
+        if crate::window::mirror::rtl() {
+            self.keep_sideways_from_right(cx);
+        }
         div()
             .relative()
             .flex()
@@ -435,7 +440,14 @@ impl Downloads {
                         div()
                             .absolute()
                             .top(crate::window::zoom::px(crate::window::table::HEADER_HEIGHT))
-                            .right_0()
+                            // At the left edge where the window is mirrored (gaps row U35).
+                            .map(|bar| {
+                                if crate::window::mirror::rtl() {
+                                    bar.left_0()
+                                } else {
+                                    bar.right_0()
+                                }
+                            })
                             .bottom_0()
                             .w(gpui_base::Scrollbar::width())
                             .child(
@@ -458,5 +470,27 @@ impl Downloads {
                             ),
                     )
             })
+    }
+}
+
+impl Downloads {
+    /// Where the window is mirrored, the columns run from the right and the file name's is at
+    /// the right end of what scrolls sideways, which starts at its left (gaps row U35): the list
+    /// is kept as far from its right end as a person moved it, none at first, so the name is in
+    /// sight. The room to move is the last layout's; where it changed, the list is drawn again.
+    fn keep_sideways_from_right(&mut self, cx: &mut Context<Self>) {
+        let handle = &self.list.sideways;
+        let room = handle.max_offset().x;
+        let at = handle.offset();
+        // How far from the right end the person moved it (`at.x` runs from 0 to -room).
+        let from_right = self
+            .list
+            .sideways_room
+            .map_or(gpui::px(0.0), |seen| (seen + at.x).max(gpui::px(0.0)));
+        handle.set_offset(gpui::point(-(room - from_right).max(gpui::px(0.0)), at.y));
+        if self.list.sideways_room != Some(room) {
+            self.list.sideways_room = Some(room);
+            cx.notify();
+        }
     }
 }

@@ -244,6 +244,104 @@ fn view_language_puts_the_window_in_another_language_and_back() {
     );
 }
 
+/// Where the main window draws the first words that begin with `words` (a heading carries its
+/// sort arrow after its name).
+fn in_main_starting(h: &mut Harness, words: &str) -> Option<Bounds<Pixels>> {
+    let texts = h.call("ui.texts", serde_json::Value::Null).unwrap();
+    texts["texts"].as_array().unwrap().iter().find_map(|t| {
+        let text = t["text"].as_str().unwrap_or_default();
+        (text.starts_with(words) && t["window"] == "main").then(|| {
+            let r: Vec<f32> = t["rect"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_f64().unwrap() as f32)
+                .collect();
+            Bounds::from_corners(point(px(r[0]), px(r[1])), point(px(r[2]), px(r[3])))
+        })
+    })
+}
+
+/// Arabic, read right to left, mirrors the window (gaps row U35): the side panel on the right,
+/// a row's name against the right of its column (the columns from the right, Size left of the
+/// name), and the toolbar's buttons from the right. English keeps each where it always was.
+#[test]
+fn a_language_read_right_to_left_mirrors_the_window_and_english_does_not() {
+    use dm_desktop_base::i18n::{self, t};
+    use dm_shell::app::commands::Command;
+    // The language is the process's.
+    let _file = settings_file();
+    let world = world();
+    for code in ["en", "ar"] {
+        let rtl = code == "ar";
+        assert_eq!(i18n::Direction::of(code).is_rtl(), rtl);
+        let mut settings = world.settings();
+        settings.general.language = code.into();
+        i18n::set(code);
+        let mut h = world.harness_with(settings);
+        i18n::set(code);
+        add_later(&mut h, &world, &["file.zip"]);
+        h.until("the row drawn", |h| in_main(h, "file.zip").is_some());
+        let main = h.window;
+        let middle = inside(&mut h, main).width / 2.0;
+
+        // The side panel: on the left in English, on the right in Arabic.
+        let panel = in_main(&mut h, t("Unfinished")).expect("the side panel's Unfinished");
+        assert_eq!(
+            panel.center().x > middle,
+            rtl,
+            "{code}: the side panel at {panel:?}, the window's middle at {middle:?}"
+        );
+
+        // A row's name against its column's leading edge, by its picture, as the heading is:
+        // the left in English, the right in Arabic; the Size column on its far side.
+        let name = in_main(&mut h, "file.zip").expect("the row's name");
+        let heading = in_main_starting(&mut h, Column::Name.title()).expect("the name's heading");
+        let size = in_main_starting(&mut h, Column::Size.title()).expect("the size's heading");
+        if rtl {
+            assert!(
+                name.right() < heading.right() && heading.right() - name.right() < px(40.0),
+                "{code}: the name {name:?} is not against the right of {heading:?}"
+            );
+            assert!(
+                size.right() < name.left(),
+                "{code}: Size {size:?} not left of {name:?}"
+            );
+        } else {
+            assert!(
+                name.left() > heading.left() && name.left() - heading.left() < px(40.0),
+                "{code}: the name {name:?} is not against the left of {heading:?}"
+            );
+            assert!(
+                size.left() > name.right(),
+                "{code}: Size {size:?} not right of {name:?}"
+            );
+        }
+
+        // The toolbar: its first two buttons (Resume's word changes with the rows chosen, so
+        // not that one) from the left in English, from the right in Arabic.
+        let shown: Vec<&'static str> = h.view(|view| {
+            dm_shell::app::commands::toolbar_shown(&view.backend.settings())
+                .into_iter()
+                .filter(|(command, _)| *command != Command::DownloadNow)
+                .map(|(_, words)| t(words))
+                .take(2)
+                .collect()
+        });
+        assert_eq!(shown.len(), 2, "{code}: two toolbar buttons");
+        let first = in_main(&mut h, shown[0]).expect("the first button");
+        let second = in_main(&mut h, shown[1]).expect("the second button");
+        assert_eq!(
+            first.center().x > second.center().x,
+            rtl,
+            "{code}: {:?} at {first:?}, {:?} at {second:?}",
+            shown[0],
+            shown[1]
+        );
+    }
+    i18n::set("en");
+}
+
 #[test]
 fn five_hundred_rows_draw_inside_a_frame_budget() {
     // What is measured here grows with the text size another test may set.

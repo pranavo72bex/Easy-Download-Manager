@@ -92,6 +92,8 @@ pub fn header(
         .h(px(HEADER_HEIGHT))
         .flex_none()
         .flex()
+        // The headings from the right where the window is mirrored (gaps row U35).
+        .map(crate::window::mirror::row)
         .px_1()
         .border_b_1()
         .border_color(theme.separator)
@@ -151,8 +153,13 @@ pub fn header(
                                     if event.drag(cx).column != column {
                                         return;
                                     }
-                                    let wide =
-                                        f32::from(event.event.position.x - event.bounds.left());
+                                    // From its right edge where the window is mirrored,
+                                    // its edge being its left one (gaps row U35).
+                                    let wide = if crate::window::mirror::rtl() {
+                                        f32::from(event.bounds.right() - event.event.position.x)
+                                    } else {
+                                        f32::from(event.event.position.x - event.bounds.left())
+                                    };
                                     view.resize_column(
                                         column,
                                         wide / crate::window::zoom::factor(),
@@ -167,7 +174,13 @@ pub fn header(
                                     ))
                                     .absolute()
                                     .top_0()
-                                    .right_0()
+                                    .map(|edge| {
+                                        if crate::window::mirror::rtl() {
+                                            edge.left_0()
+                                        } else {
+                                            edge.right_0()
+                                        }
+                                    })
                                     .h_full()
                                     .w(px(6.0))
                                     .cursor(gpui::CursorStyle::ResizeColumn)

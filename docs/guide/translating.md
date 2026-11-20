@@ -1,6 +1,6 @@
 # Translating dm
 
-dm's window speaks English and thirteen other languages. Each language is one
+dm's window speaks English and fifteen other languages. Each language is one
 file of the English and its translation, and anyone who speaks a language can
 mend it, read what no native speaker has read yet, or start a new one. You need
 no Rust to do it, though the check below runs best with it.
@@ -108,11 +108,13 @@ Any other string you find wrong, unread or not, can be mended the same way.
    dm offers (View › Language and Options › General), with its plural rule and
    its name in itself, and checks the window draws it right before it ships.
 
-Languages dm lacks that many people speak: Hindi, Vietnamese, Ukrainian and
-Arabic.
+Languages dm lacks that many people speak: Hindi, Vietnamese and Ukrainian.
 
 ## Right to left
 
-Arabic, Hebrew, Persian and Urdu wait for gaps row U35: the window must be
-mirrored, its lists and panels laid out from the right, before a right-to-left
-catalog can ship. A catalog for one is still welcome, and is held until then.
+Arabic and Hebrew read right to left, and the window with them: its side panel,
+toolbar, columns and status bar laid out from the right (gaps row U35). Their
+translations were written without a native speaker, so every string of them is
+in their unread lists. Persian and Urdu would read the same way: a new
+right-to-left language is added to `Direction::of` in
+`desktop/crates/dm-desktop-base/src/view/i18n.rs` with its catalog.

@@ -14,11 +14,10 @@
 //! the window's fonts.
 //!
 //! Only scripts the window draws correctly are offered: Latin, Cyrillic,
-//! and Chinese, Japanese and Korean (in the computer's own fonts, which the
-//! window's `theme::cover` finds). Right-to-left and joined scripts
-//! (Arabic, Hindi) need text shaping dm's window was not made for, and would
-//! be drawn wrong. The list to pick from is drawn by the window (Options ›
-//! General).
+//! Chinese, Japanese and Korean, and Arabic and Hebrew (shaped and laid out
+//! right to left by the system's text, gaps row U35), in the computer's own
+//! fonts. A right-to-left language mirrors the window ([`direction`]). The
+//! list to pick from is drawn by the window (Options › General).
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};
@@ -27,7 +26,7 @@ use std::sync::OnceLock;
 
 /// Each language offered: its code, as the settings keep it, and its name
 /// in itself, as a list of languages should show it.
-pub const LANGUAGES: [(&str, &str); 14] = [
+pub const LANGUAGES: [(&str, &str); 16] = [
     ("en", "English"),
     ("es", "Español"),
     ("pt-BR", "Português (Brasil)"),
@@ -42,10 +41,12 @@ pub const LANGUAGES: [(&str, &str); 14] = [
     ("zh-CN", "简体中文"),
     ("ja", "日本語"),
     ("ko", "한국어"),
+    ("ar", "العربية"),
+    ("he", "עברית"),
 ];
 
 /// The catalogs, as written (`desktop/assets/i18n/`, gaps row X9).
-pub const CATALOGS: [(&str, &str); 13] = dm_assets::CATALOGS;
+pub const CATALOGS: [(&str, &str); 15] = dm_assets::CATALOGS;
 
 /// English to translation. Held in a static, so what it holds is `'static`
 /// without leaking each string.
@@ -111,6 +112,39 @@ pub fn set(code: &str) {
 /// The code of the language in force on this thread ("en" for English).
 pub fn code() -> &'static str {
     CODE.with(Cell::get)
+}
+
+/// Which way a language reads, and so which way the window is laid out
+/// (gaps row U35): from the left, or mirrored from the right.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Direction {
+    /// Laid out from the left, as the window always was.
+    LeftToRight,
+    /// Mirrored: laid out from the right.
+    RightToLeft,
+}
+
+impl Direction {
+    /// The direction language `code` reads in: Arabic and Hebrew right to
+    /// left, every other language (and an unknown code) left to right.
+    pub fn of(code: &str) -> Self {
+        if matches!(code, "ar" | "he") {
+            Direction::RightToLeft
+        } else {
+            Direction::LeftToRight
+        }
+    }
+
+    /// Whether the window is mirrored.
+    pub fn is_rtl(self) -> bool {
+        self == Direction::RightToLeft
+    }
+}
+
+/// The direction of the language in force on this thread: the one place
+/// the window's layout asks which way it runs.
+pub fn direction() -> Direction {
+    Direction::of(code())
 }
 
 /// The code of a language dm offers, as `LANGUAGES` spells it.
@@ -327,6 +361,21 @@ pub fn form(code: &str, n: u64) -> usize {
         "id" | "tr" | "zh-CN" | "ja" | "ko" => 0,
         // 0 and 1 are both singular.
         "fr" | "pt-BR" => usize::from(n > 1),
+        // Zero, one, two, few (3 to 10 in the hundred), many (11 to 99), other.
+        "ar" => match (n, hundred) {
+            (0, _) => 0,
+            (1, _) => 1,
+            (2, _) => 2,
+            (_, 3..=10) => 3,
+            (_, 11..=99) => 4,
+            _ => 5,
+        },
+        // One, two, other.
+        "he" => match n {
+            1 => 0,
+            2 => 1,
+            _ => 2,
+        },
         "ru" => {
             if ten == 1 && hundred != 11 {
                 0

@@ -32,10 +32,12 @@ const FORMS: &str = "||";
 
 /// The languages' names in English, for the issue a reader takes; a code not here is named by
 /// its code.
-const NAMES: [(&str, &str); 13] = [
+const NAMES: [(&str, &str); 15] = [
+    ("ar", "Arabic"),
     ("de", "German"),
     ("es", "Spanish"),
     ("fr", "French"),
+    ("he", "Hebrew"),
     ("id", "Indonesian"),
     ("it", "Italian"),
     ("ja", "Japanese"),

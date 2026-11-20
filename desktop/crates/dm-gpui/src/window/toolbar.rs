@@ -69,6 +69,8 @@ pub fn toolbar(
         .min_h(px(HEIGHT))
         .flex_none()
         .flex()
+        // The buttons from the right where the window is mirrored (gaps row U35).
+        .map(crate::window::mirror::row)
         .flex_wrap()
         .items_center()
         .gap_1()
@@ -167,7 +169,12 @@ pub fn toolbar(
                         .build(window, cx)
                     })
                 });
-            div().flex().items_center().child(button).children(arrow)
+            div()
+                .flex()
+                .map(crate::window::mirror::row)
+                .items_center()
+                .child(button)
+                .children(arrow)
         }))
 }
 

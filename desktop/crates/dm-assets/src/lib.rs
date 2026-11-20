@@ -84,7 +84,7 @@ pub fn icon(path: &str) -> Option<&'static [u8]> {
 pub const APP_ICON_32: &[u8] = include_bytes!("../../../assets/app-icons/32x32.png");
 
 /// The catalogs, as written: each language's English-to-translation map, in JSON.
-pub const CATALOGS: [(&str, &str); 13] = [
+pub const CATALOGS: [(&str, &str); 15] = [
     ("es", include_str!("../../../assets/i18n/es.json")),
     ("pt-BR", include_str!("../../../assets/i18n/pt-BR.json")),
     ("fr", include_str!("../../../assets/i18n/fr.json")),
@@ -98,6 +98,8 @@ pub const CATALOGS: [(&str, &str); 13] = [
     ("zh-CN", include_str!("../../../assets/i18n/zh-CN.json")),
     ("ja", include_str!("../../../assets/i18n/ja.json")),
     ("ko", include_str!("../../../assets/i18n/ko.json")),
+    ("ar", include_str!("../../../assets/i18n/ar.json")),
+    ("he", include_str!("../../../assets/i18n/he.json")),
 ];
 
 /// The site rules shipped inside the app (`rules.json`), served to the extension and the
