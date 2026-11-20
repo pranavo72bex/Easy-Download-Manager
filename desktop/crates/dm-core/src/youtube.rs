@@ -32,6 +32,8 @@ mod captions;
 mod chapters;
 mod choosing;
 mod clients;
+#[doc(hidden)]
+pub mod framed;
 mod itags;
 mod kept;
 mod pages;
@@ -71,7 +73,7 @@ use reading::{
     watch_page,
 };
 pub use solving::answers;
-use solving::{has_n, plain_build, reading_json, solve, unescaped, unlocked};
+use solving::{has_n, n_solved, plain_build, reading_json, solve, unescaped, unlocked};
 
 /// The TV client this reads with today: its answers carry plain
 /// addresses and want no proof-of-origin token.
@@ -372,6 +374,13 @@ struct Format {
     /// `&sq=1` on), not as one file of byte ranges: fetched by the DASH piece fetcher (gaps row
     /// Y14), and never cut into a part, having no index.
     numbered: bool,
+    /// Carries neither an address nor a cipher: served only by the framed stream the answer
+    /// names (`framed`, gaps row Y2), and never cut into a part.
+    framed: bool,
+    /// Its last-modified time (`lastModified`) and its `xtags` as the answer wrote them, which
+    /// the framed stream's requests name it by.
+    lmt: Option<u64>,
+    tags_written: Option<String>,
 }
 
 /// Which of a video's sound tracks a stream is. A video made in one
@@ -415,8 +424,8 @@ impl Voice {
 }
 
 tokio::task_local! {
-    /// Set while a video is read with its formats served only as numbered pieces left out
-    /// ([`read_for_without_numbered`]).
+    /// Set while a video is read with its formats served only as numbered pieces, or only by
+    /// the framed stream, left out ([`read_for_without_numbered`]).
     static WITHOUT_NUMBERED: ();
     /// The format number of the picture a list line was built from, while a download reads its
     /// video ([`read_for`], `Options::format`; gaps row Y9).
@@ -425,7 +434,8 @@ tokio::task_local! {
 
 /// [`read_for`] with the formats served only as numbered pieces left out, as they were before
 /// dm fetched them (gaps row Y14): what a download falls back to where their first piece does
-/// not say how many follow, or none of them could be fetched.
+/// not say how many follow, or none of them could be fetched. Those served only by the framed
+/// stream are left out too (gaps row Y2), for a download whose framed stream failed.
 pub async fn read_for_without_numbered(
     url: &str,
     options: &crate::download::Options,
@@ -581,7 +591,7 @@ async fn read_within(
         player_clients().into_iter().map(|c| (c, false)).collect();
     let mut at = 0;
     let mut failed = None;
-    let mut found = None;
+    let (mut found, mut framed_only) = (None, None);
     while let Some((asked_as, signed)) = asks.get(at).cloned() {
         at += 1;
         let with = session.as_ref().filter(|_| signed);
@@ -629,35 +639,29 @@ async fn read_within(
             continue;
         }
 
-        // The solver, for the `n` value every address carries and the cipher
-        // some are locked behind.
-        let needs = formats
-            .iter()
-            .any(|f| f.cipher.is_some() || f.url.as_deref().is_some_and(has_n));
-        if needs {
-            if script.is_none() {
-                script = Some(fetch_script(client, &js_urls).await?);
-            }
-            let solved = match solve(script.as_deref().unwrap_or_default(), &formats).await {
-                Ok(solved) => solved,
-                // Not answered for this client's addresses: the player's id noted (the window
-                // asks for fresh rules by it) and the next client asked, whose answer may want
-                // no answer, or one this player gives.
-                Err(e) => {
-                    note_unsolved(js_path.as_deref());
-                    failed = Some(e);
-                    continue;
-                }
-            };
-            for format in &mut formats {
-                format.url = Some(unlocked(format, &solved)?);
-                format.cipher = None;
-            }
+        // The framed stream the answer names, for the formats with neither address nor cipher
+        // (gaps row Y2).
+        let mut stream = framed::session_of(&player, &asked_as);
+        if let Err(e) = unlock(client, &js_urls, &mut script, &mut formats, &mut stream).await? {
+            // Not answered for this client's addresses: the player's id noted (the window
+            // asks for fresh rules by it) and the next client asked, whose answer may want
+            // no answer, or one this player gives.
+            note_unsolved(js_path.as_deref());
+            failed = Some(e);
+            continue;
         }
-        found = Some((player, formats, muxed));
+        // An answer whose every stream is the framed stream's is kept for the end: another
+        // client's addresses are taken first (gaps row Y2).
+        if formats.iter().all(|f| f.framed) {
+            if framed_only.is_none() {
+                framed_only = Some((player, formats, muxed, stream));
+            }
+            continue;
+        }
+        found = Some((player, formats, muxed, stream));
         break;
     }
-    let (player, formats, muxed) = found.ok_or_else(|| {
+    let (player, formats, muxed, stream) = found.or(framed_only).ok_or_else(|| {
         failed.unwrap_or_else(|| Error::Internal("no client to ask YouTube's player as".into()))
     })?;
 
@@ -671,7 +675,47 @@ async fn read_within(
         &chosen,
         staging,
         js_path.as_deref(),
+        stream.as_ref(),
     ))
+}
+
+/// Every address of `formats`, and the framed `stream`'s, unlocked by the player script: its
+/// `n` value answered, a cipher deciphered. The outer error ends the reading; the inner one is
+/// the solver's, for which the next client is asked.
+async fn unlock(
+    client: &reqwest::Client,
+    js_urls: &[String],
+    script: &mut Option<String>,
+    formats: &mut [Format],
+    stream: &mut Option<framed::Framed>,
+) -> Result<Result<(), Error>, Error> {
+    let stream_n = stream
+        .as_ref()
+        .map(|s| s.url.clone())
+        .filter(|url| has_n(url));
+    let needs = stream_n.is_some()
+        || formats
+            .iter()
+            .any(|f| f.cipher.is_some() || f.url.as_deref().is_some_and(has_n));
+    if !needs {
+        return Ok(Ok(()));
+    }
+    if script.is_none() {
+        *script = Some(fetch_script(client, js_urls).await?);
+    }
+    let program = script.as_deref().unwrap_or_default();
+    let solved = match solve(program, formats, stream_n.as_deref()).await {
+        Ok(solved) => solved,
+        Err(e) => return Ok(Err(e)),
+    };
+    for format in formats.iter_mut().filter(|f| !f.framed) {
+        format.url = Some(unlocked(format, &solved)?);
+        format.cipher = None;
+    }
+    if let Some(stream) = stream {
+        stream.url = n_solved(&stream.url, &solved)?;
+    }
+    Ok(Ok(()))
 }
 
 /// The video's title as the watch page gives it: its player data's, else

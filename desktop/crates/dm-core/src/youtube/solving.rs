@@ -67,6 +67,25 @@ pub(super) fn unlocked(format: &Format, solved: &Solved) -> Result<String, Error
     Ok(url.to_string())
 }
 
+/// `address` with its `n` value replaced by the solver's answer, where it carries one: the
+/// framed stream's address (gaps row Y2).
+pub(super) fn n_solved(address: &str, solved: &Solved) -> Result<String, Error> {
+    let mut url = parsed(address)?;
+    let pairs: Vec<(String, String)> = url
+        .query_pairs()
+        .map(|(k, v)| {
+            let answer = if k == "n" {
+                solved.n.get(&*v).cloned()
+            } else {
+                None
+            };
+            (k.into_owned(), answer.unwrap_or_else(|| v.into_owned()))
+        })
+        .collect();
+    url.query_pairs_mut().clear().extend_pairs(pairs);
+    Ok(url.to_string())
+}
+
 /// An address parsed, or why not in dm's words.
 fn parsed(url: &str) -> Result<url::Url, Error> {
     url::Url::parse(url)
@@ -81,10 +100,15 @@ pub(super) fn plain_build(path: &str) -> Option<String> {
         .then(|| path.replace("/player_es6.vflset/", "/player_ias.vflset/"))
 }
 
-/// Answers every `n` value and signature the formats carry, as reference A answers them: the
-/// player script cut down to what answers them (`player::program`), run in the computer's own
-/// JavaScript engine (`crate::javascript`).
-pub(super) async fn solve(player_js: &str, formats: &[Format]) -> Result<Solved, Error> {
+/// Answers every `n` value and signature the formats carry, and the `n` value of the `also`
+/// address (the framed stream's), as reference A answers them: the player script cut down to
+/// what answers them (`player::program`), run in the computer's own JavaScript engine
+/// (`crate::javascript`).
+pub(super) async fn solve(
+    player_js: &str,
+    formats: &[Format],
+    also: Option<&str>,
+) -> Result<Solved, Error> {
     let mut ns = BTreeSet::new();
     let mut sigs = BTreeSet::new();
     let mut n_of = |address: &str| {
@@ -96,6 +120,9 @@ pub(super) async fn solve(player_js: &str, formats: &[Format]) -> Result<Solved,
             );
         }
     };
+    if let Some(url) = also {
+        n_of(url);
+    }
     for format in formats {
         if let Some(url) = format.url.as_deref() {
             n_of(url);
@@ -176,7 +203,14 @@ pub(super) fn reading_json(
             "format_id": f.itag.to_string(),
             "url": f.url,
             // Numbered pieces (`&sq=N`), fetched by the DASH piece fetcher; else one file.
-            "protocol": if f.numbered { "http_dash_segments" } else { "https" },
+            // Or neither address nor cipher: the framed stream's alone (gaps row Y2).
+            "protocol": if f.framed {
+                framed::PROTOCOL
+            } else if f.numbered {
+                "http_dash_segments"
+            } else {
+                "https"
+            },
             "ext": f.ext(),
             "vcodec": if f.video { f.codec.as_str() } else { "none" },
             "acodec": if f.video { "none" } else { f.codec.as_str() },

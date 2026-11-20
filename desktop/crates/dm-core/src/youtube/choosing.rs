@@ -153,10 +153,16 @@ impl Format {
             .or_else(|| f.get("cipher"))
             .and_then(Value::as_str)
             .map(str::to_string);
-        if url.is_none() && cipher.is_none() {
-            return None;
+        // Neither: kept, marked, for the framed stream the answer may name (gaps row Y2); its
+        // `xtags` are then the answer's own, written as the stream writes them.
+        let framed = url.is_none() && cipher.is_none();
+        let tags_written = f.get("xtags").and_then(Value::as_str).map(str::to_string);
+        let mut tags = xtags(url.as_deref(), cipher.as_deref());
+        if tags.is_empty() {
+            if let Some(written) = tags_written.as_deref() {
+                tags = super::framed::messages::xtag_pairs(written);
+            }
         }
-        let tags = xtags(url.as_deref(), cipher.as_deref());
         let tag = |key: &str| tags.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str());
         let voice = Voice::of(f, tag("acont"));
         let lang = tag("lang").map(str::to_string).or_else(|| {
@@ -219,6 +225,9 @@ impl Format {
             init: range("initRange"),
             index: range("indexRange"),
             numbered,
+            framed,
+            lmt: number("lastModified"),
+            tags_written,
         })
     }
 
