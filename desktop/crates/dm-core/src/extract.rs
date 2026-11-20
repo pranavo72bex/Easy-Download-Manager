@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Extracting a finished archive (a ZIP here; a tar in `extract/tar.rs`, a 7z in
-//! `extract/sevenz.rs`) into a folder of its own.
+//! `extract/sevenz.rs`, a RAR in `extract/rar.rs`) into a folder of its own.
 //!
 //! An archive is outside input, so it is read before it is trusted: every
 //! entry is checked first, and nothing is written unless all of them pass.
@@ -145,15 +145,18 @@ pub fn is_zip(name: &str) -> bool {
 }
 
 mod crypt;
+mod rar;
 mod sevenz;
 mod tar;
 mod zipcrypt;
+pub use rar::is_rar;
 pub use sevenz::is_7z;
 pub use tar::is_tar;
 
-/// Whether a file name is an archive this extracts: a ZIP, a tar plain or gzipped, or a 7z.
+/// Whether a file name is an archive this extracts: a ZIP, a tar plain or gzipped, a 7z or
+/// a RAR.
 pub fn is_archive(name: &str) -> bool {
-    is_zip(name) || is_tar(name) || is_7z(name)
+    is_zip(name) || is_tar(name) || is_7z(name) || is_rar(name)
 }
 
 /// Whether a Unix mode, if the entry has one, is a file or a folder: not a
@@ -238,7 +241,8 @@ pub fn extract_in(
 }
 
 /// [`extract_in`] with the archive's `password`, for a ZIP (AES or the older PKWARE cipher)
-/// or a 7z (AES, its list of files too) that has one; a tar has none. With `None` an entry
+/// or a 7z (AES, its list of files too) that has one; a tar has none, and a RAR's is not
+/// one dm undoes (it is `Encrypted` either way). With `None` an entry
 /// with a password is [`Error::Encrypted`], as [`extract_in`] says; a password that is not
 /// the archive's is [`Error::WrongPassword`], found before anything is written. The
 /// password is used for this call alone and kept nowhere.
@@ -294,6 +298,18 @@ pub fn extract_into_with(
             progress,
         };
         return sevenz::extract_into(archive, folder, &job);
+    }
+    // A RAR, by dm's own reader and RAR 5 decompressor under the same rules (gaps row F10).
+    // It has no password dm undoes: a locked one is `Encrypted` with a password or without.
+    if is_rar(&archive.to_string_lossy()) {
+        let job = Job {
+            password,
+            limits,
+            cancel,
+            origin,
+            progress,
+        };
+        return rar::extract_into(archive, folder, &job);
     }
     let file = File::open(archive)?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::Unreadable(e.to_string()))?;
