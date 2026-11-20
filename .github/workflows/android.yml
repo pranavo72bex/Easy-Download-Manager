@@ -68,6 +68,7 @@ jobs:
         run: |
           test -d "$ANDROID_NDK_LATEST_HOME"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "DM_NDK_VERSION=$(sed -n 's/^Pkg.Revision *= *//p' "$ANDROID_NDK_LATEST_HOME/source.properties")" >> "$GITHUB_ENV"
       # Android 8.0 (API 26) and up, as decided in N1 (docs/decisions.md, 2026-11-20).
       - name: Check for the phone and the emulator
         run: cargo ndk --platform 26 -t arm64-v8a -t x86_64 check -p dm-android --locked
@@ -92,9 +93,11 @@ jobs:
           echo "$RUNNER_TEMP/gradle-8.14.3/bin" >> "$GITHUB_PATH"
       # A debug APK, signed with the debug key Gradle makes for the run: an APK to install on an
       # emulator or a test phone, not a release (a release is signed with dm's own key, N14).
+      # dm.skipCargo: the library is built above, so Gradle's own cargoNdk task (Android
+      # Studio's) is skipped; dm.ndkVersion: Gradle strips with the NDK cargo-ndk used.
       - name: The APK, for the emulator (x86_64)
         working-directory: desktop/crates/dm-android/android
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon assembleDebug -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-android-x86_64-apk
@@ -203,6 +206,7 @@ jobs:
           test -d "$ANDROID_NDK_LATEST_HOME"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
           grep Pkg.Revision "$ANDROID_NDK_LATEST_HOME/source.properties"
+          echo "DM_NDK_VERSION=$(sed -n 's/^Pkg.Revision *= *//p' "$ANDROID_NDK_LATEST_HOME/source.properties")" >> "$GITHUB_ENV"
       # The tag names the version the phone shows: the crate's and Gradle's versionName agree.
       - name: Check the tag matches the crate and the APK
         run: |
@@ -246,7 +250,7 @@ jobs:
           echo "DM_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/dm.keystore" >> "$GITHUB_ENV"
       - name: The release APK
         working-directory: desktop/crates/dm-android/android
-        run: gradle --no-daemon assembleRelease
+        run: gradle --no-daemon assembleRelease -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION"
       # Signed, apksigner checks the signature and prints the key's digest, the one people
       # compare (docs/android.md). The APK's SHA-256 goes beside it.
       - name: Named, checked, its SHA-256

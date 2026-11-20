@@ -10,8 +10,9 @@
 #   bash scripts/android-emulator-check.sh app-debug.apk out/
 #
 # Installs the APK (its permissions granted), starts dm's activity and checks that its process
-# lives, that the activity is the one resumed and that its window drew: the screen holds dm's
-# blue (0x1e88e5, the square of src/app.rs; N17's window changes what is looked for). Then dm is
+# lives, that the activity is the one resumed and that its window drew: dm's real window (N3),
+# so the screen between the status bar and the navigation bar is not blank, one colour or
+# nearly so; it holds text, bars and buttons of many colours. Then dm is
 # stopped and started again by a share, as another app's share sheet does, with the address of
 # a file served on the computer (10.0.2.2 from inside the emulator), and the file must arrive
 # whole in one of the places dm downloads to. What it saw stays in `out/`: the screen
@@ -69,20 +70,33 @@ grep -q "$pkg" "$out/surfaces.txt" || echo "::warning::no surface named $pkg in 
 
 adb exec-out screencap -p > "$out/screen.png"
 adb exec-out screencap > "$out/screen.raw"
-# The raw screen: width, height and format (and, from API 28, a colour space), then RGBA.
-python3 - "$out/screen.raw" <<'PY' || fail "dm's window drew no frame with dm's blue in it (screen.png)"
+# The raw screen: width, height and format (and, from API 28, a colour space), then RGBA; the
+# pixels are its last width x height x 4 bytes, whatever the header's size. The status bar and
+# the navigation bar (the top 6 % and the bottom 8 %) are left out: the system draws them over
+# a blank window too. What is left must not be blank: at least 2 % of its pixels unlike the
+# commonest colour (the background) and at least 16 colours (4 bits a channel), as text and
+# its anti-aliasing give.
+python3 - "$out/screen.raw" <<'PY' || fail "dm's window is blank: one colour, or nearly (screen.png)"
 import struct, sys
+from collections import Counter
 data = open(sys.argv[1], "rb").read()
 width, height, form = struct.unpack_from("<III", data, 0)
 pixels = data[len(data) - width * height * 4:]
-r, g, b = pixels[0::4], pixels[1::4], pixels[2::4]
-near = sum(
-    1
-    for x, y, z in zip(r, g, b)
-    if abs(x - 0x1E) <= 16 and abs(y - 0x88) <= 16 and abs(z - 0xE5) <= 16
+top, bottom = int(height * 0.06), int(height * 0.92)
+colours = Counter()
+for y in range(top, bottom, 2):
+    row = pixels[y * width * 4:(y + 1) * width * 4]
+    for i in range(0, len(row), 8):
+        colours[(row[i] >> 4, row[i + 1] >> 4, row[i + 2] >> 4)] += 1
+seen = sum(colours.values())
+background, most = colours.most_common(1)[0] if colours else ((0, 0, 0), 0)
+other = seen - most
+share = other / seen if seen else 0.0
+print(
+    f"screen {width}x{height} (format {form}): {len(colours)} colours, "
+    f"{share:.1%} of the window unlike its background {background}"
 )
-print(f"screen {width}x{height} (format {form}): {near} pixels of dm's blue")
-sys.exit(0 if near >= 200 else 1)
+sys.exit(0 if len(colours) >= 16 and share >= 0.02 else 1)
 PY
 
 # 2. A link shared to dm. NativeActivity hands a running dm no new intent (docs/android.md,
