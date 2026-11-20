@@ -44,3 +44,20 @@ impl From<Error> for String {
         error.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+
+    #[test]
+    fn the_sentence_is_kept_as_it_is_shown() {
+        let error = Error::from("not a document dm reads");
+        assert_eq!(error.as_str(), "not a document dm reads");
+        assert_eq!(error.to_string(), "not a document dm reads");
+        assert_eq!(Error::from(String::from("a")), Error::from("a"));
+        let said: String = error.into();
+        assert_eq!(said, "not a document dm reads");
+        let boxed: Box<dyn std::error::Error> = Box::new(Error::from("b"));
+        assert_eq!(boxed.to_string(), "b");
+    }
+}

@@ -238,3 +238,19 @@ fn os_update_servers_and_sticker_cdns_are_never_caught() {
         );
     }
 }
+
+#[test]
+fn each_reason_is_said_in_its_own_words() {
+    let all = [
+        Excluded::Advert,
+        Excluded::Tracker,
+        Excluded::SiteSound,
+        Excluded::InterfaceImage,
+        Excluded::AdServer,
+        Excluded::TinyWindowsMedia,
+    ];
+    let said: std::collections::HashSet<&str> = all.iter().map(|e| e.reason()).collect();
+    assert_eq!(said.len(), all.len(), "two reasons said alike");
+    assert!(said.iter().all(|s| !s.is_empty()));
+    assert_eq!(Excluded::AdServer.reason(), "sent by an ad server");
+}
