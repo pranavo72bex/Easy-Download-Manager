@@ -99,6 +99,10 @@ fn shrink(
 /// B-frames shows its first picture after its first decode). Taken as "to the end of time", every
 /// such video would be longer than a GIF may be and refused, a one-second one too (coverage
 /// tests).
+#[cfg_attr(
+    not(any(target_os = "macos", windows, target_os = "linux", test)),
+    allow(dead_code)
+)]
 pub(crate) fn played(video: &crate::mp4mux::Track) -> (f64, f64) {
     let scale = f64::from(video.timescale.max(1));
     let mut decoded = i64::try_from(video.start.unwrap_or(0)).unwrap_or(i64::MAX);

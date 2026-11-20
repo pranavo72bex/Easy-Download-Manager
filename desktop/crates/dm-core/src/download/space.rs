@@ -314,8 +314,8 @@ pub fn free_space(dir: &Path) -> Option<u64> {
 pub(super) const FAT32_MOST: u64 = 4 * 1024 * 1024 * 1024 - 1;
 
 /// The largest file the drive holding `dir` can take, where its file
-/// system limits one (FAT32); `None` for no limit dm knows of.
-#[cfg(target_os = "linux")]
+/// system limits one (FAT32; a FAT drive on a phone too); `None` for no limit dm knows of.
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub fn largest_file(dir: &Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
@@ -387,7 +387,12 @@ pub fn largest_file(dir: &Path) -> Option<u64> {
 }
 
 /// The largest file the folder's disk allows; unknown on this system.
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "macos",
+    windows
+)))]
 pub fn largest_file(_dir: &Path) -> Option<u64> {
     None
 }

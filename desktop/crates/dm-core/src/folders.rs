@@ -13,6 +13,12 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+// Android's folders, which the app hands in (gaps row N2); built on the desktop for its tests.
+#[cfg(any(target_os = "android", test))]
+mod phone;
+#[cfg(target_os = "android")]
+pub use phone::set_phone_folders;
+
 /// The environment as the process has it.
 fn process(name: &str) -> Option<OsString> {
     std::env::var_os(name)
@@ -24,20 +30,43 @@ fn set(var: &impl Fn(&str) -> Option<OsString>, name: &str) -> Option<PathBuf> {
 }
 
 /// The person's home folder, as the system says it (on Windows the profile's folder, whatever
-/// `HOME` holds).
+/// `HOME` holds). On Android the app's own files folder, as the app gave it (`phone.rs`).
 pub fn home() -> Option<PathBuf> {
-    dirs::home_dir()
+    #[cfg(target_os = "android")]
+    {
+        phone::home()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        dirs::home_dir()
+    }
 }
 
-/// The person's Downloads folder, as the system names it.
+/// The person's Downloads folder, as the system names it. On Android the folder the app gave
+/// for new downloads (`phone.rs`).
 pub fn downloads() -> Option<PathBuf> {
-    dirs::download_dir()
+    #[cfg(target_os = "android")]
+    {
+        phone::downloads()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        dirs::download_dir()
+    }
 }
 
 /// The folder for a program's own data on this computer: `%LOCALAPPDATA%` on Windows,
-/// `~/Library/Application Support` on macOS, `$XDG_DATA_HOME` or `~/.local/share` on Linux.
+/// `~/Library/Application Support` on macOS, `$XDG_DATA_HOME` or `~/.local/share` on Linux,
+/// the app's own files folder on Android (`phone.rs`).
 pub fn local_data() -> Option<PathBuf> {
-    dirs::data_local_dir()
+    #[cfg(target_os = "android")]
+    {
+        phone::home()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        dirs::data_local_dir()
+    }
 }
 
 /// `$HOME` as the environment holds it, set or not, empty or not: what macOS's launch agents

@@ -1,0 +1,64 @@
+name: Android, the engine built
+
+# dm on Android (gaps rows N1, N2): the phone's library, desktop/crates/dm-android, is the
+# desktop's engine and its rules (dm-core, dm-net, dm-media, dm-torrent, dm-shell) bound to
+# Kotlin through UniFFI. This keeps it building for the phone's two kinds of processor, the
+# ARM of phones (arm64-v8a) and the x86_64 of the emulator, with the Android NDK the runner
+# already carries, so a desktop change that breaks Android is seen before it lands; and runs
+# dm-android's own tests on the runner itself. No APK yet (row N14).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request cancels its older run; runs on main always finish.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: desktop
+
+env:
+  CARGO_TERM_COLOR: always
+  # File and line in a panic's backtrace, without the rest of the debug info: faster builds
+  # and links, a smaller cache.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+jobs:
+  android:
+    name: Android (arm64-v8a, x86_64)
+    runs-on: ubuntu-latest
+    # A hang is a failure, not hours of waiting.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+          targets: aarch64-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: desktop
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-ndk
+      # The runner's own NDK (ubuntu-latest carries the newest as ANDROID_NDK_LATEST_HOME), so
+      # no action of anyone else's downloads one; cargo-ndk finds it through ANDROID_NDK_HOME.
+      # ring and the network-interface listing build their C with its clang.
+      - name: The runner's NDK
+        run: |
+          test -d "$ANDROID_NDK_LATEST_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+      # Android 8.0 (API 26) and up, as decided in N1 (docs/decisions.md, 2026-11-20).
+      - name: Check for the phone and the emulator
+        run: cargo ndk --platform 26 -t arm64-v8a -t x86_64 check -p dm-android --locked
+      - name: dm-android's tests, on the runner
+        run: cargo test -p dm-android --locked

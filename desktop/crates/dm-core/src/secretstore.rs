@@ -68,6 +68,8 @@ const STORE_NAME: &str = if cfg!(windows) {
     "the Windows Credential Manager"
 } else if cfg!(target_os = "macos") {
     "the Keychain"
+} else if cfg!(target_os = "android") {
+    "the Android Keystore"
 } else {
     "the Secret Service"
 };
@@ -91,7 +93,17 @@ pub fn system() -> Option<&'static dyn SecretStore> {
             .get_or_init(tools::present)
             .then_some(&STORE as &dyn SecretStore)
     }
-    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    // The app's store over the Keystore, once it has handed it in (`android.rs`, gaps row N11).
+    #[cfg(target_os = "android")]
+    {
+        android::store()
+    }
+    #[cfg(not(any(
+        windows,
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android"
+    )))]
     {
         None
     }
@@ -285,6 +297,12 @@ pub fn opened(bytes: &[u8]) -> Opened {
 
 #[cfg(windows)]
 mod credentials;
+
+// Android's store, handed in by the app (gaps row N11); built on the desktop for its tests.
+#[cfg(any(target_os = "android", test))]
+mod android;
+#[cfg(target_os = "android")]
+pub use android::set_android_store;
 
 pub mod passphrase;
 
