@@ -105,7 +105,7 @@ fn streams_dm_cannot_assemble_itself_are_named() {
     let fmp4 = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\n#EXTINF:4,\na.m4s\n#EXT-X-ENDLIST\n";
     assert_eq!(beyond_dm(None, None, fmp4, "http://h/v/i.m3u8"), None);
     let remapped = "#EXTM3U\n#EXT-X-MAP:URI=\"i1.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i2.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";
-    // Joined run by run (gaps row Y16); refused only by a pair (`changes_map`).
+    // Joined run by run, alone or in a pair (gaps row Y16); refused by a live pair (`changes_map`).
     assert_eq!(beyond_dm(None, None, remapped, "http://h/v/i.m3u8"), None);
     assert!(changes_map(remapped, "http://h/v/i.m3u8"));
     let restated_map = "#EXTM3U\n#EXT-X-MAP:URI=\"i.mp4\"\na.m4s\n#EXT-X-MAP:URI=\"i.mp4\"\nb.m4s\n#EXT-X-ENDLIST\n";

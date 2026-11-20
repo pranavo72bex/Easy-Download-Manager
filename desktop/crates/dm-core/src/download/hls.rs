@@ -6,12 +6,14 @@
 use super::*;
 
 mod live;
+mod live_sealed;
 mod segments;
 mod steps;
 
 use live::{join_live, media_stem, record_live};
 use segments::{cut_fragments, cut_fragments_with, fetch_segments};
 pub(super) use segments::{fetch_segment_range, fetch_segment_to, join_parts_copy, named_for_span};
+pub(super) use steps::fetch_keys;
 
 /// Fetches an adaptive stream as one file.
 ///
@@ -539,10 +541,8 @@ pub(super) async fn resolve_stream(
         {
             return Ok(Resolved::Beyond(why));
         }
+        // Recorded as it comes, samples scrambled by SAMPLE-AES put in the clear as it ends.
         if stream::is_live(&media) {
-            if stream::sample_scrambled(&media) {
-                return Ok(Resolved::Beyond(LIVE_SAMPLED));
-            }
             return Ok(Resolved::Live(chosen.url, None));
         }
         let listed = stream::media_playlist(&media, &media_landed, url, quality)?;
@@ -555,32 +555,44 @@ pub(super) async fn resolve_stream(
         return Err(Error::Internal("that playlist lists no media".into()));
     }
     if stream::is_live(&text) {
-        if stream::sample_scrambled(&text) {
-            return Ok(Resolved::Beyond(LIVE_SAMPLED));
-        }
         return Ok(Resolved::Live(url.to_string(), None));
     }
     let listed = stream::media_playlist(&text, &landed, url, quality)?;
     Ok(Resolved::Own(listed, url.to_string(), Vec::new()))
 }
 
-/// A live stream whose samples are scrambled (SAMPLE-AES): recorded as it comes, it is never
-/// joined whole, which is when they are put in the clear (gaps row Y16).
-const LIVE_SAMPLED: &str = "this live stream's samples are scrambled (SAMPLE-AES)";
-
-/// Why a playlist of a pair (picture and sound apart) is not dm's to join, where it is not: an
-/// initialisation segment that changes part-way or samples scrambled by SAMPLE-AES, which only
-/// a single playlist's join handles (gaps row Y16).
-fn pair_beyond(media: &str, landed: &str) -> Option<&'static str> {
+/// Why a live pair's playlist (picture and sound apart) is not dm's to record, where it is not:
+/// an initialisation segment that changes part-way or samples scrambled by SAMPLE-AES, which a
+/// recording of a pair does not handle (one playlist's is cleared as it ends, `live_sealed`). A pair that has ended is joined track by track, each
+/// segment with its own key and set-up (`dash::download_pair`, gaps row Y16).
+fn live_pair_beyond(media: &str, landed: &str) -> Option<&'static str> {
     if stream::changes_map(media, landed) {
         return Some("this stream changes its initialisation segment part-way through");
     }
     stream::sample_scrambled(media).then_some("this stream's samples are scrambled (SAMPLE-AES)")
 }
 
+/// Why a pair whose samples are scrambled by SAMPLE-AES is not dm's to join, where it is not:
+/// sound in packed audio (`.aac` segments), scrambled itself or beside a scrambled picture,
+/// which dm does not put in the clear yet. Fragmented MP4 on both sides, and transport streams
+/// on both, are put in the clear track by track (gaps row Y16).
+fn sealed_pair_beyond(picture: &stream::Stream, sound: &stream::Stream) -> Option<&'static str> {
+    let sealed = |s: &stream::Stream| {
+        s.parts
+            .iter()
+            .any(|p| p.key.as_ref().is_some_and(|k| k.sample))
+    };
+    (sound.container == "aac" && (sealed(picture) || sealed(sound))).then_some(PACKED_SEALED)
+}
+
+/// A pair's sound in packed audio, its samples or the picture's scrambled by SAMPLE-AES.
+const PACKED_SEALED: &str =
+    "this stream's samples are scrambled (SAMPLE-AES) beside sound in packed audio";
+
 /// A picture and the sound the master keeps apart from it. Fragmented MP4 on
-/// both sides is dm's to join (encrypted with AES-128 or cut by byte ranges
-/// as it may be), as is a transport-stream picture with packed AAC sound;
+/// both sides is dm's to join (encrypted with AES-128 or SAMPLE-AES, its key or its
+/// initialisation segment changing part-way, or cut by byte ranges as it may be), as are
+/// transport streams on both sides and a transport-stream picture with packed AAC sound;
 /// any other pair is `Beyond`.
 async fn resolve_pair(
     client: &reqwest::Client,
@@ -592,26 +604,27 @@ async fn resolve_pair(
     options: &Options,
 ) -> Result<Resolved, Error> {
     const APART: &str = "this stream carries its sound separately from its picture";
-    if let Some(why) = stream::beyond_dm(None, None, media, media_landed)
-        .or_else(|| pair_beyond(media, media_landed))
-    {
+    if let Some(why) = stream::beyond_dm(None, None, media, media_landed) {
         return Ok(Resolved::Beyond(why));
     }
     if stream::is_live(media) {
+        if let Some(why) = live_pair_beyond(media, media_landed) {
+            return Ok(Resolved::Beyond(why));
+        }
         let sound = live_sound(client, name_from, media, media_landed, sound_url, options).await?;
         return Ok(Resolved::Live(rendition.to_string(), sound));
     }
     let (sound, sound_landed) = fetch_playlist(client, sound_url, options).await?;
-    if stream::beyond_dm(None, None, &sound, &sound_landed).is_some()
-        || pair_beyond(&sound, &sound_landed).is_some()
-        || stream::is_live(&sound)
-    {
+    if stream::beyond_dm(None, None, &sound, &sound_landed).is_some() || stream::is_live(&sound) {
         return Ok(Resolved::Beyond(APART));
     }
     let picture = stream::media_playlist(media, media_landed, name_from, options.quality)?;
     let sound = stream::media_playlist(&sound, &sound_landed, name_from, Quality::Best)?;
     if !joinable(&picture, &sound) {
         return Ok(Resolved::Beyond(APART));
+    }
+    if let Some(why) = sealed_pair_beyond(&picture, &sound) {
+        return Ok(Resolved::Beyond(why));
     }
     Ok(Resolved::Pair(
         Box::new(picture),
@@ -650,7 +663,7 @@ async fn live_sound(
         Err(_) => return Ok(None),
     };
     if stream::beyond_dm(None, None, &sound, &sound_landed).is_some()
-        || pair_beyond(&sound, &sound_landed).is_some()
+        || live_pair_beyond(&sound, &sound_landed).is_some()
     {
         return Ok(None);
     }

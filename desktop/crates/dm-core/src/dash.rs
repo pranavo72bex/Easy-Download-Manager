@@ -55,6 +55,9 @@ pub struct Lock {
     pub key: Vec<u8>,
     /// The initialisation vector, 16 bytes.
     pub iv: [u8; 16],
+    /// SAMPLE-AES: the samples inside the piece are scrambled, not the piece, which is kept as
+    /// it comes; they are put in the clear once the track is gathered (gaps row Y16).
+    pub sample: bool,
 }
 
 /// Whether a track carries picture or sound.
@@ -438,25 +441,35 @@ fn indexed_of(c: &Context) -> Option<Indexed> {
 }
 
 /// The part of a track that plays within `from`..`to` seconds: its
-/// initialisation pieces (which play for no time) and every timed piece that
-/// overlaps, with the seconds where the first starts and the last ends.
+/// initialisation pieces (which play for no time), each before the pieces it leads, and every
+/// timed piece that overlaps, with the seconds where the first starts and the last ends.
 /// `None` where the pieces carry no timing or none overlaps. A one-file track
 /// is cut by its own index at fetch time, not here.
 pub fn cut(track: &Track, from: f64, to: f64) -> Option<(Track, f64, f64)> {
     let mut pieces: Vec<Piece> = Vec::new();
     let (mut at, mut starts, mut ends, mut any) = (0.0f64, 0.0f64, 0.0f64, false);
+    // An initialisation piece met once the part has begun (an HLS stream's that changes
+    // part-way, gaps row Y16) leads the next piece taken, which is read with it.
+    let mut held: Option<&Piece> = None;
     for piece in &track.pieces {
-        if piece.millis == 0 && !any {
-            pieces.push(piece.clone());
+        if piece.millis == 0 {
+            if any {
+                held = Some(piece);
+            } else {
+                pieces.push(piece.clone());
+            }
             continue;
         }
         let end = at + piece.millis as f64 / 1000.0;
-        if piece.millis > 0 && at < to && end > from {
+        if at < to && end > from {
             if !any {
                 starts = at;
                 any = true;
             }
             ends = end;
+            if let Some(init) = held.take() {
+                pieces.push(init.clone());
+            }
             pieces.push(piece.clone());
         }
         at = end;

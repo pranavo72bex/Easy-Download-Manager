@@ -11,8 +11,8 @@ use crate::download::hls_text::{self, HlsTexts};
 
 /// Each key once, not once per segment: a playlist of a thousand segments would otherwise
 /// be a thousand requests for the same sixteen bytes. A key that changes part-way is
-/// several (gaps row Y16).
-pub(super) async fn fetch_keys(
+/// several (gaps row Y16); a pair of playlists has each its own (`dash::download_pair`).
+pub(in crate::download) async fn fetch_keys(
     client: &reqwest::Client,
     listed: &stream::Stream,
     options: &Options,
