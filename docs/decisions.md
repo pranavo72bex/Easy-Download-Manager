@@ -8270,3 +8270,38 @@ changing network gets its torrent's peers back without waiting for the tracker's
 finished torrent's sharing, which runs outside the rows, went on sending. Held with them now:
 paused within a tick, its minutes not counted while held, announced afresh when the hold ends.
 Also a desktop change (B76's words name downloads only), flagged in row N8 for the maintainer.
+
+## A read works out again only what follows from the rows that changed; the first frame names only what it shows; follows run in the shared tick (2026-11-20, gaps rows 181, S16, W10)
+
+Coded on the Windows laptop by reading and writing only (the maintainer's word: it builds and
+tests nothing); the Mac builds, tests and measures, and each row says what. Nothing a person sees
+or does changes: the same names, places, counts and order, worked out from less.
+
+- **181, a row changed in place.** A download that started, stopped or finished had every row
+  named and placed again and the list filtered and sorted. Now (`window/list/placing.rs`
+  `restate`) the rows that changed are named again, and where one's naming moved (it settled,
+  was placed, renamed or sent to another folder) so are the rows not yet placed of its old and
+  new name and folder and those whose count of earlier rows of that name moved, found in the
+  same pass as the counts (`names::earlier_and_alike`); only they are placed
+  (`Places::place_at`); and the list is filtered and sorted again only where one came into or
+  left the place shown or the sort may move it. Whole as before where rows came, went or moved,
+  or the settings changed (`place_every_row`). Considered and dropped: naming only the rows
+  that changed, which left a waiting row of the same name showing a name its folder no longer
+  gives until the list moved.
+- **181, the tick's looks.** The rows running, paused or failed are kept by id from what each
+  read changed (`Known::busy`); the taskbar (which shows nothing else), the clock, the heap's
+  give-back, the speeds and the hints go over them, not every row.
+- **181, views of their own with `.cached()`: not done.** The control port's record of the words
+  on screen is made as each frame is prepainted, which GPUI skips for a cached view; a cached
+  part would drop out of `ui.texts` and `human-qa.py`, and caching only while no port records
+  would leave the shipped path unchecked by QA. A cached part is also built again only when
+  notified, so each needs a key of all it shows. Measure first what the unchanged parts cost.
+- **S16.** Before the first frame only the rows it can show (200, those chosen, those running)
+  are named; the rest on the next frame (`on_next_frame`) or before the control port answers.
+  GPUI's application is made while dm boots on a thread of its own; the window is still made
+  once the queue is read, as drawing an empty list first would be a change a person sees. The
+  Metal shaders' compilation at launch is a dm-gpui feature (`runtime-shaders`, on by default)
+  so a Mac with the Metal compiler can build with them compiled ahead.
+- **W10.** The follows' timing and readings moved from the window into the application's tick
+  (`dm_desktop_base::session`, `Effect::Followed`), so `--headless` follows too; each driver adds
+  what a reading brought its own way, as the saved searches are.

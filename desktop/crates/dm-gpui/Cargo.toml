@@ -125,6 +125,14 @@ Section "un.dmUnregister"
 SectionEnd
 """
 
+# On macOS GPUI's Metal shaders are compiled as dm starts (`runtime-shaders`, on by default), so
+# a Mac without the Metal compiler of full Xcode builds dm; built with `--no-default-features`
+# where `xcrun -f metal` answers, they are compiled with the program and the window opens
+# without compiling them at each launch (gaps row S16). Nothing elsewhere.
+[features]
+default = ["runtime-shaders"]
+runtime-shaders = ["gpui_platform/runtime_shaders"]
+
 [dependencies]
 dm-core.workspace = true
 dm-protocol.workspace = true
@@ -172,7 +180,8 @@ png.workspace = true
 rfd.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-gpui_platform = { workspace = true, features = ["font-kit", "runtime_shaders"] }
+# Its Metal shaders as the `runtime-shaders` feature below says.
+gpui_platform = { workspace = true, features = ["font-kit"] }
 # What GPUI cannot ask of a window (appkit.rs): put away into the tray without
 # closing it, moved, pictured.
 objc2.workspace = true

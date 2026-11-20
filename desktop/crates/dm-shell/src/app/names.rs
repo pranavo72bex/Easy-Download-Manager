@@ -205,29 +205,49 @@ pub fn planned_folder(
 /// same folder under the same name: what `name_it_will_get_after` is told.
 /// One pass, in the order the rows were added.
 pub fn earlier_of_the_same_name(rows: &[Arc<Entry>]) -> HashMap<Id, usize> {
+    earlier_and_alike(rows, &[]).0
+}
+
+/// [`earlier_of_the_same_name`], and in the same pass where in `rows` (in order) the rows not
+/// yet placed are that are bound for one of the folders `named` under its name (each a row's
+/// `save_dir` and [`name_of`]): the rows whose names a change of a row of that name and folder
+/// can change, where every row had been named again (gaps row 181).
+pub fn earlier_and_alike(
+    rows: &[Arc<Entry>],
+    named: &[(Option<String>, String)],
+) -> (HashMap<Id, usize>, Vec<usize>) {
     // Only the rows not yet placed, sorted only where the list is not already in the order
     // they were added, and each folder and name borrowed from its row: at 10,000 waiting rows
     // every row was sorted and its folder and name copied at each change of the list (gaps
     // row 210).
-    let mut order: Vec<&Entry> = rows
+    let mut order: Vec<(usize, &Entry)> = rows
         .iter()
-        .map(|r| &**r)
-        .filter(|r| !r.state.settled() && r.path.is_empty())
+        .enumerate()
+        .map(|(at, r)| (at, &**r))
+        .filter(|(_, r)| !r.state.settled() && r.path.is_empty())
         .collect();
-    if !order.is_sorted_by_key(|r| r.id) {
-        order.sort_by_key(|r| r.id);
+    if !order.is_sorted_by_key(|(_, r)| r.id) {
+        order.sort_by_key(|(_, r)| r.id);
     }
     let mut seen: HashMap<(Option<&str>, std::borrow::Cow<'_, str>), usize> =
         HashMap::with_capacity(order.len());
     let mut before = HashMap::with_capacity(order.len());
-    for r in order {
-        let count = seen
-            .entry((r.save_dir.as_deref(), name_seen(r)))
-            .or_insert(0);
+    let mut alike = Vec::new();
+    for (at, r) in order {
+        let name = name_seen(r);
+        // A few names, those of the rows that changed: looked through as they are.
+        if named
+            .iter()
+            .any(|(folder, n)| folder.as_deref() == r.save_dir.as_deref() && *n == *name)
+        {
+            alike.push(at);
+        }
+        let count = seen.entry((r.save_dir.as_deref(), name)).or_insert(0);
         before.insert(r.id, *count);
         *count += 1;
     }
-    before
+    alike.sort_unstable();
+    (before, alike)
 }
 
 /// How long the free name a row's folder was asked for is believed before the folder is asked

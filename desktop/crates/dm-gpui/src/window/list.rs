@@ -120,6 +120,7 @@ mod keys;
 mod later;
 mod on_queue;
 mod opening;
+mod placing;
 mod questions;
 mod refresh;
 mod removal;
@@ -268,7 +269,10 @@ impl Downloads {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        let mode = taskbar::mode_of(&self.rows, now);
+        // Over the rows running, paused or failed alone, which are all it shows (gaps row
+        // 181): not a pass over every row at every wake.
+        let busy: Vec<&Entry> = self.known.busy.values().map(|r| &**r).collect();
+        let mode = taskbar::mode_of(&busy, now);
         #[cfg(windows)]
         if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(window) {
             self.system.taskbar.show(handle.as_raw(), mode);
@@ -277,7 +281,7 @@ impl Downloads {
         let _ = window;
         self.system
             .taskbar
-            .show_outside(taskbar::outside_of(mode, taskbar::running_of(&self.rows)));
+            .show_outside(taskbar::outside_of(mode, taskbar::running_of(&busy)));
     }
 
     /// How long the window sleeps when nothing wakes it: a quarter of a
@@ -288,7 +292,7 @@ impl Downloads {
     /// the downloads, which go on within moments of its end (gaps row W11); else 30 seconds.
     fn clock_every(&self) -> Duration {
         clock(
-            self.rows.iter().any(|r| r.state == State::Running),
+            self.running_any(),
             self.session.countdown.is_some()
                 || self.system.clipboard.on
                 || self.backend.held_by().is_some(),
@@ -306,6 +310,9 @@ impl Downloads {
         if asked.is_empty() {
             return false;
         }
+        // Every row's name, as a script may read any row's (`ui.inspect`): those not named
+        // before the first frame are named now, where it has not been drawn yet (gaps row S16).
+        self.name_the_rest();
         let allow_mcp = self.backend.settings().general.allow_mcp;
         for request in asked {
             let answer = match dm_shell::app::control_api::refused(
@@ -614,6 +621,9 @@ impl Render for Downloads {
         self.known.renders += 1;
         if crate::port::FRAMES.fetch_add(1, Ordering::Relaxed) == 0 {
             dm_core::finish_trace::mark("start: first frame drawn");
+            // The rows the first frame does not show are named once it is out, not before it
+            // (gaps row S16).
+            cx.on_next_frame(window, |this, _, _| this.name_the_rest());
         }
         // Its waits, copies and disk calls, counted in a debug build (row 180).
         let _drawing = dm_shell::app::costs::drawing();
