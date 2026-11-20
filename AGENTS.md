@@ -61,7 +61,8 @@ extension that hands it the browser's downloads.
   window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
   no web view, plus the tray: one file per part of the window, in five
   folders (`window/`: `list.rs` the rows and their reads, `tick.rs` what each
-  wake does, `table.rs`, `menus.rs`, `toolbar.rs`, `sidebar.rs`; `dialogs/`:
+  wake does, `table.rs`, `menus.rs`, `toolbar.rs`, `sidebar.rs`, `narrow.rs` the
+  same views laid out for a phone's width below 600 points, gaps row N7; `dialogs/`:
   one file per dialog such as `addurl.rs` and `details.rs`; `options.rs` with
   `options/pages.rs` and a file per page in `options/pages/`; `widgets/`; `platform/`: the system's window calls, the
   tray, drags and drops), and `port.rs` with `probe.rs` for the control port. `cargo packager -p dm-gpui` there builds the installers,

@@ -31,6 +31,7 @@ mod cells;
 mod heading;
 mod pointer;
 
+pub(crate) use cells::progress_track;
 pub(crate) use heading::moved_onto;
 #[cfg(test)]
 use heading::{as_table, told_heading};
@@ -159,7 +160,7 @@ fn cell(column: Column, widths: &Widths) -> gpui::Div {
 
 /// What a cell says, where it says words; when a row finished, from the
 /// words the read kept (`whens`).
-fn words(column: Column, row: &Entry, whens: &format::Whens) -> String {
+pub(crate) fn words(column: Column, row: &Entry, whens: &format::Whens) -> String {
     match column {
         Column::Name | Column::Queue => String::new(),
         Column::Size => dm_desktop_base::rows::size_of(row),
@@ -267,7 +268,7 @@ impl Downloads {
 }
 
 /// The file's name as its row shows it.
-fn shown_name(
+pub(crate) fn shown_name(
     row: &Entry,
     names: &std::collections::HashMap<dm_core::Id, String>,
 ) -> gpui::SharedString {

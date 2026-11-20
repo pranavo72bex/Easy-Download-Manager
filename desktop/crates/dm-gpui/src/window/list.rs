@@ -133,6 +133,7 @@ use questions::countdown_question;
 use refresh::clicked;
 use refresh::needs_drawing;
 pub(crate) use rowline::{kind_picture, line};
+pub(crate) use sections::Shown;
 use sorting::sort_command;
 
 /// The main window's view: the application, the rows it last read, and what
@@ -648,14 +649,18 @@ impl Render for Downloads {
             .flex_col()
             .track_focus(&self.focus);
         let root = Self::list_actions(root, cx);
-        Self::list_keys(root, cx)
+        let root = Self::list_keys(root, cx)
             // Clear under Mica (the toolbar on it too); the list's column
             // below stays solid.
             .bg(crate::window::theme::frame(theme.background))
             .text_color(theme.text)
             // The system's size for a list's rows and every control.
-            .text_size(crate::window::zoom::px(crate::widgets::native::TEXT))
-            .child(crate::window::titlebar::titlebar(
+            .text_size(crate::window::zoom::px(crate::widgets::native::TEXT));
+        // At a phone's width, the phone's layout of the same views (gaps row N7).
+        let root = if crate::window::narrow::is_narrow(window) {
+            self.narrow_window(root, theme, &screen, shown, window, cx)
+        } else {
+            root.child(crate::window::titlebar::titlebar(
                 self, theme, &screen, window, cx,
             ))
             .when(self.layout.show_toolbar, |root| {
@@ -667,30 +672,31 @@ impl Render for Downloads {
             .child(crate::window::statusbar::statusbar(
                 self, theme, &screen, cx,
             ))
-            .when_some(self.menus.place_menu.clone(), |root, (place, at)| {
-                root.child(crate::window::placemenu::menu(
-                    &place, at, theme, &screen, cx,
-                ))
-            })
-            // Held by Options, the window takes no click: one brings Options
-            // forward (B42).
-            .when(holding, |root| {
-                root.child(
-                    div()
-                        .id("held")
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .size_full()
-                        .occlude()
-                        .on_mouse_down(
-                            gpui::MouseButton::Left,
-                            cx.listener(|this, _, _, cx| {
-                                this.bring_holder(cx);
-                            }),
-                        ),
-                )
-            })
+        };
+        root.when_some(self.menus.place_menu.clone(), |root, (place, at)| {
+            root.child(crate::window::placemenu::menu(
+                &place, at, theme, &screen, cx,
+            ))
+        })
+        // Held by Options, the window takes no click: one brings Options
+        // forward (B42).
+        .when(holding, |root| {
+            root.child(
+                div()
+                    .id("held")
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .occlude()
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.bring_holder(cx);
+                        }),
+                    ),
+            )
+        })
     }
 }
 

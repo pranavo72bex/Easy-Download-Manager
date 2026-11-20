@@ -16,13 +16,13 @@ use crate::window::theme::Theme;
 
 /// What the list's column shows: the bars, how many more wait, and whether
 /// the list has no row.
-pub(super) struct Shown {
+pub(crate) struct Shown {
     /// The bars shown: the first, or all of them once asked for.
-    bars: Vec<AnyElement>,
+    pub(crate) bars: Vec<AnyElement>,
     /// How many bars wait behind the one shown.
-    more: usize,
+    pub(crate) more: usize,
     /// No row is shown.
-    empty: bool,
+    pub(crate) empty: bool,
 }
 
 impl Downloads {
@@ -342,28 +342,7 @@ impl Downloads {
             // wait (gaps row U26): stacked, a failure, the browser's bar and a
             // problem or two took 135 points of a 500-point window.
             .children(shown_bars)
-            .when(more_bars > 0, |d| {
-                d.child(
-                    div()
-                        .id("more-bars")
-                        .px(crate::window::zoom::px(space::L))
-                        .py(crate::window::zoom::px(space::XXS))
-                        .border_b_1()
-                        .border_color(theme.separator)
-                        .text_size(crate::window::zoom::px(crate::widgets::native::SMALL_TEXT))
-                        .text_color(theme.selection)
-                        .cursor_pointer()
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.layout.bars.all = true;
-                            cx.notify();
-                        }))
-                        .child(screen.label(dm_desktop_base::i18n::tn(
-                            "+{} more||+{} more",
-                            more_bars as u64,
-                            &[&more_bars],
-                        ))),
-                )
-            })
+            .children(self.more_bars_line(more_bars, theme, screen, cx))
             // The headings and the rows scroll sideways
             // together where the window is narrower than
             // the columns, as a macOS list does: at 120% in
@@ -377,6 +356,36 @@ impl Downloads {
             .when(empty, |list| {
                 list.child(crate::window::table::empty(self, theme, cx))
             })
+    }
+
+    /// "+2 more" under the bar shown, where `more` bars wait behind it: a click shows them all.
+    pub(crate) fn more_bars_line(
+        &self,
+        more: usize,
+        theme: Theme,
+        screen: &Screen,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::Stateful<Div>> {
+        (more > 0).then(|| {
+            div()
+                .id("more-bars")
+                .px(crate::window::zoom::px(space::L))
+                .py(crate::window::zoom::px(space::XXS))
+                .border_b_1()
+                .border_color(theme.separator)
+                .text_size(crate::window::zoom::px(crate::widgets::native::SMALL_TEXT))
+                .text_color(theme.selection)
+                .cursor_pointer()
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.layout.bars.all = true;
+                    cx.notify();
+                }))
+                .child(screen.label(dm_desktop_base::i18n::tn(
+                    "+{} more||+{} more",
+                    more as u64,
+                    &[&more],
+                )))
+        })
     }
 
     /// The headings and the rows, which scroll sideways together, and the

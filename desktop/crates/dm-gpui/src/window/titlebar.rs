@@ -164,6 +164,102 @@ pub fn titlebar(
         .children(window_buttons(theme, window.is_maximized()))
 }
 
+/// The top bar at a phone's width (gaps row N7), in place of the menus' titles, the search
+/// box and the toolbar: the places' drawer, the title, Add, and the overflow menu holding the
+/// toolbar's commands and the menus (`narrow.rs`). Still the window's title bar where dm draws
+/// one: past the traffic lights, its empty space moving the window, the window's own buttons
+/// at its end on Windows.
+pub fn narrow_titlebar(
+    view: &Downloads,
+    theme: Theme,
+    screen: &Screen,
+    window: &mut Window,
+    cx: &mut Context<Downloads>,
+) -> impl IntoElement {
+    use dm_shell::app::commands::Command;
+    let button = |id: &'static str, words: &'static str| {
+        div()
+            .id(id)
+            .role(Role::Button)
+            .aria_label(words)
+            .flex_none()
+            .min_w(px(30.0))
+            .h(px(28.0))
+            .px(px(space::XS))
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(px(native::RADIUS))
+            .hover(|b| b.bg(theme.control))
+            // Its own click: not the bar's, whose double-click zooms the window.
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+    };
+    let places = t("Places");
+    let add = t(Command::AddUrl.label());
+    let menu = t("Menu");
+    div()
+        .id("titlebar")
+        .role(Role::Group)
+        .aria_label(menu)
+        .h(gpui::px(height()))
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(px(space::XS))
+        .bg(crate::window::theme::frame(theme.sidebar))
+        .border_b_1()
+        .border_color(theme.separator)
+        .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none())
+        .child(
+            button("drawer-button", places)
+                .aria_toggled(if view.layout.narrow.drawer.is_some() {
+                    gpui::Toggled::True
+                } else {
+                    gpui::Toggled::False
+                })
+                .on_click(cx.listener(|view, _, _, cx| view.toggle_drawer(cx)))
+                .child(
+                    screen.mark(
+                        places,
+                        svg()
+                            .path("icons/sidebar.svg")
+                            .size(px(17.0))
+                            .text_color(theme.muted),
+                    ),
+                ),
+        )
+        .child(
+            drag_space()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .items_center()
+                .overflow_hidden()
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .child(screen.label("dm")),
+        )
+        .child(
+            button("add-button", add)
+                .on_click(cx.listener(|view, _, _, cx| view.run(Command::AddUrl, cx)))
+                .child(
+                    screen.mark(
+                        add,
+                        svg()
+                            .path("icons/add.svg")
+                            .size(px(17.0))
+                            .text_color(theme.text),
+                    ),
+                ),
+        )
+        .child(
+            button("overflow-button", menu)
+                .text_size(px(native::TEXT + 4.0))
+                .on_click(cx.listener(|view, _, _, cx| view.open_overflow(cx)))
+                .child(screen.mark(menu, div().child("⋮"))),
+        )
+        .children(window_buttons(theme, window.is_maximized()))
+}
+
 /// Empty space in the bar: where it is the window's title bar, it moves the
 /// window and a double-click does the system's setting (zoom or minimize).
 /// Not on Linux, under the desktop's own title bar.
