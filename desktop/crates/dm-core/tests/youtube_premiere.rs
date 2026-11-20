@@ -210,9 +210,11 @@ async fn a_premiere_is_waited_for_then_recorded_as_a_live_stream() {
     // An hour away, cancelled while it waits: over at once.
     let waiting = options(dir.path());
     let control = waiting.control.clone();
+    // Named, as `join!` holds the future past the statement that would end a temporary.
+    let (later_client, later) = (client(), watch(LATER));
     let began = Instant::now();
     let (outcome, ()) = tokio::join!(
-        videopage::download_page(&client(), &watch(LATER), &waiting, None),
+        videopage::download_page(&later_client, &later, &waiting, None),
         async {
             tokio::time::sleep(Duration::from_secs(1)).await;
             control.cancel();
