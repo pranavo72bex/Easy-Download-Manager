@@ -27,9 +27,9 @@ local branches and their worktrees are deleted (the `refine-<area>` branches had
 pass below starts again from `main`). The branches on `origin` are still there: deleting them
 is a push.
 
-Kept, unfinished, each a WIP commit on its own branch and worktree: `a10-platform`
-(`D:\dm-wt\a10-platform`, dm-shell's system code moved under `platform/`) and `n15-view`
-(`D:\dm-wt\n15-view`, the views split into a `dm-view` crate). Neither compiled. Nothing
+Kept, unfinished, on its own branch and worktree: `a10-platform` (`D:\dm-wt\a10-platform`,
+dm-shell's system code moved under `platform/`, being finished). `n15-view` (the `dm-view`
+crate) was recorded with `-s ours` and deleted: row N15 was dropped with Slint. Not compiled. Nothing
 merged tonight was compiled either: the Mac's run (fmt, clippy, `cargo test --workspace`,
 layers, `cargo ndk check -p dm-android`) is the next step, rfd 0.18 and sha2 0.11.1 included.
 
