@@ -259,3 +259,46 @@ fn where_the_page_or_the_answer_names_no_video_the_answer_is_read_as_before() {
         vec!["https://a.example/p.m3u8"]
     );
 }
+
+/// An answer as the worker reads it (`web/page/clicks.rs` `page_answer`): the rule of the
+/// page's site that names the request, then the answer's streams. Read only where the served
+/// rules name the site and the request, and only from JSON of at most 1 MiB.
+#[test]
+fn an_answer_is_read_only_for_a_site_and_request_the_rules_name_and_within_1_mib() {
+    use super::super::rules;
+    rules::install(Some(
+        dm_protocol::Rules::parse(
+            r#"{ "format": 1, "revision": 1, "sites": [
+                  { "host": "video.example", "answers": [
+                      { "url_contains": "/api/play", "keys": ["hlsUrl"] } ] } ] }"#,
+        )
+        .expect("rules"),
+    ));
+    let read = |page: &str, asked: &str, body: &str| -> Vec<String> {
+        rules::answer_rule_for(page, asked)
+            .map(|rule| addresses_by(body, &rule, page))
+            .unwrap_or_default()
+    };
+    let page = "https://www.video.example/watch/abc";
+    let asked = "https://video.example/api/play?id=3";
+    let stream = "https://cdn.example/v/master.m3u8";
+    let body = format!(r#"{{ "hlsUrl": "{stream}" }}"#);
+    assert_eq!(read(page, asked, &body), vec![stream]);
+    // Another request of the site, or the same request from another site's page: nothing.
+    assert!(read(page, "https://video.example/api/stats", &body).is_empty());
+    assert!(read("https://other.example/watch/abc", asked, &body).is_empty());
+    // Not JSON: nothing.
+    assert!(read(page, asked, &format!("hlsUrl={stream}")).is_empty());
+    // 1 MiB exactly is read; a byte more is not.
+    let padded =
+        |pad: usize| format!(r#"{{ "hlsUrl": "{stream}", "pad": "{}" }}"#, "x".repeat(pad));
+    let frame = padded(0).len();
+    let whole = padded(MAX_ANSWER_BYTES - frame);
+    assert_eq!(whole.len(), MAX_ANSWER_BYTES);
+    assert_eq!(read(page, asked, &whole), vec![stream]);
+    let over = padded(MAX_ANSWER_BYTES - frame + 1);
+    assert!(read(page, asked, &over).is_empty());
+    // With no rules served, no site's answer is read.
+    rules::install(None);
+    assert!(read(page, asked, &body).is_empty());
+}

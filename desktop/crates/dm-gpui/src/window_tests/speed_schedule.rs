@@ -461,6 +461,65 @@ fn the_scheduler_hangs_up_the_dial_up_connection_when_its_downloads_are_done() {
     });
 }
 
+/// The Scheduler's "Run this program when they are done (optional)" (B62): typed in and kept
+/// with the hours by a person's OK, while a script's OK keeps the one in force and says so; once
+/// something has run in the hours and nothing is left to run, the program is run, once (here
+/// one that is not there, so it cannot start: said in the problems, once).
+#[test]
+fn the_schedulers_program_is_kept_by_a_persons_ok_and_run_once_when_its_downloads_are_done() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    let typed = format!("\"{}\"", world.dir.path().join("no such program").display());
+    let field = "Run this program when they are done (optional)";
+    let open = |h: &mut Harness| {
+        h.command("downloads.scheduler");
+        h.until("the Scheduler", |h| h.dialog_open("Scheduler"));
+    };
+
+    // A script's OK: the hours kept (open all day), the program not, and that said.
+    open(&mut h);
+    h.click("Only download between set hours");
+    set_time(&mut h, "Start at", "00:00");
+    set_time(&mut h, "Stop at", "00:00");
+    h.fill(field, &typed);
+    h.click("OK");
+    h.until("the Scheduler to close", |h| !h.dialog_open("Scheduler"));
+    assert!(kept(&mut h).schedule.enabled);
+    assert_eq!(kept(&mut h).schedule.run_when_done, "");
+    h.until("the word that the program was not changed", |h| {
+        h.said().contains("was not changed: a script was driving the window")
+    });
+
+    // A person's OK: kept.
+    open(&mut h);
+    h.fill(field, &typed);
+    h.click_as_person("OK", 0);
+    h.until("the Scheduler to close", |h| !h.dialog_open("Scheduler"));
+    assert_eq!(kept(&mut h).schedule.run_when_done, typed);
+
+    let failed = |h: &mut Harness| {
+        h.view(|view| {
+            view.status
+                .problems
+                .iter()
+                .filter(|p| p.contains("could not start"))
+                .count()
+        })
+    };
+    wakes(&mut h);
+    assert_eq!(failed(&mut h), 0, "run before anything ran in the hours");
+    // Something runs in the hours, then nothing is left to run: done.
+    h.add_url(&world.url("stalled.bin"), "Start now");
+    h.until("the download to run", |h| running(h) == 1);
+    h.command("downloads.stop_all");
+    h.until("the program run, and why it could not start said", |h| {
+        failed(h) == 1
+    });
+    wakes(&mut h);
+    assert_eq!(failed(&mut h), 1, "run more than once in the window");
+}
+
 /// Start now in Download details while the schedule is shut asks whether to start it outside
 /// the schedule, as Resume does.
 #[test]
