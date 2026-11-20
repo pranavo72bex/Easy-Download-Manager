@@ -21,6 +21,9 @@ mod common;
 #[path = "common/mp4_samples.rs"]
 mod mp4_samples;
 
+#[path = "common/framed_media.rs"]
+mod framed_media;
+
 use std::sync::{Mutex, OnceLock};
 
 use axum::body::{Body, Bytes};
@@ -35,80 +38,8 @@ use dm_core::youtube::framed::wire::{Message, Value as Wire, Writer};
 use dm_core::{client, videopage, youtube, Control, Error, Quality};
 
 use common::{options, tempdir};
+use framed_media::{fixture, pieces_of};
 use mp4_samples::tracks;
-
-fn fixture(name: &str) -> Vec<u8> {
-    std::fs::read(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/mp4")
-            .join(name),
-    )
-    .unwrap()
-}
-
-/// A box of `kind` inside `data` (the boxes a piece nests searched): where its body starts.
-fn find_box(data: &[u8], kind: &[u8; 4]) -> Option<usize> {
-    let mut at = 0;
-    while at + 8 <= data.len() {
-        let size = u32::from_be_bytes(data[at..at + 4].try_into().ok()?) as usize;
-        if size < 8 || at + size > data.len() {
-            return None;
-        }
-        if &data[at + 4..at + 8] == kind {
-            return Some(at + 8);
-        }
-        if matches!(&data[at + 4..at + 8], b"moof" | b"traf") {
-            if let Some(found) = find_box(&data[at + 8..at + size], kind) {
-                return Some(at + 8 + found);
-            }
-        }
-        at += size;
-    }
-    None
-}
-
-/// Where a top-level box of `kind` starts, and its size.
-fn top_box(data: &[u8], kind: &[u8; 4]) -> (usize, usize) {
-    let mut at = 0;
-    while at + 8 <= data.len() {
-        let size = u32::from_be_bytes(data[at..at + 4].try_into().unwrap()) as usize;
-        if &data[at + 4..at + 8] == kind {
-            return (at, size);
-        }
-        at += size;
-    }
-    panic!("no {kind:?} box");
-}
-
-/// A fixture as the framed stream serves it: its first boxes, then `pieces` copies of its one
-/// piece, each numbered and timed after the one before. Returns them, and the media bytes each
-/// piece carries.
-fn pieces_of(name: &str, pieces: u32) -> (Vec<u8>, Vec<Vec<u8>>, usize) {
-    let whole = fixture(name);
-    let (moov_at, moov_size) = top_box(&whole, b"moov");
-    let (sidx_at, sidx_size) = top_box(&whole, b"sidx");
-    let (moof_at, _) = top_box(&whole, b"moof");
-    let (mdat_at, mdat_size) = top_box(&whole, b"mdat");
-    let sidx = &whole[sidx_at..sidx_at + sidx_size];
-    let entries = if sidx[8] == 1 { 40 } else { 32 };
-    let duration = u32::from_be_bytes(sidx[entries + 4..entries + 8].try_into().unwrap());
-    let init = whole[..moov_at + moov_size].to_vec();
-    let mut out = Vec::new();
-    for n in 0..pieces {
-        let mut piece = whole[moof_at..mdat_at + mdat_size].to_vec();
-        let seq_at = find_box(&piece, b"mfhd").unwrap();
-        piece[seq_at + 4..seq_at + 8].copy_from_slice(&(n + 1).to_be_bytes());
-        let tfdt_at = find_box(&piece, b"tfdt").unwrap();
-        let time = u64::from(n) * u64::from(duration);
-        if piece[tfdt_at] == 1 {
-            piece[tfdt_at + 4..tfdt_at + 12].copy_from_slice(&time.to_be_bytes());
-        } else {
-            piece[tfdt_at + 4..tfdt_at + 8].copy_from_slice(&(time as u32).to_be_bytes());
-        }
-        out.push(piece);
-    }
-    (init, out, mdat_size - 8)
-}
 
 const PICTURE_PIECES: u32 = 3;
 const PIECE_MS: u64 = 2_000;
@@ -156,7 +87,7 @@ struct Asked {
 static SEEN: Mutex<Vec<Asked>> = Mutex::new(Vec::new());
 
 /// The control of a fetch the stream pauses, once, when it is asked for the picture's piece
-/// after [`PAUSED_AFTER`] ("framedResumed").
+/// after [`PAUSED_AFTER`] ("framedPause").
 static PAUSING: Mutex<Option<Control>> = Mutex::new(None);
 
 /// The picture's pieces a paused fetch holds.
@@ -327,12 +258,12 @@ fn unsent_of(context: Message<'_>) -> Vec<u64> {
         .collect()
 }
 
-/// The context type "framedContext"'s stream gives to be sent back, and the one it gives to
+/// The context type "framedCntxt"'s stream gives to be sent back, and the one it gives to
 /// be held.
 const CONTEXT_SENT: u64 = 4;
 const CONTEXT_HELD: u64 = 7;
 
-/// "framedContext"'s context updates: where the request sends none back, one to be sent and
+/// "framedCntxt"'s context updates: where the request sends none back, one to be sent and
 /// one to be held; after, the one sent again, with a value it says to keep the held one over.
 fn put_contexts(out: &mut Vec<u8>, request: Message<'_>) {
     let updates: Vec<(u64, &[u8], bool, u64)> = if contexts_of(request).is_empty() {
@@ -410,7 +341,7 @@ async fn framed(origin: String, uri: Uri, body: Bytes) -> Response {
     });
     let query = uri.query().unwrap_or("");
     // A fetch paused part-way: the pause, then the answer held back until it is seen.
-    if query.contains("id=framedResumed") && held_of(request, 137) == Some(PAUSED_AFTER) {
+    if query.contains("id=framedPause") && held_of(request, 137) == Some(PAUSED_AFTER) {
         let pausing = PAUSING.lock().unwrap().take();
         if let Some(control) = pausing {
             control.pause();
@@ -439,7 +370,7 @@ async fn framed(origin: String, uri: Uri, body: Bytes) -> Response {
         put_part(&mut out, kind::REDIRECT, to.as_bytes());
         return answer(StatusCode::OK, "application/vnd.yt-ump", out);
     }
-    if query.contains("id=framedContext") {
+    if query.contains("id=framedCntxt") {
         put_contexts(&mut out, request);
     }
     let m = media();
@@ -531,7 +462,7 @@ async fn the_framed_stream_s_picture_and_sound_land_and_join() {
 #[tokio::test(flavor = "multi_thread")]
 async fn the_stream_s_contexts_are_sent_back_in_the_requests_after() {
     stand_in();
-    let id = "framedContext";
+    let id = "framedCntxt";
     let dir = tempdir();
     videopage::download_page(&client(), &page(id), &options(dir.path()), None)
         .await
@@ -680,7 +611,7 @@ fn samples_of(joined: &[u8], handler: &[u8; 4]) -> Vec<(Vec<u8>, u64, i64, u32, 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_paused_framed_fetch_goes_on_from_its_last_whole_piece() {
     stand_in();
-    let id = "framedResumed";
+    let id = "framedPause";
     let dir = tempdir();
     let mut opts = options(dir.path());
     *PAUSING.lock().unwrap() = Some(opts.control.clone());

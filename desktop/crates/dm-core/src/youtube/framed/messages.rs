@@ -19,6 +19,10 @@ pub mod kind {
     pub const MEDIA: u64 = 21;
     /// A piece is whole: the header id.
     pub const MEDIA_END: u64 = 22;
+    /// Where a live broadcast is: its newest piece ([`Head`]).
+    ///
+    /// [`Head`]: super::Head
+    pub const LIVE_METADATA: u64 = 31;
     /// When to ask next, and the cookie to ask with.
     pub const NEXT_REQUEST_POLICY: u64 = 35;
     /// A format's first word: how many pieces it has and where it ends.
@@ -155,6 +159,28 @@ impl NextAsk {
 /// Where to ask from now on (1, the address).
 pub fn redirect_of(data: &[u8]) -> Option<String> {
     Message(data).text(1).map(str::to_string)
+}
+
+/// Where a live broadcast is (`LiveMetadata`: 3 its newest piece's number, 4 where that piece
+/// starts in milliseconds). Its other fields (the broadcast's id, the wall clock, how far back
+/// it can be played) are not read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Head {
+    /// The newest piece's number.
+    pub sequence: u64,
+    /// Where it starts, in milliseconds, where the stream said.
+    pub time_ms: Option<u64>,
+}
+
+impl Head {
+    /// The head in `data`, where it names the newest piece.
+    pub fn read(data: &[u8]) -> Option<Head> {
+        let m = Message(data);
+        Some(Head {
+            sequence: m.uint(3)?,
+            time_ms: m.uint(4),
+        })
+    }
 }
 
 /// The server's refusal (1 its kind, 2 its code), in words.

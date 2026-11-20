@@ -7,7 +7,7 @@
 //! it (gaps row Y2).
 
 use super::context::{policy, streamer, update, Contexts, SendingPolicy, Update};
-use super::messages::{self, kind, Ask, FormatStart, Held, MediaHeader, NextAsk};
+use super::messages::{self, kind, Ask, FormatStart, Head, Held, MediaHeader, NextAsk};
 use super::wire::{self, Message, Value as Wire, Writer};
 use super::*;
 
@@ -176,6 +176,28 @@ fn the_stream_s_messages_are_read_by_their_numbers() {
         (next.backoff_ms, next.cookie.as_deref()),
         (Some(250), Some(&b"cookie"[..]))
     );
+
+    // A live broadcast's head: its newest piece and where it starts; the rest passed over.
+    let mut w = Writer::new();
+    w.text(1, "broadcast")
+        .uint(3, 1_234)
+        .uint(4, 2_467_000)
+        .uint(5, 1_790_000_000_000);
+    let head = Head::read(&w.finish());
+    assert_eq!(
+        head,
+        Some(Head {
+            sequence: 1_234,
+            time_ms: Some(2_467_000)
+        })
+    );
+    // No newest piece, no head; its number written as bytes is not one.
+    let mut w = Writer::new();
+    w.uint(4, 10);
+    assert_eq!(Head::read(&w.finish()), None);
+    let mut w = Writer::new();
+    w.bytes(3, b"12");
+    assert_eq!(Head::read(&w.finish()), None);
 
     let mut w = Writer::new();
     w.text(1, "sabr.malformed_config").uint(2, 3);

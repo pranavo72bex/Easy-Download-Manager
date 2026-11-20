@@ -7,7 +7,8 @@
 //! address nor a cipher, served only by posting to the one address the answer names
 //! (`streamingData.serverAbrStreamingUrl`) a Protocol Buffers message of the formats wanted and
 //! what is held of each, and reading a framed answer of their pieces (UMP) back. Asked again
-//! until every format has its last piece.
+//! until every format has its last piece ([`fetch`]); a live broadcast's, until it ends or is
+//! stopped ([`record_live`]), where its player names no HLS playlist.
 //!
 //! dm's own reader and writer of the wire ([`wire`]), of the framing ([`ump`]) and of the few
 //! messages it needs ([`messages`]): no crate. Each format's pieces are written to the file a
@@ -27,7 +28,7 @@ mod session;
 pub mod ump;
 pub mod wire;
 
-pub use session::fetch;
+pub use session::{fetch, record_live};
 
 /// The protocol a reading names a framed format by (`videopage` fetches it here).
 pub const PROTOCOL: &str = "dm_framed";

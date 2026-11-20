@@ -60,19 +60,7 @@ pub(super) async fn fetch(
     for stream in &plan.streams {
         crate::download::drop_spoiled(&stream.target).await;
     }
-    if let Some(tx) = &report {
-        let name = plan
-            .produced
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let _ = tx
-            .send(Update::Named {
-                category: category::classify(&name, None),
-                name,
-            })
-            .await;
-    }
+    say_named(&report, plan).await;
     // The framed stream's formats, fetched at once from the one address (gaps row Y2), to the
     // files each stream would have been put in; a part is cut by an index, which they lack.
     if let Some(framed) = &plan.framed {
@@ -81,17 +69,7 @@ pub(super) async fn fetch(
                 "this video's streams have no index, so a part of it cannot be cut".into(),
             ));
         }
-        let wanted: Vec<crate::youtube::framed::Wanted> = plan
-            .streams
-            .iter()
-            .filter_map(|stream| {
-                Some(crate::youtube::framed::Wanted {
-                    pick: stream.framed.clone()?,
-                    target: stream.target.clone(),
-                    size: stream.size,
-                })
-            })
-            .collect();
+        let wanted = framed_wanted(plan);
         crate::youtube::framed::fetch(client, framed, &wanted, options, report).await?;
         return join_and_place(client, plan, read, options).await;
     }
@@ -114,8 +92,41 @@ pub(super) async fn fetch(
     join_and_place(client, plan, read, options).await
 }
 
+/// The row told the name `plan`'s video is saved under.
+pub(super) async fn say_named(report: &Option<tokio::sync::mpsc::Sender<Update>>, plan: &Plan) {
+    let Some(tx) = report else {
+        return;
+    };
+    let name = plan
+        .produced
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let _ = tx
+        .send(Update::Named {
+            category: category::classify(&name, None),
+            name,
+        })
+        .await;
+}
+
+/// The formats `plan` fetches from its framed stream (gaps row Y2), each with the file its
+/// stream would have been put in.
+pub(super) fn framed_wanted(plan: &Plan) -> Vec<crate::youtube::framed::Wanted> {
+    plan.streams
+        .iter()
+        .filter_map(|stream| {
+            Some(crate::youtube::framed::Wanted {
+                pick: stream.framed.clone()?,
+                target: stream.target.clone(),
+                size: stream.size,
+            })
+        })
+        .collect()
+}
+
 /// The streams fetched, joined with the subtitles and the video's words and placed.
-async fn join_and_place(
+pub(super) async fn join_and_place(
     client: &reqwest::Client,
     plan: &Plan,
     read: &Read,

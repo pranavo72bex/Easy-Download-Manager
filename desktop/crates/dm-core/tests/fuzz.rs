@@ -291,6 +291,7 @@ proptest! {
                         let _ = messages::MediaHeader::read(&data);
                         let _ = messages::FormatStart::read(&data);
                         let _ = messages::NextAsk::read(&data);
+                        let _ = messages::Head::read(&data);
                         let _ = messages::media_of(&data);
                         let _ = messages::error_of(&data);
                         let _ = messages::redirect_of(&data);

@@ -23,6 +23,7 @@ use super::{finish_dm_tagged, remove_staging};
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error};
 
+mod live;
 mod premiere;
 mod streams;
 
@@ -81,6 +82,10 @@ pub async fn download_page(
             .filter(|_| read.info.single.protocol.as_deref() == Some("m3u8_native"))
         {
             return crate::download::once_more(client, live, options, report).await;
+        }
+        // Or through YouTube's framed stream, where the player names that alone (gaps row Y2).
+        if let Some(plan) = read.live_plan(staging) {
+            return live::record(client, url, plan, &read, options, report).await;
         }
     }
     let Some(plan) = read.plan(staging) else {
@@ -507,12 +512,26 @@ impl Plan {
 
 impl Read {
     /// The streams dm fetches itself, or `None` where any of them is not a
-    /// plain file (or the reading says too little to be sure).
+    /// plain file (or the reading says too little to be sure), or the video is live.
     fn plan(&self, staging: &Path) -> Option<Plan> {
-        let info = &self.info;
-        if info.is_live == Some(true) {
+        if self.info.is_live == Some(true) {
             return None;
         }
+        self.planned(staging)
+    }
+
+    /// A live broadcast's plan, where it is recorded through YouTube's framed stream (gaps row
+    /// Y2): its streams the framed stream's, read as [`Read::plan`] reads a video's.
+    fn live_plan(&self, staging: &Path) -> Option<Plan> {
+        if self.info.is_live != Some(true) {
+            return None;
+        }
+        self.planned(staging).filter(|plan| plan.framed.is_some())
+    }
+
+    /// The streams the reading names, as [`Read::plan`] says, live or not.
+    fn planned(&self, staging: &Path) -> Option<Plan> {
+        let info = &self.info;
         let produced = unnumbered(PathBuf::from(info.filename.as_deref()?), info);
         // Only under the staging folder it was told to use.
         if !produced.starts_with(staging) || produced.file_stem().is_none() {
