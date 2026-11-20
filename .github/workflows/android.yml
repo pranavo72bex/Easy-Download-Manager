@@ -9,12 +9,19 @@ name: Android, the engine built
 # before it lands; runs dm-android's own tests on the runner itself; and packages the APK for
 # the emulator: libdm_android.so built by cargo-ndk, then the small Gradle project in
 # desktop/crates/dm-android/android (gpui-mobile's two Java classes, no Kotlin), kept as
-# the run's artifact (docs/android.md).
+# the run's artifact (docs/android.md). The emulator job then runs that APK on Android 8.0
+# (API 26) and Android 15 (API 35): started, its window drawn, a link shared to it downloaded
+# (row N13, scripts/android-emulator-check.sh). At a tag `android-v<version>` the release job
+# builds the release APK for all three processors, signs it with dm's key when the
+# repository has one, and attaches it to a draft release (row N14). Not `v*`, the
+# extension's tags (release.yml), nor `desktop-v*`, the desktop's (desktop.yml): each has its
+# own version.
 on:
   push:
     branches: [main]
+    tags: ['android-v*']
   pull_request:
-    paths: ['desktop/**', '.github/workflows/android.yml']
+    paths: ['desktop/**', 'scripts/android-emulator-check.sh', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:
@@ -93,3 +100,184 @@ jobs:
           name: dm-android-x86_64-apk
           path: desktop/crates/dm-android/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  # The debug APK on the emulator (row N13): Android 8.0, the oldest dm takes, and Android 15,
+  # the one it is built against. The runner's own SDK tools and Google's system images,
+  # fetched by sdkmanager (which checks each package's digest), so no action of anyone else's
+  # starts the emulator; KVM is opened to the runner's user as GitHub's runners allow.
+  emulator:
+    name: On the emulator (API ${{ matrix.api }})
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 35]
+    defaults:
+      run:
+        working-directory: .
+    env:
+      IMAGE: system-images;android-${{ matrix.api }};google_apis;x86_64
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: dm-android-x86_64-apk
+          path: ${{ runner.temp }}/apk
+      - name: KVM for the runner's user
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -w /dev/kvm
+      - name: The emulator and Android ${{ matrix.api }}'s system image
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install emulator platform-tools "$IMAGE" > /dev/null
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+      # A phone-sized screen (1080 x 2340 at 420 dpi), no window on the runner, the GPU in
+      # software (SwiftShader: OpenGL ES 3, and Vulkan on the newer images).
+      - name: An emulated phone, booted
+        run: |
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n dm -k "$IMAGE" --force
+          printf 'hw.ram=3072\nhw.lcd.density=420\nhw.lcd.width=1080\nhw.lcd.height=2340\n' >> "$HOME/.android/avd/dm.avd/config.ini"
+          nohup emulator -avd dm -no-window -no-audio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect -camera-back none -camera-front none \
+            > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          adb wait-for-device
+          timeout 600 sh -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell input keyevent 82
+      - name: dm started, drawn, a shared link downloaded
+        run: bash scripts/android-emulator-check.sh "$RUNNER_TEMP/apk/app-debug.apk" "$RUNNER_TEMP/seen"
+      - name: The emulator's own log, beside what dm left
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/seen"
+          cp "$RUNNER_TEMP/emulator.log" "$RUNNER_TEMP/seen/" 2>/dev/null || true
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: dm-android-emulator-api${{ matrix.api }}
+          path: ${{ runner.temp }}/seen
+          if-no-files-found: warn
+      - name: The emulator stopped
+        if: always()
+        run: adb emu kill || true
+
+  # The release APK at a tag `android-v<version>` (row N14): one APK for the ARM of phones
+  # (arm64-v8a), older 32-bit ones (armeabi-v7a) and the x86_64 of emulators and Chromebooks,
+  # built only after the checks, the tests and the emulator passed. Signed with dm's own key
+  # from the repository's secrets; without them it goes out unsigned, named so and said in a
+  # notice, as R1's unsigned desktop builds are. A draft, looked at before anybody downloads
+  # it, and never "latest": the desktop updater reads the latest release. Google Play needs a
+  # fee and stays BLOCKED (gaps R4); F-Droid builds from source (docs/android.md).
+  release:
+    name: The release APK, at a tag
+    if: startsWith(github.ref, 'refs/tags/android-v')
+    needs: [android, emulator]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      DM_ANDROID_KEYSTORE: ${{ secrets.DM_ANDROID_KEYSTORE }}
+      DM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.DM_ANDROID_KEYSTORE_PASSWORD }}
+      DM_ANDROID_KEY_ALIAS: ${{ secrets.DM_ANDROID_KEY_ALIAS }}
+      DM_ANDROID_KEY_PASSWORD: ${{ secrets.DM_ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: cargo-ndk
+      # The NDK's version is printed: a rebuild that is to match this one uses the same.
+      - name: The runner's NDK
+        run: |
+          test -d "$ANDROID_NDK_LATEST_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          grep Pkg.Revision "$ANDROID_NDK_LATEST_HOME/source.properties"
+      # The tag names the version the phone shows: the crate's and Gradle's versionName agree.
+      - name: Check the tag matches the crate and the APK
+        run: |
+          tag="${GITHUB_REF_NAME#android-v}"
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/dm-android/Cargo.toml | head -1)
+          gradle=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' crates/dm-android/android/app/build.gradle.kts | head -1)
+          if [ "$tag" != "$crate" ] || [ "$tag" != "$gradle" ]; then
+            echo "::error::tag android-v$tag does not match dm-android's Cargo.toml ($crate) and app/build.gradle.kts ($gradle)"
+            exit 1
+          fi
+          echo "VERSION=$tag" >> "$GITHUB_ENV"
+      # The checkout's and cargo's folders named alike on every computer, so the library does
+      # not depend on where it was built (docs/android.md, "F-Droid").
+      - name: libdm_android.so, for the three processors
+        run: |
+          export RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/dm --remap-path-prefix=$HOME/.cargo=/cargo"
+          cargo ndk --platform 26 -t arm64-v8a -t armeabi-v7a -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
+      - name: Android 15's platform and build tools
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+      - name: Gradle 8.14.3
+        env:
+          GRADLE_SHA256: bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531
+        run: |
+          curl -sSfL https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -o "$RUNNER_TEMP/gradle.zip"
+          echo "$GRADLE_SHA256  $RUNNER_TEMP/gradle.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-8.14.3/bin" >> "$GITHUB_PATH"
+      # dm's key, from the secrets, into a file only this run sees; the release signing of
+      # app/build.gradle.kts reads its path and the passwords from the environment.
+      - name: dm's signing key
+        run: |
+          if [ -z "$DM_ANDROID_KEYSTORE" ] || [ -z "$DM_ANDROID_KEYSTORE_PASSWORD" ] \
+             || [ -z "$DM_ANDROID_KEY_ALIAS" ] || [ -z "$DM_ANDROID_KEY_PASSWORD" ]; then
+            echo "::notice::No DM_ANDROID_KEYSTORE secrets: the release APK goes out unsigned (dm-$VERSION-unsigned.apk), which Android installs only once it is signed"
+            exit 0
+          fi
+          umask 077
+          echo "$DM_ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/dm.keystore"
+          echo "DM_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/dm.keystore" >> "$GITHUB_ENV"
+      - name: The release APK
+        working-directory: desktop/crates/dm-android/android
+        run: gradle --no-daemon assembleRelease
+      # Signed, apksigner checks the signature and prints the key's digest, the one people
+      # compare (docs/android.md). The APK's SHA-256 goes beside it.
+      - name: Named, checked, its SHA-256
+        working-directory: desktop/crates/dm-android/android/app/build/outputs/apk/release
+        run: |
+          rm -f "$RUNNER_TEMP/dm.keystore"
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          if [ -f app-release.apk ]; then
+            apksigner verify --verbose --print-certs app-release.apk
+            name="dm-$VERSION.apk"
+            cp app-release.apk "$GITHUB_WORKSPACE/dist/$name"
+          else
+            name="dm-$VERSION-unsigned.apk"
+            cp app-release-unsigned.apk "$GITHUB_WORKSPACE/dist/$name"
+          fi
+          cd "$GITHUB_WORKSPACE/dist"
+          sha256sum "$name" > "$name.sha256"
+          cat "$name.sha256"
+      - name: Publish
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: |
+            dist/*.apk
+            dist/*.apk.sha256
+          draft: true
+          make_latest: false
+          body: |
+            dm for Android ${{ env.VERSION }}: one APK for arm64-v8a, armeabi-v7a and x86_64,
+            Android 8.0 (API 26) and up. Check it with
+            `sha256sum -c dm-${{ env.VERSION }}.apk.sha256`, then open it on the phone and allow
+            installing from this source.
+
+            An APK named `-unsigned` is not signed with dm's key yet; Android will not install
+            it as it is.
