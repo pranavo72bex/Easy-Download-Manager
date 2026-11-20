@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed: a Dailymotion download failed when the site refused its playlist once, as it does now and then; it is asked again. The panel lists such a stream once, not once per fresh signature.
+- Fixed: Tab and Shift+Tab in a dialog (Back up dm's two passphrase fields) moved nowhere.
+- Fixed: finished downloads older than Options' days were forgotten only on the window's first idle look, 30 s after dm opened.
 - Fixed: `--headless` ended with a panic ("there is no reactor running") as soon as it opened its control port, on every system, so a server, script or agent found the port written and nobody answering.
 - Download details has **Keep no record**: once the file is whole its row leaves the list, and its address, page and sign-in go with it (from the queue file, its journal, the secrets and Add URL's Recent list); the file stays. A hand-over the extension marks as from a private window opens with it ticked (the extension still leaves a private window's downloads with the browser). Options › Downloads has **Forget finished downloads after (days, 0 for never)**, 0 at first: finished downloads older than that leave the list at start, once a day and when the number changes, their files kept.
 - `--headless`: Scheduler › Hang up modem when done hangs up the dial-up or VPN connection when the scheduled downloads end, as the window does, and When done is no longer missed when a command over the control port or a browser hand-off read the list just as the queue ran dry.

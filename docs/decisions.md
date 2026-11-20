@@ -8148,3 +8148,7 @@ NativeMenu (gpui-component 0.9.1) has no key equivalent, and vendoring the whole
 
 dm could not be pointed at a DNS server, and the hosts file needs an administrator. `DM_BENCH_DNS` makes dm ask a named server for names under `.test` alone (reserved for testing, so no real name is ever sent there), and every other name of the system as before. Reference A asks the system, so it joins the case only where a person has pointed the system at the harness's server. Like `DM_BENCH_CA`, the switch is read in release builds: on the security review's list.
 
+## A playlist refused with a 403 is asked again (2026-11-20, issue #45)
+
+Dailymotion's CDN refuses about one ask in ten of a master playlist with an empty 403 and serves the next. A 403 on a playlist, and on the probe of a playlist's address, is asked twice more, 1 s then 2 s on; the extension asks once more. A playlist re-signed under the same path, query names and itag, id or mime is one panel line at its newest address, the rule `RequestHeaders::renewed` already follows at hand-off. The site checks close a sign-in dialog over a player before judging the panel, as a person would, and name a wall a wall.
+
