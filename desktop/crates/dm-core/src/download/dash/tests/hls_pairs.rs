@@ -293,3 +293,108 @@ async fn an_encrypted_hls_pair_cut_by_byte_ranges_is_fetched_decrypted_and_joine
     let data = std::fs::read(&done.path).unwrap();
     assert_eq!(data.windows(4).filter(|w| *w == b"trak").count(), 2);
 }
+
+/// A post of Reddit's with sound, its renditions naming their audio group (gaps row 205): each
+/// the picture alone, the sound listed after them, AUTOSELECT and not DEFAULT.
+const REDDIT_GROUPED: &str = r#"#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-STREAM-INF:BANDWIDTH=612000,CODECS="avc1.4d401e",RESOLUTION=270x480,FRAME-RATE=30.000,AUDIO="audio-0",CLOSED-CAPTIONS=NONE
+HLS_270.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1410000,CODECS="avc1.4d401f",RESOLUTION=360x640,FRAME-RATE=30.000,AUDIO="audio-0",CLOSED-CAPTIONS=NONE
+HLS_360.m3u8
+#EXT-X-MEDIA:URI="HLS_AUDIO_128.m3u8",TYPE=AUDIO,GROUP-ID="audio-0",LANGUAGE="und",NAME="Audio",AUTOSELECT=YES,CHANNELS="2"
+"#;
+
+/// The same, its renditions naming no group, their codecs a picture's alone: a browser's player
+/// plays them with the master's sound.
+const REDDIT_UNGROUPED: &str = r#"#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-STREAM-INF:BANDWIDTH=612000,CODECS="avc1.4d401e",RESOLUTION=270x480
+HLS_270.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1410000,CODECS="avc1.4d401f",RESOLUTION=360x640
+HLS_360.m3u8
+#EXT-X-MEDIA:URI="HLS_AUDIO_128.m3u8",TYPE=AUDIO,GROUP-ID="audio-0",NAME="Audio"
+"#;
+
+/// The media playlist of a CMAF file as Reddit serves one: one file, its initialisation segment
+/// and each fragment named by byte ranges.
+fn cmaf_playlist(name: &str, file: &[u8]) -> String {
+    let starts = box_starts(file);
+    let mut list = format!(
+        "#EXTM3U\n#EXT-X-VERSION:6\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n\
+         #EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n\
+         #EXT-X-MAP:URI=\"{name}\",BYTERANGE=\"{}@0\"\n",
+        starts[2]
+    );
+    // ftyp, moov, then a moof and an mdat for each fragment, then the end.
+    for k in 0..(starts.len() - 3) / 2 {
+        let (from, to) = (starts[2 + 2 * k], starts[4 + 2 * k]);
+        list.push_str(&format!(
+            "#EXTINF:4.000,\n#EXT-X-BYTERANGE:{}@{from}\n{name}\n",
+            to - from
+        ));
+    }
+    list.push_str("#EXT-X-ENDLIST\n");
+    list
+}
+
+/// Reddit's stream served as v.redd.it serves it, `master` its playlist: two renditions of the
+/// picture alone (the taller of two fragments, the other of one) and the sound (two), each one
+/// CMAF file cut by byte ranges. The master's address, as the post's player names it.
+async fn serve_reddit(dir: &Path, master: &'static str) -> String {
+    let made = |name: &str, fragments: u32| std::fs::read(fragmented(dir, name, fragments).0);
+    let tall = made("CMAF_360.mp4", 2).unwrap();
+    let short = made("CMAF_270.mp4", 1).unwrap();
+    let mut sound = made("CMAF_AUDIO_128.mp4", 2).unwrap();
+    let at = sound.windows(4).position(|w| w == b"vide").unwrap();
+    sound[at..at + 4].copy_from_slice(b"soun");
+    let text = |body: String| {
+        get(move || {
+            let body = body.clone();
+            async move {
+                Response::builder()
+                    .header(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")
+                    .body(Body::from(body))
+                    .unwrap()
+            }
+        })
+    };
+    let tall_list = cmaf_playlist("CMAF_360.mp4", &tall);
+    let short_list = cmaf_playlist("CMAF_270.mp4", &short);
+    let sound_list = cmaf_playlist("CMAF_AUDIO_128.mp4", &sound);
+    let app = axum::Router::new()
+        .route("/abc123/HLSPlaylist.m3u8", text(master.to_string()))
+        .route("/abc123/HLS_360.m3u8", text(tall_list))
+        .route("/abc123/HLS_270.m3u8", text(short_list))
+        .route("/abc123/HLS_AUDIO_128.m3u8", text(sound_list))
+        .route("/abc123/CMAF_360.mp4", ranged(tall, true))
+        .route("/abc123/CMAF_270.mp4", ranged(short, true))
+        .route("/abc123/CMAF_AUDIO_128.mp4", ranged(sound, true));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{addr}/abc123/HLSPlaylist.m3u8?a=1&v=1&f=sd")
+}
+
+/// The panel's "HLS stream, best quality" on a Reddit post hands its master playlist over
+/// (gaps row 205): the file is the taller picture and the sound, two tracks, whether the
+/// renditions name their audio group or name none.
+#[tokio::test]
+async fn a_reddit_post_is_saved_with_its_picture_and_its_sound() {
+    for master in [REDDIT_GROUPED, REDDIT_UNGROUPED] {
+        let dir = tempfile::tempdir().unwrap();
+        let url = serve_reddit(dir.path(), master).await;
+        let options = options(dir.path());
+        let done = crate::download::download(&crate::reqwest_defaults(), &url, &options)
+            .await
+            .unwrap();
+        assert_eq!(done.path.file_name().unwrap(), "HLSPlaylist.mp4");
+        let tracks = crate::mp4mux::testing::read_back(&done.path);
+        let handlers: Vec<[u8; 4]> = tracks.iter().map(|t| t.handler).collect();
+        assert_eq!(handlers, [*b"vide", *b"soun"], "{master}");
+        // The taller rendition's six pictures, and the sound's six samples.
+        let counts: Vec<usize> = tracks.iter().map(|t| t.samples.len()).collect();
+        assert_eq!(counts, [6, 6], "{master}");
+    }
+}

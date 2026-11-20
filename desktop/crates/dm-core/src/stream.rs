@@ -21,7 +21,7 @@ use crate::Error;
 mod master;
 
 use master::audio_uri;
-pub use master::{audio_playlist, pick, subtitle_renditions, variants};
+pub use master::{audio_playlist, pick, subtitle_renditions, ungrouped_audio_playlist, variants};
 
 /// What a manifest URL turns out to be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,6 +114,9 @@ pub struct Variant {
     /// The audio group it plays with (`AUDIO=`), where its sound is listed
     /// apart from it.
     pub audio: Option<String>,
+    /// Its codecs (`CODECS=`), as written: where it names no audio group, they say whether its
+    /// sound is one of the master's renditions (gaps row 205).
+    pub codecs: Option<String>,
     /// The subtitle group it plays with (`SUBTITLES=`), whose renditions are
     /// listed by [`subtitle_renditions`].
     pub subtitles: Option<String>,
@@ -771,3 +774,7 @@ mod tags;
 
 #[cfg(test)]
 mod tests;
+
+/// Reddit's master playlists, read as a player reads them (gaps row 205).
+#[cfg(test)]
+mod reddit_tests;
