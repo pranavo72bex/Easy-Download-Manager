@@ -14,6 +14,7 @@ mod intent;
 mod jvm;
 mod notify;
 mod open;
+mod storage;
 mod system;
 
 use std::path::{Path, PathBuf};
@@ -74,7 +75,7 @@ fn start(app: &AndroidApp) -> Result<Arc<Engine>, String> {
         .internal_data_path()
         .ok_or("Android gave dm no folder of its own")?
         .join("dm");
-    let downloads = downloads(app, &home);
+    let downloads = storage::start(app, &home, downloads(app, &home));
     let engine = Engine::start(
         home.to_string_lossy().into_owned(),
         downloads.to_string_lossy().into_owned(),

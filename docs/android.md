@@ -18,6 +18,7 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 | `src/android.rs` | `android_main`: gpui-android's platform, GPUI's application, dm's home (`files/dm`), the download folder (`Download/dm` in shared storage, else the app's own folder on it), the engine, the window |
 | `src/android/intent.rs` | The activity's intent at start and each time the window becomes active again: SEND text, VIEW magnet or web address, VIEW a `.torrent` (copied into `files/dm/torrents` and added as `file://`) |
 | `src/android/notify.rs`, `busy.rs` | Notification channels and messages; the ongoing notification and the partial wake lock while `Engine::busy()`; the permissions asked for at start |
+| `src/storage.rs`, `src/android/storage.rs` | Where downloads land (dm's own folder on Android 10 and up) and each finished file put in `Download/dm` through the media store, or by path on 8 and 9 (gaps row N9) |
 | `src/android/open.rs`, `system.rs` | `AndroidSystem` over JNI: opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the notification sound |
 | `java/` | The activity's Java classes (below) |
 | `android/` | The Gradle project that makes the APK: `app/src/main/AndroidManifest.xml` (package `com.dm.android`, Android 8.0 (API 26) and up, built against API 35, the permissions and the intent filters) and `app/build.gradle.kts` |
@@ -79,8 +80,11 @@ against its published SHA-256), and keeps the APK as the run's artifact.
   but Android may still stop a process left in the background. A foreground service, a Stop All
   button in the notification and a Retry button on a failure each need a Java class. Whether
   to add one is the maintainer's call.
-- **First run (N9).** On Android 8 and 9, the first start downloads into the app's own folder
-  until storage is granted. On Android 10, the shared Download folder cannot be written by path
-  at all.
+- **Where files land (N9).** On Android 10 and up dm downloads into its own folder on the
+  shared storage (`Android/data/com.dm.android/files/Download/dm`) and puts each finished file
+  in `Download/dm` through the media store (`src/storage.rs`, `src/android/storage.rs`); on 8
+  and 9 it writes `Download/dm` by path once storage is granted. A torrent's files stay in dm's
+  folder, where its seeding reads them. A folder of the person's own through the system's
+  storage picker is owed.
 - **Testing (N13, N14).** None of the Android code has been run yet: not linked for a phone,
   not run on an emulator. Also owed: a release key, F-Droid.

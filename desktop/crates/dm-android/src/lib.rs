@@ -35,6 +35,8 @@ mod ongoing;
 mod row;
 #[cfg(any(target_os = "android", test))]
 mod shared;
+#[cfg(any(target_os = "android", test))]
+mod storage;
 mod system;
 
 pub use row::{Row, RowState, TorrentSwarm};
