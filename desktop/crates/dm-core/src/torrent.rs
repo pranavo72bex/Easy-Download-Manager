@@ -37,6 +37,7 @@ mod placing;
 mod run;
 mod trackers;
 use blocklist::blocklist_file;
+use placing::place;
 #[cfg(test)]
 use placing::{copy_across, folder_name};
 use run::*;
