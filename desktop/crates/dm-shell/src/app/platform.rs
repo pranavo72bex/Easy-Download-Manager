@@ -29,8 +29,12 @@ pub trait Platform: Send + Sync {
     fn notify_failure(&self, title: &str, body: &str, _id: u64) {
         self.notify(title, body);
     }
-    /// The clipboard's text, for the opt-in link watcher.
+    /// The clipboard's text: for the opt-in link watcher, Add URL and Add
+    /// links from clipboard.
     fn clipboard(&self) -> Option<String>;
+    /// Puts `text` on the clipboard (Copy link, Copy details). A platform
+    /// with no clipboard keeps it nowhere.
+    fn set_clipboard(&self, _text: &str) {}
     /// Shows a finished file in the file manager.
     fn reveal(&self, path: &str) -> Result<(), String>;
     /// Opens a finished file with whatever the system opens it with.
@@ -72,22 +76,12 @@ pub trait Platform: Send + Sync {
         action: super::power::WhenDone,
         report: super::power::Report,
     ) -> Result<(), String>;
-    /// Asks for an application to open a file with. `None` when the person
-    /// cancels.
-    fn choose_app(&self) -> Option<std::path::PathBuf>;
-    /// Opens a finished file with the application `app`.
+    /// Opens a finished file with the application `app` (chosen in the
+    /// window's own panel).
     fn open_with(&self, path: &str, app: &std::path::Path) -> Result<(), String>;
-    /// Asks for a file: one to read (`save` false) or a place to write one
-    /// called `suggested`. `None` when the person cancels.
-    fn choose_file(&self, save: bool, suggested: &str) -> Option<std::path::PathBuf>;
-    /// Asks for a folder, for a Browse… button beside a folder's field.
-    /// `None` when the person cancels, or where there is nothing to ask with.
-    fn choose_folder(&self) -> Option<std::path::PathBuf> {
-        None
-    }
-    /// Whether this desktop has a folder chooser to ask with. Where it has
-    /// none, `choose_folder` answers `None` at once, as for a Cancel, and
-    /// Browse… says so instead of doing nothing.
+    /// Whether this desktop has a folder chooser for the window's panels to
+    /// ask with. Where it has none, Browse… says so instead of doing
+    /// nothing.
     fn can_choose_folder(&self) -> bool {
         true
     }

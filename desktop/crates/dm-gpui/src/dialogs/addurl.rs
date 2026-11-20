@@ -242,9 +242,8 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
         return;
     };
     let recent = dm_desktop_base::add_url::recent(&downloads.read(cx).backend.settings());
-    let clipboard = cx
-        .read_from_clipboard()
-        .and_then(|item| item.text())
+    let clipboard = downloads.read(cx).backend.platform.clipboard();
+    let clipboard = clipboard
         .and_then(|text| dm_shell::app::links::looks_downloadable(&text))
         .unwrap_or_default();
     let (width, height) = crate::widgets::native::WindowSize::AddUrl.here();

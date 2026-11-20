@@ -40,20 +40,15 @@ impl Platform for Refusing {
     fn power(&self, action: WhenDone, _report: Report) -> Result<(), String> {
         Err(format!("{action:?} is not allowed here"))
     }
-    fn choose_app(&self) -> Option<std::path::PathBuf> {
-        None
-    }
     fn open_with(&self, _path: &str, _app: &std::path::Path) -> Result<(), String> {
         Err("no".into())
-    }
-    fn choose_file(&self, _save: bool, _suggested: &str) -> Option<std::path::PathBuf> {
-        None
     }
 }
 
 /// What a platform gets from the trait when it does not say otherwise: an
-/// opener's failure reported, the finish's sound for everything, a folder
-/// chooser that answers as a Cancel, and a file deleted for want of a Trash.
+/// opener's failure reported, the finish's sound for everything, a
+/// chooser said to be there, a copy kept nowhere, and a file deleted for
+/// want of a Trash.
 #[test]
 fn a_platform_that_says_nothing_more_gets_the_traits_own_ways() {
     let platform = Refusing::default();
@@ -73,7 +68,8 @@ fn a_platform_that_says_nothing_more_gets_the_traits_own_ways() {
     platform.tick();
     platform.notify_file("Download finished", "a.zip", "/x/a.zip");
     assert_eq!(*platform.said.lock().unwrap(), ["chime", "chime", "a.zip"]);
-    assert_eq!(platform.choose_folder(), None);
+    platform.set_clipboard("copied");
+    assert_eq!(platform.clipboard(), None);
     assert!(platform.can_choose_folder());
     assert!(platform.can_choose_file());
     let dir = tempfile::tempdir().unwrap();

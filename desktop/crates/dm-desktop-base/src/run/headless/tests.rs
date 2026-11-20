@@ -38,14 +38,8 @@ impl dm_shell::app::backend::Platform for Nothing {
     ) -> Result<(), String> {
         Ok(())
     }
-    fn choose_app(&self) -> Option<std::path::PathBuf> {
-        None
-    }
     fn open_with(&self, _: &str, _: &std::path::Path) -> Result<(), String> {
         Ok(())
-    }
-    fn choose_file(&self, _: bool, _: &str) -> Option<std::path::PathBuf> {
-        None
     }
 }
 

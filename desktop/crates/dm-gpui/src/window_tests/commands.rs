@@ -283,7 +283,7 @@ fn tasks_items(h: &mut Harness, world: &World) -> std::path::PathBuf {
         h.dialog_open("Add numbered series")
     });
     h.close_dialogs();
-    h.cx.write_to_clipboard(gpui::ClipboardItem::new_string(world.url("clip.bin")));
+    *h.fake.clipboard.lock().unwrap() = Some(world.url("clip.bin"));
     press(h, &["Tasks", "Add links from clipboard"]);
     h.until("Links on the clipboard", |h| {
         h.dialog_open("Links on the clipboard")

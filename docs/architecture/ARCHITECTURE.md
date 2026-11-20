@@ -17,7 +17,7 @@ in [EVENT_FLOW.md](EVENT_FLOW.md); where new code goes is in
 ┌──────────────────────────────────────────────────────────────┐
 │ Presentation: dm-gpui (GPUI), the window shipped             │
 │   the window, dialogs, tray, drag and drop, and what the     │
-│   system does for Desktop (clipboard, choosers, notices)     │
+│   system does for Desktop (clipboard, notices)               │
 └───────────────────────────┬──────────────────────────────────┘
                             │ WindowServices
 ┌───────────────────────────▼──────────────────────────────────┐

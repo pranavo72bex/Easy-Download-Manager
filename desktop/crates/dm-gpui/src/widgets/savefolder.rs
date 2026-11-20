@@ -14,9 +14,7 @@
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
 use dm_desktop_base::save_to::{SaveChoice, SaveTo};
-use gpui::{
-    div, prelude::*, App, Context, Div, Entity, PathPromptOptions, SharedString, WeakEntity, Window,
-};
+use gpui::{div, prelude::*, App, Context, Div, Entity, SharedString, WeakEntity, Window};
 use gpui_component::input::{InputEvent, InputState};
 
 use crate::widgets::native;
@@ -34,6 +32,9 @@ pub const CATEGORY_FIELD: &str = "save-category";
 pub trait Saves: Sized + 'static {
     fn choice(&mut self) -> &mut SaveChoice;
     fn folder(&self) -> &Entity<InputState>;
+    /// The main window, whose platform says whether there is a folder
+    /// chooser to ask.
+    fn view(&self) -> &WeakEntity<Downloads>;
 
     /// The choice with the folder as typed, for adding.
     fn chosen(&mut self, cx: &App) -> SaveChoice {
@@ -71,38 +72,32 @@ pub fn field<T: Saves>(
     folder
 }
 
-/// Browse…: the system's own folder panel (on macOS an `NSOpenPanel` with
-/// New Folder; the desktop's chooser on Linux; on Windows the folder picker,
-/// which has New folder), the folder chosen put in the field and Every file
-/// to this folder chosen.
-pub fn browse<T: Saves>(window: &mut Window, cx: &mut Context<T>) {
-    let chosen = cx.prompt_for_paths(PathPromptOptions {
-        files: false,
-        directories: true,
-        multiple: false,
-        prompt: None,
-    });
-    cx.spawn_in(window, async move |this, cx| match chosen.await {
-        Ok(Ok(Some(paths))) => {
-            if let Some(path) = paths.first() {
-                let path = path.display().to_string();
-                let _ = this.update_in(cx, |this, window, cx| {
-                    this.folder()
-                        .clone()
-                        .update(cx, |f, cx| f.set_value(path, window, cx));
-                    this.choice().save_to = SaveTo::OneFolder;
-                    cx.notify();
-                });
-            }
-        }
-        Ok(Ok(None)) => {}
-        Ok(Err(_)) | Err(_) => {
-            let _ = this.update_in(cx, |this, window, cx| {
-                no_chooser(&this.folder().clone(), window, cx)
-            });
-        }
-    })
-    .detach();
+/// Browse…: the system's own folder panel (`services::ask`, as every Browse…
+/// asks it: on macOS an `NSOpenPanel` with New Folder; the desktop's chooser
+/// on Linux; on Windows the folder picker, which has New folder), the folder
+/// chosen put in the field and Every file to this folder chosen. With no
+/// chooser on the desktop, the field says to type the path.
+pub fn browse<T: Saves>(this: &mut T, window: &mut Window, cx: &mut Context<T>) {
+    let here = this
+        .view()
+        .upgrade()
+        .is_none_or(|view| view.read(cx).backend.platform.can_choose_folder());
+    if !here {
+        no_chooser(&this.folder().clone(), window, cx);
+        return;
+    }
+    crate::platform::services::ask_then_in(
+        crate::platform::services::Asked::folder(),
+        window,
+        cx,
+        |this: &mut T, picked, window, cx| {
+            let path = picked.display().to_string();
+            this.folder()
+                .clone()
+                .update(cx, |f, cx| f.set_value(path, window, cx));
+            this.choice().save_to = SaveTo::OneFolder;
+        },
+    );
 }
 
 /// The sentence a folder field shows when Browse… found no folder chooser
@@ -239,7 +234,9 @@ pub fn section<T: Saves>(
                 )))
                 .child(
                     native::button("browse", t("Browse…").into(), false, theme, screen)
-                        .on_click(cx.listener(|_: &mut T, _, window, cx| browse(window, cx))),
+                        .on_click(
+                            cx.listener(|this: &mut T, _, window, cx| browse(this, window, cx)),
+                        ),
                 ),
         )
 }

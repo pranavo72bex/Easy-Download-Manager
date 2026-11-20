@@ -53,14 +53,8 @@ impl Platform for Quiet {
     fn power(&self, _action: WhenDone, _report: Report) -> Result<(), String> {
         Ok(())
     }
-    fn choose_app(&self) -> Option<std::path::PathBuf> {
-        None
-    }
     fn open_with(&self, _path: &str, _app: &Path) -> Result<(), String> {
         Ok(())
-    }
-    fn choose_file(&self, _save: bool, _suggested: &str) -> Option<std::path::PathBuf> {
-        None
     }
 }
 

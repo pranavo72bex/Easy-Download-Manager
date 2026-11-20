@@ -6,11 +6,12 @@
 //! The desktop's own services, as the application asks for them
 //! ([`Platform`]): the login item, the Trash, notifications held while the
 //! person is busy, the sounds, opening and showing files, and When done.
-//! What a window toolkit's crates do (the clipboard, the file choosers and,
-//! away from Windows, posting a notification) the window supplies through
-//! [`WindowServices`], so that any window can use the rest.
+//! What a window toolkit's crates do (the clipboard and, away from Windows,
+//! posting a notification) the window supplies through [`WindowServices`],
+//! so that any window can use the rest. The file choosers are the window's
+//! own panels, which answer later, and not asked through here.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use dm_shell::app::backend::Platform;
 use dm_shell::shell;
@@ -33,13 +34,8 @@ use windows::say_on_windows;
 pub trait WindowServices: Send + Sync {
     /// The clipboard's text, if it holds any.
     fn clipboard(&self) -> Option<String>;
-    /// The system's chooser of a program to open a file with.
-    fn choose_app(&self) -> Option<PathBuf>;
-    /// The system's folder chooser.
-    fn choose_folder(&self) -> Option<PathBuf>;
-    /// The system's file chooser: one to save as `suggested` when `save`,
-    /// else one to open.
-    fn choose_file(&self, save: bool, suggested: &str) -> Option<PathBuf>;
+    /// Puts `text` on the clipboard.
+    fn set_clipboard(&self, text: &str);
     /// Posts a notification, one whose click opens its file where it names
     /// one. Not called on Windows, where dm posts its own toasts.
     fn say(&self, note: Note);
@@ -209,6 +205,10 @@ impl<W: WindowServices> Platform for Desktop<W> {
         self.window.clipboard()
     }
 
+    fn set_clipboard(&self, text: &str) {
+        self.window.set_clipboard(text)
+    }
+
     fn reveal(&self, path: &str) -> Result<(), String> {
         shell::reveal_in_folder(path)
     }
@@ -246,21 +246,13 @@ impl<W: WindowServices> Platform for Desktop<W> {
         crate::power::run(action, report).map_err(String::from)
     }
 
-    fn choose_app(&self) -> Option<PathBuf> {
-        self.window.choose_app()
-    }
-
     fn open_with(&self, path: &str, app: &Path) -> Result<(), String> {
         shell::open_with(path, app)
     }
 
-    fn choose_folder(&self) -> Option<PathBuf> {
-        self.window.choose_folder()
-    }
-
     /// On Linux the chooser is the desktop portal's, else zenity's; with
-    /// neither, the window's answers as if cancelled. Elsewhere the system
-    /// has one.
+    /// neither, the window's panel answers as if cancelled. Elsewhere the
+    /// system has one.
     fn can_choose_folder(&self) -> bool {
         #[cfg(target_os = "linux")]
         return dm_shell::app::backend::chooser_here(
@@ -269,9 +261,5 @@ impl<W: WindowServices> Platform for Desktop<W> {
         );
         #[cfg(not(target_os = "linux"))]
         true
-    }
-
-    fn choose_file(&self, save: bool, suggested: &str) -> Option<PathBuf> {
-        self.window.choose_file(save, suggested)
     }
 }

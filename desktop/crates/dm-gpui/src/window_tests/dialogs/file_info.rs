@@ -186,8 +186,8 @@ fn browse_picks_the_folder_a_download_goes_to() {
     h.type_text(&world.url("file.zip"));
     h.click("OK");
     h.until("Download details", |h| h.dialog_open("Download details"));
+    h.choose_ahead(&picked);
     h.click("Browse…");
-    h.answer_folder_panel(&picked);
     h.until("the folder picked", |h| {
         h.shows(&picked.display().to_string())
     });

@@ -113,7 +113,6 @@ pub(crate) struct Fake {
     pub(crate) power_fails: std::sync::Mutex<bool>,
     pub(crate) login: std::sync::Mutex<Option<bool>>,
     pub(crate) opened: std::sync::Mutex<Vec<String>>,
-    pub(crate) chosen: std::sync::Mutex<Option<std::path::PathBuf>>,
     /// The desktop has no file chooser (a Linux desktop with no portal for one, nor zenity).
     pub(crate) no_chooser: std::sync::Mutex<bool>,
 }
@@ -131,6 +130,9 @@ impl dm_shell::app::platform::Platform for Fake {
     }
     fn clipboard(&self) -> Option<String> {
         self.clipboard.lock().unwrap().clone()
+    }
+    fn set_clipboard(&self, text: &str) {
+        *self.clipboard.lock().unwrap() = Some(text.to_string());
     }
     fn reveal(&self, path: &str) -> Result<(), String> {
         self.opened.lock().unwrap().push(format!("reveal {path}"));
@@ -168,21 +170,12 @@ impl dm_shell::app::platform::Platform for Fake {
         }
         Ok(())
     }
-    fn choose_app(&self) -> Option<std::path::PathBuf> {
-        self.chosen.lock().unwrap().clone()
-    }
     fn open_with(&self, path: &str, app: &std::path::Path) -> Result<(), String> {
         self.opened
             .lock()
             .unwrap()
             .push(format!("{path} with {}", app.display()));
         Ok(())
-    }
-    fn choose_file(&self, _save: bool, _suggested: &str) -> Option<std::path::PathBuf> {
-        self.chosen.lock().unwrap().clone()
-    }
-    fn choose_folder(&self) -> Option<std::path::PathBuf> {
-        self.chosen.lock().unwrap().clone()
     }
     fn can_choose_file(&self) -> bool {
         !*self.no_chooser.lock().unwrap()
@@ -593,20 +586,10 @@ impl Harness {
         }
     }
 
-    /// The next of dm's own file or folder panels (Import, Export, Options' Browse…) is
+    /// The next of dm's own file or folder panels (Import, Export, every Browse…) is
     /// answered with `path`, as a script's `ui.choose` answers it.
     pub(crate) fn choose_ahead(&mut self, path: &std::path::Path) {
         crate::platform::services::choose_ahead(path.to_path_buf());
-    }
-
-    /// The folder panel a dialog's Browse… opened (GPUI's own path prompt) answered with
-    /// `path`.
-    pub(crate) fn answer_folder_panel(&mut self, path: &std::path::Path) {
-        let path = path.to_path_buf();
-        self.until("a folder panel", |h| h.cx.did_prompt_for_paths());
-        self.cx
-            .simulate_path_prompt_response(move |_| Some(vec![path]));
-        self.step();
     }
 
     /// The dialogs open by the name each was opened with (a progress window is "Download

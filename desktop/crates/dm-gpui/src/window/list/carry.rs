@@ -25,7 +25,7 @@ impl Downloads {
                     .iter()
                     .map(|r| dm_desktop_base::format::copyable_url(&r.url))
                     .collect();
-                cx.write_to_clipboard(gpui::ClipboardItem::new_string(links.join("\n")));
+                self.backend.platform.set_clipboard(&links.join("\n"));
                 self.say(dm_desktop_base::i18n::tn(
                     "Copied {} link.||Copied {} links.",
                     links.len() as u64,
@@ -82,7 +82,7 @@ impl Downloads {
                     settings.downloads.connections,
                     &settings.folders.download_dir,
                 ) {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                    self.backend.platform.set_clipboard(&text);
                     self.say(dm_desktop_base::i18n::tn(
                         "Copied the details of {} download.||Copied the details of {} downloads.",
                         count as u64,
