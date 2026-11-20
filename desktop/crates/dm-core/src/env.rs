@@ -56,6 +56,13 @@ pub const SWITCHES: &[Switch] = &[
         test_only: false,
     },
     Switch {
+        name: "DM_BENCH_CA",
+        purpose: "A certificate file (PEM) dm trusts beside the public roots, for the \
+                  benchmark's `wan` case served over TLS with a certificate of its own \
+                  (bench/README.md).",
+        test_only: true,
+    },
+    Switch {
         name: "DM_BENCH_SMALL",
         purpose: "Leaves out `tests/throughput.rs`'s half-gigabyte cases, which take minutes in a \
                   debug build.",

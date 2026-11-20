@@ -578,6 +578,8 @@ desktop/
   crates/dm-net/          dm's network (gaps row A6): how a server is reached, whatever is fetched
     http_client.rs        the client builder, its TLS (`tls_config`, shared with RTMP, RTSP and
                           FTPS), `Retry-After`
+    trust.rs              certificates trusted beside the public roots, given before the TLS
+                          set-up is made (the benchmark's, `DM_BENCH_CA`, read by dm-core)
     proxy.rs, pac.rs      the proxy in force, the proxy configuration script (run in dm-js through
                           javascript.rs, where a test may put a stand-in)
     dns.rs, redirects.rs  names, and where a redirect may go
