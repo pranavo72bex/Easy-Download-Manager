@@ -16,9 +16,9 @@
 //! the server accepts and deciphers a locked stream's signature. Nothing is
 //! fetched for that or shipped with dm.
 //! The result is written as the JSON a reader of a page prints, so
-//! `videopage::download_page` fetches and joins the streams from it. Anything this
-//! cannot read (a video wanting a sign-in, a live stream, a changed client) is
-//! failed, with the reason said in words.
+//! `videopage::download_page` fetches and joins the streams from it, or records a live one.
+//! Anything this cannot read (a video wanting a sign-in, a live stream named neither way, a
+//! changed client) is failed, with the reason said in words.
 //!
 //! Test knob: `DM_YOUTUBE_HOST` names a stand-in for `www.youtube.com` (a
 //! test's server).
@@ -28,6 +28,7 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+mod broadcast;
 mod captions;
 mod chapters;
 mod choosing;
@@ -623,16 +624,27 @@ async fn read_within(
             .and_then(Value::as_bool)
             .unwrap_or(false)
         {
-            // Recorded from YouTube's own HLS playlist of it, where the player names one, by the
-            // engine's live recording (gaps row Y5); refused, as before, where it names none.
-            let live = player
-                .pointer("/streamingData/hlsManifestUrl")
-                .and_then(Value::as_str)
-                .filter(|u| playlist_address(u));
-            let Some(live) = live else {
-                return Err(Error::Internal("a live stream".into()));
-            };
-            return Ok(played_from_playlist(id, &player, live, staging));
+            // Recorded from its HLS playlist (gaps row Y5) or through its framed stream (gaps row
+            // Y2); refused, as before, where the player names neither (`broadcast`).
+            let live = broadcast::reading(
+                client,
+                id,
+                &page,
+                &player,
+                &asked_as,
+                &js_urls,
+                &mut script,
+                staging,
+                (quality, container, frame_rate),
+            );
+            match live.await? {
+                Ok(reading) => return Ok(reading),
+                Err(e) => {
+                    note_unsolved(js_path.as_deref());
+                    failed = Some(e);
+                    continue;
+                }
+            }
         }
         let (mut formats, muxed) = formats_of(&player);
         if formats.is_empty() {

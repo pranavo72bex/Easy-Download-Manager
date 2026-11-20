@@ -6,7 +6,8 @@
 //! The framed stream fetched: a request posted, its answer's parts read as they come, each
 //! whole piece written to its format's file, and the next request saying what is held, until
 //! every format has its last piece. What each file holds is written down beside it after each
-//! piece ([`record`]), so a fetch paused or failed goes on from there.
+//! piece ([`record`]), so a fetch paused or failed goes on from there. A live broadcast's are
+//! recorded by the same requests until it ends ([`live`]).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -15,12 +16,16 @@ use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt as _;
 
 use super::context::Contexts;
-use super::messages::{self, kind, Ask, FormatStart, Held, MediaHeader, NextAsk};
+use super::messages::{self, kind, Ask, FormatStart, Head, Held, MediaHeader, NextAsk};
 use super::record::{self, Record};
 use super::ump::Reader;
 use super::{Framed, Wanted, WANTS_TOKEN};
 use crate::download::{Options, Update};
 use crate::Error;
+
+mod live;
+
+pub use live::record_live;
 
 /// The most requests one fetch posts: each answer brings a few seconds of every format, so a
 /// ten-hour video is a few thousand.
@@ -33,6 +38,9 @@ const MOST_FAILURES: u32 = 5;
 const MOST_BACKOFF: Duration = Duration::from_secs(30);
 /// The most of the pieces under way held before they are written whole.
 const MOST_PIECE: usize = 256 << 20;
+/// How many pieces before a live broadcast's head a recording that holds nothing yet takes
+/// one from: about where a live HLS recording starts, at the last few its playlist lists.
+const LIVE_BEHIND: u64 = 3;
 
 /// One format being fetched: the file its pieces go to, and what it holds.
 struct Track<'a> {
@@ -44,6 +52,15 @@ struct Track<'a> {
     ledger: tokio::fs::File,
     /// What it holds: its first word heard ([`FormatStart`]), its first boxes, the pieces.
     held: Record,
+    /// A live broadcast's: any piece after the last one held is taken, those between gone.
+    live: bool,
+    /// A live broadcast's that holds no piece yet: it starts at the broadcast's head, `from`
+    /// set from the stream's word on it ([`Head`]).
+    head_start: bool,
+    /// The first piece it takes while it holds none, where its head is known.
+    from: Option<u64>,
+    /// Pieces the stream moved past before they were had: a live recording's gaps.
+    missed: u64,
 }
 
 impl Track<'_> {
@@ -61,16 +78,27 @@ impl Track<'_> {
     }
 
     /// Whether a piece belongs next in its file: its first boxes where they are not written,
-    /// else the piece after the last one held.
+    /// else the piece after the last one held (a live broadcast's: any after it, and its first
+    /// from where it starts).
     fn takes(&self, init: bool, sequence: Option<u64>) -> bool {
         if init {
             return !self.held.init;
         }
         let next = |n: u64| match self.held.last {
+            Some(last) if self.live => n > last,
             Some(last) => last.checked_add(1) == Some(n),
-            None => true,
+            None => self.from.is_none_or(|from| n >= from),
         };
         self.held.init && sequence.is_some_and(next)
+    }
+
+    /// Whether a piece is passed over only as it comes from before where a live recording
+    /// starts.
+    fn before_start(&self, init: bool, sequence: Option<u64>) -> bool {
+        !init
+            && self.held.init
+            && self.held.last.is_none()
+            && matches!((self.from, sequence), (Some(from), Some(n)) if n < from)
     }
 }
 
@@ -109,6 +137,10 @@ async fn track_of(wanted: &Wanted) -> Result<Track<'_>, Error> {
         file,
         ledger,
         held,
+        live: false,
+        head_start: false,
+        from: None,
+        missed: 0,
     })
 }
 
@@ -132,6 +164,14 @@ struct Heard {
     protection: Option<u64>,
     /// Its context updates and sending policies, in order: each part's kind and bytes.
     contexts: Vec<(u64, Vec<u8>)>,
+    /// A live broadcast's head, as the answer last said it.
+    head: Option<Head>,
+    /// The longest piece the answer's headers named, in milliseconds.
+    piece_ms: Option<u64>,
+    /// Pieces passed over only as they came from before where a live recording starts.
+    early: u32,
+    /// The stream asked for the video to be read again.
+    reload: bool,
 }
 
 /// What every request of one fetch is made with.
@@ -161,9 +201,7 @@ pub async fn fetch(
     if !wanted.is_empty() && wanted.iter().all(there) {
         return Ok(());
     }
-    let config = framed.config_bytes().ok_or_else(|| {
-        Error::Internal("the player's word for its framed stream is not base64".into())
-    })?;
+    let config = config_of(framed)?;
     let mut tracks = Vec::new();
     for w in wanted {
         tracks.push(track_of(w).await?);
@@ -224,7 +262,16 @@ async fn ask_until_whole(
                 "YouTube's framed stream did not end".into(),
             ));
         }
-        let body = ask_of(tracks, config, run.framed, cookie.as_deref(), &contexts).body();
+        let time_ms = player_time(tracks);
+        let body = ask_of(
+            tracks,
+            config,
+            run.framed,
+            cookie.as_deref(),
+            &contexts,
+            time_ms,
+        )
+        .body();
         let heard = match answered(run, &url, asked, body, tracks).await {
             Ok(heard) => {
                 failures = 0;
@@ -237,6 +284,9 @@ async fn ask_until_whole(
             }
             Err(e) => return Err(e),
         };
+        if heard.reload {
+            return Err(read_again_asked());
+        }
         for (part, data) in &heard.contexts {
             contexts.take(*part, data);
         }
@@ -286,14 +336,37 @@ async fn wait(options: &Options, spell: Duration) -> Result<(), Error> {
     .await
 }
 
-/// The next request: every format asked for, what is held of each, where the player is (the
-/// least any unfinished format holds), and the contexts the stream gave to be sent back.
+/// Said where the stream asks for the video to be read again.
+fn read_again_asked() -> Error {
+    Error::Internal("YouTube's framed stream asks for the video to be read again".into())
+}
+
+/// The bytes of `framed`'s config, which every request carries.
+fn config_of(framed: &Framed) -> Result<Vec<u8>, Error> {
+    framed.config_bytes().ok_or_else(|| {
+        Error::Internal("the player's word for its framed stream is not base64".into())
+    })
+}
+
+/// Where the player is, for a video's request: the least any unfinished format holds up to.
+fn player_time(tracks: &[Track<'_>]) -> u64 {
+    tracks
+        .iter()
+        .filter(|t| !t.done())
+        .map(|t| t.held.held_ms)
+        .min()
+        .unwrap_or(0)
+}
+
+/// The next request: every format asked for, what is held of each, where the player is
+/// (`player_time_ms`), and the contexts the stream gave to be sent back.
 fn ask_of<'a>(
     tracks: &'a [Track<'_>],
     config: &'a [u8],
     framed: &'a Framed,
     cookie: Option<&'a [u8]>,
     contexts: &'a Contexts,
+    player_time_ms: u64,
 ) -> Ask<'a> {
     let picks = |video: bool| {
         tracks
@@ -302,12 +375,6 @@ fn ask_of<'a>(
             .filter(move |p| p.video == video)
             .collect::<Vec<_>>()
     };
-    let player_time_ms = tracks
-        .iter()
-        .filter(|t| !t.done())
-        .map(|t| t.held.held_ms)
-        .min()
-        .unwrap_or(0);
     Ask {
         config,
         client_name: framed.client_name,
@@ -398,6 +465,11 @@ async fn write_piece(piece: Piece, tracks: &mut [Track<'_>]) -> Result<bool, Err
         return Ok(false);
     }
     track.file.write_all(&piece.bytes).await?;
+    // A live broadcast's pieces between the last held and this one were gone before dm had
+    // them; a video's never are (only the next is taken).
+    if let (false, Some(last), Some(n)) = (piece.init, track.held.last, piece.sequence) {
+        track.missed += n.saturating_sub(last).saturating_sub(1);
+    }
     let held = &mut track.held;
     held.written += piece.bytes.len() as u64;
     if piece.init {
@@ -477,8 +549,14 @@ fn take(
                         .into(),
                 ));
             }
-            let track = of_itag(tracks, header.itag)
-                .filter(|at| tracks[*at].takes(header.init, header.sequence));
+            let at = of_itag(tracks, header.itag);
+            let track = at.filter(|at| tracks[*at].takes(header.init, header.sequence));
+            if track.is_none()
+                && at.is_some_and(|at| tracks[at].before_start(header.init, header.sequence))
+            {
+                heard.early += 1;
+            }
+            heard.piece_ms = heard.piece_ms.max(header.duration_ms);
             let end_ms = header
                 .start_ms
                 .zip(header.duration_ms)
@@ -515,6 +593,15 @@ fn take(
                 t.held.end_ms = start.end_ms.or(t.held.end_ms);
             }
         }
+        kind::LIVE_METADATA => {
+            // A live broadcast's head: where a recording that holds nothing yet starts.
+            if let Some(head) = Head::read(data) {
+                heard.head = Some(head);
+                for t in tracks.iter_mut().filter(|t| t.head_start) {
+                    t.from = Some(head.sequence.saturating_sub(LIVE_BEHIND));
+                }
+            }
+        }
         kind::NEXT_REQUEST_POLICY => heard.next = Some(NextAsk::read(data)),
         kind::SABR_CONTEXT_UPDATE | kind::SABR_CONTEXT_SENDING_POLICY => {
             heard.contexts.push((part, data.to_vec()));
@@ -532,11 +619,9 @@ fn take(
                 messages::error_of(data)
             )));
         }
-        kind::RELOAD_PLAYER_RESPONSE => {
-            return Err(Error::Internal(
-                "YouTube's framed stream asks for the video to be read again".into(),
-            ));
-        }
+        // A video's fetch ends on it (`read_again_asked`); a live recording reads the video
+        // again.
+        kind::RELOAD_PLAYER_RESPONSE => heard.reload = true,
         kind::STREAM_PROTECTION_STATUS => {
             let status = messages::protection_of(data);
             if status == Some(3) {

@@ -8140,6 +8140,8 @@ A transport stream cannot be cleared in place, so its locks are written to `trac
 
 The protobuf and UMP readers are dm's own. A framed format is used only where nothing with an address gives its quality, and an answer whose formats are all framed only after every other client was asked; a framed stream that fails falls back to the formats with addresses. No proof-of-origin token is minted (a decision of its own, not taken): where the stream asks one, dm says so. The message field numbers are from the protocol's published descriptions and unchecked against the service until a live run.
 
+A live broadcast is recorded through it only where its player names no HLS playlist (the playlist is the live stream's address, taken first as a format with an address is). The recording starts at the broadcast's head, as a live HLS recording starts at the last segments its playlist lists, not at the start of what can be played back. No end of the stream itself is known from the published descriptions, so it ends when the broadcast has stood still a few pieces' length and reading the video again finds it no longer live through the framed stream; a stop keeps what was recorded, as for HLS (2026-11-20).
+
 ## macOS's row menu is an NSMenu of dm's own, gpui-component not vendored (2026-11-20, gaps row U27)
 
 NativeMenu (gpui-component 0.9.1) has no key equivalent, and vendoring the whole crate (4.4 MB) for one field was judged too heavy. On macOS the row menu alone is built by `platform/popmenu.rs` from the same `gpui::Menu`, its keys looked up as the drawn menu does and set as GPUI's menu bar sets them, popped up and dispatched as NativeMenu does. The title menus and toolbar arrows stay on NativeMenu and show no keys on macOS.
