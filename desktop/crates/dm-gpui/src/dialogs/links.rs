@@ -191,6 +191,10 @@ impl Saves for Links {
     fn folder(&self) -> &Entity<InputState> {
         &self.folder
     }
+
+    fn view(&self) -> &WeakEntity<Downloads> {
+        &self.view
+    }
 }
 
 impl Render for Links {

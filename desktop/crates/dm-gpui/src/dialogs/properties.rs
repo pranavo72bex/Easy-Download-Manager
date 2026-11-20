@@ -186,7 +186,7 @@ impl Properties {
             settings.downloads.connections,
             &settings.folders.download_dir,
         ) {
-            cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+            view.read(cx).backend.platform.set_clipboard(&text);
             view.update(cx, |view, cx| {
                 view.say(dm_desktop_base::i18n::tn(
                     "Copied the details of {} download.||Copied the details of {} downloads.",

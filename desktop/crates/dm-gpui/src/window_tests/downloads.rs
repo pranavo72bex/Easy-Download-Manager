@@ -305,10 +305,8 @@ fn copy_link_copies_the_address_without_its_sign_in() {
     h.select("private.bin");
     assert!(h.enabled(Command::CopyLink));
     h.run(Command::CopyLink);
-    let copied =
-        h.cx.read_from_clipboard()
-            .and_then(|c| c.text())
-            .unwrap_or_default();
+    let copied = h.fake.clipboard.lock().unwrap().clone();
+    let copied = copied.unwrap_or_default();
     assert_eq!(copied, plain);
     assert!(!copied.contains(&password), "the sign-in went with it");
 }
@@ -644,7 +642,7 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
     let mut h = world.harness();
     let first = world.url("file.zip");
     let second = world.url("other.pdf");
-    h.cx.write_to_clipboard(gpui::ClipboardItem::new_string(first.clone()));
+    *h.fake.clipboard.lock().unwrap() = Some(first.clone());
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&format!("{first}{second}"));

@@ -53,10 +53,8 @@ fn properties_of_a_failed_download_copies_its_details() {
     h.until("the details copied", |h| {
         h.said() == "Copied the details of 1 download."
     });
-    let copied =
-        h.cx.read_from_clipboard()
-            .and_then(|c| c.text())
-            .unwrap_or_default();
+    let copied = h.fake.clipboard.lock().unwrap().clone();
+    let copied = copied.unwrap_or_default();
     assert!(copied.contains("State: failed"), "{copied}");
     assert!(h.dialog_open("File properties"), "Copy details closed it");
     h.click("Cancel");

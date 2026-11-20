@@ -4,12 +4,22 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What the GPUI window supplies to the desktop's services
-//! (`dm_desktop_base::desktop::WindowServices`): the clipboard (arboard),
-//! the system's own open and save panels for the application's choosers
-//! (rfd: on macOS the NSOpenPanel and NSSavePanel), and notifications
-//! (`notify.rs`). The window's own dialogs use GPUI's path prompts.
+//! (`dm_desktop_base::desktop::WindowServices`): the clipboard and
+//! notifications (`notify.rs`); and the one way its file and folder choosers
+//! are asked (`ask`): the system's own open and save panels, not waited for
+//! (on macOS the NSOpenPanel and NSSavePanel, elsewhere `rfd`'s).
+//!
+//! One clipboard: dm's own reads and copies (the watch, Add URL, Add links
+//! from clipboard, Copy link, Copy details) all go through `arboard` here,
+//! reached as `backend.platform`, so a test's stand-in answers for them.
+//! GPUI's clipboard needs the window's thread, and the watch reads off it
+//! every second (gaps row 183), where GPUI's Windows clipboard would copy a
+//! picture on it too. GPUI's prompts are not used: they take no kind of file
+//! and no starting folder. The text fields' own Copy and Paste are
+//! gpui-component's, on GPUI's clipboard.
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use dm_desktop_base::desktop::WindowServices;
 use dm_desktop_base::i18n::t;
@@ -18,34 +28,22 @@ use dm_desktop_base::quiet::Note;
 /// The GPUI window's services.
 pub struct GpuiServices;
 
+/// The clipboard dm copies with, kept: on Linux what was copied is served by
+/// the `arboard::Clipboard` that put it there, and would go with it.
+static COPIER: Mutex<Option<arboard::Clipboard>> = Mutex::new(None);
+
 impl WindowServices for GpuiServices {
     fn clipboard(&self) -> Option<String> {
         arboard::Clipboard::new().ok()?.get_text().ok()
     }
 
-    fn choose_app(&self) -> Option<PathBuf> {
-        let dialog = rfd::FileDialog::new().set_title(t("Open with"));
-        #[cfg(target_os = "macos")]
-        let dialog = dialog
-            .set_directory("/Applications")
-            .add_filter(t("Applications"), &["app"]);
-        #[cfg(target_os = "windows")]
-        let dialog = dialog.add_filter(t("Apps"), &["exe"]);
-        dialog.pick_file()
-    }
-
-    fn choose_folder(&self) -> Option<PathBuf> {
-        rfd::FileDialog::new().pick_folder()
-    }
-
-    fn choose_file(&self, save: bool, suggested: &str) -> Option<PathBuf> {
-        let asked = Asked::file(save, suggested);
-        let (name, extensions) = asked.filter.unwrap_or_default();
-        let dialog = rfd::FileDialog::new().add_filter(name, extensions);
-        if save {
-            dialog.set_file_name(suggested).save_file()
-        } else {
-            dialog.pick_file()
+    fn set_clipboard(&self, text: &str) {
+        let mut copier = dm_core::lock(&COPIER);
+        if copier.is_none() {
+            *copier = arboard::Clipboard::new().ok();
+        }
+        if let Some(clipboard) = copier.as_mut() {
+            let _ = clipboard.set_text(text);
         }
     }
 

@@ -128,6 +128,10 @@ impl Saves for ClipLinks {
     fn folder(&self) -> &Entity<InputState> {
         &self.folder
     }
+
+    fn view(&self) -> &WeakEntity<Downloads> {
+        &self.view
+    }
 }
 
 impl Render for ClipLinks {
@@ -254,10 +258,7 @@ impl Downloads {
     /// tick, one already in the list unticked and said so (it was fetched
     /// again as `e (1).zip`); none, said.
     pub(crate) fn add_from_clipboard(&mut self, cx: &mut gpui::Context<Self>) {
-        let text = cx
-            .read_from_clipboard()
-            .and_then(|item| item.text())
-            .unwrap_or_default();
+        let text = self.backend.platform.clipboard().unwrap_or_default();
         let found = dm_shell::app::links::links_in(&text);
         if found.is_empty() {
             self.say(t("There are no links on the clipboard.").into());

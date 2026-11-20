@@ -22,8 +22,8 @@ use dm_shell::app::backend::Backend;
 use dm_shell::app::lookups::Probed;
 use dm_shell::Settings;
 use gpui::{
-    div, prelude::*, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent,
-    PathPromptOptions, Role, SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
+    div, prelude::*, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent, Role,
+    SharedString, WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -497,33 +497,24 @@ impl Details {
         window.remove_window();
     }
 
-    /// Browse…: the system's own folder panel.
+    /// Browse…: the system's own folder panel (`services::ask`, as every
+    /// Browse… asks it); with none on the desktop, the field says to type
+    /// the path.
     fn browse(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let chosen = cx.prompt_for_paths(PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: None,
-        });
-        cx.spawn_in(window, async move |this, cx| match chosen.await {
-            Ok(Ok(Some(paths))) => {
-                if let Some(path) = paths.first() {
-                    let path = path.display().to_string();
-                    let _ = this.update_in(cx, |this, window, cx| {
-                        this.folder
-                            .update(cx, |f, cx| f.set_value(path, window, cx));
-                        cx.notify();
-                    });
-                }
-            }
-            Ok(Ok(None)) => {}
-            Ok(Err(_)) | Err(_) => {
-                let _ = this.update_in(cx, |this, window, cx| {
-                    crate::widgets::savefolder::no_chooser(&this.folder.clone(), window, cx)
-                });
-            }
-        })
-        .detach();
+        if !self.backend.platform.can_choose_folder() {
+            crate::widgets::savefolder::no_chooser(&self.folder.clone(), window, cx);
+            return;
+        }
+        crate::platform::services::ask_then_in(
+            crate::platform::services::Asked::folder(),
+            window,
+            cx,
+            |this: &mut Self, picked, window, cx| {
+                let path = picked.display().to_string();
+                this.folder
+                    .update(cx, |f, cx| f.set_value(path, window, cx));
+            },
+        );
     }
 
     /// Take out: one file of the ZIP, alone, before the archive is

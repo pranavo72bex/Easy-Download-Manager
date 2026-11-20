@@ -89,9 +89,7 @@ fn commands_on_a_row_open_their_windows_and_an_empty_clipboard_is_said() {
     });
     h.close_dialogs();
 
-    h.cx.write_to_clipboard(gpui::ClipboardItem::new_string(
-        "only words, no address".into(),
-    ));
+    *h.fake.clipboard.lock().unwrap() = Some("only words, no address".into());
     h.run(Command::AddFromClipboard);
     assert_eq!(h.said(), "There are no links on the clipboard.");
     assert!(h.dialogs().is_empty());
@@ -121,10 +119,8 @@ fn copy_details_of_a_failed_row_and_when_done() {
     });
     h.select("secret.zip");
     h.run(Command::CopyDetails);
-    let copied =
-        h.cx.read_from_clipboard()
-            .and_then(|c| c.text())
-            .expect("nothing was copied");
+    let copied = h.fake.clipboard.lock().unwrap().clone();
+    let copied = copied.expect("nothing was copied");
     assert!(copied.contains("State: failed"), "{copied}");
     assert_eq!(h.said(), "Copied the details of 1 download.");
 

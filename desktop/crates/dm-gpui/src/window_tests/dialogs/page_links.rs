@@ -242,8 +242,8 @@ fn download_links_hides_pictures_and_repeats_and_saves_where_chosen() {
     // Every file to one folder.
     let folder = folder_in(&world, "links");
     let where_to = folder.display().to_string();
+    h.choose_ahead(&folder);
     h.click("Browse…");
-    h.answer_folder_panel(&folder);
     h.until("the folder chosen", |h| h.shows(&where_to));
     h.click("Check all");
     h.click("Add for later");

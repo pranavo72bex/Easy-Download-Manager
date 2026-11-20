@@ -30,10 +30,9 @@ fn all_finished(h: &mut Harness) -> bool {
     !rows.is_empty() && rows.iter().all(|r| r.state == State::Completed)
 }
 
-/// `text` on the clipboard: the system's, which Add links from clipboard reads, and the one
-/// the clipboard's watch reads (the fake system's).
+/// `text` on the clipboard (the fake system's), which Add links from clipboard and the
+/// clipboard's watch read.
 fn clip(h: &mut Harness, text: &str) {
-    h.cx.write_to_clipboard(gpui::ClipboardItem::new_string(text.to_string()));
     *h.fake.clipboard.lock().unwrap() = Some(text.to_string());
 }
 

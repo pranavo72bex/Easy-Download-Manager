@@ -137,17 +137,16 @@ gpui-base.workspace = true
 async-channel.workspace = true
 futures-lite.workspace = true
 serde_json.workspace = true
-# The window's services to the desktop (services.rs): the clipboard, and
-# the system's own open and save panels for the application's choosers.
+# The window's one clipboard path (services.rs): GPUI's needs the window's
+# thread, and the clipboard's watch reads off it (gaps P6).
 arboard.workspace = true
-# The status item in the menu bar (the tray): GPUI
-# has none (D4's fallback).
+# Plumbing GPUI lacks: the status item in the menu bar and the tray, with its
+# menu (tray-icon, which brings muda; D4's fallback).
 tray-icon.workspace = true
 raw-window-handle.workspace = true
-rfd.workspace = true
 
-# The window's notifier (notify.rs). Not on Windows, where dm posts its
-# toasts itself (dm_desktop_base::toast).
+# The window's notifier (notify.rs): plumbing GPUI lacks. Not on Windows,
+# where dm posts its toasts itself (dm_desktop_base::toast).
 [target.'cfg(not(windows))'.dependencies]
 notify-rust.workspace = true
 
@@ -155,6 +154,10 @@ notify-rust.workspace = true
 # written as PNGs (tray.rs, syswindow.rs).
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 png.workspace = true
+# The window's one file-chooser path (services.rs `ask`; on macOS dm begins
+# the panels itself): GPUI's prompts take no kind of file and no starting
+# folder (gaps P6).
+rfd.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 gpui_platform = { workspace = true, features = ["font-kit", "runtime_shaders"] }

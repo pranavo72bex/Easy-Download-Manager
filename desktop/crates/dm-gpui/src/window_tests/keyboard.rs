@@ -590,7 +590,7 @@ fn a_right_click_moves_the_keyboards_place() {
 fn enter_starts_the_links_dialogs() {
     let world = world();
     let mut h = world.harness();
-    h.cx.write_to_clipboard(gpui::ClipboardItem::new_string(world.url("file.zip")));
+    *h.fake.clipboard.lock().unwrap() = Some(world.url("file.zip"));
     h.command("program.add_from_clipboard");
     h.until("Links on the clipboard", |h| {
         h.dialog_open("Links on the clipboard")
