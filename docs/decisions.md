@@ -8590,3 +8590,23 @@ in words, "this Opus track uses SILK, which dm cannot decode yet"; a finished do
 a WebM is not taken for an MP3 (`mp3::takes`) and is kept as it came, as it was on macOS and
 Linux before, so no download that succeeded before now fails. A lost or empty packet is
 decoded as CELT's silence frame, which fades the last frame out.
+
+## On a phone the clipboard is watched only while dm is in front (2026-11-20, gaps row N5)
+
+N5's "clipboard offer" is the desktop's own clipboard watch, unchanged: Options › General,
+"Offer to download links I copy" (off by default) and "Take a copied link at once", the bar
+"Link on your clipboard:" with Download and Dismiss, `dm_shell::app::links::Clipboard` deciding
+what is offered. No new words, Options or dialogs, so nothing in `docs/behaviour-contract.md`
+moves. Add URL's link from the clipboard and Tasks › Add links from clipboard already read it on
+the phone, through `PhoneServices::clipboard`, while dm is in front. Android 10 and up let only
+the app in front (with the focus) read the clipboard and answer the others as if it held
+nothing, so a watch read in the background would withdraw an offer and make it again on coming
+back. The watch is therefore looked at only while gpui-android says dm's window is active
+(`PhoneServices::clipboard_readable`, `Java::in_front`), a read that ends with dm behind is no
+look, and on the phone the watch is seeded by its first look in front rather than as the window
+opens (`Clipboard::turn_unread`), since the window may open before Android gives it the focus;
+a link copied before dm started is still not offered, as on a desktop. A link copied in another
+app is offered within a second of dm coming to the front. Dropped: watching in the background
+(Android refuses it), a foreground read on every resume of its own (the one-second look already
+runs while the watch is on), and treating every empty read as refused (a cleared clipboard is
+also empty, and the seed would then swallow the first link copied).

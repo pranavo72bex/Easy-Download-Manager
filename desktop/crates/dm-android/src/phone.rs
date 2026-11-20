@@ -37,6 +37,9 @@ pub trait Java: Send + Sync + 'static {
     fn open(&self, path: &str) -> Result<(), String>;
     /// Shows where `path` is: the phone's Downloads.
     fn reveal(&self, path: &str) -> Result<(), String>;
+    /// Whether dm's window is in front: Android 10 and up let only the app in front read the
+    /// clipboard, and answer the others as if it were empty (gaps row N5).
+    fn in_front(&self) -> bool;
     /// The clipboard's text, where there is any.
     fn clipboard(&self) -> Option<String>;
     /// Puts `text` on the clipboard.
@@ -237,6 +240,10 @@ impl<J: Java> PhoneServices for Phone<J> {
 
     fn clipboard(&self) -> Option<String> {
         self.java.clipboard().filter(|text| !text.is_empty())
+    }
+
+    fn clipboard_readable(&self) -> bool {
+        self.java.in_front()
     }
 
     fn set_clipboard(&self, text: &str) {

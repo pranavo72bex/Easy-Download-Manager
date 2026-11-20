@@ -117,6 +117,13 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
       as a link dropped on the window is. Shared while dm is open: it arrives at once
       (`DmActivity.onNewIntent`; "Checked by hand" below). Text with no link in it: nothing
       added.
+- [ ] **A copied link (N5).** Options › General, "Offer to download links I copy" on. In
+      Chrome, copy a link to a file, then switch to dm: the bar "Link on your clipboard:" with
+      Download and Dismiss is above the list within a second (Android 12 and up also say that
+      dm read the clipboard). Switch away and back without copying anything: the bar is as it
+      was, not offered again; Dismiss, switch away and back: not offered. A link copied before
+      dm was started is not offered (as on a desktop). With "Take a copied link at once":
+      Download details opens instead.
 - [ ] **A magnet and a `.torrent` (N5, N8).** Each opens dm and adds the torrent; the magnet's
       name appears once its metadata comes; it downloads. Switch the emulator's network off and
       on (the status bar's Wi-Fi) mid-way: it carries on.
@@ -159,11 +166,11 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 | File | What it does |
 |------|--------------|
 | `src/android.rs` | `android_main`: dm's home (`files/dm`) and the phone's storage (`android/storage.rs`) first; the phone's services handed to `dm_desktop_base::phone::set_phone`; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, the Keystore's store for secrets, `dm_core::folders::set_phone_folders` with the download folder: dm's own folder on the shared storage on Android 10 and up, else `Download/dm` in shared storage where dm may write it, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed. dm said to run in this process (`receivers::dm_started`) once its folders are set, for a receiver's Retry or Stop All and a new intent |
-| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), a failure's with Retry, the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second; the foreground service starts and stops with the notification), the schedule's alarm set when its time changes (`next_start`), open, reveal, the clipboard, a finished file published to `Download/dm` (`publish`), the folders dm downloads and saves into (`Places`: Browse…'s choices, Export's folder), the connection and battery for the phone's rules (`network`), the Trash refused. Tested on the host |
+| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), a failure's with Retry, the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second; the foreground service starts and stops with the notification), the schedule's alarm set when its time changes (`next_start`), open, reveal, the clipboard (readable only while dm is in front, `clipboard_readable`), a finished file published to `Download/dm` (`publish`), the folders dm downloads and saves into (`Places`: Browse…'s choices, Export's folder), the connection and battery for the phone's rules (`network`), the Trash refused. Tested on the host |
 | `src/wakeup.rs` | When the schedule's alarm goes off (a minute early, as the desktop's wake timer) and what the phone's start does (tested on the host) |
 | `src/shared.rs` | What a shared intent hands over (tested on the host) |
 | `src/storage.rs`, `src/android/storage.rs` | The phone's storage, worked out once at start (gaps row N9): the shared Download folder looked up once, the folders dm writes by path, each probed with a file (`phone::Places`: the default download folder, what Browse… offers, where Export writes), where downloads land (dm's own folder on Android 10 and up) and each finished file put in `Download/dm` through the media store, or by path on 8 and 9; the decisions tested on the host |
-| `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification (the foreground service's), the wake lock, the schedule's alarm, publishing a finished file (`storage`), the connection and battery (`network`) |
+| `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard and whether dm is in front (`in_front`, gpui-android's `is_active`), the ongoing notification (the foreground service's), the wake lock, the schedule's alarm, publishing a finished file (`storage`), the connection and battery (`network`) |
 | `src/android/network.rs` | The connection and the battery for the phone's rules (gaps row N10): `ConnectivityManager`'s active network (metered, roaming, Wi-Fi or a cable), Data Saver, the battery's sticky broadcast; what they mean decided in `dm_desktop_base::phone::network` |
 | `src/android/intent.rs` | The activity's intent, read once dm's window is up (a thread waiting for gpui-android's `is_active` the first time) and for each new one (`DmActivity.onNewIntent`), one read at a time: SEND text and VIEW magnet or web address go to `dm_desktop_base::phone::shared`, a `.torrent` is copied into `files/dm/torrents` and goes to `phone::shared_file`; the window adds both as it adds a dropped link |
 | `src/android/notify.rs` | Notification channels and messages, a failure's Retry and the ongoing notification's Stop All (broadcasts to `DmActionReceiver`), the ongoing notification, the partial wake lock, the permissions asked for once the window is up |
@@ -401,6 +408,11 @@ submitted. What it needs, and where dm stands:
   which the platform now fills); dm-gpui's windows do not read it yet.
 - **A link shared while dm is open (N5).** `DmActivity.onNewIntent` hands it to Rust; coded,
   not compiled or run (the checklist above).
+- **The clipboard offer (N5).** The desktop's own watch (Options › General, "Offer to download
+  links I copy", `dm-gpui/src/platform/clipwatch.rs`), looked at only while dm's window is in
+  front (`PhoneServices::clipboard_readable`, gpui-android's `is_active`): Android 10 and up let
+  only the app in front read the clipboard, so a link copied in another app is offered as dm
+  comes to the front. Coded 2026-11-20, not compiled or run (the checklist above).
 - **Downloading in the background (N6).** The wake lock and the ongoing notification are in,
   held while a row runs, a queued one is due or a finished torrent is shared
   (`awake::watch_phone` telling `PhoneServices::busy`); the notification says the count and the

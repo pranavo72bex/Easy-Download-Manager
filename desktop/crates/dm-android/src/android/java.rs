@@ -45,6 +45,12 @@ impl Java for Jni {
         open::scan(path)
     }
 
+    fn in_front(&self) -> bool {
+        // gpui-android's own: set as the activity resumes or gains the focus, cleared as it
+        // pauses or loses it.
+        gpui_android::android::jni::platform().is_some_and(|platform| platform.is_active())
+    }
+
     fn clipboard(&self) -> Option<String> {
         // Android 10 and up answer only while dm's window has the focus; `None` otherwise.
         jvm::with("read the clipboard", |env, context| {

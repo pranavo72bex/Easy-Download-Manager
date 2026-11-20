@@ -32,6 +32,11 @@ pub fn clipboard() -> Option<String> {
     dm_desktop_base::phone::clipboard()
 }
 
+/// Whether the phone's clipboard can be read now: only while dm's window is in front.
+pub fn clipboard_readable() -> bool {
+    dm_desktop_base::phone::clipboard_readable()
+}
+
 /// Puts `text` on the phone's clipboard.
 pub fn set_clipboard(text: &str) {
     dm_desktop_base::phone::set_clipboard(text);

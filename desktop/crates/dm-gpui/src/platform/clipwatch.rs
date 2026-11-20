@@ -9,6 +9,12 @@
 //! copied link at once", taken without the offer. What a look finds, and
 //! what is not offered again, is the application's
 //! (`dm_shell::app::links::Clipboard`).
+//!
+//! On a phone (gaps row N5) the same watch, looked at only while dm's
+//! window is in front: Android 10 and up let only the app in front read the
+//! clipboard and answer the others as if it were empty, which would withdraw
+//! an offer and make it again on coming back. A link copied in another app
+//! is so offered as dm comes to the front.
 
 use std::time::Duration;
 
@@ -30,6 +36,13 @@ impl Downloads {
     /// Turns the watch on or off; turned on, it is seeded with what the
     /// clipboard holds now, so a link copied long ago is not offered.
     pub(crate) fn watch_clipboard(&mut self, on: bool) {
+        // On a phone the window may open before Android gives it the focus,
+        // and a read refused then is as an empty clipboard: seeded instead by
+        // the first look, a moment later, in front.
+        if cfg!(target_os = "android") {
+            self.system.clipboard.turn_unread(on);
+            return;
+        }
         let platform = &self.backend.platform;
         self.system.clipboard.turn(on, || platform.clipboard());
     }
@@ -39,6 +52,7 @@ impl Downloads {
     pub(crate) fn check_clipboard(&mut self, cx: &mut Context<Self>) {
         if !self.system.clipboard.on
             || self.system.clipboard_reading
+            || !readable()
             || self
                 .system
                 .clipboard
@@ -51,12 +65,17 @@ impl Downloads {
         // of text (gaps row 183), and looked at here once it is.
         self.system.clipboard_reading = true;
         let platform = self.backend.platform.clone();
-        let read = cx.background_spawn(async move { platform.clipboard() });
+        // A read the phone refused, dm's window gone behind as it read, is
+        // no look.
+        let read = cx.background_spawn(async move {
+            let text = platform.clipboard();
+            (text, readable())
+        });
         cx.spawn(async move |this, cx| {
-            let text = read.await;
+            let (text, read_in_front) = read.await;
             let _ = this.update(cx, |this, cx| {
                 this.system.clipboard_reading = false;
-                if this.system.clipboard.on {
+                if this.system.clipboard.on && read_in_front {
                     this.clipboard_read(text, cx);
                 }
             });
@@ -156,5 +175,18 @@ impl Downloads {
                     })),
                 ),
         )
+    }
+}
+
+/// Whether the clipboard can be read now: always on a desktop; on a phone
+/// only while dm's window is in front.
+fn readable() -> bool {
+    #[cfg(target_os = "android")]
+    {
+        crate::platform::phone::clipboard_readable()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        true
     }
 }
