@@ -3,11 +3,11 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! dm on the phone: `android_main`, which Android's NativeActivity starts (through
-//! android-activity, as Slint's Android backend wants), and what only a phone has, reached
-//! through JNI: the link another app hands over (`intent`), notifications and the wake lock
-//! (`notify`, `busy`), opening a file (`open`), and the engine's [`crate::AndroidSystem`]
-//! (`system`).
+//! dm on the phone: `android_main`, which the activity (gpui-mobile's `GpuiInputActivity`, a
+//! NativeActivity, in `java/`) starts through android-activity, bringing up GPUI on gpui-android
+//! (gaps rows N3, N16), and what only a phone has, reached through JNI: the link another app hands over
+//! (`intent`), notifications and the wake lock (`notify`, `busy`), opening a file (`open`), and
+//! the engine's [`crate::AndroidSystem`] (`system`).
 
 mod busy;
 mod intent;
@@ -17,42 +17,55 @@ mod open;
 mod system;
 
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 
+use android_activity::AndroidApp;
+use gpui_android::android::{jni as gpui_jni, SharedPlatform};
 use jni::{jni_sig, jni_str, JValue};
-use slint::android::android_activity::{MainEvent, PollEvent};
-use slint::android::AndroidApp;
 
 use crate::Engine;
 
-/// The engine, and the folder a shared `.torrent` is copied into, once started: what the
-/// window's resume reads a new intent with.
+/// The engine, and the folder a shared `.torrent` is copied into, once started: what each
+/// return to the window reads a new intent with.
 static STARTED: OnceLock<(Arc<Engine>, PathBuf)> = OnceLock::new();
 
-/// Where Android's NativeActivity hands over (android-activity finds it by this name): starts
-/// dm, runs its window until the activity is closed, then stops the downloads, saving each to
-/// be resumed, and leaves the process, so the next start begins afresh (android-activity would
-/// otherwise run this again in the same process, with Slint's platform already set).
+/// Where dm's activity hands over (android-activity finds it by this name): GPUI on the phone's
+/// platform, dm started inside its launch and its window opened, until the activity is closed;
+/// then the downloads are stopped, each saved to be resumed, and the process left, so the next
+/// start begins afresh (android-activity would otherwise run this again in the same process,
+/// with gpui-android's platform already made).
 #[no_mangle]
 fn android_main(app: AndroidApp) {
-    if let Err(why) = start(&app) {
-        // The window says it where Slint started; there is nothing else to tell it with.
-        let _ = crate::app::failed(&why);
+    gpui_android::android::init_logger();
+    gpui_jni::install_panic_hook();
+    // Without the Java side dm still starts; what needs it is then refused in words.
+    let reached = jvm::init(app.vm_as_ptr(), app.activity_as_ptr());
+    let platform = SharedPlatform::new(Arc::clone(gpui_jni::init_platform(&app))).into_rc();
+    let launched = app.clone();
+    gpui::Application::with_platform(platform).run(move |cx| {
+        let opened = reached.and_then(|()| start(&launched)).and_then(|engine| {
+            let resumed = Rc::new(|| {
+                if let Some((engine, torrents)) = STARTED.get() {
+                    intent::take(engine, torrents);
+                }
+            });
+            crate::app::open(engine, Some(resumed), cx)
+        });
+        if let Err(why) = opened {
+            // The window says it; there is nothing else to tell it with.
+            let _ = crate::app::failed(&why, cx);
+        }
+    });
+    if let Some((engine, _)) = STARTED.get() {
+        engine.shut_down();
     }
     std::process::exit(0);
 }
 
-fn start(app: &AndroidApp) -> Result<(), String> {
-    jvm::init(app.vm_as_ptr(), app.activity_as_ptr())?;
-    slint::android::init_with_event_listener(app.clone(), |event| {
-        // Each return to dm reads the activity's intent again (`intent.rs` says what reaches it).
-        if let PollEvent::Main(MainEvent::Resume { .. }) = event {
-            if let Some((engine, torrents)) = STARTED.get() {
-                intent::take(engine, torrents);
-            }
-        }
-    })
-    .map_err(|e| format!("dm could not open its window: {e}"))?;
+/// dm started in the app's own folders, the activity's intent read once, the ongoing
+/// notification watched: the engine the window shows.
+fn start(app: &AndroidApp) -> Result<Arc<Engine>, String> {
     // Each of these only makes the phone friendlier; dm runs without them.
     let _ = open::allow_file_uris();
     let _ = notify::channels();
@@ -72,9 +85,7 @@ fn start(app: &AndroidApp) -> Result<(), String> {
     intent::take(&engine, &torrents);
     let _ = STARTED.set((Arc::clone(&engine), torrents));
     let _ = busy::watch(&engine);
-    let ran = crate::app::run(Arc::clone(&engine));
-    engine.shut_down();
-    ran
+    Ok(engine)
 }
 
 /// Where downloads go on the first start: `Download/dm` in the phone's shared storage, which

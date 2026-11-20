@@ -1,0 +1,6 @@
+# What cargo-ndk puts here and what Gradle makes.
+app/src/main/jniLibs/
+.gradle/
+build/
+app/build/
+local.properties

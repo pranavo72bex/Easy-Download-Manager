@@ -3,14 +3,17 @@
 Each is the published crate as it is on crates.io, with dm's change, used in
 place of it through `[patch.crates-io]` in `desktop/Cargo.toml`. When the
 crate is upgraded, its change is carried over or, once the crate does it
-itself, the copy is removed.
+itself, the copy is removed. One, gpui-android, is not on crates.io: it is
+made from a pinned commit of gpui-mobile on GitHub, and dm-android names it
+by its path (below).
 
 Every copy is made the same way (gaps rows P3, A17 and X5): the published
 crate, checked against its SHA-256, with what dm's build does not use removed
-and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all four again
+and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all five again
 (`cargo xtask vendor gpui-pre-linux` one), the same on Windows, macOS and
 Linux (`desktop/xtask/src/vendor.rs`, which holds each crate's version and
-SHA-256 and what is removed from it; it needs `curl`, `tar` and `git`, which
+SHA-256 and what is removed from it, and for gpui-android the repository and
+commit, fetched as GitHub's archive of it; it needs `curl`, `tar` and `git`, which
 Windows 10 and later have, `git` from Git for Windows). Nothing from the
 crates is run, and run on a clean tree, `git status` then shows no change.
 The crates are unpacked in `DM_VENDOR_WORK` where that names a folder, and
@@ -52,6 +55,8 @@ offered to the crate's makers.
 | `no-axum` | axum-extra and the dual-stack listener's axum support only with the HTTP API | librqbit | `Cargo.toml`, 1 | One crate on every system | not yet |
 | `ring` | reqwest's rustls without aws-lc-rs; ring installed as the process's provider | librqbit | `Cargo.toml` 2, `src/session.rs` 1 | One crate on every system | not yet |
 | `trim` | The `[[example]]` targets and the test that read `resources/` left out with the files removed | librqbit | `Cargo.toml` 1, `src/session.rs` 1 | One crate on every system | dm's alone: upstream keeps those files |
+| `android-only` | gpui-mobile cut to its Android platform: the manifest written again (gpui-android, no feature flags), the iOS platform, components, packages, platform views and host-driven entry removed, and what called them | gpui-android | `Cargo.toml` 1, `src/lib.rs` 1, `src/android/mod.rs` 1, `src/android/jni.rs` 5 | Android's alone | dm's alone: upstream is all of gpui-mobile |
+| `port-0312` | Moved from gpui-pre 0.3.6 to dm's 0.3.12: `platform_info`, `on_displays_changed`, `refresh_interval`, `on_display_changed` (new in the traits), `gpu_specs` an `Option`, `RequestFrameOptions`' new fields | gpui-android | `Cargo.toml` 1, `src/android/platform.rs` 3, `src/android/display.rs` 1, `src/android/window.rs` 3 | The other copies are 0.3.12's own | not yet |
 | `sha1` | `sha1-ring` backed by the pure-Rust sha1 and sha2 crates rather than aws-lc-rs | librqbit-sha1-wrapper | `Cargo.toml` 1, `src/lib.rs` 2 | One crate on every system | not yet |
 
 ## librqbit and its SHA-1 wrapper (gaps row P3)
@@ -253,3 +258,46 @@ move. That call holds a modal loop until the drop lands, so it is made from a
 message posted to the window (`WM_DM_DRAG_OUT`), outside any update of GPUI's,
 and GPUI is then told the drag is over (`FileDropEvent::Ended`), as the X11
 copy does.
+
+## gpui-android (gpui-mobile at 5fd54f45, gaps row N16)
+
+`gpui-android/` is GPUI's Android platform from gpui-mobile
+(https://github.com/itsbalamurali/gpui-mobile, commit
+`5fd54f4554263ae06753e90472c7f2e2ff5d7495`, 2026-10-23; crates.io's
+gpui-mobile 0.1.0 is a stub). gpui-mobile is offered under GPL-3.0-or-later,
+AGPL-3.0-or-later or Apache-2.0; dm takes it under GPL-3.0-or-later, and all
+three licence files are kept. `cargo xtask vendor gpui-android` fetches
+GitHub's archive of the commit (`codeload.github.com`, checked against the
+SHA-256 held in `xtask/src/vendor.rs`), removes all but the Android platform
+(`GPUI_ANDROID_REMOVE`: the iOS platform, the components, the packages and
+their no-op features, the platform views, the host-driven `SurfaceView`
+entry, the example and its screenshots, CI and notes), and applies
+`patches/gpui-android.patch`. It is not on crates.io, so `desktop/Cargo.toml`
+names it by its path in `[workspace.dependencies]` (and in `exclude`), not
+through `[patch.crates-io]`; its manifest pins `gpui-pre` and
+`gpui-pre-wgpu` at `=0.3.12`, as the other copies' manifests pin theirs.
+
+What it is: `AndroidPlatform` (GPUI's `Platform`) over android-activity 0.6's
+NativeActivity, the window from the `ANativeWindow` drawn by gpui-pre-wgpu
+(Vulkan, else GLES), text by cosmic-text from the system's fonts, touch as
+pointer events with fling momentum, frames paced by the Choreographer, the
+soft keyboard through gpui-mobile's Java `GpuiInputActivity` and file
+prompts through `GpuiPathPicker` (`desktop/crates/dm-android/java`,
+docs/android.md).
+
+Moved from upstream's `gpui-pre` 0.3.6 to 0.3.12 (`dm(port-0312)`): the
+traits gained `Platform::platform_info` (Android, native) and
+`on_displays_changed` (a phone's one display: never called),
+`PlatformDisplay::refresh_interval` (none: the NDK window does not say, and
+frames follow the vsync), `PlatformWindow::on_display_changed` (never
+called); the renderer's `gpu_specs` became an `Option`; and
+`RequestFrameOptions` gained `signal_at` and `signal_source`, which only
+GPUI's `profiler` feature reads (left at their defaults). Checked with
+`cargo check --target aarch64-linux-android -p gpui-android`; not yet
+linked, packed or run on a phone or the emulator (N16). To move to another
+commit or snapshot: change the commit and SHA-256 in `xtask/src/vendor.rs`
+(or the versions in `Cargo.toml`'s hunk), run `cargo xtask vendor
+gpui-android`, mend what `git apply` or the build refuses, and write the
+patch again as the `git diff` from the trimmed archive to the mended copy,
+keeping the text at its head.
+

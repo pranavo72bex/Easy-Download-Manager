@@ -8218,4 +8218,9 @@ reads `/system/fonts`), so the new part is the platform layer: the window from
 and made again across pause and resume. Slint and the `dm-view` move (row N15) are dropped; the
 JNI modules written for the Slint shell (the share's intent, notifications, opening a file, the
 wake lock) are kept for the phone's platform code. The risk, said to the maintainer: no GPUI
-program has shipped on Android; the platform layer is new ground.
+program has shipped on Android; the platform layer is new ground. At the maintainer's word of 2026-11-20, "use gpui-mobile.", its Java and Gradle are taken as
+gpui-mobile has them (`GpuiInputActivity` for the soft keyboard, `GpuiPathPicker`, a cargo-ndk
+and Gradle build); no other Java (N6's service, `onNewIntent`, notification buttons) without a
+word of its own. gpui-android is a stand-in, at the maintainer's word of 2026-11-20 ("when offical come we will
+shift but for now use gpui-mobile"): when Zed ships an official GPUI Android platform, dm moves
+to it and removes the copy (docs/gaps.md, Periodic).

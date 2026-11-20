@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What the engine asks of the phone (`AndroidSystem`), answered through JNI by `android/` on a
-//! phone and by `src/main.rs` on a computer, and seen by the application as dm-shell's
+//! phone and by the tests on a computer, and seen by the application as dm-shell's
 //! `Platform`, as the desktop's `platform.rs` is.
 
 use std::sync::Arc;

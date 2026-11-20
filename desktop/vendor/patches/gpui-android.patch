@@ -1,0 +1,821 @@
+dm's change to gpui-mobile at commit 5fd54f4554263ae06753e90472c7f2e2ff5d7495
+(https://github.com/itsbalamurali/gpui-mobile, GitHub's archive of the
+commit; GPL-3.0-or-later OR AGPL-3.0-or-later OR Apache-2.0, taken by dm
+under GPL-3.0-or-later), which makes gpui-android: its Android platform
+alone, at dm's gpui-pre 0.3.12. Applied to the archive's folder with
+GPUI_ANDROID_REMOVE (desktop/xtask/src/vendor.rs) removed first. Made again
+by `cargo xtask vendor gpui-android`; explained in desktop/vendor/README.md.
+Each change in the code is marked `dm(<tag>):`, the tag its row in that
+file's table. The text before each file's section says what its hunks do, in
+order; git apply skips it.
+
+Cargo.toml:
+  1. android-only and port-0312: the manifest written again: the crate named
+     gpui-android (lib gpui_android), its Android dependencies alone, no
+     feature flags or profiles, gpui-pre and gpui-pre-wgpu at =0.3.12.
+
+src/android/display.rs:
+  1. port-0312: `PlatformDisplay::refresh_interval`, none reported.
+
+src/android/jni.rs:
+  1. android-only: `set_host_platform` removed with host.rs.
+  2. android-only: the platform-view hit test in the touch loop removed.
+  3. android-only: no platform views to dispose of on quit, pause or resume.
+  4. android-only: their helper functions removed.
+  5. android-only: `restore_keyboard` removed with host.rs.
+  6. android-only: the deep-link and media-session JNI entries removed.
+
+src/android/mod.rs:
+  1. android-only: the `host` and `platform_view` modules removed.
+
+src/android/platform.rs:
+  1. port-0312: `Platform::platform_info` and `on_displays_changed`, on
+     AndroidPlatform and on SharedPlatform.
+
+src/android/window.rs:
+  1. port-0312: the renderer's `gpu_specs` is an Option.
+  2. port-0312: `RequestFrameOptions`' new fields, by default.
+  3. port-0312: `PlatformWindow::on_display_changed`, never called.
+
+src/lib.rs:
+  1. android-only: the iOS platform, components, packages, platform views,
+     frame demand and target list removed; the Android module and the
+     keyboard, chrome and safe-area calls kept.
+
+diff --git a/Cargo.toml b/Cargo.toml
+index f99ddc3..2e755f3 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,134 +1,52 @@
++# gpui-android: GPUI's Android platform, from gpui-mobile
++# (https://github.com/itsbalamurali/gpui-mobile, commit
++# 5fd54f4554263ae06753e90472c7f2e2ff5d7495, 2026-10-23), which dm takes under
++# GPL-3.0-or-later, one of the three licences it offers (LICENSE-GPL; the
++# other two are kept beside it). Its Android platform alone: the iOS
++# platform, the components, the packages, the platform views, the example and
++# the no-op feature flags are removed (`cargo xtask vendor gpui-android`).
++# dm's changes are marked `dm(<tag>):`, each tag a row of the table in
++# desktop/vendor/README.md (gaps row N16).
++#
++# dm(android-only): the manifest written again for the copy: dm's name for it, its
++# Android dependencies alone, no feature flags, no profiles (dm's are in
++# desktop/Cargo.toml).
++# dm(port-0312): gpui-pre and gpui-pre-wgpu at dm's pin, 0.3.12 (upstream
++# pinned 0.3.6).
+ [package]
+-name = "gpui-mobile"
++name = "gpui-android"
+ version = "0.1.0"
+ edition = "2021"
+ authors = ["Balamurali Pandranki <balamurali@live.com>"]
+ license = "GPL-3.0-or-later OR AGPL-3.0-or-later OR Apache-2.0"
+-description = "Mobile platform support for GPUI — iOS (wgpu/Metal) and Android (wgpu/Vulkan)"
++description = "GPUI's Android platform (wgpu over Vulkan or GLES, android-activity's NativeActivity), from gpui-mobile"
+ repository = "https://github.com/itsbalamurali/gpui-mobile"
+-homepage = "https://github.com/itsbalamurali/gpui-mobile"
+-keywords = ["gui", "mobile", "ios", "android", "gpui"]
+-categories = ["gui", "os"]
+-readme = "README.md"
+-
+-[features]
+-default = ["url_launcher", "shared_preferences", "path_provider",
+-           "package_info", "device_info", "connectivity", "network_info", "vibration",
+-           "battery", "share", "sensors", "webview", "file_selector", "image_picker", "camera",
+-           "permission_handler", "notifications", "location", "audio", "video_player",
+-           "clipboard", "local_auth", "in_app_review", "contacts", "maps_launcher",
+-           "calendar", "deeplink", "microphone", "maps", "media_session"]
+-url_launcher = []
+-shared_preferences = []
+-path_provider = []
+-package_info = []
+-device_info = []
+-connectivity = []
+-network_info = []
+-vibration = []
+-battery = []
+-share = []
+-sensors = []
+-webview = []
+-file_selector = []
+-image_picker = []
+-camera = []
+-permission_handler = []
+-notifications = []
+-location = []
+-audio = []
+-video_player = []
+-clipboard = []
+-local_auth = []
+-in_app_review = []
+-contacts = []
+-maps_launcher = []
+-maps = []
+-calendar = []
+-deeplink = []
+-microphone = []
+-media_session = []
++publish = false
+ 
+ [lib]
+-crate-type = ["staticlib", "cdylib", "rlib"]
+-
+-# ── shared deps (all platforms) ──────────────────────────────────────────────
++name = "gpui_android"
++path = "src/lib.rs"
+ 
+ [dependencies]
+-anyhow       = "1"
+-log          = { version = "0.4", features = ["kv_unstable_serde", "serde"] }
+-parking_lot  = "0.12"
+-futures      = "0.3"
++anyhow = "1"
++log = "0.4"
++parking_lot = "0.12"
++futures = "0.3"
+ raw-window-handle = "0.6"
+-
+-# ── GPUI core crate (provides Platform trait, event types, geometry, etc.) ───
+-gpui = { package = "gpui-pre", version = "=0.3.6", default-features = false }
+-
+-# ── iOS ──────────────────────────────────────────────────────────────────────
+-
+-[target.'cfg(target_os = "ios")'.dependencies]
+-# Objective-C runtime
+-objc2 = "0.6"
+-
+-# Apple frameworks
+-core-foundation     = "0.10"
+-core-foundation-sys = "0.8"
+-core-graphics       = "0.24"
+-core-text           = "=21.0.0"
+-uuid                = { version = "1", features = ["v4", "v5"] }
+-block2              = "0.6"
+-
+-# wgpu renderer (Metal backend on iOS/Android)
+-gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.6", features = ["font-kit"] }
+-wgpu = "29.0.4"
+-
+-# Text / font stack
+-pathfinder_geometry = "0.5"
+-smallvec            = { version = "1.6", features = ["union", "const_new"] }
+-
+-# font-kit (same registry package as gpui-pre-wgpu)
+-font-kit = { package = "zed-font-kit", version = "0.14.1-zed" }
+-
+-# ── Android ──────────────────────────────────────────────────────────────────
++gpui = { package = "gpui-pre", version = "=0.3.12", default-features = false }
+ 
+ [target.'cfg(target_os = "android")'.dependencies]
+-# JNI / NDK bindings
+-jni         = "0.22"
+-libc        = "0.2"
++jni = "0.22"
++libc = "0.2"
+ # Keep `ndk` on the baseline `nativewindow` feature set. Enabling
+ # `api-level-31` links API 31 symbols directly, so the shared library
+ # fails to `dlopen` on older Android versions before our own code runs.
+-ndk         = { version = "0.9", features = ["nativewindow"] }
++ndk = { version = "0.9", features = ["nativewindow"] }
+ ndk-context = "0.1"
+-ndk-sys     = "0.6"
+-
+-# Activity glue layer
++ndk-sys = "0.6"
+ android-activity = { version = "0.6", features = ["native-activity"] }
+-
+-# Logging to logcat
+ android_logger = "0.15"
+-
+-# wgpu renderer (Vulkan backend on Android)
+ # Android uses Cosmic Text and system fonts; font-kit pulls in desktop Fontconfig.
+-gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.6" }
+-
+-# rustc-hash is required by the PlatformKeyboardMapper trait signature
++gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12" }
+ rustc-hash = "2"
+-uuid       = { version = "1", features = ["v5"] }
+-
+-# ── dev ──────────────────────────────────────────────────────────────────────
+-
+-[dev-dependencies]
+-gpui = { package = "gpui-pre", version = "=0.3.6", default-features = false, features = ["test-support"] }
+-
+-# ── profiles ─────────────────────────────────────────────────────────────────
+-
+-[profile.release]
+-opt-level     = 3
+-lto           = "thin"
+-codegen-units = 1
+-strip         = true
+-
+-[profile.dev]
+-opt-level = 0
+-debug     = true
++uuid = { version = "1", features = ["v5"] }
+diff --git a/src/android/display.rs b/src/android/display.rs
+index 9a227a1..38b1062 100644
+--- a/src/android/display.rs
++++ b/src/android/display.rs
+@@ -223,6 +223,13 @@ impl fmt::Debug for AndroidDisplay {
+ // ── impl PlatformDisplay ──────────────────────────────────────────────────────
+ 
+ impl PlatformDisplay for AndroidDisplay {
++    // dm(port-0312): `refresh_interval` is new in 0.3.12. The NDK's window says nothing of the
++    // display's rate, and frames are paced by the Choreographer's vsync (`frame_source`), so
++    // none is reported, as the trait allows.
++    fn refresh_interval(&self) -> Option<std::time::Duration> {
++        None
++    }
++
+     fn id(&self) -> DisplayId {
+         // Truncate the u64 id to u32 — on Android the pointer-derived id
+         // fits in 32 bits for the lower half, and DisplayId only stores u32.
+diff --git a/src/android/jni.rs b/src/android/jni.rs
+index 3ecfe2e..23cae0b 100644
+--- a/src/android/jni.rs
++++ b/src/android/jni.rs
+@@ -360,15 +360,7 @@ pub fn android_app() -> Option<AndroidApp> {
+     ANDROID_APP.get().cloned()
+ }
+ 
+-/// Install the platform built by the host-driven path (`super::host`).
+-///
+-/// The `android-activity` path calls `init_platform` instead; both end up in the same
+-/// slot so every accessor in this module keeps working regardless of entry point.
+-pub(crate) fn set_host_platform(platform: Arc<AndroidPlatform>) {
+-    if PLATFORM.set(platform).is_err() {
+-        log::warn!("set_host_platform: PLATFORM already set — both entry points in one process?");
+-    }
+-}
++// dm(android-only): `set_host_platform`, the host-driven entry's, removed with `host.rs`.
+ 
+ /// Returns a reference to the global `AndroidPlatform`, if initialised.
+ ///
+@@ -457,47 +449,8 @@ fn process_input_events(app: &AndroidApp) {
+                                 pointer_count,
+                             );
+ 
+-                            // Check if this touch lands on a platform view.
+-                            //
+-                            // On Android with NativeActivity, ALL touch events go
+-                            // to the native surface first. Platform views are real
+-                            // Java Views in a FrameLayout overlay, but they won't
+-                            // receive touches unless we skip GPUI dispatch and let
+-                            // Android's view hierarchy handle the event instead.
+-                            //
+-                            // We use the primary pointer for the hit-test on DOWN
+-                            // actions. Physical pixel coordinates are converted to
+-                            // logical pixels to match PlatformViewBounds.
+-                            let hits_platform_view = {
+-                                let registry = crate::platform_view::PlatformViewRegistry::global();
+-                                if registry.active_view_count() > 0 {
+-                                    let primary = motion_event.pointer_at_index(
+-                                        match action {
+-                                            MotionAction::PointerDown | MotionAction::PointerUp => {
+-                                                motion_event.pointer_index()
+-                                            }
+-                                            _ => 0,
+-                                        }
+-                                    );
+-                                    let scale = win.scale_factor();
+-                                    let logical_x = primary.x() / scale;
+-                                    let logical_y = primary.y() / scale;
+-                                    registry.hit_test(logical_x, logical_y)
+-                                } else {
+-                                    false
+-                                }
+-                            };
+-
+-                            if hits_platform_view {
+-                                log::debug!(
+-                                    "process_input_events: touch hits platform view, skipping GPUI dispatch",
+-                                );
+-                                // Return Unhandled so android-activity can pass
+-                                // the event back to the Java view hierarchy where
+-                                // the platform view's FrameLayout lives.
+-                                return android_activity::InputStatus::Unhandled;
+-                            }
+-
++                            // dm(android-only): upstream's hit test of Java platform views over the
++                            // surface removed with them: every touch is GPUI's.
+                             for i in 0..pointer_count {
+                                 let pointer = motion_event.pointer_at_index(i);
+ 
+@@ -639,7 +592,7 @@ pub fn run_event_loop(app: &AndroidApp) {
+         if let Some(platform) = PLATFORM.get() {
+             if platform.should_quit() {
+                 log::info!("run_event_loop: platform requested quit");
+-                dispose_all_platform_views();
++                // dm(android-only): no platform views to dispose of.
+                 break;
+             }
+             platform.tick();
+@@ -796,8 +749,6 @@ pub fn run_event_loop(app: &AndroidApp) {
+                     win.set_active(false);
+                 }
+             }
+-            // Pause platform views
+-            pause_platform_views();
+         }
+ 
+         // 6. Resume / foreground
+@@ -809,8 +760,6 @@ pub fn run_event_loop(app: &AndroidApp) {
+                     win.set_active(true);
+                 }
+             }
+-            // Resume platform views
+-            resume_platform_views();
+         }
+ 
+         // Track active/focused state.
+@@ -887,53 +836,8 @@ pub fn run_event_loop(app: &AndroidApp) {
+     log::info!("run_event_loop: exiting main loop");
+ }
+ 
+-/// Pause all platform views when the app goes to background.
+-fn pause_platform_views() {
+-    let _ = with_env(|env| {
+-        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+-            let _ = env.call_static_method(
+-                &helper_class,
+-                jni::jni_str!("pauseAll"),
+-                jni::jni_sig!("()V"),
+-                &[],
+-            );
+-            env.exception_clear();
+-        }
+-        Ok(())
+-    });
+-}
+-
+-/// Resume all platform views when the app returns to foreground.
+-fn resume_platform_views() {
+-    let _ = with_env(|env| {
+-        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+-            let _ = env.call_static_method(
+-                &helper_class,
+-                jni::jni_str!("resumeAll"),
+-                jni::jni_sig!("()V"),
+-                &[],
+-            );
+-            env.exception_clear();
+-        }
+-        Ok(())
+-    });
+-}
+-
+-/// Dispose all platform views during app shutdown.
+-fn dispose_all_platform_views() {
+-    let _ = with_env(|env| {
+-        if let Ok(helper_class) = find_app_class(env, "dev.gpui.mobile.GpuiPlatformView") {
+-            let _ = env.call_static_method(
+-                &helper_class,
+-                jni::jni_str!("disposeAll"),
+-                jni::jni_sig!("()V"),
+-                &[],
+-            );
+-            env.exception_clear();
+-        }
+-        Ok(())
+-    });
+-}
++// dm(android-only): the pause, resume and disposal of Java platform views removed with them; and the
++// deep-link and media-session JNI entries below, whose packages are not in this copy.
+ 
+ /// Handle a single `MainEvent` from `android-activity`.
+ fn handle_main_event(_app: &AndroidApp, event: MainEvent<'_>) {
+@@ -1291,17 +1195,7 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
+ /// the IME back; see [`restore_keyboard`].
+ static SHOWN_KEYBOARD: std::sync::Mutex<Option<crate::KeyboardType>> = std::sync::Mutex::new(None);
+ 
+-/// Re-request the keyboard on the current Activity if one was showing.
+-///
+-/// Called by [`super::host`] once a recreated Activity's surface is attached. A fresh
+-/// IME session is started, which is what we want: the proxy is a new object.
+-pub(crate) fn restore_keyboard() {
+-    let keyboard_type = *SHOWN_KEYBOARD.lock().expect("poisoned");
+-    if let Some(keyboard_type) = keyboard_type {
+-        log::info!("restore_keyboard: re-showing {keyboard_type:?} on the new Activity");
+-        show_keyboard_android(keyboard_type);
+-    }
+-}
++// dm(android-only): `restore_keyboard`, called only by `host.rs`, removed with it.
+ 
+ /// Show the UI-thread EditText proxy supplied by GpuiInputActivity.
+ ///
+@@ -1427,91 +1321,6 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
+     }
+ }
+ 
+-/// JNI bridge: receive a deeplink URL from `GpuiActivity.onNewIntent()`.
+-///
+-/// When the app is already running and a deeplink is opened (e.g. via
+-/// `adb shell am start -d gpui://video_player`), the Java side calls
+-/// this to notify the Rust deeplink handler.
+-///
+-/// # Safety
+-/// Must only be called from the JVM on a valid JNI thread with a valid `url` jobject.
+-#[unsafe(no_mangle)]
+-pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeOnDeepLink(
+-    _env: *mut std::ffi::c_void,
+-    _class: *mut std::ffi::c_void,
+-    url: *mut std::ffi::c_void,
+-) {
+-    // We already have a JVM attached on this thread (UI thread).
+-    // Use with_env to get a properly wrapped Env handle.
+-    let url_raw = url as jni::sys::jobject;
+-    let _ = with_env(|env| {
+-        let url_obj = unsafe { JObject::from_raw(env, url_raw) };
+-        let url_string = get_string(env, &url_obj);
+-        // Don't let the JObject be dropped (it's owned by the JNI call frame).
+-        if url_string.is_empty() {
+-            return Ok(());
+-        }
+-        log::info!("nativeOnDeepLink: {}", url_string);
+-
+-        #[cfg(feature = "deeplink")]
+-        {
+-            crate::packages::deeplink::notify_deep_link(&url_string);
+-        }
+-        Ok(())
+-    });
+-}
+-
+-/// JNI bridge: receive a media action from `GpuiMediaSession` system controls.
+-///
+-/// Actions: "play", "pause", "stop", "next", "previous"
+-///
+-/// # Safety
+-/// Must only be called from the JVM on a valid JNI thread with a valid `action` jobject.
+-#[cfg(feature = "media_session")]
+-#[unsafe(no_mangle)]
+-pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiMediaSession_nativeMediaAction(
+-    _env: *mut std::ffi::c_void,
+-    _class: *mut std::ffi::c_void,
+-    action: *mut std::ffi::c_void,
+-) {
+-    let action_raw = action as jni::sys::jobject;
+-    let _ = with_env(|env| {
+-        let action_obj = unsafe { JObject::from_raw(env, action_raw) };
+-        let action_str = get_string(env, &action_obj);
+-
+-        let media_action = match action_str.as_str() {
+-            "play" => crate::packages::media_session::MediaAction::Play,
+-            "pause" => crate::packages::media_session::MediaAction::Pause,
+-            "stop" => crate::packages::media_session::MediaAction::Stop,
+-            "next" => crate::packages::media_session::MediaAction::Next,
+-            "previous" => crate::packages::media_session::MediaAction::Previous,
+-            other => {
+-                log::warn!("nativeMediaAction: unknown action '{}'", other);
+-                return Ok(());
+-            }
+-        };
+-
+-        log::info!("nativeMediaAction: {:?}", media_action);
+-        crate::packages::media_session::notify_action(media_action);
+-        Ok(())
+-    });
+-}
+-
+-/// JNI bridge: receive a seek request from `GpuiMediaSession` system controls.
+-///
+-/// # Safety
+-/// Must only be called from the JVM on a valid JNI thread.
+-#[cfg(feature = "media_session")]
+-#[unsafe(no_mangle)]
+-pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiMediaSession_nativeMediaSeek(
+-    _env: *mut std::ffi::c_void,
+-    _class: *mut std::ffi::c_void,
+-    position_ms: i64,
+-) {
+-    log::info!("nativeMediaSeek: {}ms", position_ms);
+-    crate::packages::media_session::notify_seek(position_ms as u64);
+-}
+-
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+diff --git a/src/android/mod.rs b/src/android/mod.rs
+index 1811cc4..847c569 100644
+--- a/src/android/mod.rs
++++ b/src/android/mod.rs
+@@ -153,11 +153,11 @@ pub mod dispatcher;
+ pub mod display;
+ mod document_picker;
+ pub(crate) mod frame_source;
+-pub mod host;
++// dm(android-only): `host` (a Java `SurfaceView` host, the other entry) and `platform_view` (Java views
++// over the surface) removed: dm starts through android-activity alone and shows no Java views.
+ pub mod jni;
+ pub mod keyboard;
+ pub mod platform;
+-pub mod platform_view;
+ mod text_input;
+ pub mod window;
+ 
+diff --git a/src/android/platform.rs b/src/android/platform.rs
+index 0cdea3a..cd8e785 100644
+--- a/src/android/platform.rs
++++ b/src/android/platform.rs
+@@ -991,6 +991,18 @@ impl Platform for AndroidPlatform {
+         Some(Rc::new(AndroidGestures))
+     }
+ 
++    // dm(port-0312): `platform_info` is new in 0.3.12: Android, a native app.
++    fn platform_info(&self) -> gpui::PlatformInfo {
++        gpui::PlatformInfo {
++            os: gpui::OperatingSystem::Android,
++            target: gpui::PlatformTarget::Native,
++        }
++    }
++
++    // dm(port-0312): `on_displays_changed` is new in 0.3.12. A phone has its one display; a
++    // rotation or a fold reaches GPUI as the window's resize, so this is never called.
++    fn on_displays_changed(&self, _callback: Box<dyn FnMut()>) {}
++
+     fn background_executor(&self) -> BackgroundExecutor {
+         let dispatcher: Arc<dyn gpui::PlatformDispatcher> = self.state.lock().dispatcher.clone();
+         BackgroundExecutor::new(dispatcher)
+@@ -1343,6 +1355,13 @@ impl Platform for SharedPlatform {
+     fn gestures(&self) -> Option<Rc<dyn PlatformGestures>> {
+         <AndroidPlatform as Platform>::gestures(&self.0)
+     }
++    // dm(port-0312): the two calls new in 0.3.12, routed as the others are.
++    fn platform_info(&self) -> gpui::PlatformInfo {
++        <AndroidPlatform as Platform>::platform_info(&self.0)
++    }
++    fn on_displays_changed(&self, callback: Box<dyn FnMut()>) {
++        <AndroidPlatform as Platform>::on_displays_changed(&self.0, callback)
++    }
+     fn background_executor(&self) -> BackgroundExecutor {
+         <AndroidPlatform as Platform>::background_executor(&self.0)
+     }
+diff --git a/src/android/window.rs b/src/android/window.rs
+index efd697a..cf625da 100644
+--- a/src/android/window.rs
++++ b/src/android/window.rs
+@@ -1032,7 +1032,8 @@ impl AndroidWindow {
+     /// Returns GPU specs from the renderer, if available.
+     pub fn gpu_specs(&self) -> Option<GpuSpecs> {
+         let state = self.state.lock();
+-        state.renderer.as_ref().map(|r| r.gpu_specs())
++        // dm(port-0312): the renderer's `gpu_specs` is an `Option` in 0.3.12.
++        state.renderer.as_ref().and_then(|r| r.gpu_specs())
+     }
+ 
+     /// Whether the window is currently active / visible.
+@@ -1415,6 +1416,9 @@ impl PlatformWindow for AndroidPlatformWindow {
+             cb(RequestFrameOptions {
+                 require_presentation: false,
+                 force_render: text_dirty || surface_new,
++                // dm(port-0312): 0.3.12's frame-request timestamp and its source, which only
++                // GPUI's `profiler` feature reads: none taken, a vsync callback's by default.
++                ..Default::default()
+             });
+         });
+     }
+@@ -1610,6 +1614,10 @@ impl PlatformWindow for AndroidPlatformWindow {
+         // Android windows don't move — they're always fullscreen.
+     }
+ 
++    // dm(port-0312): `on_display_changed` is new in 0.3.12; the window never leaves the
++    // phone's one display.
++    fn on_display_changed(&self, _callback: Box<dyn FnMut()>) {}
++
+     fn on_should_close(&self, _callback: Box<dyn FnMut() -> bool>) {
+         // Android app lifecycle is managed by the system.
+     }
+diff --git a/src/lib.rs b/src/lib.rs
+index 635285f..b7b5fd5 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,38 +1,13 @@
+-//! GPUI Mobile Platform Support
++//! GPUI's Android platform, from gpui-mobile
++//! (<https://github.com/itsbalamurali/gpui-mobile>, commit
++//! `5fd54f4554263ae06753e90472c7f2e2ff5d7495`), taken by dm under GPL-3.0-or-later.
+ //!
+-//! This crate provides mobile platform support for GPUI, enabling GPUI applications
+-//! to run on iOS and Android devices with native performance.
+-//!
+-//! ## Platform Architecture
+-//!
+-//! The crate mirrors the structure used by `gpui_linux`:
+-//! - A thin top-level `current_platform()` dispatcher that selects the right backend
+-//! - An `ios` module for the iOS platform (Metal renderer via `gpui_wgpu`, UIKit, CoreText)
+-//! - An `android` module for the Android platform (Vulkan renderer via `gpui_wgpu`, NDK)
+-//!
+-//! ## Integration with GPUI
+-//!
+-//! This crate depends on the `gpui-pre` snapshot (imported as `gpui`) for all
+-//! core types: `Platform`, `PlatformWindow`, `PlatformDisplay`, `Pixels`,
+-//! `DevicePixels`, `Size`, `Point`, `Bounds`, event types, text system traits,
+-//! etc. It also depends on `gpui-pre-wgpu` for the GPU renderer (`WgpuRenderer`)
+-//! and text system (`CosmicTextSystem`) on both platforms.
+-//!
+-//! ## iOS
+-//!
+-//! The iOS implementation uses UIKit for windowing and `gpui_wgpu` for Metal
+-//! rendering.  Key modules:
+-//!
+-//! - `platform`   — `IosPlatform` implementing the GPUI `Platform` trait
+-//! - `window`     — `IosWindow` backed by `UIWindow` + `CAMetalLayer` + `gpui_wgpu`
+-//! - `display`    — `IosDisplay` wrapping `UIScreen`
+-//! - `dispatcher` — `IosDispatcher` using Grand Central Dispatch
+-//! - `events`     — Touch-to-mouse event translation
+-//! - `ffi`        — C-ABI bridge for Objective-C app-delegate integration
+-//! - `text_input` — External-keyboard HID key-code mapping
+-//! - `text_system`— CoreText-based text shaping (requires `font-kit` feature)
+-//!
+-//! ## Android
++//! dm(android-only): gpui-mobile's Android platform alone. Its iOS platform, components, packages
++//! (Flutter-style plugins), platform views (Java views over the GPUI surface), host-driven
++//! `SurfaceView` entry (`android/host.rs`) and the iOS frame demand are removed; what
++//! remains is the `android` module, the soft-keyboard and system-chrome calls below, and
++//! the touch helpers (`fling_guard`, `frame_pacer`, `momentum`). dm's changes are marked
++//! `dm(<tag>):`, each tag a row of the table in `desktop/vendor/README.md` (gaps row N16).
+ //!
+ //! The Android implementation uses the NDK for windowing and `gpui_wgpu` for
+ //! Vulkan rendering.  Key modules:
+@@ -42,28 +17,7 @@
+ //! - `display`    — `AndroidDisplay` wrapping NDK display info
+ //! - `dispatcher` — `AndroidDispatcher` using `ALooper` + thread pool
+ //! - `keyboard`   — Android NDK key code → GPUI `Keystroke` mapping
+-//! - `jni`        — `ANativeActivity_onCreate` / JNI entry points + event loop
+-//!
+-//! ## Example — iOS
+-//!
+-//! ```rust,no_run
+-//! # #[cfg(target_os = "ios")]
+-//! # {
+-//! use gpui_mobile::current_platform;
+-//! let platform = current_platform(false);
+-//! // Hand `platform` to GPUI's Application initialiser.
+-//! # }
+-//! ```
+-//!
+-//! ## Example — Android
+-//!
+-//! ```rust,no_run
+-//! # #[cfg(target_os = "android")]
+-//! # {
+-//! use gpui_mobile::current_platform;
+-//! let platform = current_platform(false);
+-//! # }
+-//! ```
++//! - `jni`        — `android_main` support, JNI entry points + event loop
+ 
+ // ── Re-export the gpui crate so consumers can access types through us ────────
+ 
+@@ -71,17 +25,11 @@ pub use gpui;
+ 
+ // ── shared modules ───────────────────────────────────────────────────────────
+ 
+-pub mod components;
+-#[cfg_attr(not(any(target_os = "ios", target_os = "android")), allow(dead_code))]
++#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+ pub(crate) mod fling_guard;
+-#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+-pub(crate) mod frame_demand;
+ #[cfg_attr(not(target_os = "android"), allow(dead_code))]
+ pub(crate) mod frame_pacer;
+ pub mod momentum;
+-pub mod packages;
+-pub mod platform_view;
+-pub mod target_platform;
+ 
+ // ── System chrome (status bar / navigation bar) styling ──────────────────────
+ 
+@@ -128,15 +76,11 @@ impl Default for SystemChromeStyle {
+ ///
+ /// On unsupported platforms this is a no-op.
+ pub fn set_system_chrome(style: &SystemChromeStyle) {
+-    #[cfg(target_os = "ios")]
+-    {
+-        ios::set_status_bar_style(style.status_bar_style);
+-    }
+     #[cfg(target_os = "android")]
+     {
+         android::jni::set_system_chrome(style);
+     }
+-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
++    #[cfg(not(target_os = "android"))]
+     {
+         let _ = style;
+     }
+@@ -163,8 +107,6 @@ pub static TEXT_INPUT_DIRTY: AtomicBool = AtomicBool::new(false);
+ /// to be woken, since typing does not go through GPUI's invalidator.
+ pub(crate) fn mark_text_input_dirty() {
+     TEXT_INPUT_DIRTY.store(true, Ordering::Release);
+-    #[cfg(target_os = "ios")]
+-    ios::ffi::wake_windows();
+     #[cfg(target_os = "android")]
+     android::frame_source::wake();
+ }
+@@ -187,7 +129,7 @@ pub fn set_text_input_callback(callback: Option<TextInputCallbackFn>) {
+ 
+ /// Whether a software keyboard text callback is registered. A callback that
+ /// is currently being invoked counts as registered.
+-#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
++#[allow(dead_code)]
+ pub(crate) fn has_text_input_callback() -> bool {
+     TEXT_INPUT_CALLBACK.with(|cb| cb.try_borrow().map_or(true, |cb| cb.is_some()))
+ }
+@@ -247,22 +189,11 @@ pub fn show_keyboard() {
+ /// appropriate input type.
+ /// On unsupported platforms this is a no-op.
+ pub fn show_keyboard_with_type(keyboard_type: KeyboardType) {
+-    #[cfg(target_os = "ios")]
+-    {
+-        if let Some(wrapper) = ios::ffi::IOS_WINDOW_LIST.get() {
+-            unsafe {
+-                let windows = &*wrapper.0.get();
+-                if let Some(&window) = windows.last() {
+-                    (*window).show_keyboard_with_type(keyboard_type);
+-                }
+-            }
+-        }
+-    }
+     #[cfg(target_os = "android")]
+     {
+         android::jni::show_keyboard_android(keyboard_type);
+     }
+-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
++    #[cfg(not(target_os = "android"))]
+     {
+         let _ = keyboard_type;
+     }
+@@ -274,22 +205,11 @@ pub fn show_keyboard_with_type(keyboard_type: KeyboardType) {
+ /// On Android this closes the input method editor.
+ /// On unsupported platforms this is a no-op.
+ pub fn hide_keyboard() {
+-    #[cfg(target_os = "ios")]
+-    {
+-        if let Some(wrapper) = ios::ffi::IOS_WINDOW_LIST.get() {
+-            unsafe {
+-                let windows = &*wrapper.0.get();
+-                if let Some(&window) = windows.last() {
+-                    (*window).hide_keyboard();
+-                }
+-            }
+-        }
+-    }
+     #[cfg(target_os = "android")]
+     {
+         android::jni::hide_keyboard_android();
+     }
+-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
++    #[cfg(not(target_os = "android"))]
+     {}
+ }
+ 
+@@ -328,40 +248,19 @@ pub fn set_keyboard_height(height: f32) {
+ /// On Android use the `AndroidWindow::safe_area_insets_logical()` method instead.
+ /// On unsupported platforms returns zeros.
+ pub fn safe_area_insets() -> (f32, f32, f32, f32) {
+-    #[cfg(target_os = "ios")]
+-    {
+-        if let Some(wrapper) = ios::ffi::IOS_WINDOW_LIST.get() {
+-            unsafe {
+-                let windows = &*wrapper.0.get();
+-                if let Some(&window) = windows.last() {
+-                    return (*window).safe_area_insets();
+-                }
+-            }
+-        }
+-    }
+-    #[cfg(not(target_os = "ios"))]
+-    {}
+     (0.0, 0.0, 0.0, 0.0)
+ }
+ 
+ // ── platform modules ─────────────────────────────────────────────────────────
+ 
+-#[cfg(target_os = "ios")]
+-pub mod ios;
+-
+ #[cfg(target_os = "android")]
+ pub mod android;
+ 
+ // ── public re-exports ────────────────────────────────────────────────────────
+ 
+-#[cfg(target_os = "ios")]
+-pub use ios::{current_platform, IosPlatform};
+-
+ #[cfg(target_os = "android")]
+ pub use android::{current_platform, AndroidPlatform};
+ 
+-pub use target_platform::{target_platform, TargetPlatform, DEFAULT_PLATFORM};
+-
+ // ── fallback for non-mobile host builds (e.g. documentation / CI) ────────────
+ 
+ /// Returns the platform implementation for the current mobile OS.
+@@ -371,7 +270,7 @@ pub use target_platform::{target_platform, TargetPlatform, DEFAULT_PLATFORM};
+ ///
+ /// When compiled for iOS, returns an `Rc<dyn gpui::Platform>` backed by `IosPlatform`.
+ /// When compiled for Android, returns an `Rc<dyn gpui::Platform>` backed by `AndroidPlatform`.
+-#[cfg(not(any(target_os = "ios", target_os = "android")))]
++#[cfg(not(target_os = "android"))]
+ pub fn current_platform(_headless: bool) -> ! {
+     panic!(
+         "gpui-mobile: `current_platform` is only available when compiled for \

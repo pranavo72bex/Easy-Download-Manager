@@ -371,8 +371,8 @@ const GUI: &[&str] = &[
     "gpui_platform",
     "gpui-component",
     "gpui-base",
-    // The phone's window (dm-android alone, gaps row N1).
-    "slint",
+    // GPUI's Android platform, dm's copy of gpui-mobile's (dm-android alone, gaps row N16).
+    "gpui-android",
 ];
 const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
 
@@ -474,8 +474,8 @@ fn layers() -> Result<(), String> {
                 false,
                 false,
             ),
-            // The phone's app (gaps rows N1, N3): the application's rules over the engine, under
-            // its own Slint window, so a window toolkit is allowed here.
+            // The phone's app (gaps rows N1, N3, N16): the application's rules over the engine,
+            // under a GPUI window on gpui-android, so a window toolkit is allowed here.
             "dm-android" => (&["dm-core", "dm-shell"], false, false),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),

@@ -1,12 +1,15 @@
 name: Android, the engine built
 
-# dm on Android, all in Rust (gaps rows N1, N2, N14): desktop/crates/dm-android is the
-# desktop's engine and its rules (dm-core, dm-net, dm-media, dm-torrent, dm-shell) under Slint
-# screens, with the phone's services through JNI. This keeps it building for the phone's two
+# dm on Android, all in Rust (gaps rows N1, N2, N14, N16): desktop/crates/dm-android is the
+# desktop's engine and its rules (dm-core, dm-net, dm-media, dm-torrent, dm-shell) under a GPUI
+# window on gpui-android (desktop/vendor/gpui-android, dm's copy of gpui-mobile's Android
+# platform), with the phone's services through JNI. This keeps it building for the phone's two
 # kinds of processor, the ARM of phones (arm64-v8a) and the x86_64 of the emulator, with the
 # Android NDK the runner already carries, so a desktop change that breaks Android is seen
 # before it lands; runs dm-android's own tests on the runner itself; and packages the APK for
-# the emulator with cargo-apk (no Gradle), kept as the run's artifact (docs/android.md).
+# the emulator: libdm_android.so built by cargo-ndk, then the small Gradle project in
+# desktop/crates/dm-android/android (gpui-mobile's two Java classes, no Kotlin), kept as
+# the run's artifact (docs/android.md).
 on:
   push:
     branches: [main]
@@ -63,26 +66,30 @@ jobs:
         run: cargo ndk --platform 26 -t arm64-v8a -t x86_64 check -p dm-android --locked
       - name: dm-android's tests, on the runner
         run: cargo test -p dm-android --locked
-      # The APK (row N14): cargo-apk writes the manifest from dm-android's
-      # [package.metadata.android] and packs libdm_android.so with the SDK's aapt, zipalign and
-      # apksigner. Android 15's platform (target_sdk 35) and its build tools, from the runner's
-      # own SDK; Slint's Android backend compiles a small Java helper with the runner's javac.
+      # The APK (row N14). First the library, for the emulator (x86_64), put where Gradle packs
+      # it (app/src/main/jniLibs/x86_64/libdm_android.so).
+      - name: libdm_android.so, for the emulator (x86_64)
+        run: cargo ndk --platform 26 -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
+      # Android 15's platform (compileSdk 35) and its build tools, from the runner's own SDK.
       - name: Android 15's platform and build tools
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
-      - name: cargo-apk
-        run: cargo install cargo-apk --version 0.10.0 --locked
-      # Signed with a key made for this run alone: an APK to install on an emulator or a test
-      # phone, not a release (a release is signed with dm's own key, row N14).
-      - name: A key for this run
+      # Gradle itself, checked against the SHA-256 Gradle publishes, so no action of anyone
+      # else's runs; the runner's JDK 17 runs it (the Android Gradle plugin 8.7 needs 17).
+      - name: Gradle 8.14.3
+        env:
+          GRADLE_SHA256: bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531
         run: |
-          keytool -genkeypair -keystore "$RUNNER_TEMP/ci.keystore" -storepass android -keypass android \
-            -alias ci -keyalg RSA -keysize 2048 -validity 7 -dname "CN=dm CI"
-          echo "CARGO_APK_RELEASE_KEYSTORE=$RUNNER_TEMP/ci.keystore" >> "$GITHUB_ENV"
-          echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+          curl -sSfL https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -o "$RUNNER_TEMP/gradle.zip"
+          echo "$GRADLE_SHA256  $RUNNER_TEMP/gradle.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-8.14.3/bin" >> "$GITHUB_PATH"
+      # A debug APK, signed with the debug key Gradle makes for the run: an APK to install on an
+      # emulator or a test phone, not a release (a release is signed with dm's own key, N14).
       - name: The APK, for the emulator (x86_64)
-        run: cargo apk build -p dm-android --lib --release --target x86_64-linux-android
+        working-directory: desktop/crates/dm-android/android
+        run: gradle --no-daemon assembleDebug
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-android-x86_64-apk
-          path: desktop/target/release/apk/dm.apk
+          path: desktop/crates/dm-android/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

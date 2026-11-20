@@ -68,26 +68,8 @@ allow = [
     "NCSA",
 ]
 confidence-threshold = 0.9
-# Slint, the phone's window toolkit (dm-android, gaps rows N1, N7): each of its
-# crates is "GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR
-# LicenseRef-Slint-Software-3.0", and dm takes it under GPL-3.0-only, which a
-# GPL-3.0-or-later program may link (the APK is then distributed under GPL
-# version 3). Allowed for these crates by name rather than for everything, so
-# no other GPL-3.0-only crate comes in unseen.
-exceptions = [
-    { name = "slint", allow = ["GPL-3.0-only"] },
-    { name = "slint-macros", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-backend-android-activity", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-backend-selector", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-backend-testing", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-backend-winit", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-common", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-compiler", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-core", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-core-macros", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-renderer-skia", allow = ["GPL-3.0-only"] },
-    { name = "i-slint-renderer-software", allow = ["GPL-3.0-only"] },
-]
+# No exceptions: nothing dm links is under a licence the list above lacks.
+exceptions = []
 
 [licenses.private]
 # dm's own crates are not published; their licence is the repository's.

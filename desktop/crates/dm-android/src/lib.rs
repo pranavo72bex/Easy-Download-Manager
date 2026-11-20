@@ -5,14 +5,15 @@
 
 //! dm on Android, all in Rust (gaps rows N1, N3): the desktop's engine and the application's
 //! rules, the same `Backend` the desktop's window and the headless run drive, under the phone's
-//! Slint window (`app`). Nothing a download does is written here: each call is one of
+//! GPUI window (`app`, on gpui-android: gaps row N16). Nothing a download does is written here: each call is one of
 //! `Backend`'s, so a feature works on the phone as it does on the desktop, and a fix to it is
 //! made once.
 //!
 //! What the phone does for the engine (a notification, the clipboard, opening a file) is asked
 //! through [`AndroidSystem`], which `system.rs` turns into dm-shell's `Platform`; on a phone
-//! `android/` answers it through JNI and starts everything from `android_main`, and on a
-//! computer `src/main.rs` runs the same window at a phone's size.
+//! `android/` answers it through JNI and starts everything from `android_main`; on a computer
+//! the crate's tests drive the same engine (the phone's window on a computer is dm-gpui's own,
+//! narrowed: gaps rows N7, N17).
 
 #![cfg_attr(
     not(test),
@@ -62,7 +63,7 @@ pub struct Added {
 
 /// dm's engine, running for as long as this object lives: the queue, the settings in force and
 /// the runtime every download runs on. `android_main` makes one at start (on a computer,
-/// `src/main.rs`), and every screen asks it.
+/// the tests), and every screen asks it.
 pub struct Engine {
     backend: Backend,
     /// Kept for as long as dm runs; dropped last (fields drop in order), after the backend has
@@ -306,7 +307,7 @@ impl Drop for Engine {
     }
 }
 
-/// A count as the screens show it: Slint's numbers are 32-bit.
+/// A count as the screens show it, in 32 bits as the JNI side takes it.
 fn count(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)
 }

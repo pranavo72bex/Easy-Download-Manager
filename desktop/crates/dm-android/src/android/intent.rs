@@ -9,10 +9,11 @@
 //! or why not.
 //!
 //! Each intent is taken once: after reading it dm puts an empty intent in its place
-//! (`setIntent`), so a resume does not add it again. NativeActivity does not take a new intent
-//! for its own (`onNewIntent` is not passed to native code and `getIntent` keeps the first), so
-//! a link shared while dm is already open reaches it only when Android starts the activity anew;
-//! a Java `onNewIntent` is the same question as N6's service (docs/gaps.md).
+//! (`setIntent`), so a resume (the window active again, `app::open`'s `resumed`) does not add it
+//! again. NativeActivity does not take a new intent for its own (`onNewIntent` is not passed to
+//! native code and `getIntent` keeps the first), so a link shared while dm is already open
+//! reaches it only when Android starts the activity anew; a Java `onNewIntent` is the same
+//! question as N6's service (docs/gaps.md).
 
 use std::path::Path;
 

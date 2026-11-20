@@ -3,109 +3,127 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The phone's window, drawn with Slint, the same on a phone and on a computer (`src/main.rs`).
-//! For now a placeholder that shows dm is running and how many rows its list has: the screens
-//! (gaps row N7: the list, a row's details, Add, Options) replace [`run`]'s window, keeping its
-//! signature, and [`refresh`] stays the one way the engine asks for a redraw.
+//! The phone's window, drawn with GPUI, the desktop's toolkit (docs/decisions.md, "dm on
+//! Android with GPUI"). For now gpui-android's first milestone (gaps row N16): a square in dm's
+//! blue, "dm", and how many rows the engine's list has, drawn again whenever the engine says
+//! the list changed. The view is plain GPUI, checked on the host too; only `android_main`
+//! (`android.rs`) puts it on the phone's platform.
+//!
+//! N17 replaces [`Shell`] with dm-gpui's own window (`dm_gpui::window::screen::open_main_window`
+//! and the narrow layout of N7), opened in [`open`]'s place over the same [`Engine`]; [`refresh`]
+//! stays the one way the engine asks for a redraw.
 
-use std::cell::RefCell;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::rc::Rc;
+use std::sync::{Arc, OnceLock};
 
-use slint::ComponentHandle;
+use gpui::{
+    div, px, rgb, App, AppContext, Context, IntoElement, ParentElement, Render, Styled, Window,
+    WindowOptions,
+};
 
 use crate::{Engine, RowState};
 
-/// The window's Slint component, private to this module: what is public is [`run`].
-mod ui {
-    slint::slint! {
-        #[edition = "1.19"]
-        export component Shell inherits Window {
-            in property <string> heading: "dm";
-            in property <string> line;
-            title: "dm";
-            preferred-width: 412px;
-            preferred-height: 915px;
-            VerticalLayout {
-                padding: 24px;
-                spacing: 12px;
-                alignment: start;
-                Text {
-                    text: root.heading;
-                    font-size: 32px;
-                }
-                Text {
-                    text: root.line;
-                    font-size: 18px;
-                    wrap: word-wrap;
-                }
-            }
-        }
+/// The window's wake-up: the engine's threads send on it, the window's task draws again.
+/// Bounded at one: a burst of changes makes one redraw.
+static CHANGED: OnceLock<async_channel::Sender<()>> = OnceLock::new();
+
+/// dm's blue, the square's colour.
+const BLUE: u32 = 0x1e88e5;
+
+/// The placeholder window's view: what it shows.
+pub struct Shell {
+    shown: Shown,
+}
+
+/// What the placeholder shows: the engine's list, or why dm could not start.
+enum Shown {
+    Engine(Arc<Engine>),
+    Failed(String),
+}
+
+impl Render for Shell {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let (heading, line) = match &self.shown {
+            Shown::Engine(engine) => ("dm", count_line(engine)),
+            Shown::Failed(why) => ("dm could not start", why.clone()),
+        };
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .gap(px(12.))
+            .p(px(24.))
+            .bg(rgb(0xffffff))
+            .text_color(rgb(0x1b1b1f))
+            .child(div().size(px(48.)).rounded(px(8.)).bg(rgb(BLUE)))
+            .child(div().text_size(px(32.)).child(heading))
+            .child(div().text_size(px(18.)).child(line))
     }
 }
 
-use ui::Shell;
-
-thread_local! {
-    /// The window's redraw, on the window's thread, while [`run`] runs.
-    static REDRAW: RefCell<Option<Box<dyn Fn()>>> = RefCell::new(None);
+/// Opens the window over `engine`, filling the phone's screen; called in the application's
+/// launch (`gpui::Application::run`). `resumed` is called each time the window becomes active
+/// again (the activity resumed: a link may have been shared meanwhile). Where it fails the
+/// error says why, in dm's words.
+pub fn open(
+    engine: Arc<Engine>,
+    resumed: Option<Rc<dyn Fn()>>,
+    cx: &mut App,
+) -> Result<(), String> {
+    let (sender, receiver) = async_channel::bounded::<()>(1);
+    // A second open (android_main run again in the same process) keeps the first sender, whose
+    // receiver is gone: its sends then fail and are let go, as before a window exists.
+    let _ = CHANGED.set(sender);
+    cx.open_window(WindowOptions::default(), move |window, cx| {
+        cx.new(|cx| {
+            cx.spawn(async move |this, cx| {
+                while receiver.recv().await.is_ok() {
+                    if this.update(cx, |_, cx| cx.notify()).is_err() {
+                        break;
+                    }
+                }
+            })
+            .detach();
+            if let Some(resumed) = resumed {
+                cx.observe_window_activation(window, move |_, window, _| {
+                    if window.is_window_active() {
+                        resumed();
+                    }
+                })
+                .detach();
+            }
+            Shell {
+                shown: Shown::Engine(engine),
+            }
+        })
+    })
+    .map(|_| ())
+    .map_err(|e| format!("dm could not open its window: {e}"))
 }
 
-/// A redraw has been asked for and not yet made: a burst of changes from the engine's threads
-/// makes one.
-static PENDING: AtomicBool = AtomicBool::new(false);
-
-/// Opens the window over `engine` and runs it until it is closed (on a phone, until the
-/// activity is). Slint's platform must already be chosen: `slint::android::init` on a phone;
-/// on a computer, Slint's own default.
-pub fn run(engine: Arc<Engine>) -> Result<(), String> {
-    let window = Shell::new().map_err(|e| format!("dm could not open its window: {e}"))?;
-    let weak = window.as_weak();
-    let show = move || {
-        if let Some(window) = weak.upgrade() {
-            window.set_line(count_line(&engine).into());
-        }
-    };
-    show();
-    REDRAW.with(|redraw| *redraw.borrow_mut() = Some(Box::new(show)));
-    let ran = window
-        .run()
-        .map_err(|e| format!("dm's window stopped: {e}"));
-    REDRAW.with(|redraw| redraw.borrow_mut().take());
-    ran
-}
-
-/// A window saying why dm could not start, until it is closed.
-pub fn failed(why: &str) -> Result<(), String> {
-    let window = Shell::new().map_err(|e| format!("dm could not open its window: {e}"))?;
-    window.set_heading("dm could not start".into());
-    window.set_line(why.into());
-    window
-        .run()
-        .map_err(|e| format!("dm's window stopped: {e}"))
+/// A window saying why dm could not start.
+pub fn failed(why: &str, cx: &mut App) -> Result<(), String> {
+    let why = why.to_owned();
+    cx.open_window(WindowOptions::default(), move |_, cx| {
+        cx.new(|_| Shell {
+            shown: Shown::Failed(why),
+        })
+    })
+    .map(|_| ())
+    .map_err(|e| format!("dm could not open its window: {e}"))
 }
 
 /// Asks the window to draw the list again; called from any thread (the engine's
-/// `AndroidSystem::changed`). Asks made before the window runs, or after, are let go.
+/// `AndroidSystem::changed`). Asks made before the window is open, or after it closed, are let
+/// go.
 pub fn refresh() {
-    if PENDING.swap(true, Ordering::AcqRel) {
-        return;
-    }
-    let sent = slint::invoke_from_event_loop(|| {
-        PENDING.store(false, Ordering::Release);
-        REDRAW.with(|redraw| {
-            if let Some(show) = &*redraw.borrow() {
-                show();
-            }
-        });
-    });
-    if sent.is_err() {
-        PENDING.store(false, Ordering::Release);
+    if let Some(changed) = CHANGED.get() {
+        let _ = changed.try_send(());
     }
 }
 
 /// The placeholder's one line: how many rows, and how many of them download now.
-fn count_line(engine: &Engine) -> String {
+pub fn count_line(engine: &Engine) -> String {
     let rows = engine.list();
     let running = rows
         .iter()

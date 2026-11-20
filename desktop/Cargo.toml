@@ -11,8 +11,9 @@ resolver = "2"
 # one lock file and one target folder for both sides, and `cargo test --workspace` tests its
 # deciding parts too (gaps row A15). Its manifest names this workspace (`package.workspace`).
 members = ["crates/dm-android", "crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-media", "crates/dm-net", "crates/dm-protocol", "crates/dm-safari", "crates/dm-shell", "crates/dm-test-support", "crates/dm-torrent", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
-# A patched copy, used through [patch.crates-io], not a member.
-exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
+# A patched copy, used through [patch.crates-io] (gpui-android, which crates.io has not, by its
+# path below), not a member.
+exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows", "vendor/gpui-android"]
 
 # Every dependency's version, once (gaps row X8): a crate names it with `x.workspace = true`
 # and adds its own features there; `cargo xtask layers` refuses a version written in a crate.
@@ -31,8 +32,13 @@ dm-shell = { path = "crates/dm-shell" }
 dm-torrent = { path = "crates/dm-torrent" }
 # Tests' alone: only ever a dev-dependency (gaps row X10).
 dm-test-support = { path = "crates/dm-test-support" }
+# GPUI's Android platform, dm's copy of gpui-mobile's (desktop/vendor/README.md, gaps row N16):
+# not on crates.io, so a path, as dm's own crates are.
+gpui-android = { path = "vendor/gpui-android" }
 
 # From crates.io (or patched below).
+# The phone's NativeActivity glue (dm-android's `android_main`), the version gpui-android uses.
+android-activity = { version = "0.6", features = ["native-activity"] }
 aes = "0.9.3"
 arboard = "3"
 async-channel = "2"
@@ -62,8 +68,8 @@ gpui-component = "=0.9.1"
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
 hyper = { version = "1", features = ["server", "http2"] }
 hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service", "http2"] }
-# The phone's calls into Android (dm-android, gaps rows N5, N6): the version Slint's Android
-# backend and android-activity already use, so one copy.
+# The phone's calls into Android (dm-android, gaps rows N5, N6): the version gpui-android and
+# android-activity already use, so one copy.
 jni = "0.22.4"
 js-sys = "0.3"
 libc = "0.2"
@@ -92,9 +98,6 @@ ring = "0.17"
 serde = "1"
 serde_json = "1"
 sha1 = "0.11"
-# The phone's window toolkit (dm-android, gaps rows N1, N7): GPL-3.0-only among its licences
-# (desktop/deny.toml). No default features: dm-android names a backend for each system.
-slint = { version = "1.19.0", default-features = false, features = ["std", "compat-1-2"] }
 sha2 = "0.11.0"
 symphonia-bundle-mp3 = "0.6.1"
 symphonia-codec-aac = "0.6.1"
