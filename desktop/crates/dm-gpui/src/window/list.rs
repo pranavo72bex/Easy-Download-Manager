@@ -653,6 +653,8 @@ impl Render for Downloads {
             // below stays solid.
             .bg(crate::window::theme::frame(theme.background))
             .text_color(theme.text)
+            // Mirrored for a language read right to left: text against the right (gaps row U35).
+            .when(crate::window::mirror::rtl(), |root| root.text_right())
             // The system's size for a list's rows and every control.
             .text_size(crate::window::zoom::px(crate::widgets::native::TEXT))
             .child(crate::window::titlebar::titlebar(

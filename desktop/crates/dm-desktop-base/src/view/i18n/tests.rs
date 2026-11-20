@@ -339,6 +339,34 @@ fn a_count_takes_the_form_its_language_gives_it() {
     assert_eq!(form("en", 7), 1);
 }
 
+/// Arabic and Hebrew read right to left, and the window with them (gaps row U35); every other
+/// language, and an unknown one, left to right. Each takes its own forms for a count: Arabic
+/// six (zero, one, two, few, many, other), Hebrew three (one, two, other).
+#[test]
+fn arabic_and_hebrew_read_right_to_left_with_their_own_forms() {
+    for code in ["ar", "he"] {
+        assert_eq!(Direction::of(code), Direction::RightToLeft, "{code}");
+        assert!(in_language(code, || direction().is_rtl()), "{code}");
+    }
+    for code in ["en", "de", "ja", "zh-CN", "xx", ""] {
+        assert_eq!(Direction::of(code), Direction::LeftToRight, "{code}");
+    }
+    assert!(!direction().is_rtl(), "English after them");
+    assert_eq!(
+        [0, 1, 2, 3, 10, 11, 99, 100, 102, 103, 111].map(|n| form("ar", n)),
+        [0, 1, 2, 3, 3, 4, 4, 5, 5, 3, 4]
+    );
+    assert_eq!([1, 2, 3, 10, 20].map(|n| form("he", n)), [0, 1, 2, 2, 2]);
+    let added = "Added {} download.||Added {} downloads.";
+    in_language("ar", || {
+        for n in [0, 1, 2, 5, 11, 100] {
+            let said = tn(added, n, &[&n]);
+            assert!(said.contains(&n.to_string()), "ar {n}: {said:?}");
+            assert_ne!(said, format!("Added {n} downloads."), "ar {n}");
+        }
+    });
+}
+
 #[test]
 fn a_file_called_like_a_built_in_name_is_shown_as_it_is() {
     let said = Said::new("Found {}.", &[&"Videos"]);

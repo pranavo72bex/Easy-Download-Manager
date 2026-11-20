@@ -44,6 +44,10 @@ pub(super) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
         .h(px(3.0))
         .rounded_full()
         .bg(theme.separator)
+        // Filled from the right where the window is mirrored (gaps row U35).
+        .when(crate::window::mirror::rtl(), |track| {
+            track.flex().flex_row_reverse()
+        })
         .child(
             div()
                 .h_full()

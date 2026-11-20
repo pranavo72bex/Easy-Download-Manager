@@ -155,6 +155,8 @@ pub fn statusbar(
         .h(px(HEIGHT))
         .flex_none()
         .flex()
+        // Its parts from the right where the window is mirrored (gaps row U35).
+        .map(crate::window::mirror::row)
         .items_center()
         .gap_1()
         .px_3()
@@ -171,7 +173,13 @@ pub fn statusbar(
                     .id("undo")
                     .role(Role::Button)
                     .aria_label(t("Undo"))
-                    .ml_2()
+                    .map(|undo| {
+                        if crate::window::mirror::rtl() {
+                            undo.mr_2()
+                        } else {
+                            undo.ml_2()
+                        }
+                    })
                     // A button, not words in the line (gaps row U14).
                     .px_2()
                     .rounded_sm()
