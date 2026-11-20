@@ -57,6 +57,7 @@ offered to the crate's makers.
 | `trim` | The `[[example]]` targets and the test that read `resources/` left out with the files removed | librqbit | `Cargo.toml` 1, `src/session.rs` 1 | One crate on every system | dm's alone: upstream keeps those files |
 | `android-only` | gpui-mobile cut to its Android platform: the manifest written again (gpui-android, no feature flags), the iOS platform, components, packages, platform views and host-driven entry removed, and what called them | gpui-android | `Cargo.toml` 1, `src/lib.rs` 1, `src/android/mod.rs` 1, `src/android/jni.rs` 5 | Android's alone | dm's alone: upstream is all of gpui-mobile |
 | `port-0312` | Moved from gpui-pre 0.3.6 to dm's 0.3.12: `platform_info`, `on_displays_changed`, `refresh_interval`, `on_display_changed` (new in the traits), `gpu_specs` an `Option`, `RequestFrameOptions`' new fields | gpui-android | `Cargo.toml` 1, `src/android/platform.rs` 3, `src/android/display.rs` 1, `src/android/window.rs` 3 | The other copies are 0.3.12's own | not yet |
+| `android-stack` | GPUI's windows as a stack on the phone's one surface: the newest shown drawn over all of it, whatever size it asked for, and given the input; one closing uncovers the one below, drawn again in full; the status and navigation bars told as GPUI's safe area (`insets`); Back is Escape given to the window on top, then, where it did nothing with it, that window closed as its close button closes it, or, on the first window, the task sent to the background (`moveTaskToBack`) so downloads go on. Upstream gave every window the same surface, each taking its callbacks from the last, and Back was Escape alone | gpui-android | `src/stack.rs` (new) 1, `src/android/layers.rs` (new) 1, `src/android/window.rs` 17, `src/android/jni.rs` 1, `src/android/mod.rs` 1, `src/android/platform.rs` 1, `src/lib.rs` 1 | Android's alone: the desktops give each window a window of the system's | not yet |
 | `sha1` | `sha1-ring` backed by the pure-Rust sha1 and sha2 crates rather than aws-lc-rs | librqbit-sha1-wrapper | `Cargo.toml` 1, `src/lib.rs` 2 | One crate on every system | not yet |
 
 ## librqbit and its SHA-1 wrapper (gaps row P3)
@@ -300,4 +301,31 @@ commit or snapshot: change the commit and SHA-256 in `xtask/src/vendor.rs`
 gpui-android`, mend what `git apply` or the build refuses, and write the
 patch again as the `git diff` from the trimmed archive to the mended copy,
 keeping the text at its head.
+
+Windows as a stack on the one surface (`dm(android-stack)`, gaps row N16): a
+phone shows one screen and NativeActivity gives the app one `ANativeWindow`;
+upstream handed that same surface to every window GPUI opened, each
+registering its callbacks in place of the last, so the newest took the
+frames and the input and, once it closed, nothing drew the one under it
+again. Each window (`AndroidPlatformWindow`) now keeps its callbacks in a
+layer of a stack (`src/stack.rs`, plain logic with its tests, run on any
+machine with `rustc --edition 2021 --test src/stack.rs`; `src/android/layers.rs`
+the forwarders): frames, touches and keys go to the window on top; size,
+appearance and visibility to every window; active status true to the top
+alone, told at the next frame, outside GPUI's own update. A window GPUI
+drops leaves the stack; where it was on top, the one below is drawn again in
+full at the next frame. Every window is the surface's size whatever it asked
+for (as before), and `insets` tells the status and navigation bars as GPUI's
+safe area, which a view keeps its controls out of. Back (on its release) is
+Escape pressed and released in the window on top, as the keyboard's mapping
+already gave it, so a dialog's own Escape (its Cancel) closes it and the
+app's in-window overlays close first; where the window did nothing with it
+(GPUI's result says the key went on, and the window on top is unchanged),
+the window is closed as its close button closes it (`on_should_close` asked
+first), and with only the first window left the task goes to the background
+(`Activity.moveTaskToBack(true)`), not finished, so downloads go on. The
+patch was written again on 2026-11-20 without the network, by the method
+above: the trimmed archive made again by reversing the previous patch on
+the copy (that patch then made again from it byte for byte), and the new
+patch the `git diff` from it to the copy, checked to make the copy exactly.
 

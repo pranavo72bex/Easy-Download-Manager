@@ -1254,6 +1254,27 @@ pub fn hide_keyboard_android() {
     }
 }
 
+/// dm(android-stack): Back on the first window with nothing to close: the task to the background
+/// (`Activity.moveTaskToBack(true)`), as Android's Back leaves an app's first screen, rather than
+/// the activity finished, so the app's work goes on.
+pub(super) fn move_task_to_back() {
+    let moved = with_env(|env| {
+        let activity = activity(env)?;
+        let result = env.call_method(
+            &activity,
+            jni::jni_str!("moveTaskToBack"),
+            jni::jni_sig!("(Z)Z"),
+            &[JValue::Bool(true)],
+        );
+        env.exception_clear();
+        result.map_err(|e| e.to_string())?;
+        Ok(())
+    });
+    if let Err(why) = moved {
+        log::warn!("moveTaskToBack failed: {why}");
+    }
+}
+
 pub(super) fn reset_keyboard_composition() {
     let session = super::text_input::new_session();
     let _ = with_env(|env| {

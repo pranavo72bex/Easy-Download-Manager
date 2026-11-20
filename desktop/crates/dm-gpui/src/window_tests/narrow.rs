@@ -138,6 +138,36 @@ fn the_drawer_shows_the_categories_and_queues() {
     assert!(!h.shows("Unfinished"), "{:?}", h.texts());
 }
 
+/// Escape (a phone's Back, gaps row N16) closes what the phone's layout holds over the
+/// cards: a submenu walked into goes back to the overflow menu, then the sheet closes, then
+/// the drawer; with nothing open the cards stay as they are.
+#[test]
+fn escape_closes_the_sheet_and_the_drawer_one_step_at_a_time() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.until_shown("Menu");
+    h.person_click("Menu", 1);
+    h.until_shown("Downloads");
+    h.person_click("Downloads", 1);
+    h.until_shown("Resume all");
+    h.key("escape", &[]);
+    h.until("back to the overflow menu", |h| {
+        h.view(|view| view.layout.narrow.sheet.is_some()) && h.shows("Tasks")
+    });
+    h.key("escape", &[]);
+    h.until("the sheet closed", |h| {
+        h.view(|view| view.layout.narrow.sheet.is_none())
+    });
+    h.person_click("Places", 1);
+    h.until_shown("Unfinished");
+    h.key("escape", &[]);
+    h.until("the drawer closed", |h| {
+        h.view(|view| view.layout.narrow.drawer.is_none())
+    });
+    assert!(!h.shows("Unfinished"), "{:?}", h.texts());
+}
+
 /// At the least width the desktop window had (640 points) and down to the breakpoint, the
 /// window is the desktop's: the menus' titles and the toolbar, no phone's top bar; under it,
 /// the phone's.

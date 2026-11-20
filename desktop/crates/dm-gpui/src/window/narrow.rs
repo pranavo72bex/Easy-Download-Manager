@@ -171,6 +171,20 @@ impl Downloads {
         window.focus(&self.focus, cx);
     }
 
+    /// Escape in the phone's layout (a phone's Back is Escape given to the window on top, gaps
+    /// row N16): a submenu walked into in the sheet goes back to the menu it opened from, else
+    /// the sheet closes, else the drawer. True where one of them did.
+    pub(crate) fn narrow_back(&mut self) -> bool {
+        let narrow = &mut self.layout.narrow;
+        if let Some(sheet) = narrow.sheet.as_mut() {
+            if !sheet.back() {
+                narrow.sheet = None;
+            }
+            return true;
+        }
+        narrow.drawer.take().is_some()
+    }
+
     /// The top bar's Places: the drawer opened, or closed where open.
     pub(crate) fn toggle_drawer(&mut self, cx: &mut Context<Self>) {
         self.layout.narrow.sheet = None;

@@ -40,6 +40,15 @@ impl Sheet {
     fn shown(&self) -> Option<&OwnedMenu> {
         self.pages.last()
     }
+
+    /// Back to the menu the submenu shown opened from; false on the sheet's first menu.
+    pub(crate) fn back(&mut self) -> bool {
+        if self.pages.len() < 2 {
+            return false;
+        }
+        self.pages.pop();
+        true
+    }
 }
 
 /// The overflow menu: the toolbar's buttons as the person keeps them (their words as the

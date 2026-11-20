@@ -1013,6 +1013,13 @@ impl AndroidWindow {
         state.safe_area_insets = insets;
     }
 
+    /// dm(android-stack): the next frame drawn in full, as after a surface swap: a window
+    /// uncovered on the stack (`layers.rs`) has another window's last frame on the surface.
+    pub(crate) fn repaint_in_full(&self) {
+        self.force_render_once
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
+
     // ── state queries ─────────────────────────────────────────────────────────
 
     /// Whether the window currently has an active wgpu surface.
@@ -1191,23 +1198,51 @@ pub struct AndroidPlatformWindow {
     ime_input_callback:
         Arc<Mutex<Box<dyn FnMut(gpui::PlatformInput) -> DispatchEventResult + Send>>>,
     title: String,
+    // dm(android-stack): this window's place on the surface's stack of windows and the
+    // callbacks it registered, which the surface's forwarders call (`layers.rs`).
+    id: u64,
+    layer: Rc<super::layers::Layer>,
 }
 
 impl AndroidPlatformWindow {
     /// Create a new `AndroidPlatformWindow` wrapping an existing `AndroidWindow`.
     pub fn new(window: Arc<AndroidWindow>, display: Option<Rc<dyn PlatformDisplay>>) -> Self {
+        Self::opened(window, display, true)
+    }
+
+    /// dm(android-stack): a window opened over the others on the one surface (under the shown
+    /// ones where GPUI opens it hidden, until it is activated), drawn over the whole surface
+    /// whatever size it asked for.
+    pub(crate) fn opened(
+        window: Arc<AndroidWindow>,
+        display: Option<Rc<dyn PlatformDisplay>>,
+        shown: bool,
+    ) -> Self {
+        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let layer = super::layers::open(&window, id, shown);
         Self {
             window,
             display,
             input_handler: Rc::new(RefCell::new(None)),
             ime_input_callback: Arc::new(Mutex::new(Box::new(|_| DispatchEventResult::default()))),
             title: String::new(),
+            id,
+            layer,
         }
     }
 
     /// Access the underlying `AndroidWindow`.
     pub fn inner(&self) -> &Arc<AndroidWindow> {
         &self.window
+    }
+}
+
+// dm(android-stack): GPUI drops a window it closes; it leaves the stack, and the window under
+// it, where it was on top, is drawn again.
+impl Drop for AndroidPlatformWindow {
+    fn drop(&mut self) {
+        super::layers::close(&self.window, self.id);
     }
 }
 
@@ -1258,7 +1293,8 @@ impl PlatformWindow for AndroidPlatformWindow {
     }
 
     fn visibility(&self) -> WindowVisibility {
-        if self.window.is_active() {
+        // dm(android-stack): a window under another on the stack is not seen.
+        if self.window.is_active() && super::layers::is_top(self.id) {
             WindowVisibility::Visible
         } else {
             WindowVisibility::Hidden
@@ -1272,6 +1308,22 @@ impl PlatformWindow for AndroidPlatformWindow {
 
     fn content_size(&self) -> gpui::Size<gpui::Pixels> {
         self.bounds().size
+    }
+
+    // dm(android-stack): every window covers the whole surface, under the status bar and the
+    // navigation bar (edge to edge); what they cover is told as GPUI's safe area, which a
+    // window's view keeps its controls out of (`Window::insets`, `fully_visible_bounds`).
+    fn insets(&self) -> gpui::WindowInsets {
+        let insets = self.window.safe_area_insets_logical();
+        gpui::WindowInsets {
+            safe_area: gpui::Edges {
+                top: gpui::px(insets.top),
+                right: gpui::px(insets.right),
+                bottom: gpui::px(insets.bottom),
+                left: gpui::px(insets.left),
+            },
+            ..Default::default()
+        }
     }
 
     fn resize(&mut self, _size: gpui::Size<gpui::Pixels>) {
@@ -1343,12 +1395,14 @@ impl PlatformWindow for AndroidPlatformWindow {
     }
 
     fn activate(&self) {
-        // Android windows are always "active" when in the foreground.
-        // The system manages window activation via the activity lifecycle.
+        // dm(android-stack): brought to the top of the stack, over the other windows; the
+        // activity itself is brought forward by the system.
+        super::layers::raise(&self.window, self.id);
     }
 
     fn is_active(&self) -> bool {
-        self.window.is_active()
+        // dm(android-stack): the window on top alone, while the app is in front.
+        self.window.is_active() && super::layers::is_top(self.id)
     }
 
     fn is_hovered(&self) -> bool {
@@ -1404,23 +1458,28 @@ impl PlatformWindow for AndroidPlatformWindow {
         let send_callback = Mutex::new(send_callback);
 
         let force_render_once = Arc::clone(&self.window.force_render_once);
-        self.window.on_request_frame(move || {
-            // Check if text input arrived since last frame — if so, force a
-            // render so drain_pending_text() runs and the UI updates.
-            let text_dirty =
-                crate::TEXT_INPUT_DIRTY.swap(false, std::sync::atomic::Ordering::AcqRel);
-            // A freshly attached surface has an empty swapchain; repaint in full.
-            let surface_new = force_render_once.swap(false, std::sync::atomic::Ordering::AcqRel);
+        // dm(android-stack): the window's own layer, which frames reach while it is on top.
+        super::layers::set(
+            &self.layer.frame,
+            Box::new(move || {
+                // Check if text input arrived since last frame — if so, force a
+                // render so drain_pending_text() runs and the UI updates.
+                let text_dirty =
+                    crate::TEXT_INPUT_DIRTY.swap(false, std::sync::atomic::Ordering::AcqRel);
+                // A freshly attached surface has an empty swapchain; repaint in full.
+                let surface_new =
+                    force_render_once.swap(false, std::sync::atomic::Ordering::AcqRel);
 
-            let mut cb = send_callback.lock();
-            cb(RequestFrameOptions {
-                require_presentation: false,
-                force_render: text_dirty || surface_new,
-                // dm(port-0312): 0.3.12's frame-request timestamp and its source, which only
-                // GPUI's `profiler` feature reads: none taken, a vsync callback's by default.
-                ..Default::default()
-            });
-        });
+                let mut cb = send_callback.lock();
+                cb(RequestFrameOptions {
+                    require_presentation: false,
+                    force_render: text_dirty || surface_new,
+                    // dm(port-0312): 0.3.12's frame-request timestamp and its source, which only
+                    // GPUI's `profiler` feature reads: none taken, a vsync callback's by default.
+                    ..Default::default()
+                });
+            }),
+        );
     }
 
     fn on_input(&self, callback: Box<dyn FnMut(gpui::PlatformInput) -> DispatchEventResult>) {
@@ -1463,99 +1522,108 @@ impl PlatformWindow for AndroidPlatformWindow {
             };
             let mut active_touches = HashMap::new();
             let mut fling_guard = crate::fling_guard::FlingGuard::new();
-            self.window.on_touch(move |touch| {
-                let phase = match touch.action {
-                    0 => gpui::TouchPhase::Started,
-                    1 => gpui::TouchPhase::Ended,
-                    2 => gpui::TouchPhase::Moved,
-                    3 => gpui::TouchPhase::Cancelled,
-                    _ => return,
-                };
-                let id = if phase == gpui::TouchPhase::Started {
-                    // Android pointer IDs are reused after release.
-                    let id = next_touch_id();
-                    active_touches.insert(touch.id, id);
-                    id
-                } else {
-                    let Some(id) = active_touches.get(&touch.id).copied() else {
+            // dm(android-stack): the window's own layer, which touches reach while it is on top.
+            super::layers::set(
+                &self.layer.touch,
+                Box::new(move |touch: TouchPoint| {
+                    let phase = match touch.action {
+                        0 => gpui::TouchPhase::Started,
+                        1 => gpui::TouchPhase::Ended,
+                        2 => gpui::TouchPhase::Moved,
+                        3 => gpui::TouchPhase::Cancelled,
+                        _ => return,
+                    };
+                    let id = if phase == gpui::TouchPhase::Started {
+                        // Android pointer IDs are reused after release.
+                        let id = next_touch_id();
+                        active_touches.insert(touch.id, id);
+                        id
+                    } else {
+                        let Some(id) = active_touches.get(&touch.id).copied() else {
+                            return;
+                        };
+                        id
+                    };
+                    let Some(window) = window.upgrade() else {
                         return;
                     };
-                    id
-                };
-                let Some(window) = window.upgrade() else {
-                    return;
-                };
-                let scale = window.scale_factor();
-                let event = gpui::TouchEvent {
-                    id,
-                    phase,
-                    position: gpui::point(gpui::px(touch.x / scale), gpui::px(touch.y / scale)),
-                    predicted_position: None,
-                    force: None,
-                };
-                let mut cb = cb.lock();
-                fling_guard.relay(event, &mut next_touch_id, |event| {
-                    cb(gpui::PlatformInput::Touch(event));
-                });
-                if matches!(phase, gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled) {
-                    active_touches.remove(&touch.id);
-                }
-            });
+                    let scale = window.scale_factor();
+                    let event = gpui::TouchEvent {
+                        id,
+                        phase,
+                        position: gpui::point(gpui::px(touch.x / scale), gpui::px(touch.y / scale)),
+                        predicted_position: None,
+                        force: None,
+                    };
+                    let mut cb = cb.lock();
+                    fling_guard.relay(event, &mut next_touch_id, |event| {
+                        cb(gpui::PlatformInput::Touch(event));
+                    });
+                    if matches!(phase, gpui::TouchPhase::Ended | gpui::TouchPhase::Cancelled) {
+                        active_touches.remove(&touch.id);
+                    }
+                }),
+            );
         }
 
         // ── Key events → PlatformInput ───────────────────────────────────
         {
             let cb = Arc::clone(&input_cb);
-            self.window.on_key_event(move |key_event| {
-                use crate::android::keyboard::{
-                    android_key_to_keystroke, AKEY_EVENT_ACTION_DOWN, AKEY_EVENT_ACTION_UP,
-                };
-
-                // On KeyDown, dispatch text through the global callback so
-                // custom TextInput components (PENDING_TEXT) receive it.
-                if key_event.action == AKEY_EVENT_ACTION_DOWN {
-                    match key_event.key_code {
-                        67 => crate::dispatch_text_input("\x08"), // KEYCODE_DEL (backspace)
-                        21 => crate::dispatch_text_input("\x1b[D"), // DPAD_LEFT
-                        22 => crate::dispatch_text_input("\x1b[C"), // DPAD_RIGHT
-                        122 => crate::dispatch_text_input("\x1b[H"), // MOVE_HOME
-                        123 => crate::dispatch_text_input("\x1b[F"), // MOVE_END
-                        _ => {
-                            if key_event.unicode_char != 0 {
-                                if let Some(c) = char::from_u32(key_event.unicode_char) {
-                                    let s = c.to_string();
-                                    crate::dispatch_text_input(&s);
-                                }
-                            }
-                            false
-                        }
+            // dm(android-stack): the window's own layer, which keys reach while it is on top;
+            // what GPUI made of the key is handed back, which Back reads.
+            super::layers::set(
+                &self.layer.key,
+                Box::new(move |key_event: AndroidKeyEvent| {
+                    use crate::android::keyboard::{
+                        android_key_to_keystroke, AKEY_EVENT_ACTION_DOWN, AKEY_EVENT_ACTION_UP,
                     };
-                }
 
-                let keystroke = match android_key_to_keystroke(
-                    key_event.key_code,
-                    key_event.meta_state,
-                    key_event.unicode_char,
-                ) {
-                    Some(ks) => ks,
-                    None => return, // Modifier-only or unmapped key
-                };
+                    // On KeyDown, dispatch text through the global callback so
+                    // custom TextInput components (PENDING_TEXT) receive it.
+                    if key_event.action == AKEY_EVENT_ACTION_DOWN {
+                        match key_event.key_code {
+                            67 => crate::dispatch_text_input("\x08"), // KEYCODE_DEL (backspace)
+                            21 => crate::dispatch_text_input("\x1b[D"), // DPAD_LEFT
+                            22 => crate::dispatch_text_input("\x1b[C"), // DPAD_RIGHT
+                            122 => crate::dispatch_text_input("\x1b[H"), // MOVE_HOME
+                            123 => crate::dispatch_text_input("\x1b[F"), // MOVE_END
+                            _ => {
+                                if key_event.unicode_char != 0 {
+                                    if let Some(c) = char::from_u32(key_event.unicode_char) {
+                                        let s = c.to_string();
+                                        crate::dispatch_text_input(&s);
+                                    }
+                                }
+                                false
+                            }
+                        };
+                    }
 
-                let event = if key_event.action == AKEY_EVENT_ACTION_DOWN {
-                    gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
-                        keystroke,
-                        is_held: false,
-                        prefer_character_input: key_event.unicode_char != 0,
-                    })
-                } else if key_event.action == AKEY_EVENT_ACTION_UP {
-                    gpui::PlatformInput::KeyUp(gpui::KeyUpEvent { keystroke })
-                } else {
-                    return; // ACTION_MULTIPLE or unknown
-                };
+                    let keystroke = match android_key_to_keystroke(
+                        key_event.key_code,
+                        key_event.meta_state,
+                        key_event.unicode_char,
+                    ) {
+                        Some(ks) => ks,
+                        None => return super::layers::UNUSED, // Modifier-only or unmapped key
+                    };
 
-                let mut guard = cb.lock();
-                let _ = guard(event);
-            });
+                    let event = if key_event.action == AKEY_EVENT_ACTION_DOWN {
+                        gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
+                            keystroke,
+                            is_held: false,
+                            prefer_character_input: key_event.unicode_char != 0,
+                        })
+                    } else if key_event.action == AKEY_EVENT_ACTION_UP {
+                        gpui::PlatformInput::KeyUp(gpui::KeyUpEvent { keystroke })
+                    } else {
+                        return super::layers::UNUSED; // ACTION_MULTIPLE or unknown
+                    };
+
+                    let mut guard = cb.lock();
+                    guard(event)
+                }),
+            );
         }
     }
 
@@ -1566,24 +1634,32 @@ impl PlatformWindow for AndroidPlatformWindow {
         // On Android, this callback is always invoked on the main thread.
         let send_callback: Box<dyn FnMut(bool) + Send> = unsafe { std::mem::transmute(callback) };
         let send_callback = Mutex::new(send_callback);
-        self.window.on_active_status_change(move |active| {
-            let mut cb = send_callback.lock();
-            cb(active);
-        });
+        // dm(android-stack): told by the stack, true while this window is on top.
+        super::layers::set(
+            &self.layer.active,
+            Box::new(move |active: bool| {
+                let mut cb = send_callback.lock();
+                cb(active);
+            }),
+        );
     }
 
     fn on_visibility_change(&self, callback: Box<dyn FnMut(WindowVisibility)>) {
         let send_callback: Box<dyn FnMut(WindowVisibility) + Send> =
             unsafe { std::mem::transmute(callback) };
         let send_callback = Mutex::new(send_callback);
-        self.window.on_visibility_change(move |visible| {
-            let mut cb = send_callback.lock();
-            cb(if visible {
-                WindowVisibility::Visible
-            } else {
-                WindowVisibility::Hidden
-            });
-        });
+        // dm(android-stack): the window's own layer; every window on the stack is told.
+        super::layers::set(
+            &self.layer.visible,
+            Box::new(move |visible: bool| {
+                let mut cb = send_callback.lock();
+                cb(if visible {
+                    WindowVisibility::Visible
+                } else {
+                    WindowVisibility::Hidden
+                });
+            }),
+        );
     }
 
     fn on_hover_status_change(&self, callback: Box<dyn FnMut(bool)>) {
@@ -1598,16 +1674,20 @@ impl PlatformWindow for AndroidPlatformWindow {
         let send_callback: Box<dyn FnMut(gpui::Size<gpui::Pixels>, f32) + Send> =
             unsafe { std::mem::transmute(callback) };
         let send_callback = Arc::new(Mutex::new(send_callback));
-        self.window.on_resize(move |device_size, scale| {
-            let mut cb = send_callback.lock();
-            cb(
-                gpui::size(
-                    gpui::px(device_size.width.0 as f32 / scale),
-                    gpui::px(device_size.height.0 as f32 / scale),
-                ),
-                scale,
-            );
-        });
+        // dm(android-stack): every window on the stack is the surface's size.
+        super::layers::set(
+            &self.layer.resize,
+            Box::new(move |device_size: Size<DevicePixels>, scale: f32| {
+                let mut cb = send_callback.lock();
+                cb(
+                    gpui::size(
+                        gpui::px(device_size.width.0 as f32 / scale),
+                        gpui::px(device_size.height.0 as f32 / scale),
+                    ),
+                    scale,
+                );
+            }),
+        );
     }
 
     fn on_moved(&self, _callback: Box<dyn FnMut()>) {
@@ -1618,8 +1698,9 @@ impl PlatformWindow for AndroidPlatformWindow {
     // phone's one display.
     fn on_display_changed(&self, _callback: Box<dyn FnMut()>) {}
 
-    fn on_should_close(&self, _callback: Box<dyn FnMut() -> bool>) {
-        // Android app lifecycle is managed by the system.
+    fn on_should_close(&self, callback: Box<dyn FnMut() -> bool>) {
+        // dm(android-stack): asked before Back closes the window, as its close button asks.
+        super::layers::set(&self.layer.should_close, callback);
     }
 
     fn on_hit_test_window_control(&self, _callback: Box<dyn FnMut() -> Option<WindowControlArea>>) {
@@ -1627,13 +1708,9 @@ impl PlatformWindow for AndroidPlatformWindow {
     }
 
     fn on_close(&self, callback: Box<dyn FnOnce()>) {
-        // PlatformWindow gives us Box<dyn FnOnce()> (not Send).
-        // AndroidWindow::on_close requires Send.  On Android, the close
-        // callback is always invoked on the main thread, so this transmute
-        // is safe in practice.
-        let send_callback: Box<dyn FnOnce() + Send + 'static> =
-            unsafe { std::mem::transmute::<Box<dyn FnOnce()>, Box<dyn FnOnce() + Send>>(callback) };
-        self.window.on_close(send_callback);
+        // dm(android-stack): what Back runs to close the window, as its close button would;
+        // kept on the window's layer (the surface's own close is never called).
+        *self.layer.close.borrow_mut() = Some(callback);
     }
 
     fn on_appearance_changed(&self, callback: Box<dyn FnMut()>) {
@@ -1643,10 +1720,14 @@ impl PlatformWindow for AndroidPlatformWindow {
         // On Android, this callback is always invoked on the main thread.
         let send_callback: Box<dyn FnMut() + Send> = unsafe { std::mem::transmute(callback) };
         let send_callback = Mutex::new(send_callback);
-        self.window.on_appearance_changed(move |_appearance| {
-            let mut cb = send_callback.lock();
-            cb();
-        });
+        // dm(android-stack): the window's own layer; every window on the stack is told.
+        super::layers::set(
+            &self.layer.appearance,
+            Box::new(move |_appearance: WindowAppearance| {
+                let mut cb = send_callback.lock();
+                cb();
+            }),
+        );
     }
 
     fn frame_waker(&self) -> Option<Rc<dyn Fn()>> {

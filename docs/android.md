@@ -101,6 +101,15 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
       Help; Places opens the drawer of categories and queues, a place chosen closes it. Tap a
       card: chosen; tap it again or double-tap: what a double-click does; ⋯ or a long press:
       the row menu as a sheet. Typing in Add URL brings up the keyboard.
+- [ ] **Windows and Back (N16).** Open Options (⋮ › Tasks › Options): it fills the screen,
+      clear of the status bar and the navigation bar only where its view keeps to GPUI's safe
+      area (owed otherwise); taps and keys go to it. Back closes it and the list is drawn again,
+      as it was. Open a dialog (Add URL, then a download's Download details, or Help › About):
+      over the list, full screen; Back closes it as its Cancel does; a question it asks comes
+      over it and Back answers it as its Cancel. In the narrow layout with the ⋮ sheet in a
+      submenu: Back goes back to the menu, Back again closes the sheet; with the drawer open,
+      Back closes it. On the list with nothing open: Back sends dm to the background (Recents
+      still shows it, downloads go on, no quit in Logcat); tapping dm brings the list back.
 - [ ] **Add URL downloads (N2, N3).** A download added in the window runs, segmented, and
       finishes; the file is in Files › Downloads › dm. Stop it halfway and Resume: it goes on
       from where it was.
@@ -302,6 +311,11 @@ submitted. What it needs, and where dm stands:
 - **dm's window on a phone (N3, N16, N17, N7).** `android_main` runs dm-gpui's window; it has
   been checked for `aarch64-linux-android` (with a stand-in C compiler for ring), not linked
   with the NDK, packed or run. The narrow layout that makes the window a phone's is N7's.
+  dm-gpui's many windows are a stack on the phone's one surface (gpui-android's
+  `dm(android-stack)`): the newest drawn full screen, Back closing it or, on the list, sending
+  dm to the background. Coded 2026-11-20 and not compiled (the Mac builds it). Owed: each
+  window's view keeping its controls out of the status and navigation bars (`Window::insets`,
+  which the platform now fills); dm-gpui's windows do not read it yet.
 - **A link shared while dm is open (N5).** NativeActivity does not pass `onNewIntent` to native
   code, so such a link reaches dm only when Android starts the activity again; a Java
   `onNewIntent` waits for the maintainer's word, as N6's service does.
