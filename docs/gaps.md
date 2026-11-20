@@ -11,6 +11,65 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## Resume here (2026-11-20, evening: branch `android-rust`)
+
+**Where it is.** Branch `android-rust` (pushed at the maintainer's word, "write down the remaning
+work and push it") holds `main` up to ac54e719 plus the day's Android work and the coding rows
+below, each merged from a branch of its own in `D:\dm-wt`. **Nothing on it has been compiled
+since the maintainer's word of the afternoon ("instead of building. make sure to finish the
+coding part")**: the laptop codes only, the Mac builds and tests. `main` has one commit since
+(5bca6f0e, `popmenu.rs` formatted; the same change is on this branch). The other session's
+`main` is not touched; this branch is merged into it once the Mac's run passes.
+
+**On it, coded and not compiled (each row's Status says what to run):**
+- Android (rows N2–N17): dm-gpui itself on the phone over `desktop/vendor/gpui-android` (dm's
+  copy of gpui-mobile, at gpui-pre 0.3.12; official GPUI Android replaces it when it ships), the
+  narrow phone layout (N7, below 600 points; the desktop window's least width 640 → 360), windows
+  as a stack with Back (N16), the share and open intents (N5), the foreground service, Retry and
+  Stop All buttons, boot and the schedule's alarm (N6, N12: four small Java classes, approved),
+  storage in dm's own folder published to `Download/dm` (N9), the file and folder choosers (N9),
+  the phone's rules (N10), the Keystore (N11), torrents following a network change (N8), the
+  ongoing notification (N6), CI's emulator and release jobs and Android Studio's Run (N13, N14).
+  How to try it on the Mac: `docs/android.md`, first section.
+- Other rows: S16, 181, W10 (G2); 185, 186 (G3); Y20, Y21 (G4); Y2's live streams (G6); U16,
+  U23 (G7); 200, 191 (G8); A18's ratchet; the Redownload fix (B73, row 221 for the rest);
+  `fetch.rs` under 800 lines; two test targets that did not compile (`schedule/tests.rs`'s
+  `Local`, `youtube_premiere.rs`'s E0716); row 215's text put back.
+
+**Still being coded, on branches of their own (not on `android-rust` yet):**
+- `g5-opus` (row Y25): dm's own Opus decoder in dm-media, for an MP3 from YouTube's Opus sound.
+- `a10-platform` (rows A10, P8): every system `cfg` behind each crate's `platform` module, an
+  xtask check for it, and the system programs in one table. Started from 2e6ab7a9; merged after
+  G5 (it leaves `dm-media/src/mp3/decode` and `opus*` to last).
+
+**Waiting for the maintainer's word (coded where it says so; nothing in the contract changed):**
+1. The narrow layout's proposed contract rows (row N7) and the phone's rows P01–P12
+   (`docs/android.md`), and the desktop's least width 360.
+2. N8: a laptop changing network announces its torrents again at once; Wait on a metered
+   connection or a low battery now also pauses sharing (B76 names downloads only).
+3. N10: three phone-only Options lines (Wi-Fi only, Not while roaming, Pause when Data Saver is
+   on) and their status words.
+4. Y21: a DASH or YouTube download that stopped with "not enough room" now joins in place; its
+   new reasons are in `docs/guide/failures.md`. Y20: the quality picked changes where the join
+   would have failed.
+5. 200: RTMPT follows no redirect now, sends dm's User-Agent and a 30 s read timeout.
+6. U35 (branch `u35-rtl`, not merged): Arabic and Hebrew, the mirrored window, the DirectWrite
+   patch; two new entries in View › Language and Options › General.
+7. Clippy for Android: `missing_const_for_thread_local` is wrong on Android targets (std's `os`
+   thread-locals); allow that one lint for Android, then add CI's Android clippy step (row N17).
+8. S16's window drawn before the queue loads (an empty list first), and 181's cached views
+   (they hide words from the control port): measure first.
+
+**Next, in this order:**
+1. On the Mac: `cargo fmt --check`, `cargo check --workspace --all-targets`, clippy `-D warnings`,
+   `cargo test --workspace`, `cargo xtask layers` and `privacy`, then `cargo ndk -t arm64-v8a
+   check -p dm-android` and Android Studio's Run (`docs/android.md`); fix what fails.
+2. Merge `g5-opus` and `a10-platform` here when they report; the same run again.
+3. The maintainer's word on the list above; then `human-qa.py` whole; then merge into `main`.
+4. Known: row 221 (`window_tests::commands` row menu's Open, `commands.rs:628`); an empty
+   untracked `Cargo.toml` at the repository's root in the main checkout, made by an agent by
+   mistake (the maintainer deletes it).
+
 ## Resume here (2026-11-20)
 
 **Windows, 2026-11-20: coded with agents six at a time, merged, built, and `human-qa.py` run.**
