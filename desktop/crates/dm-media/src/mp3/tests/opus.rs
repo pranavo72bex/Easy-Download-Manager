@@ -13,14 +13,16 @@ fn silent(channels: u8) -> Vec<u8> {
     vec![if channels == 2 { 0xFC } else { 0xF8 }, 0xFF, 0xFE]
 }
 
-/// Where the system decodes Opus (Windows), it says it does; a WebM is taken only for Opus
-/// sound there, and an M4A, MP4 or AAC file always, by its name as before.
+/// Opus is decoded on every system (Windows' Media Foundation where it has it, dm's own
+/// elsewhere); a WebM is taken only for Opus sound, and an M4A, MP4 or AAC file always, by its
+/// name as before.
 #[test]
 fn a_webm_is_taken_for_its_opus_where_the_system_decodes_opus() {
     let dir = tempfile::tempdir().unwrap();
     let opus = dir.path().join("sound.webm");
     crate::mkvmux::testing::opus_webm(&opus, 2, 312, 20, &vec![silent(2); 10]);
-    assert_eq!(takes(&opus), opus_possible());
+    assert!(opus_possible());
+    assert!(takes(&opus));
     assert!(!takes(&dir.path().join("sound.weba")));
     let vorbis = dir.path().join("vorbis.webm");
     crate::mkvmux::testing::tiny_webm(&vorbis, "A_VORBIS", 2, 4);
@@ -64,14 +66,10 @@ fn a_webm_with_other_sound_or_none_is_refused_in_words() {
 
 /// Two seconds of Opus made here (100 silent stereo packets of 20 ms, the decoder's 312
 /// samples of pre-skip named in its header) become an MP3 of whole frames at the rate asked
-/// for, as long as the sound: 2 s less the pre-skip, at 48 kHz, which an MP3 keeps.
-#[cfg(windows)]
+/// for, as long as the sound: 2 s less the pre-skip, at 48 kHz, which an MP3 keeps. On every
+/// system: by Media Foundation's decoder on Windows, by dm's own elsewhere (gaps row Y25).
 #[test]
 fn an_opus_sound_made_here_becomes_an_mp3_as_long_as_it_is() {
-    if !opus_possible() {
-        eprintln!("no Opus decoder on this Windows: nothing to check");
-        return;
-    }
     let dir = tempfile::tempdir().unwrap();
     for (channels, kbps) in [(2u8, None), (1, Some(64))] {
         let webm = dir.path().join(format!("sound{channels}.webm"));

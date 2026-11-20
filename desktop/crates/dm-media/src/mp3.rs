@@ -34,14 +34,16 @@ pub fn possible() -> bool {
 }
 
 /// Whether dm can make an MP3 from Opus sound here (a WebM's, as YouTube serves its sound):
-/// on Windows with Media Foundation's Opus decoder, which Windows 10 and 11 carry. macOS
-/// (AudioToolbox reads no WebM) and Linux (no Opus decoder in dm) not yet (gaps row Y25).
+/// on every system, by Media Foundation's Opus decoder on Windows where it has one and by dm's
+/// own elsewhere (`crate::opus`, gaps row Y25), which decodes CELT and says in words that a
+/// track using SILK is not decoded yet.
 pub fn opus_possible() -> bool {
     decode::opus_possible()
 }
 
 /// Whether the finished file at `path` is a sound dm makes an MP3 from: AAC in an M4A, an MP4
-/// or an ADTS file (by its name, as always), or Opus in a WebM where [`opus_possible`].
+/// or an ADTS file (by its name, as always), or Opus in a WebM where [`opus_possible`] and the
+/// decoder here reads its packets (dm's own reads no SILK yet: such a WebM is kept as it came).
 pub fn takes(path: &std::path::Path) -> bool {
     let ext = path
         .extension()
@@ -50,7 +52,9 @@ pub fn takes(path: &std::path::Path) -> bool {
     match ext.as_str() {
         "m4a" | "mp4" | "aac" => true,
         "webm" | "weba" | "mka" => {
-            opus_possible() && crate::mkvmux::sound_codec(path).as_deref() == Some("A_OPUS")
+            opus_possible()
+                && crate::mkvmux::sound_codec(path).as_deref() == Some("A_OPUS")
+                && decode::opus_decodable(path)
         }
         _ => false,
     }

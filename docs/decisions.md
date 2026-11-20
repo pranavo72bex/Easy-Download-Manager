@@ -8498,3 +8498,26 @@ then failed at the join. Each representation's `codecs` is now read for the file
 that hold it, and a picture is taken only where a listed sound joins with it into what will be
 made; where nothing listed fits, the best is taken as before and the join says why. A quality
 is passed over for a lower one only where the higher could not have been saved at all.
+
+## Opus decoded by dm's own decoder where the system has none (2026-11-20, gaps row Y25)
+
+macOS's AudioToolbox reads no WebM and Linux has no Opus decoder dm calls, so a video's Opus
+sound could not be made into an MP3 there. Row Y25 offered a decoder of dm's own (RFC 6716) or a
+crate at the maintainer's word; goal 3 (no third-party feature code) and P4's list of crates to
+replace point to dm's own, so it is dm's own: `dm_media::opus`, written from the RFC's text and
+tables (RFC 8251's corrections taken: the hybrid folding copy, the energy cap). Every symbol is
+read with the standard's exact integer arithmetic (the allocation, the codebook cost table worked
+out once from the PVQ codebooks' sizes, the split angles), so a frame is read as it was written;
+the sound is made in 32-bit floats, as the reference decoder's float build makes it, and its
+inverse MDCT is a DCT-IV done by a plain mixed-radix FFT. Before the Rust, each step was proved
+in a scratch prototype against the RFC's test vectors: every CELT packet at the encoder's final
+range, and 80 dB against the reference decoder's output. Those vectors are not kept here (no
+licence comes with them); an ignored test reads them from the folder `OPUS_VECTORS` names.
+
+It is used only where the system has no Opus decoder: Windows keeps Media Foundation's (the
+decision of 2026-11-18), and uses this one where that is missing. CELT is the coder YouTube's
+music is in; SILK and hybrid (speech) are not written yet, and a track that uses them is refused
+in words, "this Opus track uses SILK, which dm cannot decode yet"; a finished download of such
+a WebM is not taken for an MP3 (`mp3::takes`) and is kept as it came, as it was on macOS and
+Linux before, so no download that succeeded before now fails. A lost or empty packet is
+decoded as CELT's silence frame, which fades the last frame out.

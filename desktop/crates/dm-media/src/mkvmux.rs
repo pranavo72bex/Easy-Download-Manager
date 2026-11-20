@@ -596,6 +596,7 @@ mod placed;
 pub use placed::join_placed;
 mod probe;
 mod read;
+mod sound;
 mod to_mp4;
 
 pub(crate) use codecs::mp4_tracks;
@@ -608,6 +609,7 @@ pub(crate) use probe::{is_webm, sound_codec, tags};
 #[cfg(test)]
 use read::{block_header, read_tracks};
 use read::{read_input, read_webm};
+pub(crate) use sound::sound_track;
 
 /// Small WebM files made for tests (dm-core's tests too, through the `testing` feature).
 #[cfg(any(test, feature = "testing"))]
