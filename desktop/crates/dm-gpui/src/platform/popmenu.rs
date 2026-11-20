@@ -238,7 +238,10 @@ fn run(view: &NSView, entries: &[Entry], at: Point<Pixels>) -> Option<Box<dyn Ac
     let menu = build(entries, &target, mtm, &mut actions);
     // GPUI's points have their origin at the top left; the view's at the bottom left.
     let height = view.bounds().size.height;
-    let location = NSPoint::new(f64::from(f32::from(at.x)), height - f64::from(f32::from(at.y)));
+    let location = NSPoint::new(
+        f64::from(f32::from(at.x)),
+        height - f64::from(f32::from(at.y)),
+    );
     menu.popUpMenuPositioningItem_atLocation_inView(None, location, Some(view));
     let tag = target.ivars().tag.get();
     let chosen = usize::try_from(tag).ok().and_then(|tag| actions.get(tag))?;

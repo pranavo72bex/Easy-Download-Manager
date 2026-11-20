@@ -64,7 +64,14 @@ extension that hands it the browser's downloads.
   wake does, `table.rs`, `menus.rs`, `toolbar.rs`, `sidebar.rs`; `dialogs/`:
   one file per dialog such as `addurl.rs` and `details.rs`; `options.rs` with
   `options/pages.rs` and a file per page in `options/pages/`; `widgets/`; `platform/`: the system's window calls, the
-  tray, drags and drops), and `port.rs` with `probe.rs` for the control port. `cargo packager -p dm-gpui` there builds the installers,
+  tray, drags and drops), and `port.rs` with `probe.rs` for the control port. The window is a library,
+  `dm_gpui::run_app(args, application)`, which `main.rs` calls with GPUI's platform for the computer and the
+  phone's `android_main` (`crates/dm-android`) with the phone's. On Android what only the phone can do
+  (a notification, opening a file and showing its folder, the clipboard, the wake lock, a share's link)
+  goes through one seam, `dm_desktop_base::phone`: the app hands its `PhoneServices` to `set_phone` before
+  the window starts, and each `platform/` module's Android arm asks through it; what a phone lacks (the
+  login item, the Trash, the tray, the file panels, moving the window) is refused in words or does
+  nothing (gaps row N17). `cargo packager -p dm-gpui` there builds the installers,
   from `assets/app-icons/` and `assets/macos/Info.plist`; its `Cargo.toml`
   holds dm's version. What is not code is in one folder, `desktop/assets/`
   (the window's `icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), and

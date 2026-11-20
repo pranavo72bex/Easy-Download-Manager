@@ -445,7 +445,7 @@ fn metered_and_battery(
     let at = options::on_metered_at(&o.draft.downloads.on_metered);
     let words: Vec<SharedString> = options::ON_METERED_WORDS
         .iter()
-        .map(|w| SharedString::from(t(*w)))
+        .map(|w| SharedString::from(t(w)))
         .collect();
     p.labelled(
         t("On a metered connection"),

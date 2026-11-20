@@ -5,8 +5,8 @@
 
 //! The computer's accent colour, for every window: Windows keeps the whole palette its own
 //! programs take their accent brushes from (three lighter shades, the accent, three darker);
-//! macOS and Linux give one colour, and the shades are made from it. Read on a thread of its
-//! own every few seconds, as the system theme is. Each colour is kept as plain red, green and
+//! macOS and Linux give one colour, and the shades are made from it; a phone none dm can read
+//! (gaps row N17). Read on a thread of its own every few seconds, as the system theme is. Each colour is kept as plain red, green and
 //! blue.
 
 use std::sync::{Mutex, Once};
@@ -75,7 +75,13 @@ fn ask() -> Option<Palette> {
     )
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+/// None a phone gives dm: the window keeps its own accent.
+#[cfg(target_os = "android")]
+fn ask() -> Option<Palette> {
+    None
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "android")))]
 fn ask() -> Option<Palette> {
     let reply = crate::system_theme::run(
         "gdbus",
@@ -116,7 +122,10 @@ fn from_windows(bytes: &[u8]) -> Option<Palette> {
 
 /// The desktop portal's `accent-color`, `(<(0.21, 0.52, 0.89)>,)`: three
 /// parts from 0 to 1. One out of that range means none was chosen.
-#[cfg_attr(any(windows, target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    any(windows, target_os = "macos", target_os = "android"),
+    allow(dead_code)
+)]
 fn from_portal(reply: &str) -> Option<Palette> {
     let inner = reply.rsplit('(').next()?.split(')').next()?;
     let parts: Vec<f64> = inner
@@ -130,7 +139,7 @@ fn from_portal(reply: &str) -> Option<Palette> {
 }
 
 /// One colour given as parts from 0 to 1.
-#[cfg_attr(windows, allow(dead_code))]
+#[cfg_attr(any(windows, target_os = "android"), allow(dead_code))]
 fn from_unit(r: f64, g: f64, b: f64) -> Option<Palette> {
     let ok = |v: f64| (0.0..=1.0).contains(&v);
     if !(ok(r) && ok(g) && ok(b)) {

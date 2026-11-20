@@ -12,18 +12,25 @@
 //! The close button keeps dm here where Options says so (asked once: "Keep
 //! running in the tray?"), and the window comes back from here, from the
 //! Dock, or from a second launch. The words are dm's (`dm_desktop_base::tray`).
+//! A phone has no tray (gaps row N17): none is made there, and closing the
+//! window ends dm, as where a desktop has no tray.
 
+#[cfg(not(target_os = "android"))]
 use dm_shell::app::commands::Command;
 use gpui::{Context, Window};
+#[cfg(not(target_os = "android"))]
 use tray_icon::menu::{
     CheckMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu,
 };
+#[cfg(not(target_os = "android"))]
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
+#[cfg(not(target_os = "android"))]
 use crate::error::Error;
 use crate::window::list::Downloads;
 
 /// What the tray asked of the window.
+#[cfg(not(target_os = "android"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Asked {
     /// Show dm, or a click on the icon.
@@ -35,6 +42,7 @@ pub enum Asked {
 }
 
 /// The tray, and the items whose words and tick follow the window.
+#[cfg(not(target_os = "android"))]
 pub struct Tray {
     icon: TrayIcon,
     /// Show dm, Scheduler…, Exit dm.
@@ -53,6 +61,7 @@ pub struct Tray {
     language: String,
 }
 
+#[cfg(not(target_os = "android"))]
 impl Tray {
     /// The tray, each choice of its menu and a click on its icon sent to
     /// `asked`.
@@ -216,7 +225,7 @@ impl Tray {
 }
 
 /// dm's own icon, for a taskbar's tray (Windows, Linux).
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "android")))]
 fn app_icon() -> Result<tray_icon::Icon, Error> {
     const PNG: &[u8] = dm_assets::APP_ICON_32;
     let mut decoder = png::Decoder::new(std::io::Cursor::new(PNG));
@@ -279,9 +288,26 @@ fn template_icon() -> Result<tray_icon::Icon, Error> {
         .map_err(|e| Error::from(e.to_string()))
 }
 
+/// A phone's tray: there is none, so one is never made.
+#[cfg(target_os = "android")]
+pub enum Tray {}
+
+#[cfg(target_os = "android")]
+impl Tray {
+    /// Never called: no tray is made on a phone.
+    pub fn follow(&mut self, _tip: String, _speed_limit: u64) {
+        match *self {}
+    }
+}
+
 impl Downloads {
+    /// No tray on a phone: closing the window ends dm.
+    #[cfg(target_os = "android")]
+    pub(crate) fn start_tray(&mut self, _: &mut Window, _: &mut Context<Self>) {}
+
     /// The tray made, its choices heard on the window's thread. Where the
     /// system will not make one, closing the window ends dm instead.
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn start_tray(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         // The window's tests (`harness.rs`) run off the main thread, where the system's tray
         // cannot be made, and have no system to put one in.
@@ -318,6 +344,7 @@ impl Downloads {
     }
 
     /// What the tray asked, carried out.
+    #[cfg(not(target_os = "android"))]
     fn tray_asked(&mut self, asked: Asked, window: &mut Window, cx: &mut Context<Self>) {
         match asked {
             Asked::Show => self.show_window(window, cx),
@@ -423,6 +450,7 @@ impl Downloads {
     }
 
     /// The window back from the tray, in front.
+    #[cfg_attr(target_os = "android", allow(dead_code))]
     pub(crate) fn show_window(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         crate::platform::syswindow::show(window);
         self.system.hidden = false;
