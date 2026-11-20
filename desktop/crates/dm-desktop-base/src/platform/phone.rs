@@ -139,6 +139,12 @@ pub fn shared(text: String) {
     crate::drops::arrived(Dropped::Text(text));
 }
 
+/// A file the phone handed dm (a `.torrent` opened with dm, copied into dm's home first):
+/// added as a file dropped on the window is, the `.torrent` itself the download.
+pub fn shared_file(path: std::path::PathBuf) {
+    crate::drops::arrived(Dropped::File(path));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

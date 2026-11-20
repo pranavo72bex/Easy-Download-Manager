@@ -66,7 +66,8 @@ extension that hands it the browser's downloads.
   `options/pages.rs` and a file per page in `options/pages/`; `widgets/`; `platform/`: the system's window calls, the
   tray, drags and drops), and `port.rs` with `probe.rs` for the control port. The window is a library,
   `dm_gpui::run_app(args, application)`, which `main.rs` calls with GPUI's platform for the computer and the
-  phone's `android_main` (`crates/dm-android`) with the phone's. On Android what only the phone can do
+  phone's `android_main` (`crates/dm-android`) with the phone's (gpui-android's `SharedPlatform`), after handing
+  `set_phone` its `phone::Phone` and setting dm's folders (`DM_HOME`, `TMPDIR`, `set_phone_folders`). On Android what only the phone can do
   (a notification, opening a file and showing its folder, the clipboard, the wake lock, a share's link)
   goes through one seam, `dm_desktop_base::phone`: the app hands its `PhoneServices` to `set_phone` before
   the window starts, and each `platform/` module's Android arm asks through it; what a phone lacks (the

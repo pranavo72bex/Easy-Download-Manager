@@ -1,8 +1,8 @@
 # dm on Android
 
 dm's phone app is Rust (`docs/decisions.md`, 2026-11-20, "dm on Android with GPUI"): the
-desktop's engine and `dm-shell`'s `Backend`, under a GPUI window, in
-`desktop/crates/dm-android`. GPUI has no Android platform of its makers', so dm carries one:
+desktop's own window, dm-gpui's (`dm_gpui::run_app`), which starts the desktop's engine and
+`dm-shell`'s `Backend` as on a computer, run from `desktop/crates/dm-android`. GPUI has no Android platform of its makers', so dm carries one:
 `desktop/vendor/gpui-android`, gpui-mobile's Android platform at a pinned commit, moved to dm's
 `gpui-pre` 0.3.12 (gaps row N16, `desktop/vendor/README.md`). What only a phone has is reached
 through JNI. The activity is gpui-mobile's NativeActivity with two small Java classes of
@@ -12,18 +12,20 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 
 | File | What it does |
 |------|--------------|
-| `src/lib.rs` | `Engine`: dm started in the app's home, over `Backend` (gaps row N3) |
-| `src/app.rs` | The GPUI window. For now gpui-android's first milestone: a blue square, "dm" and the row count, drawn again when the list changes. dm-gpui's own window takes its place (N17, N7) |
-| `src/shared.rs`, `src/ongoing.rs` | What a shared intent hands over, and the words of the ongoing notification (tested on the host) |
-| `src/android.rs` | `android_main`: gpui-android's platform, GPUI's application, dm's home (`files/dm`), the download folder (`Download/dm` in shared storage, else the app's own folder on it), the engine, the window |
-| `src/android/intent.rs` | The activity's intent at start and each time the window becomes active again: SEND text, VIEW magnet or web address, VIEW a `.torrent` (copied into `files/dm/torrents` and added as `file://`) |
-| `src/android/notify.rs`, `busy.rs` | Notification channels and messages; the ongoing notification and the partial wake lock while `Engine::busy()`; the permissions asked for at start |
-| `src/android/open.rs`, `system.rs` | `AndroidSystem` over JNI: opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the notification sound |
+| `src/android.rs` | `android_main`: the phone's services handed to `dm_desktop_base::phone::set_phone` first; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, `dm_core::folders::set_phone_folders` with the download folder: `Download/dm` in shared storage, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed |
+| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), the wake lock and the ongoing notification together (`keep_awake`), open, reveal, the clipboard, the Trash refused. Tested on the host |
+| `src/shared.rs` | What a shared intent hands over (tested on the host) |
+| `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification, the wake lock |
+| `src/android/intent.rs` | The activity's intent, read when the activity comes to the front (a thread watching gpui-android's `is_active`): SEND text and VIEW magnet or web address go to `dm_desktop_base::phone::shared`, a `.torrent` is copied into `files/dm/torrents` and goes to `phone::shared_file`; the window adds both as it adds a dropped link |
+| `src/android/notify.rs` | Notification channels and messages, the ongoing notification, the partial wake lock, the permissions asked for once the window is up |
+| `src/android/open.rs`, `jvm.rs` | Opening a file; the Java machine and the activity, kept once at start |
 | `java/` | The activity's Java classes (below) |
 | `android/` | The Gradle project that makes the APK: `app/src/main/AndroidManifest.xml` (package `com.dm.android`, Android 8.0 (API 26) and up, built against API 35, the permissions and the intent filters) and `app/build.gradle.kts` |
 
-The view in `src/app.rs` is plain GPUI and is checked on the host (`cargo check -p dm-android`);
-`android_main` and the JNI modules are built only for Android.
+dm-gpui's start does the rest as on a computer: the engine, the settings, the queue, the window,
+and on GPUI's quit (the activity destroyed) the downloads stopped and saved to be resumed.
+`android_main` and the JNI modules are built only for Android; on the host the crate's tests
+check `phone.rs` and `shared.rs`.
 
 ## The Java classes
 
@@ -66,17 +68,16 @@ against its published SHA-256), and keeps the APK as the run's artifact.
 
 ## Still owed
 
-- **gpui-android on a phone (N16).** The copy is ported to `gpui-pre` 0.3.12 and checked by
-  `cargo check`; it has not been linked, packed or run. First the placeholder on the emulator,
-  then dm's window.
-- **dm's window (N17, N7).** dm-gpui and dm-desktop-base built for Android, and the narrow
-  layout that makes dm-gpui's window a phone's.
+- **dm's window on a phone (N3, N16, N17, N7).** `android_main` runs dm-gpui's window; it has
+  been checked for `aarch64-linux-android` (with a stand-in C compiler for ring), not linked
+  with the NDK, packed or run. The narrow layout that makes the window a phone's is N7's.
 - **A link shared while dm is open (N5).** NativeActivity does not pass `onNewIntent` to native
   code, so such a link reaches dm only when Android starts the activity again; a Java
-  `onNewIntent` waits for the maintainer's word, as N6's service does. The Add sheet and the
-  clipboard offer are owed with the window.
+  `onNewIntent` waits for the maintainer's word, as N6's service does.
 - **Downloading in the background (N6).** The wake lock and the ongoing notification are in,
-  but Android may still stop a process left in the background. A foreground service, a Stop All
+  held while a download runs (dm's `awake` watch); the notification's words are fixed ("dm is
+  downloading") until the seam carries the count and the speed. Android may still stop a
+  process left in the background. A foreground service, a Stop All
   button in the notification and a Retry button on a failure each need a Java class. Whether
   to add one is the maintainer's call.
 - **First run (N9).** On Android 8 and 9, the first start downloads into the app's own folder

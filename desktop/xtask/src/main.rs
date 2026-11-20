@@ -474,9 +474,10 @@ fn layers() -> Result<(), String> {
                 false,
                 false,
             ),
-            // The phone's app (gaps rows N1, N3, N16): the application's rules over the engine,
-            // under a GPUI window on gpui-android, so a window toolkit is allowed here.
-            "dm-android" => (&["dm-core", "dm-shell"], false, false),
+            // The phone's app (gaps rows N1, N3, N16): dm-gpui's window on gpui-android, with
+            // the phone's services handed to dm-desktop-base's seam, so a window toolkit is
+            // allowed here.
+            "dm-android" => (&["dm-core", "dm-desktop-base", "dm-gpui"], false, false),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),
             // Safari's extension's program (gaps row R4): it starts dm's host for each message

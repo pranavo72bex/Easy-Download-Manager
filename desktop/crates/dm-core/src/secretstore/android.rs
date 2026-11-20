@@ -9,7 +9,7 @@
 //! of its own ([`set_android_store`], from `dm-android`'s foreign callback), which keeps each
 //! value sealed under an AES key that never leaves the Keystore.
 //!
-//! Still owed in N11: that callback (the `AndroidSystem` side in `dm-android` and its Kotlin
+//! Still owed in N11: that callback (a JNI call in `dm-android` and its Java
 //! implementation). Until the app has handed its store in, there is none
 //! ([`super::system`] answers `None`), and the file of secrets is kept in clear in the app's
 //! own files folder, as on a desktop without a store; no key is kept in a file beside it,

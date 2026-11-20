@@ -7,7 +7,7 @@
 //! library: `dirs` finds neither there (no `$HOME`, no XDG user folders), and Android 10 and up
 //! give an app no free access to the disk (row N9). So the app hands them in, its own files
 //! folder and the folder new downloads go to, before the engine starts
-//! (`dm-android`'s `Engine::start`), and [`super::home`], [`super::downloads`] and
+//! (`dm-android`'s `android_main`), and [`super::home`], [`super::downloads`] and
 //! [`super::local_data`] answer with them. Until then, or for a folder that is not a full path,
 //! the answer is `None`, never a relative path.
 //!

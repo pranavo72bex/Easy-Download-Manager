@@ -15,7 +15,7 @@ pub(crate) const VIEW: &str = "android.intent.action.VIEW";
 /// What an intent handed over.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Handed {
-    /// Text whose links are added (`Engine::add` finds them in it).
+    /// Text whose links are added (the window finds them in it, as in a dropped link).
     Text(String),
     /// A file's `content://` or `file://` address: a `.torrent`, copied into dm's folder and
     /// added as `file://`.

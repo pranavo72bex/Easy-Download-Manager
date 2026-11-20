@@ -3,17 +3,18 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! A link handed to dm by another app (gaps row N5): the activity's intent, read at start and
-//! again each time the activity is resumed, decided by `shared.rs`, and added. Until the
-//! screens' Add sheet exists (N7) it is added at once and a notification says what was added
-//! or why not.
+//! A link handed to dm by another app (gaps row N5): the activity's intent, read once dm's
+//! window is up and again each time the activity comes back to the front (`android.rs`),
+//! decided by `shared.rs`, and handed to dm's window as a browser's link is
+//! (`dm_desktop_base::phone::shared`): the window adds it as it adds a link dropped on it. A
+//! `.torrent` is copied into dm's home first and handed as that file
+//! (`dm_desktop_base::phone::shared_file`), which the window adds as `file://`.
 //!
 //! Each intent is taken once: after reading it dm puts an empty intent in its place
-//! (`setIntent`), so a resume (the window active again, `app::open`'s `resumed`) does not add it
-//! again. NativeActivity does not take a new intent for its own (`onNewIntent` is not passed to
-//! native code and `getIntent` keeps the first), so a link shared while dm is already open
-//! reaches it only when Android starts the activity anew; a Java `onNewIntent` is the same
-//! question as N6's service (docs/gaps.md).
+//! (`setIntent`), so a resume does not hand it over again. NativeActivity does not take a new
+//! intent for its own (`onNewIntent` is not passed to native code and `getIntent` keeps the
+//! first), so a link shared while dm is already open reaches it only when Android starts the
+//! activity anew; a Java `onNewIntent` is the same question as N6's service (docs/gaps.md).
 
 use std::path::Path;
 
@@ -22,47 +23,28 @@ use jni::{jni_sig, jni_str, Env, JValue};
 
 use super::{jvm, notify};
 use crate::shared::{self, Handed};
-use crate::Engine;
 
 /// The biggest `.torrent` dm copies in: far above any real one, so a wrong file is not read
 /// into memory whole.
 const MOST: usize = 32 * 1024 * 1024;
 
-/// Reads the activity's intent, if it hands dm anything, and adds it; `torrents` is the folder
-/// a shared `.torrent` is copied into.
-pub(crate) fn take(engine: &Engine, torrents: &Path) {
-    let text = match read() {
-        Ok(Handed::Nothing) => return,
-        Ok(Handed::Text(text)) => Ok(text),
-        Ok(Handed::File(uri)) => copy(&uri, torrents),
+/// Reads the activity's intent, if it hands dm anything, and hands it to dm's window;
+/// `torrents` is the folder a shared `.torrent` is copied into. What cannot be taken is said
+/// in a notification, as the window has nothing to show for it.
+pub(crate) fn take(torrents: &Path) {
+    let taken = match read() {
+        Ok(Handed::Nothing) => Ok(()),
+        Ok(Handed::Text(text)) => {
+            dm_desktop_base::phone::shared(text);
+            Ok(())
+        }
+        Ok(Handed::File(uri)) => copy(&uri, torrents).map(dm_desktop_base::phone::shared_file),
         Err(why) => Err(why),
     };
-    let told = match text.map(|text| engine.add(text)) {
-        Ok(Ok(added)) => {
-            let names: Vec<String> = added
-                .ids
-                .iter()
-                .filter_map(|id| engine.row(*id).map(|row| row.name))
-                .collect();
-            let mut body = names.join(", ");
-            if !added.skipped.is_empty() {
-                if !body.is_empty() {
-                    body.push_str("; ");
-                }
-                body.push_str(&format!("left out: {}", added.skipped.join("; ")));
-            }
-            let title = match added.ids.len() {
-                0 => "dm added nothing".to_owned(),
-                1 => "dm added a download".to_owned(),
-                n => format!("dm added {n} downloads"),
-            };
-            notify::post(&title, &body, None)
-        }
-        Ok(Err(why)) => notify::post("dm could not add it", &why.to_string(), None),
-        Err(why) => notify::post("dm could not take what was shared", &why, None),
-    };
-    // Without the permission to notify, the window's list still shows what was added.
-    let _ = told;
+    if let Err(why) = taken {
+        // Without the permission to notify there is no one else to tell.
+        let _ = notify::post("dm could not take what was shared", &why, None);
+    }
 }
 
 /// What the activity's intent hands over; the intent is then replaced by an empty one.
@@ -132,8 +114,8 @@ fn string_call(
 }
 
 /// Copies the file at `uri` (a `.torrent` from Files, a browser or a mail) into `torrents`,
-/// giving the `file://` address dm adds.
-fn copy(uri: &str, torrents: &Path) -> Result<String, String> {
+/// giving the copy's path, which dm adds as `file://`.
+fn copy(uri: &str, torrents: &Path) -> Result<std::path::PathBuf, String> {
     // The name first, in a call of its own: a sender that does not answer the question (a
     // `file://` address has no provider to ask) still lets the file be read.
     let display = jvm::with("read the file's name", |env, context| {
@@ -165,7 +147,7 @@ fn copy(uri: &str, torrents: &Path) -> Result<String, String> {
         .map_err(|e| format!("dm could not make its folder for torrents: {e}"))?;
     let path = torrents.join(shared::torrent_name(display.as_deref(), last.as_deref()));
     std::fs::write(&path, &bytes).map_err(|e| format!("dm could not keep the .torrent: {e}"))?;
-    Ok(format!("file://{}", path.display()))
+    Ok(path)
 }
 
 /// `Uri.parse(uri)`.

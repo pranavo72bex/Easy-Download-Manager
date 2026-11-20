@@ -7,7 +7,7 @@ edition = "2021"
 # Never published: its paths to the other crates are this repository's
 # (desktop/deny.toml).
 publish = false
-description = "dm on Android, all in Rust: the desktop's engine and its rules (dm-shell's Backend) under a GPUI window on gpui-android, with the phone's services reached through JNI (gaps rows N1, N3, N5, N6, N16)"
+description = "dm on Android, all in Rust: dm-gpui's own window on gpui-android, with the phone's services (notifications, opening a file, the clipboard, the wake lock, a share) reached through JNI (gaps rows N1, N3, N5, N6, N16)"
 
 [lib]
 name = "dm_android"
@@ -17,29 +17,19 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-async-channel.workspace = true
 dm-core.workspace = true
-dm-shell.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+# The seam the phone's services are handed to (`dm_desktop_base::phone`, gaps row N17).
+dm-desktop-base.workspace = true
 
-# The window: GPUI, the desktop's toolkit (docs/decisions.md, "dm on Android with GPUI"). Its
-# views are checked on the host too; only the platform under them is the phone's.
-gpui.workspace = true
-
-# On the phone: GPUI's Android platform (dm's copy of gpui-mobile's, gaps row N16), the
-# NativeActivity glue it runs on, and JNI for what only Android has (the shared link,
-# notifications, the wake lock, the clipboard).
+# On the phone: dm-gpui's window (the desktop's own, gaps row N17) on GPUI's Android platform
+# (dm's copy of gpui-mobile's, gaps row N16), the NativeActivity glue it runs on, and JNI for
+# what only Android has (the shared link, notifications, the wake lock, the clipboard).
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity.workspace = true
+dm-gpui.workspace = true
+gpui.workspace = true
 gpui-android.workspace = true
 jni.workspace = true
-
-[dev-dependencies]
-tempfile.workspace = true
-tokio = { workspace = true, features = ["full"] }
-axum.workspace = true
 
 [lints]
 workspace = true

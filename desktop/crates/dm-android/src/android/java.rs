@@ -3,42 +3,26 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! [`AndroidSystem`] on a phone, over JNI: notifications, the clipboard, opening a file, the
-//! system's Downloads, the notification sound, and the window drawn again when the list changes.
-//! Every call comes from one of the engine's threads; a failure is said in dm's words (or, where
-//! the engine wants none, let go), never a panic.
-
-use std::path::Path;
-use std::time::Duration;
+//! [`crate::phone::Java`] over JNI: notifications, the media index, opening a file, the
+//! system's Downloads, the clipboard, the ongoing notification and the wake lock. Every call
+//! comes from one of dm's threads; a failure is said in dm's words, never a panic.
 
 use jni::objects::JObject;
 use jni::{jni_sig, jni_str, Env, JValue};
 
 use super::{jvm, notify, open};
-use crate::AndroidSystem;
+use crate::phone::Java;
 
-/// The phone's side of the engine.
-pub(crate) struct Droid;
+/// The phone's Java side, as dm's services call it.
+pub(crate) struct Jni;
 
-impl AndroidSystem for Droid {
-    fn notify(&self, title: String, body: String, path: Option<String>, _failed: Option<u64>) {
-        // A Retry button on a failure needs a broadcast receiver, a Java class (docs/gaps.md,
-        // N6); until then the failure's notification brings dm to the front.
-        let Some(path) = path else {
-            let _ = notify::post(&title, &body, None);
-            return;
-        };
-        // A finished file is added to the media index first, so the tap lends it by a
-        // `content://` address (`open.rs`); the index takes a moment, so the notification
-        // waits for it off the engine's thread.
-        let _ = open::scan(&path);
-        let posted = std::thread::Builder::new()
-            .name("dm-notify".into())
-            .spawn(move || {
-                std::thread::sleep(Duration::from_millis(1500));
-                let _ = notify::post(&title, &body, Some(&path));
-            });
-        drop(posted);
+impl Java for Jni {
+    fn post(&self, title: &str, body: &str, open: Option<&str>) -> Result<(), String> {
+        notify::post(title, body, open)
+    }
+
+    fn index(&self, path: &str) -> Result<(), String> {
+        open::scan(path)
     }
 
     fn clipboard(&self) -> Option<String> {
@@ -82,10 +66,9 @@ impl AndroidSystem for Droid {
         })
         .ok()
         .flatten()
-        .filter(|text| !text.is_empty())
     }
 
-    fn set_clipboard(&self, text: String) {
+    fn set_clipboard(&self, text: &str) {
         let _ = jvm::with("put the link on the clipboard", |env, context| {
             let manager = jvm::service(env, context, "clipboard")?;
             let label = env.new_string("dm")?;
@@ -110,60 +93,37 @@ impl AndroidSystem for Droid {
         });
     }
 
-    fn open(&self, path: String) -> Option<String> {
-        let name = Path::new(&path)
+    fn open(&self, path: &str) -> Result<(), String> {
+        let name = std::path::Path::new(path)
             .file_name()
-            .map_or_else(|| path.clone(), |n| n.to_string_lossy().into_owned());
+            .map_or_else(|| path.to_owned(), |n| n.to_string_lossy().into_owned());
         jvm::with("open the file", |env, context| {
-            let intent = open::view(env, context, &path)?;
+            let intent = open::view(env, context, path)?;
             start(env, context, &intent)
         })
-        .err()
-        .map(|why| no_app(why, &format!("no app on this phone opens {name}")))
+        .map_err(|why| no_app(why, &format!("no app on this phone opens {name}")))
     }
 
-    fn reveal(&self, _path: String) -> Option<String> {
+    fn reveal(&self, _path: &str) -> Result<(), String> {
         // A phone shows no one folder of a file: its Downloads app lists what was downloaded.
         jvm::with("show the phone's Downloads", |env, context| {
             let intent = jvm::intent(env, "android.intent.action.VIEW_DOWNLOADS")?;
             jvm::add_flags(env, &intent, jvm::FLAG_ACTIVITY_NEW_TASK)?;
             start(env, context, &intent)
         })
-        .err()
-        .map(|why| no_app(why, "this phone has no Downloads app to show the file in"))
+        .map_err(|why| no_app(why, "this phone has no Downloads app to show the file in"))
     }
 
-    fn sound(&self, _failed: bool) {
-        // The phone's own notification sound, for a finish and a failure alike.
-        let _ = jvm::with("play a sound", |env, context| {
-            // `RingtoneManager.TYPE_NOTIFICATION`.
-            let uri = env
-                .call_static_method(
-                    jni_str!("android/media/RingtoneManager"),
-                    jni_str!("getDefaultUri"),
-                    jni_sig!("(I)Landroid/net/Uri;"),
-                    &[JValue::Int(2)],
-                )?
-                .l()?;
-            let ringtone = env
-                .call_static_method(
-                    jni_str!("android/media/RingtoneManager"),
-                    jni_str!("getRingtone"),
-                    jni_sig!(
-                        "(Landroid/content/Context;Landroid/net/Uri;)Landroid/media/Ringtone;"
-                    ),
-                    &[JValue::Object(context), JValue::Object(&uri)],
-                )?
-                .l()?;
-            if !ringtone.is_null() {
-                env.call_method(&ringtone, jni_str!("play"), jni_sig!("()V"), &[])?;
-            }
-            Ok(())
-        });
+    fn ongoing(&self, title: &str, body: &str) -> Result<(), String> {
+        notify::ongoing(title, body)
     }
 
-    fn changed(&self) {
-        crate::app::refresh();
+    fn end_ongoing(&self) -> Result<(), String> {
+        notify::end_ongoing()
+    }
+
+    fn stay_awake(&self, on: bool) -> Result<(), String> {
+        notify::stay_awake(on)
     }
 }
 

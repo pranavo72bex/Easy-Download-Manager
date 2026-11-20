@@ -24,6 +24,8 @@ dm-android = { path = "crates/dm-android" }
 dm-assets = { path = "crates/dm-assets" }
 dm-core = { path = "crates/dm-core" }
 dm-desktop-base = { path = "crates/dm-desktop-base" }
+# The window, a library too (`dm_gpui::run_app`): the phone's app opens it (gaps row N3).
+dm-gpui = { path = "crates/dm-gpui" }
 dm-js = { path = "crates/dm-js" }
 dm-media = { path = "crates/dm-media" }
 dm-net = { path = "crates/dm-net" }

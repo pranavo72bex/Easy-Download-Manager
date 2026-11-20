@@ -2055,17 +2055,12 @@ name = "dm-android"
 version = "0.10.0"
 dependencies = [
  "android-activity",
- "async-channel",
- "axum",
  "dm-core",
- "dm-shell",
+ "dm-desktop-base",
+ "dm-gpui",
  "gpui-android",
  "gpui-pre",
  "jni",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
 ]
 
 [[package]]
