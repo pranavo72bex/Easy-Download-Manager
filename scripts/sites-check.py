@@ -12,7 +12,10 @@ reuses chrome-check.py's setup (a visible browser with dm's extension and the
 app behind it) and, for each site, opens a public page that plays without a
 sign-in, plays the video, hovers it, reads the panel and its list, clicks the
 first line and waits for the file to land in dm's folder, then reads the
-file's own structure: is there a picture, is there a sound, how long is it.
+file's own structure: is there a picture, is there a sound, how long is it. A
+file without a sound passes on its picture alone when the stream dm was given
+(an HLS master or a DASH manifest, read again here) lists no sound, as a
+silent Reddit post's does; the result says "picture only expected".
 
     python3 scripts/sites-check.py [site ...]        # vimeo facebook facebook-watch tiktok x x2 reddit instagram
                                                      # dailymotion rumble twitch twitch-clip bilibili peertube
@@ -50,9 +53,11 @@ import tempfile
 import json
 import os
 import pathlib
+import re
 import sys
 import time
 import urllib.parse
+import urllib.request
 
 # UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
 for _stream in (sys.stdout, sys.stderr):
@@ -130,6 +135,8 @@ SITES = {
     # Reddit's r/videos, whose posts more often have a sound than r/oddlysatisfying's do.
     "reddit-videos": {"listing": "https://www.reddit.com/r/nextfuckinglevel/top/?t=week", "discover": REDDIT_JS,
                       "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
+    # Its posts often have no sound: a file without one passes when the stream dm was given lists
+    # none (`stream_sound`, gaps row 205), and fails when it lists one.
     "reddit": {"listing": "https://www.reddit.com/r/oddlysatisfying/top/?t=week", "discover": REDDIT_JS,
                "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
     # Its login form's box is named "password", not Facebook's "pass": the shared test took the
@@ -523,9 +530,82 @@ def one(base, name, site, engine_dl, worker=None):
     out["media"] = inspect(got[0])
     m = out["media"]
     sound = "audio" in m["kinds"] or site.get("silent_ok")
-    out["result"] = "OK" if (not m["problems"] and m["seconds"] and "video" in m["kinds"] and sound) else (
+    whole_picture = not m["problems"] and m["seconds"] and "video" in m["kinds"]
+    if whole_picture and not sound:
+        # Many posts have no sound at all (a silent Reddit post's master lists no audio
+        # rendition): the stream dm was given is read, as the page reads it, before the file is
+        # called short of one (gaps row 205).
+        out["sound_listed"], out["stream_read"] = stream_sound(tab, row.get("url") or "", url)
+        if out["sound_listed"] is False:
+            facts = [f"{m['height']} tall" if m.get("height") else "", f"{m['seconds']:.0f} s"]
+            out["result"] = "OK"
+            out["detail"] = (f"picture only expected: the stream dm was given lists no sound "
+                             f"({out['stream_read']}); a whole video landed, picture alone "
+                             f"({', '.join(f for f in facts if f)})")
+            return out
+        if out["sound_listed"]:
+            out["result"] = f"saved without the sound its stream lists ({out['stream_read']}): {m}"
+            return out
+    out["result"] = "OK" if (whole_picture and sound) else (
         f"saved but not a whole video with sound: {m}")
     return out
+
+
+HLS_ATTRIBUTE = re.compile(r'([A-Z0-9-]+)=("[^"]*"|[^,]*)')
+SOUND_CODECS = ("mp4a", "ac-3", "ec-3", "opus", "flac", "alac", "mp3", "vorbis", "dts")
+
+
+def listed_sound(text):
+    """Whether a stream's manifest lists a sound: for an HLS master, an EXT-X-MEDIA rendition of
+    TYPE=AUDIO with a URI, or renditions whose CODECS name a sound (picture and sound in one);
+    for a DASH manifest, an audio adaptation set. None when it cannot be told: a media playlist
+    rather than a master, or a rendition that names no CODECS."""
+    text = (text or "").lstrip("\ufeff")
+    if text.lstrip().startswith("#EXTM3U"):
+        renditions = []
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("#EXT-X-MEDIA:"):
+                attrs = {k: v.strip('"') for k, v in HLS_ATTRIBUTE.findall(line[len("#EXT-X-MEDIA:"):])}
+                if attrs.get("TYPE") == "AUDIO" and attrs.get("URI"):
+                    return True
+            elif line.startswith("#EXT-X-STREAM-INF:"):
+                renditions.append({k: v.strip('"') for k, v in
+                                   HLS_ATTRIBUTE.findall(line[len("#EXT-X-STREAM-INF:"):])})
+        if not renditions or any("CODECS" not in r for r in renditions):
+            return None
+        return any(c.strip().lower().startswith(SOUND_CODECS)
+                   for r in renditions for c in r["CODECS"].split(","))
+    if "<MPD" in text:
+        return bool(re.search(r'contentType="audio"|mimeType="audio/', text))
+    return None
+
+
+def stream_sound(tab, address, page):
+    """Whether the stream dm was handed (its row's address) lists a sound, read in the page as
+    its own player reads it, else asked for plainly with the page as the referrer: (True, False
+    or None, how it was read). None when the address is no playlist or could not be read."""
+    if not urllib.parse.urlsplit(address).path.lower().endswith((".m3u8", ".mpd")):
+        return None, f"dm's row names no playlist: {address[:120] or 'no row'}"
+    shown = address.split("?")[0]
+    text, how = None, ""
+    try:
+        text = tab.evaluate("fetch(%s, {credentials: 'omit'}).then(r => r.ok ? r.text() : null, () => null)"
+                            % json.dumps(address))
+        how = "read in the page"
+    except RuntimeError:
+        text = None
+    if not text:
+        try:
+            ask = urllib.request.Request(address, headers={"User-Agent": "Mozilla/5.0", "Referer": page})
+            with urllib.request.urlopen(ask, timeout=20) as reply:
+                text = reply.read(2_000_000).decode("utf-8", "replace")
+            how = "asked for plainly"
+        except (OSError, ValueError) as e:
+            return None, f"{shown} could not be read: {e!r}"[:200]
+    listed = listed_sound(text)
+    said = {True: "lists a sound", False: "lists no sound", None: "does not say"}[listed]
+    return listed, f"{shown}, {how}, {said}"
 
 
 def sites(base, origin, engine_dl, engine_home, worker):
@@ -553,7 +633,8 @@ def sites(base, origin, engine_dl, engine_home, worker):
             worker.evaluate(ask_again)
     print("\nSUMMARY")
     for r in results:
-        print(f"  {r['site']:12} {r.get('result')}   lines={r.get('lines')}")
+        said = str(r.get("result")) + (f" ({r['detail']})" if r.get("result") == "OK" and r.get("detail") else "")
+        print(f"  {r['site']:12} {said}   lines={r.get('lines')}")
 
 
 def each_site(base, engine_dl, worker, results):
@@ -576,7 +657,9 @@ def each_site(base, engine_dl, worker, results):
         results.append(r)
         DONE.append(r)
         print("SITE", json.dumps(r, default=str), flush=True)
-        cc.check(f"{name}: a whole video with sound lands in dm's folder", r.get("result") == "OK", r.get("result", ""))
+        # A post whose stream lists no sound passes on its picture alone, and its detail says so.
+        cc.check(f"{name}: a whole video with sound lands in dm's folder", r.get("result") == "OK",
+                 r.get("detail") or r.get("result", ""))
 
 
 DONE = []
