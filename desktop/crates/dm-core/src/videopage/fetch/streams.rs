@@ -69,6 +69,28 @@ pub(super) async fn fetch(
             })
             .await;
     }
+    // The framed stream's formats, fetched at once from the one address (gaps row Y2), to the
+    // files each stream would have been put in; a part is cut by an index, which they lack.
+    if let Some(framed) = &plan.framed {
+        if options.span.is_some() {
+            return Err(Error::Internal(
+                "this video's streams have no index, so a part of it cannot be cut".into(),
+            ));
+        }
+        let wanted: Vec<crate::youtube::framed::Wanted> = plan
+            .streams
+            .iter()
+            .filter_map(|stream| {
+                Some(crate::youtube::framed::Wanted {
+                    pick: stream.framed.clone()?,
+                    target: stream.target.clone(),
+                    size: stream.size,
+                })
+            })
+            .collect();
+        crate::youtube::framed::fetch(client, framed, &wanted, options, report).await?;
+        return join_and_place(client, plan, read, options).await;
+    }
     let (senders, merging) = merge_progress(report, plan.streams.len());
     let fetching = plan
         .streams
@@ -85,7 +107,16 @@ pub(super) async fn fetch(
         let _ = merging.await;
     }
     fetched?;
+    join_and_place(client, plan, read, options).await
+}
 
+/// The streams fetched, joined with the subtitles and the video's words and placed.
+async fn join_and_place(
+    client: &reqwest::Client,
+    plan: &Plan,
+    read: &Read,
+    options: &Options,
+) -> Result<Finished, Error> {
     // Left beside the video as they are left, and read back as its are.
     subtitles(client, read, &plan.produced, options).await;
     let found = crate::subtitles::beside(&plan.produced);

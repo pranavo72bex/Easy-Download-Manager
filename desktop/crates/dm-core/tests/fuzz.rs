@@ -272,3 +272,49 @@ proptest! {
         }
     }
 }
+
+// YouTube's framed answers and the messages inside them (`dm_core::youtube::framed`, gaps row Y2).
+proptest! {
+    #[test]
+    fn a_framed_answer_of_anything_is_read_or_refused(
+        bytes in prop::collection::vec(any::<u8>(), 0..600),
+        cut in 1usize..64,
+    ) {
+        use dm_core::youtube::framed::{messages, ump, wire};
+        let mut reader = ump::Reader::new();
+        let mut refused = false;
+        for chunk in bytes.chunks(cut) {
+            reader.push(chunk);
+            while !refused {
+                match reader.next_part() {
+                    Ok(Some((_, data))) => {
+                        let _ = messages::MediaHeader::read(&data);
+                        let _ = messages::FormatStart::read(&data);
+                        let _ = messages::NextAsk::read(&data);
+                        let _ = messages::media_of(&data);
+                        let _ = messages::error_of(&data);
+                        let _ = messages::redirect_of(&data);
+                        let _ = wire::Message(&data).whole();
+                    }
+                    Ok(None) => break,
+                    Err(_) => refused = true,
+                }
+            }
+        }
+        // Whatever was not refused is held whole or in part, never more than was pushed.
+        prop_assert!(reader.left() <= bytes.len());
+    }
+
+    #[test]
+    fn framed_numbers_dm_writes_read_back(value in any::<u64>(), text in texty()) {
+        use dm_core::youtube::framed::{messages, ump, wire};
+        let mut bytes = Vec::new();
+        wire::put_varint(&mut bytes, value);
+        prop_assert_eq!(wire::varint(&bytes), Some((value, bytes.len())));
+        let small = value & 0xffff_ffff;
+        let mut framed = Vec::new();
+        ump::put_varint(&mut framed, small);
+        prop_assert_eq!(ump::varint(&framed), Some((small, framed.len())));
+        let _ = messages::xtag_pairs(&text);
+    }
+}

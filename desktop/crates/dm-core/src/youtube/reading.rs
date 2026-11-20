@@ -129,13 +129,17 @@ pub(super) fn formats_of(player: &Value) -> (Vec<Format>, bool) {
             .into_iter()
             .flatten()
             .filter_map(Format::of)
-            .filter(|f| !(without_numbered && f.numbered))
+            .filter(|f| !(without_numbered && (f.numbered || f.framed)))
             .collect()
     };
     let mut formats = streams_at("/streamingData/adaptiveFormats");
+    // Those with neither an address nor a cipher kept where the answer names a framed stream
+    // to fetch them from (gaps row Y2); never among the formats with both in one file.
+    framed::keep_framed(&mut formats, framed::named(player));
     let muxed = formats.is_empty();
     if muxed {
         formats = streams_at("/streamingData/formats");
+        framed::keep_framed(&mut formats, false);
     }
     set_dubs_aside(&mut formats, crate::sound_language::wanted().as_deref());
     (formats, muxed)
@@ -154,6 +158,8 @@ pub(super) fn cuttable_of(
         .filter(|f| !mp4_only || f.container == "mp4" || f.container == "m4a")
         // Nor from numbered pieces, which have no index to cut by.
         .filter(|f| !mp4_only || !f.numbered)
+        // Nor from the framed stream's, fetched only whole.
+        .filter(|f| !mp4_only || !f.framed)
         // A picture in the codec asked for (AV1, for a GIF made on Linux).
         .filter(|f| !f.video || codec.is_none_or(|c| f.codec.starts_with(c)))
         .cloned()
@@ -202,7 +208,9 @@ pub(super) fn chosen_of(
     Ok(chosen)
 }
 
-/// The reading said, of `player`'s answer and the streams `chosen` of its `formats`.
+/// The reading said, of `player`'s answer and the streams `chosen` of its `formats`; marked for
+/// the framed `stream` where one of those chosen is served by it alone.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn reading_of(
     id: &str,
     page: &str,
@@ -211,6 +219,7 @@ pub(super) fn reading_of(
     chosen: &[Format],
     staging: &Path,
     js_path: Option<&str>,
+    stream: Option<&framed::Framed>,
 ) -> String {
     // The TV client's answer names no title; the page does.
     let title = player
@@ -223,6 +232,7 @@ pub(super) fn reading_of(
         .pointer("/videoDetails/lengthSeconds")
         .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
     let mut reading = reading_json(id, &title, duration, formats, chosen, staging);
+    framed::mark_reading(&mut reading, stream, chosen);
     // The channel, written into the joined file with the title (gaps row Y11).
     if let Some(author) = player
         .pointer("/videoDetails/author")
