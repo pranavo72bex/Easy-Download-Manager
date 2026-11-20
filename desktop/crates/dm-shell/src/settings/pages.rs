@@ -159,12 +159,7 @@ pub struct FolderSettings {
 impl Default for FolderSettings {
     fn default() -> Self {
         FolderSettings {
-            // A `dm` folder inside the one the operating system already
-            // nominates. A download manager that puts files anywhere else is
-            // one people have to go looking in.
-            download_dir: dm_core::folders::downloads()
-                .unwrap_or_else(|| dm_core::folders::home().unwrap_or_default())
-                .join("dm"),
+            download_dir: default_download_dir(),
             categorize: true,
             category_folders: default_folders(),
             parts_dir: String::new(),
@@ -172,6 +167,25 @@ impl Default for FolderSettings {
             unpack_trash: false,
         }
     }
+}
+
+/// Where finished files land in a new install.
+#[cfg(not(target_os = "android"))]
+fn default_download_dir() -> PathBuf {
+    // A `dm` folder inside the one the operating system already
+    // nominates. A download manager that puts files anywhere else is
+    // one people have to go looking in.
+    dm_core::folders::downloads()
+        .unwrap_or_else(|| dm_core::folders::home().unwrap_or_default())
+        .join("dm")
+}
+
+/// Where finished files land in a new install on a phone (gaps row N2): the folder the app
+/// gave for them (`dm_core::folders::set_phone_folders`), which is dm's own already; before
+/// it has said, a folder inside dm's home, never a relative path.
+#[cfg(target_os = "android")]
+fn default_download_dir() -> PathBuf {
+    dm_core::folders::downloads().unwrap_or_else(|| super::home().join("Downloads"))
 }
 
 /// Options › Downloads: connections, files at once, the queues' own limits and starts, streams,

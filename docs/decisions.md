@@ -8170,3 +8170,19 @@ scrolling page), not the desktop's window shrunk. Goal 3 of the audit of 2026-11
 "GPUI the only window toolkit on desktop". Dropped: GPUI on Android (no backend), a Rust UI
 toolkit on Android (no share sheet, notifications or storage pickers first-hand), hand-written
 JNI (every call written twice).
+
+## On Android the app hands dm its folders and its store for secrets (2026-11-20, gaps rows N2, N11)
+
+A phone names no home or Downloads folder to a library (`dirs` finds neither) and has no
+keyring a library can reach. So `dm-android` hands both in before the engine starts:
+`dm_core::folders::set_phone_folders` (the app's files folder, the folder new downloads go to;
+`home`, `downloads` and `local_data` answer with them, or `None`, never a relative path), and
+later, through `AndroidSystem`, `dm_core::secretstore::set_android_store` (a store over the
+Android Keystore). Until a store is handed in, the file of secrets is kept in clear in the app's
+own folder, as on a desktop without a store. Dropped: a key in a file beside the secrets (0600
+in dm's home), which protects nothing the app's private folder does not; a default download
+folder of `<Downloads>/dm` on the phone, where the app's folder is dm's own already. What a
+phone cannot do from the engine (open a file, show its folder) is said in words
+(`shell/opener/android.rs`); the app does it through `Platform`. Everything else takes Linux's
+answer or the fallback's, unchanged on the desktop. CI checks the build for arm64-v8a and x86_64
+with the runner's own NDK (`.github/workflows/android.yml`), no third-party action fetching one.

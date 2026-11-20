@@ -19,7 +19,7 @@ use crate::Error;
 // Opening a file and showing it in its folder, one file for each system.
 mod opener;
 use crate::settings::{self, Settings};
-#[cfg(all(test, unix, not(target_os = "macos")))]
+#[cfg(all(test, unix, not(any(target_os = "macos", target_os = "android"))))]
 use opener::linux_open_in;
 
 mod after;

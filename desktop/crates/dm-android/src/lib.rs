@@ -87,6 +87,11 @@ impl Engine {
         // Set here, before the runtime's threads exist, so nothing reads the environment while
         // it changes.
         std::env::set_var("DM_HOME", &home);
+        // A phone names no home or Downloads folder to a library: dm's folders are the ones the
+        // app gave (`dm_core::folders`, gaps row N2), before the settings' defaults are read.
+        // On the host, where this crate's tests run, the desktop's own are used.
+        #[cfg(target_os = "android")]
+        dm_core::folders::set_phone_folders(home.clone(), PathBuf::from(&downloads));
         let runtime = tokio::runtime::Runtime::new()
             .map_err(|e| EngineError::Start(format!("dm could not start: {e}")))?;
         dm_core::share_one_client();

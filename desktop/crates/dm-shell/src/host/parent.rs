@@ -47,7 +47,7 @@ pub fn is_go_between(program: &str) -> bool {
 
 /// The browser this process was started by, where it can be told.
 pub fn parent_browser() -> Option<String> {
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "android")))]
     {
         let parent = std::os::unix::process::parent_id();
         let out = std::process::Command::new("/bin/ps")
@@ -61,6 +61,11 @@ pub fn parent_browser() -> Option<String> {
     #[cfg(windows)]
     {
         windows::parent_browser()
+    }
+    // No browser starts dm's host on a phone, and no `ps` is there to ask (gaps row N2).
+    #[cfg(target_os = "android")]
+    {
+        None
     }
     #[cfg(not(any(unix, windows)))]
     {

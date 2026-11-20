@@ -177,7 +177,7 @@ fn open_with_names_the_bundle_on_macos_and_runs_the_program_elsewhere() {
 use super::*;
 
 /// No `xdg-utils`, as on a minimal desktop: GNOME's `gio` opens it.
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(unix, not(any(target_os = "macos", target_os = "android"))))]
 #[test]
 fn a_desktop_without_xdg_open_opens_with_its_own_opener() {
     use std::os::unix::fs::PermissionsExt;
@@ -210,7 +210,7 @@ fn a_desktop_without_xdg_open_opens_with_its_own_opener() {
 /// `xdg-open` that runs and fails ("no method available", exit 3) was
 /// taken as opened: the next opener is tried, and when it
 /// fails too, what each said is the error.
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(all(unix, not(any(target_os = "macos", target_os = "android"))))]
 #[test]
 fn an_opener_that_runs_and_fails_passes_to_the_next_and_says_why() {
     use std::os::unix::fs::PermissionsExt;
