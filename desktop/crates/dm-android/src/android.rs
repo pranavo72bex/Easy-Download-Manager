@@ -12,6 +12,7 @@
 mod busy;
 mod intent;
 mod jvm;
+mod keystore;
 mod notify;
 mod open;
 mod system;
@@ -74,6 +75,8 @@ fn start(app: &AndroidApp) -> Result<Arc<Engine>, String> {
         .internal_data_path()
         .ok_or("Android gave dm no folder of its own")?
         .join("dm");
+    // dm's secrets sealed by the Android Keystore (gaps row N11), before the engine starts.
+    let _ = dm_core::secretstore::set_android_store(Box::new(keystore::store(&home)));
     let downloads = downloads(app, &home);
     let engine = Engine::start(
         home.to_string_lossy().into_owned(),

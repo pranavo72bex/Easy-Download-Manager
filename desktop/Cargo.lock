@@ -2057,6 +2057,7 @@ dependencies = [
  "android-activity",
  "async-channel",
  "axum",
+ "base64 0.22.1",
  "dm-core",
  "dm-shell",
  "gpui-android",

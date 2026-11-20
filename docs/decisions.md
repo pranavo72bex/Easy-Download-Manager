@@ -8187,6 +8187,29 @@ phone cannot do from the engine (open a file, show its folder) is said in words
 answer or the fallback's, unchanged on the desktop. CI checks the build for arm64-v8a and x86_64
 with the runner's own NDK (`.github/workflows/android.yml`), no third-party action fetching one.
 
+## On Android dm's secrets are files sealed by a Keystore key, through JNI (2026-11-20, gaps row N11)
+
+What `secretstore` keeps in a system store is a value of its choosing by name (on every system
+today the 32-byte key that seals `secrets.json`). The Android Keystore keeps keys, not values: a
+key made in it can be used but not read back, and there is no call to put arbitrary bytes in it.
+So `dm-android` makes one AES-256-GCM key in `AndroidKeyStore` under the alias `dm-secrets`
+(`KeyGenerator` with a `KeyGenParameterSpec` for encrypting and decrypting, GCM, no padding),
+once, under a lock so two first secrets do not each make one, and keeps each value as a file of
+its own, `<home>/secrets/<name>.sealed` (0600, folder 0700, written beside and renamed over):
+the Keystore's nonce then what `Cipher("AES/GCM/NoPadding")` sealed, 128-bit tag included, in
+base64, with the value's name as additional data so a file renamed to another name does not
+open. A name is turned into a file name byte by byte (letters, digits, `-`, `_`, `.` as they
+are, every other byte `%XX`), so no two names share a file and none leaves the folder. `get`
+of a missing file is `None` without touching the Keystore; a file whose key is gone (data
+restored to another phone) is an error, which `secretstore` already answers. All of it is JNI
+from Rust (`android/keystore.rs`), no Java or Kotlin of dm's; the file format is plain code
+(`sealed.rs`) tested on the computer with a stand-in sealer. Handed in by `start` in
+`android.rs` before the engine reads its settings. This replaces the "Kotlin over the Keystore"
+of the entry above. Dropped: the value itself as a Keystore entry (`SecretKeyEntry` imported from
+the 32 bytes: an imported key is usable but its bytes are not given back, which `get` needs);
+`EncryptedSharedPreferences` (a Jetpack library, Java, and deprecated); a key in clear beside the
+file (protects nothing the app's folder does not).
+
 ## dm on Android in Rust alone: Slint screens over the shared code (2026-11-20, gaps row N1 again)
 
 At the maintainer's word of 2026-11-20 ("use rust only and build android app. it should be same

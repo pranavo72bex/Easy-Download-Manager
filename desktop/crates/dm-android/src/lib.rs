@@ -34,6 +34,8 @@ pub mod app;
 mod ongoing;
 mod row;
 #[cfg(any(target_os = "android", test))]
+mod sealed;
+#[cfg(any(target_os = "android", test))]
 mod shared;
 mod system;
 
