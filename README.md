@@ -79,6 +79,18 @@ Then click any download link: it lands in dm.
 | **Systems** | Windows 10 and 11, macOS on Apple chips, Linux (`.deb`, `.rpm`, AppImage, AUR) |
 | **Languages** | English, Español, Português, Français, Deutsch, Italiano, Nederlands, Polski, Русский, Bahasa Indonesia, Türkçe, 简体中文, 日本語, 한국어 |
 
+### Android (in development)
+
+dm for Android phones is being written. It runs the same window as the
+desktop, laid out for a phone's narrow screen: a top bar, each download a
+card, the menus in one sheet. Share a link to dm from any app, or open a
+magnet link or a `.torrent` file with it, and dm downloads it.
+
+It has not been run on a phone yet. For now it is built from source:
+[docs/android.md](docs/android.md) says how, with Android Studio. Once CI
+has run it, each release tagged `android-v…` will carry an APK on the
+[Releases page](https://github.com/pranavo72bex/Easy-Download-Manager/releases).
+
 ## Install
 
 ### Step 1 — Download the files

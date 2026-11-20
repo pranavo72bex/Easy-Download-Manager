@@ -261,6 +261,43 @@ settings rather than borrowing the browser's.
 The browser extension hands downloads to it once the client has been
 registered with `--register`.
 
+### On Android
+
+The phone app is in development: coded, not yet run on a phone
+([android.md](android.md), gaps rows N1 to N17). It is the same window, not
+a second one. `desktop/crates/dm-android` holds only what a phone adds.
+
+- **Start.** `android_main` (`src/android.rs`) opens the Java side (`jvm.rs`),
+  then hands `dm_desktop_base::phone::set_phone` its `phone::Phone`. It sets
+  dm's folders: `DM_HOME` is the app's `files/dm`, `TMPDIR` a folder in it,
+  and `dm_core::folders::set_phone_folders` gets the download folder
+  (`Download/dm` in shared storage, else the app's own folder there). It hands
+  `secretstore` the Keystore's store. Then it calls `dm_gpui::run_app` with
+  GPUI's application on gpui-android's platform. From there dm starts as on a
+  computer: the engine, the settings, the queue, the window. When the activity
+  is destroyed GPUI quits, and the downloads are stopped and saved to resume.
+- **The seam.** What only a phone does goes through `dm_desktop_base::phone`:
+  `PhoneServices` (notify, open, reveal, the clipboard, keep awake, the Trash),
+  each with a default. Each `platform/` module's Android arm asks through it.
+  What a phone lacks (the tray, the login item, the Trash, a folder chooser,
+  moving the window) is refused in words.
+- **JNI.** `src/android/` reaches Android: `java.rs` (notifications, the
+  media index, the clipboard, the wake lock), `notify.rs` (channels, the
+  ongoing notification, permissions), `open.rs` (opening a file), `intent.rs`
+  (a shared link, a magnet or a `.torrent`, handed to the window as a drop),
+  `keystore.rs` (an AES-GCM key in the Android Keystore that seals each secret,
+  `src/sealed.rs`). `phone.rs`, `shared.rs` and `sealed.rs` are tested on the
+  host.
+- **The Java.** Two classes from gpui-mobile, unchanged:
+  `GpuiInputActivity`, a NativeActivity that forwards the soft keyboard's
+  typing to the Rust and loads `libdm_android.so`, and `GpuiPathPicker`, the
+  system's file picker. A minimal Gradle project packs them with the library
+  into the APK, and builds the Rust with cargo-ndk first.
+- **The layout.** Below 600 points wide, dm-gpui lays the window out for a
+  phone (`window/narrow.rs`): a top bar, the rows as cards, the menus in a
+  sheet, the side panel as a drawer. The same views and commands; a desktop
+  window narrowed by hand shows it too.
+
 ## What the extension catches
 
 The extension has no settings of its own. Which downloads it takes is the
