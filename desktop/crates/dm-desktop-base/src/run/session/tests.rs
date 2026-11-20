@@ -265,9 +265,11 @@ fn a_queue_run_dry_plays_its_sound_and_takes_when_done() {
         nobody_sees: true,
         ..window()
     };
-    let mut session = Session::default();
+    let mut session = Session {
+        dry: true,
+        ..Session::default()
+    };
     session.when_done = WhenDone::Quit;
-    session.dry = true;
     let effects = session.tick(&backend, &[], nobody);
     assert_eq!(
         effects[effects.len() - 2..],
@@ -354,7 +356,7 @@ fn with_no_window_a_queue_run_dry_at_a_read_between_ticks_takes_when_done() {
     let dir = tempfile::tempdir().unwrap();
     let backend = backend(&runtime, dir.path(), Default::default());
     let mut session = Session::default();
-    session.when_done = WhenDone::Quit;
+    session.app.when_done = WhenDone::Quit;
     // The first read primes; the next, between two ticks, finds a download finished.
     session.note_dry(&[]);
     session.note_dry(&[row(1, State::Completed)]);

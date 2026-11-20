@@ -318,51 +318,23 @@ fn registering_a_copy_macos_made_for_one_launch_is_refused_before_anything_is_wr
     assert!(!manifest.exists());
 }
 
-/// `reg.exe` stands in for itself here: a script of that name on `PATH`,
-/// which says what it was asked and fails or not as the test wants.
-#[cfg(unix)]
+/// Windows' registry is written through its own API (gaps P8), so away from
+/// Windows `run_reg` runs nothing and says why, naming what it was asked.
+#[cfg(not(windows))]
 #[test]
-fn reg_exe_is_run_with_the_arguments_and_its_complaint_is_the_error() {
-    use std::os::unix::fs::PermissionsExt;
-    let _env = env_lock();
-    let _restore = Restore::of(&["PATH"]);
-    let bin = tempfile::tempdir().unwrap();
-    let asked = bin.path().join("asked");
-    let reg = bin.path().join("reg");
-    std::fs::write(
-        &reg,
-        format!(
-            "#!/bin/sh\necho \"$@\" >> '{}'\nif [ \"$1\" = add ]; then exit 0; fi\necho \"  ERROR: The system was unable to find the key.  \" >&2\nexit 1\n",
-            asked.display()
-        ),
-    )
-    .unwrap();
-    std::fs::set_permissions(&reg, std::fs::Permissions::from_mode(0o755)).unwrap();
-    set("PATH", Some(bin.path()));
-
+fn reg_away_from_windows_runs_nothing_and_says_there_is_no_registry() {
     let add: Vec<String> = ["add", r"HKCU\Software\dm", "/f"]
         .iter()
         .map(|s| s.to_string())
         .collect();
-    assert_eq!(register::run_reg(&add), Ok(()));
-    let query: Vec<String> = ["query", r"HKCU\Software\dm"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
     assert_eq!(
-        register::run_reg(&query),
-        Err("reg query: ERROR: The system was unable to find the key.".into())
+        register::run_reg(&add),
+        Err("reg add: there is no registry here".into())
     );
     assert_eq!(
-        std::fs::read_to_string(&asked).unwrap(),
-        "add HKCU\\Software\\dm /f\nquery HKCU\\Software\\dm\n"
+        register::run_reg(&[]),
+        Err("reg : there is no registry here".into())
     );
-
-    // With no `reg` to run at all, as on every system but Windows.
-    let empty = tempfile::tempdir().unwrap();
-    set("PATH", Some(empty.path()));
-    let missing = register::run_reg(&query).unwrap_err();
-    assert!(missing.starts_with("reg.exe could not be run"), "{missing}");
 }
 
 #[cfg(not(windows))]

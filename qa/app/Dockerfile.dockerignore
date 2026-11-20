@@ -1,4 +1,8 @@
 **/target
+**/target-*
+!desktop/crates/dm-core/src/ftp/target
+qa/reports
+.env
 dist
 .git
 human-shots
