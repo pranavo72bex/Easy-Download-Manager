@@ -239,13 +239,10 @@ fn a_schedule_written_before_once_at_still_reads() {
 fn asking_the_clock_agrees_with_asking_directly() {
     // Guards the wiring between `open` and `open_at`, which is the only
     // part `open_at`'s tests cannot see.
-    let now = Local::now();
+    let now = crate::clock::local_now();
     let schedule = nightly();
     assert_eq!(
         schedule.open(),
-        schedule.open_at(
-            now.weekday().num_days_from_sunday() as u8,
-            now.time().hour() * 60 + now.time().minute()
-        )
+        schedule.open_at(now.weekday_from_sunday() as u8, now.minute_of_day())
     );
 }
