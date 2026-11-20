@@ -8115,3 +8115,8 @@ The chooser is `services::ask` (dm's own panels on macOS, rfd's async ones elsew
 ## Copies through GPUI's clipboard on Wayland (2026-11-20, gaps row 218)
 
 On Linux under Wayland (`WAYLAND_DISPLAY` set) dm's own copies go through GPUI's clipboard on the window's thread, decided by `Platform::copies_through_window`; elsewhere, and in the window tests' fake, through arboard. arboard's `wayland-data-control` was not taken: it needs `wl-clipboard-rs`, not in the lock, and GNOME's compositor offers no data-control protocol.
+
+## dm's own clock in place of chrono (2026-11-20, gaps row 215)
+
+`dm_net::clock` (dm-net is the lowest crate the four share; dm-core re-exports it) with no new crate: libc on Unix, windows-sys (its `Win32_System_Time` feature) on Windows. Unix: `localtime_r`'s `tm_gmtoff`, `tzset` declared by hand and called at most once a second, as chrono looks again (glibc would keep the first zone for the process). Windows: `GetTimeZoneInformationForYear` and `SystemTimeToTzSpecificLocalTime`, so an old date gets its year's rules, as chrono gave; outside 1601 to 30827 the local time is None (chrono clamped). The parsers copy chrono 0.4.45's grammar item by item (2- and 3-digit years, named and military zones, nested comments, the offset's colon in RFC 3339, signed years and leading space in `%` patterns), so every date read before reads the same. `time` and `jiff` were looked at and not taken (row 215's note of 2026-11-19).
+
