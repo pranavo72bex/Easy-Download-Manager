@@ -45,7 +45,7 @@ pub(super) async fn download_dash(
     let left_out = plan.left_out + check_seams(client, &mut plan, options).await?;
     if left_out > 0 {
         if let Some(tx) = &report {
-            let said = crate::download::NOTES[3].replace("{}", &left_out.to_string());
+            let said = PARTS_LEFT_OUT.replace("{}", &left_out.to_string());
             let _ = tx.send(Update::Note(said)).await;
         }
     }
@@ -53,9 +53,7 @@ pub(super) async fn download_dash(
     // The best taken was below a quality passed over as copy-protected: the row says so.
     if plan.protected_above {
         if let Some(tx) = &report {
-            let _ = tx
-                .send(Update::Note(crate::download::NOTES[0].into()))
-                .await;
+            let _ = tx.send(Update::Note(PROTECTED_ABOVE.into())).await;
         }
     }
     let tracks: Vec<&Track> = plan.video.iter().chain(plan.audio.iter()).collect();

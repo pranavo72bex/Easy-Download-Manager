@@ -43,6 +43,7 @@ mod hls_sealed;
 mod hls_text;
 mod http;
 mod mirrors;
+mod notes;
 mod page_stream;
 mod per_site;
 mod plain;
@@ -58,6 +59,7 @@ pub use files::*;
 pub(crate) use hls::*;
 pub use http::*;
 use mirrors::*;
+pub use notes::*;
 use page_stream::is_stream;
 pub(crate) use page_stream::{
     download_numbered_stream_with, download_video_stream_with, stream_headers, Headers,
@@ -568,24 +570,6 @@ pub async fn download(
     sync_after(finished.path.clone());
     Ok(finished)
 }
-
-/// Every note a download may put on its row ([`Update::Note`]), so the window has each in
-/// every language; a note with a number says it as `{}`. The last five say what "Unpack when
-/// done" made of a finished archive (dm-shell's `app::unpack`, gaps row W14).
-pub const NOTES: [&str; 9] = [
-    "higher qualities are copy-protected, so the best one that is not was taken",
-    "{} pieces of the live stream were gone before dm could fetch them",
-    "checked against the checksum file published beside it",
-    "{} parts of the stream in another format, such as an advert, were left out",
-    "unpacked into a folder of its name",
-    "unpacked into a folder of its name, and the archive sent to the Trash",
-    "unpacked into a folder of its name, but the archive could not be sent to the Trash",
-    "not unpacked: the archive has a password",
-    "not unpacked: Extract here on its menu says why",
-];
-
-/// The note of a file checked against a checksum file found beside it ([`NOTES`], gaps row F5).
-pub const CHECKED_BESIDE: &str = NOTES[2];
 
 /// What the engine tells a caller while a download is in flight.
 ///

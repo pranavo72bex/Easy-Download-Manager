@@ -415,8 +415,7 @@ async fn take_periods(
                 .collect();
             if passed_over.insert(inits) {
                 if let Some(tx) = report {
-                    let said =
-                        crate::download::NOTES[3].replace("{}", &passed_over.len().to_string());
+                    let said = PARTS_LEFT_OUT.replace("{}", &passed_over.len().to_string());
                     let _ = tx.send(Update::Note(said)).await;
                 }
             }

@@ -41,11 +41,11 @@ impl Outcome {
     /// What the row says of it, in English: one of `dm_core::NOTES`.
     pub fn note(self) -> &'static str {
         match self {
-            Outcome::Kept => dm_core::NOTES[4],
-            Outcome::Trashed => dm_core::NOTES[5],
-            Outcome::NotTrashed => dm_core::NOTES[6],
-            Outcome::Password => dm_core::NOTES[7],
-            Outcome::Refused => dm_core::NOTES[8],
+            Outcome::Kept => dm_core::UNPACKED,
+            Outcome::Trashed => dm_core::UNPACKED_AND_TRASHED,
+            Outcome::NotTrashed => dm_core::UNPACKED_NOT_TRASHED,
+            Outcome::Password => dm_core::NOT_UNPACKED_PASSWORD,
+            Outcome::Refused => dm_core::NOT_UNPACKED_REFUSED,
         }
     }
 }

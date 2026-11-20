@@ -98,13 +98,13 @@ fn an_estimated_size_is_shown_as_about() {
 #[test]
 fn a_downloads_note_follows_its_state() {
     let mut done = row(State::Completed, false);
-    done.said = dm_core::NOTES[0].into();
+    done.said = dm_core::PROTECTED_ABOVE.into();
     assert_eq!(
         status_in_english(&done),
-        format!("Complete · {}", dm_core::NOTES[0])
+        format!("Complete · {}", dm_core::PROTECTED_ABOVE)
     );
-    done.said = dm_core::NOTES[1].replace("{}", "3");
-    assert!(status_in_english(&done).ends_with(&dm_core::NOTES[1].replace("{}", "3")));
+    done.said = dm_core::LIVE_PIECES_GONE.replace("{}", "3");
+    assert!(status_in_english(&done).ends_with(&dm_core::LIVE_PIECES_GONE.replace("{}", "3")));
     done.said = "something no template says".into();
     assert_eq!(status_in_english(&done), "Complete");
 }
@@ -118,12 +118,12 @@ fn an_archive_unpacked_and_trashed_is_said_so_not_missing() {
     done.path = dir.path().join("pack.zip").display().to_string();
     set_looked(look_for(vec![(1, done.path.clone())]));
     assert!(gone(&done));
-    done.said = dm_core::NOTES[5].into();
+    done.said = dm_core::UNPACKED_AND_TRASHED.into();
     assert_eq!(
         status_in_english(&done),
-        format!("Complete · {}", dm_core::NOTES[5])
+        format!("Complete · {}", dm_core::UNPACKED_AND_TRASHED)
     );
-    done.said = dm_core::NOTES[4].into();
+    done.said = dm_core::UNPACKED.into();
     assert!(status_in_english(&done).starts_with("File missing"));
     LOOKED.with(|l| *l.borrow_mut() = None);
 }

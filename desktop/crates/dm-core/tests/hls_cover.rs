@@ -1043,7 +1043,7 @@ async fn live_segments_gone_before_they_were_fetched_are_told_on_the_row() {
             notes.push(note);
         }
     }
-    let said = dm_core::NOTES[1].replace("{}", "3");
+    let said = dm_core::LIVE_PIECES_GONE.replace("{}", "3");
     assert_eq!(notes, vec![said]);
 }
 
