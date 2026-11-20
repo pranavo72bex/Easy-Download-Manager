@@ -70,6 +70,8 @@ async fn fetch_track(
         (Medium::Audio, false) => "m4a",
     };
     let gathered = options.parts_dir.join(format!("track{n}.{kind}"));
+    // A join in place into or from it cut short: fetched again (gaps row Y21).
+    drop_spoiled(&gathered).await;
     // Gathered before a stop: its pieces were freed as they were
     // consumed, and the file is named only when whole.
     if fs::metadata(&gathered).await.is_ok_and(|m| m.len() > 0) {

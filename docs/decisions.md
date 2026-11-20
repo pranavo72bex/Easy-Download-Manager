@@ -8471,3 +8471,28 @@ Automation client may not read (the check then says so, not checked). macOS's (0
 or shut state and no sort. AT-SPI's (0.19) gives every push button Enabled and Sensitive, greyed or
 not; 0.21 fixed it, so Linux's greyed-button check is expected to fail until GPUI moves on, which
 is AccessKit's to fix, not a reason to drop the check.
+
+## A join with no room beside its tracks is written into the largest (2026-11-20, gaps row Y21)
+
+A DASH stream's tracks and a YouTube video's two parts were joined into a new file while the
+tracks were still there: twice the video on the disk at the end. HLS freed its segments as the
+remux read them (2026-11-19); a whole file cannot be shortened from its front, so the same was
+not open to these. Chosen: where the disk has no room for the join beside its tracks, the
+largest track (an MP4) becomes the joined file. Its samples stay where they lie; the other
+tracks' samples are copied onto its end last chunk first, each shortened from its end past every
+chunk copied; the new index follows them and the old boxes are made `free`. The disk holds the
+file and a chunk more. Kept as before where there is room (the index first, picture and sound
+interleaved, a join cut short losing nothing), as HLS keeps its segments then: the file written
+in place has its index last and its sound apart, and a join cut short leaves its tracks marked,
+to be fetched again. Dropped: fetching DASH's pieces into no track at all and joining from them
+(a reader over every piece file, freed as read): it saved the gather too, but not for YouTube's
+parts, which arrive whole, and it changed how every DASH piece is kept across a stop.
+
+## DASH takes a picture and sound dm can join (2026-11-20, gaps row Y20)
+
+`dash::choose` read heights, bandwidths and languages but not codecs, so MKV asked of a Dolby
+Vision picture or an AC-4 sound, or a VP8 picture beside an AC-4 sound, was fetched whole and
+then failed at the join. Each representation's `codecs` is now read for the files dm writes
+that hold it, and a picture is taken only where a listed sound joins with it into what will be
+made; where nothing listed fits, the best is taken as before and the join says why. A quality
+is passed over for a lower one only where the higher could not have been saved at all.

@@ -132,6 +132,53 @@ async fn a_pair_no_mp4_holds_is_saved_as_an_mkv() {
     assert!(has(&std::fs::read(&done.path).unwrap(), b"V_MPEG4/ISO/AVC"));
 }
 
+/// With no room for the join beside the picture and sound, they are joined into the larger
+/// (gaps row Y21): the same samples and subtitles as the usual join, the parts gone.
+#[tokio::test]
+async fn with_no_room_beside_them_the_parts_are_joined_into_the_picture() {
+    let staged = |dir: &Path| {
+        std::fs::write(dir.join("v.f137.mp4"), fixture("media/mp4mux/picture.mp4")).unwrap();
+        std::fs::write(dir.join("v.f140.m4a"), fixture("media/mp4mux/sound.m4a")).unwrap();
+    };
+    let dir = tempfile::tempdir().unwrap();
+    staged(dir.path());
+    let usual = finish_dm(&dir.path().join("v.mp4"), hello(), &options(dir.path()))
+        .await
+        .unwrap();
+    let made = crate::mp4mux::testing::read_back(&usual.path);
+
+    let dir = tempfile::tempdir().unwrap();
+    staged(dir.path());
+    let both = (fixture("media/mp4mux/picture.mp4").len() + fixture("media/mp4mux/sound.m4a").len())
+        as u64;
+    let tight = Options {
+        room: crate::Room::with_free_space(move |_| Some(both - 1)),
+        ..options(dir.path())
+    };
+    let done = finish_dm(&dir.path().join("v.mp4"), hello(), &tight)
+        .await
+        .unwrap();
+    assert_eq!(done.path.extension().unwrap(), "mp4");
+    let joined = crate::mp4mux::testing::read_back(&done.path);
+    assert_eq!(
+        joined.len(),
+        made.len(),
+        "a picture, a sound and the subtitles"
+    );
+    for (ours, theirs) in joined.iter().zip(&made) {
+        assert_eq!(ours.samples, theirs.samples);
+        assert_eq!(ours.durations, theirs.durations);
+    }
+    assert!(has(&std::fs::read(&done.path).unwrap(), b"tx3g"));
+    let left: Vec<String> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("v.f") || name.ends_with(".dm-joining"))
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
+}
+
 /// Streams that are not media, joined or cut, fail in words rather than
 /// leaving a broken file placed as the download.
 #[tokio::test]

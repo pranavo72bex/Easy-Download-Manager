@@ -9,7 +9,7 @@
 use super::*;
 
 /// The tracks fetched, gathered one file each, the row told how far they have got; checked
-/// for a stop and for room to join them.
+/// for a stop.
 pub(super) async fn fetch_tracks_shown(
     client: &reqwest::Client,
     tracks: &[&Track],
@@ -35,8 +35,39 @@ pub(super) async fn fetch_tracks_shown(
     }
     let files = fetched?;
     options.control.check()?;
-    room_to_join(&files, &options.parts_dir, options)?;
     Ok(files)
+}
+
+/// The fetched `files` joined into `joined`, written beside them under `.partial` and named once
+/// whole; then they are removed. Run to its end like the remux of a transport stream: cut loose
+/// from a pause it would go on writing a file a resume makes afresh.
+pub(super) async fn join_beside(
+    files: &[PathBuf],
+    texts: Texts,
+    joined: &Path,
+    matroska: bool,
+    options: &Options,
+) -> Result<(), Error> {
+    let extension = match joined.extension() {
+        Some(named) => named.to_string_lossy().into_owned(),
+        None if matroska => "mkv".into(),
+        None => "mp4".into(),
+    };
+    let partial = options
+        .parts_dir
+        .join(format!("joined.partial.{extension}"));
+    let _ = fs::remove_file(&partial).await;
+    if let Err(why) = join_files(files, texts, &partial, matroska, options).await {
+        let _ = fs::remove_file(&partial).await;
+        return Err(Error::Internal(format!(
+            "the picture and sound could not be joined: {why}"
+        )));
+    }
+    fs::rename(&partial, joined).await?;
+    for file in files {
+        let _ = fs::remove_file(file).await;
+    }
+    Ok(())
 }
 
 /// A transport-stream picture scrambled by SAMPLE-AES beside packed AAC sound, which dm does not
