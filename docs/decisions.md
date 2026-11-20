@@ -8112,3 +8112,6 @@ Built as the title menus are, a `gpui::Menu` shown as a `NativeMenu`. "Delete fi
 
 The chooser is `services::ask` (dm's own panels on macOS, rfd's async ones elsewhere): GPUI's `prompt_for_paths` takes neither file kinds nor a starting folder. The clipboard of dm's own code is arboard, through `Platform::clipboard` and `set_clipboard`: GPUI's needs the window's thread, the watch reads every second off it, and on Windows GPUI's read copies and hashes any picture on the clipboard. The text fields keep gpui-component's clipboard, inside the toolkit. `tray-icon` (with `muda`) and `notify-rust` stay as plumbing GPUI lacks. Known cost: on Wayland with no XWayland arboard cannot copy (row 218).
 
+## Copies through GPUI's clipboard on Wayland (2026-11-20, gaps row 218)
+
+On Linux under Wayland (`WAYLAND_DISPLAY` set) dm's own copies go through GPUI's clipboard on the window's thread, decided by `Platform::copies_through_window`; elsewhere, and in the window tests' fake, through arboard. arboard's `wayland-data-control` was not taken: it needs `wl-clipboard-rs`, not in the lock, and GNOME's compositor offers no data-control protocol.

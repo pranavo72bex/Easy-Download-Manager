@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Linux (Wayland without XWayland): Copy link and Copy details put the text on the clipboard.
 - The row menu is the system's own menu: the system's keyboard, each item's key shown on Windows and Linux, groups that do not apply to the chosen downloads left out; Delete file after is a submenu.
 - YouTube: a download picked from the quality list no longer fetches the video's page a second time.
 - Videos: an HLS rendition whose sound is listed apart from it without naming its group is saved with that sound, not as a picture alone.
