@@ -11,6 +11,8 @@ pub(crate) mod drops;
 pub(crate) mod droptarget;
 #[cfg(not(windows))]
 pub(crate) mod notify;
+#[cfg(target_os = "macos")]
+pub(crate) mod popmenu;
 pub(crate) mod services;
 #[cfg(target_os = "macos")]
 pub(crate) mod sheets;
