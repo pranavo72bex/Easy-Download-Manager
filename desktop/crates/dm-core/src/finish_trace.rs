@@ -21,6 +21,12 @@ fn file() -> Option<&'static std::path::Path> {
     .as_deref()
 }
 
+/// Whether the stages are being written down: for a look taken only for the trace (gaps row 206).
+#[doc(hidden)]
+pub fn on() -> bool {
+    file().is_some()
+}
+
 /// Writes down that `stage` is reached now.
 #[doc(hidden)]
 pub fn mark(stage: &str) {

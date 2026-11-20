@@ -297,12 +297,21 @@ pub(super) async fn assemble(
         .iter()
         .zip(&on_disk)
         .find(|((_, lead), there)| there.as_ref().is_some_and(|there| there != lead));
-    if let Some(((at, lead), _)) = differing {
+    if let Some(((at, lead), there)) = differing {
         crate::finish_trace::mark(&format!(
             "the {} bytes before {} differ from the next range's lead",
             lead.len(),
             at + lead.len() as u64
         ));
+        // How, and between which ranges, for the trace alone (gaps row 206).
+        if crate::finish_trace::on() {
+            let seam = at + lead.len() as u64;
+            crate::finish_trace::mark(&format!(
+                "lead before {seam}: {}; ranges {}",
+                seams::difference(lead, there.as_deref().unwrap_or_default()),
+                seams::ranges_under(&segments, *at, seam)
+            ));
+        }
         drop(segments);
         release_staged(job, true).await;
         let mut listing = fs::read_dir(&options.parts_dir).await?;
