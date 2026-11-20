@@ -1,0 +1,159 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! The window at a phone's width (gaps row N7): the top bar, the cards, the overflow menu
+//! and the drawer, each the desktop's own views and commands; and the desktop's layout kept
+//! at every width a desktop window had.
+
+use dm_core::State;
+use dm_shell::app::places::Place;
+
+use crate::harness::world::{world, World};
+use crate::harness::{settings_file, Harness};
+
+/// A phone held upright, in points.
+const PHONE: (f32, f32) = (412.0, 915.0);
+
+/// `names` added for later, fetching nothing, and listed.
+fn add_later(h: &mut Harness, world: &World, names: &[&str]) {
+    let urls: Vec<String> = names.iter().map(|n| world.url(n)).collect();
+    h.call(
+        "downloads.add",
+        serde_json::json!({ "urls": urls, "later": true, "again": true }),
+    )
+    .unwrap();
+    h.until("the rows", |h| h.rows().len() == names.len());
+}
+
+/// The window at a phone's width.
+fn phone(world: &World) -> Harness {
+    let mut h = world.harness();
+    h.resize(PHONE.0, PHONE.1);
+    h
+}
+
+/// At a phone's width the menu bar and the toolbar are one top bar, and each row is a card
+/// with its name, size and state; a tap chooses a card, its ⋯ opens the row menu as a sheet.
+#[test]
+fn at_a_phones_width_the_rows_are_cards() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    add_later(&mut h, &world, &["file.zip", "page.html"]);
+    h.until_shown("file.zip");
+    assert!(h.shows("page.html"), "{:?}", h.texts());
+    // The top bar: no menus' titles, no toolbar; the drawer's, Add's and the menu's buttons.
+    assert!(!h.shows("Tasks"), "{:?}", h.texts());
+    assert!(!h.shows("Stop All"), "{:?}", h.texts());
+    for button in ["Places", "Add URL", "Menu"] {
+        assert!(h.shows(button), "{button}: {:?}", h.texts());
+    }
+    // Each card says its state, as the table's Status does.
+    let row = h.row("file.zip");
+    let state = dm_desktop_base::rows::status_of(&row);
+    assert!(h.shows(&state), "{state}: {:?}", h.texts());
+    // A tap chooses the card alone.
+    h.person_click("file.zip", 1);
+    h.until("the card chosen", |h| {
+        h.view(|view| view.list.selected == [row.id].into())
+    });
+    // Its ⋯: the row menu, as a sheet, its items the row menu's.
+    h.person_click("Row menu", 1);
+    h.until("the row menu's sheet", |h| {
+        h.view(|view| view.layout.narrow.sheet.is_some())
+    });
+    let menu = h.view(|view| crate::window::rowmenu::row_menu(view, false).owned());
+    let first = menu
+        .items
+        .iter()
+        .find_map(|item| match item {
+            gpui::OwnedMenuItem::Action { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .unwrap();
+    assert!(h.shows(&first), "{first}: {:?}", h.texts());
+}
+
+/// The overflow menu holds the toolbar's commands and the menus, and runs them as they run:
+/// Stop All from the toolbar's part, Downloads › Resume all from the menus'.
+#[test]
+fn the_overflow_menu_runs_the_toolbars_and_the_menus_commands() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.call(
+        "downloads.add",
+        serde_json::json!({ "urls": [world.url("stalled.bin")] }),
+    )
+    .unwrap();
+    h.until("the row to start", |h| {
+        h.rows().iter().any(|r| r.state == State::Running)
+    });
+    h.until("Stop All to be offered", |h| {
+        h.enabled(dm_shell::app::commands::Command::StopAll)
+    });
+    h.person_click("Menu", 1);
+    h.until_shown("Downloads");
+    for menu in ["Tasks", "File", "View", "Help"] {
+        assert!(h.shows(menu), "{menu}: {:?}", h.texts());
+    }
+    h.person_click("Stop All", 1);
+    h.until("Stop All", |h| {
+        h.rows().iter().all(|r| r.state == State::Paused)
+    });
+    assert!(
+        h.view(|view| view.layout.narrow.sheet.is_none()),
+        "the sheet stayed open"
+    );
+    h.person_click("Menu", 1);
+    h.until_shown("Downloads");
+    h.person_click("Downloads", 1);
+    h.until_shown("Resume all");
+    h.person_click("Resume all", 1);
+    h.until("Resume all", |h| {
+        h.rows().iter().all(|r| r.state != State::Paused)
+    });
+}
+
+/// The side panel is a drawer from the top bar: its categories and queues, and a place
+/// chosen in it shows its rows and closes it.
+#[test]
+fn the_drawer_shows_the_categories_and_queues() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.until_shown("Places");
+    assert!(!h.shows("Unfinished"), "the side panel beside the cards");
+    h.person_click("Places", 1);
+    h.until_shown("Unfinished");
+    for place in ["Finished", "Main queue"] {
+        assert!(h.shows(place), "{place}: {:?}", h.texts());
+    }
+    h.person_click("Finished", 1);
+    h.until("Finished chosen and the drawer closed", |h| {
+        h.view(|view| view.list.place == Place::Finished && view.layout.narrow.drawer.is_none())
+    });
+    assert!(!h.shows("Unfinished"), "{:?}", h.texts());
+}
+
+/// At the least width the desktop window had (640 points) and down to the breakpoint, the
+/// window is the desktop's: the menus' titles and the toolbar, no phone's top bar; under it,
+/// the phone's.
+#[test]
+fn at_the_desktops_least_width_the_layout_is_the_desktops() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    for width in [640.0, crate::window::narrow::NARROW_BELOW] {
+        h.resize(width, 400.0);
+        h.until_shown("Tasks");
+        assert!(h.shows("Stop All"), "{width}: {:?}", h.texts());
+        assert!(!h.shows("Places"), "{width}: {:?}", h.texts());
+        assert!(!h.shows("Menu"), "{width}: {:?}", h.texts());
+    }
+    h.resize(PHONE.0, PHONE.1);
+    h.until_shown("Places");
+    assert!(!h.shows("Tasks"), "{:?}", h.texts());
+}

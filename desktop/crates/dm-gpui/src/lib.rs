@@ -373,7 +373,9 @@ fn where_it_opens(
     WindowBounds,
     Option<gpui::DisplayId>,
 ) {
-    let least = size(px(640.0), px(400.0));
+    // As narrow as a phone held upright, so a narrowed window shows the phone's layout (gaps
+    // row N7, the maintainer's word of 2026-11-20); as short as before.
+    let least = size(px(window::narrow::LEAST_WIDTH), px(400.0));
     let displays: Vec<(u64, Bounds<gpui::Pixels>)> = cx
         .displays()
         .iter()

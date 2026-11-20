@@ -37,7 +37,7 @@ pub(super) fn name_drawn(name: &SharedString, screen: &Screen) -> impl IntoEleme
 }
 
 /// The bar under a running row's status, `f` of the way along.
-pub(super) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
+pub(crate) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
     let track = div()
         .mt(px(space::XXS))
         .w_full()

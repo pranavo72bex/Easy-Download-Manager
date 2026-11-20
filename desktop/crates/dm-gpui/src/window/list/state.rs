@@ -272,6 +272,8 @@ pub(crate) struct Layout {
     /// Windows' High Contrast palette as last drawn (`tick.rs`): GPUI tells
     /// the window of light and dark only.
     pub(crate) contrast: Option<dm_desktop_base::contrast::Palette>,
+    /// The phone's layout's drawer and sheet (`narrow.rs`).
+    pub(crate) narrow: crate::window::narrow::Narrow,
 }
 
 /// What the window tells a person: the status bar's sentence, what a

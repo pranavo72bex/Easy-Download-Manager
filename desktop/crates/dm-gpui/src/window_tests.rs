@@ -20,6 +20,7 @@ mod keyboard;
 mod layout;
 mod lists;
 mod more_dialogs;
+mod narrow;
 mod options;
 mod options_tabs;
 mod playlist;
