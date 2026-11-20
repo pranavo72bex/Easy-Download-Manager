@@ -157,3 +157,24 @@ async fn a_file_already_in_the_folder_is_asked_about() {
     q.run().await;
     assert_eq!(q.get(row.id).await.unwrap().state, State::Completed);
 }
+
+#[tokio::test]
+async fn redownload_is_not_asked_about_its_own_first_copy() {
+    let addr = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path());
+    q.ask_about_same_files(true);
+    let first = fetched(
+        &q,
+        format!("http://{addr}/a/same.bin"),
+        AddOptions::default(),
+    )
+    .await;
+    assert_eq!(first.state, State::Completed);
+    // Redownload: a fresh copy beside the first, the folder's file not asked about.
+    assert!(q.redownload(first.id).await);
+    q.run().await;
+    let again = q.get(first.id).await.unwrap();
+    assert_eq!(again.state, State::Completed, "{:?}", again.state);
+    assert_eq!(saved(dir.path()), ["same (1).bin", "same.bin"]);
+}

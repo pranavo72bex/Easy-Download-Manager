@@ -392,6 +392,9 @@ impl DownloadList {
                     slot.entry_mut().path = replacing.clone().unwrap_or_default();
                     slot.entry_mut().replaces = replacing;
                     slot.entry_mut().verified = false;
+                    // Asked for again by a person: not stopped as the same file as its own
+                    // first copy (contract row B73 asks only of a download added).
+                    slot.entry_mut().accept_same = true;
                     true
                 }
                 None => false,

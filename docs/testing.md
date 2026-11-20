@@ -82,6 +82,14 @@ row fails or was not checked, and `--save-baseline` records the window's
 pictures once a change to them is approved. This is what "QA" means here.
 On Windows, start it from PowerShell, not Git Bash (next section).
 
+**Twenty everyday tasks, counted** (gaps row W3). `python -X utf8 scripts/task-steps.py`
+does each task of [tasks.md](tasks.md) marked "driven" in dm's real window, through the
+control port as a person would, each in a dm of its own as a new install has it, counts its
+clicks, keys, typed fields and windows, and checks the task was done; the browser's tasks are
+counted by hand from their path. With reference A's counts filled in by a person, it lists each
+task where dm takes more, a row to propose in gaps.md. It is a measure, not part of QA: in sight,
+from PowerShell on Windows, like `human-qa.py`.
+
 **On CI, reported and not gating** (`.github/workflows/contract-linux.yml`, gaps row R5). On
 each pull request, each push to main and by hand, CI's Linux runner runs `sh
 scripts/linux-human-qa.sh` exactly as it runs on a machine with Docker: a build of the checkout in
