@@ -132,6 +132,8 @@ fn cell(column: Column, widths: &Widths) -> gpui::Div {
     let cell = div()
         .h_full()
         .flex()
+        // Its contents from the right where the window is mirrored (gaps row U35).
+        .map(crate::window::mirror::row)
         .items_center()
         .px_2()
         .overflow_hidden()
@@ -377,6 +379,8 @@ fn row_cells(
                     .when(told, |c| told_cell(c, place, said.clone()))
                     .flex_col()
                     .items_start()
+                    // Against the right where the window is mirrored (gaps row U35).
+                    .when(crate::window::mirror::rtl(), |c| c.items_end())
                     .justify_center()
                     .when(whole.chars().count() > STATUS_FITS, |c| {
                         c.tooltip(move |window, cx| {
@@ -543,6 +547,8 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .h(px(ROW_HEIGHT))
                         .px_1()
                         .flex()
+                        // The columns from the right where the window is mirrored (gaps row U35).
+                        .map(crate::window::mirror::row)
                         .when(chosen, |r| r.bg(background).text_color(theme.text))
                         .when(!chosen && i % 2 == 1, |r| r.bg(theme.stripe));
                     pointer::row_handlers(drawn, id, dragged, reorders, original, cx)
@@ -630,9 +636,17 @@ fn row_buttons(
     div()
         .absolute()
         .top_0()
-        .right(px(4.0))
+        // Over the name's left end where the window is mirrored (gaps row U35).
+        .map(|d| {
+            if crate::window::mirror::rtl() {
+                d.left(px(4.0))
+            } else {
+                d.right(px(4.0))
+            }
+        })
         .h_full()
         .flex()
+        .map(crate::window::mirror::row)
         .items_center()
         .gap_1()
         .px_1()

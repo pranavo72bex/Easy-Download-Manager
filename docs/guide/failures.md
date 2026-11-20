@@ -782,7 +782,15 @@ removed, and the archive stays where it was.
   damaged, which looks the same). Nothing was written. Check the password,
   including its capital letters.
 - `the archive is packed with …, which dm does not unpack`
-  The archive needs a program that handles these; dm does not.
+  The archive needs a program that handles these; dm does not. For a RAR,
+  the words name what: `the compression of RAR 4 and older` (dm unpacks
+  RAR 5 archives whole, and of an older RAR archive only the files it
+  stores without compression), `a later RAR compression (version …)`, or
+  `BLAKE2 checksums in place of CRC32` (the files are checked by a hash dm
+  does not compute, so dm does not write them unchecked).
+- `this is not an archive that can be read: the RAR archive is one part of several (.part1.rar, .part2.rar…), which dm does not join`
+  The archive was split into parts. Unpack it with a program that joins
+  RAR parts, once every part is downloaded.
 - `the archive lists the same name twice: …`
   Two entries would be one file on a Windows disk.
 - `the archive is larger than dm will extract (…)`

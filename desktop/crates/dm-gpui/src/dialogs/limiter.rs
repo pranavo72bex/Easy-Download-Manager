@@ -126,7 +126,7 @@ impl Render for Limiter {
         let number_field = |input: &Entity<InputState>, name: &'static str| {
             div().w(px(110.0)).child(native::field(input, name, theme))
         };
-        crate::widgets::native::dialog("limiter", t("Speed limiter"), theme, cx)
+        let root = crate::widgets::native::dialog("limiter", t("Speed limiter"), theme, cx)
             .on_action(
                 cx.listener(|this, pick: &crate::widgets::popup::Pick, _, cx| this.pick(pick, cx)),
             )
@@ -234,7 +234,8 @@ impl Render for Limiter {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

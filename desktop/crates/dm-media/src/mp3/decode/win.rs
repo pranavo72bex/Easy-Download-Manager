@@ -29,7 +29,8 @@ pub(super) fn possible() -> bool {
     mf::aac_decoder()
 }
 
-/// Media Foundation's Opus decoder, which Windows 10 and 11 carry.
+/// Media Foundation's Opus decoder, which Windows 10 and 11 carry; where it
+/// is missing, dm's own reads Opus (`crate::opus`).
 pub(super) fn opus_possible() -> bool {
     mf::opus_decoder()
 }

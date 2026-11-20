@@ -334,7 +334,7 @@ impl Render for Links {
             // As on a Mac: Add for later, to a queue, at the leading
             // side; Cancel, then Start now (the default) at the end.
             .child(self.buttons(theme, &screen, queues, queue_at, cx));
-        crate::widgets::native::dialog("links", t("Download links"), theme, cx)
+        let root = crate::widgets::native::dialog("links", t("Download links"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
@@ -342,7 +342,8 @@ impl Render for Links {
                     this.add(false, window, cx);
                 }
             }))
-            .child(crate::widgets::fit::fitted(body))
+            .child(crate::widgets::fit::fitted(body));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

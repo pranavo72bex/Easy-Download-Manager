@@ -1,0 +1,299 @@
+{
+  "extName": {
+    "message": "dm — מנהל הורדות"
+  },
+  "extDescription": {
+    "message": "מעביר הורדות וסרטונים לאפליקציית dm, שמורידה אותם. ללא האפליקציה, ההורדות נשארות בדפדפן."
+  },
+  "menuLink": {
+    "message": "הורדת הקישור עם dm"
+  },
+  "menuMedia": {
+    "message": "הורדת המדיה עם dm"
+  },
+  "menuAllLinks": {
+    "message": "הורדת כל הקישורים עם dm"
+  },
+  "menuSelectedLinks": {
+    "message": "הורדת הקישורים שנבחרו עם dm"
+  },
+  "popupLooking": {
+    "message": "מחפש את אפליקציית dm…"
+  },
+  "popupCatch": {
+    "message": "לכידת הורדות"
+  },
+  "popupPanelHere": {
+    "message": "הצגת \"הורדת סרטון\" באתר זה"
+  },
+  "popupPanelOn": {
+    "message": "הצגת \"הורדת סרטון\" באתר $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "אין חלונית סרטון בדף זה"
+  },
+  "popupCatchAllHere": {
+    "message": "לכידת כל ההורדות מאתר זה"
+  },
+  "popupCatchAllOn": {
+    "message": "לכידת כל ההורדות מהאתר $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "אין הורדות ללכידה בדף זה"
+  },
+  "popupPausedHere": {
+    "message": "השהיית הלכידה באתר זה"
+  },
+  "popupPausedOn": {
+    "message": "השהיית הלכידה באתר $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "אין הורדות להשהיה בדף זה"
+  },
+  "popupCookiesHere": {
+    "message": "העברת פרטי ההתחברות של אתר זה עם ההורדות שלו"
+  },
+  "popupCookiesOn": {
+    "message": "העברת פרטי ההתחברות של $SITE$ עם ההורדות שלו",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "אין פרטי התחברות להעברה מדף זה"
+  },
+  "popupOpen": {
+    "message": "פתיחת dm"
+  },
+  "popupGetApp": {
+    "message": "הורדת אפליקציית dm"
+  },
+  "popupNoAnswer": {
+    "message": "אפליקציית dm לא הגיבה"
+  },
+  "popupOpening": {
+    "message": "פותח את dm…"
+  },
+  "popupIsOpen": {
+    "message": "dm פתוח"
+  },
+  "popupConnected": {
+    "message": "מחובר ל-dm $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "מחובר ל-dm $VERSION$ · יש לעדכן את אפליקציית dm: עד אז ההורדות נשארות בדפדפן",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "ההגדרה נקבעה לכל $SITES$, ולכן היא שונתה גם שם",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ ו-$NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "dm עדיין לא מחובר לדפדפן זה."
+  },
+  "popupStepGet": {
+    "message": "1. עדיין אין אפליקציית dm במחשב זה? יש להוריד אותה, להתקין אותה ולפתוח אותה פעם אחת."
+  },
+  "popupStepOpen": {
+    "message": "2. כבר מותקנת? יש לפתוח את dm (אם הוא כבר פתוח, יש לפתוח אותו שוב). החלון הקופץ הזה יתחבר מעצמו."
+  },
+  "popupAdvanced": {
+    "message": "מתקדם: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupMore": {
+    "message": "ועוד $COUNT$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "נכשלה: $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "dm לא הגיב ($REASON$). יש לפתוח את dm (אם הוא כבר פתוח, יש לפתוח אותו שוב); החלון הקופץ הזה ינסה שוב מעצמו. אם עדיין אין תגובה: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "הורדת סרטון"
+  },
+  "panelDownloadAudio": {
+    "message": "הורדת קטע השמע הזה"
+  },
+  "panelProtected": {
+    "message": "סרטון מוגן"
+  },
+  "panelProtectedSaid": {
+    "message": "סרטון זה מוגן מפני העתקה, ולכן רק הנגן של האתר עצמו יכול להפעיל אותו. dm אינו מוריד סרטונים מוגנים."
+  },
+  "panelThroughApp": {
+    "message": "דף זה, דרך אפליקציית dm"
+  },
+  "panelHelp": {
+    "message": "dm מוריד את הסרטון הזה באמצעות אפליקציית dm, שבה בוחרים את שמו ואת התיקייה שלו. קישור שנלחץ בזמן החזקת מקש ההשארה בדפדפן (Alt, אלא אם שונה ב\"אפשרויות\" של dm) נשאר בדפדפן."
+  },
+  "panelDrag": {
+    "message": "גרירה להזזה"
+  },
+  "panelWhat": {
+    "message": "מה זה?"
+  },
+  "panelHide": {
+    "message": "הסתרה"
+  },
+  "panelHideForNow": {
+    "message": "הסתרה לעת עתה"
+  },
+  "panelNeverOn": {
+    "message": "אף פעם לא באתר $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "הזה"
+  },
+  "panelReading": {
+    "message": "קורא את האיכויות…"
+  },
+  "panelReadingSaid": {
+    "message": "dm קורא את איכויות הסרטון בדף זה; הפעולה עשויה להימשך עד חצי דקה."
+  },
+  "panelTimedOut": {
+    "message": "dm לא הגיב בזמן. אפשר לנסות שוב, או ללחוץ לחיצה ימנית על הסרטון ולבחור \"הורדת המדיה עם dm\"."
+  },
+  "panelSending": {
+    "message": "שולח ל-dm…"
+  },
+  "panelNotTaken": {
+    "message": "dm לא הצליח לקבל את זה"
+  },
+  "panelUpdated": {
+    "message": "dm עודכן: יש לטעון מחדש את הדף כדי להשתמש בו"
+  },
+  "panelSent": {
+    "message": "נשלח ל-dm"
+  },
+  "panelInBrowser": {
+    "message": "מוריד בדפדפן"
+  },
+  "panelDownloadAll": {
+    "message": "הורדת הכול"
+  },
+  "panelPart": {
+    "message": "חלק"
+  },
+  "panelPartTo": {
+    "message": "עד"
+  },
+  "panelPartStart": {
+    "message": "תחילת הקטע"
+  },
+  "panelPartEnd": {
+    "message": "סוף הקטע"
+  },
+  "panelFileQuality": {
+    "message": "קובץ $KIND$, איכות $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "אפליקציית dm קוראת את הדף הזה כדי למצוא את הסרטון שבו"
+  },
+  "panelAppHas": {
+    "message": "אפליקציית dm קיבלה אותו"
+  },
+  "panelAppDownloading": {
+    "message": "אפליקציית dm מורידה אותו"
+  },
+  "panelNoAnswer": {
+    "message": "dm לא הגיב"
+  },
+  "panelFailed": {
+    "message": "dm לא הגיב. אפשר לנסות שוב, או ללחוץ לחיצה ימנית על הסרטון ולבחור \"הורדת המדיה עם dm\"."
+  },
+  "panelHls": {
+    "message": "זרם HLS, האיכות הטובה ביותר"
+  },
+  "panelDownload": {
+    "message": "הורד"
+  },
+  "toastSentMany": {
+    "message": "$COUNT$ הורדות נשלחו ל-dm",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  }
+}

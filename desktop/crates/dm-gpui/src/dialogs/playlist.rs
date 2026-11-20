@@ -190,7 +190,7 @@ impl Render for PlaylistWindow {
                 // Told off to a screen reader too (gaps row U23).
                 .off_if(greyed)
         };
-        crate::widgets::native::dialog("playlist", t("Playlist"), theme, cx)
+        let root = crate::widgets::native::dialog("playlist", t("Playlist"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
@@ -229,7 +229,8 @@ impl Render for PlaylistWindow {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

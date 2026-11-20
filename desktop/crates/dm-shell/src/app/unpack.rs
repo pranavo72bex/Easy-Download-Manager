@@ -51,7 +51,7 @@ impl Outcome {
 }
 
 /// Whether the finished `row` is unpacked when done: an archive dm unpacks (a ZIP, a 7z, a
-/// tar plain or gzipped) whose own box is ticked, or whose kind `settings` names.
+/// tar plain or gzipped, a RAR) whose own box is ticked, or whose kind `settings` names.
 pub fn wanted(row: &Entry, settings: &Settings) -> bool {
     if row.state != State::Completed || row.path.is_empty() {
         return false;

@@ -144,7 +144,7 @@ impl Render for ListFile {
         self.screen.begin();
         let screen = self.screen.clone();
         let width = native::label_width(&[t(PATH)]);
-        native::dialog("list-file", title(self.save), theme, cx)
+        let root = native::dialog("list-file", title(self.save), theme, cx)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" {
                     this.ok(window, cx);
@@ -185,7 +185,8 @@ impl Render for ListFile {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

@@ -370,7 +370,7 @@ impl Render for Options {
         let tabs = options::TABS
             .iter()
             .map(|(tab, words)| self.page_tab(*tab, words, theme, &screen, cx));
-        crate::widgets::native::dialog("options", t("Options"), theme, cx)
+        let root = crate::widgets::native::dialog("options", t("Options"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
             .on_action(
@@ -435,7 +435,8 @@ impl Render for Options {
                     .gap(px(native::ROW_GAP))
                     .children(page),
             )
-            .child(self.footer(theme, &screen, cx))
+            .child(self.footer(theme, &screen, cx));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

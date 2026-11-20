@@ -6,6 +6,24 @@ desktop/vendor/README.md. Each change in the code is marked `dm(<tag>):`, the
 tag its row in that file's table. The text before each file's section says
 what its hunks do, in order; git apply skips it.
 
+src/direct_write.rs:
+  1. dwrite-rtl: a line whose first strong letter is right to left laid out
+     right to left (in its own measured width), and a line with a
+     right-to-left run placed from DirectWrite's origins after `Draw`.
+  2. dwrite-rtl: `RendererContext` keeps each run's place (`RunPlace`).
+  3. dwrite-rtl: `DrawGlyphRun` takes the run's origin.
+  4. dwrite-rtl: the run's direction, from its bidi level, and where the
+     line had reached.
+  5. dwrite-rtl: a tab run's place.
+  6. dwrite-rtl: the index converter started again where a run goes back
+     in the text.
+  7. dwrite-rtl: a right-to-left run placed leftward from its origin, its
+     glyphs in visual order; each run's place kept.
+  8. dwrite-rtl: `first_strong_is_rtl` and `place_bidi_runs`.
+  9. dwrite-rtl: upstream's three Hebrew strings left out of its tab test,
+     which held Hebrew to left-to-right places.
+  10. dwrite-rtl: the test `right_to_left_runs_are_laid_out_leftward`.
+
 src/drag_out.rs (new):
   1. win-drag-out: files dragged out of the window, made by the shell
      (`SHDoDragDrop`) from a message posted to the window.
@@ -35,6 +53,314 @@ src/window.rs:
   2. win-drag-out: `can_start_external_drag` and `start_external_drag`.
   3. mica: `extend_frame_into_client`.
 
+diff --git a/src/direct_write.rs b/src/direct_write.rs
+index 82ff963..9daeecf 100644
+--- a/src/direct_write.rs
++++ b/src/direct_write.rs
+@@ -580,13 +580,27 @@ impl DirectWriteState {
+                 runs: &mut runs,
+                 layout: &text_layout,
+                 width: 0.0,
++                places: Vec::new(),
++                rtl: false,
+             };
++            // dm(dwrite-rtl): a paragraph whose first strong letter is right to left reads right
++            // to left, as CoreText and cosmic-text take it, laid out in its own measured width so
++            // the origins stay finite. Text with none is untouched.
++            if first_strong_is_rtl(text) {
++                let mut metrics = DWRITE_TEXT_METRICS::default();
++                text_layout.GetMetrics(&mut metrics)?;
++                text_layout.SetMaxWidth(metrics.widthIncludingTrailingWhitespace)?;
++                text_layout.SetReadingDirection(DWRITE_READING_DIRECTION_RIGHT_TO_LEFT)?;
++            }
+             text_layout.Draw(
+                 Some((&raw mut renderer_context).cast::<c_void>().cast_const()),
+                 &components.text_renderer.0,
+                 0.0,
+                 0.0,
+             )?;
++            if renderer_context.rtl {
++                place_bidi_runs(renderer_context.runs, &renderer_context.places);
++            }
+             let width = px(renderer_context.width);
+ 
+             Ok(LineLayout {
+@@ -1192,6 +1206,20 @@ struct RendererContext<'t, 'a, 'b> {
+     runs: &'b mut Vec<ShapedRun>,
+     layout: &'b IDWriteTextLayout,
+     width: f32,
++    // dm(dwrite-rtl): where DirectWrite put each run (`RunPlace`), read only when a run is right
++    // to left (`rtl`); a line with none is laid out as upstream lays it out.
++    places: Vec<RunPlace>,
++    rtl: bool,
++}
++
++// dm(dwrite-rtl): one drawn run's place: its index in `runs`, DirectWrite's origin for it, the
++// width the runs before it had reached (where upstream put it) and its own advance.
++struct RunPlace {
++    run: usize,
++    origin_x: f32,
++    start: f32,
++    advance: f32,
++    rtl: bool,
+ }
+ 
+ #[derive(Debug)]
+@@ -1290,7 +1318,7 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
+     fn DrawGlyphRun(
+         &self,
+         clientdrawingcontext: *const ::core::ffi::c_void,
+-        _baselineoriginx: f32,
++        baselineoriginx: f32,
+         _baselineoriginy: f32,
+         _measuringmode: DWRITE_MEASURING_MODE,
+         glyphrun: *const DWRITE_GLYPH_RUN,
+@@ -1351,6 +1379,10 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
+                 Ok,
+             )?;
+ 
++        // dm(dwrite-rtl): an odd level is a right-to-left run, its glyphs in reading order and
++        // drawn leftward from the origin; the width the line had reached is where upstream put it.
++        let rtl = glyphrun.bidiLevel % 2 == 1;
++        let start = context.width;
+         if let Some(text) = text {
+             // Tabs have layout advances but no glyph advances. Keep invisible
+             // glyphs so LineLayout can map their byte indices to caret positions.
+@@ -1386,6 +1418,14 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
+                 context.width += metrics.width;
+             }
+             if !glyphs.is_empty() {
++                // dm(dwrite-rtl): the tab run's place, moved with the others on a bidi line.
++                context.places.push(RunPlace {
++                    run: context.runs.len(),
++                    origin_x: baselineoriginx,
++                    start,
++                    advance: context.width - start,
++                    rtl: false,
++                });
+                 context.runs.push(ShapedRun { font_id, glyphs });
+             }
+         } else {
+@@ -1424,6 +1464,11 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
+             let mut utf16_idx = desc.textPosition as usize;
+             let mut glyph_idx = 0;
+             let mut glyphs = Vec::with_capacity(glyph_count);
++            // dm(dwrite-rtl): on a right-to-left line the runs come in visual order, not the
++            // text's, so the converter (which only seeks forward) starts again when one goes back.
++            if context.index_converter.utf16_ix > utf16_idx {
++                context.index_converter = StringIndexConverter::new(context.index_converter.text);
++            }
+             for (cluster_utf16_len, cluster_glyph_count) in cluster_analyzer {
+                 context.index_converter.advance_to_utf16_ix(utf16_idx);
+                 utf16_idx += cluster_utf16_len;
+@@ -1449,6 +1494,29 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
+                 }
+                 glyph_idx += cluster_glyph_count;
+             }
++            // dm(dwrite-rtl): a right-to-left run placed from its origin leftward, each glyph at
++            // its pen less its advance and offset, its glyphs then put in visual order (the order
++            // GPUI's wrapping reads). A left-to-right run stays as upstream placed it.
++            let advance = context.width - start;
++            if rtl {
++                context.rtl = true;
++                let mut pen = baselineoriginx;
++                for (glyph, (&glyph_advance, offset)) in glyphs
++                    .iter_mut()
++                    .zip(glyph_advances.iter().zip(glyph_offsets))
++                {
++                    glyph.position.x = px(pen - glyph_advance - offset.advanceOffset);
++                    pen -= glyph_advance;
++                }
++                glyphs.reverse();
++            }
++            context.places.push(RunPlace {
++                run: context.runs.len(),
++                origin_x: baselineoriginx,
++                start,
++                advance,
++                rtl,
++            });
+             context.runs.push(ShapedRun { font_id, glyphs });
+         }
+         Ok(())
+@@ -1522,6 +1590,62 @@ unsafe fn slice_from_nullable<'a, T>(
+     }
+ }
+ 
++// dm(dwrite-rtl): whether the first strong letter of `text` is right to left (Hebrew, Arabic,
++// Syriac, Thaana, N'Ko, Samaritan, Mandaic and their presentation forms), the direction the
++// Unicode bidirectional algorithm gives a paragraph. A letter of any other script is left to
++// right; digits, spaces and punctuation are not strong.
++fn first_strong_is_rtl(text: &str) -> bool {
++    for character in text.chars() {
++        if character.is_alphabetic() {
++            return matches!(
++                character,
++                '\u{0590}'..='\u{08FF}' | '\u{FB1D}'..='\u{FDFF}' | '\u{FE70}'..='\u{FEFF}'
++            );
++        }
++    }
++    false
++}
++
++// dm(dwrite-rtl): a line with a right-to-left run laid out from DirectWrite's origins: each
++// left-to-right run moved from where upstream put it to its origin, every run then shifted so
++// the leftmost starts at 0, and the runs put in visual order.
++fn place_bidi_runs(runs: &mut Vec<ShapedRun>, places: &[RunPlace]) {
++    let left = |place: &RunPlace| {
++        if place.rtl {
++            place.origin_x - place.advance
++        } else {
++            place.origin_x
++        }
++    };
++    let leftmost = places.iter().map(left).fold(f32::INFINITY, f32::min);
++    if !leftmost.is_finite() {
++        return;
++    }
++    let mut keyed = Vec::with_capacity(runs.len());
++    for (index, mut run) in std::mem::take(runs).into_iter().enumerate() {
++        let key = match places.iter().find(|place| place.run == index) {
++            Some(place) => {
++                let shift = if place.rtl {
++                    -leftmost
++                } else {
++                    place.origin_x - place.start - leftmost
++                };
++                for glyph in &mut run.glyphs {
++                    glyph.position.x += px(shift);
++                }
++                left(place) - leftmost
++            }
++            None => run
++                .glyphs
++                .first()
++                .map_or(0.0, |glyph| glyph.position.x.as_f32()),
++        };
++        keyed.push((key, run));
++    }
++    keyed.sort_by(|(a, _), (b, _)| a.total_cmp(b));
++    runs.extend(keyed.into_iter().map(|(_, run)| run));
++}
++
+ struct StringIndexConverter<'a> {
+     text: &'a str,
+     utf8_ix: usize,
+@@ -1844,9 +1968,8 @@ mod tests {
+                     "a\tb\tc",
+                     "é\t𐐀\tz",
+                     "a \tb  ",
+-                    "אב",
+-                    "aאבb",
+-                    "a\tאב\tb",
++                    // dm(dwrite-rtl): "אב", "aאבb" and "a\tאב\tb" left out: they held Hebrew
++                    // to left-to-right places; `right_to_left_runs_are_laid_out_leftward` checks it.
+                 ] {
+                     let mut native_metrics = DWRITE_TEXT_METRICS::default();
+                     unsafe {
+@@ -1940,6 +2063,102 @@ mod tests {
+         check_unicode_separator_cursor('\u{2029}')
+     }
+ 
++    // dm(dwrite-rtl): Hebrew and Arabic laid out right to left: in a run of either, each later
++    // letter stands left of the one before; a left-to-right line is placed glyph by glyph as
++    // before (the sum of advances); in a right-to-left paragraph the Latin word stands left of
++    // the Arabic one, in a left-to-right one right of the Hebrew; every glyph within the width.
++    #[test]
++    fn right_to_left_runs_are_laid_out_leftward() -> Result<()> {
++        use gpui::FontRun;
++        let platform_text_system = DirectWriteTextSystem::new()?;
++        let font = Font {
++            family: "Segoe UI".into(),
++            ..Default::default()
++        };
++        let font_id = platform_text_system.font_id(&font)?;
++        let lay_out = |text: &str| {
++            let layout = platform_text_system.layout_line(
++                text,
++                px(16.0),
++                &[FontRun {
++                    len: text.len(),
++                    font_id,
++                }],
++            );
++            // The first glyph of each character, by its place in the text.
++            let mut places: Vec<(usize, f32)> = Vec::new();
++            for run in &layout.runs {
++                for glyph in &run.glyphs {
++                    if !places.iter().any(|(index, _)| *index == glyph.index) {
++                        places.push((glyph.index, glyph.position.x.as_f32()));
++                    }
++                }
++            }
++            places.sort_by_key(|(index, _)| *index);
++            (layout, places)
++        };
++        let decreasing = |places: &[(usize, f32)], text: &str| {
++            for pair in places.windows(2) {
++                assert!(
++                    pair[1].1 < pair[0].1,
++                    "{text:?}: {pair:?} should stand left of the one before"
++                );
++            }
++        };
++
++        for text in ["שלום", "مرحبا"] {
++            let (layout, places) = lay_out(text);
++            assert!(places.len() > 1, "{text:?}: {places:?}");
++            decreasing(&places, text);
++            for (_, x) in &places {
++                assert!(
++                    *x >= -0.001 && *x < layout.width.as_f32(),
++                    "{text:?}: {places:?}"
++                );
++            }
++        }
++
++        let (layout, places) = lay_out("abc");
++        let mut x = 0.0;
++        for (index, place) in places.iter().enumerate() {
++            assert_eq!(place.0, index);
++            assert!((place.1 - x).abs() < 0.001, "abc: {places:?}");
++            x += lay_out(&"abc"[index..index + 1]).0.width.as_f32();
++        }
++        assert!((layout.width.as_f32() - x).abs() < 0.01);
++
++        let text = "abc שלום";
++        let (_, places) = lay_out(text);
++        let hebrew: Vec<_> = places
++            .iter()
++            .copied()
++            .filter(|(index, _)| *index > 3)
++            .collect();
++        decreasing(&hebrew, text);
++        assert!(places[0].1.abs() < 0.001, "{text:?}: {places:?}");
++        assert!(
++            hebrew.iter().all(|(_, x)| *x > places[2].1),
++            "{text:?}: {places:?}"
++        );
++
++        let text = "مرحبا abc";
++        let (_, places) = lay_out(text);
++        let latin = text.find('a').unwrap_or_default();
++        let a = places
++            .iter()
++            .find(|(index, _)| *index == latin)
++            .map(|place| place.1);
++        let arabic: Vec<_> = places
++            .iter()
++            .copied()
++            .filter(|(index, _)| *index < latin - 1)
++            .collect();
++        decreasing(&arabic, text);
++        let a = a.unwrap_or(f32::INFINITY);
++        assert!(arabic.iter().all(|(_, x)| *x > a), "{text:?}: {places:?}");
++        Ok(())
++    }
++
+     fn check_unicode_separator_cursor(separator: char) -> Result<()> {
+         let platform_text_system = Arc::new(DirectWriteTextSystem::new()?);
+         let font = Font {
 diff --git a/src/drag_out.rs b/src/drag_out.rs
 new file mode 100644
 index 0000000..18351c0

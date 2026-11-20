@@ -8190,6 +8190,75 @@ phone cannot do from the engine (open a file, show its folder) is said in words
 answer or the fallback's, unchanged on the desktop. CI checks the build for arm64-v8a and x86_64
 with the runner's own NDK (`.github/workflows/android.yml`), no third-party action fetching one.
 
+## Right-to-left text in GPUI 0.3.12: macOS and Linux lay it out, Windows does not (2026-11-20, gaps row U35)
+
+Read from the source of `gpui-pre` 0.3.12 and its platform crates (not yet run on a screen).
+GPUI's core takes glyphs in visual order with byte indices that may run backwards
+(`line_layout.rs` wraps right-to-left runs and tests it, `line.rs` splits lines whose glyphs
+are out of byte order); it has `text_right()` and `flex_row_reverse()`, so a mirrored window is
+a matter of dm's layout code. Each platform's text system decides the rest:
+
+* macOS (`gpui-pre-apple`, CoreText): `CTLine` shapes (Arabic joining, Hebrew), runs the
+  bidirectional algorithm with the paragraph's direction from its first strong letter, and GPUI
+  takes each glyph's place from `CTRunGetPositions`, so a line is drawn right to left. Works.
+* Linux (`gpui-pre-wgpu`, cosmic-text): `ShapeLine` with `Shaping::Advanced` shapes with harfrust
+  and reorders by `unicode-bidi` (first strong letter), and GPUI takes `glyph.x`. Works.
+* Windows (`desktop/vendor/gpui-pre-windows`, DirectWrite): `IDWriteTextLayout` shapes and runs
+  the bidirectional algorithm, but GPUI's own `TextRenderer::DrawGlyphRun` ignores the run's
+  `baselineOriginX` and `bidiLevel` and places glyphs one after another from the left in the
+  order they come. DirectWrite hands a right-to-left run's glyphs in logical order, to be drawn
+  leftward from the origin, so every Arabic or Hebrew word is drawn with its letters reversed
+  (joined forms, wrong order), and a mixed line's runs keep their call order. The layout's
+  reading direction is never set either, so a paragraph is always left to right, where the
+  other two take the first strong letter.
+
+So the Arabic and Hebrew catalogs and the mirrored window waited for it (coded since: the
+next entry): Windows is dm's first platform, and a window drawn backwards there is worse than
+none. The fix is a patch to dm's vendored copy
+(`direct_write.rs`, about sixty lines, no new dependency): in `DrawGlyphRun`, place a run at
+`baselineOriginX` and, for an odd `bidiLevel`, from the right edge leftward, pushing its glyphs
+in visual order; give the tab glyphs the hit-tested x; after `Draw`, sort the runs by x and take
+the width as the furthest right edge; and when the first strong letter is right to left, set the
+layout's reading direction to right to left with its maximum width set to the measured width
+(an infinite width would put the origins at infinity). Caret and selection in a text box over
+right-to-left text would then follow GPUI core's handling of out-of-order glyphs, unchecked.
+Supersedes the 2026-10-22 entry's reason (egui) but not its order of work: text first, then the
+window mirrored, then the two catalogs.
+
+## Right-to-left: DirectWrite placed from its origins, the window mirrored by one question, two catalogs (2026-11-20, gaps row U35)
+
+Coded on the laptop without a build or a run (the maintainer's word of 2026-11-20: the Mac
+builds and tests); waiting for the maintainer's word on the contract row and picture.
+
+* **Windows' text** (`dwrite-rtl` in `desktop/vendor/gpui-pre-windows`, its row in
+  `desktop/vendor/README.md`): `DrawGlyphRun` reads the run's bidi level; a right-to-left run is
+  placed leftward from `baselineOriginX`, its glyphs reversed into visual order (the order GPUI's
+  wrapping reads, as CoreText and cosmic-text hand them); after `Draw`, a line holding one has
+  every run moved to DirectWrite's origin, shifted so the leftmost starts at 0, and sorted by
+  place. A line whose first strong letter is Hebrew or Arabic (and the other right-to-left
+  scripts) is laid out with a right-to-left reading direction in its own measured width. A line
+  with no right-to-left run is placed exactly as upstream placed it. Upstream's tab test held
+  "אב" to left-to-right places; those three strings are left out of it. Android's window draws
+  through gpui-pre-wgpu's cosmic-text, as Linux, so it reads right to left without the patch.
+* **The direction** is one question, `dm_desktop_base::i18n::direction()` (Arabic and Hebrew
+  right to left, every other language left to right), asked by the main window through
+  `dm-gpui` `window/mirror.rs`: `row()` reverses a flex row, `rtl()` picks a left edge for a
+  right one. Every change is under it, so a left-to-right window builds the same elements with
+  the same styles. Mirrored: the side panel (on the right, its border and dragged edge on its
+  left), the toolbar, the table's headings and rows (Name the rightmost column, figures against
+  the left, a row's buttons over its left end, a heading's edge on its left), the progress
+  track, the status bar, the list's up-and-down bar (left), text aligned right from the root.
+  The sideways scroll starts at the left of what it scrolls, so a mirrored list is kept as far
+  from its right end as a person moved it (none at first: the name in sight). No icon of the
+  main window points left or right; none is turned. Not yet mirrored: the title bar (the
+  system's buttons stay where the system puts them), the bars above the list, dialogs and
+  Options.
+* **The catalogs** `ar.json` and `he.json` were written without a native speaker and listed
+  whole in `unread/`; Arabic takes CLDR's six forms (zero, one, two, few, many, other), Hebrew
+  three (one, two, other), in `i18n::form`. Offering them adds two lines to View › Language and
+  Options › General in every language, part of the change waiting for the maintainer's word.
+  The extension's `_locales` have no Arabic or Hebrew yet.
+
 ## On Android dm's secrets are files sealed by a Keystore key, through JNI (2026-11-20, gaps row N11)
 
 What `secretstore` keeps in a system store is a value of its choosing by name (on every system
@@ -8498,3 +8567,26 @@ then failed at the join. Each representation's `codecs` is now read for the file
 that hold it, and a picture is taken only where a listed sound joins with it into what will be
 made; where nothing listed fits, the best is taken as before and the join says why. A quality
 is passed over for a lower one only where the higher could not have been saved at all.
+
+## Opus decoded by dm's own decoder where the system has none (2026-11-20, gaps row Y25)
+
+macOS's AudioToolbox reads no WebM and Linux has no Opus decoder dm calls, so a video's Opus
+sound could not be made into an MP3 there. Row Y25 offered a decoder of dm's own (RFC 6716) or a
+crate at the maintainer's word; goal 3 (no third-party feature code) and P4's list of crates to
+replace point to dm's own, so it is dm's own: `dm_media::opus`, written from the RFC's text and
+tables (RFC 8251's corrections taken: the hybrid folding copy, the energy cap). Every symbol is
+read with the standard's exact integer arithmetic (the allocation, the codebook cost table worked
+out once from the PVQ codebooks' sizes, the split angles), so a frame is read as it was written;
+the sound is made in 32-bit floats, as the reference decoder's float build makes it, and its
+inverse MDCT is a DCT-IV done by a plain mixed-radix FFT. Before the Rust, each step was proved
+in a scratch prototype against the RFC's test vectors: every CELT packet at the encoder's final
+range, and 80 dB against the reference decoder's output. Those vectors are not kept here (no
+licence comes with them); an ignored test reads them from the folder `OPUS_VECTORS` names.
+
+It is used only where the system has no Opus decoder: Windows keeps Media Foundation's (the
+decision of 2026-11-18), and uses this one where that is missing. CELT is the coder YouTube's
+music is in; SILK and hybrid (speech) are not written yet, and a track that uses them is refused
+in words, "this Opus track uses SILK, which dm cannot decode yet"; a finished download of such
+a WebM is not taken for an MP3 (`mp3::takes`) and is kept as it came, as it was on macOS and
+Linux before, so no download that succeeded before now fails. A lost or empty packet is
+decoded as CELT's silence frame, which fades the last frame out.

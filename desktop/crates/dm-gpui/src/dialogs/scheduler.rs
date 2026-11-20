@@ -216,7 +216,7 @@ impl Render for Scheduler {
         // The chosen queue's hours on the right.
         let hours = self.hours(theme, &screen, cx);
 
-        crate::widgets::native::dialog("scheduler", t("Scheduler"), theme, cx)
+        let root = crate::widgets::native::dialog("scheduler", t("Scheduler"), theme, cx)
             .on_action(
                 cx.listener(|this, pick: &crate::widgets::popup::Pick, _, cx| this.pick(pick, cx)),
             )
@@ -254,7 +254,8 @@ impl Render for Scheduler {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

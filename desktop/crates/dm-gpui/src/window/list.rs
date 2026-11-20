@@ -671,8 +671,13 @@ impl Render for Downloads {
             // below stays solid.
             .bg(crate::window::theme::frame(theme.background))
             .text_color(theme.text)
+            // Mirrored for a language read right to left: text against the right (gaps row U35).
+            .when(crate::window::mirror::rtl(), |root| root.text_right())
             // The system's size for a list's rows and every control.
             .text_size(crate::window::zoom::px(crate::widgets::native::TEXT));
+        // Clear of a phone's status and navigation bars, its background drawn under them (gaps
+        // row N16); nothing on a desktop.
+        let root = crate::window::safe::kept_clear(root, window);
         // At a phone's width, the phone's layout of the same views (gaps row N7).
         let narrow = crate::window::narrow::is_narrow(window);
         self.layout.narrow.laid_out = narrow;

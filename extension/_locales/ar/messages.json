@@ -1,0 +1,299 @@
+{
+  "extName": {
+    "message": "dm — مدير التنزيلات"
+  },
+  "extDescription": {
+    "message": "يسلّم التنزيلات ومقاطع الفيديو إلى تطبيق dm ليتولى تنزيلها. وإن لم يوجد التطبيق، يحتفظ بها المتصفح."
+  },
+  "menuLink": {
+    "message": "تنزيل الرابط باستخدام dm"
+  },
+  "menuMedia": {
+    "message": "تنزيل الوسائط باستخدام dm"
+  },
+  "menuAllLinks": {
+    "message": "تنزيل كل الروابط باستخدام dm"
+  },
+  "menuSelectedLinks": {
+    "message": "تنزيل الروابط المحددة باستخدام dm"
+  },
+  "popupLooking": {
+    "message": "جارٍ البحث عن تطبيق dm…"
+  },
+  "popupCatch": {
+    "message": "التقاط التنزيلات"
+  },
+  "popupPanelHere": {
+    "message": "إظهار «تنزيل الفيديو» على هذا الموقع"
+  },
+  "popupPanelOn": {
+    "message": "إظهار «تنزيل الفيديو» على $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPanelNone": {
+    "message": "لا توجد لوحة فيديو في هذه الصفحة"
+  },
+  "popupCatchAllHere": {
+    "message": "أخذ كل التنزيلات من هذا الموقع"
+  },
+  "popupCatchAllOn": {
+    "message": "أخذ كل التنزيلات من $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCatchAllNone": {
+    "message": "لا توجد تنزيلات لأخذها من هذه الصفحة"
+  },
+  "popupPausedHere": {
+    "message": "إيقاف الالتقاط مؤقتًا على هذا الموقع"
+  },
+  "popupPausedOn": {
+    "message": "إيقاف الالتقاط مؤقتًا على $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupPausedNone": {
+    "message": "لا توجد تنزيلات لإيقافها مؤقتًا في هذه الصفحة"
+  },
+  "popupCookiesHere": {
+    "message": "تمرير بيانات تسجيل الدخول إلى هذا الموقع مع تنزيلاته"
+  },
+  "popupCookiesOn": {
+    "message": "تمرير بيانات تسجيل الدخول إلى $SITE$ مع تنزيلاته",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupCookiesNone": {
+    "message": "لا توجد بيانات تسجيل دخول لتمريرها من هذه الصفحة"
+  },
+  "popupOpen": {
+    "message": "فتح dm"
+  },
+  "popupGetApp": {
+    "message": "الحصول على تطبيق dm"
+  },
+  "popupNoAnswer": {
+    "message": "لم يستجب تطبيق dm"
+  },
+  "popupOpening": {
+    "message": "جارٍ فتح dm…"
+  },
+  "popupIsOpen": {
+    "message": "تم فتح dm"
+  },
+  "popupConnected": {
+    "message": "متصل بـ dm $VERSION$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupConnectedOld": {
+    "message": "متصل بـ dm $VERSION$ · حدّث تطبيق dm: وحتى ذلك الحين يحتفظ المتصفح بتنزيلاته",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupWider": {
+    "message": "كان هذا مضبوطًا على $SITES$ بالكامل، لذا تغيّر هناك أيضًا",
+    "placeholders": {
+      "sites": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupAnd": {
+    "message": "$FIRST$ و$NEXT$",
+    "placeholders": {
+      "first": {
+        "content": "$1"
+      },
+      "next": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotConnected": {
+    "message": "لم يتصل dm بهذا المتصفح بعد."
+  },
+  "popupStepGet": {
+    "message": "1. ألا يوجد تطبيق dm على هذا الكمبيوتر بعد؟ احصل عليه وثبّته وافتحه مرة واحدة."
+  },
+  "popupStepOpen": {
+    "message": "2. هل هو مثبّت بالفعل؟ افتح dm (وإن كان مفتوحًا بالفعل، فافتحه مرة أخرى). تتصل هذه النافذة المنبثقة تلقائيًا."
+  },
+  "popupAdvanced": {
+    "message": "متقدم: $COMMAND$",
+    "placeholders": {
+      "command": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupMore": {
+    "message": "و$COUNT$ أخرى",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "popupLastFailed": {
+    "message": "فشل: $NAME$ ($WHY$)",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "why": {
+        "content": "$2"
+      }
+    }
+  },
+  "popupNotAnswering": {
+    "message": "لم يستجب dm ($REASON$). افتح dm (وإن كان مفتوحًا بالفعل، فافتحه مرة أخرى)؛ ستعيد هذه النافذة المنبثقة المحاولة تلقائيًا. وإن ظل لا يستجيب: $COMMAND$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      },
+      "command": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelDownloadVideo": {
+    "message": "تنزيل الفيديو"
+  },
+  "panelDownloadAudio": {
+    "message": "تنزيل هذا الصوت"
+  },
+  "panelProtected": {
+    "message": "فيديو محمي"
+  },
+  "panelProtectedSaid": {
+    "message": "هذا الفيديو محمي ضد النسخ، لذا لا يمكن تشغيله إلا بمشغّل الموقع نفسه. لا ينزّل dm الفيديو المحمي."
+  },
+  "panelThroughApp": {
+    "message": "هذه الصفحة، عبر تطبيق dm"
+  },
+  "panelHelp": {
+    "message": "ينزّل dm هذا الفيديو باستخدام تطبيق dm، حيث تختار اسمه ومجلده. أما الرابط الذي يُنقر مع الضغط على مفتاح الإبقاء (Alt ما لم يُغيَّر في خيارات dm) فيبقى في المتصفح."
+  },
+  "panelDrag": {
+    "message": "اسحب للنقل"
+  },
+  "panelWhat": {
+    "message": "ما هذا؟"
+  },
+  "panelHide": {
+    "message": "إخفاء"
+  },
+  "panelHideForNow": {
+    "message": "إخفاء مؤقتًا"
+  },
+  "panelNeverOn": {
+    "message": "عدم الإظهار أبدًا على $SITE$",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "panelThisSite": {
+    "message": "هذا الموقع"
+  },
+  "panelReading": {
+    "message": "جارٍ قراءة الجودات…"
+  },
+  "panelReadingSaid": {
+    "message": "يقرأ dm جودات الفيديو في هذه الصفحة؛ قد يستغرق ذلك حتى نصف دقيقة."
+  },
+  "panelTimedOut": {
+    "message": "لم يستجب dm في الوقت المناسب. أعد المحاولة، أو انقر بزر الماوس الأيمن على الفيديو واختر «تنزيل الوسائط باستخدام dm»."
+  },
+  "panelSending": {
+    "message": "جارٍ الإرسال إلى dm…"
+  },
+  "panelNotTaken": {
+    "message": "تعذّر على dm استلامه"
+  },
+  "panelUpdated": {
+    "message": "تم تحديث dm: أعد تحميل هذه الصفحة لاستخدامه"
+  },
+  "panelSent": {
+    "message": "تم الإرسال إلى dm"
+  },
+  "panelInBrowser": {
+    "message": "جارٍ التنزيل في المتصفح"
+  },
+  "panelDownloadAll": {
+    "message": "تنزيل الكل"
+  },
+  "panelPart": {
+    "message": "الجزء"
+  },
+  "panelPartTo": {
+    "message": "إلى"
+  },
+  "panelPartStart": {
+    "message": "بداية الجزء"
+  },
+  "panelPartEnd": {
+    "message": "نهاية الجزء"
+  },
+  "panelFileQuality": {
+    "message": "ملف $KIND$، الجودة $QUALITY$",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      },
+      "quality": {
+        "content": "$2"
+      }
+    }
+  },
+  "panelAppReading": {
+    "message": "يقرأ تطبيق dm هذه الصفحة بحثًا عن الفيديو"
+  },
+  "panelAppHas": {
+    "message": "استلمه تطبيق dm"
+  },
+  "panelAppDownloading": {
+    "message": "يقوم تطبيق dm بتنزيله"
+  },
+  "panelNoAnswer": {
+    "message": "لم يستجب dm"
+  },
+  "panelFailed": {
+    "message": "لم يستجب dm. أعد المحاولة، أو انقر بزر الماوس الأيمن على الفيديو واختر «تنزيل الوسائط باستخدام dm»."
+  },
+  "panelHls": {
+    "message": "بث HLS، أفضل جودة"
+  },
+  "panelDownload": {
+    "message": "تنزيل"
+  },
+  "toastSentMany": {
+    "message": "تم إرسال $COUNT$ من التنزيلات إلى dm",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  }
+}

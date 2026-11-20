@@ -214,7 +214,7 @@ impl Render for StatisticsWindow {
                         .into_any_element(),
                 ],
             ));
-        div()
+        let root = div()
             .id("statistics")
             .role(Role::Dialog)
             .aria_label(t("Statistics"))
@@ -232,7 +232,8 @@ impl Render for StatisticsWindow {
                     .size_full()
                     .overflow_y_scroll()
                     .child(body),
-            )
+            );
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

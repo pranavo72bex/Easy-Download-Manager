@@ -309,6 +309,10 @@ still missing is in `docs/gaps.md`, rows 180 to 192.
    binary. Its version goes once in `desktop/Cargo.toml`'s
    `[workspace.dependencies]`; a crate writes `name.workspace = true` with
    its own features (`cargo xtask layers` refuses a version in a crate).
+   A crate `Cargo.lock` holds in more than one version is a double: no new
+   one, and none in more versions than `desktop/xtask/doubles-baseline.txt`
+   lists (`cargo xtask layers`); the list only shrinks
+   (`cargo xtask doubles-baseline` shortens it).
 9. Every task spawned has an owner that can cancel it, and a plan for when
    dm quits. A task that is simply dropped with the runtime does not count
    as stopped.

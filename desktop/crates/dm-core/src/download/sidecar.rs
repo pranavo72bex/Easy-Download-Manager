@@ -155,3 +155,38 @@ async fn fetch_small(
     }
     Some(String::from_utf8_lossy(&body).into_owned())
 }
+
+/// The digest to check where none was typed and no Metalink gave one: the server's own word
+/// for it, or a checksum file it publishes beside the file. Whether it came from beside.
+pub(super) async fn checksum_beside(
+    client: &reqwest::Client,
+    url: &str,
+    info: &Probe,
+    options: &Options,
+    mut checksum: Option<Checksum>,
+    listed_mirrors: bool,
+) -> (Option<Checksum>, bool) {
+    /* Nothing typed and no Metalink's: a checksum file the server publishes beside the file
+     * (`dm.zip.sha256`, `SHA256SUMS`) is the digest, checked as a typed one is (gaps row F5).
+     * Not for a video caught from a page or a web page saved as one, which no release
+     * vouches for. */
+    let beside = checksum.is_none()
+        && !listed_mirrors
+        && !is_stream()
+        && !options.media
+        && !options.accept_page;
+    /* The server's own word for the file's digest, where its answer gave one (`Repr-Digest`,
+     * `Digest`, `Content-MD5`), is taken first under the same rules: it costs no request, and no
+     * checksum file is then asked for (gaps row W19). A mismatch fails the file as a checksum
+     * file's does; the row says nothing more of a match than a typed digest's. */
+    let from_header = beside && info.digest.is_some();
+    if from_header {
+        checksum = info.digest.clone();
+    } else if beside {
+        // A pause or a cancel meanwhile ends the look with nothing found; the assembly below
+        // honours it as it does any other.
+        checksum = published_beside(client, url, &info.final_url, &info.filename, options).await;
+    }
+    let from_beside = beside && !from_header && checksum.is_some();
+    (checksum, from_beside)
+}

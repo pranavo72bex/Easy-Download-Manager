@@ -147,7 +147,7 @@ impl Render for AddUrl {
                     ),
             )
         });
-        crate::widgets::native::dialog("add-url", t("Add URL"), theme, cx)
+        let root = crate::widgets::native::dialog("add-url", t("Add URL"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, window, cx| this.pick(pick, window, cx)))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" {
@@ -222,7 +222,8 @@ impl Render for AddUrl {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

@@ -92,6 +92,9 @@ impl Downloads {
         let drawer = self.layout.narrow.drawer.is_some().then(|| {
             crate::window::sidebar::sidebar(self, theme, screen, window, cx).into_any_element()
         });
+        // The layers below lie over the whole window, the bars a phone draws over it included
+        // (gaps row N16): the drawer keeps clear of them itself.
+        let safe = crate::window::safe::edges(window);
         let sheet = self
             .layout
             .narrow
@@ -109,9 +112,9 @@ impl Downloads {
                     div()
                         .id("drawer")
                         .absolute()
-                        .top_0()
-                        .left_0()
-                        .h_full()
+                        .top(safe.top)
+                        .bottom(safe.bottom)
+                        .left(safe.left)
                         .flex()
                         .occlude()
                         .child(drawer),

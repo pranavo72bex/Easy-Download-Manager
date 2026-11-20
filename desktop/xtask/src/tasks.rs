@@ -41,6 +41,7 @@ usage: cargo xtask <job>, from the repository's root or desktop/
   check                       everything that needs no window
   i18n [<code>|--issue <code>] | help-check | scorecard | layers | privacy | parity | secrets
   size-baseline               lowers the size gate's baselines to the lengths now
+  doubles-baseline [--grow]   shortens the crates-in-two-versions baseline to Cargo.lock now
   headers [fix] | update-key | sign-manifest <latest.json> | crates-list <file>
   sign-release <dir> | verify-release <dir>
   vendor [--version <v>] [<crate>...]  desktop/vendor's copies, made again from crates.io

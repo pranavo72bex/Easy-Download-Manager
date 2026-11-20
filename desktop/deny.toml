@@ -77,7 +77,9 @@ ignore = true
 
 [bans]
 # Two versions of one crate cost size and build time, but come from upstream
-# crates moving at different speeds: said, not refused.
+# crates moving at different speeds: said, not refused. Their list only shrinks:
+# `cargo xtask layers` refuses a crate in more versions than
+# desktop/xtask/doubles-baseline.txt lists (gaps row A18, xtask/src/doubles.rs).
 multiple-versions = "warn"
 wildcards = "deny"
 # dm's crates (none published) and the copies in desktop/vendor are paths,

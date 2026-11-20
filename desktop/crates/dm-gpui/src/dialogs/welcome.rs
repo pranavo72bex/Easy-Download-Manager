@@ -119,7 +119,7 @@ impl Render for Welcome {
             native::button(("browser", n), words, false, theme, &screen)
                 .on_click(cx.listener(move |this, _, _, cx| this.open_page(page, cx)))
         });
-        crate::widgets::native::dialog("welcome", t("Add dm to your browser"), theme, cx)
+        let root = crate::widgets::native::dialog("welcome", t("Add dm to your browser"), theme, cx)
             .track_focus(&self.focus)
             .child(crate::widgets::fit::fitted(
                 native::body(theme)
@@ -202,7 +202,8 @@ impl Render for Welcome {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

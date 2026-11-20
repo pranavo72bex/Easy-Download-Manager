@@ -256,7 +256,8 @@ fn every_translated_word_is_in_every_catalog() {
             if english.contains(forms) {
                 // As many forms as the language's grammar has.
                 let wanted = match code {
-                    "ru" | "pl" => 3,
+                    "ar" => 6,
+                    "ru" | "pl" | "he" => 3,
                     "id" | "tr" | "zh-CN" | "ja" | "ko" => 1,
                     _ => 2,
                 };

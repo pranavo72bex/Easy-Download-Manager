@@ -524,7 +524,7 @@ async fn fetch_found(
     }
 
     let (checksum, from_beside) =
-        checksum_beside(client, url, &info, options, checksum, listed_mirrors).await;
+        sidecar::checksum_beside(client, url, &info, options, checksum, listed_mirrors).await;
     /* A Metalink supplies its own digest where the caller gave none, so the
      * options handed to assembly carry whichever applies — one place decides
      * whether a file is the file. */

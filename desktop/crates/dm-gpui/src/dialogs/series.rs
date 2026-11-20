@@ -152,7 +152,7 @@ impl Render for Series {
         let labels = [t("Address with *"), t("From")];
         let width = native::label_width(&labels);
         let digits: Vec<SharedString> = (0..=9).map(|d| d.to_string().into()).collect();
-        crate::widgets::native::dialog("series", t("Add numbered series"), theme, cx)
+        let root = crate::widgets::native::dialog("series", t("Add numbered series"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
             .child(crate::widgets::fit::fitted(
                 native::body(theme)
@@ -239,7 +239,8 @@ impl Render for Series {
                             .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

@@ -409,10 +409,10 @@ impl Render for Properties {
                 ))
             })
             .child(Self::buttons(&look, finished, failed, &row, cx));
-        crate::widgets::native::dialog("properties", t("File properties"), theme, cx)
+        let root = crate::widgets::native::dialog("properties", t("File properties"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
-            .child(crate::widgets::fit::fitted(body))
-            .into_any_element()
+            .child(crate::widgets::fit::fitted(body));
+        crate::window::safe::kept_clear(root, window).into_any_element()
     }
 }
 

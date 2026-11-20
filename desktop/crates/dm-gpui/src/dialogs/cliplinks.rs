@@ -163,93 +163,105 @@ impl Render for ClipLinks {
                     }),
                 )
             });
-        crate::widgets::native::dialog("clip-links", t("Links on the clipboard"), theme, cx)
-            .track_focus(&self.focus)
-            .on_action(cx.listener(|this, pick: &Pick, _, cx| {
-                let categories = savefolder::categories(cx, &this.view);
-                if savefolder::pick(this, pick, &categories) {
-                    cx.notify();
-                }
-            }))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                if event.keystroke.key == "enter" {
-                    this.add(false, window, cx);
-                }
-            }))
-            .child(crate::widgets::fit::fitted(
-                native::body(theme)
-                    // How many were found, and how many are ticked.
-                    .child(screen.label(tn(
-                        "Found {} link; {} ticked.||Found {} links; {} ticked.",
-                        found as u64,
-                        &[&found, &ticked],
-                    )))
-                    .child(
-                        div()
-                            .flex()
-                            .gap(px(native::LABEL_GAP))
-                            .child(
-                                native::button(
-                                    "check-all",
-                                    t("Check all").into(),
-                                    false,
-                                    theme,
-                                    &screen,
+        let root =
+            crate::widgets::native::dialog("clip-links", t("Links on the clipboard"), theme, cx)
+                .track_focus(&self.focus)
+                .on_action(cx.listener(|this, pick: &Pick, _, cx| {
+                    let categories = savefolder::categories(cx, &this.view);
+                    if savefolder::pick(this, pick, &categories) {
+                        cx.notify();
+                    }
+                }))
+                .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                    if event.keystroke.key == "enter" {
+                        this.add(false, window, cx);
+                    }
+                }))
+                .child(crate::widgets::fit::fitted(
+                    native::body(theme)
+                        // How many were found, and how many are ticked.
+                        .child(screen.label(tn(
+                            "Found {} link; {} ticked.||Found {} links; {} ticked.",
+                            found as u64,
+                            &[&found, &ticked],
+                        )))
+                        .child(
+                            div()
+                                .flex()
+                                .gap(px(native::LABEL_GAP))
+                                .child(
+                                    native::button(
+                                        "check-all",
+                                        t("Check all").into(),
+                                        false,
+                                        theme,
+                                        &screen,
+                                    )
+                                    .on_click(
+                                        cx.listener(|this, _, _, cx| this.tick_all(true, cx)),
+                                    ),
                                 )
-                                .on_click(cx.listener(|this, _, _, cx| this.tick_all(true, cx))),
-                            )
-                            .child(
-                                native::button(
-                                    "uncheck-all",
-                                    t("Uncheck all").into(),
-                                    false,
-                                    theme,
-                                    &screen,
-                                )
-                                .on_click(cx.listener(|this, _, _, cx| this.tick_all(false, cx))),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .id("links")
-                            .max_h(px(260.0))
-                            .overflow_y_scroll()
-                            .rounded(px(native::RADIUS))
-                            .border_1()
-                            .border_color(theme.separator)
-                            .bg(theme.background)
-                            .p(px(space::S))
-                            .flex()
-                            .flex_col()
-                            .gap(px(space::XS))
-                            .children(rows),
-                    )
-                    .child(save_to)
-                    .when_some(self.says.clone(), |d, says| {
-                        d.child(native::note(says, theme.warning, &screen))
-                    })
-                    .child(native::buttons(
-                        vec![native::button(
-                            "later",
-                            t("Add for later").into(),
-                            false,
-                            theme,
-                            &screen,
+                                .child(
+                                    native::button(
+                                        "uncheck-all",
+                                        t("Uncheck all").into(),
+                                        false,
+                                        theme,
+                                        &screen,
+                                    )
+                                    .on_click(
+                                        cx.listener(|this, _, _, cx| this.tick_all(false, cx)),
+                                    ),
+                                ),
                         )
-                        .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
-                        .into_any_element()],
-                        vec![
-                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
-                                .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
-                                .into_any_element(),
-                            native::button("start", t("Start now").into(), true, theme, &screen)
+                        .child(
+                            div()
+                                .id("links")
+                                .max_h(px(260.0))
+                                .overflow_y_scroll()
+                                .rounded(px(native::RADIUS))
+                                .border_1()
+                                .border_color(theme.separator)
+                                .bg(theme.background)
+                                .p(px(space::S))
+                                .flex()
+                                .flex_col()
+                                .gap(px(space::XS))
+                                .children(rows),
+                        )
+                        .child(save_to)
+                        .when_some(self.says.clone(), |d, says| {
+                            d.child(native::note(says, theme.warning, &screen))
+                        })
+                        .child(native::buttons(
+                            vec![native::button(
+                                "later",
+                                t("Add for later").into(),
+                                false,
+                                theme,
+                                &screen,
+                            )
+                            .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
+                            .into_any_element()],
+                            vec![
+                                native::button("cancel", t("Cancel").into(), false, theme, &screen)
+                                    .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
+                                    .into_any_element(),
+                                native::button(
+                                    "start",
+                                    t("Start now").into(),
+                                    true,
+                                    theme,
+                                    &screen,
+                                )
                                 .on_click(
                                     cx.listener(|this, _, window, cx| this.add(false, window, cx)),
                                 )
                                 .into_any_element(),
-                        ],
-                    )),
-            ))
+                            ],
+                        )),
+                ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 

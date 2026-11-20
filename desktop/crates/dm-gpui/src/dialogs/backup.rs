@@ -250,7 +250,7 @@ impl Render for BackupDialog {
         } else {
             t("Back up")
         };
-        native::dialog("backup", title(self.restore), theme, cx)
+        let root = native::dialog("backup", title(self.restore), theme, cx)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" {
@@ -287,7 +287,8 @@ impl Render for BackupDialog {
                                 .into_any_element(),
                         ],
                     )),
-            ))
+            ));
+        crate::window::safe::kept_clear(root, window)
     }
 }
 
