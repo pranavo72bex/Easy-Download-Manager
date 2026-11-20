@@ -498,7 +498,7 @@ so a row's first step is to see the gap happen (a test or a run that fails) befo
 
 Two goals these rows add to the bottom line, in the maintainer's words of that day:
 
-3. **Clean room, pure Rust, GPUI the only window toolkit, no helper program.** Nothing fetched
+3. **Clean room, pure Rust, GPUI the only window toolkit on desktop (Compose on Android, row N1, 2026-11-20), no helper program.** Nothing fetched
    and run, nothing found on the computer and run in dm's place. Rows P.
 4. **A beginner can follow and maintain it.** Rows A and D.
 
@@ -762,12 +762,15 @@ the phone needs a window of its own, and goal 3 above ("GPUI the only window too
 hold for it as written. dm-shell's tray, login item, registry, dial-up and the browser
 extension's native host have no Android meaning.
 
-**Order:** N1 (the decisions) before anything; N2 to N4 (the engine on the phone); N5 to N9 (the
+**Decided (N1, 2026-11-20, at the maintainer's word):** Compose in `mobile/android/` over the engine
+as one `cdylib`, `desktop/crates/dm-android`, bound with UniFFI; Android 8.0 (API 26) and up; the
+desktop's features in a phone's shape (`docs/decisions.md`).
+
+**Order:** N2 to N4 (the engine on the phone); N5 to N9 (the
 app a person uses); N10 to N12 (system rules); N13 and N14 (tests and release).
 
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
-| N1  | Nothing decides how the phone app is built: the window's toolkit, where the code lives, the lowest Android version, and whether "work like desktop" means the desktop's window (menus, toolbar, Options' pages) or the same features in a phone's shape | OPEN · decide · the maintainer's word | Recommended, to record in `docs/decisions.md`: a `mobile/android/` Gradle project, its window in Jetpack Compose (Kotlin: the system's own toolkit, the only one with the share sheet, notifications and storage pickers first-hand), over the Rust engine as one `cdylib` (`desktop/crates/dm-android`) bound with UniFFI; Android 8.0 (API 26) and up; the same features in a phone's shape (a list, a details sheet, Options as one scrolling page), not the desktop's window shrunk. Goal 3 amended to "GPUI the only window toolkit on desktop". Asked of the maintainer before N2 |
 | N2  | The engine has never been built for Android: no `target_os = "android"` branch anywhere, and code that assumes a desktop (`dm_core::folders`, `secretstore`, `dialup.rs`, `second_path`, the clock, `env`) | OPEN · M | `cargo check --target aarch64-linux-android` (with `cargo-ndk`) on dm-core, dm-net, dm-media, dm-torrent and dm-protocol, each failure given an Android branch behind `platform/` (A10); a CI job that keeps it building; `x86_64-linux-android` too, for the emulator |
 | N3  | Nothing exposes the engine to another language: the window and the control port reach it in-process from Rust | OPEN · M | `dm-android`: a UniFFI interface the size of the control port's methods (add, start, pause, resume, remove, list, a download's details, Options read and written, events as a callback), so the phone's window calls what the desktop's window calls and no feature is written twice; its tests in Rust on the host |
 | N4  | The YouTube solver runs the player's code in the system's JS engine (Chakra on Windows, JSC on the Mac, row 164); Android has neither as a library | OPEN · M · decide | Recommended: the system WebView's JavaScript (`WebView.evaluateJavascript` in a hidden WebView, or `JavaScriptSandbox` from androidx where the system has it), behind `dm-js`'s existing interface, so it stays the system's engine with no third-party script (row 164); tested on the emulator against the cut player |

@@ -8152,3 +8152,21 @@ dm could not be pointed at a DNS server, and the hosts file needs an administrat
 
 Dailymotion's CDN refuses about one ask in ten of a master playlist with an empty 403 and serves the next. A 403 on a playlist, and on the probe of a playlist's address, is asked twice more, 1 s then 2 s on; the extension asks once more. A playlist re-signed under the same path, query names and itag, id or mime is one panel line at its newest address, the rule `RequestHeaders::renewed` already follows at hand-off. The site checks close a sign-in dialog over a player before judging the panel, as a person would, and name a wall a wall.
 
+
+## dm on Android: Jetpack Compose over the Rust engine through UniFFI (2026-11-20, gaps row N1)
+
+At the maintainer's word of 2026-11-20 ("yes go ahead with compose and uniffi"). The phone app
+is a Gradle project in `mobile/android/`, its window written in Jetpack Compose (Kotlin), Android
+8.0 (API 26) and up. The engine is the desktop's, unchanged in what it does: one `cdylib`,
+`desktop/crates/dm-android`, over `dm_shell::app::backend::Backend` (the same rules the desktop's
+window and the headless run follow), bound to Kotlin with UniFFI's proc macros; the bindings are
+generated from the built library (`cargo run -p dm-android --features bindgen --bin
+uniffi-bindgen`), never written by hand or checked in. What the phone does for the engine
+(notifications, the clipboard, opening a file) comes back through one foreign trait,
+`AndroidSystem`, which `dm-android` turns into dm-shell's `Platform`. Settings cross as the JSON
+dm already saves them as, so every Options line exists on the phone without a second copy of
+each. The features are the desktop's in a phone's shape (a list, a details sheet, Options as one
+scrolling page), not the desktop's window shrunk. Goal 3 of the audit of 2026-11-11 now reads
+"GPUI the only window toolkit on desktop". Dropped: GPUI on Android (no backend), a Rust UI
+toolkit on Android (no share sheet, notifications or storage pickers first-hand), hand-written
+JNI (every call written twice).

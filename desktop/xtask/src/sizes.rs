@@ -23,7 +23,7 @@ use std::path::Path;
 
 /// The source folders of dm's product crates, whose `.rs` files the gate measures; a test
 /// file of its own (`tests.rs`, `*_tests.rs`) is not measured.
-pub(crate) const PRODUCT_SOURCES: [&str; 13] = [
+pub(crate) const PRODUCT_SOURCES: [&str; 14] = [
     "desktop/crates/dm-assets/src",
     "desktop/crates/dm-js/src",
     "desktop/crates/dm-media/src",
@@ -36,6 +36,7 @@ pub(crate) const PRODUCT_SOURCES: [&str; 13] = [
     "desktop/crates/dm-test-support/src",
     "desktop/crates/dm-desktop-base/src",
     "desktop/crates/dm-gpui/src",
+    "desktop/crates/dm-android/src",
     "browser/src",
 ];
 

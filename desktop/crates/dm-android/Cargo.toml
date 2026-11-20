@@ -1,0 +1,46 @@
+[package]
+name = "dm-android"
+version = "0.10.0"
+authors = ["pranavo72bex"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (desktop/deny.toml).
+publish = false
+description = "dm on Android: the desktop's engine and its rules (dm-shell's Backend) as one library the phone's Compose window calls through UniFFI (gaps rows N1, N3)"
+
+[lib]
+name = "dm_android"
+path = "src/lib.rs"
+# `cdylib` is the `libdm_android.so` the APK carries; `lib` is for this crate's own tests and
+# for the bindings generator, which reads the interface out of the built library.
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+dm-core.workspace = true
+dm-shell.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+# The interface to Kotlin, written once as proc macros on the Rust side (docs/decisions.md,
+# 2026-11-20). `cli` only for the generator below, which no build of the library needs.
+uniffi.workspace = true
+
+[features]
+# `cargo run -p dm-android --features bindgen --bin uniffi-bindgen -- generate --library
+# <libdm_android.so> --language kotlin --out-dir <dir>`: the Kotlin bindings, made by the
+# Gradle build (mobile/android) and never checked in.
+bindgen = ["uniffi/cli"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["full"] }
+axum.workspace = true
+
+[lints]
+workspace = true

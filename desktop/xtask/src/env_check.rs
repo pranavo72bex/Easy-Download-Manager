@@ -27,6 +27,7 @@ const SOURCES: &[&str] = &[
     "desktop/crates/dm-test-support/src",
     "desktop/crates/dm-desktop-base/src",
     "desktop/crates/dm-gpui/src",
+    "desktop/crates/dm-android/src",
     "browser/src",
     // The tests, examples and benches of the crates that reach dm-core (dm-js's, below it, read
     // `DM_JS_FILE` themselves; the table lists it).

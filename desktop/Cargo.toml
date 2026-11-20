@@ -10,7 +10,7 @@ resolver = "2"
 # browser/ (the extension, built for wasm32-unknown-unknown) is a member from outside this folder:
 # one lock file and one target folder for both sides, and `cargo test --workspace` tests its
 # deciding parts too (gaps row A15). Its manifest names this workspace (`package.workspace`).
-members = ["crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-media", "crates/dm-net", "crates/dm-protocol", "crates/dm-safari", "crates/dm-shell", "crates/dm-test-support", "crates/dm-torrent", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
+members = ["crates/dm-android", "crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-media", "crates/dm-net", "crates/dm-protocol", "crates/dm-safari", "crates/dm-shell", "crates/dm-test-support", "crates/dm-torrent", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
 # A patched copy, used through [patch.crates-io], not a member.
 exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
 
@@ -19,6 +19,7 @@ exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-l
 # Features here are the ones every crate using it asks for.
 [workspace.dependencies]
 # dm's own crates.
+dm-android = { path = "crates/dm-android" }
 dm-assets = { path = "crates/dm-assets" }
 dm-core = { path = "crates/dm-core" }
 dm-desktop-base = { path = "crates/dm-desktop-base" }
@@ -99,6 +100,8 @@ tokio = "1"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 tokio-socks = "0.5"
 tokio-util = "0.7"
+# The phone's Kotlin bindings to the engine (crates/dm-android, gaps row N3).
+uniffi = "0.29"
 toml = "1.1"
 trash = "5.2.9"
 tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }

@@ -388,6 +388,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-test-support/Cargo.toml",
         "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-gpui/Cargo.toml",
+        "desktop/crates/dm-android/Cargo.toml",
         "browser/Cargo.toml",
     ]
     .iter()
@@ -411,6 +412,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-test-support/Cargo.toml",
         "desktop/crates/dm-desktop-base/Cargo.toml",
         "desktop/crates/dm-gpui/Cargo.toml",
+        "desktop/crates/dm-android/Cargo.toml",
         "desktop/xtask/Cargo.toml",
         "browser/Cargo.toml",
     ] {
@@ -470,6 +472,9 @@ fn layers() -> Result<(), String> {
                 false,
                 false,
             ),
+            // The phone's engine (gaps rows N1, N3): the application's rules over the engine,
+            // with the phone's Compose window on the other side of UniFFI; no window here.
+            "dm-android" => (&["dm-core", "dm-shell"], true, false),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),
             // Safari's extension's program (gaps row R4): it starts dm's host for each message
@@ -565,6 +570,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-test-support",
         "desktop/crates/dm-desktop-base",
         "desktop/crates/dm-gpui",
+        "desktop/crates/dm-android",
         "desktop/xtask",
         "browser",
     ] {
@@ -601,6 +607,7 @@ fn layers() -> Result<(), String> {
         "desktop/crates/dm-test-support",
         "desktop/crates/dm-desktop-base",
         "desktop/crates/dm-gpui",
+        "desktop/crates/dm-android",
         "browser",
     ] {
         let home = root.join(krate);
@@ -868,6 +875,7 @@ fn privacy() -> Result<(), String> {
         "desktop/crates/dm-safari/src",
         "desktop/crates/dm-desktop-base/src",
         "desktop/crates/dm-gpui/src",
+        "desktop/crates/dm-android/src",
         "browser/src",
         "extension",
     ] {
