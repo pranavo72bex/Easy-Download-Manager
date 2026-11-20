@@ -460,14 +460,21 @@ pub fn bind_keys(cx: &mut App) {
 /// The application's own actions, heard from any window: registered once (`bind_keys`), as the
 /// menus are built again whenever the queues change.
 fn hear_app_actions(cx: &mut App) {
+    // On the window the keys went to (the control port's, else the system's key window), after
+    // the dispatch that asked: that window is busy with the key until then, and an update of it
+    // now does nothing (B72's second passphrase field was never reached).
     cx.on_action(|_: &FocusNext, cx| {
-        if let Some(front) = cx.active_window() {
-            let _ = front.update(cx, |_, window, cx| window.focus_next(cx));
+        if let Some(front) = crate::widgets::native::keys_window(cx) {
+            cx.defer(move |cx| {
+                let _ = front.update(cx, |_, window, cx| window.focus_next(cx));
+            });
         }
     });
     cx.on_action(|_: &FocusPrevious, cx| {
-        if let Some(front) = cx.active_window() {
-            let _ = front.update(cx, |_, window, cx| window.focus_prev(cx));
+        if let Some(front) = crate::widgets::native::keys_window(cx) {
+            cx.defer(move |cx| {
+                let _ = front.update(cx, |_, window, cx| window.focus_prev(cx));
+            });
         }
     });
     cx.on_action(|_: &Hide, cx| cx.hide());

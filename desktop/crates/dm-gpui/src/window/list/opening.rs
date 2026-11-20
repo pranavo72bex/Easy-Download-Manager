@@ -152,8 +152,12 @@ pub(super) fn read_on_wakes(
     cx: &mut Context<Downloads>,
 ) {
     cx.spawn_in(window, async move |this, cx| {
-        // When the window last looked: its clock runs from there.
-        let mut looked = Instant::now();
+        // When the window last looked: its clock runs from there. The first look is at once,
+        // so the tick's work due at opening (finished downloads older than Options' days
+        // forgotten, B70) is not left for the idle clock's first look, 30 s on.
+        let mut looked = Instant::now()
+            .checked_sub(super::IDLE)
+            .unwrap_or_else(Instant::now);
         loop {
             // Nothing tells the window of a running download's progress
             // or of a clock (the schedules, When done's countdown): it

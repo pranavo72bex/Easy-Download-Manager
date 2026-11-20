@@ -632,10 +632,16 @@ pub fn close_is_cancel<V: CloseButton>(
     window.on_window_should_close(cx, move |window, cx| closer(window, cx));
 }
 
+/// The window keys are going to: the control port's ([`keys_to`]), else the system's key
+/// window.
+pub fn keys_window(cx: &gpui::App) -> Option<gpui::AnyWindowHandle> {
+    KEYS_TO.with(|k| k.get()).or_else(|| cx.active_window())
+}
+
 /// File › Close (⌘W) on the window in front that is not the main window's
 /// (which keeps its own rule): a dialog's Cancel, else the window closed.
 pub fn close_front(cx: &mut gpui::App) {
-    let Some(front) = KEYS_TO.with(|k| k.get()).or_else(|| cx.active_window()) else {
+    let Some(front) = keys_window(cx) else {
         return;
     };
     // Only a dialog's window: the main window keeps its own rule, and is

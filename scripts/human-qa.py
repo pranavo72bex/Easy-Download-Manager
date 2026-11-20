@@ -1494,7 +1494,7 @@ def walk(dm, origin):
     # B52: the tray's Speed menu has Settings…, which the tray cannot be driven
     # here to click: its menu is built from the same command as Downloads ›
     # Speed limiter › Settings…, which a person tries by hand in the tray.
-    tray_src = (ROOT / "desktop" / "crates" / SHIPPED / "src" / "tray.rs").read_text(encoding="utf-8")
+    tray_src = (ROOT / "desktop" / "crates" / SHIPPED / "src" / "platform" / "tray.rs").read_text(encoding="utf-8")
     check("B52", "the tray's Speed menu is built with the limiter's Settings… command",
           "Command::SpeedLimiterSettings" in tray_src, "tray.rs does not name the command")
 
@@ -2292,7 +2292,7 @@ def statistics(origin):
     over the last five minutes, and View › Statistics opens with what has
     finished, by day, by site and by category, and the speeds seen since dm
     opened; nothing new is written."""
-    home = WORK / "statistics"
+    home = WORK / "figures"
     saved = home / "downloads"
     saved.mkdir(parents=True)
     now = int(time.time())
