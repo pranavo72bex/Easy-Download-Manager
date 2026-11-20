@@ -129,7 +129,7 @@ fn unpack_when_done_ticked_in_download_details_unpacks_the_finished_zip() {
     h.click("Unpack when done");
     h.click("Start now");
     h.until("it to be unpacked", |h| {
-        h.rows().iter().any(|r| r.said == dm_core::NOTES[4])
+        h.rows().iter().any(|r| r.said == dm_core::UNPACKED)
     });
     let row = h.rows()[0].clone();
     assert!(row.unpack, "the box went with the row");

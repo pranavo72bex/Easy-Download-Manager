@@ -50,7 +50,7 @@ pub(super) async fn record_live(
         if picture.missed > told {
             told = picture.missed;
             if let Some(tx) = &report {
-                let said = crate::download::NOTES[1].replace("{}", &told.to_string());
+                let said = LIVE_PIECES_GONE.replace("{}", &told.to_string());
                 let _ = tx.send(Update::Note(said)).await;
             }
         }

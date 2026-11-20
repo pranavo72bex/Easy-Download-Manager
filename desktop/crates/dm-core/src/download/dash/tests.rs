@@ -568,7 +568,7 @@ async fn the_alike_periods_of_a_stream_play_through_in_order_in_one_file() {
             notes.push(note);
         }
     }
-    assert_eq!(notes, [crate::download::NOTES[3].replace("{}", "1")]);
+    assert_eq!(notes, [crate::download::PARTS_LEFT_OUT.replace("{}", "1")]);
     // The advert's first boxes were looked at, its pieces never fetched.
     let asked = asked.lock().unwrap().clone();
     assert!(asked.contains(&"/show/ad/init.mp4".to_string()));

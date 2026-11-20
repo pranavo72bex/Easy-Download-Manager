@@ -379,7 +379,7 @@ fn completed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String 
         // control protocol too, as the list says it (Properties
         // said "Complete"). Not an archive "Unpack when done" sent to the Trash, as its note
         // says (gaps row W14).
-        State::Completed if gone(row) && row.said != dm_core::NOTES[5] => {
+        State::Completed if gone(row) && row.said != dm_core::UNPACKED_AND_TRASHED => {
             words("File missing").into()
         }
         // "Delete file after": how long the file has left before it goes

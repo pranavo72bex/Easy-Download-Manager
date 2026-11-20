@@ -200,5 +200,5 @@ async fn a_period_in_another_format_is_passed_over_with_its_note() {
             notes.push(said);
         }
     }
-    assert_eq!(notes, [crate::download::NOTES[3].replace("{}", "1")]);
+    assert_eq!(notes, [crate::download::PARTS_LEFT_OUT.replace("{}", "1")]);
 }
