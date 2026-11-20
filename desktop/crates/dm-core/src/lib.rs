@@ -214,6 +214,11 @@ pub use only_through::{set_lister as set_adapter_lister, set_only_through};
 // at another is built again (`DownloadList::client_built_with`).
 pub use only_through::generation as network_generation;
 
+// The computer's network changed (gaps row N8): said by whoever drives dm where its system
+// tells it first (a phone's), and looked for by running torrents, which announce themselves
+// again on the new network.
+pub use only_through::{moves as network_moves, network_changed};
+
 pub use control::{Control, Wanted};
 
 pub use download::{

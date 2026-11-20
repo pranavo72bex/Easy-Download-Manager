@@ -23,6 +23,7 @@ use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use librqbit::{AddTorrent, AddTorrentOptions, TorrentStatsState};
@@ -131,7 +132,10 @@ impl Session {
             )
             .await
             .map_err(|e| e.to_string())?;
-        Ok(added.into_handle().map(Torrent))
+        Ok(added.into_handle().map(|inner| Torrent {
+            inner,
+            sent_before: AtomicU64::new(0),
+        }))
     }
 
     /// The session's download ceiling now, in bytes a second; `None` is no limit.
@@ -148,7 +152,7 @@ impl Session {
     /// Asks for the files of `torrent` at the places in `files`, and no others.
     pub async fn ask_for(&self, torrent: &Torrent, files: &HashSet<usize>) -> Result<(), Error> {
         self.0
-            .update_only_files(&torrent.0, files)
+            .update_only_files(&torrent.inner, files)
             .await
             .map_err(|e| Error::from(e.to_string()))
     }
@@ -161,6 +165,50 @@ impl Session {
             .map_err(|e| Error::from(e.to_string()))
     }
 
+    /// Stops `torrent`'s transfer, its peers let go and its trackers no longer asked, its files
+    /// and what it has kept; [`Session::resume`] starts it again. Only a live one is paused:
+    /// one still checking its files, already paused or failed is left as it is (`Ok(false)`).
+    pub async fn pause(&self, torrent: &Torrent) -> Result<bool, Error> {
+        if torrent.stats().state != State::Live {
+            return Ok(false);
+        }
+        // The engine counts what it sent from each start: what this run sent is kept.
+        let sent = torrent.inner.stats().uploaded_bytes;
+        self.0
+            .pause(&torrent.inner)
+            .await
+            .map_err(|e| Error::from(e.to_string()))?;
+        torrent.sent_before.fetch_add(sent, Ordering::SeqCst);
+        Ok(true)
+    }
+
+    /// Starts a paused `torrent` again: it announces itself afresh to its trackers, the DHT and
+    /// local discovery, from the computer's address now. One not paused is left as it is
+    /// (`Ok(false)`).
+    pub async fn resume(&self, torrent: &Torrent) -> Result<bool, Error> {
+        if torrent.stats().state != State::Paused {
+            return Ok(false);
+        }
+        self.0
+            .unpause(&torrent.inner)
+            .await
+            .map_err(|e| Error::from(e.to_string()))?;
+        Ok(true)
+    }
+
+    /// Announces a live `torrent` again where the computer's network changed (gaps row N8): its
+    /// peers, reached from the address the computer had, are let go, and its trackers, the DHT
+    /// and local discovery are told the address it has now, so peers find it there. The
+    /// listening socket is bound to every address (`[::]`), so it takes peers on the new one
+    /// as it is. Its files and pieces are kept, so nothing is checked or fetched again.
+    /// `Ok(false)` where it is not live (checking its files, paused or failed).
+    pub async fn reannounce(&self, torrent: &Torrent) -> Result<bool, Error> {
+        if !self.pause(torrent).await? {
+            return Ok(false);
+        }
+        self.resume(torrent).await
+    }
+
     /// Where the session listens for peers, where it does.
     pub fn listen_addr(&self) -> Option<SocketAddr> {
         self.0.listen_addr()
@@ -168,7 +216,11 @@ impl Session {
 }
 
 /// A torrent added to a [`Session`].
-pub struct Torrent(Arc<librqbit::ManagedTorrent>);
+pub struct Torrent {
+    inner: Arc<librqbit::ManagedTorrent>,
+    /// Bytes sent in its runs before this one (each [`Session::pause`] ends one).
+    sent_before: AtomicU64,
+}
 
 /// One file of a torrent, as its metadata names it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,7 +253,7 @@ pub struct Stats {
     pub error: Option<String>,
     /// Bytes of the files asked for that it has.
     pub progress_bytes: u64,
-    /// Bytes sent to peers this run.
+    /// Bytes sent to peers since it was added, across its pauses.
     pub uploaded_bytes: u64,
     /// Bytes of the files asked for.
     pub total_bytes: u64,
@@ -216,27 +268,27 @@ pub struct Stats {
 impl Torrent {
     /// Where it is in its session.
     pub fn id(&self) -> Id {
-        self.0.id()
+        self.inner.id()
     }
 
     /// Its name, once its metadata is known (for a magnet, after the first peers answer).
     pub fn name(&self) -> Option<String> {
-        self.0.name()
+        self.inner.name()
     }
 
     /// Its info-hash, in hexadecimal.
     pub fn info_hash(&self) -> String {
-        self.0.info_hash().as_string()
+        self.inner.info_hash().as_string()
     }
 
     /// The folder its files are written in.
     pub fn output_folder(&self) -> &Path {
-        self.0.output_folder()
+        self.inner.output_folder()
     }
 
     /// Its files, in its own order; an error where its metadata is not known.
     pub fn files(&self) -> Result<Vec<FileInfo>, Error> {
-        self.0
+        self.inner
             .with_metadata(|metadata| {
                 metadata
                     .file_infos
@@ -252,7 +304,7 @@ impl Torrent {
 
     /// Its state and counts now.
     pub fn stats(&self) -> Stats {
-        let stats = self.0.stats();
+        let stats = self.inner.stats();
         let peers = stats.live.as_ref().map(|l| &l.snapshot.peer_stats);
         Stats {
             state: match stats.state {
@@ -263,7 +315,10 @@ impl Torrent {
             },
             error: stats.error,
             progress_bytes: stats.progress_bytes,
-            uploaded_bytes: stats.uploaded_bytes,
+            uploaded_bytes: self
+                .sent_before
+                .load(Ordering::SeqCst)
+                .saturating_add(stats.uploaded_bytes),
             total_bytes: stats.total_bytes,
             finished: stats.finished,
             peers_connected: peers.map(|p| p.live),

@@ -56,6 +56,18 @@ static GENERATION: AtomicU64 = AtomicU64::new(0);
 /// The queue stops its running rows and puts them back in line ([`restarts`]).
 static RESTARTS: AtomicU64 = AtomicU64::new(0);
 
+/// Every adapter's address at the last look, and when that was (`None`: look at the next
+/// chance), for [`moves`].
+struct Seen {
+    looked: Option<Instant>,
+    addresses: Vec<IpAddr>,
+}
+
+static SEEN: Mutex<Option<Seen>> = Mutex::new(None);
+
+/// Bumped each time the computer's network changed, held to an adapter or not ([`moves`]).
+static MOVES: AtomicU64 = AtomicU64::new(0);
+
 /// How often the adapter is looked for again.
 pub const LOOK_EVERY: Duration = Duration::from_secs(2);
 
@@ -127,6 +139,44 @@ pub fn set_lister(lister: Option<Lister>) {
     if let Some(held) = crate::lock(&HELD).as_mut() {
         held.looked = None;
     }
+    if let Some(seen) = crate::lock(&SEEN).as_mut() {
+        seen.looked = None;
+    }
+}
+
+/// Says the computer's network changed, where the system says so before the next look finds
+/// it (a phone's, moving between Wi-Fi and mobile data): [`moves`] changes at once.
+pub fn network_changed() {
+    MOVES.fetch_add(1, Ordering::SeqCst);
+}
+
+/// Changes each time the computer's network does (gaps row N8): an adapter's address came,
+/// went or changed (looked at, at most every [`LOOK_EVERY`]), the system said so
+/// ([`network_changed`]), or the adapter downloads are held to was chosen anew or has a new
+/// address ([`generation`]). What keeps sockets of its own, a torrent's session, announces
+/// itself again on the new network when this changes.
+pub fn moves() -> u64 {
+    {
+        let mut seen = crate::lock(&SEEN);
+        let due = seen
+            .as_ref()
+            .is_none_or(|s| s.looked.is_none_or(|at| at.elapsed() >= LOOK_EVERY));
+        if due {
+            let mut now: Vec<IpAddr> = adapters().into_iter().map(|i| i.address).collect();
+            now.sort();
+            now.dedup();
+            if seen.as_ref().is_some_and(|s| s.addresses != now) {
+                MOVES.fetch_add(1, Ordering::SeqCst);
+            }
+            *seen = Some(Seen {
+                looked: Some(Instant::now()),
+                addresses: now,
+            });
+        }
+    }
+    MOVES
+        .load(Ordering::SeqCst)
+        .wrapping_add(GENERATION.load(Ordering::SeqCst))
 }
 
 /// The adapter downloads are held to, where one is.
