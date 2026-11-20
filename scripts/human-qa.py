@@ -2255,7 +2255,13 @@ def backing_up():
               f"{dm.dialogs()}: {words[:200]}")
         typed("not the passphrase")
         dm.click("Restore")
-        pause(2.0)
+        # The passphrase is stretched 600,000 rounds before it is found wrong.
+        for _ in range(240):
+            words = " ".join(dm.dialog_texts())
+            if "does not open" in words:
+                break
+            time.sleep(0.25)
+        pause(0.5)
         words = " ".join(dm.dialog_texts())
         check("B72", "a wrong passphrase is said in the window, which stays open, and nothing is restored",
               "That passphrase does not open this backup's sign-ins." in words and "Restore dm" in dm.dialogs()
