@@ -353,6 +353,19 @@ pub(super) fn moov(
             .map(|s| u64::from(s.size))
             .sum::<u64>();
     }
+    moov_tables(tracks, &offsets, &per_chunk, cut, tags)
+}
+
+/// [`moov`], each track's chunks starting where its `offsets` say, each holding as many samples
+/// as its `per_chunk` says: a join written into one of its inputs lays them out itself
+/// (`in_place`, gaps row Y21).
+pub(super) fn moov_tables(
+    tracks: &[Track],
+    offsets: &[Vec<u64>],
+    per_chunk: &[Vec<u32>],
+    cut: Option<(u64, u64)>,
+    tags: &super::Tags,
+) -> Vec<u8> {
     let start_ms = |t: &Track| t.start.map(|s| scale(s, t.timescale, MOVIE_TIMESCALE));
     let earliest = tracks.iter().filter_map(start_ms).min().unwrap_or(0);
     // Each track's wait and part, as its edit list will say.
@@ -528,9 +541,25 @@ pub(crate) fn write_output_tagged<S: Read + Seek>(
     writer
         .write_all(&(data + 16).to_be_bytes())
         .map_err(wrote)?;
+    copy_chunks(tracks, &layout, files, &mut writer, out)?;
+    writer.flush().map_err(wrote)?;
+    let file = writer.into_inner().map_err(|e| wrote(e.into_error()))?;
+    file.sync_all().map_err(wrote)?;
+    Ok(ftyp.len() as u64 + index.len() as u64 + 16 + data)
+}
 
+/// Each chunk of `layout` copied onto `writer` from its track's input in `files`, in the order
+/// given; `out` names what is written, for the words where it cannot be.
+pub(super) fn copy_chunks<S: Read + Seek, W: Write>(
+    tracks: &[Track],
+    layout: &[Chunk],
+    files: &mut [S],
+    writer: &mut W,
+    out: &Path,
+) -> Result<(), Error> {
+    let wrote = |e: std::io::Error| format!("{} could not be written: {e}", out.display());
     let mut buffer = vec![0u8; COPY_BUFFER];
-    for chunk in &layout {
+    for chunk in layout {
         let Some(track) = tracks.get(chunk.track) else {
             continue;
         };
@@ -561,8 +590,5 @@ pub(crate) fn write_output_tagged<S: Read + Seek>(
             }
         }
     }
-    writer.flush().map_err(wrote)?;
-    let file = writer.into_inner().map_err(|e| wrote(e.into_error()))?;
-    file.sync_all().map_err(wrote)?;
-    Ok(ftyp.len() as u64 + index.len() as u64 + 16 + data)
+    Ok(())
 }

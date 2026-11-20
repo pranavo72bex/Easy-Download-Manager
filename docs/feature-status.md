@@ -520,6 +520,16 @@ and is not carried over.
       and one with no digest listed is not offered. The picker is unit-tested and the button is driven in
       `window.rs`. Never run against a real release: none has been published
 - [ ] Code signing / notarisation
+- [ ] Android (gaps rows N1 to N17, 2026-11-20) — coded, not run. The phone
+      app is dm-gpui's window on gpui-android (`desktop/crates/dm-android`,
+      `docs/android.md`), with the narrow layout below 600 points, shares,
+      magnets and `.torrent` files, the Keystore's sealed secrets, the wake
+      lock and notifications, a Gradle project and `android.yml`'s build,
+      emulator and release jobs. Checked: `cargo check --target
+      aarch64-linux-android` of dm-android, dm-gpui and dm-desktop-base (a
+      stand-in C compiler for ring, no NDK); dm-android's host tests; the
+      narrow layout's window tests at 412 × 915 on the desktop. Not checked:
+      a link with the NDK, an APK, a run on an emulator or a phone, any CI job
 
 ## More features
 Checked against the code. These live in the client; the extension has none

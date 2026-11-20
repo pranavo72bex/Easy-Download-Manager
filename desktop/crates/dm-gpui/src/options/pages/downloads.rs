@@ -24,6 +24,9 @@ pub(super) fn downloads(
     watching_and_after(o, p, window, cx);
     forgetting(o, p, window, cx);
     metered_and_battery(o, p, window, cx);
+    // A phone's own lines (gaps row N10): never on a computer's Options.
+    #[cfg(target_os = "android")]
+    phone_rules::phone_rules(p, cx, &s);
 }
 
 /// Connections per file, and its presets.
@@ -445,7 +448,7 @@ fn metered_and_battery(
     let at = options::on_metered_at(&o.draft.downloads.on_metered);
     let words: Vec<SharedString> = options::ON_METERED_WORDS
         .iter()
-        .map(|w| SharedString::from(t(*w)))
+        .map(|w| SharedString::from(t(w)))
         .collect();
     p.labelled(
         t("On a metered connection"),

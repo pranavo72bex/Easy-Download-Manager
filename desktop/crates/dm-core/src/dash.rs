@@ -544,6 +544,8 @@ struct Candidate {
     shape: Option<String>,
     /// Whether `track.pieces` leads with its initialisation piece.
     init: bool,
+    /// Which files dm writes its codec can go into (`codecs`, gaps row Y20).
+    fits: codecs::Fits,
 }
 
 /// Every representation of one period, readable or not.
@@ -629,6 +631,7 @@ fn candidates(root: &Node, period: &periods::PeriodAt, url: &str) -> Result<Vec<
                 described,
                 shape,
                 init,
+                fits: codecs::fits(said("codecs"), webm),
             });
         }
     }
@@ -693,7 +696,8 @@ fn pick_audio(audios: Vec<Candidate>, with_webm: bool, want: Option<&str>) -> Op
     })
 }
 
-/// The picture and the sound to take of one period's representations.
+/// The picture and the sound to take of one period's representations: a pair dm can join, where
+/// one is listed (`codecs`).
 fn choose(
     all: Vec<Candidate>,
     quality: Quality,
@@ -705,8 +709,13 @@ fn choose(
     let video = if quality == Quality::Audio {
         None
     } else {
-        pick_video(videos, quality, container)
+        pick_video(
+            codecs::with_a_partner(videos, &audios, container),
+            quality,
+            container,
+        )
     };
+    let audios = codecs::beside(audios, video.as_ref(), container);
     let want = crate::sound_language::wanted();
     let audio = pick_audio(
         audios,
@@ -769,6 +778,7 @@ fn protected_tallest(root: &Node) -> u32 {
         .unwrap_or(0)
 }
 
+mod codecs;
 mod periods;
 mod pieces;
 mod texts;

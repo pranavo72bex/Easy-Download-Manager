@@ -6,9 +6,10 @@
 //! Keeping the computer awake while a download is running: a 25 GB file on a
 //! machine set to sleep after ten minutes would otherwise stop at the first
 //! idle spell, every socket dropped. Windows is asked not to sleep for as
-//! long as a row is Running, and told it may again when none is. Other
-//! systems leave sleep to their own power settings, so there this does
-//! nothing.
+//! long as a row is Running, and told it may again when none is; a phone
+//! is held by a wake lock the app takes (`phone::keep_awake`, gaps row
+//! N17). Other systems leave sleep to their own power settings, so there
+//! this does nothing.
 
 /// What the queue's busyness last asked of the system, so the system is
 /// told only when that changes.
@@ -32,7 +33,7 @@ impl Keeper {
 /// its own each time the queue changes (`changes::subscribe`), not every few seconds (gaps row
 /// S18): the setting belongs to the thread that made it and lasts as long as the thread does.
 pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "android"))]
     {
         // One nudge waiting at most: changes that come while the queue is being looked at are
         // one more look, not one each.
@@ -46,7 +47,7 @@ pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
                 let mut keeper = Keeper::default();
                 loop {
                     if let Some(hold) = keeper.step(busy()) {
-                        win::hold(hold);
+                        hold_awake(hold);
                     }
                     if nudged.recv().is_err() {
                         return;
@@ -54,9 +55,46 @@ pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
                 }
             });
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "android")))]
     let _ = busy;
 }
+
+/// On a phone: tells it what keeps dm busy (`phone::busy`), each time the queue changes and
+/// once a second while anything does, so its ongoing notification follows the count and the
+/// speed and its wake lock is held while a row runs, a queued one is due or a finished torrent
+/// is shared (gaps row N6). `summary` reads the queue; the phone decides what to show and
+/// when. Its own thread, as `watch`'s.
+pub fn watch_phone(summary: impl Fn() -> Option<crate::phone::Busy> + Send + 'static) {
+    let (nudge, nudged) = std::sync::mpsc::sync_channel::<()>(1);
+    dm_shell::app::changes::subscribe(move || {
+        let _ = nudge.try_send(());
+    });
+    let _ = std::thread::Builder::new()
+        .name("dm-awake".into())
+        .spawn(move || loop {
+            let busy = summary();
+            let held = busy.is_some();
+            crate::phone::busy(busy);
+            let looked_again = if held {
+                // Seeding and the speed change with no change to the queue's rows.
+                nudged.recv_timeout(std::time::Duration::from_secs(1))
+            } else {
+                nudged
+                    .recv()
+                    .map_err(|_| std::sync::mpsc::RecvTimeoutError::Disconnected)
+            };
+            if looked_again == Err(std::sync::mpsc::RecvTimeoutError::Disconnected) {
+                return;
+            }
+        });
+}
+
+// Holds the system awake, or lets it sleep: the phone's wake lock, or
+// Windows' thread state.
+#[cfg(target_os = "android")]
+use crate::phone::keep_awake as hold_awake;
+#[cfg(windows)]
+use win::hold as hold_awake;
 
 #[cfg(windows)]
 mod win {

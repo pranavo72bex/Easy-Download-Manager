@@ -11,8 +11,9 @@ resolver = "2"
 # one lock file and one target folder for both sides, and `cargo test --workspace` tests its
 # deciding parts too (gaps row A15). Its manifest names this workspace (`package.workspace`).
 members = ["crates/dm-android", "crates/dm-assets", "crates/dm-core", "crates/dm-js", "crates/dm-media", "crates/dm-net", "crates/dm-protocol", "crates/dm-safari", "crates/dm-shell", "crates/dm-test-support", "crates/dm-torrent", "crates/dm-desktop-base", "crates/dm-gpui", "xtask", "../browser"]
-# A patched copy, used through [patch.crates-io], not a member.
-exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows"]
+# A patched copy, used through [patch.crates-io] (gpui-android, which crates.io has not, by its
+# path below), not a member.
+exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows", "vendor/gpui-android"]
 
 # Every dependency's version, once (gaps row X8): a crate names it with `x.workspace = true`
 # and adds its own features there; `cargo xtask layers` refuses a version written in a crate.
@@ -23,6 +24,8 @@ dm-android = { path = "crates/dm-android" }
 dm-assets = { path = "crates/dm-assets" }
 dm-core = { path = "crates/dm-core" }
 dm-desktop-base = { path = "crates/dm-desktop-base" }
+# The window, a library too (`dm_gpui::run_app`): the phone's app opens it (gaps row N3).
+dm-gpui = { path = "crates/dm-gpui" }
 dm-js = { path = "crates/dm-js" }
 dm-media = { path = "crates/dm-media" }
 dm-net = { path = "crates/dm-net" }
@@ -31,8 +34,13 @@ dm-shell = { path = "crates/dm-shell" }
 dm-torrent = { path = "crates/dm-torrent" }
 # Tests' alone: only ever a dev-dependency (gaps row X10).
 dm-test-support = { path = "crates/dm-test-support" }
+# GPUI's Android platform, dm's copy of gpui-mobile's (desktop/vendor/README.md, gaps row N16):
+# not on crates.io, so a path, as dm's own crates are.
+gpui-android = { path = "vendor/gpui-android" }
 
 # From crates.io (or patched below).
+# The phone's NativeActivity glue (dm-android's `android_main`), the version gpui-android uses.
+android-activity = { version = "0.6", features = ["native-activity"] }
 aes = "0.9.3"
 arboard = "3"
 async-channel = "2"
@@ -62,6 +70,9 @@ gpui-component = "=0.9.1"
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
 hyper = { version = "1", features = ["server", "http2"] }
 hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service", "http2"] }
+# The phone's calls into Android (dm-android, gaps rows N5, N6): the version gpui-android and
+# android-activity already use, so one copy.
+jni = "0.22.4"
 js-sys = "0.3"
 libc = "0.2"
 librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"] }
@@ -100,8 +111,6 @@ tokio = "1"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 tokio-socks = "0.5"
 tokio-util = "0.7"
-# The phone's Kotlin bindings to the engine (crates/dm-android, gaps row N3).
-uniffi = "0.29"
 toml = "1.1"
 trash = "5.2.9"
 tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }

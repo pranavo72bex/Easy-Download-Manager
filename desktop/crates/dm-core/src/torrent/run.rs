@@ -164,6 +164,9 @@ pub(super) async fn transfer(
      * as a burst of speed nobody downloaded. */
     let mut last_done: Option<u64> = None;
     let mut last_sent: Option<u64> = None;
+    // The network it started on: where the computer moves to another, it announces itself
+    // again there (gaps row N8).
+    let mut follow = Follow::new();
 
     loop {
         // A pause or cancel is honoured here, between samples, the same place
@@ -279,6 +282,7 @@ pub(super) async fn transfer(
             ));
         }
 
+        follow.follow(session, handle).await;
         tokio::time::sleep(TICK).await;
     }
     Ok(())

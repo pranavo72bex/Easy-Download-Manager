@@ -109,6 +109,10 @@ fn windows_sleeps_and_hibernates_by_its_own_call_not_rundll32() {
 fn windows_plays_its_sounds_without_a_program_and_others_tell_them_apart() {
     assert_eq!(sound_program(Sound::Finished, "windows"), None);
     assert_eq!(sound_program(Sound::Failed, "windows"), None);
+    // A phone's notification sounds itself, and nothing there plays a file (gaps row N17).
+    assert_eq!(sound_program(Sound::Finished, "android"), None);
+    assert_eq!(super::file_program("/s/a.ogg", "android"), None);
+    assert_eq!(way(WhenDone::Sleep, "android"), None);
     for os in ["macos", "linux"] {
         let finished = sound_program(Sound::Finished, os);
         assert!(finished.is_some());

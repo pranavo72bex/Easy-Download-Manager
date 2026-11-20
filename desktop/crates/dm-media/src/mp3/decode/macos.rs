@@ -5,7 +5,7 @@
 
 //! macOS: the sound read by AudioToolbox's ExtAudioFile, which reads AAC in
 //! an M4A or MP4 and turns another sample rate into one MP3 has. It reads no
-//! WebM, so no Opus.
+//! WebM, so Opus is read by dm's own decoder, `crate::opus`.
 
 use super::Pcm;
 use crate::Error;
@@ -183,7 +183,7 @@ pub(super) fn possible() -> bool {
     true
 }
 
-/// AudioToolbox reads no WebM (gaps row Y25).
+/// AudioToolbox reads no WebM: dm's own decoder reads its Opus (gaps row Y25).
 pub(super) fn opus_possible() -> bool {
     false
 }

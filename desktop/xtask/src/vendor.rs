@@ -3,13 +3,15 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! `cargo xtask vendor [--version <version>] [<crate>…]` (gaps rows P3, A17 and X5): makes the
-//! crates in `desktop/vendor/` again, the four of [`CRATES`] or those named. Each is the crate
-//! published on crates.io, fetched with `curl` (Windows 10 and later have it), checked against
-//! the SHA-256 held here (ring's), unpacked with `tar`, with the files dm's build does not use
-//! removed and `desktop/vendor/patches/<crate>.patch` applied with `git apply`, then put in place
-//! of the copy. Nothing from the crates is run. The crates are unpacked in `DM_VENDOR_WORK`, a
-//! folder of the caller's, or else in a new folder of the system's own, removed after.
+//! `cargo xtask vendor [--version <version>] [<crate>…]` (gaps rows P3, A17, X5 and N16): makes
+//! the crates in `desktop/vendor/` again, the five of [`CRATES`] or those named. Each is the
+//! crate published on crates.io, or for one crates.io has not (gpui-android, from gpui-mobile)
+//! GitHub's archive of a commit, fetched with `curl` (Windows 10 and later have it), checked
+//! against the SHA-256 held here (ring's), unpacked with `tar`, with the files dm's build does
+//! not use removed and `desktop/vendor/patches/<crate>.patch` applied with `git apply`, then put
+//! in place of the copy. Nothing from the crates is run. The crates are unpacked in
+//! `DM_VENDOR_WORK`, a folder of the caller's, or else in a new folder of the system's own,
+//! removed after.
 //!
 //! `--version` makes the named crates from another published version instead, which has no
 //! SHA-256 held: the check is skipped, with a warning. The weekly job that tries the next GPUI
@@ -27,15 +29,33 @@ use std::process::Command;
 /// One crate dm builds from a patched copy in `desktop/vendor/`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Vendored {
-    /// Its name on crates.io, which is also its folder in `desktop/vendor/` and its patch's name
-    /// in `desktop/vendor/patches/`.
+    /// Its name on crates.io (for a copy made from GitHub, the name dm gives it), which is also
+    /// its folder in `desktop/vendor/` and its patch's name in `desktop/vendor/patches/`.
     pub(crate) name: &'static str,
-    /// The published version the copy is made from.
+    /// The published version the copy is made from (from GitHub, the version its manifest says).
     pub(crate) version: &'static str,
-    /// The SHA-256 of that version's `.crate`, in lower-case hex, as crates.io lists it.
+    /// The SHA-256 of that version's `.crate`, in lower-case hex, as crates.io lists it; or of
+    /// GitHub's archive of the commit.
     pub(crate) sha256: &'static str,
     /// What dm's build does not use, removed from the unpacked crate (paths relative to it).
     pub(crate) remove: &'static [&'static str],
+    /// Where it is fetched from.
+    pub(crate) source: Source,
+}
+
+/// Where a copy's crate comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Source {
+    /// The `.crate` crates.io serves at its version.
+    CratesIo,
+    /// GitHub's archive (`.tar.gz`) of one commit of a repository, for a crate crates.io has
+    /// not: the archive's folder is `<repository's name>-<commit>`.
+    GitHub {
+        /// `owner/name`.
+        repository: &'static str,
+        /// The commit's full SHA-1.
+        commit: &'static str,
+    },
 }
 
 /// The version of librqbit and its SHA-1 wrapper the copies are made from.
@@ -61,31 +81,68 @@ const LIBRQBIT_REMOVE: &[&str] = &[
 /// Removed from the GPUI crates: their own lock file and cargo's marks.
 const GPUI_REMOVE: &[&str] = &["Cargo.lock", ".cargo_vcs_info.json", ".cargo-ok"];
 
+/// Removed from gpui-mobile for gpui-android (gaps row N16): all but its Android platform. Its
+/// iOS platform, components, packages (and their no-op features), platform views and the
+/// host-driven entry, the example app and its screenshots, the iOS frame demand and the target
+/// list, its CI, notes and README (`Cargo.toml` and `src/lib.rs` say where it came from).
+const GPUI_ANDROID_REMOVE: &[&str] = &[
+    ".cargo",
+    ".github",
+    ".gitignore",
+    "PACKAGES-TO-IMPL.md",
+    "README.md",
+    "TODO.md",
+    "example",
+    "screenshots",
+    "src/android/host.rs",
+    "src/android/platform_view.rs",
+    "src/components",
+    "src/frame_demand.rs",
+    "src/ios",
+    "src/packages",
+    "src/platform_view.rs",
+    "src/target_platform.rs",
+];
+
 /// Every crate dm keeps a patched copy of, in the order they are made when none is named.
-pub(crate) const CRATES: [Vendored; 4] = [
+pub(crate) const CRATES: [Vendored; 5] = [
     Vendored {
         name: "librqbit",
         version: LIBRQBIT_VERSION,
         sha256: "4e35a06e481e854f69141928d067406397b3ad7a47bfdc095bc31325f44f5d13",
         remove: LIBRQBIT_REMOVE,
+        source: Source::CratesIo,
     },
     Vendored {
         name: "librqbit-sha1-wrapper",
         version: LIBRQBIT_VERSION,
         sha256: "4633bfa4c77dd7153be92584947d669a0ff8f61b82bb8bf283ff5f11ddee75be",
         remove: LIBRQBIT_REMOVE,
+        source: Source::CratesIo,
     },
     Vendored {
         name: "gpui-pre-linux",
         version: GPUI_VERSION,
         sha256: "54bab418d0b7c027af9495f278619b46887362b3bd6446e246c87c5b0fa167df",
         remove: GPUI_REMOVE,
+        source: Source::CratesIo,
     },
     Vendored {
         name: "gpui-pre-windows",
         version: GPUI_VERSION,
         sha256: "7201762420222d5b5ce5bdf0056996199212a3349bfb2457a3a0238c688681f3",
         remove: GPUI_REMOVE,
+        source: Source::CratesIo,
+    },
+    Vendored {
+        name: "gpui-android",
+        version: "0.1.0",
+        sha256: "fb062e5ac28e866edf98018020e657d2b4e92677dbba1e84c9e975f8a18656ac",
+        remove: GPUI_ANDROID_REMOVE,
+        source: Source::GitHub {
+            repository: "itsbalamurali/gpui-mobile",
+            commit: "5fd54f4554263ae06753e90472c7f2e2ff5d7495",
+        },
     },
 ];
 
@@ -118,7 +175,7 @@ pub(crate) fn run(root: &Path, args: &[String]) -> Result<String, String> {
     }
     result?;
     Ok(format!(
-        "{} of desktop/vendor made again from crates.io: `git status` shows what changed",
+        "{} of desktop/vendor made again from crates.io or GitHub: `git status` shows what changed",
         request.crates.len()
     ))
 }
@@ -156,11 +213,19 @@ fn parse(args: &[String]) -> Result<Request, String> {
     if crates.is_empty() {
         if version.is_some() {
             return Err(format!(
-                "--version names the crates it is for: the four are not one version\n{}",
+                "--version names the crates it is for: the five are not one version\n{}",
                 usage()
             ));
         }
         crates = CRATES.to_vec();
+    }
+    if version.is_some() {
+        if let Some(c) = crates.iter().find(|c| c.source != Source::CratesIo) {
+            return Err(format!(
+                "--version: {} is made from a commit, not a published version",
+                c.name
+            ));
+        }
     }
     Ok(Request { version, crates })
 }
@@ -182,6 +247,36 @@ fn plain_version(version: &str) -> bool {
         && version
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'))
+}
+
+/// Where `c` is fetched from at `version`, and the name of the file it is saved as.
+fn fetched(c: &Vendored, version: &str) -> (String, String) {
+    match c.source {
+        Source::CratesIo => (
+            crate_url(c.name, version),
+            format!("{}-{version}.crate", c.name),
+        ),
+        Source::GitHub { repository, commit } => (
+            github_url(repository, commit),
+            format!("{}-{commit}.tar.gz", c.name),
+        ),
+    }
+}
+
+/// The folder `c`'s archive holds, at `version`.
+fn unpacked(c: &Vendored, version: &str) -> String {
+    match c.source {
+        Source::CratesIo => format!("{}-{version}", c.name),
+        Source::GitHub { repository, commit } => {
+            let name = repository.rsplit('/').next().unwrap_or(repository);
+            format!("{name}-{commit}")
+        }
+    }
+}
+
+/// Where GitHub serves its archive of `repository` (`owner/name`) at `commit`.
+pub(crate) fn github_url(repository: &str, commit: &str) -> String {
+    format!("https://codeload.github.com/{repository}/tar.gz/{commit}")
 }
 
 /// Where crates.io serves `name`'s `.crate` at `version`.
@@ -231,8 +326,7 @@ fn remake(root: &Path, work: &Path, c: &Vendored, version: Option<&str>) -> Resu
             c.name, c.version
         );
     }
-    let file = format!("{}-{version}.crate", c.name);
-    let url = crate_url(c.name, version);
+    let (url, file) = fetched(c, version);
     println!("== {url}");
     succeed(
         Command::new("curl")
@@ -252,7 +346,8 @@ fn remake(root: &Path, work: &Path, c: &Vendored, version: Option<&str>) -> Resu
     if !checked {
         println!("({} {version}: SHA-256 {got})", c.name);
     }
-    let dir = work.join(format!("{}-{version}", c.name));
+    let folder = unpacked(c, version);
+    let dir = work.join(&folder);
     remove_path(&dir)?;
     // A name relative to `work`, never a drive's path: GNU tar (Git Bash's) reads `C:` as a host.
     succeed(
@@ -260,7 +355,7 @@ fn remake(root: &Path, work: &Path, c: &Vendored, version: Option<&str>) -> Resu
         &format!("tar -xzf {file}"),
     )?;
     if !dir.is_dir() {
-        return Err(format!("{file} held no folder {}-{version}", c.name));
+        return Err(format!("{file} held no folder {folder}"));
     }
     for path in c.remove {
         remove_path(&dir.join(path))?;
@@ -282,7 +377,12 @@ fn remake(root: &Path, work: &Path, c: &Vendored, version: Option<&str>) -> Resu
     let copy = root.join(VENDOR).join(c.name);
     remove_path(&copy)?;
     copy_tree(&dir, &copy)?;
-    println!("{VENDOR}/{}: published crate {version}, patched", c.name);
+    match c.source {
+        Source::CratesIo => println!("{VENDOR}/{}: published crate {version}, patched", c.name),
+        Source::GitHub { repository, commit } => {
+            println!("{VENDOR}/{}: {repository} at {commit}, patched", c.name)
+        }
+    }
     Ok(())
 }
 
@@ -342,13 +442,14 @@ mod tests {
     }
 
     #[test]
-    fn the_four_copies_are_held_each_with_its_version_and_sha256() {
+    fn the_five_copies_are_held_each_with_its_version_and_sha256() {
         let names: Vec<&str> = CRATES.iter().map(|c| c.name).collect();
         let wanted = [
             "librqbit",
             "librqbit-sha1-wrapper",
             "gpui-pre-linux",
             "gpui-pre-windows",
+            "gpui-android",
         ];
         assert_eq!(names, wanted);
         for c in CRATES {
@@ -371,6 +472,15 @@ mod tests {
         assert_eq!(CRATES[1].version, LIBRQBIT_VERSION);
         assert_eq!(CRATES[2].version, GPUI_VERSION);
         assert_eq!(CRATES[3].version, GPUI_VERSION);
+        for c in &CRATES[..4] {
+            assert_eq!(c.source, Source::CratesIo, "{}", c.name);
+        }
+        let Source::GitHub { repository, commit } = CRATES[4].source else {
+            panic!("gpui-android is made from GitHub");
+        };
+        assert_eq!(repository, "itsbalamurali/gpui-mobile");
+        assert_eq!(commit.len(), 40);
+        assert!(commit.chars().all(|ch| ch.is_ascii_hexdigit()));
     }
 
     /// The copies are of the versions dm's manifest asks for, or `[patch.crates-io]` would leave
@@ -400,7 +510,9 @@ mod tests {
         let common = ["Cargo.lock", ".cargo_vcs_info.json", ".cargo-ok"];
         for c in CRATES {
             for path in common {
-                assert!(c.remove.contains(&path), "{} keeps {path}", c.name);
+                if c.source == Source::CratesIo {
+                    assert!(c.remove.contains(&path), "{} keeps {path}", c.name);
+                }
             }
             for path in c.remove {
                 assert!(!path.contains(".."), "{path}");
@@ -422,6 +534,28 @@ mod tests {
     }
 
     #[test]
+    fn a_commit_is_fetched_as_githubs_archive_and_unpacked_in_its_folder() {
+        let android = CRATES[4];
+        let (url, file) = fetched(&android, android.version);
+        assert_eq!(
+            url,
+            "https://codeload.github.com/itsbalamurali/gpui-mobile/tar.gz/\
+             5fd54f4554263ae06753e90472c7f2e2ff5d7495"
+        );
+        assert_eq!(
+            file,
+            "gpui-android-5fd54f4554263ae06753e90472c7f2e2ff5d7495.tar.gz"
+        );
+        assert_eq!(
+            unpacked(&android, android.version),
+            "gpui-mobile-5fd54f4554263ae06753e90472c7f2e2ff5d7495"
+        );
+        let linux = CRATES[2];
+        assert_eq!(unpacked(&linux, "0.3.12"), "gpui-pre-linux-0.3.12");
+        assert!(android.remove.contains(&"src/ios") && android.remove.contains(&"example"));
+    }
+
+    #[test]
     fn the_digest_is_sha256_in_lower_case_hex() {
         assert_eq!(
             sha256_hex(b"abc"),
@@ -430,7 +564,7 @@ mod tests {
     }
 
     #[test]
-    fn no_crate_named_makes_all_four_and_names_make_those() {
+    fn no_crate_named_makes_all_five_and_names_make_those() {
         let all = parse(&[]).expect("all");
         assert_eq!(all.crates, CRATES.to_vec());
         assert_eq!(all.version, None);
@@ -448,6 +582,7 @@ mod tests {
         let joined = parse(&words(&["gpui-pre-windows", "--version=0.4.0-rc.1"])).expect("rc");
         assert_eq!(joined.version.as_deref(), Some("0.4.0-rc.1"));
         assert!(parse(&words(&["--version", "0.3.13"])).is_err());
+        assert!(parse(&words(&["--version", "0.2.0", "gpui-android"])).is_err());
         assert!(parse(&words(&["gpui-pre-linux", "--version"])).is_err());
         for bad in ["../x", "0.3/1", "", "v1", "1 2", "1.0?x=1"] {
             let line = words(&["--version", bad, "gpui-pre-linux"]);

@@ -42,6 +42,7 @@ mod hls;
 mod hls_sealed;
 mod hls_text;
 mod http;
+mod in_place;
 mod mirrors;
 mod notes;
 mod page_stream;
@@ -51,6 +52,7 @@ mod ranged;
 pub(crate) mod same;
 mod sidecar;
 mod space;
+mod unwritten;
 
 pub(crate) use assemble::*;
 use fetch::fetch_reporting;
@@ -58,6 +60,7 @@ pub(crate) use fetch::once_more;
 pub use files::*;
 pub(crate) use hls::*;
 pub use http::*;
+pub(crate) use in_place::{drop_spoiled, parts_in_place};
 use mirrors::*;
 pub use notes::*;
 use page_stream::is_stream;
@@ -69,6 +72,7 @@ pub(crate) use page_stream::{
 use per_site::refuses_unrouted;
 pub(crate) use ranged::*;
 pub use space::*;
+pub use unwritten::read_not_written;
 
 /// How a download should be carried out.
 #[derive(Debug, Clone)]

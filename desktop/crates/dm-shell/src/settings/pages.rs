@@ -252,6 +252,16 @@ pub struct DownloadSettings {
     /// above it again (gaps row W11); 0, the default, never waits.
     #[serde(default)]
     pub battery_below: u32,
+    /// On a phone, every download waits off Wi-Fi and a cable: on mobile data (gaps row N10).
+    /// Off by default; a computer's Options do not show it and nothing there reads it.
+    #[serde(default)]
+    pub wifi_only: bool,
+    /// On a phone, every download waits while the phone is roaming (gaps row N10).
+    #[serde(default)]
+    pub not_roaming: bool,
+    /// On a phone, every download waits while the system's Data Saver is on (gaps row N10).
+    #[serde(default)]
+    pub data_saver_waits: bool,
 }
 
 /// `on_metered`'s default: downloading goes on.
@@ -285,6 +295,9 @@ impl Default for DownloadSettings {
             forget_after_days: 0,
             on_metered: go_on(),
             battery_below: 0,
+            wifi_only: false,
+            not_roaming: false,
+            data_saver_waits: false,
         }
     }
 }

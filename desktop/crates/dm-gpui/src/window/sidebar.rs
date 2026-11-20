@@ -109,6 +109,18 @@ fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> 
     all
 }
 
+/// The place chosen's name as the panel lists it, for the phone's top bar (gaps row N7); none
+/// for All, every download, where the bar says "dm".
+pub(crate) fn place_name(view: &Downloads) -> Option<SharedString> {
+    if view.list.place == Place::All {
+        return None;
+    }
+    places(view)
+        .into_iter()
+        .find(|(_, place, _)| *place == view.list.place)
+        .map(|(_, _, label)| label)
+}
+
 /// The side panel.
 pub fn sidebar(
     view: &Downloads,

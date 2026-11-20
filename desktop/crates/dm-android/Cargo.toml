@@ -7,40 +7,38 @@ edition = "2021"
 # Never published: its paths to the other crates are this repository's
 # (desktop/deny.toml).
 publish = false
-description = "dm on Android: the desktop's engine and its rules (dm-shell's Backend) as one library the phone's Compose window calls through UniFFI (gaps rows N1, N3)"
+description = "dm on Android, all in Rust: dm-gpui's own window on gpui-android, with the phone's services (notifications, opening a file, the clipboard, the wake lock, a share) reached through JNI (gaps rows N1, N3, N5, N6, N16)"
 
 [lib]
 name = "dm_android"
 path = "src/lib.rs"
-# `cdylib` is the `libdm_android.so` the APK carries; `lib` is for this crate's own tests and
-# for the bindings generator, which reads the interface out of the built library.
+# `cdylib` is the `libdm_android.so` the APK carries (android/, docs/android.md), whose
+# `android_main` the activity starts; `lib` is for the host's checks and tests.
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
+# A sealed secret's file: the Keystore's IV and ciphertext as text (`sealed.rs`, gaps row N11).
+base64.workspace = true
 dm-core.workspace = true
+# The seam the phone's services are handed to (`dm_desktop_base::phone`, gaps row N17).
+dm-desktop-base.workspace = true
+
+# On the phone: dm-gpui's window (the desktop's own, gaps row N17) on GPUI's Android platform
+# (dm's copy of gpui-mobile's, gaps row N16), the NativeActivity glue it runs on, and JNI for
+# what only Android has (the shared link, notifications, the wake lock, the clipboard).
+[target.'cfg(target_os = "android")'.dependencies]
+android-activity.workspace = true
+dm-gpui.workspace = true
+# The running dm's inbox, which a notification's Retry and Stop All are left in (gaps row N6).
 dm-shell.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread"] }
-# The interface to Kotlin, written once as proc macros on the Rust side (docs/decisions.md,
-# 2026-11-20). `cli` only for the generator below, which no build of the library needs.
-uniffi.workspace = true
+gpui.workspace = true
+gpui-android.workspace = true
+jni.workspace = true
 
-[features]
-# `cargo run -p dm-android --features bindgen --bin uniffi-bindgen -- generate --library
-# <libdm_android.so> --language kotlin --out-dir <dir>`: the Kotlin bindings, made by the
-# Gradle build (mobile/android) and never checked in.
-bindgen = ["uniffi/cli"]
-
-[[bin]]
-name = "uniffi-bindgen"
-path = "src/bin/uniffi-bindgen.rs"
-required-features = ["bindgen"]
-
+# The host's tests of the sealed secrets' files and of where a finished file goes (`sealed.rs`,
+# `storage.rs`) work in folders of their own.
 [dev-dependencies]
 tempfile.workspace = true
-tokio = { workspace = true, features = ["full"] }
-axum.workspace = true
 
 [lints]
 workspace = true

@@ -120,7 +120,7 @@ pub(super) fn channel_id_in(page: &str) -> Option<String> {
 }
 
 /// One video of a playlist, as its page lists it.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PlaylistEntry {
     /// The video's id.
     pub id: String,
@@ -147,7 +147,7 @@ impl PlaylistEntry {
 /// A playlist as its page lists it: its title and its videos, in order.
 /// `cut_short` says the list went on past what was read (a thousand
 /// videos, or a continuation YouTube would not answer).
-#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct Playlist {
     /// The playlist's id.
     pub id: String,

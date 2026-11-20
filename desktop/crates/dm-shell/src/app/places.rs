@@ -118,7 +118,6 @@ impl Places {
     /// person's own, worked out once (the places' counts asked for them per
     /// row, per place, per frame, and 500 rows went past the frame budget).
     pub fn place_rows(&mut self, rows: &[Arc<Entry>], categories: &Categories) {
-        use std::hash::{Hash, Hasher};
         // Under other categories of a person's own, every row is placed
         // again; under the same, only those whose name, address, note or
         // kind changed (otherwise a read of the list four times a second
@@ -130,48 +129,7 @@ impl Places {
         }
         self.generation += 1;
         for row in rows {
-            if self
-                .fingerprints
-                .get(&row.id)
-                .is_some_and(|(_, seen)| Arc::ptr_eq(seen, row))
-                && self.placed.contains_key(&row.id)
-            {
-                continue;
-            }
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            (
-                &row.url,
-                &row.filename,
-                &row.save_name,
-                &row.description,
-                row.category.map_or(255u8, |c| c as u8),
-            )
-                .hash(&mut hasher);
-            let fingerprint = hasher.finish();
-            if self.fingerprints.get(&row.id).map(|(f, _)| *f) == Some(fingerprint)
-                && self.placed.contains_key(&row.id)
-            {
-                self.fingerprints
-                    .insert(row.id, (fingerprint, Arc::clone(row)));
-                continue;
-            }
-            // Each row's name worked out once: from its address, for a row
-            // not yet named, it is a parse and a decode.
-            let name = name_of(row);
-            // The site only where a category of a person's own could ask:
-            // without one, every address was parsed again for nothing.
-            let custom = if categories.custom.is_empty() {
-                None
-            } else {
-                categories
-                    .custom_for(&name, &dm_core::host_of(&row.url))
-                    .map(|c| c.name.clone())
-            };
-            let kind = dm_core::by_name(&name).or(row.category);
-            self.haystacks.insert(row.id, haystack_named(&name, row));
-            self.placed.insert(row.id, (kind, custom));
-            self.fingerprints
-                .insert(row.id, (fingerprint, Arc::clone(row)));
+            self.place_one(row, categories);
         }
         // Rows that are gone.
         if self.placed.len() != rows.len() {
@@ -180,6 +138,69 @@ impl Places {
             self.haystacks.retain(|id, _| ids.contains(id));
             self.fingerprints.retain(|id, _| ids.contains(id));
         }
+    }
+
+    /// Places again only the rows of `rows` at the places `at`, the others as the last read
+    /// placed them: the same rows in the same order, a few changed in place (a state, a name).
+    /// At 10,000 rows, a download that finished placed every row again (gaps row 181). Under
+    /// other categories of a person's own, every row is placed again ([`Self::place_rows`]).
+    pub fn place_at(&mut self, rows: &[Arc<Entry>], at: &[usize], categories: &Categories) {
+        if format!("{:?}", categories.custom) != self.rules {
+            self.place_rows(rows, categories);
+            return;
+        }
+        self.generation += 1;
+        for row in at.iter().filter_map(|&i| rows.get(i)) {
+            self.place_one(row, categories);
+        }
+    }
+
+    /// Places `row`, where it is not the row placed last time and its name, address, note or
+    /// kind changed.
+    fn place_one(&mut self, row: &Arc<Entry>, categories: &Categories) {
+        use std::hash::{Hash, Hasher};
+        if self
+            .fingerprints
+            .get(&row.id)
+            .is_some_and(|(_, seen)| Arc::ptr_eq(seen, row))
+            && self.placed.contains_key(&row.id)
+        {
+            return;
+        }
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        (
+            &row.url,
+            &row.filename,
+            &row.save_name,
+            &row.description,
+            row.category.map_or(255u8, |c| c as u8),
+        )
+            .hash(&mut hasher);
+        let fingerprint = hasher.finish();
+        if self.fingerprints.get(&row.id).map(|(f, _)| *f) == Some(fingerprint)
+            && self.placed.contains_key(&row.id)
+        {
+            self.fingerprints
+                .insert(row.id, (fingerprint, Arc::clone(row)));
+            return;
+        }
+        // Each row's name worked out once: from its address, for a row
+        // not yet named, it is a parse and a decode.
+        let name = name_of(row);
+        // The site only where a category of a person's own could ask:
+        // without one, every address was parsed again for nothing.
+        let custom = if categories.custom.is_empty() {
+            None
+        } else {
+            categories
+                .custom_for(&name, &dm_core::host_of(&row.url))
+                .map(|c| c.name.clone())
+        };
+        let kind = dm_core::by_name(&name).or(row.category);
+        self.haystacks.insert(row.id, haystack_named(&name, row));
+        self.placed.insert(row.id, (kind, custom));
+        self.fingerprints
+            .insert(row.id, (fingerprint, Arc::clone(row)));
     }
 
     /// A row's kind and own category, from [`Self::place_rows`] where it

@@ -61,10 +61,24 @@ extension that hands it the browser's downloads.
   window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
   no web view, plus the tray: one file per part of the window, in five
   folders (`window/`: `list.rs` the rows and their reads, `tick.rs` what each
-  wake does, `table.rs`, `menus.rs`, `toolbar.rs`, `sidebar.rs`; `dialogs/`:
+  wake does, `table.rs`, `menus.rs`, `toolbar.rs`, `sidebar.rs`, `narrow.rs` the
+  same views laid out for a phone's width below 600 points, gaps row N7; `dialogs/`:
   one file per dialog such as `addurl.rs` and `details.rs`; `options.rs` with
   `options/pages.rs` and a file per page in `options/pages/`; `widgets/`; `platform/`: the system's window calls, the
-  tray, drags and drops), and `port.rs` with `probe.rs` for the control port. `cargo packager -p dm-gpui` there builds the installers,
+  tray, drags and drops), and `port.rs` with `probe.rs` for the control port. The window is a library,
+  `dm_gpui::run_app(args, application)`, which `main.rs` calls with GPUI's platform for the computer and the
+  phone's `android_main` (`crates/dm-android`) with the phone's (gpui-android's `SharedPlatform`), after handing
+  `set_phone` its `phone::Phone` and setting dm's folders (`DM_HOME`, `TMPDIR`, `set_phone_folders`). On Android what only the phone can do
+  (a notification, opening a file and showing its folder, the clipboard, the wake lock, a share's link,
+  publishing a finished file to `Download/dm` and the folders dm writes by path (N9), the connection
+  and battery for the phone's rules (N10), the schedule's alarm (N12))
+  goes through one seam, `dm_desktop_base::phone`: the app hands its `PhoneServices` to `set_phone` before
+  the window starts, and each `platform/` module's Android arm (and, for publishing, the engine through
+  `dm_core::folders::set_publisher`) asks through it; what a phone lacks (the
+  login item, the Trash, the tray, moving the window) is refused in words or does
+  nothing (gaps row N17); the file panels are GPUI's file prompt and dm's own folders (N9). dm's four
+  Java classes (`DmActivity`, `DmService`, `DmActionReceiver`, `DmBootReceiver`) only hand their
+  events to Rust (`android/natives.rs`). `cargo packager -p dm-gpui` there builds the installers,
   from `assets/app-icons/` and `assets/macos/Info.plist`; its `Cargo.toml`
   holds dm's version. What is not code is in one folder, `desktop/assets/`
   (the window's `icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), and
@@ -295,6 +309,10 @@ still missing is in `docs/gaps.md`, rows 180 to 192.
    binary. Its version goes once in `desktop/Cargo.toml`'s
    `[workspace.dependencies]`; a crate writes `name.workspace = true` with
    its own features (`cargo xtask layers` refuses a version in a crate).
+   A crate `Cargo.lock` holds in more than one version is a double: no new
+   one, and none in more versions than `desktop/xtask/doubles-baseline.txt`
+   lists (`cargo xtask layers`); the list only shrinks
+   (`cargo xtask doubles-baseline` shortens it).
 9. Every task spawned has an owner that can cancel it, and a plan for when
    dm quits. A task that is simply dropped with the runtime does not count
    as stopped.

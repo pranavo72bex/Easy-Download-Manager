@@ -1,0 +1,12 @@
+# What cargo-ndk puts here and what Gradle and Android Studio make.
+app/src/main/jniLibs/
+.gradle/
+.kotlin/
+build/
+app/build/
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/

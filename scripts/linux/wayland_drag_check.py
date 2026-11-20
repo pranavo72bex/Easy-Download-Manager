@@ -43,9 +43,13 @@ def tree():
 
 
 def window(app):
-    """The rectangle of the window whose title is `app`."""
+    """The rectangle of the window whose title is `app`; "dm" is dm's main window, whatever its
+    title says now ("37% · 4.1 MB/s — dm" while downloads run, gaps row U16)."""
+    def named(name):
+        return name == app or (app == "dm" and (name or "").endswith(" — dm"))
+
     def walk(node):
-        if node.get("name") == app and node.get("pid"):
+        if named(node.get("name")) and node.get("pid"):
             return node.get("rect")
         for child in node.get("nodes", []) + node.get("floating_nodes", []):
             found = walk(child)

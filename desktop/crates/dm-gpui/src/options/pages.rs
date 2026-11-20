@@ -29,6 +29,8 @@ mod dialup;
 mod downloads;
 mod folders;
 mod general;
+#[cfg(target_os = "android")]
+mod phone_rules;
 mod sign_ins;
 
 /// A field for a number.

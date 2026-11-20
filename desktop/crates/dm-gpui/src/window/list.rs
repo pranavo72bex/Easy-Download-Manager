@@ -120,6 +120,7 @@ mod keys;
 mod later;
 mod on_queue;
 mod opening;
+mod placing;
 mod questions;
 mod refresh;
 mod removal;
@@ -133,6 +134,7 @@ use questions::countdown_question;
 use refresh::clicked;
 use refresh::needs_drawing;
 pub(crate) use rowline::{kind_picture, line};
+pub(crate) use sections::Shown;
 use sorting::sort_command;
 
 /// The main window's view: the application, the rows it last read, and what
@@ -243,7 +245,7 @@ impl Downloads {
     pub(crate) fn wake(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let beside = self.shown_beside();
         let changed = self.read();
-        self.taskbar_follow(window);
+        self.taskbar_follow(window, cx);
         self.tick(cx);
         self.watch_asks(cx);
         let answered = self.answer_requests(window, cx);
@@ -261,22 +263,28 @@ impl Downloads {
     /// How far the downloads are, on the taskbar button, so a minimized
     /// window still says it: green while they
     /// run, yellow paused, red a minute after one failed (Windows); a bar
-    /// and a count on the Dock (macOS) and the launcher (Linux).
-    fn taskbar_follow(&mut self, window: &Window) {
+    /// and a count on the Dock (macOS) and the launcher (Linux); and in the
+    /// window's title everywhere, "37% · 4.1 MB/s — dm" (gaps row U16).
+    fn taskbar_follow(&mut self, window: &mut Window, cx: &mut gpui::App) {
         use dm_desktop_base::taskbar;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        let mode = taskbar::mode_of(&self.rows, now);
+        // Over the rows running, paused or failed alone, which are all it shows (gaps row
+        // 181): not a pass over every row at every wake.
+        let busy: Vec<&Entry> = self.known.busy.values().map(|r| &**r).collect();
+        let mode = taskbar::mode_of(&busy, now);
         #[cfg(windows)]
-        if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(window) {
+        if let Ok(handle) = raw_window_handle::HasWindowHandle::window_handle(&*window) {
             self.system.taskbar.show(handle.as_raw(), mode);
         }
-        #[cfg(not(windows))]
-        let _ = window;
         self.system
             .taskbar
-            .show_outside(taskbar::outside_of(mode, taskbar::running_of(&self.rows)));
+            .show_outside(taskbar::outside_of(mode, taskbar::running_of(&busy)));
+        // Set only where it changed (`set_title`), and kept for the port. The speed is the
+        // running rows', all of which `busy` holds.
+        let title = taskbar::window_title(mode, taskbar::rate_of(&busy));
+        crate::window::screen::set_title(window, &title, cx);
     }
 
     /// How long the window sleeps when nothing wakes it: a quarter of a
@@ -287,7 +295,7 @@ impl Downloads {
     /// the downloads, which go on within moments of its end (gaps row W11); else 30 seconds.
     fn clock_every(&self) -> Duration {
         clock(
-            self.rows.iter().any(|r| r.state == State::Running),
+            self.running_any(),
             self.session.countdown.is_some()
                 || self.system.clipboard.on
                 || self.backend.held_by().is_some(),
@@ -305,6 +313,9 @@ impl Downloads {
         if asked.is_empty() {
             return false;
         }
+        // Every row's name, as a script may read any row's (`ui.inspect`): those not named
+        // before the first frame are named now, where it has not been drawn yet (gaps row S16).
+        self.name_the_rest();
         let allow_mcp = self.backend.settings().general.allow_mcp;
         for request in asked {
             let answer = match dm_shell::app::control_api::refused(
@@ -377,6 +388,10 @@ impl Downloads {
     /// Find (⌘F): the keyboard to the top bar's search box, its words
     /// chosen, as a code editor's ⌘P puts it in its command centre.
     pub fn find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // At a phone's width the box is opened across the top bar (gaps row N7).
+        if self.layout.narrow.laid_out {
+            self.layout.narrow.searching = true;
+        }
         self.list.filter.update(cx, |f, cx| {
             f.focus(window, cx);
             f.select_all(window, cx);
@@ -609,6 +624,9 @@ impl Render for Downloads {
         self.known.renders += 1;
         if crate::port::FRAMES.fetch_add(1, Ordering::Relaxed) == 0 {
             dm_core::finish_trace::mark("start: first frame drawn");
+            // The rows the first frame does not show are named once it is out, not before it
+            // (gaps row S16).
+            cx.on_next_frame(window, |this, _, _| this.name_the_rest());
         }
         // Its waits, copies and disk calls, counted in a debug build (row 180).
         let _drawing = dm_shell::app::costs::drawing();
@@ -648,7 +666,7 @@ impl Render for Downloads {
             .flex_col()
             .track_focus(&self.focus);
         let root = Self::list_actions(root, cx);
-        Self::list_keys(root, cx)
+        let root = Self::list_keys(root, cx)
             // Clear under Mica (the toolbar on it too); the list's column
             // below stays solid.
             .bg(crate::window::theme::frame(theme.background))
@@ -656,8 +674,14 @@ impl Render for Downloads {
             // Mirrored for a language read right to left: text against the right (gaps row U35).
             .when(crate::window::mirror::rtl(), |root| root.text_right())
             // The system's size for a list's rows and every control.
-            .text_size(crate::window::zoom::px(crate::widgets::native::TEXT))
-            .child(crate::window::titlebar::titlebar(
+            .text_size(crate::window::zoom::px(crate::widgets::native::TEXT));
+        // At a phone's width, the phone's layout of the same views (gaps row N7).
+        let narrow = crate::window::narrow::is_narrow(window);
+        self.layout.narrow.laid_out = narrow;
+        let root = if narrow {
+            self.narrow_window(root, theme, &screen, shown, window, cx)
+        } else {
+            root.child(crate::window::titlebar::titlebar(
                 self, theme, &screen, window, cx,
             ))
             .when(self.layout.show_toolbar, |root| {
@@ -669,30 +693,31 @@ impl Render for Downloads {
             .child(crate::window::statusbar::statusbar(
                 self, theme, &screen, cx,
             ))
-            .when_some(self.menus.place_menu.clone(), |root, (place, at)| {
-                root.child(crate::window::placemenu::menu(
-                    &place, at, theme, &screen, cx,
-                ))
-            })
-            // Held by Options, the window takes no click: one brings Options
-            // forward (B42).
-            .when(holding, |root| {
-                root.child(
-                    div()
-                        .id("held")
-                        .absolute()
-                        .top_0()
-                        .left_0()
-                        .size_full()
-                        .occlude()
-                        .on_mouse_down(
-                            gpui::MouseButton::Left,
-                            cx.listener(|this, _, _, cx| {
-                                this.bring_holder(cx);
-                            }),
-                        ),
-                )
-            })
+        };
+        root.when_some(self.menus.place_menu.clone(), |root, (place, at)| {
+            root.child(crate::window::placemenu::menu(
+                &place, at, theme, &screen, cx,
+            ))
+        })
+        // Held by Options, the window takes no click: one brings Options
+        // forward (B42).
+        .when(holding, |root| {
+            root.child(
+                div()
+                    .id("held")
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .occlude()
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.bring_holder(cx);
+                        }),
+                    ),
+            )
+        })
     }
 }
 

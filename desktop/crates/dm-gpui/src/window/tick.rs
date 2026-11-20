@@ -6,8 +6,9 @@
 //! What the GPUI window does on each wake beside reading the list
 //! (`docs/architecture/ARCHITECTURE.md`): the application's tick
 //! (`dm_desktop_base::session`: orders left by the command line, what the
-//! read detected, the schedules' hooks and When done) carried out as the
-//! window does it, then the browser's hand-offs, the When done countdown,
+//! read detected, the schedules' hooks, When done and what the followed
+//! playlists and feeds brought) carried out as the window does it, then the
+//! browser's hand-offs, the When done countdown,
 //! "Delete file after", the watched folder and the one-time hints. Each rule
 //! is the application's (`dm_shell::app`); the window says what came of it
 //! and opens what it asks in.
@@ -24,19 +25,17 @@ impl Downloads {
     /// One wake's work after the read (`Downloads::read`), on the main
     /// window's thread.
     pub(crate) fn tick(&mut self, cx: &mut Context<Self>) {
-        // At rest, the heap's freed pages back to the system (gaps row 175).
-        if !self
-            .rows
-            .iter()
-            .any(|r| matches!(r.state, dm_core::State::Running))
-        {
+        // At rest, the heap's freed pages back to the system (gaps row 175). The running
+        // rows are among those the reads keep for the tick (`Known::busy`, gaps row 181).
+        if !self.running_any() {
             dm_core::heap::give_back();
         }
         // The downloads' speed together, for View › Statistics's average and best (gaps row
         // W15): held in memory, never written.
         let speed: f64 = self
-            .rows
-            .iter()
+            .known
+            .busy
+            .values()
             .filter(|r| matches!(r.state, dm_core::State::Running))
             .map(|r| r.progress.speed)
             .sum();
@@ -76,7 +75,6 @@ impl Downloads {
         self.take_watched(cx);
         self.say_rechecked();
         self.take_searches(cx);
-        self.take_follows(cx);
         self.weekly_update(cx);
         self.check_clipboard(cx);
         // A second launch, the browser's button or the Dock asked for the
@@ -164,6 +162,8 @@ impl Downloads {
             Effect::Scheduled { hang_up } => self.hang_up(hang_up),
             Effect::Quit => self.quit(cx),
             Effect::AskMetered => self.ask_metered(cx),
+            // A followed playlist's or feed's reading came back (gaps row W10).
+            Effect::Followed { address, read } => self.take_followed(&address, read, cx),
             // Carried on the platform, above.
             Effect::Notify { .. }
             | Effect::NotifyFile { .. }
@@ -230,7 +230,8 @@ impl Downloads {
     pub(crate) fn big_download_hint(&mut self) {
         use dm_shell::app::hints::Hint;
         let settings = self.backend.settings();
-        if !Hint::BigDownload.due(&settings, &self.rows, self.status.said.is_none()) {
+        // Only the running rows call for it: those the reads keep (gaps row 181).
+        if !Hint::BigDownload.due(&settings, &self.running_rows(), self.status.said.is_none()) {
             return;
         }
         self.say(t("This is a big download. Downloads › Scheduler can run it at night, when you are not using the computer.").into());
@@ -247,7 +248,7 @@ impl Downloads {
     pub(crate) fn details_hint(&mut self) {
         use dm_shell::app::hints::Hint;
         let settings = self.backend.settings();
-        if !Hint::Details.due(&settings, &self.rows, self.status.said.is_none()) {
+        if !Hint::Details.due(&settings, &self.running_rows(), self.status.said.is_none()) {
             return;
         }
         self.say(t("Hover a download and press Details to watch its progress.").into());
@@ -351,6 +352,11 @@ impl Downloads {
     /// "Delete file after": the files due go to the Trash, their rows with
     /// them (`dm_shell::app::session::delete_due`).
     fn delete_due_files(&mut self) {
+        // Only where a row has a time set, which the reads count: not a look at every row at
+        // every tick (gaps row 181).
+        if self.known.deleting == 0 {
+            return;
+        }
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());

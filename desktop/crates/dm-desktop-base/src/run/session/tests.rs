@@ -36,7 +36,7 @@ impl dm_shell::app::backend::Platform for Nothing {
 }
 
 /// A backend over an empty queue of its own under `dir`, with `settings`.
-fn backend(
+pub(super) fn backend(
     runtime: &tokio::runtime::Runtime,
     dir: &std::path::Path,
     settings: dm_shell::Settings,
@@ -77,7 +77,7 @@ fn row(id: Id, state: State) -> Arc<Entry> {
 }
 
 /// The window's driver, in a test that does not hold the inbox.
-fn window() -> Driver {
+pub(super) fn window() -> Driver {
     Driver::window(false)
 }
 
@@ -471,4 +471,59 @@ fn a_low_battery_holds_and_an_unknown_state_goes_on() {
     fake.set(&mut session, None, None);
     session.tick(&backend, &[], window());
     assert_eq!(backend.held_by(), None, "unknown");
+}
+
+/// A phone's state as a test sets it (gaps row N10): its own rules, read beside W11's.
+#[derive(Clone, Default)]
+struct PhoneFake(Arc<std::sync::Mutex<crate::phone::PhoneNetwork>>);
+
+impl crate::metered::Source for PhoneFake {
+    fn read(&self) -> crate::metered::Reading {
+        crate::metered::phone::reading_of(&self.0.lock().unwrap())
+    }
+
+    fn phone(&self) -> crate::phone::PhoneNetwork {
+        *self.0.lock().unwrap()
+    }
+}
+
+/// On a phone with Options' Wi-Fi only, mobile data holds every download, its reason said on
+/// the row; on Wi-Fi again they go on.
+#[test]
+fn wifi_only_holds_a_phones_downloads_off_wifi() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let settings = dm_shell::Settings {
+        downloads: dm_shell::settings::DownloadSettings {
+            wifi_only: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let backend = backend(&runtime, dir.path(), settings);
+    let (mut session, fake) = (Session::default(), PhoneFake::default());
+    *fake.0.lock().unwrap() = crate::phone::PhoneNetwork {
+        metered: Some(true),
+        wifi: Some(false),
+        ..Default::default()
+    };
+    session.read_state_from(Box::new(fake.clone()));
+    session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), Some(dm_core::Hold::NotWifi));
+    crate::rows::set_held_by(backend.held_by());
+    let mut held = (*row(1, State::Paused)).clone();
+    held.paused_by_schedule = true;
+    assert_eq!(
+        crate::rows::status_in_english(&held),
+        "Waiting: the phone is not on Wi-Fi"
+    );
+    crate::rows::set_held_by(None);
+    *fake.0.lock().unwrap() = crate::phone::PhoneNetwork {
+        metered: Some(false),
+        wifi: Some(true),
+        ..Default::default()
+    };
+    session.read_state_from(Box::new(fake.clone()));
+    session.tick(&backend, &[], window());
+    assert_eq!(backend.held_by(), None);
 }

@@ -16,13 +16,13 @@ use crate::window::theme::Theme;
 
 /// What the list's column shows: the bars, how many more wait, and whether
 /// the list has no row.
-pub(super) struct Shown {
+pub(crate) struct Shown {
     /// The bars shown: the first, or all of them once asked for.
-    bars: Vec<AnyElement>,
+    pub(crate) bars: Vec<AnyElement>,
     /// How many bars wait behind the one shown.
-    more: usize,
+    pub(crate) more: usize,
     /// No row is shown.
-    empty: bool,
+    pub(crate) empty: bool,
 }
 
 impl Downloads {
@@ -242,10 +242,20 @@ impl Downloads {
             }),
         )
         .on_action(
-            cx.listener(|this, _: &crate::window::menus::Dismiss, _, cx| {
+            cx.listener(|this, _: &crate::window::menus::Dismiss, window, cx| {
+                // The phone's layout: its sheet or drawer closes first (gaps row N16: a
+                // phone's Back is Escape given to the window on top).
+                if crate::window::narrow::is_narrow(window) && this.narrow_back() {
+                    cx.notify();
+                    return;
+                }
                 if this.menus.place_menu.is_some() {
                     this.close_place_menu();
                     cx.notify();
+                } else if cfg!(target_os = "android") {
+                    // Nothing to close: passed on, so the phone's platform, told no one used
+                    // it, sends dm to the background as Back does on a first screen.
+                    cx.propagate();
                 }
             }),
         )
@@ -344,28 +354,7 @@ impl Downloads {
             // wait (gaps row U26): stacked, a failure, the browser's bar and a
             // problem or two took 135 points of a 500-point window.
             .children(shown_bars)
-            .when(more_bars > 0, |d| {
-                d.child(
-                    div()
-                        .id("more-bars")
-                        .px(crate::window::zoom::px(space::L))
-                        .py(crate::window::zoom::px(space::XXS))
-                        .border_b_1()
-                        .border_color(theme.separator)
-                        .text_size(crate::window::zoom::px(crate::widgets::native::SMALL_TEXT))
-                        .text_color(theme.selection)
-                        .cursor_pointer()
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.layout.bars.all = true;
-                            cx.notify();
-                        }))
-                        .child(screen.label(dm_desktop_base::i18n::tn(
-                            "+{} more||+{} more",
-                            more_bars as u64,
-                            &[&more_bars],
-                        ))),
-                )
-            })
+            .children(self.more_bars_line(more_bars, theme, screen, cx))
             // The headings and the rows scroll sideways
             // together where the window is narrower than
             // the columns, as a macOS list does: at 120% in
@@ -379,6 +368,36 @@ impl Downloads {
             .when(empty, |list| {
                 list.child(crate::window::table::empty(self, theme, cx))
             })
+    }
+
+    /// "+2 more" under the bar shown, where `more` bars wait behind it: a click shows them all.
+    pub(crate) fn more_bars_line(
+        &self,
+        more: usize,
+        theme: Theme,
+        screen: &Screen,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::Stateful<Div>> {
+        (more > 0).then(|| {
+            div()
+                .id("more-bars")
+                .px(crate::window::zoom::px(space::L))
+                .py(crate::window::zoom::px(space::XXS))
+                .border_b_1()
+                .border_color(theme.separator)
+                .text_size(crate::window::zoom::px(crate::widgets::native::SMALL_TEXT))
+                .text_color(theme.selection)
+                .cursor_pointer()
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.layout.bars.all = true;
+                    cx.notify();
+                }))
+                .child(screen.label(dm_desktop_base::i18n::tn(
+                    "+{} more||+{} more",
+                    more as u64,
+                    &[&more],
+                )))
+        })
     }
 
     /// The headings and the rows, which scroll sideways together, and the

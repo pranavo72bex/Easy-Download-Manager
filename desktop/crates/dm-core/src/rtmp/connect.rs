@@ -70,8 +70,11 @@ pub(super) async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
     } else {
         format!("http://{}:{}", target.host, target.port)
     };
-    // No proxy: a stream is refused under one before it gets here.
-    let http = crate::with_tls(reqwest::Client::builder())
+    // dm's own client (`builder`), as every HTTP request is: its resolver connects a name a
+    // public page led to at its public addresses alone, so one that resolves inside alone is
+    // refused here as a download's is (gaps row 200); and it follows no redirect, where a bare
+    // client followed any, unjudged. No proxy: a stream is refused under one before it gets here.
+    let http = crate::builder()
         .no_proxy()
         .connect_timeout(CONNECT_WITHIN)
         .timeout(TUNNEL_REQUEST_WITHIN)
@@ -83,7 +86,7 @@ pub(super) async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
             .header("Content-Type", "application/x-fcs")
             .body(body);
         async move {
-            let mut answer = request.send().await.map_err(|e| e.to_string())?;
+            let mut answer = request.send().await.map_err(tunnel_failure)?;
             answer = answer.error_for_status().map_err(|e| e.to_string())?;
             // Read in pieces, and no more than a stream's answers hold: a
             // server sending without end would otherwise fill the memory.
@@ -146,6 +149,17 @@ pub(super) async fn tunnel(target: &Target) -> Result<Box<dyn Io>, Error> {
         let _ = post(format!("/close/{session}/0"), vec![0]).await;
     });
     Ok(Box::new(ours))
+}
+
+/// What a tunnel request that was not sent says: a name a public page led to that the resolver
+/// found inside alone in an inward redirect's words (`dns::LedInside`, gaps row 200), not as a
+/// request that failed; anything else as reqwest says it.
+fn tunnel_failure(error: reqwest::Error) -> String {
+    if dm_net::dns::refused_inside(&error) {
+        Error::Network(error).to_string()
+    } else {
+        error.to_string()
+    }
 }
 
 /// The simple handshake: C0 and C1 out, S0, S1 and S2 in, C2 (S1 back).

@@ -37,8 +37,6 @@ Thumbs.db
 # What `make build` made
 /build/
 engine/
-# The phone app's Kotlin package of that name is source (gaps row N3).
-!mobile/android/app/src/main/java/com/dm/android/engine/
 
 # Local-only engine requirements (never committed)
 docs/engine-local/

@@ -250,6 +250,7 @@ impl WindowProbe for Probe<'_> {
         Ok(probe::Windows {
             pixels_per_point: None,
             main: None,
+            main_title: None,
             dialogs: Vec::new(),
         })
     }

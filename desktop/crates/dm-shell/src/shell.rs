@@ -33,8 +33,8 @@ pub use args::{
     orders, unrecognised, Orders, HOST_MANIFEST, WHEN_DONE,
 };
 pub use inbox::{
-    ask_running_to_quit, ask_running_to_retry, hand_off, hand_to_running, leave,
-    leave_new_download, leave_when_done, opened_by_system, retry_asked, route_to_window,
+    ask_running_to_quit, ask_running_to_retry, ask_running_to_stop_all, hand_off, hand_to_running,
+    leave, leave_new_download, leave_when_done, opened_by_system, retry_asked, route_to_window,
     take_from_browser, watch_inbox, Taken, NEW_DOWNLOAD_FILE, QUIT, RETRY_PREFIX, WHEN_DONE_FILE,
 };
 #[cfg(test)]

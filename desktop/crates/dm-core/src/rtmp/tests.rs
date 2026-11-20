@@ -527,6 +527,115 @@ async fn a_server_that_does_not_speak_plain_rtmp_is_refused() {
     assert!(got.unwrap_err().to_string().contains("rtmpe"));
 }
 
+/// A DNS server for this test binary, started once and kept for its life: every name under
+/// `.inside.test` is at 127.0.0.1, any other is not found. dm asks it in place of the system for
+/// every name under `.test` from then on, as it asks the benchmark's
+/// (`dm_net::dns::ask_test_names_of`); no other test here looks such a name up.
+fn names_under_inside_test_answered() {
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    STARTED.call_once(|| {
+        let socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        let at = socket.local_addr().unwrap();
+        std::thread::spawn(move || loop {
+            let mut asked = [0u8; 512];
+            // Windows says an answer that found nobody listening as an error on the next read.
+            let Ok((read, from)) = socket.recv_from(&mut asked) else {
+                continue;
+            };
+            if read > 12 {
+                let _ = socket.send_to(&dns_answer(&asked[..read]), from);
+            }
+        });
+        assert!(
+            dm_net::dns::ask_test_names_of(at),
+            "a DNS server for names under .test was given before this one"
+        );
+    });
+}
+
+/// The answer to the question `asked` (RFC 1035): 127.0.0.1 for a name under `.inside.test`,
+/// "no such name" for any other.
+fn dns_answer(asked: &[u8]) -> Vec<u8> {
+    let mut labels = Vec::new();
+    let mut at = 12;
+    while let Some(&size) = asked.get(at).filter(|size| **size > 0) {
+        let label = asked
+            .get(at + 1..at + 1 + usize::from(size))
+            .unwrap_or_default();
+        labels.push(String::from_utf8_lossy(label).into_owned());
+        at += 1 + usize::from(size);
+    }
+    let inside = labels.join(".").ends_with(".inside.test");
+    let mut answer = asked.to_vec();
+    // An answer to a question that asked for recursion; recursion offered, and no error or no
+    // such name.
+    answer[2] = 0x81;
+    answer[3] = if inside { 0x80 } else { 0x83 };
+    if inside {
+        // One A record, pointing back at the question's name: 127.0.0.1.
+        answer[7] = 1;
+        answer.extend_from_slice(&[0xc0, 12, 0, 1, 0, 1, 0, 0, 0, 0, 0, 4, 127, 0, 0, 1]);
+    }
+    answer
+}
+
+/// An RTMPT server on 127.0.0.1 that opens a session for whoever asks, counting the sessions it
+/// opened; every other request is not found, which ends the tunnel.
+async fn rtmpt_counting() -> (u16, Arc<AtomicU64>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let opened = Arc::new(AtomicU64::new(0));
+    let counted = Arc::clone(&opened);
+    let app = axum::Router::new().route(
+        "/open/1",
+        axum::routing::post(move || {
+            let counted = Arc::clone(&counted);
+            async move {
+                counted.fetch_add(1, Ordering::SeqCst);
+                "dmsession\n"
+            }
+        }),
+    );
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    (port, opened)
+}
+
+/// RTMPT's requests go through dm's resolver, as a download's do (gaps row 200): a name a public
+/// page led to that resolves to 127.0.0.1 alone is refused in an inward redirect's words, and
+/// the server there is never asked; a name of one's own network typed is reached.
+#[tokio::test]
+async fn an_rtmpt_name_a_public_page_led_inside_is_refused_and_typed_it_is_not() {
+    names_under_inside_test_answered();
+    let (port, opened) = rtmpt_counting().await;
+    let led = format!("rtmpt://led.inside.test:{port}/live/show");
+    // The page's link judged as the browser's hand-off judges one (`redirects::named_inside`):
+    // its name looks public, so it passes, and is held to public addresses from then on.
+    assert!(!crate::redirects::named_inside(
+        "https://videos.example/watch",
+        &led
+    ));
+    let Err(why) = tunnel(&target(&led).unwrap()).await else {
+        panic!("a tunnel was opened to a name a public page led inside");
+    };
+    let said = why.to_string();
+    assert!(said.contains(crate::INWARD_REDIRECT), "{said}");
+    assert!(said.contains("led.inside.test"), "{said}");
+    assert_eq!(
+        opened.load(Ordering::SeqCst),
+        0,
+        "the server inside was asked"
+    );
+
+    // Typed (no public page led to it), a name inside is a server of one's own.
+    let typed = format!("rtmpt://typed.inside.test:{port}/live/show");
+    if let Err(why) = tunnel(&target(&typed).unwrap()).await {
+        panic!("a typed name inside was refused: {why}");
+    }
+    assert_eq!(opened.load(Ordering::SeqCst), 1);
+}
+
 proptest::proptest! {
     #[test]
     fn any_bytes_are_read_without_a_panic(data in proptest::collection::vec(proptest::num::u8::ANY, 0..600)) {

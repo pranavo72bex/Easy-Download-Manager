@@ -89,6 +89,9 @@ struct Reading<'a> {
     index: usize,
     /// What came past the range's end, where the answer goes on.
     onward: Option<bytes::Bytes>,
+    /// How much the attempt has taken off its answer, with what it was handed to write first
+    /// (`carry`): what it does not write by its end is counted (`unwritten`, gaps row 186).
+    received: u64,
     /// How much has been taken since a pause of what had already come (`DRAIN_MOST`).
     drained: u64,
     /// A pause seen.
@@ -196,12 +199,15 @@ pub(in crate::download) async fn attempt_segment(
     // A pause seen, and how much has been taken since of what had already come (`DRAIN_MOST`).
     let draining: Option<Error> = None;
     let drained = 0u64;
+    // What it was handed to write first: received, and to be written.
+    let received = carry.as_ref().map_or(0, |carry| carry.len() as u64);
     // What came past the range's end, where the answer goes on.
     let onward: Option<bytes::Bytes> = None;
     let mut reading = Reading {
         job,
         index,
         onward,
+        received,
         drained,
         draining,
         flowing,
@@ -223,7 +229,10 @@ pub(in crate::download) async fn attempt_segment(
         stream,
         ledger,
     };
-    reading.read(&plan).await?;
+    if let Err(stopped) = reading.read(&plan).await {
+        reading.count_unwritten(&plan, 0);
+        return Err(stopped);
+    }
     reading.finish(&plan, resumable).await
 }
 
@@ -620,6 +629,8 @@ async fn tail_checked(
         tokio::io::AsyncReadExt::read_exact(&mut on_disk, &mut tail).await?;
         drop(on_disk);
         let (agree, rest) = compare_tail(&mut stream, &tail, &job.control).await?;
+        // The bytes that agree were on the disk already: received twice (gaps row 186).
+        crate::download::unwritten::count(index, agree);
         /* What a power cut leaves is blocks never written: zeros, a whole
          * disk block at a time, and not always the last ones — a disk puts
          * blocks down in its own order. So the block the first difference
@@ -670,6 +681,9 @@ async fn tail_checked(
                     zeros_ending_at(&plan.held, origin + base, origin + floor).await? - origin;
                 let cut = zeros_from - zeros_from % DISK_BLOCK;
                 if cut < base {
+                    // What came past the bytes compared goes with the connection, fetched again.
+                    let dropped = rest.as_ref().map_or(0, |rest| rest.len() as u64);
+                    crate::download::unwritten::count(index, dropped);
                     put(ledger, cut).await?;
                     forget_synced(&job.parts, index).await;
                     drop(file);

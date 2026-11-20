@@ -117,11 +117,23 @@ pub(crate) struct Known {
     pub(super) earlier: HashMap<dm_core::Id, usize>,
     /// When the names and places were last worked out (`read`).
     pub(super) named_at: Option<Instant>,
+    /// Some rows are not named yet: before the first frame only the rows it shows are, the
+    /// rest once it is drawn (`name_the_rest`, gaps row S16).
+    pub(super) names_owed: bool,
     /// The next read works everything out again (the settings changed).
     pub(crate) read_all: bool,
     /// How many rows move with the clock (running, or a file's days
     /// before the Trash), kept by the read (`moves_with_time`).
     pub(super) timed_rows: usize,
+    /// How many rows have a time to move their file to the Trash ("Delete
+    /// file after"), kept by the read: the tick looks for those due only
+    /// where one has (gaps row 181).
+    pub(crate) deleting: usize,
+    /// The rows running, paused or failed, by id, kept by the read from the
+    /// rows that changed: the tick's own looks (the taskbar's, the clock's,
+    /// the hints', the speeds') go over them, not over every row (gaps row
+    /// 181).
+    pub(crate) busy: std::collections::BTreeMap<dm_core::Id, std::sync::Arc<dm_core::Entry>>,
     /// How many times the window was built: a wake that changed nothing
     /// builds it no more (gaps row 181).
     pub(crate) renders: u64,
@@ -276,6 +288,8 @@ pub(crate) struct Layout {
     /// Windows' High Contrast palette as last drawn (`tick.rs`): GPUI tells
     /// the window of light and dark only.
     pub(crate) contrast: Option<dm_desktop_base::contrast::Palette>,
+    /// The phone's layout's drawer and sheet (`narrow.rs`).
+    pub(crate) narrow: crate::window::narrow::Narrow,
 }
 
 /// What the window tells a person: the status bar's sentence, what a
@@ -346,13 +360,6 @@ pub(crate) struct Threads {
     pub(super) search_results: Arc<Mutex<Vec<(String, Result<dm_shell::lists::Crawled, String>)>>>,
     /// When the saved searches were last looked at.
     pub(crate) searches_checked: Option<Instant>,
-    /// What readings of the playlists and feeds followed brought, as each
-    /// ends, by the followed one's address (gaps row W10).
-    #[allow(clippy::type_complexity)]
-    pub(super) follow_results:
-        Arc<Mutex<Vec<(String, Result<dm_core::youtube::Playlist, String>)>>>,
-    /// When the followed ones were last looked at.
-    pub(crate) follows_checked: Option<Instant>,
     /// What an opener said went wrong, from its thread.
     pub(super) opener_said: Arc<Mutex<Option<String>>>,
     /// What Scheduler › Hang up modem when done came to, from its thread.
@@ -373,8 +380,6 @@ impl Default for Threads {
             rechecked: Default::default(),
             search_results: Default::default(),
             searches_checked: None,
-            follow_results: Default::default(),
-            follows_checked: None,
             opener_said: Default::default(),
             hung_up: Default::default(),
             checked: Arc::new(Mutex::new(dm_shell::app::update::Update::NotAsked)),

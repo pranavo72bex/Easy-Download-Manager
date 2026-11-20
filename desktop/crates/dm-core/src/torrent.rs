@@ -33,10 +33,13 @@ use crate::download::{Finished, Options, Update};
 use crate::{category, Error, Progress};
 
 mod blocklist;
+mod follow;
 mod placing;
 mod run;
 mod trackers;
 use blocklist::blocklist_file;
+pub(crate) use follow::hold_sharing;
+use follow::{sharing_held, Follow};
 #[cfg(all(test, unix))]
 use placing::copy_across;
 #[cfg(test)]
@@ -547,8 +550,11 @@ async fn share_until(
         .map_err(|e| Error::Internal(format!("it could not be added again: {e}")))?;
     let handle = added.ok_or_else(|| Error::Internal("it produced no handle".into()))?;
     let listening = session.listen_addr();
-    let deadline = Instant::now() + Duration::from_secs(share.minutes.saturating_mul(60));
+    let mut deadline = Instant::now() + Duration::from_secs(share.minutes.saturating_mul(60));
     let goal = (size as f64 * share.ratio).ceil() as u64;
+    let mut follow = Follow::new();
+    // Since when its sharing is held with the downloads (`hold_sharing`), while it is.
+    let mut held_since: Option<Instant> = None;
     loop {
         if token.is_cancelled() {
             break;
@@ -573,8 +579,20 @@ async fn share_until(
                 listening,
             };
         }
-        if sent >= goal || Instant::now() >= deadline {
+        if sent >= goal || (held_since.is_none() && Instant::now() >= deadline) {
             break;
+        }
+        if sharing_held() {
+            // Paused while live, each tick: one still checking its files is paused once live.
+            let _ = session.pause(&handle).await;
+            held_since.get_or_insert_with(Instant::now);
+        } else if let Some(since) = held_since.take() {
+            // The time held is not counted, and started again it announces itself afresh.
+            deadline += since.elapsed();
+            let _ = session.resume(&handle).await;
+            follow.settle();
+        } else {
+            follow.follow(&session, &handle).await;
         }
         tokio::select! {
             () = token.cancelled() => break,

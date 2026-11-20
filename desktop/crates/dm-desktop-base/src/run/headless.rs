@@ -5,7 +5,8 @@
 
 //! `--headless`: dm with no window, for a server, a script or an agent. The
 //! queue, the browser's hand-offs, the watched folder, the saved searches,
-//! the schedules, When done and the control protocol go on as they do under
+//! the playlists and feeds followed, the schedules, When done and the
+//! control protocol go on as they do under
 //! a window, with nothing drawn and no toolkit started, so it runs where
 //! there is no display. Each rule is the application's (`dm_shell::app`);
 //! what a window would ask a person is settled with no one asked: a
@@ -35,6 +36,7 @@ use crate::i18n::{fill, form_of, t};
 use crate::probe;
 use crate::session::{Driver, Effect, Session};
 
+mod follows;
 mod port;
 
 /// How often dm looks at its clock when nothing wakes it: the schedules,
@@ -337,6 +339,9 @@ impl Headless {
             // Never asked with no window: "ask" waits, its reason said on the rows (gaps row
             // W11).
             Effect::AskMetered => {}
+            // A followed playlist's or feed's reading came back: what is new added, as the
+            // window adds it (gaps row W10).
+            Effect::Followed { address, read } => self.take_followed(&address, read),
             // Carried on the platform, above.
             Effect::Notify { .. }
             | Effect::NotifyFile { .. }

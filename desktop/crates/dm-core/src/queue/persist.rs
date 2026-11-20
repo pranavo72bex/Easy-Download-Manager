@@ -578,3 +578,18 @@ fn kept_aside(kept: &std::path::Path) -> String {
 pub(super) fn secrets_file(queue_file: &std::path::Path) -> PathBuf {
     crate::paths::secrets(queue_file)
 }
+
+/// The rows saved at `path` (the queue file, with the journal written over it replayed), as
+/// they were saved, without a queue to load them into: what a phone's start reads to know
+/// whether dm has downloads to go on with (gaps row N12). None where the file is missing or
+/// cannot be read.
+pub fn saved_rows(path: &std::path::Path) -> Vec<Entry> {
+    let Ok(text) = std::fs::read(path) else {
+        return Vec::new();
+    };
+    let json = text.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&text);
+    match crate::saved::rows_from_slice::<Entry>(json) {
+        Ok(entries) => super::journal::replayed(path, &text, entries),
+        Err(_) => Vec::new(),
+    }
+}

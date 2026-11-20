@@ -5,13 +5,20 @@
 
 //! dm's login item on macOS and Windows (`auto-launch`'s launch agent and
 //! Run key; Linux's entry is `autostart`'s), and `--unregister`'s removal
-//! of it.
+//! of it. A phone has none (gaps row N17): Android starts no app at login.
 
 use dm_shell::{settings, shell};
 
+#[cfg(not(target_os = "android"))]
 use crate::Error;
 
+/// Whether this system has a login item at all: Android starts no app at
+/// login, so there dm leaves the setting be (`boot`) and refuses to make one
+/// (`desktop`).
+pub const HAS_LOGIN_ITEM: bool = !cfg!(target_os = "android");
+
 /// The login item for `exe`, launched into the tray.
+#[cfg(not(target_os = "android"))]
 pub fn login_launcher(exe: &std::path::Path) -> Result<auto_launch::AutoLaunch, Error> {
     auto_launch::AutoLaunchBuilder::new()
         .set_app_name("dm")
@@ -45,6 +52,7 @@ pub use linux::*;
 /// done said. Only this copy's, or one whose program is gone: uninstalling
 /// a second copy must not take the login item from the installed one.
 /// The browsers' manifests are `register::from_args`'s.
+#[cfg(not(target_os = "android"))]
 pub fn remove_login_item() {
     use crate::autostart::{self, Removal};
     let removed: Result<Removal, Error> = if cfg!(target_os = "linux") {
@@ -94,6 +102,12 @@ pub fn remove_login_item() {
         ),
         Err(why) => eprintln!("dm: the login item could not be removed: {why}"),
     }
+}
+
+/// `--unregister`'s other half, on a phone: there is no login item to remove.
+#[cfg(target_os = "android")]
+pub fn remove_login_item() {
+    println!("dm had no login item");
 }
 
 /// `--unregister`'s last part: the login setting turned off, so the next

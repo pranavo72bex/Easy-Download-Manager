@@ -127,9 +127,19 @@ async fn finish_dm_tagged(
             } else {
                 "mp4"
             });
-            // Said before the join where the disk cannot hold it; the parts are kept (gaps row Y21).
+            // No room for the join beside the parts: an MP4 is written into the larger part, which
+            // needs little more; else said before the join, the parts kept (gaps row Y21).
             let into = joined.parent().unwrap_or(options.parts_dir.as_path());
-            crate::download::room_to_join(&parts, into, options)?;
+            if let Err(no_room) = crate::download::room_to_join(&parts, into, options) {
+                let mp4 = !(webm || mkv);
+                if !(mp4
+                    && crate::download::parts_in_place(&parts, texts, tags, &joined, options)
+                        .await?)
+                {
+                    return Err(no_room);
+                }
+                return place(&joined, options).await;
+            }
             let joining = if webm || mkv {
                 crate::mkvmux::join_tagged_async(parts.clone(), texts, joined.clone(), tags).await
             } else {

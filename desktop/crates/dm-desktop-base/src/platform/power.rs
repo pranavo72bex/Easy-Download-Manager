@@ -186,7 +186,8 @@ pub enum Sound {
 /// asynchronously, so its own exit could cut the sound off.
 pub fn sound_program(sound: Sound, os: &str) -> Option<(&'static str, Vec<&'static str>)> {
     match (os, sound) {
-        ("windows", _) => None,
+        // A phone's notification sounds itself (gaps row N17).
+        ("windows" | "android", _) => None,
         ("macos", Sound::Finished) => Some(("afplay", vec!["/System/Library/Sounds/Glass.aiff"])),
         ("macos", Sound::Failed) => Some(("afplay", vec!["/System/Library/Sounds/Basso.aiff"])),
         (_, Sound::Finished) => Some((
@@ -234,7 +235,8 @@ pub fn file_program(path: &str, os: &str) -> Option<(&'static str, Vec<String>)>
         return None;
     }
     match os {
-        "windows" => None,
+        // Nothing on a phone plays a file for dm (gaps row N17).
+        "windows" | "android" => None,
         "macos" => Some(("afplay", vec![path.to_string()])),
         _ => Some(("paplay", vec![path.to_string()])),
     }

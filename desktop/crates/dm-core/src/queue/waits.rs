@@ -20,6 +20,12 @@ pub enum Hold {
     Metered,
     /// The computer runs on its battery, below the level Options says to wait under.
     Battery,
+    /// A phone off Wi-Fi (and off a cable), where its Options say Wi-Fi only (gaps row N10).
+    NotWifi,
+    /// A phone roaming, where its Options say not while roaming (gaps row N10).
+    Roaming,
+    /// A phone's Data Saver on, where its Options say to wait while it is (gaps row N10).
+    DataSaver,
 }
 
 impl Hold {
@@ -29,6 +35,9 @@ impl Hold {
         match self {
             Hold::Metered => "the connection is metered",
             Hold::Battery => "the battery is low",
+            Hold::NotWifi => "the phone is not on Wi-Fi",
+            Hold::Roaming => "the phone is roaming",
+            Hold::DataSaver => "Data Saver is on",
         }
     }
 }
@@ -37,9 +46,12 @@ impl DownloadList {
     /// Holds every download for `hold`, or, with `None`, lets them go on: what runs is paused
     /// and nothing starts at the next tick, as the schedule closing does; once the hold is
     /// lifted the rows it held are put back by the schedule's watcher (`may_run`). A download a
-    /// person started outside the schedule goes on.
+    /// person started outside the schedule goes on. Every finished torrent's sharing is held
+    /// with them, and goes on when they do (gaps row N8).
     pub fn hold_for(&self, hold: Option<Hold>) {
         let before = std::mem::replace(&mut *crate::lock(&self.inner.held_by), hold);
+        // A finished torrent's sharing sends over the same connection: held with them (N8).
+        crate::torrent::hold_sharing(hold.is_some());
         if before != hold {
             self.kick();
         }

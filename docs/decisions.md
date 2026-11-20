@@ -7110,6 +7110,7 @@ download is asked again from the start over a client that speaks HTTP/2 from its
 (`http2_client`), its ranges sharing that one connection. reqwest's `http2` feature is the `h2`
 crate, in Rust. That client goes out directly: a server that refuses HTTP/1.1 behind a proxy dm was
 told to use is not reached. Test: `dm-core/tests/http2_only.rs`, a server that speaks HTTP/2 alone.
+
 ## 2026-11-13: The egui window removed (G9, A2, A3)
 
 At the maintainer's word of 2026-11-12 (above): the `dm-desktop` crate, its fonts (Inter,
@@ -8140,6 +8141,8 @@ A transport stream cannot be cleared in place, so its locks are written to `trac
 
 The protobuf and UMP readers are dm's own. A framed format is used only where nothing with an address gives its quality, and an answer whose formats are all framed only after every other client was asked; a framed stream that fails falls back to the formats with addresses. No proof-of-origin token is minted (a decision of its own, not taken): where the stream asks one, dm says so. The message field numbers are from the protocol's published descriptions and unchecked against the service until a live run.
 
+A live broadcast is recorded through it only where its player names no HLS playlist (the playlist is the live stream's address, taken first as a format with an address is). The recording starts at the broadcast's head, as a live HLS recording starts at the last segments its playlist lists, not at the start of what can be played back. No end of the stream itself is known from the published descriptions, so it ends when the broadcast has stood still a few pieces' length and reading the video again finds it no longer live through the framed stream; a stop keeps what was recorded, as for HLS (2026-11-20).
+
 ## macOS's row menu is an NSMenu of dm's own, gpui-component not vendored (2026-11-20, gaps row U27)
 
 NativeMenu (gpui-component 0.9.1) has no key equivalent, and vendoring the whole crate (4.4 MB) for one field was judged too heavy. On macOS the row menu alone is built by `platform/popmenu.rs` from the same `gpui::Menu`, its keys looked up as the drawn menu does and set as GPUI's menu bar sets them, popped up and dispatched as NativeMenu does. The title menus and toolbar arrows stay on NativeMenu and show no keys on macOS.
@@ -8255,3 +8258,335 @@ builds and tests); waiting for the maintainer's word on the contract row and pic
   three (one, two, other), in `i18n::form`. Offering them adds two lines to View › Language and
   Options › General in every language, part of the change waiting for the maintainer's word.
   The extension's `_locales` have no Arabic or Hebrew yet.
+
+## On Android dm's secrets are files sealed by a Keystore key, through JNI (2026-11-20, gaps row N11)
+
+What `secretstore` keeps in a system store is a value of its choosing by name (on every system
+today the 32-byte key that seals `secrets.json`). The Android Keystore keeps keys, not values: a
+key made in it can be used but not read back, and there is no call to put arbitrary bytes in it.
+So `dm-android` makes one AES-256-GCM key in `AndroidKeyStore` under the alias `dm-secrets`
+(`KeyGenerator` with a `KeyGenParameterSpec` for encrypting and decrypting, GCM, no padding),
+once, under a lock so two first secrets do not each make one, and keeps each value as a file of
+its own, `<home>/secrets/<name>.sealed` (0600, folder 0700, written beside and renamed over):
+the Keystore's nonce then what `Cipher("AES/GCM/NoPadding")` sealed, 128-bit tag included, in
+base64, with the value's name as additional data so a file renamed to another name does not
+open. A name is turned into a file name byte by byte (letters, digits, `-`, `_`, `.` as they
+are, every other byte `%XX`), so no two names share a file and none leaves the folder. `get`
+of a missing file is `None` without touching the Keystore; a file whose key is gone (data
+restored to another phone) is an error, which `secretstore` already answers. All of it is JNI
+from Rust (`android/keystore.rs`), no Java or Kotlin of dm's; the file format is plain code
+(`sealed.rs`) tested on the computer with a stand-in sealer. Handed in by `folders` in
+`android.rs` before the engine reads its settings. This replaces the "Kotlin over the Keystore"
+of the entry above. Dropped: the value itself as a Keystore entry (`SecretKeyEntry` imported from
+the 32 bytes: an imported key is usable but its bytes are not given back, which `get` needs);
+`EncryptedSharedPreferences` (a Jetpack library, Java, and deprecated); a key in clear beside the
+file (protects nothing the app's folder does not).
+
+## dm on Android in Rust alone: Slint screens over the shared code (2026-11-20, gaps row N1 again)
+
+At the maintainer's word of 2026-11-20 ("use rust only and build android app. it should be same
+for all platform. the code should be shared"), asked which of two: "Share all but screens". This
+replaces the entry above of the same day (Compose and UniFFI), whose Kotlin app was removed
+unbuilt. The desktop keeps GPUI, unchanged; the phone's screens are Rust, drawn with Slint (it
+runs on Android through `android-activity` and on the desktop, so the phone's screens can be
+run and tested on a laptop as a window of a phone's size; GPL-3.0, as dm). Everything under the
+screens is one code for every system: the engine, the application's rules (`dm-shell`'s
+`Backend`), and the toolkit-free view code that turns rows, sizes, speeds, dates and Options into
+words (`dm-desktop-base`'s `view`, moved into a crate of its own, `dm-view`, so the phone links it
+without the desktop's system crates). What only the phone has (the link a share hands over,
+notifications, opening a file, the Keystore) is reached from Rust through JNI. Dropped: Kotlin
+and Compose (not Rust), UniFFI (nothing to bind when both sides are Rust), egui (left on the
+desktop on 2026-11-13), GPUI on Android (no backend), one UI for desktop and phone (it would
+rewrite the desktop's window against the behaviour contract).
+
+## dm on Android with GPUI: one window for every system (2026-11-20, gaps row N1, third time)
+
+At the maintainer's word of 2026-11-20, after the Slint plan above: "UI should be share. like we
+minimize the desktop it becomes mobile view. so that we do not need separate UI", then, asked
+whether to move the desktop to Slint: "I want to do in GPUI. use GPUI and build the andorid as
+well". So the phone runs dm-gpui itself: one window code, which lays itself out as the desktop
+does at a desktop's width and as a phone's screen when narrow. GPUI has no Android platform; dm
+writes one (row N16), as it already carries its own Linux and Windows copies: GPUI draws through
+`gpui_wgpu` (wgpu speaks Vulkan and GLES on Android) and shapes text with cosmic-text (which
+reads `/system/fonts`), so the new part is the platform layer: the window from
+`android-activity`, touch as pointer events, the soft keyboard, density, and the surface lost
+and made again across pause and resume. Slint and the `dm-view` move (row N15) are dropped; the
+JNI modules written for the Slint shell (the share's intent, notifications, opening a file, the
+wake lock) are kept for the phone's platform code. The risk, said to the maintainer: no GPUI
+program has shipped on Android; the platform layer is new ground. At the maintainer's word of 2026-11-20, "use gpui-mobile.", its Java and Gradle are taken as
+gpui-mobile has them (`GpuiInputActivity` for the soft keyboard, `GpuiPathPicker`, a cargo-ndk
+and Gradle build); no other Java (N6's service, `onNewIntent`, notification buttons) without a
+word of its own. gpui-android is a stand-in, at the maintainer's word of 2026-11-20 ("when offical come we will
+shift but for now use gpui-mobile"): when Zed ships an official GPUI Android platform, dm moves
+to it and removes the copy (docs/gaps.md, Periodic).
+
+## A torrent follows the computer's network; sharing waits out a hold (2026-11-20, gaps row N8)
+
+A phone moves between Wi-Fi and mobile data, and a laptop between networks, coming back with
+another address. dm-core already noticed one network only: the adapter downloads are held to
+(`only_through::generation`, row W12), and torrents refuse to start while one is chosen. So
+dm-net's `only_through::moves` (dm-core's `network_moves`) now counts every change of the
+computer's addresses, looked at at most every two seconds from the same adapter list, plus a
+change the system reports first (`dm_core::network_changed`, for the phone's connectivity
+callback) and W12's generation. A running torrent, downloading or kept shared, that sees it
+change announces itself again: dm-torrent's `Session::reannounce` pauses and resumes it through
+librqbit's public `Session::pause`/`unpause`, which drops the peers reached from the old address
+and asks the trackers, the DHT and local discovery again from the new one; pieces and files are
+kept, nothing checked again. No socket is bound again and librqbit is not patched: the listener
+and the DHT bind every address (`[::]:0`, `0.0.0.0`), so they take peers on the new one as they
+are. librqbit counts what it sent from each start, so dm-torrent carries the count across its
+pauses (a share's ratio would start again). On the desktop this is a behaviour change: a laptop
+changing network gets its torrent's peers back without waiting for the tracker's interval.
+
+`DownloadList::hold_for` (row W11: metered connection, low battery) held downloads only; a
+finished torrent's sharing, which runs outside the rows, went on sending. Held with them now:
+paused within a tick, its minutes not counted while held, announced afresh when the hold ends.
+Also a desktop change (B76's words name downloads only), flagged in row N8 for the maintainer.
+
+## A copy across drives stops on a Cancel; what dm read and did not write is counted (2026-11-20, gaps rows 185 and 186)
+
+Coded on the Windows laptop, not compiled (the Mac builds and tests).
+
+**Undone: "Not stopped part-way, on purpose"** (2026-11-12, row 185). One part copied to another
+drive, where no rename can take it, ran to its end after a Cancel because the system's copy is
+one call. It now looks at the download's control between pieces, as the join of several parts
+does (`download/assemble/across.rs`). On Windows the copy is still `CopyFileEx`, the one row 166
+measured, called as `std::fs::copy` calls it but with a progress routine that cancels it on a
+Cancel (the system removes the file it had begun): the speed is the system's, and nothing of
+dm's own is put in its place unmeasured. Elsewhere it is the join's own loop, 32 MiB a piece
+(`copy_pieces`): on Linux each piece is the kernel's `copy_file_range`, which `std::fs::copy`
+used too; on macOS a clone cannot cross drives, so `fcopyfile` read and wrote through a buffer
+as the loop does (4 MiB). Not done: `fcopyfile` kept on macOS with its own progress callback,
+foreign-function code that could not even be type-checked on this laptop, for a copy that only
+happens when dm's home and the download folder are on two drives of a Mac. A pause still lets
+the copy finish, as it does the join and the digest.
+
+**Counted: what the ranges read and did not write** (row 186, `download/unwritten.rs`). Each
+attempt counts what it takes off its answer and, at its end, what of that it did not write, less
+what it reads on into the next range: the lead set aside for the seam's check, what came past a
+range's end, a chunk in hand at a stop. A resume's tail check counts the bytes that agreed. It
+is one count for the whole process (`dm_core::read_not_written`), not one per download: a field
+on `Job` would have grown `fetch.rs`, already past the size gate's 800 lines, and the test that
+needs it (`tests/shutdown.rs`) is alone in its process. Per download, each attempt that counts
+any says so in the finish trace (`DM_FINISH_TRACE`), with its range. Not counted: the seams'
+own checks, which are requests of their own and asked twice by design. The test prints the
+count beside its server's and holds it to nothing yet: whether the row's 16 KiB a connection is
+dm's to meet is decided from what it prints.
+
+## On Android 10 and up dm downloads into its own folder and publishes each finished file (2026-11-20, gaps row N9)
+
+Android 10 (API 29) and up let no app write the shared Download folder by path. dm's engine
+writes by path everywhere (segments at offsets, resume from the parts it staged, renames, the
+file it hands back), so rather than teach it file descriptors, dm downloads on those phones into
+its own folder on the shared storage, `getExternalFilesDir(DIRECTORY_DOWNLOADS)/dm`, which it
+writes by path, and puts each finished file in `Download/dm` through `MediaStore.Downloads`:
+inserted with `RELATIVE_PATH` `Download/dm` (a category's sub-folder kept) and `IS_PENDING` 1,
+its bytes copied in chunks through the descriptor the store lends, `IS_PENDING` 0, then dm's copy
+removed. On Android 8 and 9 the shared folder is written by path with the storage permission, as
+before, and a file finished in dm's own folder there (the permission not yet granted) is moved
+across by path. The seam is the phone's `PhoneServices::publish` (`dm_desktop_base::phone`, by
+default every file left where it is; the desktop never hands a phone in), which `set_phone`
+hands the engine on Android as `dm_core::folders::set_publisher`, a hook asked by the queue as a run finishes (`queue/runner/finish.rs`, on
+Android alone, on a blocking thread), before the row says Completed, so the row's `path`, its
+notification and an open-when-done all name the published file; that path is the store's
+`_data` (a real path, which `open.rs` turns into the file's `content://` address as before). A
+file that cannot be published (no room for the copy, the store refusing) stays whole in dm's
+folder, the row Completed there, and the person is told why. Torrents are not published: a
+torrent being seeded reads its files where librqbit has them, so they stay in dm's folder (said
+in row N9; publishing when seeding stops is owed). Dropped: publishing from the window's session
+(`Effect::Finished`, above the engine, where the row is already Completed with its old path and
+its notification already sent); handing the engine a descriptor for every write (N9's first plan,
+which touches every writer in the engine); `requestLegacyExternalStorage` (Android 10 alone, and
+ignored from 11). The storage picker (SAF) for a folder of the person's own is owed.
+
+## On Android the window's choosers are GPUI's file prompt and dm's own folders (2026-11-20, gaps row N9)
+
+dm-gpui asks every file and folder through `platform::services::ask` (and `ask_then`,
+`ask_then_in`); on a computer that is the system's own panel, unchanged. On a phone those used
+to answer as if cancelled (`can_choose_folder` false), so Browse…, Import, Export, Back up dm,
+Restore and Options' Choose… fell back to typing a path, which a phone's scoped storage makes
+meaningless. Now `can_choose_folder` is true on Android and the Android arm
+(`dm-gpui/src/platform/phone.rs`, `ask`) answers each by what dm can do with the answer:
+
+- **A file to read** (Import a list or a `.torrent`, Restore a backup, Load settings, a cookies
+  file, a sound): GPUI's own `prompt_for_paths`. gpui-android answers it with gpui-mobile's
+  `GpuiPathPicker` (ACTION_OPEN_DOCUMENT), which copies the document into the app's cache before
+  the URI's grant ends and hands back that copy's path, never a `content://` address; so dm
+  reads it as any file and needs no ContentResolver copy of its own. Left: a cookies file or a
+  sound kept by path lives in the cache, which Android may clear.
+- **A file to write** (Export, Back up dm, Save settings to a file): gpui-android's
+  `prompt_for_new_path` answers none (no ACTION_CREATE_DOCUMENT), so the file goes to the
+  phone's save folder, the shared `Download/dm` where dm may write there, else the app's own
+  folder on the storage, under the name offered or the first `name (n)` free
+  (`dm_desktop_base::phone::save_place`); the window's existing message ("Exported to …",
+  "Saved to …", the backup's) says where. A create-document picker needs Java of its own,
+  which waits for the maintainer's word.
+- **A folder to download into** (Browse… for the download folder, a category's, the parts
+  folder, Move/Rename, Save to, Choose another folder…, Extract to): only folders dm can write
+  by path, so a segmented download resumes in them: the shared `Download/dm` and the app's own
+  folder (`PhoneServices::download_folders`, found once at start by `dm-android`'s
+  `android/storage.rs`), offered by name in GPUI's prompt, which says "On a phone dm downloads
+  only into these folders."; not the storage picker's trees, whose URIs are no paths (GPUI's
+  picker refuses folders too). The fields stay editable, as on a computer.
+
+What only the phone knows comes through `PhoneServices`' new `download_folders` and
+`save_folder`, which refuse in words by default; dm-gpui calls no JNI. Dropped: writing through
+a SAF URI's output stream (no create-document picker to get one), and a folder tree from SAF as
+a download folder (row N9's own design, on its branch).
+
+**Joined with publishing (2026-11-20, the two N9 branches merged).** One `Storage`
+(`dm-android/src/android/storage.rs`) looks the shared Download folder up once and works out
+`phone::Places` from it (`storage::places`, tested on the host): on Android 10 and up dm
+downloads into its own folder alone (`Android/data/com.dm.android/files/Download/dm`), so
+Browse… offers that one, the first start downloads there and each finished file is published to
+`Download/dm` (above); the shared `Download/dm` is offered for downloads only on 8 and 9, where
+dm writes it by path once storage is allowed. A file dm writes for the person (Export, Back up
+dm) still goes to the shared `Download/dm` where the probe file could be written there (8 and 9
+with the permission, 11 and up, which let an app make its own files there by path), else to dm's
+own folder (`Places::save`); Android 10 alone keeps it in dm's own folder, not published.
+
+## A phone's rules are W11's holds (2026-11-20, gaps rows N10, N12)
+
+The phone's connection and battery are the computer state W11 already reads: on Android
+`metered::System` asks the app's `PhoneServices::network` (read through JNI from
+`ConnectivityManager` and the battery's sticky broadcast, no Java), so mobile data is W11's
+metered hold and a low battery W11's battery hold, under Options' existing lines. The phone's
+own lines (Wi-Fi only, not while roaming, Data Saver) are three more `dm_core::Hold`s on the
+same path (the schedule's pause, put back by `may_run`), read at the same tick. Dropped: a
+`Platform` callback of the engine's own for these (a second mechanism beside W11's), and
+`AlarmManager` and `BOOT_COMPLETED` for the schedule (N12), which need a receiver class: Java,
+waiting for the maintainer's word with N6's service (since given: the alarm and the phone's
+start came with dm's own Java, below). The three Options lines are built for Android alone and
+wait for the maintainer's word on their wording.
+
+## dm's own Java on Android: one small class per feature, each handing its call to Rust (2026-11-20, gaps rows N5, N6, N12)
+
+The maintainer was asked "Allow one small Java file per feature that just hands its call to
+Rust?" and answered "Yes, all four" (2026-11-20). So four classes join gpui-mobile's two, in
+`desktop/crates/dm-android/java/com/dm/android/`, package `com.dm.android`, with dm's licence
+header: `DmActivity` (gpui-mobile's activity with `onNewIntent`, N5), `DmService` (the dataSync
+foreground service, N6), `DmActionReceiver` (a notification's Retry, Stop All and Open, and the
+schedule's alarm; not exported, N6, N12) and `DmBootReceiver` (`BOOT_COMPLETED`, N12). Each does
+nothing but call a `native` method; what happens is Rust's (`src/android/natives.rs`,
+`service.rs`, `receivers.rs`). The native methods are found by exported name
+(`Java_com_dm_android_<Class>_<method>`), as gpui-android's are, not registered from
+`jvm::init`: the service and the receivers can run in a process Android started for them alone,
+where `android_main` never ran, so each class loads the library itself and each native method
+keeps the Java machine and a context first. A notification's button reaches dm through its
+inbox (the path a second launch and the desktop notification's Retry use; Stop All a new
+`stop-all` order that runs what `Command::StopAll` runs), which the engine watches whether or
+not the window is drawn; a channel polled by the window was dropped, since a window in the
+background may not tick. dm-gpui's start needs the activity's window, so neither the phone's
+start nor the schedule's alarm runs dm without it: the alarm holds a running dm up with the
+service, and otherwise, as at the phone's start, a notification asks for a tap.
+
+## A read works out again only what follows from the rows that changed; the first frame names only what it shows; follows run in the shared tick (2026-11-20, gaps rows 181, S16, W10)
+
+Coded on the Windows laptop by reading and writing only (the maintainer's word: it builds and
+tests nothing); the Mac builds, tests and measures, and each row says what. Nothing a person sees
+or does changes: the same names, places, counts and order, worked out from less.
+
+- **181, a row changed in place.** A download that started, stopped or finished had every row
+  named and placed again and the list filtered and sorted. Now (`window/list/placing.rs`
+  `restate`) the rows that changed are named again, and where one's naming moved (it settled,
+  was placed, renamed or sent to another folder) so are the rows not yet placed of its old and
+  new name and folder and those whose count of earlier rows of that name moved, found in the
+  same pass as the counts (`names::earlier_and_alike`); only they are placed
+  (`Places::place_at`); and the list is filtered and sorted again only where one came into or
+  left the place shown or the sort may move it. Whole as before where rows came, went or moved,
+  or the settings changed (`place_every_row`). Considered and dropped: naming only the rows
+  that changed, which left a waiting row of the same name showing a name its folder no longer
+  gives until the list moved.
+- **181, the tick's looks.** The rows running, paused or failed are kept by id from what each
+  read changed (`Known::busy`); the taskbar (which shows nothing else), the clock, the heap's
+  give-back, the speeds and the hints go over them, not every row.
+- **181, views of their own with `.cached()`: not done.** The control port's record of the words
+  on screen is made as each frame is prepainted, which GPUI skips for a cached view; a cached
+  part would drop out of `ui.texts` and `human-qa.py`, and caching only while no port records
+  would leave the shipped path unchecked by QA. A cached part is also built again only when
+  notified, so each needs a key of all it shows. Measure first what the unchanged parts cost.
+- **S16.** Before the first frame only the rows it can show (200, those chosen, those running)
+  are named; the rest on the next frame (`on_next_frame`) or before the control port answers.
+  GPUI's application is made while dm boots on a thread of its own; the window is still made
+  once the queue is read, as drawing an empty list first would be a change a person sees. The
+  Metal shaders' compilation at launch is a dm-gpui feature (`runtime-shaders`, on by default)
+  so a Mac with the Metal compiler can build with them compiled ahead.
+- **W10.** The follows' timing and readings moved from the window into the application's tick
+  (`dm_desktop_base::session`, `Effect::Followed`), so `--headless` follows too; each driver adds
+  what a reading brought its own way, as the saved searches are.
+
+## The main window's title says how the downloads go; scripts know it by its ending (2026-11-20, gaps rows U16, U23)
+
+The main window's title was always "dm", and that title was how the QA scripts found the main
+window among dm's: xdotool's `^dm$`, `xwininfo`'s `"dm":`, `human-qa.py`'s `win32_windows(pid)["dm"]`,
+KWin's and sway's caption, AT-SPI's frame. So the scripts were taught first: the main window is
+the one titled "dm" or ending " — dm" (`dm_desktop_base::taskbar::is_main_title`), which no
+dialog's title does ("About dm" has no dash; a progress window's ends with its file's name). The
+control port never found it by its title (it holds the window's handle, and names it "dm" as it
+opens, `screen::open`), and its `ui.windows` now says `main_title` as it stands, so a script can
+check the title itself. Then the title: `taskbar::window_title` from the rows the taskbar's button
+is fed from, "37% · 4.1 MB/s — dm" while downloads run (the whole percentage of the sized ones
+together, as the Dock's bar; the speeds of all that run, in `format::rate`'s words), a speed alone
+while a size is unknown (as a progress window's title has no percentage then, B46), "dm" while
+nothing runs, paused or failed included. Set only when it changes (`screen::set_title`), which at
+a quarter-second tick is a few times a second while the speed moves. Not behind a switch: no
+contract row names the main window's title, B25's pictures are of a window with nothing running,
+and the row is in step 5, "Features with nothing to ask". Dropped: a title of its own words in the
+catalogs ("{} — dm"); the numbers and the name read the same in every language dm has.
+
+The screen-reader checks (U23) were extended while the adapters were read: what each system's
+reader can be asked depends on AccessKit's adapter GPUI links, not on dm. Windows' (0.34) gives a
+table, data items for rows and cells, a disabled button, a bar's range value, an open or shut
+state and a live region's politeness; a heading's sort only in ARIA's properties, which .NET's UI
+Automation client may not read (the check then says so, not checked). macOS's (0.26) gives no open
+or shut state and no sort. AT-SPI's (0.19) gives every push button Enabled and Sensitive, greyed or
+not; 0.21 fixed it, so Linux's greyed-button check is expected to fail until GPUI moves on, which
+is AccessKit's to fix, not a reason to drop the check.
+
+## A join with no room beside its tracks is written into the largest (2026-11-20, gaps row Y21)
+
+A DASH stream's tracks and a YouTube video's two parts were joined into a new file while the
+tracks were still there: twice the video on the disk at the end. HLS freed its segments as the
+remux read them (2026-11-19); a whole file cannot be shortened from its front, so the same was
+not open to these. Chosen: where the disk has no room for the join beside its tracks, the
+largest track (an MP4) becomes the joined file. Its samples stay where they lie; the other
+tracks' samples are copied onto its end last chunk first, each shortened from its end past every
+chunk copied; the new index follows them and the old boxes are made `free`. The disk holds the
+file and a chunk more. Kept as before where there is room (the index first, picture and sound
+interleaved, a join cut short losing nothing), as HLS keeps its segments then: the file written
+in place has its index last and its sound apart, and a join cut short leaves its tracks marked,
+to be fetched again. Dropped: fetching DASH's pieces into no track at all and joining from them
+(a reader over every piece file, freed as read): it saved the gather too, but not for YouTube's
+parts, which arrive whole, and it changed how every DASH piece is kept across a stop.
+
+## DASH takes a picture and sound dm can join (2026-11-20, gaps row Y20)
+
+`dash::choose` read heights, bandwidths and languages but not codecs, so MKV asked of a Dolby
+Vision picture or an AC-4 sound, or a VP8 picture beside an AC-4 sound, was fetched whole and
+then failed at the join. Each representation's `codecs` is now read for the files dm writes
+that hold it, and a picture is taken only where a listed sound joins with it into what will be
+made; where nothing listed fits, the best is taken as before and the join says why. A quality
+is passed over for a lower one only where the higher could not have been saved at all.
+
+## Opus decoded by dm's own decoder where the system has none (2026-11-20, gaps row Y25)
+
+macOS's AudioToolbox reads no WebM and Linux has no Opus decoder dm calls, so a video's Opus
+sound could not be made into an MP3 there. Row Y25 offered a decoder of dm's own (RFC 6716) or a
+crate at the maintainer's word; goal 3 (no third-party feature code) and P4's list of crates to
+replace point to dm's own, so it is dm's own: `dm_media::opus`, written from the RFC's text and
+tables (RFC 8251's corrections taken: the hybrid folding copy, the energy cap). Every symbol is
+read with the standard's exact integer arithmetic (the allocation, the codebook cost table worked
+out once from the PVQ codebooks' sizes, the split angles), so a frame is read as it was written;
+the sound is made in 32-bit floats, as the reference decoder's float build makes it, and its
+inverse MDCT is a DCT-IV done by a plain mixed-radix FFT. Before the Rust, each step was proved
+in a scratch prototype against the RFC's test vectors: every CELT packet at the encoder's final
+range, and 80 dB against the reference decoder's output. Those vectors are not kept here (no
+licence comes with them); an ignored test reads them from the folder `OPUS_VECTORS` names.
+
+It is used only where the system has no Opus decoder: Windows keeps Media Foundation's (the
+decision of 2026-11-18), and uses this one where that is missing. CELT is the coder YouTube's
+music is in; SILK and hybrid (speech) are not written yet, and a track that uses them is refused
+in words, "this Opus track uses SILK, which dm cannot decode yet"; a finished download of such
+a WebM is not taken for an MP3 (`mp3::takes`) and is kept as it came, as it was on macOS and
+Linux before, so no download that succeeded before now fails. A lost or empty packet is
+decoded as CELT's silence frame, which fades the last frame out.

@@ -12,7 +12,8 @@
 //! gaps row U16): on macOS a bar over dm's picture in the Dock and a badge
 //! of how many download; on Linux the launcher's progress and count (the
 //! dock or panel that shows dm's launcher: GNOME's Dash to Dock, KDE's task
-//! manager, Plank), asked through the session bus as every program asks it.
+//! manager, Plank), asked through the session bus as every program asks it. And everywhere,
+//! the main window's title ([`window_title`]).
 
 use dm_core::{Entry, State};
 
@@ -103,6 +104,57 @@ pub fn outside_of(mode: Mode, running: usize) -> Outside {
         _ => None,
     };
     Outside { percent, running }
+}
+
+/// How fast the running downloads go together, in bytes a second.
+pub fn rate_of<R: std::borrow::Borrow<Entry>>(rows: &[R]) -> f64 {
+    rows.iter()
+        .filter(|r| r.borrow().state == State::Running)
+        .map(|r| r.borrow().progress.speed.max(0.0))
+        .sum()
+}
+
+/// The main window's title while nothing runs, as it opens.
+pub const MAIN_TITLE: &str = "dm";
+
+/// How the main window's title ends while downloads run ("37% · 4.1 MB/s — dm"). No dialog's
+/// title ends so ("About dm" has no dash), so scripts know the main window by it.
+pub const MAIN_TITLE_END: &str = " — dm";
+
+/// Whether `title` is the main window's: [`MAIN_TITLE`], or one ending [`MAIN_TITLE_END`].
+pub fn is_main_title(title: &str) -> bool {
+    title == MAIN_TITLE || title.ends_with(MAIN_TITLE_END)
+}
+
+/// The main window's title (gaps row U16), so a taskbar's button, the window list and the
+/// window menu say how the downloads go while the window is out of sight: [`MAIN_TITLE`]
+/// while nothing runs; while downloads run, how far they are together and how fast before
+/// [`MAIN_TITLE_END`], "37% · 4.1 MB/s — dm", in the numbers the list says them in. No
+/// percentage while a size is unknown, as a progress window's title has none (B46), and no
+/// speed before one is measured. `mode` is [`mode_of`] the rows, `per_second` [`rate_of`] them.
+pub fn window_title(mode: Mode, per_second: f64) -> String {
+    titled(mode, per_second, crate::format::rate)
+}
+
+/// [`window_title`], its speed said by `rate`.
+fn titled(mode: Mode, per_second: f64, rate: impl Fn(f64) -> String) -> String {
+    let mut parts = Vec::new();
+    let percent = match mode {
+        Mode::Running { done, total } => crate::progress::percent_of(done, Some(total)),
+        _ => None,
+    };
+    if let Some(percent) = percent {
+        parts.push(format!("{percent}%"));
+    }
+    // As a row says its speed: from a byte a second.
+    if matches!(mode, Mode::Running { .. } | Mode::Unknown) && per_second > 1.0 {
+        parts.push(rate(per_second));
+    }
+    if parts.is_empty() {
+        MAIN_TITLE.to_string()
+    } else {
+        format!("{}{MAIN_TITLE_END}", parts.join(" · "))
+    }
 }
 
 /// The taskbar button of one window.

@@ -12,6 +12,7 @@ pub(crate) mod frame;
 pub(crate) mod list;
 pub(crate) mod menus;
 pub(crate) mod mirror;
+pub(crate) mod narrow;
 pub(crate) mod placemenu;
 pub(crate) mod rowmenu;
 pub(crate) mod screen;

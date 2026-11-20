@@ -11,6 +11,8 @@
 //! Linux on X11 through the X server itself (a connection of dm's own to
 //! it, `x11rb`). Wayland lets a program minimize its window but not hide,
 //! place or picture it: there it is minimized and the port says the rest.
+//! A phone's window fills its screen and is the app's: nothing is put away
+//! or moved there, and the port says so (gaps row N17).
 
 use gpui::Window;
 
@@ -25,9 +27,13 @@ pub(crate) use macos::*;
 mod windows;
 #[cfg(windows)]
 pub(crate) use windows::*;
-#[cfg(not(any(target_os = "macos", windows)))]
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(target_os = "android")]
+pub(crate) use android::*;
+#[cfg(not(any(target_os = "macos", windows, target_os = "android")))]
 mod x11;
-#[cfg(not(any(target_os = "macos", windows)))]
+#[cfg(not(any(target_os = "macos", windows, target_os = "android")))]
 pub(crate) use x11::*;
 
 /// Elsewhere GPUI's own bounds say where the window is.
@@ -37,6 +43,7 @@ pub fn frames(_: &Window) -> Option<(gpui::Bounds<gpui::Pixels>, gpui::Bounds<gp
 }
 
 /// The folder `path` goes in, made where it is not there.
+#[cfg(not(target_os = "android"))]
 fn folder_for(path: &std::path::Path) -> Result<(), Error> {
     match path.parent() {
         Some(folder) => std::fs::create_dir_all(folder)
@@ -48,7 +55,7 @@ fn folder_for(path: &std::path::Path) -> Result<(), Error> {
 /// `bgrx` (blue, green, red and a byte the system leaves unset, as Windows
 /// and X11 both hand a window's pixels back), `width` by `height`, saved as
 /// an opaque PNG at `path`.
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "android")))]
 fn save_png(path: &std::path::Path, width: u32, height: u32, bgrx: Vec<u8>) -> Result<(), Error> {
     folder_for(path)?;
     let mut rgba = bgrx;

@@ -214,12 +214,17 @@ pub use only_through::{set_lister as set_adapter_lister, set_only_through};
 // at another is built again (`DownloadList::client_built_with`).
 pub use only_through::generation as network_generation;
 
+// The computer's network changed (gaps row N8): said by whoever drives dm where its system
+// tells it first (a phone's), and looked for by running torrents, which announce themselves
+// again on the new network.
+pub use only_through::{moves as network_moves, network_changed};
+
 pub use control::{Control, Wanted};
 
 pub use download::{
     download, download_reporting, free_name, free_space, names_a_document, nth_free_name,
-    nth_free_name_with, slow_part_writes_to, Finished, HostLimit, Options, Room, Update,
-    CHECKED_BESIDE, LIVE_PIECES_GONE, NOTES, NOT_UNPACKED_PASSWORD, NOT_UNPACKED_REFUSED,
+    nth_free_name_with, read_not_written, slow_part_writes_to, Finished, HostLimit, Options, Room,
+    Update, CHECKED_BESIDE, LIVE_PIECES_GONE, NOTES, NOT_UNPACKED_PASSWORD, NOT_UNPACKED_REFUSED,
     PARTS_LEFT_OUT, PREMIERE_IN_A_MOMENT, PREMIERE_IN_HOURS, PREMIERE_IN_MINUTES, PREMIERE_NOTES,
     PREMIERE_NOT_BEGUN, PROTECTED_ABOVE, UNPACKED, UNPACKED_AND_TRASHED, UNPACKED_NOT_TRASHED,
     UNPACK_NOTES,
@@ -247,8 +252,8 @@ pub use proxy::{
 };
 
 pub use queue::{
-    accepted, queue_names, shown_url, AddOptions, Connection, DownloadList, Entry, Hold, Id,
-    SharedRead, State, LINK_EXPIRED, MAIN_QUEUE, RECHECK_QUEUE, UNFINISHED,
+    accepted, queue_names, saved_rows, shown_url, AddOptions, Connection, DownloadList, Entry,
+    Hold, Id, SharedRead, State, LINK_EXPIRED, MAIN_QUEUE, RECHECK_QUEUE, UNFINISHED,
 };
 
 pub use schedule::{

@@ -226,6 +226,7 @@ pub fn start(
     }
 
     // The computer kept awake for as long as a download is running.
+    #[cfg(not(target_os = "android"))]
     {
         let (queue, handle) = (queue.clone(), runtime.handle().clone());
         crate::awake::watch(move || {
@@ -236,13 +237,29 @@ pub fn start(
         });
     }
     let started_with = saved.clone();
+    #[cfg(target_os = "android")]
+    let phone_queue = queue.clone();
     let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);
-    // A sleeping computer woken for the schedule, where the Scheduler says.
+    // The phone kept awake, its ongoing notification up, for as long as anything keeps dm
+    // busy: a row running, one queued and due, a finished torrent shared (gaps row N6).
+    #[cfg(target_os = "android")]
+    {
+        let (settings, handle) = (backend.settings_handle(), runtime.handle().clone());
+        crate::awake::watch_phone(move || {
+            // The notification's words in the language the window is in.
+            let language = dm_core::lock(&settings).general.language.clone();
+            crate::i18n::set(crate::i18n::chosen(&language));
+            let rows = handle.block_on(phone_queue.list());
+            crate::phone::Busy::of(&rows, phone_queue.may_run(), dm_core::sharing_any())
+        });
+    }
+    // A sleeping computer woken for the schedule, where the Scheduler says; a phone always,
+    // since Android stops an app left idle (its alarm, gaps row N12).
     {
         let settings = backend.settings_handle();
         crate::wake::watch(move || {
             let now = dm_core::lock(&settings).clone();
-            if !now.schedule.wake {
+            if !now.schedule.wake && !cfg!(target_os = "android") {
                 return None;
             }
             let starts: Vec<u32> = now
@@ -305,6 +322,10 @@ fn login_item_at_launch(
     // test's fresh home would otherwise put a login item on the computer
     // running it. Turning the setting on in Options still registers one.
     let own_home = dm_core::env::get_os("DM_HOME").is_some_and(|h| !h.is_empty());
+    // Nor where the system has no login item (a phone).
+    if !crate::login::HAS_LOGIN_ITEM {
+        return None;
+    }
     // Only whether it was turned off outside dm is asked here (a read of the
     // registry on Windows, nothing elsewhere), since the setting must say so
     // before the window reads it; the item itself is put in step after the

@@ -20,8 +20,15 @@
 //! window's thread. GPUI's prompts are not used: they take no kind of file
 //! and no starting folder. The text fields' own Copy and Paste are
 //! gpui-component's, on GPUI's clipboard.
+//!
+//! On a phone (gaps row N17) the clipboard and notifications are the app's
+//! (`phone.rs`), and so are the choosers (gaps row N9, `phone::ask`): GPUI's
+//! file prompt for a file to read, which gpui-android answers with the
+//! system's document picker; the phone's save folder for a file to write;
+//! the folders dm can download into, offered in GPUI's prompt, for a folder.
 
 use std::path::PathBuf;
+#[cfg(not(target_os = "android"))]
 use std::sync::Mutex;
 
 use dm_desktop_base::desktop::WindowServices;
@@ -33,13 +40,16 @@ pub struct GpuiServices;
 
 /// The clipboard dm copies with, kept: on Linux what was copied is served by
 /// the `arboard::Clipboard` that put it there, and would go with it.
+#[cfg(not(target_os = "android"))]
 static COPIER: Mutex<Option<arboard::Clipboard>> = Mutex::new(None);
 
 impl WindowServices for GpuiServices {
+    #[cfg(not(target_os = "android"))]
     fn clipboard(&self) -> Option<String> {
         arboard::Clipboard::new().ok()?.get_text().ok()
     }
 
+    #[cfg(not(target_os = "android"))]
     fn set_clipboard(&self, text: &str) {
         let mut copier = dm_core::lock(&COPIER);
         if copier.is_none() {
@@ -48,6 +58,18 @@ impl WindowServices for GpuiServices {
         if let Some(clipboard) = copier.as_mut() {
             let _ = clipboard.set_text(text);
         }
+    }
+
+    /// The phone's, through the app.
+    #[cfg(target_os = "android")]
+    fn clipboard(&self) -> Option<String> {
+        crate::platform::phone::clipboard()
+    }
+
+    /// The phone's, through the app.
+    #[cfg(target_os = "android")]
+    fn set_clipboard(&self, text: &str) {
+        crate::platform::phone::set_clipboard(text);
     }
 
     /// On Linux under Wayland: GPUI speaks the compositor's clipboard,
@@ -88,6 +110,7 @@ pub fn copy(platform: &dyn dm_shell::app::platform::Platform, text: &str, cx: &g
 /// save under, of a kind (`filter`: its name and endings), where it starts
 /// and the name it offers.
 #[derive(Debug, Clone, Default, PartialEq)]
+#[cfg_attr(target_os = "android", allow(dead_code))]
 pub struct Asked {
     /// A name to save under, rather than a file to open.
     pub save: bool,
@@ -224,7 +247,17 @@ pub fn ask(asked: Asked) -> std::pin::Pin<Box<dyn std::future::Future<Output = O
         let answer = macos::ask(&asked);
         Box::pin(async move { answer.await.flatten() })
     }
-    #[cfg(not(target_os = "macos"))]
+    // On a phone, without the window (Back up dm, Open with…): a file to write goes to the
+    // phone's save folder; nothing else is answered (`phone::ask` takes the window's).
+    #[cfg(target_os = "android")]
+    {
+        let answer = asked
+            .save
+            .then(|| crate::platform::phone::save_place(&asked))
+            .flatten();
+        Box::pin(async move { answer })
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "android")))]
     {
         let mut dialog = rfd::AsyncFileDialog::new();
         if let Some((name, extensions)) = asked.filter {
@@ -343,7 +376,10 @@ pub fn ask_then<T: 'static>(
     cx: &mut gpui::Context<T>,
     then: impl FnOnce(&mut T, PathBuf, &mut gpui::Context<T>) + 'static,
 ) {
+    #[cfg(not(target_os = "android"))]
     let chosen = ask(asked);
+    #[cfg(target_os = "android")]
+    let chosen = ask_on_phone(asked, None, cx);
     cx.spawn(async move |this, cx| {
         if let Some(path) = chosen.await {
             let _ = this.update(cx, |this, cx| {
@@ -363,7 +399,10 @@ pub fn ask_then_in<T: 'static>(
     cx: &mut gpui::Context<T>,
     then: impl FnOnce(&mut T, PathBuf, &mut gpui::Window, &mut gpui::Context<T>) + 'static,
 ) {
+    #[cfg(not(target_os = "android"))]
     let chosen = ask(asked);
+    #[cfg(target_os = "android")]
+    let chosen = ask_on_phone(asked, Some(window.window_handle()), cx);
     cx.spawn_in(window, async move |this, cx| {
         if let Some(path) = chosen.await {
             let _ = this.update_in(cx, |this, window, cx| {
@@ -373,6 +412,20 @@ pub fn ask_then_in<T: 'static>(
         }
     })
     .detach();
+}
+
+/// [`ask`] on a phone, where the window's own prompts answer (`phone::ask`); a path chosen
+/// ahead first, as on a computer.
+#[cfg(target_os = "android")]
+fn ask_on_phone(
+    asked: Asked,
+    window: Option<gpui::AnyWindowHandle>,
+    cx: &mut gpui::App,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<PathBuf>>>> {
+    if let Some(chosen) = chosen_ahead() {
+        return Box::pin(async move { Some(chosen) });
+    }
+    crate::platform::phone::ask(asked, window, cx)
 }
 
 #[cfg(test)]

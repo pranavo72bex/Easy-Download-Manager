@@ -11,7 +11,9 @@
 //! - `layers` holds the crates to the shape they are meant to have: the
 //!   engine knows no window, the extension has no sockets, nothing leans on
 //!   the window; and no file or function grows past its size (`sizes.rs`), which
-//!   `size-baseline` lowers the baselines to as they shrink.
+//!   `size-baseline` lowers the baselines to as they shrink, and no crate comes in more
+//!   versions than `doubles-baseline.txt` lists (`doubles.rs`), which `doubles-baseline`
+//!   shortens it to as they fall.
 //! - `privacy` holds dm to being free and private: no analytics or crash
 //!   reporting crate anywhere in the build, and no address in shipped code
 //!   but the project's own release page, which is fetched only when asked.
@@ -40,6 +42,7 @@
 #[cfg(test)]
 mod baseline;
 mod check;
+mod doubles;
 mod env_check;
 mod headers;
 mod help;
@@ -68,6 +71,9 @@ fn main() {
         "scorecard" => write_scorecard(),
         "layers" => layers().map(|()| "the crates are layered as they should be".to_string()),
         "size-baseline" => sizes::lower(&root()),
+        "doubles-baseline" => {
+            doubles::rewrite(&root(), &std::env::args().skip(2).collect::<Vec<_>>())
+        }
         "privacy" => privacy().map(|()| "nothing phones home".to_string()),
         "parity" => {
             parity_evidence().map(|()| "every test docs/parity.md cites exists".to_string())
@@ -371,6 +377,8 @@ const GUI: &[&str] = &[
     "gpui_platform",
     "gpui-component",
     "gpui-base",
+    // GPUI's Android platform, dm's copy of gpui-mobile's (dm-android alone, gaps row N16).
+    "gpui-android",
 ];
 const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
 
@@ -472,9 +480,15 @@ fn layers() -> Result<(), String> {
                 false,
                 false,
             ),
-            // The phone's engine (gaps rows N1, N3): the application's rules over the engine,
-            // with the phone's Compose window on the other side of UniFFI; no window here.
-            "dm-android" => (&["dm-core", "dm-shell"], true, false),
+            // The phone's app (gaps rows N1, N3, N16): dm-gpui's window on gpui-android, with
+            // the phone's services handed to dm-desktop-base's seam, so a window toolkit is
+            // allowed here; dm-shell for the running dm's inbox, which a notification's Retry
+            // and Stop All are left in (N6).
+            "dm-android" => (
+                &["dm-core", "dm-desktop-base", "dm-gpui", "dm-shell"],
+                false,
+                false,
+            ),
             // The extension: only the protocol, and no sockets of its own.
             "dm-catcher" => (&["dm-protocol"], true, true),
             // Safari's extension's program (gaps row R4): it starts dm's host for each message
@@ -555,6 +569,9 @@ fn layers() -> Result<(), String> {
     // changed again (gaps row A12, `sizes.rs`): `dialogs/`, `app/`, `download/` and `queue/`
     // were each one file of thousands of lines.
     wrong.extend(sizes::check(&root)?);
+    // A crate built in more than one version only becomes rarer (gaps row A18, `doubles.rs`):
+    // no new double in desktop/Cargo.lock, and none in more versions than its baseline lists.
+    wrong.extend(doubles::check(&root)?);
     // No `#[path]` out of a crate's folder (gaps row X10): what tests share is the
     // `dm-test-support` crate, named in `[dev-dependencies]`.
     for krate in [
