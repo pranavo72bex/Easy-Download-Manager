@@ -37,9 +37,11 @@ mod placing;
 mod run;
 mod trackers;
 use blocklist::blocklist_file;
-use placing::place;
+#[cfg(all(test, unix))]
+use placing::copy_across;
 #[cfg(test)]
-use placing::{copy_across, folder_name};
+use placing::folder_name;
+use placing::place;
 use run::*;
 use trackers::{tcp_trackers_of, tcp_trackers_of_magnet};
 
