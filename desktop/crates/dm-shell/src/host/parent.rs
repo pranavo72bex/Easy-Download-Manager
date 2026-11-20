@@ -50,13 +50,8 @@ pub fn parent_browser() -> Option<String> {
     #[cfg(all(unix, not(target_os = "android")))]
     {
         let parent = std::os::unix::process::parent_id();
-        let out = std::process::Command::new("/bin/ps")
-            .args(["-o", "comm=", "-p", &parent.to_string()])
-            .stdin(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .output()
-            .ok()?;
-        browser_named(&String::from_utf8_lossy(&out.stdout)).map(str::to_string)
+        let name = crate::platform::programs::process_name(parent)?;
+        browser_named(&name).map(str::to_string)
     }
     #[cfg(windows)]
     {

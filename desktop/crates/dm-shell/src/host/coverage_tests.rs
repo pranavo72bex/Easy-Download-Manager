@@ -483,15 +483,15 @@ fn the_host_in_the_real_world_answers_the_browser_s_hello() {
 #[test]
 fn the_window_opened_through_the_system_says_when_it_could_not_be() {
     let app = Path::new("/Applications/dm.app");
-    assert!(open_through_system(Path::new("true"), app).is_ok());
-    let refused = open_through_system(Path::new("false"), app).unwrap_err();
+    assert!(crate::platform::programs::open_app_through(Path::new("true"), app).is_ok());
+    let refused = crate::platform::programs::open_app_through(Path::new("false"), app).unwrap_err();
     assert!(
         refused
             .to_string()
             .starts_with("macOS could not open /Applications/dm.app"),
         "{refused}"
     );
-    assert!(open_through_system(Path::new("/nowhere/open"), app).is_err());
+    assert!(crate::platform::programs::open_app_through(Path::new("/nowhere/open"), app).is_err());
 }
 
 /// A stand-in for YouTube's watch page (`DM_YOUTUBE_HOST`): its player data lists a 720p

@@ -347,7 +347,7 @@ fn launch_desktop() -> std::io::Result<()> {
     // the system instead, as a person's click opens it, outside the sandbox.
     if std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some() {
         if let Some(app) = app_bundle(&executable) {
-            return open_through_system(Path::new("/usr/bin/open"), &app);
+            return crate::platform::programs::open_app(&app);
         }
     }
     let start = |breakaway: bool| {
@@ -377,27 +377,6 @@ fn launch_desktop() -> std::io::Result<()> {
         command.spawn().map(|_| ())
     };
     start(true).or_else(|_| start(false))
-}
-
-/// Opens `app` as a person's click would, through `opener` (macOS's `open`), outside the
-/// sandbox this host runs in; why not, where it could not.
-fn open_through_system(opener: &Path, app: &Path) -> std::io::Result<()> {
-    let opened = Command::new(opener)
-        .arg("-a")
-        .arg(app)
-        .args(["--args", "--desktop"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()?;
-    if opened.success() {
-        Ok(())
-    } else {
-        Err(std::io::Error::other(format!(
-            "macOS could not open {} ({opened})",
-            app.display()
-        )))
-    }
 }
 
 /// The `.app` a program is the executable of (`dm.app/Contents/MacOS/dm-gpui` gives `dm.app`),

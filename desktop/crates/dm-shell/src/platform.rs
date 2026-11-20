@@ -6,9 +6,11 @@
 //! What dm-shell asks of the system it runs on, each system its own way: `opener` (opening a
 //! finished file and showing it in its folder, reached by `shell`), `dialup` (Windows' Remote
 //! Access Service, reached by `crate::dialup`) and `access` (dm's home kept to this account on
-//! Windows, reached by `instance`). A system's files sit here, chosen in this module (gaps row
-//! A10).
+//! Windows, reached by `instance`) and `programs` (the system's own programs dm-shell runs: `ps`,
+//! macOS's `open`, Windows' `reg.exe`, gaps row P8). A system's files sit here, chosen in this
+//! module (gaps row A10).
 
 pub(crate) mod access;
 pub(crate) mod dialup;
 pub(crate) mod opener;
+pub(crate) mod programs;

@@ -167,15 +167,7 @@ pub fn strings(full: &str) -> Result<Vec<String>, Error> {
 /// Windows' own `reg.exe`, for the `.reg` files.
 #[cfg(windows)]
 fn program(args: &[String]) -> Result<(), Error> {
-    let out = dm_core::no_window(&mut std::process::Command::new("reg"))
-        .args(args)
-        .output()
-        .map_err(|e| format!("reg.exe could not be run: {e}"))?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        Err(String::from_utf8_lossy(&out.stderr).trim().into())
-    }
+    crate::platform::programs::reg_exe(args)
 }
 
 #[cfg(windows)]
