@@ -294,8 +294,19 @@ async fn span_agrees(
      * file is no longer that version: the bytes on disk are not all of one file (a file
      * republished during the download, `zoo.rs` changes-midway). */
     if conditional.is_some() && res.status() == reqwest::StatusCode::OK {
+        // What the server named it, for the trace (gaps row 206).
+        let named = |name: reqwest::header::HeaderName| {
+            res.headers()
+                .get(name)
+                .and_then(|v: &reqwest::header::HeaderValue| v.to_str().ok())
+                .unwrap_or("none")
+                .to_owned()
+        };
         crate::finish_trace::mark(&format!(
-            "seam {low}-{high} of range {index}: another version"
+            "seam {low}-{high} of range {index}: another version (asked under {}, answered ETag {}, Last-Modified {})",
+            conditional.map_or("none", String::as_str),
+            named(reqwest::header::ETAG),
+            named(reqwest::header::LAST_MODIFIED),
         ));
         return Look::Differs;
     }
@@ -324,7 +335,173 @@ async fn span_agrees(
         crate::finish_trace::mark(&format!(
             "seam {low}-{high} of range {index}: differs from byte {at:?} of the span"
         ));
+        /* What was compared, for the trace alone (gaps row 206: a refetch of the whole file
+         * seen once in 31 `fast` runs, with no trace of it): the ranges under the span as they
+         * stood when it was claimed, how the bytes differ, and the disk read again a moment
+         * later, which tells bytes not yet written when it was read (the server's by then) from
+         * bytes written wrong (still other). The finding is the same either way. */
+        if crate::finish_trace::on() {
+            tokio::time::sleep(REREAD_AFTER).await;
+            let again = match bytes_at(job, segments, low, wanted).await {
+                Some(later) if later[..] == there[..] => "the server's bytes",
+                Some(later) if later[..] == here[..] => "as first read",
+                Some(_) => "other bytes again",
+                None => "not readable",
+            };
+            crate::finish_trace::mark(&format!(
+                "seam {low}-{high}: {}; ranges {}; on disk {} ms later: {again}",
+                difference(&there, &here),
+                ranges_under(segments, low, high),
+                REREAD_AFTER.as_millis()
+            ));
+        }
         Look::Differs
+    }
+}
+
+/// How long after a span is found to differ the disk is read again, for the trace.
+const REREAD_AFTER: std::time::Duration = std::time::Duration::from_millis(200);
+
+/// The farthest a shift of the bytes is looked for (`difference`).
+const SHIFT_MOST: usize = 256;
+
+/// How `here` (on disk) differs from `there` (the server's, for the same span), for the trace: how
+/// many bytes differ, the first and the last; whether the disk is all zeros from the first (bytes
+/// not written there); whether it holds the server's bytes from a little further on or back
+/// (`shifted by k`: the disk's byte `i` is the server's `i + k`, bytes written at the wrong
+/// place); and up to 16 bytes of each from the first difference.
+pub(super) fn difference(there: &[u8], here: &[u8]) -> String {
+    let length = there.len().min(here.len());
+    let differing: Vec<usize> = (0..length).filter(|&i| there[i] != here[i]).collect();
+    let (Some(&first), Some(&last)) = (differing.first(), differing.last()) else {
+        return if there.len() == here.len() {
+            "the same".into()
+        } else {
+            format!("{} bytes against {}", there.len(), here.len())
+        };
+    };
+    let mut said = format!("{} bytes differ, {first} to {last}", differing.len());
+    if here[first..length].iter().all(|&b| b == 0) {
+        said.push_str("; the disk is zeros from the first");
+    } else if there[first..length].iter().all(|&b| b == 0) {
+        said.push_str("; the server's are zeros from the first");
+    }
+    if let Some(shift) = shifted(there, here, first) {
+        said.push_str(&format!("; the disk is the server's shifted by {shift:+}"));
+    }
+    let hex =
+        |bytes: &[u8]| -> String { bytes.iter().take(16).map(|b| format!("{b:02x}")).collect() };
+    said.push_str(&format!(
+        "; server {} disk {}",
+        hex(&there[first..length]),
+        hex(&here[first..length])
+    ));
+    said
+}
+
+/// The shift `k`, within [`SHIFT_MOST`] either way, for which the disk's bytes from `first` on are
+/// the server's from `first + k` on, over at least 16 of them.
+fn shifted(there: &[u8], here: &[u8], first: usize) -> Option<i64> {
+    let length = there.len().min(here.len());
+    let most = SHIFT_MOST.min(length) as i64;
+    (1..=most).flat_map(|k| [k, -k]).find(|&k| {
+        let pairs: Vec<(usize, usize)> = (first..length)
+            .filter_map(|i| {
+                let j = i as i64 + k;
+                (j >= 0 && (j as usize) < there.len()).then_some((i, j as usize))
+            })
+            .collect();
+        pairs.len() >= 16 && pairs.iter().all(|&(i, j)| here[i] == there[j])
+    })
+}
+
+/// The ranges under `low..=high` as `segments` has them, for the trace: each as its index, its
+/// first and last byte, and how much of it is on disk.
+pub(super) fn ranges_under(segments: &[Segment], low: u64, high: u64) -> String {
+    let under: Vec<String> = segments
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.start <= high && s.end >= low)
+        .map(|(i, s)| format!("{i} {}-{} done {}", s.start, s.end, s.done))
+        .collect();
+    if under.is_empty() {
+        "none".into()
+    } else {
+        under.join(", ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The trace of a span that differs says how (gaps row 206): zeros on disk where nothing was
+    /// written yet, the server's bytes at another place, or other bytes.
+    #[test]
+    fn a_span_that_differs_is_described_for_the_trace() {
+        let server: Vec<u8> = (0..1024u32).map(|i| (i * 7 + i / 251) as u8 | 1).collect();
+
+        let same = difference(&server, &server);
+        assert_eq!(same, "the same");
+
+        // Nothing on disk past byte 600: zeros, never written.
+        let mut unwritten = server.clone();
+        unwritten[600..].fill(0);
+        let said = difference(&server, &unwritten);
+        assert!(said.starts_with("424 bytes differ, 600 to 1023"), "{said}");
+        assert!(said.contains("the disk is zeros from the first"), "{said}");
+        assert!(!said.contains("shifted"), "{said}");
+
+        // From byte 512 on, the disk holds the server's bytes from 64 further on.
+        let mut ahead = server.clone();
+        ahead[512..960].copy_from_slice(&server[576..1024]);
+        let said = difference(&server, &ahead);
+        assert!(said.contains("shifted by +64"), "{said}");
+        assert!(!said.contains("zeros"), "{said}");
+        // And from 64 back.
+        let mut behind = server.clone();
+        behind[512..].copy_from_slice(&server[448..960]);
+        let said = difference(&server, &behind);
+        assert!(said.contains("shifted by -64"), "{said}");
+
+        // One byte other: where, and both sides of it.
+        let mut one = server.clone();
+        one[100] ^= 0xff;
+        let said = difference(&server, &one);
+        assert!(said.starts_with("1 bytes differ, 100 to 100"), "{said}");
+        let hex = |b: u8| format!("{b:02x}");
+        assert!(
+            said.contains(&format!("server {}", hex(server[100]))),
+            "{said}"
+        );
+        assert!(said.contains(&format!("disk {}", hex(one[100]))), "{said}");
+    }
+
+    /// The ranges under a span, as the trace names them.
+    #[test]
+    fn the_ranges_under_a_span_are_named() {
+        let segments = vec![
+            Segment {
+                start: 0,
+                end: 999,
+                done: 1000,
+            },
+            Segment {
+                start: 2000,
+                end: 2999,
+                done: 10,
+            },
+            Segment {
+                start: 1000,
+                end: 1999,
+                done: 1000,
+            },
+        ];
+        assert_eq!(
+            ranges_under(&segments, 488, 1511),
+            "0 0-999 done 1000, 2 1000-1999 done 1000"
+        );
+        assert_eq!(ranges_under(&segments, 5000, 5100), "none");
     }
 }
 
