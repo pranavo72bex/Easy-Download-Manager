@@ -280,7 +280,7 @@ proptest! {
         bytes in prop::collection::vec(any::<u8>(), 0..600),
         cut in 1usize..64,
     ) {
-        use dm_core::youtube::framed::{messages, ump, wire};
+        use dm_core::youtube::framed::{context, messages, ump, wire};
         let mut reader = ump::Reader::new();
         let mut refused = false;
         for chunk in bytes.chunks(cut) {
@@ -294,6 +294,8 @@ proptest! {
                         let _ = messages::media_of(&data);
                         let _ = messages::error_of(&data);
                         let _ = messages::redirect_of(&data);
+                        let _ = context::Update::read(&data);
+                        let _ = context::SendingPolicy::read(&data);
                         let _ = wire::Message(&data).whole();
                     }
                     Ok(None) => break,

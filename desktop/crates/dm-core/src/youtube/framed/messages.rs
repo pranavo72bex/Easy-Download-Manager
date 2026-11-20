@@ -7,6 +7,7 @@
 //! fields' numbers. The numbers are those of the published descriptions of the protocol, as
 //! they stood in 2026; none of them was checked against YouTube's own servers here.
 
+use super::context::streamer;
 use super::wire::{Message, Writer};
 use super::Pick;
 
@@ -28,8 +29,14 @@ pub mod kind {
     pub const ERROR: u64 = 44;
     /// The player's answer is to be asked again.
     pub const RELOAD_PLAYER_RESPONSE: u64 = 46;
+    /// A context to keep and send back in later requests (`SabrContextUpdate`, [`context`]).
+    ///
+    /// [`context`]: super::super::context
+    pub const SABR_CONTEXT_UPDATE: u64 = 57;
     /// Whether the stream wants a proof-of-origin token.
-    pub const STREAM_PROTECTION_STATUS: u64 = 53;
+    pub const STREAM_PROTECTION_STATUS: u64 = 58;
+    /// Which kept contexts to send, stop sending or forget (`SabrContextSendingPolicy`).
+    pub const SABR_CONTEXT_SENDING_POLICY: u64 = 59;
 }
 
 /// A format as the stream names it (`FormatId`: 1 itag, 2 last modified, 3 xtags).
@@ -203,6 +210,10 @@ pub struct Ask<'a> {
     pub held: Vec<Held<'a>>,
     /// The cookie the last answer gave (19.3).
     pub cookie: Option<&'a [u8]>,
+    /// The contexts the stream gave that are to be sent back, by type (19.5).
+    pub contexts: Vec<(u64, &'a [u8])>,
+    /// The types of those held but not sent (19.6).
+    pub unsent: Vec<u64>,
 }
 
 impl Ask<'_> {
@@ -240,7 +251,8 @@ impl Ask<'_> {
             w.message(17, |f| put_format(f, pick));
         }
         // Who asks (`StreamerContext`): 1 the client (16 its number, 17 its version), 3 the
-        // cookie. No proof-of-origin token (2): dm mints none.
+        // cookie, 5 and 6 the contexts ([`streamer`]). No proof-of-origin token (2): dm mints
+        // none.
         w.message(19, |c| {
             c.message(1, |client| {
                 client.uint(16, u64::from(self.client_name));
@@ -248,6 +260,15 @@ impl Ask<'_> {
             });
             if let Some(cookie) = self.cookie {
                 c.bytes(3, cookie);
+            }
+            for (ty, value) in &self.contexts {
+                c.message(streamer::SENT, |sent| {
+                    sent.uint(streamer::TYPE, *ty);
+                    sent.bytes(streamer::VALUE, value);
+                });
+            }
+            for ty in &self.unsent {
+                c.uint(streamer::UNSENT, *ty);
             }
         });
         w.finish()

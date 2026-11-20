@@ -10,7 +10,7 @@
 //! a media header, its media in two parts, its end, the policy for the next request, a
 //! redirect), built here, a few pieces at a time; the picture's and the sound's bytes land in
 //! their files and are joined. Where the stream wants a proof-of-origin token, or refuses, the
-//! download fails in words.
+//! download fails in words. Contexts it gives are sent back in the requests after.
 //!
 //! The parts' kinds and the messages' field numbers are those dm writes and reads
 //! (`youtube::framed::messages`); the stand-in shows dm keeps to its own word, not that YouTube
@@ -28,9 +28,10 @@ use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::Response;
 use axum::routing::{get, post};
 use base64::Engine as _;
+use dm_core::youtube::framed::context::{streamer, update};
 use dm_core::youtube::framed::messages::kind;
 use dm_core::youtube::framed::ump::put_part;
-use dm_core::youtube::framed::wire::{Message, Writer};
+use dm_core::youtube::framed::wire::{Message, Value as Wire, Writer};
 use dm_core::{client, videopage, youtube, Control, Error, Quality};
 
 use common::{options, tempdir};
@@ -147,6 +148,9 @@ struct Asked {
     started: Vec<u64>,
     held: Vec<(u64, u64, u64, u64)>,
     player_ms: Option<u64>,
+    /// The contexts it sent back (type, value) and the types it named as held, not sent.
+    contexts: Vec<(u64, Vec<u8>)>,
+    unsent: Vec<u64>,
 }
 
 static SEEN: Mutex<Vec<Asked>> = Mutex::new(Vec::new());
@@ -297,6 +301,59 @@ fn held_of(request: Message<'_>, itag: u64) -> Option<u64> {
         .find_map(|range| range.uint(5))
 }
 
+/// The contexts a request sends back (its `StreamerContext`'s): each type and value.
+fn contexts_of(request: Message<'_>) -> Vec<(u64, Vec<u8>)> {
+    let Some(context) = request.message(19) else {
+        return Vec::new();
+    };
+    context
+        .all_bytes(streamer::SENT)
+        .map(Message)
+        .filter_map(|sent| {
+            let value = sent.bytes(streamer::VALUE)?.to_vec();
+            Some((sent.uint(streamer::TYPE)?, value))
+        })
+        .collect()
+}
+
+/// The context types a request names as held but not sent.
+fn unsent_of(context: Message<'_>) -> Vec<u64> {
+    context
+        .fields()
+        .filter_map(|(n, value)| match value {
+            Wire::Varint(ty) if n == streamer::UNSENT => Some(ty),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The context type "framedContext"'s stream gives to be sent back, and the one it gives to
+/// be held.
+const CONTEXT_SENT: u64 = 4;
+const CONTEXT_HELD: u64 = 7;
+
+/// "framedContext"'s context updates: where the request sends none back, one to be sent and
+/// one to be held; after, the one sent again, with a value it says to keep the held one over.
+fn put_contexts(out: &mut Vec<u8>, request: Message<'_>) {
+    let updates: Vec<(u64, &[u8], bool, u64)> = if contexts_of(request).is_empty() {
+        vec![
+            (CONTEXT_SENT, &b"first value"[..], true, update::OVERWRITE),
+            (CONTEXT_HELD, &b"held value"[..], false, update::OVERWRITE),
+        ]
+    } else {
+        vec![(CONTEXT_SENT, &b"not taken"[..], true, update::KEEP_EXISTING)]
+    };
+    for (ty, value, send, write) in updates {
+        let mut u = Writer::new();
+        u.uint(update::TYPE, ty)
+            .uint(update::SCOPE, 1)
+            .bytes(update::VALUE, value)
+            .flag(update::SEND_BY_DEFAULT, send)
+            .uint(update::WRITE_POLICY, write);
+        put_part(out, kind::SABR_CONTEXT_UPDATE, u.as_bytes());
+    }
+}
+
 /// A piece of format `itag` written as the stream writes one: its header, its media in two
 /// parts, its end.
 fn put_piece(out: &mut Vec<u8>, id: u64, itag: u64, sequence: Option<u64>, bytes: &[u8]) {
@@ -348,6 +405,8 @@ async fn framed(origin: String, uri: Uri, body: Bytes) -> Response {
             })
             .collect(),
         player_ms: request.uint(4),
+        contexts: contexts_of(request),
+        unsent: context.map(unsent_of).unwrap_or_default(),
     });
     let query = uri.query().unwrap_or("");
     // A fetch paused part-way: the pause, then the answer held back until it is seen.
@@ -379,6 +438,9 @@ async fn framed(origin: String, uri: Uri, body: Bytes) -> Response {
         to.text(1, &format!("{origin}/moved?{}", query.replace("&rn=1", "")));
         put_part(&mut out, kind::REDIRECT, to.as_bytes());
         return answer(StatusCode::OK, "application/vnd.yt-ump", out);
+    }
+    if query.contains("id=framedContext") {
+        put_contexts(&mut out, request);
     }
     let m = media();
     let mut id = 0;
@@ -460,6 +522,31 @@ async fn the_framed_stream_s_picture_and_sound_land_and_join() {
         assert_eq!(asked.lmt, Some(1_700_000_000_000_137));
         assert_eq!(asked.cookie, n > 0, "request {n}'s cookie");
         assert_eq!(asked.uri.starts_with("/moved?"), n > 0);
+    }
+}
+
+/// The contexts the stream gives are sent back in every request after: the one to be sent by
+/// its type and value, kept over a later update that says to keep the value held; the one
+/// held back named by its type alone.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_stream_s_contexts_are_sent_back_in_the_requests_after() {
+    stand_in();
+    let id = "framedContext";
+    let dir = tempdir();
+    videopage::download_page(&client(), &page(id), &options(dir.path()), None)
+        .await
+        .expect("the video whose stream gives contexts did not download");
+    let seen = seen_for(id);
+    assert!(seen.len() > 2, "{seen:?}");
+    // The request sent on and the first one where it was sent: no context given yet.
+    for asked in &seen[..2] {
+        assert!(asked.contexts.is_empty(), "{seen:?}");
+        assert!(asked.unsent.is_empty(), "{seen:?}");
+    }
+    for asked in &seen[2..] {
+        let sent = vec![(CONTEXT_SENT, b"first value".to_vec())];
+        assert_eq!(asked.contexts, sent, "{seen:?}");
+        assert_eq!(asked.unsent, vec![CONTEXT_HELD], "{seen:?}");
     }
 }
 

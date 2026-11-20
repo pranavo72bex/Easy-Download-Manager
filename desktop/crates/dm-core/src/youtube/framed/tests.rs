@@ -6,6 +6,7 @@
 //! The framed stream's readers and writers on bytes built here, and which formats are kept for
 //! it (gaps row Y2).
 
+use super::context::{policy, streamer, update, Contexts, SendingPolicy, Update};
 use super::messages::{self, kind, Ask, FormatStart, Held, MediaHeader, NextAsk};
 use super::wire::{self, Message, Value as Wire, Writer};
 use super::*;
@@ -217,6 +218,8 @@ fn a_request_names_the_formats_what_is_held_and_the_config() {
         started: vec![&video],
         held: vec![held],
         cookie: Some(&b"c"[..]),
+        contexts: vec![(5, &b"kept"[..])],
+        unsent: vec![6],
     };
     let body = ask.body();
     let m = Message(&body);
@@ -244,6 +247,97 @@ fn a_request_names_the_formats_what_is_held_and_the_config() {
     assert_eq!(context.bytes(3), Some(&b"c"[..]));
     // No proof-of-origin token.
     assert_eq!(context.bytes(2), None);
+    // The contexts kept: the one sent, by type and value; the one held back, by type.
+    let sent = context.message(streamer::SENT).unwrap();
+    assert_eq!(
+        (sent.uint(streamer::TYPE), sent.bytes(streamer::VALUE)),
+        (Some(5), Some(&b"kept"[..]))
+    );
+    assert_eq!(context.uint(streamer::UNSENT), Some(6));
+}
+
+/// A context update's part, written as the stream writes one.
+fn context_update(ty: u64, value: &[u8], send: bool, keep: bool) -> Vec<u8> {
+    let mut w = Writer::new();
+    w.uint(update::TYPE, ty)
+        .uint(update::SCOPE, 1)
+        .bytes(update::VALUE, value)
+        .flag(update::SEND_BY_DEFAULT, send);
+    let write = if keep {
+        update::KEEP_EXISTING
+    } else {
+        update::OVERWRITE
+    };
+    w.uint(update::WRITE_POLICY, write);
+    w.finish()
+}
+
+#[test]
+fn context_updates_are_kept_by_type_as_their_write_policy_says() {
+    let read = Update::read(&context_update(5, b"v1", true, false)).unwrap();
+    assert_eq!(
+        (read.kind, read.scope, read.value.as_slice(), read.send),
+        (5, Some(1), &b"v1"[..], true)
+    );
+    assert!(!read.keep_existing);
+    // No value, no update.
+    let mut w = Writer::new();
+    w.uint(update::TYPE, 5);
+    assert_eq!(Update::read(&w.finish()), None);
+
+    let mut held = Contexts::default();
+    assert!(held.take(
+        kind::SABR_CONTEXT_UPDATE,
+        &context_update(5, b"v1", true, false)
+    ));
+    assert!(held.take(
+        kind::SABR_CONTEXT_UPDATE,
+        &context_update(6, b"w", false, false)
+    ));
+    assert!(!held.take(kind::MEDIA, b"not a context"));
+    assert_eq!(held.sent(), vec![(5, &b"v1"[..])]);
+    assert_eq!(held.unsent(), vec![6]);
+    // Kept where it says to keep the value held; replaced where it says to overwrite.
+    held.take(
+        kind::SABR_CONTEXT_UPDATE,
+        &context_update(5, b"v2", true, true),
+    );
+    assert_eq!(held.sent(), vec![(5, &b"v1"[..])]);
+    held.take(
+        kind::SABR_CONTEXT_UPDATE,
+        &context_update(5, b"v3", true, false),
+    );
+    assert_eq!(held.sent(), vec![(5, &b"v3"[..])]);
+}
+
+#[test]
+fn a_sending_policy_starts_stops_and_forgets_types() {
+    // Started one by one, stopped packed, forgotten one by one.
+    let mut packed = Vec::new();
+    wire::put_varint(&mut packed, 5);
+    wire::put_varint(&mut packed, 300);
+    let mut w = Writer::new();
+    w.uint(policy::START, 6)
+        .uint(policy::START, 7)
+        .bytes(policy::STOP, &packed)
+        .uint(policy::DISCARD, 8);
+    let data = w.finish();
+    let read = SendingPolicy::read(&data);
+    assert_eq!(
+        (read.start, read.stop, read.discard),
+        (vec![6, 7], vec![5, 300], vec![8])
+    );
+
+    let mut held = Contexts::default();
+    for (ty, send) in [(5, true), (6, false), (8, true)] {
+        held.take(
+            kind::SABR_CONTEXT_UPDATE,
+            &context_update(ty, b"x", send, false),
+        );
+    }
+    assert!(held.take(kind::SABR_CONTEXT_SENDING_POLICY, &data));
+    assert_eq!(held.sent(), vec![(6, &b"x"[..])]);
+    assert_eq!(held.unsent(), vec![5]);
 }
 
 #[test]
