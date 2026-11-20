@@ -54,6 +54,13 @@ pub(crate) fn possible() -> bool {
     system::possible()
 }
 
+/// Whether the Opus of the WebM at `path` is read here: always by the
+/// system's decoder where it has one; by dm's own where every packet is one it
+/// reads (no SILK yet).
+pub(crate) fn opus_decodable(path: &Path) -> bool {
+    system::opus_possible() || crate::opus::decodable(path)
+}
+
 /// Whether Opus in a WebM is read here (`super::opus_possible`): by the
 /// system's decoder where it has one, else by dm's own, which every system
 /// has.

@@ -181,6 +181,18 @@ fn a_webms_opus_is_read_as_long_as_it_is() {
     assert!(said.contains("VORBIS"), "{said}");
     let youtube = crate::fixtures().join("media/mp4mux/av1-sound.f251.webm");
     assert_eq!(read(&youtube).unwrap_err().as_str(), NO_SILK);
+    assert!(!decodable(&youtube));
+    assert!(decodable(&dir.path().join("sound2.webm")));
+    assert!(!decodable(&vorbis));
+    // Where dm's decoder is the one used, a WebM it cannot read is not made an MP3 at all;
+    // asked for anyway, it is refused in words.
+    if !crate::mp3::decode::opus_decodable(&youtube) {
+        assert!(!crate::mp3::takes(&youtube));
+    }
+    let said = crate::mp3::convert_bytes(&youtube, None);
+    if let Err(said) = said {
+        assert_eq!(said.as_str(), NO_SILK);
+    }
 }
 
 /// RFC 6716's test vectors (as RFC 8251 renewed them), which are not kept here: fetched by

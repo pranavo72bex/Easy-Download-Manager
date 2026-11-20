@@ -8289,5 +8289,7 @@ licence comes with them); an ignored test reads them from the folder `OPUS_VECTO
 It is used only where the system has no Opus decoder: Windows keeps Media Foundation's (the
 decision of 2026-11-18), and uses this one where that is missing. CELT is the coder YouTube's
 music is in; SILK and hybrid (speech) are not written yet, and a track that uses them is refused
-in words, "this Opus track uses SILK, which dm cannot decode yet". A lost or empty packet is
+in words, "this Opus track uses SILK, which dm cannot decode yet"; a finished download of such
+a WebM is not taken for an MP3 (`mp3::takes`) and is kept as it came, as it was on macOS and
+Linux before, so no download that succeeded before now fails. A lost or empty packet is
 decoded as CELT's silence frame, which fades the last frame out.

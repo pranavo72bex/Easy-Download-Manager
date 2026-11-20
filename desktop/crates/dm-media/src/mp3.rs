@@ -42,7 +42,8 @@ pub fn opus_possible() -> bool {
 }
 
 /// Whether the finished file at `path` is a sound dm makes an MP3 from: AAC in an M4A, an MP4
-/// or an ADTS file (by its name, as always), or Opus in a WebM where [`opus_possible`].
+/// or an ADTS file (by its name, as always), or Opus in a WebM where [`opus_possible`] and the
+/// decoder here reads its packets (dm's own reads no SILK yet: such a WebM is kept as it came).
 pub fn takes(path: &std::path::Path) -> bool {
     let ext = path
         .extension()
@@ -51,7 +52,9 @@ pub fn takes(path: &std::path::Path) -> bool {
     match ext.as_str() {
         "m4a" | "mp4" | "aac" => true,
         "webm" | "weba" | "mka" => {
-            opus_possible() && crate::mkvmux::sound_codec(path).as_deref() == Some("A_OPUS")
+            opus_possible()
+                && crate::mkvmux::sound_codec(path).as_deref() == Some("A_OPUS")
+                && decode::opus_decodable(path)
         }
         _ => false,
     }

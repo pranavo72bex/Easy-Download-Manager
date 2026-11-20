@@ -111,6 +111,19 @@ impl Decoder {
     }
 }
 
+/// Whether every packet of the WebM at `path`'s sound is one this decoder reads (CELT, or
+/// none): a track that uses SILK is not, and a download of one is kept as it came rather than
+/// failing on its MP3 (`mp3::takes`).
+pub(crate) fn decodable(path: &Path) -> bool {
+    crate::mkvmux::sound_track(path).is_ok_and(|track| {
+        track.codec == "A_OPUS"
+            && track.packets.iter().all(|p| {
+                p.first()
+                    .is_none_or(|&toc| packet::toc(toc).mode == Mode::Celt)
+            })
+    })
+}
+
 /// The Opus sound of the WebM at `path` as 16-bit samples at 48 kHz: its packets decoded in
 /// order, the encoder's delay (the header's pre-skip) taken off the start and its padding off
 /// the end, the header's gain applied.
