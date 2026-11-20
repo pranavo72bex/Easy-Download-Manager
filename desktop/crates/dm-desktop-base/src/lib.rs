@@ -40,16 +40,14 @@
 )]
 
 mod error;
-mod platform;
+pub mod platform;
 mod run;
 mod view;
 
 pub use error::Error;
 
-#[cfg(target_os = "macos")]
-pub use platform::opened;
-#[cfg(windows)]
-pub use platform::toast;
+// One system's alone (`platform::opened` on macOS, `platform::toast` on Windows) are reached
+// through `platform` (gaps row A10).
 pub use platform::{
     a11y_tree, accent, autostart, awake, contrast, desktop, drops, jumplist, login, metered, mica,
     phone, power, quiet, region, signals, system_theme, taskbar, wake,

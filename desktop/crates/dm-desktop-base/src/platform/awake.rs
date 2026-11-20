@@ -89,6 +89,76 @@ pub fn watch_phone(summary: impl Fn() -> Option<crate::phone::Busy> + Send + 'st
         });
 }
 
+/// Keeps the computer awake for as long as a row of `queue` is Running ([`watch`]), the queue
+/// read on `runtime`. A phone is watched by [`PhoneQueue::watch`] instead, once the backend is
+/// made (`boot::start`).
+#[cfg(not(target_os = "android"))]
+pub(crate) fn watch_queue(queue: &dm_core::DownloadList, runtime: &tokio::runtime::Runtime) {
+    let (queue, handle) = (queue.clone(), runtime.handle().clone());
+    watch(move || {
+        handle
+            .block_on(queue.list())
+            .iter()
+            .any(|row| row.state == dm_core::State::Running)
+    });
+}
+
+/// On a phone the queue is watched by [`PhoneQueue::watch`].
+#[cfg(target_os = "android")]
+pub(crate) fn watch_queue(_queue: &dm_core::DownloadList, _runtime: &tokio::runtime::Runtime) {}
+
+/// The queue the phone's watch reads, taken before the backend is made (which takes the
+/// queue): on a phone a copy of it.
+#[cfg(target_os = "android")]
+pub(crate) struct PhoneQueue(dm_core::DownloadList);
+
+/// The queue the phone's watch reads: nothing, as only a phone has that watch.
+#[cfg(not(target_os = "android"))]
+pub(crate) struct PhoneQueue;
+
+#[cfg(target_os = "android")]
+impl PhoneQueue {
+    /// A copy of `queue`.
+    pub(crate) fn of(queue: &dm_core::DownloadList) -> Self {
+        Self(queue.clone())
+    }
+
+    /// The phone kept awake, its ongoing notification up, for as long as anything keeps dm
+    /// busy: a row running, one queued and due, a finished torrent shared (gaps row N6;
+    /// [`watch_phone`]), in the language of `backend`'s settings.
+    pub(crate) fn watch(
+        self,
+        backend: &dm_shell::app::backend::Backend,
+        runtime: &tokio::runtime::Runtime,
+    ) {
+        let phone_queue = self.0;
+        let (settings, handle) = (backend.settings_handle(), runtime.handle().clone());
+        watch_phone(move || {
+            // The notification's words in the language the window is in.
+            let language = dm_core::lock(&settings).general.language.clone();
+            crate::i18n::set(crate::i18n::chosen(&language));
+            let rows = handle.block_on(phone_queue.list());
+            crate::phone::Busy::of(&rows, phone_queue.may_run(), dm_core::sharing_any())
+        });
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+impl PhoneQueue {
+    /// Nothing is kept of `queue`.
+    pub(crate) fn of(_queue: &dm_core::DownloadList) -> Self {
+        Self
+    }
+
+    /// Nothing to watch: the computer is kept awake by [`watch_queue`].
+    pub(crate) fn watch(
+        self,
+        _backend: &dm_shell::app::backend::Backend,
+        _runtime: &tokio::runtime::Runtime,
+    ) {
+    }
+}
+
 // Holds the system awake, or lets it sleep: the phone's wake lock, or
 // Windows' thread state.
 #[cfg(target_os = "android")]

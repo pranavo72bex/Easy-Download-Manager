@@ -7,7 +7,7 @@
 //! takes a window's own, `docs/decisions.md` 2026-11-10): a notification
 //! posted to the system's own notification centre (macOS's, a Linux
 //! desktop's), "Download finished", "Download failed". On Windows dm posts
-//! its own toasts (`dm_desktop_base::toast`), so this is not used there.
+//! its own toasts (`dm_desktop_base::platform::toast`), so this is not used there.
 
 use dm_desktop_base::quiet::Note;
 

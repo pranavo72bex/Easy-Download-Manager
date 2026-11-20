@@ -62,15 +62,7 @@ browsers and the login items to an installed dm.
 /// `println!` reaches the terminal; with none (started from Explorer)
 /// nothing changes.
 pub fn attach_console() {
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
-        // SAFETY: no pointers; it fails harmlessly when there is no parent
-        // console or one is already attached.
-        unsafe {
-            AttachConsole(ATTACH_PARENT_PROCESS);
-        }
-    }
+    crate::platform::console::attach();
 }
 
 /// What the command line asks dm to be: read once by every window's `main`

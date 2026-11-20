@@ -117,11 +117,7 @@ pub fn token(home: &Path) -> std::io::Result<String> {
         let text = text.trim().to_string();
         if text.len() == 64 && text.chars().all(|c| c.is_ascii_hexdigit()) {
             // One written looser by an older dm, or by hand, is tightened.
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
-            }
+            crate::platform::permissions::owner_only(&path)?;
             return Ok(text);
         }
     }

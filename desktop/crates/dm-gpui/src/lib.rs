@@ -80,7 +80,7 @@ pub fn run_app(args: &[String], application: impl FnOnce() -> gpui::Application)
     // A magnet link or a .torrent file the system opens with dm arrives as an
     // Apple event, not a command line: handed to the running dm as one.
     #[cfg(target_os = "macos")]
-    dm_desktop_base::opened::listen(|words| {
+    dm_desktop_base::platform::opened::listen(|words| {
         dm_shell::shell::opened_by_system(&dm_shell::settings::home(), &words);
     });
 

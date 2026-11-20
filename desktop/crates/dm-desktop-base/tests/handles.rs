@@ -18,7 +18,7 @@
 
 #![cfg(windows)]
 
-use dm_desktop_base::toast::{heard, remove_group, show_unseen, MOST_HEARD};
+use dm_desktop_base::platform::toast::{heard, remove_group, show_unseen, MOST_HEARD};
 use std::time::Duration;
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
 

@@ -226,40 +226,20 @@ pub fn start(
     }
 
     // The computer kept awake for as long as a download is running.
-    #[cfg(not(target_os = "android"))]
-    {
-        let (queue, handle) = (queue.clone(), runtime.handle().clone());
-        crate::awake::watch(move || {
-            handle
-                .block_on(queue.list())
-                .iter()
-                .any(|row| row.state == dm_core::State::Running)
-        });
-    }
+    crate::platform::awake::watch_queue(&queue, &runtime);
     let started_with = saved.clone();
-    #[cfg(target_os = "android")]
-    let phone_queue = queue.clone();
+    let phone_queue = crate::platform::awake::PhoneQueue::of(&queue);
     let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);
     // The phone kept awake, its ongoing notification up, for as long as anything keeps dm
     // busy: a row running, one queued and due, a finished torrent shared (gaps row N6).
-    #[cfg(target_os = "android")]
-    {
-        let (settings, handle) = (backend.settings_handle(), runtime.handle().clone());
-        crate::awake::watch_phone(move || {
-            // The notification's words in the language the window is in.
-            let language = dm_core::lock(&settings).general.language.clone();
-            crate::i18n::set(crate::i18n::chosen(&language));
-            let rows = handle.block_on(phone_queue.list());
-            crate::phone::Busy::of(&rows, phone_queue.may_run(), dm_core::sharing_any())
-        });
-    }
+    phone_queue.watch(&backend, &runtime);
     // A sleeping computer woken for the schedule, where the Scheduler says; a phone always,
     // since Android stops an app left idle (its alarm, gaps row N12).
     {
         let settings = backend.settings_handle();
         crate::wake::watch(move || {
             let now = dm_core::lock(&settings).clone();
-            if !now.schedule.wake && !cfg!(target_os = "android") {
+            if !now.schedule.wake && !crate::platform::wake::ALWAYS_WATCHED {
                 return None;
             }
             let starts: Vec<u32> = now
