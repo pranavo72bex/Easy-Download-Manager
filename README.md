@@ -8,6 +8,7 @@
   <a href="LICENSE"><img alt="GPL v3 licence" src="https://img.shields.io/badge/licence-GPL--3.0-blue?style=for-the-badge"></a>
   <a href="https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej"><img alt="Microsoft Edge Add-ons" src="https://img.shields.io/badge/Edge-Add--ons-0078D7?style=for-the-badge&amp;logo=microsoftedge&amp;logoColor=white"></a>
   <a href="https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/"><img alt="Firefox Add-ons" src="https://img.shields.io/badge/Firefox-Add--ons-FF7139?style=for-the-badge&amp;logo=firefoxbrowser&amp;logoColor=white"></a>
+  <a href="https://idmo.app/p/easy-download-manager"><img alt="I did my own Internet Download Manager" src="https://idmo.app/badge/easy-download-manager"></a>
 </p>
 
 <picture>
