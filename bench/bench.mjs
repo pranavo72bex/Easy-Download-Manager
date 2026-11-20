@@ -10,6 +10,8 @@
 //
 //   node bench/bench.mjs [scenario ...]
 //     scenarios: idle fast per_conn flaky outage batch big40 ceiling   (default: all of these)
+//                wan lossy (a line between app and server, bench/shaper.mjs; asked by name: no
+//                reference A baseline yet)
 //                inet (public internet, never a floor)   selftest (the server alone)
 //
 // The server, the bytes it serves and the scenarios below are the standard the baseline was
@@ -29,8 +31,11 @@
 //   BENCH_REPS            repetitions for fast, per_conn and flaky
 //   BENCH_TAG             suffix for the result files' names
 //   BENCH_CURL            curl for `selftest` (default: Windows' own on Windows)
+//   BENCH_WAN_TLS         0 serves `wan` over plain HTTP (until dm can be told to trust the
+//                         harness's certificate: DM_BENCH_CA, bench/README.md)
 //   BENCH_REFA_EXE, BENCH_REFA_PROCESS, BENCH_REFA_TITLE   reference A (or bench/local.json)
 import http from 'node:http';
+import https from 'node:https';
 import net from 'node:net';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -39,6 +44,7 @@ import crypto from 'node:crypto';
 import readline from 'node:readline';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { shaper, selfSignedCert } from './shaper.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -117,12 +123,14 @@ function newRun(key, sc, files) {
     requests: [], conns: new Set(), sockets: new Set(), served: 0, firstReq: null, lastByte: null,
     active: 0, maxActive: 0, activeFiles: new Map(), maxFiles: 0,
     bucket: { budget: 0, last: Date.now() }, cuts: prng(0xC0FFEE), outage: null, firstAfterOutage: null,
+    losses: prng(0x1055), stalls: 0, // `lossy` alone
     timeline: [], // [ms since firstReq, bytes] every 250 ms
   };
   runs.set(key, run);
   return run;
 }
-const server = http.createServer((req, res) => {
+// The handler, the same for http (the baseline's) and for https (the `wan` case's, behind TLS).
+const handle = (req, res) => {
   const m = /^\/f\/([^/]+)\/(.+)$/.exec(req.url);
   const run = m && runs.get(m[1]);
   const file = run && run.files.get(decodeURIComponent(m[2]));
@@ -154,7 +162,7 @@ const server = http.createServer((req, res) => {
   run.activeFiles.set(m[2], (run.activeFiles.get(m[2]) || 0) + 1);
   run.maxFiles = Math.max(run.maxFiles, run.activeFiles.size);
   const cutAfter = sc.cut ? Math.floor(sc.cut[0] + run.cuts() * (sc.cut[1] - sc.cut[0])) : Infinity;
-  const conn = { budget: 0, last: Date.now() };
+  const conn = { budget: 0, last: Date.now(), pieceLeft: 0 };
   let at = a, gone = false, done = false;
   const finish = () => {
     if (done) return; done = true;
@@ -186,12 +194,24 @@ const server = http.createServer((req, res) => {
     if (gone) return;
     if (at > b) return res.end();
     if (run.outage && Date.now() < run.outage.end) return sock.destroy();
-    const want = Math.min(sc.perConn || sc.total ? 65536 : MiB, b - at + 1, cutAfter - entry.sent);
+    let want = Math.min(sc.perConn || sc.total ? 65536 : MiB, b - at + 1, cutAfter - entry.sent);
     if (want <= 0) return sock.destroy(); // this connection's cut
+    if (sc.loss) {
+      // `lossy`: the bytes go in pieces of `sc.loss.piece`, and a lost piece is what TCP does
+      // about one: its connection sends nothing for a retransmission timeout, then the piece goes
+      // again. The others' share of the line is theirs meanwhile (bench/shaper.mjs says why the
+      // loss is the sender's).
+      if (conn.pieceLeft <= 0) {
+        conn.pieceLeft = sc.loss.piece;
+        if (run.losses() < sc.loss.p) { run.stalls++; return setTimeout(send, sc.loss.stallMs); }
+      }
+      want = Math.min(want, conn.pieceLeft);
+    }
     const k = take(want);
     if (k === 0) return setTimeout(send, 4);
     const ok = res.write(file.data.subarray(at, at + k));
     at += k; entry.sent += k; run.served += k; run.lastByte = Date.now();
+    if (sc.loss) conn.pieceLeft -= k;
     if (run.outage && run.firstAfterOutage === null && Date.now() >= run.outage.end) run.firstAfterOutage = Date.now();
     // The outage starts once this share of the file has been sent.
     if (sc.outage && !run.outage && run.served >= sc.outage.at * size) {
@@ -202,9 +222,44 @@ const server = http.createServer((req, res) => {
     if (ok) setImmediate(send); else res.once('drain', send);
   };
   send();
-});
+};
+const server = http.createServer(handle);
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const PORT = server.address().port;
+
+// ─── The `wan` and `lossy` cases' line (gaps row W2): bench/shaper.mjs in front of the server,
+// one per run, and for `wan` the same handler behind TLS. The certificate is made once and kept
+// in <work>/tls, so a computer told to trust it (reference A's: bench/README.md) keeps trusting
+// it; dm is given it as DM_BENCH_CA.
+const TLS_DIR = path.join(WORK, 'tls');
+let tls = null, tlsServer = null;
+function benchCert() {
+  const certFile = path.join(TLS_DIR, 'bench-server.pem'), keyFile = path.join(TLS_DIR, 'bench-server.key');
+  try {
+    const cert = fs.readFileSync(certFile, 'utf8'), key = fs.readFileSync(keyFile, 'utf8');
+    if (new Date(new crypto.X509Certificate(cert).validTo) - Date.now() > 7 * 86400e3) return { cert, key, certFile };
+  } catch { /* none yet, or unreadable: made again */ }
+  const made = selfSignedCert({ days: 365 });
+  fs.mkdirSync(TLS_DIR, { recursive: true });
+  fs.writeFileSync(certFile, made.cert);
+  fs.writeFileSync(keyFile, made.key, { mode: 0o600 });
+  return { ...made, certFile };
+}
+async function tlsPort() {
+  if (!tlsServer) {
+    tls ||= benchCert();
+    tlsServer = https.createServer({ key: tls.key, cert: tls.cert }, handle);
+    await new Promise((r) => tlsServer.listen(0, '127.0.0.1', r));
+  }
+  return tlsServer.address().port;
+}
+// Where one run's app is sent: { scheme, port, line } (line null for the baseline's scenarios).
+async function lineFor(sc) {
+  if (!sc.rttMs) return { scheme: 'http', port: PORT, line: null };
+  const target = sc.tls ? await tlsPort() : PORT;
+  const line = await shaper({ target: { port: target }, oneWayMs: sc.rttMs / 2 });
+  return { scheme: sc.tls ? 'https' : 'http', port: line.port, line };
+}
 setInterval(() => {
   for (const run of runs.values()) if (run.firstReq !== null && !run.closed) run.timeline.push([Date.now() - run.firstReq, run.served]);
 }, 250).unref();
@@ -344,7 +399,9 @@ class Dm {
     fs.mkdirSync(this.downloads, { recursive: true });
     fs.writeFileSync(path.join(this.home, 'settings.json'), JSON.stringify({ download_dir: this.downloads, ...(process.env.BENCH_DM_CONNECTIONS ? { connections: Number(process.env.BENCH_DM_CONNECTIONS) } : {}) }));
     this.t0 = Date.now();
-    this.proc = spawn(DM, ['--control', '0'], { env: { ...process.env, DM_HOME: this.home }, stdio: 'ignore' });
+    // DM_BENCH_CA: the harness's certificate, for the `wan` case served over TLS. dm does not
+    // read it yet (bench/README.md, "The line cases").
+    this.proc = spawn(DM, ['--control', '0'], { env: { ...process.env, DM_HOME: this.home, ...(tls ? { DM_BENCH_CA: tls.certFile } : {}) }, stdio: 'ignore' });
     watched.set(this.proc.pid, 'dm');
     const portFile = path.join(this.home, 'control.port');
     for (let i = 0; i < 400; i++) { if (fs.existsSync(portFile) && fs.readFileSync(portFile, 'utf8').trim()) break; await sleep(50); }
@@ -462,12 +519,15 @@ async function once(app, name, sc, rep) {
   for (let i = 0; i < count; i++) files.set(`${name}-${app}-${rep}-${RUN}-${i + 1}.bin`, { data: DATA[name][i], sha: SHAS[name][i] });
   const run = newRun(key, sc, files);
   const names = [...files.keys()];
-  const urls = names.map((n) => `http://127.0.0.1:${PORT}/f/${key}/${n}`);
+  const via = await lineFor(sc);
+  const urls = names.map((n) => `${via.scheme}://127.0.0.1:${via.port}/f/${key}/${n}`);
   const gate = () => run.firstReq === null;
   const r = app === 'refa'
     ? await runRefa(urls, names, sc.size, path.join(process.env.BENCH_REFA_DIR || path.join(WORK, 'refa'), key), sc.timeoutMs, sc.queue, gate)
     : await runDm(urls, names, sc.size, sc.timeoutMs, gate);
   run.closed = true;
+  const line = via.line ? { oneWayMs: sc.rttMs / 2, tls: !!sc.tls, late: via.line.late(), connections: via.line.connections(), lossStalls: sc.loss ? run.stalls : undefined } : undefined;
+  if (via.line) await via.line.close();
   let whole = 0;
   for (let i = 0; i < names.length; i++) {
     const f = r.files[i];
@@ -487,7 +547,7 @@ async function once(app, name, sc, rep) {
     outageAtMs: run.outage ? run.outage.start - run.firstReq : null,
     perRequest: run.requests.slice(0, 60).map((q) => [q.t - run.firstReq, q.sent ?? 0, q.range, q.dropped ? 'dropped' : '']),
     ...usage(app, r.t0, r.t1 || Date.now(), app === 'dm' ? dm?.proc?.pid ?? null : null),
-    states: r.states, errors: r.errors, timeline: run.timeline.filter((_, i) => i % 2 === 0),
+    states: r.states, errors: r.errors, line, timeline: run.timeline.filter((_, i) => i % 2 === 0),
   };
   runs.delete(key);
   console.log(JSON.stringify({ ...res, timeline: undefined, perRequest: undefined }));
@@ -502,6 +562,18 @@ const SC = {
   outage:   { size: 64 * MiB, total: 8 * MiB, outage: { at: 0.3, ms: 15000 }, label: '64 MiB at 8 MiB/s, all connections fail for 15 s at 30%', reps: 1, timeoutMs: 300000 },
   batch:    { size: 2 * MiB, files: 24, perConn: 2 * MiB, label: '24 files of 2 MiB, each connection 2 MiB/s, all added at once', reps: 2, timeoutMs: 300000 },
   big40:    { size: 512 * MiB, total: 40 * MiB, label: '512 MiB at 40 MiB/s in all', reps: 2, timeoutMs: 300000 },
+  // Added after the baseline was frozen (gaps row W2): what a person's line adds. Reference A has
+  // no numbers on these yet (compare.mjs: "no baseline yet"), so they are asked by name, not run by
+  // default. The line is bench/shaper.mjs: 40 ms each way (an 80 ms round trip, a connection's
+  // handshake included); the 20 Mbit/s (2,500,000 bytes a second) is the server's shared cap.
+  wan:      { size: 32 * MiB, total: 2500000, rttMs: 80, tls: process.env.BENCH_WAN_TLS !== '0',
+              label: `32 MiB over an 80 ms line at 20 Mbit/s in all, ${process.env.BENCH_WAN_TLS !== '0' ? 'over TLS' : 'plain HTTP (BENCH_WAN_TLS=0)'}`,
+              reps: Number(process.env.BENCH_REPS || 2), timeoutMs: 240000 },
+  // 1% loss, modelled as a stall: 1 in 100 pieces of 16 KiB stops its connection for 250 ms (about
+  // one retransmission timeout at this round trip) before it goes again. Not packet loss.
+  lossy:    { size: 32 * MiB, total: 2500000, rttMs: 80, loss: { p: 0.01, piece: 16384, stallMs: 250 },
+              label: '32 MiB over an 80 ms line at 20 Mbit/s in all, 1% of 16 KiB pieces stalled 250 ms',
+              reps: Number(process.env.BENCH_REPS || 2), timeoutMs: 300000 },
 };
 const DATA = {}, SHAS = {};
 
@@ -609,6 +681,30 @@ async function selftest() {
     if (WITH_REFA) console.log('closer runs so far (exit codes):', closerRuns.join(','));
     console.log(label, ((Date.now() - t0) / 1000).toFixed(2), 's for 16 MiB =', (16 / ((Date.now() - t0) / 1000)).toFixed(2), 'MiB/s');
   }
+  // The lines of `wan` and `lossy`, through the shaper (and TLS): the first byte after the
+  // connection's, TLS's and the request's round trips (240 ms over TLS, 160 without), and 8 ranges
+  // of 8 MiB at the 20 Mbit/s cap, with lossy's stalls counted (about 1 in 100 of 512 pieces).
+  for (const [label, sc] of [['wan', { size: 8 * MiB, total: 2500000, rttMs: 80, tls: true }],
+    ['lossy', { size: 8 * MiB, total: 2500000, rttMs: 80, loss: SC.lossy.loss }]]) {
+    const data = makeData(sc.size, 5); const key = `self-${label}-${RUN}`;
+    const run = newRun(key, sc, new Map([['x.bin', { data, sha: sha(data) }]]));
+    const via = await lineFor(sc);
+    const url = `${via.scheme}://127.0.0.1:${via.port}/f/${key}/x.bin`;
+    const curl = (args) => new Promise((r) => {
+      let o = '';
+      const c = spawn(CURL, ['-s', '-k', '-o', WIN ? 'NUL' : '/dev/null', ...args, url], { stdio: ['ignore', 'pipe', 'ignore'] });
+      c.stdout.on('data', (d) => { o += d; }); c.on('exit', () => r(o)); c.on('error', () => r(o));
+    });
+    const said = (await curl(['-r', '0-0', '-w', '%{time_appconnect} %{time_starttransfer}'])).trim().split(' ').map(Number);
+    console.log(`${label} line: ${sc.tls ? `TLS up after ${(said[0] * 1000).toFixed(0)} ms (asked 160), ` : ''}first byte after ${(said[1] * 1000).toFixed(0)} ms (asked ${sc.tls ? 240 : 160})`);
+    const t0 = Date.now(); const part = sc.size / 8;
+    await Promise.all([...Array(8).keys()].map((i) => curl(['-r', `${i * part}-${(i + 1) * part - 1}`])));
+    const secs = (Date.now() - t0) / 1000;
+    console.log(`${label} line: 8 MiB in ${secs.toFixed(2)} s = ${(sc.size / secs * 8 / 1e6).toFixed(1)} Mbit/s (cap 20: ${(sc.size / sc.total).toFixed(2)} s at the cap, plus the round trips)${sc.loss ? `; ${run.stalls} stalls of ${sc.loss.stallMs} ms` : ''}`);
+    console.log(`${label} line: pieces written late by`, JSON.stringify(via.line.late()));
+    await via.line.close();
+    runs.delete(key);
+  }
   closerOff();
 }
 
@@ -616,6 +712,8 @@ const asked = process.argv.slice(2);
 const todo = asked.length ? asked : ['idle', 'fast', 'per_conn', 'flaky', 'outage', 'batch', 'big40', 'ceiling'];
 for (const s of todo) if (!(s in SC) && !['inet', 'idle', 'selftest', 'ceiling'].includes(s)) { console.error(`unknown scenario ${s}`); process.exit(2); }
 console.log(`# apps ${APPS.join(', ')}; dm ${DM || '-'}; results in ${OUT}`);
+// The certificate before dm starts, whichever scenario starts it: dm is given it once, at start.
+if (todo.some((s) => SC[s]?.tls)) { tls = benchCert(); console.log(`# TLS certificate ${tls.certFile} (dm is given it as DM_BENCH_CA)`); }
 startSampler();
 await sleep(1500);
 try {
@@ -627,5 +725,6 @@ try {
   if (dm) dm.stop();
   if (sampler) { if (WIN) sampler.kill(); else clearInterval(sampler); }
   server.close();
+  if (tlsServer) tlsServer.close();
   setTimeout(() => process.exit(0), 500);
 }

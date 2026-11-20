@@ -33,7 +33,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const B = JSON.parse(fs.readFileSync(path.join(HERE, 'reference-a-baseline.json'), 'utf8'));
-const ORDER = ['idle', 'fast', 'per_conn', 'flaky', 'outage', 'batch', 'big40'];
+const ORDER = ['idle', 'fast', 'per_conn', 'flaky', 'outage', 'batch', 'big40', 'wan', 'lossy'];
 // What the harness cannot tell apart, by unit, added to the tolerance.
 const SLACK = { s: 0.25, ms: 150, '%': 0.5, MiB: 3 };
 const median = (xs) => { const v = xs.filter((x) => x != null).sort((a, b) => a - b); if (!v.length) return null; const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };

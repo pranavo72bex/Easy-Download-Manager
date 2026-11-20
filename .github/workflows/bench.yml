@@ -58,6 +58,7 @@ jobs:
       - name: The comparison's own workings
         run: |
           node bench/against-last.mjs --self-test
+          node bench/shaper.mjs --self-test
           echo "BENCH=$RUNNER_TEMP/bench" >> "$GITHUB_ENV"
 
       - name: Build dm (release), the build the baseline is judged against
