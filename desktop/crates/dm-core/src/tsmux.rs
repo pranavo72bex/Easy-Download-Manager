@@ -8,6 +8,8 @@
 
 use std::path::PathBuf;
 
+use dm_media::sealed::Locks;
+
 pub use dm_media::tsmux::*;
 
 /// [`to_mp4`], off the async runtime.
@@ -78,6 +80,26 @@ where
     tokio::task::spawn_blocking(move || join_ts_with_text(&picture, &sound, &out, place))
         .await
         .map_err(|e| format!("the remux stopped: {e}"))?
+}
+
+/// [`join_ts_clear_with_text`], off the async runtime: a picture and a sound scrambled by
+/// SAMPLE-AES, each cleared with its own stream's locks (gaps row Y16).
+pub async fn join_ts_clear_with_text_async<F>(
+    picture: PathBuf,
+    sound: PathBuf,
+    out: PathBuf,
+    locks: [Locks; 2],
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle> + Send + 'static,
+{
+    tokio::task::spawn_blocking(move || {
+        let [seen, heard] = &locks;
+        join_ts_clear_with_text(&picture, &sound, &out, [seen, heard], place)
+    })
+    .await
+    .map_err(|e| format!("the remux stopped: {e}"))?
 }
 
 /// [`join_packed`], off the async runtime.

@@ -39,6 +39,11 @@ pub(super) async fn fetch_tracks_shown(
     Ok(files)
 }
 
+/// A transport-stream picture scrambled by SAMPLE-AES beside packed AAC sound, which dm does not
+/// put in the clear yet: refused before its pieces are fetched (`hls::resolve_pair`), and here.
+const PACKED_BESIDE_SEALED: &str =
+    "this stream's picture is scrambled (SAMPLE-AES) and its sound is packed audio";
+
 /// The fetched `files` joined into one at `partial`: a Matroska file where one is to be
 /// made (`matroska`), transport streams joined as such, else an MP4.
 pub(super) async fn join_files(
@@ -56,7 +61,16 @@ pub(super) async fn join_files(
         .collect::<Vec<_>>()
         .as_slice()
     {
+        // A transport stream whose samples are scrambled (SAMPLE-AES) has its locks beside it.
+        let sealed = if crate::tsmux::is_transport_stream(picture) {
+            super::sealed::locks_beside(picture).await?
+        } else {
+            None
+        };
         if crate::tsmux::is_transport_stream(picture) && crate::tsmux::is_packed_aac(sound) {
+            if sealed.is_some() {
+                return Err(PACKED_BESIDE_SEALED.into());
+            }
             match texts {
                 Texts::Hls(texts) => {
                     let place = move |clock| texts.timed_on(clock);
@@ -75,6 +89,17 @@ pub(super) async fn join_files(
         } else if crate::tsmux::is_transport_stream(picture)
             && crate::tsmux::is_transport_stream(sound)
         {
+            let heard = super::sealed::locks_beside(sound).await?;
+            if sealed.is_some() || heard.is_some() {
+                let locks = [sealed.unwrap_or_default(), heard.unwrap_or_default()];
+                let place = move |clock| match texts {
+                    Texts::Hls(texts) => texts.timed_on(clock),
+                    Texts::Timed(_) => Vec::new(),
+                };
+                let (seen, said, out) = (picture.clone(), sound.clone(), partial.to_path_buf());
+                return crate::tsmux::join_ts_clear_with_text_async(seen, said, out, locks, place)
+                    .await;
+            }
             match texts {
                 Texts::Hls(texts) => {
                     let place = move |clock| texts.timed_on(clock);

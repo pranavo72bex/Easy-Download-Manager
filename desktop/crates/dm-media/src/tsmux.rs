@@ -306,7 +306,7 @@ pub use headers::picture_size;
 pub(crate) use headers::*;
 pub use packed::{
     is_packed_aac, is_transport_stream, join_packed, join_packed_with_text, join_ts,
-    join_ts_with_text,
+    join_ts_clear_with_text, join_ts_with_text,
 };
 pub use replay::Segments;
 use replay::*;

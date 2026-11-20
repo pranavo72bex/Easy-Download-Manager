@@ -8,6 +8,8 @@
 
 use super::*;
 
+use dm_media::sealed::{Lock, Locks};
+
 /// A live stream recorded as it goes: its playlist asked for again at the
 /// pace its segments come (half their length), each segment not yet
 /// written fetched once, by its sequence number, decrypted where it is
@@ -112,11 +114,13 @@ pub(super) async fn record_live(
     let picture_at = picture.path.clone();
     let recorded = picture.written.is_some();
     let mut remapped = picture.remapped;
+    let mut locks = [Locks(std::mem::take(&mut picture.locks)), Locks::default()];
     drop(picture);
     // The sound is joined only where some of it was written whole.
     let sound_at = match heard {
         Some(mut track) => {
             remapped |= track.remapped;
+            locks[1] = Locks(std::mem::take(&mut track.locks));
             let whole = track.out.flush().await.is_ok();
             (whole && track.written.is_some()).then(|| track.path.clone())
         }
@@ -128,6 +132,16 @@ pub(super) async fn record_live(
     }
     steps::kept_or_cleared(ended, recorded, &picture_at, &sound_file).await?;
     flushed?;
+    // Samples scrambled by SAMPLE-AES are put in the clear once the recording ends (gaps row Y16).
+    if locks.iter().any(Locks::any) {
+        let recording = live_sealed::Recorded {
+            picture: picture_at,
+            sound: sound_at,
+            filename,
+            remapped,
+        };
+        return live_sealed::place(recording, locks, options).await;
+    }
     steps::place_live(picture_at, sound_at, filename, remapped, options).await
 }
 
@@ -157,6 +171,10 @@ struct LiveTrack {
     remapped: bool,
     /// Each key fetched once, by its address.
     keys: std::collections::HashMap<String, Vec<u8>>,
+    /// Bytes written to the file so far, and the lock of each segment by where it starts in it:
+    /// the key and vector of one whose samples are scrambled by SAMPLE-AES, `None` for the rest.
+    at: u64,
+    locks: Vec<(u64, Lock)>,
     /// Rounds in a row the playlist did not answer.
     misses: u32,
     /// Segments the playlist moved past before they were fetched.
@@ -178,6 +196,8 @@ impl LiveTrack {
             init_written: None,
             remapped: false,
             keys: std::collections::HashMap::new(),
+            at: 0,
+            locks: Vec::new(),
             misses: 0,
             missed: 0,
             done: false,
@@ -236,6 +256,8 @@ impl LiveTrack {
                     break;
                 };
                 self.out.write_all(&body).await?;
+                self.locks.push((self.at, None));
+                self.at += body.len() as u64;
                 downloaded.fetch_add(body.len() as u64, Ordering::Relaxed);
                 self.remapped |= self.init_written.is_some();
                 self.init_written = Some((init.url.clone(), init.range));
@@ -247,11 +269,8 @@ impl LiveTrack {
             else {
                 break;
             };
+            let mut lock = None;
             let bytes = match part.key.as_ref() {
-                // Turned to SAMPLE-AES part-way: a recording is never joined whole to clear it.
-                Some(declared) if declared.sample => {
-                    return Err(Error::Internal(LIVE_SAMPLED.into()));
-                }
                 Some(declared) => {
                     if !self.keys.contains_key(&declared.uri) {
                         let key = fetch_capped(client, &declared.uri, 1024, options)
@@ -264,11 +283,24 @@ impl LiveTrack {
                         .get(&declared.uri)
                         .map(Vec::as_slice)
                         .unwrap_or(&[]);
-                    stream::decrypt(key, &stream::iv_for(declared, part.sequence), &body)?
+                    let iv = stream::iv_for(declared, part.sequence);
+                    if declared.sample {
+                        // Written as it came; its samples are put in the clear when the
+                        // recording ends, by where it starts in the file (gaps row Y16).
+                        let key: [u8; 16] = key
+                            .try_into()
+                            .map_err(|_| Error::Internal("a stream key must be 16 bytes".into()))?;
+                        lock = Some((key, iv));
+                        body
+                    } else {
+                        stream::decrypt(key, &iv, &body)?
+                    }
                 }
                 _ => body,
             };
             self.out.write_all(&bytes).await?;
+            self.locks.push((self.at, lock));
+            self.at += bytes.len() as u64;
             downloaded.fetch_add(bytes.len() as u64, Ordering::Relaxed);
             if let Some(last) = self
                 .written

@@ -120,8 +120,14 @@ async fn fetch_track(
     let parts: Vec<PathBuf> = (first..first + track.pieces.len())
         .map(|i| part_path(&options.parts_dir, i))
         .collect();
+    // Where each piece starts once gathered, read before the pieces are freed into it, for
+    // samples scrambled by SAMPLE-AES (gaps row Y16).
+    let sealed = super::sealed::sealed_locks(track, first, &options.parts_dir).await?;
     let partial = options.parts_dir.join(format!("track{n}.partial"));
     join_parts(&parts, None, &partial, &options.control).await?;
+    if let Some(locks) = sealed {
+        super::sealed::clear_gathered(&partial, &gathered, locks).await?;
+    }
     fs::rename(&partial, &gathered).await?;
     Ok(gathered)
 }
@@ -142,8 +148,10 @@ async fn fetch_piece(
     options.control.check()?;
     let staging = done.with_extension("partial");
     let client = &crate::second_path::client_for_piece(client, &options.parts_dir, index);
-    // One in the clear is written as it comes, not held whole first (gaps row Y17).
-    if piece.lock.is_none() {
+    // One in the clear is written as it comes, not held whole first (gaps row Y17); so is one
+    // whose samples are scrambled (SAMPLE-AES), put in the clear once gathered (gaps row Y16).
+    let lock = piece.lock.as_ref().filter(|l| !l.sample);
+    if lock.is_none() {
         let written = retry::run_up_to(&options.control, options.tries(), || {
             hls::fetch_segment_to(client, &piece.url, piece.range, options, &staging)
         })
@@ -156,7 +164,7 @@ async fn fetch_piece(
         hls::fetch_segment_range(client, &piece.url, piece.range, options)
     })
     .await?;
-    let body = match &piece.lock {
+    let body = match lock {
         Some(lock) => stream::decrypt(&lock.key, &lock.iv, &body)?,
         None => body,
     };

@@ -78,14 +78,32 @@ pub fn join_ts_with_text<F>(
 where
     F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
 {
+    let clear = crate::sealed::Locks::default();
+    join_ts_clear_with_text(picture, sound, out, [&clear, &clear], place)
+}
+
+/// [`join_ts_with_text`] of a picture and a sound scrambled by HLS's SAMPLE-AES (gaps row Y16),
+/// each put in the clear as it is read with the locks of its own stream's segments (`locks`,
+/// the picture's then the sound's, by where each segment starts in its file), as
+/// [`to_mp4_clear`](super::to_mp4_clear) clears one stream. A stream in the clear takes no locks.
+pub fn join_ts_clear_with_text<F>(
+    picture: &Path,
+    sound: &Path,
+    out: &Path,
+    locks: [&crate::sealed::Locks; 2],
+    place: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(Clock) -> Vec<crate::subtitles::Subtitle>,
+{
     let scratch = |what: &str| {
         let mut name = out.as_os_str().to_owned();
         name.push(format!(".{what}"));
         PathBuf::from(name)
     };
     let scratch_sound = |what: &str| scratch(&format!("sound-{what}"));
-    let mut streams = read_ts(picture, &scratch)?;
-    let heard = read_ts(sound, &scratch_sound);
+    let mut streams = read_ts_locked(picture, &scratch, locks[0])?;
+    let heard = read_ts_locked(sound, &scratch_sound, locks[1]);
     let result = (|| {
         let heard = heard?;
         let keep = |streams: Vec<Elementary>, picture: bool| -> Vec<Elementary> {

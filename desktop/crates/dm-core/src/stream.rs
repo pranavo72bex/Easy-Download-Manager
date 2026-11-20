@@ -310,7 +310,7 @@ pub fn beyond_dm(
     // A key that changes part-way is each segment's own (`Part::key`), fetched once each, as
     // a player does (gaps row Y16): refused before. So is an initialisation segment that
     // changes part-way (an advert break): each starts a run of its own, decoded with its own
-    // (`media_playlist`, `mp4mux`'s runs); a pair of playlists still refuses it (`changes_map`).
+    // (`media_playlist`, `mp4mux`'s runs), in a pair too; a live pair refuses it (`changes_map`).
     /* An initialisation segment listed under an AES-128 key is encrypted with it;
      * `METHOD=NONE` encrypts nothing, and SAMPLE-AES scrambles the samples, never the
      * initialisation segment. */
@@ -339,8 +339,8 @@ pub fn beyond_dm(
 /// Whether a media playlist's initialisation segment changes part-way: a second, different one
 /// belongs to the segments after it. Restated unchanged it is still one, however it is written:
 /// compared as the addresses they resolve to, so `URI="i.mp4"` and `URI="./i.mp4"`, or the same
-/// line with its attributes in another order, are one segment. A single playlist is joined run
-/// by run (gaps row Y16); a pair of them is not, and is refused.
+/// line with its attributes in another order, are one segment. A playlist is joined run by run,
+/// alone or in a pair (gaps row Y16); a live pair's recording is not, and is refused.
 pub fn changes_map(media: &str, media_url: &str) -> bool {
     let maps: std::collections::BTreeSet<String> = lines(media)
         .iter()
@@ -355,8 +355,8 @@ pub fn changes_map(media: &str, media_url: &str) -> bool {
 }
 
 /// Whether a media playlist's samples are scrambled by SAMPLE-AES: put in the clear once its
-/// segments are joined (gaps row Y16), which a live recording or a pair of playlists does not
-/// do, and refuses.
+/// segments are joined, alone or in a pair (gaps row Y16), which a live recording does not do,
+/// and refuses.
 pub fn sample_scrambled(media: &str) -> bool {
     lines(media).iter().any(|l| {
         l.to_ascii_uppercase().starts_with("#EXT-X-KEY")

@@ -9,6 +9,7 @@ use crate::dash::{self, Medium, Track};
 
 mod fetching;
 mod joins;
+mod sealed;
 mod text;
 
 use fetching::fetch_tracks;
@@ -165,8 +166,8 @@ async fn check_seams(
     Ok(periods - keep.len())
 }
 
-/// An HLS picture and sound kept in playlists of their own (plain
-/// fragmented MP4 on both sides), fetched and joined as the two tracks of a
+/// An HLS picture and sound kept in playlists of their own (fragmented MP4 on
+/// both sides, or a transport-stream picture), fetched and joined as the two tracks of a
 /// DASH stream are. `texts` are the stream's subtitles, carried inside (gaps row Y20).
 pub(super) async fn download_pair(
     client: &reqwest::Client,
@@ -177,42 +178,30 @@ pub(super) async fn download_pair(
     options: &Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
 ) -> Result<Finished, Error> {
-    // A key is fetched once for the stream it opens, then each piece is
-    // given it with the vector its own number makes (the initialisation
-    // segment is never scrambled).
-    let (picture_key, sound_key) = tokio::try_join!(
-        key_of(client, picture, options),
-        key_of(client, sound, options)
+    /* Each key once, by its address, and each segment given its own with the vector its own
+     * number makes: a key may change part-way, as may the initialisation segment, which leads
+     * the segments after it (each run read with its own, `mp4mux`'s runs). Samples scrambled by
+     * SAMPLE-AES are put in the clear track by track (`sealed`, gaps row Y16). */
+    let (picture_keys, sound_keys) = tokio::try_join!(
+        hls::fetch_keys(client, picture, options),
+        hls::fetch_keys(client, sound, options)
     )?;
-    let track = |medium, s: &stream::Stream, key: &Option<(stream::Key, Vec<u8>)>| Track {
-        medium,
-        id: String::new(),
-        bandwidth: 0,
-        height: 0,
-        webm: false,
-        indexed: None,
-        seams: Vec::new(),
-        pieces: s
-            .parts
-            .iter()
-            .map(|p| dash::Piece {
-                url: p.url.clone(),
-                range: p.range,
-                lock: match key {
-                    Some((declared, bytes)) if !p.init => Some(dash::Lock {
-                        key: bytes.clone(),
-                        iv: stream::iv_for(declared, p.sequence),
-                    }),
-                    _ => None,
-                },
-                millis: (p.duration * 1000.0).round() as u64,
-            })
-            .collect(),
-    };
     let tracks = [
-        track(Medium::Video, picture, &picture_key),
-        track(Medium::Audio, sound, &sound_key),
+        sealed::hls_track(Medium::Video, picture, &picture_keys),
+        sealed::hls_track(Medium::Audio, sound, &sound_keys),
     ];
+    // Runs, each with its own set-up, are joined by the MP4 writer, which keeps every one's.
+    let runs = |s: &stream::Stream| s.parts.iter().filter(|p| p.init).count() > 1;
+    let mp4_only;
+    let options = if runs(picture) || runs(sound) {
+        mp4_only = Options {
+            container: None,
+            ..options.clone()
+        };
+        &mp4_only
+    } else {
+        options
+    };
     let refs: Vec<&Track> = tracks.iter().collect();
     let signature = format!("pair {rendition}");
     // A transport-stream picture is joined into an MP4 all the same.
@@ -247,24 +236,6 @@ pub(super) async fn download_pair(
         report,
     )
     .await
-}
-
-/// The key an HLS stream's segments are scrambled with, fetched once, with
-/// what says which vector each takes.
-async fn key_of(
-    client: &reqwest::Client,
-    s: &stream::Stream,
-    options: &Options,
-) -> Result<Option<(stream::Key, Vec<u8>)>, Error> {
-    match &s.key {
-        Some(declared) => Ok(Some((
-            declared.clone(),
-            fetch_capped(client, &declared.uri, 1024, options)
-                .await?
-                .body,
-        ))),
-        None => Ok(None),
-    }
 }
 
 /// A picture and a sound a player fetched apart (two plain files, as a video
