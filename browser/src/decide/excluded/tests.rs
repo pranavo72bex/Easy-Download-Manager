@@ -238,3 +238,55 @@ fn os_update_servers_and_sticker_cdns_are_never_caught() {
         );
     }
 }
+
+/// The served rules' fallback as the extension meets them: the hello frame read by the probe,
+/// and its rules installed as `web/host.rs` installs them. What the app served adds to the
+/// built-in list; a hello with none (an older app), or with a document in a format this side
+/// does not read, still finds the app, and the built-in list alone decides. (A document that
+/// is missing, older, too large or broken in dm's home is passed over by the app itself:
+/// `dm-shell` `served.rs`.)
+#[test]
+fn a_hello_adds_its_rules_and_one_with_none_or_another_format_leaves_the_built_in_list() {
+    use super::super::{rules, App, Probe};
+    let installed_from = |served: Option<serde_json::Value>| {
+        let mut frame = serde_json::json!({
+            "protocolVersion": 1, "type": "engine.hello", "engineVersion": "9.9.9",
+        });
+        if let Some(served) = served {
+            frame["rules"] = served;
+        }
+        let mut probe = Probe::default();
+        probe.absorb(&frame);
+        let App::Present { hello, .. } = probe.give_up("no settings") else {
+            panic!("the app was not found from its hello: {frame}");
+        };
+        rules::install(hello.rules);
+    };
+    let served_url = "https://cdn.promo-served.example/a/clip.mp4";
+    let built_in_url = "https://ad.doubleclick.net/x.mp4";
+
+    installed_from(Some(serde_json::json!({
+        "format": dm_protocol::RULES_FORMAT, "revision": 7,
+        "exclude": { "advert_hosts": ["promo-served.example"] }
+    })));
+    assert!(rules::installed());
+    assert_eq!(address(served_url), Some(Excluded::Advert));
+    assert_eq!(address(built_in_url), Some(Excluded::Advert));
+
+    installed_from(None);
+    assert!(!rules::installed());
+    assert_eq!(address(served_url), None);
+    assert_eq!(address(built_in_url), Some(Excluded::Advert));
+
+    // A newer format with a field this side does not know: the hello is read, its rules not.
+    let newer = dm_protocol::RULES_FORMAT + 1;
+    installed_from(Some(serde_json::json!({
+        "format": newer, "revision": 99,
+        "exclude": { "advert_hosts": ["promo-served.example"] },
+        "patterns": [{ "match": "*" }]
+    })));
+    assert!(!rules::installed());
+    assert_eq!(address(served_url), None);
+    assert_eq!(address(built_in_url), Some(Excluded::Advert));
+    rules::install(None);
+}

@@ -686,6 +686,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             links = "".join(f'<p><a id="{n}" href="/files/{n}">{n}</a></p>' for n in
                             ("caught.bin", "notes.txt", "kept.zip", "private.bin", "absent.bin",
                              "alt.bin", "off.bin", "forced.txt", "paused.bin", "resumed.bin", "small.pdf", "small-shown.pdf", "small.bin",
+                             "served-beacon.bin",
                              "paced.bin", "quick.bin", "quick2.bin", "quick3.bin", LONG))
             page = f"<!doctype html><title>dm check</title>{links}".encode()
             self.send_response(200)
@@ -1062,6 +1063,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     check("an answer the page fetched before the rules arrived (document_start) is read once they do, and its "
           "stream is listed (row 69)", bool(reply),
           str(reply)[:400] if reply else f"not listed in {time.time() - began:.0f} s; last reply {str(last.get('reply'))[:300]}")
+    answer_rule_checks(origin, worker, tab_id)
 
     # 119: a picture and a sound fetched in ranges become one line.
     tab = panel_page(base, origin, "/pieces.html")
@@ -1105,6 +1107,47 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     got = wait_for(lambda: len([n for n in want if any(u.endswith("/" + n) for u in set(queued()) - before)]) == len(want), 20)
     check("'Download all links' also takes an <area>, an image, a frame and an address written in a script (row 123)",
           bool(got), str([u for u in set(queued()) - before]))
+
+
+def answer_rule_checks(origin, worker, tab_id):
+    """An answer handed to the worker as the page script hands it (`dm.page-answer`) is read only
+    where the served rules name the page's site and the request, and only as JSON of at most
+    1 MiB: each handed for the same tab, then the panel's list for the tab asked."""
+    other_site = origin.replace("127.0.0.1", "localhost")
+
+    def hand(page, asked, body_js):
+        worker.evaluate(
+            f"dmReady.then(m => m.on_page_message({{type: 'dm.page-answer', url: '{origin}{asked}',"
+            f" body: {body_js}}}, {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{page}/early.html'}}))")
+
+    def stream(name, pad=0):
+        url = json.dumps(f"https://cdn.example/answers/{name}.m3u8")
+        padding = f", pad: 'x'.repeat({pad})" if pad else ""
+        return f"JSON.stringify({{stream: {url}{padding}}})"
+
+    hand(origin, "/api/early?v=21", stream("named"))
+    hand(origin, "/api/other?v=22", stream("unnamed-request"))
+    hand(other_site, "/api/early?v=23", stream("other-site"))
+    hand(origin, "/api/early?v=24", json.dumps("stream=https://cdn.example/answers/not-json.m3u8"))
+    hand(origin, "/api/early?v=25", stream("too-large", 1024 * 1024))
+
+    def listed():
+        reply = worker.evaluate(
+            f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/early.html'}},"
+            f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/early.html'}}))")
+        return [c.get("url") or "" for c in (reply or {}).get("choices", [])]
+
+    def named_listed():
+        urls = listed()
+        return urls if any("answers/named" in u for u in urls) else None
+    urls = wait_for(named_listed, 30) or listed()
+    check("an answer the served rules name, for their site's page, gives its stream to the panel",
+          any("answers/named" in u for u in urls), str(urls)[:400])
+    for name, what in (("unnamed-request", "a request the site's rules do not name"),
+                       ("other-site", "the same request from a page of a site the rules do not name"),
+                       ("not-json", "an answer that is not JSON"),
+                       ("too-large", "an answer over 1 MiB")):
+        check(f"{what} gives the panel nothing", not any(f"answers/{name}" in u for u in urls), str(urls)[:400])
 
 
 def placement_checks(base, origin):
@@ -1558,7 +1601,9 @@ def main():
         "popups_version": 2,
     }), encoding="utf-8")
     (engine_home / "rules.json").write_text(json.dumps({
-        "format": 1, "revision": 999, "exclude": {},
+        "format": 1, "revision": 999,
+        # A file name the app serves as never caught, though its type is one the app catches.
+        "exclude": {"tracker_files": ["served-beacon.bin"]},
         "sites": [{"host": "127.0.0.1",
                    # A request whose JSON answer names the stream (gaps row 69).
                    "answers": [{"url_contains": "/api/early", "keys": ["stream"]}],
@@ -2000,6 +2045,16 @@ def main():
         kept = wait_for(lambda: whole(browser_dl, "kept.zip"), 60)
         check("the app's settings decide: a .zip stays when they list only .bin",
               kept and not (engine_dl / "kept.zip").exists())
+
+        # 4a. The rules the app serves in its hello (rules.json in its home, newer than the
+        # shipped ones) are added to the extension's own never-caught list: a .bin they name
+        # stays with the browser, though the app's types catch .bin.
+        click(base, origin, "served-beacon.bin")
+        kept = wait_for(lambda: whole(browser_dl, "served-beacon.bin"), 60)
+        check("a file the app's served rules name as never caught stays with the browser",
+              kept and not (engine_dl / "served-beacon.bin").exists(),
+              f"dm folder: {sorted(p.name for p in engine_dl.iterdir())}; "
+              f"browser folder: {sorted(p.name for p in browser_dl.iterdir())}")
 
         # The popup's "Take every download from this site": a type the
         # app's rules leave is taken all the same, and only while listed.

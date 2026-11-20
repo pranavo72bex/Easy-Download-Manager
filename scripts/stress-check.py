@@ -1872,6 +1872,8 @@ def p_hidden(ctx):
             files = {f"{where}{i}.bin": (f"{where}{i}", 4 * MB) for i in range(2)}
             dm.add([f"{base}/f/{seed}/{size}/{name}?rate={128 * 1024}" for name, (seed, size) in files.items()])
             wait_for(lambda: len(dm.rows()) == 2, 10)
+            # Where the window stands before it is put away (screen points, from the top left).
+            stood = (dm.call("ui.windows").get("result") or {}).get("main")
             put = dm.call("ui.window", to=where)
             check("hidden", f"{where}: the window can be put there", put.get("ok"), str(put))
             time.sleep(1.5)
@@ -1908,6 +1910,15 @@ def p_hidden(ctx):
             seen = (dm.call("ui.inspect").get("result") or {})
             check("hidden", f"{where}: shown again, its rows say what the queue says", current and not seen.get("hidden"),
                   f"rows {[(x['id'], x['status']) for x in seen.get('rows', [])]}; hidden {seen.get('hidden')}")
+            if where == "tray":
+                # Back from the tray where it was, as the system's window manager puts it back.
+                def back_where_it_stood():
+                    now = (dm.call("ui.windows").get("result") or {}).get("main")
+                    same = stood and now and all(abs(a - b) <= 1 for a, b in zip(stood, now))
+                    return now if same else None
+                came = wait_for(back_where_it_stood, 5, every=0.1)
+                check("hidden", "tray: shown again, the window is where it stood before", bool(came),
+                      f"before {stood}; after {(dm.call('ui.windows').get('result') or {}).get('main')}")
         finally:
             dm.stop()
             shutil.rmtree(dm.out, ignore_errors=True)
