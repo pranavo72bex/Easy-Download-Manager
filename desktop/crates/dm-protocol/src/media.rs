@@ -230,11 +230,11 @@ pub fn signed_again(a: &str, b: &str) -> bool {
     if path_a != path_b || !path_a.starts_with("http") {
         return false;
     }
-    let names = |query: &[(&str, &str)]| {
+    fn names<'a>(query: &[(&'a str, &'a str)]) -> Vec<&'a str> {
         let mut names: Vec<&str> = query.iter().map(|(n, _)| *n).collect();
         names.sort_unstable();
         names
-    };
+    }
     let value = |query: &[(&str, &str)], name: &str| {
         query
             .iter()
