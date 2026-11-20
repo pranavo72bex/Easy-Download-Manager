@@ -25,7 +25,7 @@ set -euo pipefail
 apk=${1:?the APK}
 out=${2:?the folder for what was seen}
 pkg=com.dm.android
-activity=dev.gpui.mobile.GpuiInputActivity
+activity=com.dm.android.DmActivity
 probe=dm-ci-probe.bin
 port=8765
 mkdir -p "$out"

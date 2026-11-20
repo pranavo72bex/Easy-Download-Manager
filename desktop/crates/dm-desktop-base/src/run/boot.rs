@@ -237,12 +237,13 @@ pub fn start(
     }
     let started_with = saved.clone();
     let mut backend = Backend::new(runtime.handle().clone(), queue, saved, notices, platform);
-    // A sleeping computer woken for the schedule, where the Scheduler says.
+    // A sleeping computer woken for the schedule, where the Scheduler says; a phone always,
+    // since Android stops an app left idle (its alarm, gaps row N12).
     {
         let settings = backend.settings_handle();
         crate::wake::watch(move || {
             let now = dm_core::lock(&settings).clone();
-            if !now.schedule.wake {
+            if !now.schedule.wake && !cfg!(target_os = "android") {
                 return None;
             }
             let starts: Vec<u32> = now

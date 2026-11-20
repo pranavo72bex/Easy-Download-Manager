@@ -1,6 +1,6 @@
-// dm's APK: the activity (gpui-mobile's GpuiInputActivity, a NativeActivity) and the
-// Rust library it loads, libdm_android.so, which cargo-ndk puts in
-// src/main/jniLibs/<abi>/ first (docs/android.md):
+// dm's APK: the activity (dm's DmActivity over gpui-mobile's GpuiInputActivity, a
+// NativeActivity), dm's service and receivers, and the Rust library they load,
+// libdm_android.so, which cargo-ndk puts in src/main/jniLibs/<abi>/ first (docs/android.md):
 //
 //   cd desktop
 //   cargo ndk --platform 26 -t arm64-v8a -o crates/dm-android/android/app/src/main/jniLibs \
@@ -62,8 +62,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // The Java classes live beside the crate (desktop/crates/dm-android/java): gpui-mobile's
-    // GpuiInputActivity (the activity) and GpuiPathPicker, which gpui-android calls by name.
+    // The Java classes live beside the crate (desktop/crates/dm-android/java), all of it
+    // compiled: gpui-mobile's GpuiInputActivity and GpuiPathPicker (dev/gpui/mobile), which
+    // gpui-android calls by name, and dm's own (com/dm/android: DmActivity, DmService,
+    // DmActionReceiver, DmBootReceiver), each handing its events to Rust (gaps rows N5, N6, N12).
     sourceSets {
         getByName("main") {
             java.srcDirs("../../java")

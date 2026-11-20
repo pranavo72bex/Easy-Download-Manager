@@ -3,18 +3,23 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! dm on the phone: `android_main`, which the activity (gpui-mobile's `GpuiInputActivity`, a
-//! NativeActivity, in `java/`) starts through android-activity. It hands dm's window the phone's
+//! dm on the phone: `android_main`, which the activity (`com.dm.android.DmActivity`, gpui-mobile's
+//! `GpuiInputActivity`, a NativeActivity, in `java/`) starts through android-activity. It hands dm's window the phone's
 //! services (`crate::phone`, over `java`), sets dm's folders, and runs dm-gpui's own window
 //! (`dm_gpui::run_app`, gaps rows N3, N17) on GPUI's Android platform (gpui-android, N16).
 //! What only a phone has is reached through JNI: the link another app hands over (`intent`),
-//! notifications and the wake lock (`notify`), opening a file (`open`).
+//! notifications and the wake lock (`notify`), opening a file (`open`), the foreground service
+//! (`service`), the notification's buttons, the schedule's alarm and the phone's start
+//! (`receivers`), and the native methods of dm's Java classes (`natives`).
 
 mod intent;
 mod java;
 mod jvm;
+mod natives;
 mod notify;
 mod open;
+mod receivers;
+mod service;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -24,8 +29,7 @@ use android_activity::AndroidApp;
 use gpui_android::android::{jni as gpui_jni, AndroidPlatform, SharedPlatform};
 use jni::{jni_sig, jni_str, JValue};
 
-/// How often the activity's coming back to the front is looked for (a share may have started
-/// it again).
+/// How often the activity's first coming to the front is looked for.
 const LOOK: Duration = Duration::from_millis(500);
 
 /// Where dm's activity hands over (android-activity finds it by this name), on its own thread
@@ -55,6 +59,7 @@ fn android_main(app: AndroidApp) {
     // Each of these only makes the phone friendlier; dm runs without them.
     let _ = open::allow_file_uris();
     let _ = notify::channels();
+    receivers::dm_started(home.clone());
     let platform = gpui_jni::init_platform(&app);
     watch(Arc::clone(platform), home.join("torrents"));
     dm_gpui::run_app(&[], || {
@@ -82,28 +87,20 @@ fn folders(app: &AndroidApp) -> Result<PathBuf, String> {
     Ok(home)
 }
 
-/// Watches, on a thread of its own, for the activity coming to the front: the first time (dm's
-/// window is up) the permissions are asked for, and each time what the activity's intent hands
-/// over goes to dm's window (`intent`), so a link shared to dm, at its start or later, appears
-/// in the window as a browser's does. A `.torrent` is copied into `torrents` first.
+/// Waits, on a thread of its own, for the activity's first coming to the front (dm's window is
+/// up): the permissions are asked for, and what the activity's intent hands over goes to dm's
+/// window (`intent`), so a link shared to dm as it starts appears in the window as a browser's
+/// does. A `.torrent` is copied into `torrents` first. A link shared later comes to the running
+/// activity as a new intent (`DmActivity.onNewIntent`, `natives`), so the thread then ends.
 fn watch(platform: Arc<AndroidPlatform>, torrents: PathBuf) {
     let watched = std::thread::Builder::new()
         .name("dm-intent".into())
         .spawn(move || {
-            let mut was_active = false;
-            let mut asked = false;
-            loop {
+            while !platform.is_active() {
                 std::thread::sleep(LOOK);
-                let active = platform.is_active();
-                if active && !was_active {
-                    if !asked {
-                        let _ = notify::ask_permissions();
-                        asked = true;
-                    }
-                    intent::take(&torrents);
-                }
-                was_active = active;
             }
+            let _ = notify::ask_permissions();
+            intent::take(&torrents);
         });
     if let Err(e) = watched {
         dm_core::note!(warn, "dm could not watch for shared links: {e}");

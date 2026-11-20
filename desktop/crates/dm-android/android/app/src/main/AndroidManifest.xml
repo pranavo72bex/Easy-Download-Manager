@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  dm's manifest (docs/android.md, gaps rows N1, N5, N6, N14, N16): the package is
+  dm's manifest (docs/android.md, gaps rows N1, N5, N6, N12, N14, N16): the package is
   com.dm.android (app/build.gradle.kts), Android 8.0 (API 26) and up, built against API 35.
-  The activity is gpui-mobile's GpuiInputActivity, a NativeActivity
-  with the soft keyboard's input connection, which loads libdm_android.so and runs its
-  android_main.
+  The activity is dm's DmActivity, gpui-mobile's GpuiInputActivity (a NativeActivity with the
+  soft keyboard's input connection, which loads libdm_android.so and runs its android_main)
+  with a new intent handed to Rust. dm's service and receivers (java/com/dm/android) each hand
+  their events to Rust and do nothing else (the maintainer's word, 2026-11-20).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -12,6 +13,16 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Held while a download runs, so the processor does not sleep under it (gaps row N6). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The foreground service that keeps dm's process while it downloads (gaps row N6,
+         src/android/service.rs). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- The phone's start: the schedule's alarm set again, downloads to go on with said
+         (gaps row N12, src/android/receivers.rs). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- The schedule's start as an exact alarm; without it (Android 13 and up do not grant it
+         by themselves) an inexact one, which Android may put off a little (gaps row N12). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Asked for at start on Android 13 and up (src/android/notify.rs, ask_permissions). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Android 10 and up let an app write its own files to the public Download folder
@@ -38,9 +49,9 @@
 
         <!-- configChanges: the window is drawn again on these rather than the activity made
              anew (which would start android_main a second time). singleTask: one dm; a link
-             shared while it runs goes to the running one. -->
+             shared while it runs goes to the running one, as a new intent (gaps row N5). -->
         <activity
-            android:name="dev.gpui.mobile.GpuiInputActivity"
+            android:name="com.dm.android.DmActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|density|uiMode|locale|fontScale"
             android:exported="true"
             android:launchMode="singleTask"
@@ -100,6 +111,30 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|density|uiMode"
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Keeps dm's process while it downloads, with the ongoing notification (gaps row
+             N6). Started and stopped by dm itself, never by another app. -->
+        <service
+            android:name="com.dm.android.DmService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- A notification's Retry, Stop All and Open, and the schedule's alarm: dm's own
+             PendingIntents alone reach it (gaps rows N6, N12). -->
+        <receiver
+            android:name="com.dm.android.DmActionReceiver"
+            android:exported="false" />
+
+        <!-- The phone's start (gaps row N12): only the system sends BOOT_COMPLETED, and a
+             sender must hold RECEIVE_BOOT_COMPLETED. -->
+        <receiver
+            android:name="com.dm.android.DmBootReceiver"
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

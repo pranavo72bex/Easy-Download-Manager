@@ -14,6 +14,7 @@ use super::*;
 #[derive(Default)]
 struct Recorded {
     calls: Mutex<Vec<String>>,
+    now: Mutex<i64>,
 }
 
 impl Recorded {
@@ -25,6 +26,10 @@ impl Recorded {
 impl Java for Arc<Recorded> {
     fn post(&self, title: &str, body: &str, open: Option<&str>) -> Result<(), String> {
         self.said(format!("post {title} / {body} / {open:?}"));
+        Ok(())
+    }
+    fn post_failed(&self, title: &str, body: &str, row: u64) -> Result<(), String> {
+        self.said(format!("failed {title} / {body} / Retry {row}"));
         Ok(())
     }
     fn index(&self, path: &str) -> Result<(), String> {
@@ -55,6 +60,13 @@ impl Java for Arc<Recorded> {
     fn stay_awake(&self, on: bool) -> Result<(), String> {
         self.said(format!("awake {on}"));
         Err("no permission".into())
+    }
+    fn alarm(&self, at: Option<i64>) -> Result<(), String> {
+        self.said(format!("alarm {at:?}"));
+        Ok(())
+    }
+    fn now(&self) -> i64 {
+        *self.now.lock().unwrap()
     }
 }
 
@@ -92,7 +104,7 @@ fn a_finished_file_is_indexed_before_its_notification_and_a_tap_opens_it() {
 }
 
 #[test]
-fn a_message_or_a_failure_is_posted_at_once_and_a_tap_brings_dm_back() {
+fn a_failure_is_posted_at_once_with_retry_and_a_message_without() {
     let (phone, recorded) = phone();
     phone.notify(Note {
         title: "Download failed".into(),
@@ -100,7 +112,43 @@ fn a_message_or_a_failure_is_posted_at_once_and_a_tap_brings_dm_back() {
         path: None,
         retry: Some(7),
     });
-    assert_eq!(calls(&recorded), ["post Download failed / b.zip / None"]);
+    phone.notify(Note {
+        title: "Added".into(),
+        body: "c.zip".into(),
+        path: None,
+        retry: None,
+    });
+    assert_eq!(
+        calls(&recorded),
+        [
+            "failed Download failed / b.zip / Retry 7",
+            "post Added / c.zip / None"
+        ]
+    );
+}
+
+#[test]
+fn the_schedules_alarm_is_set_only_when_its_time_changes() {
+    const MINUTE: i64 = 60_000;
+    let noon = 1_800_000_000_000 - 1_800_000_000_000 % MINUTE;
+    let (phone, recorded) = phone();
+    *recorded.now.lock().unwrap() = noon + 5_000;
+    phone.next_start(Some(30));
+    // A minute later the same start is 29 minutes away: the same alarm, not set again.
+    *recorded.now.lock().unwrap() = noon + MINUTE + 5_000;
+    phone.next_start(Some(29));
+    // The schedule changed: set again; then turned off: cleared, once.
+    phone.next_start(Some(10));
+    phone.next_start(None);
+    phone.next_start(None);
+    assert_eq!(
+        calls(&recorded),
+        [
+            format!("alarm Some({})", noon + 29 * MINUTE),
+            format!("alarm Some({})", noon + 10 * MINUTE),
+            "alarm None".to_owned(),
+        ]
+    );
 }
 
 #[test]

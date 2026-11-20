@@ -27,6 +27,8 @@ dm-desktop-base.workspace = true
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity.workspace = true
 dm-gpui.workspace = true
+# The running dm's inbox, which a notification's Retry and Stop All are left in (gaps row N6).
+dm-shell.workspace = true
 gpui.workspace = true
 gpui-android.workspace = true
 jni.workspace = true

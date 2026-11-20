@@ -26,3 +26,4 @@ mod android;
 pub mod phone;
 #[cfg(any(target_os = "android", test))]
 mod shared;
+pub mod wakeup;

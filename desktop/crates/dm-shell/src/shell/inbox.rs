@@ -81,6 +81,12 @@ pub fn ask_running_to_retry(home: &Path, id: u64) {
     let _ = leave(home, &format!("{RETRY_PREFIX}{id}"), b"");
 }
 
+/// Asks the running dm to stop every download, as Stop All does, through its inbox: a phone's
+/// notification's Stop All, heard by a receiver that has no queue to ask (gaps row N6).
+pub fn ask_running_to_stop_all(home: &Path) -> std::io::Result<()> {
+    leave(home, dm_core::paths::INBOX_STOP_ALL, b"")
+}
+
 /// The row a file in the inbox asks to be tried again, by its name.
 pub fn retry_asked(name: &str) -> Option<u64> {
     name.strip_prefix(RETRY_PREFIX)?.parse().ok()
@@ -167,6 +173,10 @@ pub async fn watch_inbox(
         // A second launch with `--start-queue`.
         if std::fs::remove_file(dir.join(dm_core::paths::INBOX_START_QUEUE)).is_ok() {
             queue.start_queue(dm_core::MAIN_QUEUE).await;
+        }
+        // A phone's Stop All (`ask_running_to_stop_all`): what `Command::StopAll` runs.
+        if std::fs::remove_file(dir.join(dm_core::paths::INBOX_STOP_ALL)).is_ok() {
+            queue.pause_all().await;
         }
 
         let waiting: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)

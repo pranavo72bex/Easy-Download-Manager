@@ -8224,3 +8224,24 @@ and Gradle build); no other Java (N6's service, `onNewIntent`, notification butt
 word of its own. gpui-android is a stand-in, at the maintainer's word of 2026-11-20 ("when offical come we will
 shift but for now use gpui-mobile"): when Zed ships an official GPUI Android platform, dm moves
 to it and removes the copy (docs/gaps.md, Periodic).
+
+## dm's own Java on Android: one small class per feature, each handing its call to Rust (2026-11-20, gaps rows N5, N6, N12)
+
+The maintainer was asked "Allow one small Java file per feature that just hands its call to
+Rust?" and answered "Yes, all four" (2026-11-20). So four classes join gpui-mobile's two, in
+`desktop/crates/dm-android/java/com/dm/android/`, package `com.dm.android`, with dm's licence
+header: `DmActivity` (gpui-mobile's activity with `onNewIntent`, N5), `DmService` (the dataSync
+foreground service, N6), `DmActionReceiver` (a notification's Retry, Stop All and Open, and the
+schedule's alarm; not exported, N6, N12) and `DmBootReceiver` (`BOOT_COMPLETED`, N12). Each does
+nothing but call a `native` method; what happens is Rust's (`src/android/natives.rs`,
+`service.rs`, `receivers.rs`). The native methods are found by exported name
+(`Java_com_dm_android_<Class>_<method>`), as gpui-android's are, not registered from
+`jvm::init`: the service and the receivers can run in a process Android started for them alone,
+where `android_main` never ran, so each class loads the library itself and each native method
+keeps the Java machine and a context first. A notification's button reaches dm through its
+inbox (the path a second launch and the desktop notification's Retry use; Stop All a new
+`stop-all` order that runs what `Command::StopAll` runs), which the engine watches whether or
+not the window is drawn; a channel polled by the window was dropped, since a window in the
+background may not tick. dm-gpui's start needs the activity's window, so neither the phone's
+start nor the schedule's alarm runs dm without it: the alarm holds a running dm up with the
+service, and otherwise, as at the phone's start, a notification asks for a tap.

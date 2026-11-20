@@ -4,8 +4,10 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The phone's notifications (gaps rows N5, N6): dm's two channels, a message (a link added, a
-//! download finished or failed; a finished file's tap opens it), the ongoing one while anything
-//! downloads, the permissions asked for at start, and the partial wake lock held while busy.
+//! download finished or failed; a finished file's tap opens it, a failure's Retry tries it
+//! again), the ongoing one while anything downloads (with Stop All; the foreground service's
+//! own, `service`), the permissions asked for at start, and the partial wake lock held while
+//! busy. A button is a broadcast to dm's `DmActionReceiver` (`receivers`).
 
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Mutex;
@@ -15,21 +17,22 @@ use jni::refs::Global;
 use jni::strings::JNIStr;
 use jni::{jni_sig, jni_str, Env, JValue};
 
-use super::{jvm, open};
+use super::{jvm, open, receivers};
 
 /// Finished, failed and added: a sound, as the desktop's notifications have.
 const DONE: &str = "dm.done";
 /// The ongoing one: no sound, low in the shade.
 const RUNNING: &str = "dm.running";
-/// The ongoing notification's number; the others count up from 100.
-const ONGOING_ID: i32 = 1;
+/// The ongoing notification's number (the foreground service's too); the others count up from
+/// 100.
+pub(crate) const ONGOING_ID: i32 = 1;
 static NEXT_ID: AtomicI32 = AtomicI32::new(100);
 
 /// `NotificationManager.IMPORTANCE_LOW` and `IMPORTANCE_DEFAULT`.
 const IMPORTANCE_LOW: i32 = 2;
 const IMPORTANCE_DEFAULT: i32 = 3;
 /// `PendingIntent.FLAG_IMMUTABLE | FLAG_UPDATE_CURRENT` (immutable is required from Android 12).
-const PENDING_FLAGS: i32 = 0x0400_0000 | 0x0800_0000;
+pub(crate) const PENDING_FLAGS: i32 = 0x0400_0000 | 0x0800_0000;
 /// `PowerManager.PARTIAL_WAKE_LOCK`: the processor stays on, the screen may go off.
 const PARTIAL_WAKE_LOCK: i32 = 1;
 
@@ -133,38 +136,103 @@ pub(crate) fn post(title: &str, body: &str, open: Option<&str>) -> Result<(), St
     })
 }
 
-/// The ongoing notification (gaps row N6): put up, or changed in place, while anything
-/// downloads; a tap brings dm to the front.
-pub(crate) fn ongoing(title: &str, body: &str) -> Result<(), String> {
-    jvm::with("show its progress", |env, context| {
+/// A failed download's message, with a Retry button that tries row `row` again as the
+/// window's Retry does (`receivers`); a tap brings dm to the front.
+pub(crate) fn post_failed(title: &str, body: &str, row: u64) -> Result<(), String> {
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    let retry = dm_desktop_base::i18n::t("Retry");
+    jvm::with("show a notification", |env, context| {
         let tap = launch(env, context)?;
         let builder = builder(
             env,
             context,
-            RUNNING,
-            jni_str!("stat_sys_download"),
+            DONE,
+            jni_str!("stat_notify_error"),
             title,
             body,
         )?;
-        tap_opens(env, context, &builder, &tap, ONGOING_ID)?;
-        set_bool(env, &builder, jni_str!("setOngoing"), true)?;
-        set_bool(env, &builder, jni_str!("setOnlyAlertOnce"), true)?;
-        show(env, context, &builder, ONGOING_ID)
+        tap_opens(env, context, &builder, &tap, id)?;
+        set_bool(env, &builder, jni_str!("setAutoCancel"), true)?;
+        let row = i64::try_from(row).unwrap_or(-1);
+        button(env, context, &builder, retry, receivers::RETRY, row, id)?;
+        show(env, context, &builder, id)
     })
 }
 
-/// Takes the ongoing notification down: nothing downloads.
-pub(crate) fn end_ongoing() -> Result<(), String> {
-    jvm::with("take its progress down", |env, context| {
+/// The ongoing notification (gaps row N6): put up, or changed in place, while anything
+/// downloads; a tap brings dm to the front. While the foreground service runs it is the
+/// service's own (the same number), changed in place here.
+pub(crate) fn ongoing(title: &str, body: &str) -> Result<(), String> {
+    jvm::with("show its progress", |env, context| {
+        let built = ongoing_notification(env, context, title, body)?;
+        let manager = jvm::service(env, context, "notification")?;
+        env.call_method(
+            &manager,
+            jni_str!("notify"),
+            jni_sig!("(ILandroid/app/Notification;)V"),
+            &[JValue::Int(ONGOING_ID), JValue::Object(&built)],
+        )?;
+        Ok(())
+    })
+}
+
+/// The ongoing notification, built: its words, a tap that brings dm to the front, and Stop
+/// All, which stops every download as the window's Stop All does (`receivers`). The foreground
+/// service starts with it (`service`).
+pub(crate) fn ongoing_notification<'local>(
+    env: &mut Env<'local>,
+    context: &JObject<'_>,
+    title: &str,
+    body: &str,
+) -> jni::errors::Result<JObject<'local>> {
+    let stop_all = dm_desktop_base::i18n::t("Stop All");
+    let tap = launch(env, context)?;
+    let builder = builder(
+        env,
+        context,
+        RUNNING,
+        jni_str!("stat_sys_download"),
+        title,
+        body,
+    )?;
+    tap_opens(env, context, &builder, &tap, ONGOING_ID)?;
+    set_bool(env, &builder, jni_str!("setOngoing"), true)?;
+    set_bool(env, &builder, jni_str!("setOnlyAlertOnce"), true)?;
+    button(
+        env,
+        context,
+        &builder,
+        stop_all,
+        receivers::STOP_ALL,
+        -1,
+        ONGOING_ID,
+    )?;
+    env.call_method(
+        &builder,
+        jni_str!("build"),
+        jni_sig!("()Landroid/app/Notification;"),
+        &[],
+    )?
+    .l()
+}
+
+/// Takes notification `id` down (a failure's, once its Retry is pressed).
+pub(crate) fn cancel(id: i32) -> Result<(), String> {
+    jvm::with("take a notification down", |env, context| {
         let manager = jvm::service(env, context, "notification")?;
         env.call_method(
             &manager,
             jni_str!("cancel"),
             jni_sig!("(I)V"),
-            &[JValue::Int(ONGOING_ID)],
+            &[JValue::Int(id)],
         )?;
         Ok(())
     })
+}
+
+/// Takes the ongoing notification down: nothing downloads.
+pub(crate) fn end_ongoing() -> Result<(), String> {
+    cancel(ONGOING_ID)
 }
 
 /// The partial wake lock dm holds while it downloads.
@@ -300,6 +368,36 @@ fn tap_opens(
     Ok(())
 }
 
+/// A button on the notification `builder` makes (number `note`), saying `words`: a tap sends
+/// `action` (with row `row`, -1 for none) to dm's `DmActionReceiver`, which hands it to Rust
+/// (`receivers`).
+fn button(
+    env: &mut Env<'_>,
+    context: &JObject<'_>,
+    builder: &JObject<'_>,
+    words: &str,
+    action: &str,
+    row: i64,
+    note: i32,
+) -> jni::errors::Result<()> {
+    let pending = receivers::broadcast(env, context, action, row, note)?;
+    let words = env.new_string(words)?;
+    // `addAction(int, CharSequence, PendingIntent)`: no icon is drawn on Android 7 and up.
+    env.call_method(
+        builder,
+        jni_str!("addAction"),
+        jni_sig!(
+            "(ILjava/lang/CharSequence;Landroid/app/PendingIntent;)Landroid/app/Notification$Builder;"
+        ),
+        &[
+            JValue::Int(0),
+            JValue::Object(&words),
+            JValue::Object(&pending),
+        ],
+    )?;
+    Ok(())
+}
+
 /// Builds the notification and shows it as number `id` (a second show of a number replaces it).
 fn show(
     env: &mut Env<'_>,
@@ -326,7 +424,7 @@ fn show(
 }
 
 /// The intent that brings dm itself to the front (its launcher's).
-fn launch<'local>(
+pub(crate) fn launch<'local>(
     env: &mut Env<'local>,
     context: &JObject<'_>,
 ) -> jni::errors::Result<JObject<'local>> {

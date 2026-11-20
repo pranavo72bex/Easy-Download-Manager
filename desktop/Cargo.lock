@@ -2058,6 +2058,7 @@ dependencies = [
  "dm-core",
  "dm-desktop-base",
  "dm-gpui",
+ "dm-shell",
  "gpui-android",
  "gpui-pre",
  "jni",

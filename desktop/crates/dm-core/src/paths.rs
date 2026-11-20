@@ -91,6 +91,10 @@ pub const INBOX_NEW_DOWNLOAD: &str = "new-download";
 /// its row's id after it.
 pub const INBOX_RETRY_PREFIX: &str = "retry-";
 
+/// In the inbox: asks a running dm to stop every download (a phone's notification's Stop
+/// All, gaps row N6).
+pub const INBOX_STOP_ALL: &str = "stop-all";
+
 /// The file whose lock says dm is running.
 pub const INSTANCE_LOCK: &str = "instance.lock";
 
