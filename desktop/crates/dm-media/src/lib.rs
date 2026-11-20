@@ -6,9 +6,10 @@
 //! dm's own media code, taken out of the engine (gaps row A6).
 //!
 //! Files in, files out: the MP4, Matroska and transport-stream writers that join a video's
-//! picture and sound, the MP3 and GIF encoders, the AAC and AV1 readers and the subtitles. It
-//! opens no connection, runs no async runtime and uses none of dm's other crates; dm-core calls
-//! it, off its runtime, and keeps the same paths (`dm_core::mp4mux::join` and the rest).
+//! picture and sound, the MP3 and GIF encoders, the AAC and AV1 readers, the Opus decoder and
+//! the subtitles. It opens no connection, runs no async runtime and uses none of dm's other
+//! crates; dm-core calls it, off its runtime, and keeps the same paths
+//! (`dm_core::mp4mux::join` and the rest).
 //! What these modules need from the engine is handed in: the MP3 and the GIF come back as
 //! bytes, which dm-core writes.
 
@@ -38,6 +39,8 @@ pub mod mkvmux;
 pub mod mp3;
 
 pub mod mp4mux;
+
+pub(crate) mod opus;
 
 pub mod shape;
 

@@ -34,8 +34,9 @@ pub fn possible() -> bool {
 }
 
 /// Whether dm can make an MP3 from Opus sound here (a WebM's, as YouTube serves its sound):
-/// on Windows with Media Foundation's Opus decoder, which Windows 10 and 11 carry. macOS
-/// (AudioToolbox reads no WebM) and Linux (no Opus decoder in dm) not yet (gaps row Y25).
+/// on every system, by Media Foundation's Opus decoder on Windows where it has one and by dm's
+/// own elsewhere (`crate::opus`, gaps row Y25), which decodes CELT and says in words that a
+/// track using SILK is not decoded yet.
 pub fn opus_possible() -> bool {
     decode::opus_possible()
 }

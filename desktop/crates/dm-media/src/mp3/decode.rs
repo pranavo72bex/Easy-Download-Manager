@@ -8,7 +8,9 @@
 //! Windows Media Foundation's source reader (`win.rs`), which both read AAC
 //! in an M4A or MP4 (and turn another sample rate into one MP3 has);
 //! Windows' also Opus in a WebM. Elsewhere (Linux) the built-in AAC
-//! decoder, `crate::aac` (`linux.rs`).
+//! decoder, `crate::aac` (`linux.rs`). Opus in a WebM where the system has
+//! no decoder for it (macOS, Linux, a Windows without Media Foundation's) is
+//! read by dm's own, `crate::opus` (gaps row Y25).
 
 use std::path::Path;
 
@@ -41,6 +43,9 @@ pub struct Pcm {
 
 /// `path`'s sound as samples, at most two channels, at a rate MP3 has.
 pub fn read(path: &Path) -> Result<Pcm, Error> {
+    if crate::mkvmux::is_webm(path) && !system::opus_possible() {
+        return crate::opus::read(path);
+    }
     system::read(path)
 }
 
@@ -49,8 +54,9 @@ pub(crate) fn possible() -> bool {
     system::possible()
 }
 
-/// Whether the system's decoder here reads Opus in a WebM
-/// (`super::opus_possible`).
+/// Whether Opus in a WebM is read here (`super::opus_possible`): by the
+/// system's decoder where it has one, else by dm's own, which every system
+/// has.
 pub(crate) fn opus_possible() -> bool {
-    system::opus_possible()
+    true
 }
