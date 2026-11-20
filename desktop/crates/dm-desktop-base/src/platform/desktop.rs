@@ -283,17 +283,17 @@ impl<W: WindowServices> Platform for Desktop<W> {
     }
 
     /// On Linux the chooser is the desktop portal's, else zenity's; with
-    /// neither, the window's panel answers as if cancelled. A phone has none
-    /// dm can open yet. Elsewhere the system has one.
+    /// neither, the window's panel answers as if cancelled. On a phone the
+    /// window's own (gaps row N9): the system's document picker for a file,
+    /// the folders dm can download into for a folder. Elsewhere the system
+    /// has one.
     fn can_choose_folder(&self) -> bool {
         #[cfg(target_os = "linux")]
         return dm_shell::app::backend::chooser_here(
             file_chooser_portal(),
             std::env::var_os("PATH").as_deref(),
         );
-        #[cfg(target_os = "android")]
-        return false;
-        #[cfg(not(any(target_os = "linux", target_os = "android")))]
+        #[cfg(not(target_os = "linux"))]
         true
     }
 }

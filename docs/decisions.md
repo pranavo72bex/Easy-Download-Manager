@@ -8270,6 +8270,7 @@ changing network gets its torrent's peers back without waiting for the tracker's
 finished torrent's sharing, which runs outside the rows, went on sending. Held with them now:
 paused within a tick, its minutes not counted while held, announced afresh when the hold ends.
 Also a desktop change (B76's words name downloads only), flagged in row N8 for the maintainer.
+
 ## On Android 10 and up dm downloads into its own folder and publishes each finished file (2026-11-20, gaps row N9)
 
 Android 10 (API 29) and up let no app write the shared Download folder by path. dm's engine
@@ -8295,3 +8296,49 @@ in row N9; publishing when seeding stops is owed). Dropped: publishing from the 
 its notification already sent); handing the engine a descriptor for every write (N9's first plan,
 which touches every writer in the engine); `requestLegacyExternalStorage` (Android 10 alone, and
 ignored from 11). The storage picker (SAF) for a folder of the person's own is owed.
+
+## On Android the window's choosers are GPUI's file prompt and dm's own folders (2026-11-20, gaps row N9)
+
+dm-gpui asks every file and folder through `platform::services::ask` (and `ask_then`,
+`ask_then_in`); on a computer that is the system's own panel, unchanged. On a phone those used
+to answer as if cancelled (`can_choose_folder` false), so Browse…, Import, Export, Back up dm,
+Restore and Options' Choose… fell back to typing a path, which a phone's scoped storage makes
+meaningless. Now `can_choose_folder` is true on Android and the Android arm
+(`dm-gpui/src/platform/phone.rs`, `ask`) answers each by what dm can do with the answer:
+
+- **A file to read** (Import a list or a `.torrent`, Restore a backup, Load settings, a cookies
+  file, a sound): GPUI's own `prompt_for_paths`. gpui-android answers it with gpui-mobile's
+  `GpuiPathPicker` (ACTION_OPEN_DOCUMENT), which copies the document into the app's cache before
+  the URI's grant ends and hands back that copy's path, never a `content://` address; so dm
+  reads it as any file and needs no ContentResolver copy of its own. Left: a cookies file or a
+  sound kept by path lives in the cache, which Android may clear.
+- **A file to write** (Export, Back up dm, Save settings to a file): gpui-android's
+  `prompt_for_new_path` answers none (no ACTION_CREATE_DOCUMENT), so the file goes to the
+  phone's save folder, the shared `Download/dm` where dm may write there, else the app's own
+  folder on the storage, under the name offered or the first `name (n)` free
+  (`dm_desktop_base::phone::save_place`); the window's existing message ("Exported to …",
+  "Saved to …", the backup's) says where. A create-document picker needs Java of its own,
+  which waits for the maintainer's word.
+- **A folder to download into** (Browse… for the download folder, a category's, the parts
+  folder, Move/Rename, Save to, Choose another folder…, Extract to): only folders dm can write
+  by path, so a segmented download resumes in them: the shared `Download/dm` and the app's own
+  folder (`PhoneServices::download_folders`, found once at start by `dm-android`'s
+  `android/storage.rs`), offered by name in GPUI's prompt, which says "On a phone dm downloads
+  only into these folders."; not the storage picker's trees, whose URIs are no paths (GPUI's
+  picker refuses folders too). The fields stay editable, as on a computer.
+
+What only the phone knows comes through `PhoneServices`' new `download_folders` and
+`save_folder`, which refuse in words by default; dm-gpui calls no JNI. Dropped: writing through
+a SAF URI's output stream (no create-document picker to get one), and a folder tree from SAF as
+a download folder (row N9's own design, on its branch).
+
+**Joined with publishing (2026-11-20, the two N9 branches merged).** One `Storage`
+(`dm-android/src/android/storage.rs`) looks the shared Download folder up once and works out
+`phone::Places` from it (`storage::places`, tested on the host): on Android 10 and up dm
+downloads into its own folder alone (`Android/data/com.dm.android/files/Download/dm`), so
+Browse… offers that one, the first start downloads there and each finished file is published to
+`Download/dm` (above); the shared `Download/dm` is offered for downloads only on 8 and 9, where
+dm writes it by path once storage is allowed. A file dm writes for the person (Export, Back up
+dm) still goes to the shared `Download/dm` where the probe file could be written there (8 and 9
+with the permission, 11 and up, which let an app make its own files there by path), else to dm's
+own folder (`Places::save`); Android 10 alone keeps it in dm's own folder, not published.

@@ -9,6 +9,12 @@
 //! (`Download/dm`), through the publisher the engine asks as a run finishes
 //! (`dm_core::folders::set_publisher`); on 8 and 9 the shared folder by path, as before.
 //!
+//! The folders dm writes by path are found once as dm starts, each made and probed with a
+//! file: the shared `Download/dm` (Android's `Environment.getExternalStoragePublicDirectory`,
+//! looked up once and kept for publishing by path too) and dm's own folder on the storage.
+//! They are where downloads go by default, what Browse… offers and where Export and Back up dm
+//! write on a phone, whose GPUI has no save panel (`crate::phone::Places`).
+//!
 //! The media store's way: the file inserted with `IS_PENDING` 1 (no other app sees it yet),
 //! written through a file descriptor the store lends (the copy is Rust's, in chunks, on the
 //! engine's blocking thread, never the window's), then `IS_PENDING` 0. Its row in the store
@@ -24,20 +30,21 @@ use jni::objects::JObject;
 use jni::{jni_sig, jni_str, Env, JValue};
 
 use super::jvm;
+use crate::phone::Places;
 use crate::storage::{self, Shared, Way};
 
-/// The phone's storage, worked out once at start: dm's private folders and the Android version,
-/// which decide where new downloads go and how a finished file is published. The phone's
-/// `PhoneServices` holds one and answers `publish` with [`Storage::publish`].
+/// The phone's storage, worked out once at start: dm's private folders, the shared Download
+/// folder, the folders dm writes by path and the Android version, which decide where new
+/// downloads go, what Browse… offers and how a finished file is published. The phone's
+/// `PhoneServices` answers `publish` with [`Storage::publish`] (through `java::Jni`) and the
+/// choosers with [`Storage::places`].
 pub(crate) struct Storage {
     /// The folders only dm sees, most particular first.
     private: Vec<PathBuf>,
     /// The phone's shared Download folder, found once.
     public: Option<PathBuf>,
-    /// dm's own download folder on the shared storage, where it could be made and written.
-    own: Option<PathBuf>,
-    /// The app's folder on the shared storage, where it could be made and written.
-    external: Option<PathBuf>,
+    /// The folders dm writes by path.
+    places: Places,
     /// The phone's API level (0 where it could not be read: then by path, as on 8 and 9).
     sdk: i32,
 }
@@ -51,34 +58,35 @@ impl Storage {
         let public = jvm::with("find the Download folder", |env, _| public_downloads_in(env))
             .ok()
             .flatten();
+        let shared = public
+            .as_ref()
+            .map(|public| public.join("dm"))
+            .filter(|shared| writable(shared));
         let own = external
             .as_deref()
             .map(storage::own_downloads)
             .filter(|own| writable(own));
-        let external = external
-            .map(|external| external.join("Download"))
-            .filter(|folder| writable(folder));
         Storage {
             private,
             public,
-            own,
-            external,
+            places: storage::places(sdk, shared, own),
             sdk,
         }
     }
 
+    /// The folders dm writes by path, for the phone's services.
+    pub(crate) fn places(&self) -> &Places {
+        &self.places
+    }
+
     /// Where new downloads go on the first start: on Android 10 and up dm's own folder on the
-    /// shared storage; else the shared `Download/dm` where dm may write it, else the app's
-    /// folder on the shared storage, else one in dm's `home`.
+    /// shared storage; on 8 and 9 the shared `Download/dm` where dm may write it, else dm's
+    /// own folder; else one in dm's `home`.
     pub(crate) fn download_folder(&self, home: &Path) -> PathBuf {
-        let found = self
-            .public
-            .as_ref()
-            .map(|public| public.join("dm"))
-            .filter(|shared| writable(shared))
-            .or_else(|| self.external.clone())
-            .unwrap_or_else(|| home.join("Download"));
-        storage::download_folder(self.sdk, self.own.clone(), found)
+        self.places
+            .first()
+            .cloned()
+            .unwrap_or_else(|| home.join("Download"))
     }
 
     /// The finished `file` put in the shared `Download/dm`, if it is in one of dm's private

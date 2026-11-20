@@ -8,8 +8,8 @@
 //! services (`crate::phone`, over `java`), sets dm's folders, and runs dm-gpui's own window
 //! (`dm_gpui::run_app`, gaps rows N3, N17) on GPUI's Android platform (gpui-android, N16).
 //! What only a phone has is reached through JNI: the link another app hands over (`intent`),
-//! notifications and the wake lock (`notify`), opening a file (`open`), where downloads land
-//! and where a finished one is published (`storage`).
+//! notifications and the wake lock (`notify`), opening a file (`open`), where downloads land,
+//! the folders dm writes by path and where a finished one is published (`storage`).
 
 mod intent;
 mod java;
@@ -55,11 +55,13 @@ fn android_main(app: AndroidApp) {
             std::process::exit(1);
         }
     };
-    // The phone's storage, worked out once: the first start's download folder, and the
-    // publisher the engine asks as each download finishes (`PhoneServices::publish`).
+    // The phone's storage, worked out once (gaps row N9): the first start's download folder,
+    // the folders Browse… offers and Export writes to (`Places`), and the publisher the engine
+    // asks as each download finishes (`PhoneServices::publish`).
     let storage = storage::Storage::new(&app, &home);
     let downloads = storage.download_folder(&home);
-    let phone = crate::phone::Phone::new(java::Jni::new(storage));
+    let places = storage.places().clone();
+    let phone = crate::phone::Phone::new(java::Jni::new(storage)).with_places(places);
     dm_desktop_base::phone::set_phone(Box::new(phone));
     folders(&home, downloads);
     // Each of these only makes the phone friendlier; dm runs without them.
