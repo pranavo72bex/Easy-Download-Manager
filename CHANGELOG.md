@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The benchmark's `wan` case runs over TLS: dm trusts the harness's certificate named by `DM_BENCH_CA`, a test switch.
 - dm's own crates no longer use chrono (flagged unmaintained): dates and the local time come from dm's own clock, reading every date as before.
 - Linux (Wayland without XWayland): Copy link and Copy details put the text on the clipboard.
 - The row menu is the system's own menu: the system's keyboard, each item's key shown on Windows and Linux, groups that do not apply to the chosen downloads left out; Delete file after is a submenu.

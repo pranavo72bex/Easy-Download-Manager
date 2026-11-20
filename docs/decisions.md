@@ -8120,3 +8120,11 @@ On Linux under Wayland (`WAYLAND_DISPLAY` set) dm's own copies go through GPUI's
 
 `dm_net::clock` (dm-net is the lowest crate the four share; dm-core re-exports it) with no new crate: libc on Unix, windows-sys (its `Win32_System_Time` feature) on Windows. Unix: `localtime_r`'s `tm_gmtoff`, `tzset` declared by hand and called at most once a second, as chrono looks again (glibc would keep the first zone for the process). Windows: `GetTimeZoneInformationForYear` and `SystemTimeToTzSpecificLocalTime`, so an old date gets its year's rules, as chrono gave; outside 1601 to 30827 the local time is None (chrono clamped). The parsers copy chrono 0.4.45's grammar item by item (2- and 3-digit years, named and military zones, nested comments, the offset's colon in RFC 3339, signed years and leading space in `%` patterns), so every date read before reads the same. `time` and `jiff` were looked at and not taken (row 215's note of 2026-11-19).
 
+## Extra trusted roots once, before the first TLS config (2026-11-20, gaps row 217)
+
+`DM_BENCH_CA` is read by dm-core (dm-net reads no `DM_` switch, the layers rule) at `boot::start`, before `share_one_client` builds the first client, and handed to `dm_net::trust::trust_also`, which refuses once the cached config exists rather than rebuild it. It works in release builds because the benchmark measures them; whether a shipped dm should honour it is left to the security review.
+
+## Download notes named (2026-11-20)
+
+`dm_core::download::notes` names each note (`PARTS_LEFT_OUT`, `UNPACKED`, …) and builds `NOTES` from them in the same order; no `NOTES[n]` index is left in the code, as one once sent the wrong sentence (07c56e68).
+
