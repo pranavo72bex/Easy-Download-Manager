@@ -50,7 +50,6 @@ fn a_missing_file_is_said_from_the_last_look_not_the_disk() {
 /// A row held by the download limit or the schedule says until when (gaps row U7).
 #[test]
 fn a_held_row_says_until_when() {
-    use chrono::Datelike;
     let held = row(State::Paused, true);
     set_limit_holds(true);
     set_hold_times(
@@ -64,7 +63,7 @@ fn a_held_row_says_until_when() {
     );
     set_limit_holds(false);
     // Open only three days on, an hour after midnight: closed now.
-    let today = chrono::Local::now().weekday().num_days_from_sunday();
+    let today = dm_core::clock::local_now().weekday_from_sunday();
     let schedule = dm_core::Schedule {
         enabled: true,
         from: "01:00".into(),

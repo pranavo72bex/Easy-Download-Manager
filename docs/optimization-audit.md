@@ -185,7 +185,7 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 | Record compiler version, target triple, features and dependency revisions with benchmark results | NOT MET (row 188) | `bench.mjs` records the OS, CPU, memory, Node and the binary's size and date (`bench/bench.mjs:386-395`). It does not record the commit, rustc, the target, the profile, the GPU or the display scale |
 | Pin GPUI to a known revision | MET | `gpui = { package = "gpui-pre", version = "=0.3.12" }`, `gpui-component = "=0.9.1"` (`g/Cargo.toml`). One patched copy is vendored (`desktop/vendor/gpui-pre-linux`) |
 | Commit Cargo.lock; no floating git branches | MET | `desktop/Cargo.lock` and `browser/Cargo.lock` are tracked, and every source is the registry (no `source = "git`). CI builds with `--locked` |
-| Review unnecessary default features | MET | `reqwest`, `tokio-rustls`, `chrono`, `librqbit`, `zip`, `tray-icon`, `image`, `eframe` and `objc2-*` are built with `default-features = false`. GPUI keeps its four defaults (font-kit, wayland, x11, windows-manifest), which dm uses |
+| Review unnecessary default features | MET | `reqwest`, `tokio-rustls`, `librqbit`, `zip`, `tray-icon`, `image`, `eframe` and `objc2-*` are built with `default-features = false`. GPUI keeps its four defaults (font-kit, wayland, x11, windows-manifest), which dm uses |
 | Track each dependency's compile time and binary-size contribution | NOT MET (row 190) | No `cargo bloat` or `--timings` record is kept |
 | Update dependencies in controlled batches | MET | Dependabot, weekly, at most 5 pull requests per ecosystem (`.github/dependabot.yml`) |
 

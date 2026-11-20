@@ -243,20 +243,25 @@ fn time_left_is_said_in_the_language_in_force() {
     assert_eq!(said, "noch 1 T. 1 h");
 }
 
+/// 12:00 on 5 March two years ago on this computer's clock: the year, and the moment in
+/// seconds since 1970.
+fn noon_two_years_ago() -> (i32, u64) {
+    let year = dm_core::clock::local_now().date.year() - 2;
+    let date = dm_core::clock::Date::new(year, 3, 5).unwrap();
+    let noon = date.days_since_epoch() * 86_400 + 12 * 3_600;
+    let offset = dm_core::clock::local_at(noon).unwrap().offset;
+    (year, (noon - i64::from(offset)) as u64)
+}
+
 #[test]
 fn a_date_of_another_year_says_the_year_and_the_month_is_translated() {
     crate::region::pin(None);
-    use chrono::{Datelike, Local, TimeZone};
-    let year = Local::now().year();
-    let then = Local.with_ymd_and_hms(year - 2, 3, 5, 12, 0, 0).unwrap();
-    assert_eq!(
-        when(Some(then.timestamp() as u64)),
-        format!("5 Mar {}", year - 2)
-    );
+    let (year, then) = noon_two_years_ago();
+    assert_eq!(when(Some(then)), format!("5 Mar {year}"));
     crate::i18n::set("fr");
-    let said = when(Some(then.timestamp() as u64));
+    let said = when(Some(then));
     crate::i18n::set("en");
-    assert_eq!(said, format!("5 mars {}", year - 2));
+    assert_eq!(said, format!("5 mars {year}"));
 }
 
 /// The words kept for a time are `when`'s, and are let go where the
@@ -264,12 +269,7 @@ fn a_date_of_another_year_says_the_year_and_the_month_is_translated() {
 #[test]
 fn the_words_kept_for_a_time_are_whens_and_follow_the_language() {
     crate::region::pin(None);
-    use chrono::{Datelike, Local, TimeZone};
-    let year = Local::now().year();
-    let then = Local
-        .with_ymd_and_hms(year - 2, 3, 5, 12, 0, 0)
-        .unwrap()
-        .timestamp() as u64;
+    let (_, then) = noon_two_years_ago();
     let mut whens = super::Whens::default();
     assert!(whens.renew("en"), "nothing kept yet");
     whens.keep([then]);

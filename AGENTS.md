@@ -39,7 +39,9 @@ extension that hands it the browser's downloads.
   names librqbit, BitTorrent's engine, behind dm's own session, torrent and stats types;
   dm-core's `torrent.rs` drives it. `crates/dm-net` is how dm reaches a server: the HTTP client
   and its TLS, proxies and the proxy script, sign-ins, cookies, the speed ceiling, the stop flag
-  and `Error`, re-exported by dm-core under their old names. `crates/dm-shell` is everything around the window that is not
+  and `Error`, re-exported by dm-core under their old names, and dm's clock and calendar
+  (`dm_core::clock`: the local time from the system, the dates servers and people write, read
+  to chrono's old grammar; no date crate). `crates/dm-shell` is everything around the window that is not
   the window: settings, the native messaging host, the one-instance lock,
   startup and the inbox, and the application layer (`dm_shell::app`: the
   queue's verbs, the commands, what happened between reads and the typed

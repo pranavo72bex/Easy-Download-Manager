@@ -242,3 +242,33 @@ proptest! {
         }
     }
 }
+
+// The dates servers and people write (`dm_core::clock`, gaps row 215).
+proptest! {
+    #[test]
+    fn a_date_of_anything_is_read_or_refused(text in prop_oneof![
+        texty(),
+        "[0-9 :.,+TtZz()-]{0,40}",
+        Just("Sun, 06 Nov 1994 08:49:37 GMT".to_string()),
+    ]) {
+        let _ = dm_core::clock::rfc2822(&text);
+        let _ = dm_core::clock::rfc3339(&text);
+        let _ = dm_core::clock::iso_utc(&text);
+        let _ = dm_core::clock::ymd(&text);
+        let _ = dm_core::clock::ymd_hm(&text);
+    }
+
+    #[test]
+    fn an_http_date_dm_writes_reads_back(unix in -62_167_219_200i64..=253_402_300_799) {
+        let text = dm_core::clock::http_date(unix).unwrap();
+        prop_assert_eq!(dm_core::clock::rfc2822(&text).map(|at| at.unix), Some(unix), "{}", text);
+    }
+
+    #[test]
+    fn a_written_date_reads_back(days in -95_000_000i64..95_000_000) {
+        if let Some(date) = dm_core::clock::Date::from_days_since_epoch(days) {
+            prop_assert_eq!(date.days_since_epoch(), days);
+            prop_assert_eq!(dm_core::clock::ymd(&date.to_string()), Some(date));
+        }
+    }
+}

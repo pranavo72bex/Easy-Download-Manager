@@ -8,8 +8,8 @@ use super::*;
 /// An HTTP date (`Sun, 06 Nov 1994 08:49:37 GMT`) as a time a file can
 /// carry. `None` for anything else.
 pub(crate) fn http_date(text: &str) -> Option<std::time::SystemTime> {
-    let when = chrono::DateTime::parse_from_rfc2822(text.trim()).ok()?;
-    let seconds = u64::try_from(when.timestamp()).ok()?;
+    let when = crate::clock::rfc2822(text.trim())?;
+    let seconds = u64::try_from(when.unix).ok()?;
     Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds))
 }
 

@@ -44,7 +44,6 @@ serde_json.workspace = true
 # Already in the tree via reqwest's url dependency; named so the hand-rolled
 # byte-scanner it replaces cannot come back.
 percent-encoding.workspace = true
-chrono = { workspace = true, features = ["clock", "std"] }
 sha2.workspace = true
 md-5.workspace = true
 # SHA-1 digests a person checks a file against (`checksum.rs`); already in the build through

@@ -99,7 +99,7 @@ impl SchedulerDraft {
             }
             None => {
                 self.once = false;
-                self.date = chrono::Local::now().format("%Y-%m-%d").to_string();
+                self.date = dm_core::clock::local_now().date.to_string();
             }
         }
     }
@@ -143,14 +143,12 @@ pub fn schedule_problem(schedule: &Schedule) -> Option<String> {
     match schedule.once_at.as_deref() {
         Some(at) => {
             let date = at.trim().split(' ').next().unwrap_or_default();
-            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
-                .is_err()
-                .then(|| {
-                    tf(
-                        "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.",
-                        &[&date],
-                    )
-                })
+            dm_core::clock::ymd(date).is_none().then(|| {
+                tf(
+                    "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.",
+                    &[&date],
+                )
+            })
         }
         None if schedule.days.is_empty() => Some(t("Tick at least one day.").to_string()),
         None => None,
@@ -208,11 +206,8 @@ pub fn minute_choices() -> Vec<String> {
 
 /// The year, month and day of `date` ("YYYY-MM-DD"), or `today`'s where it is not one.
 pub fn date_parts(date: &str, today: (i32, u32, u32)) -> (i32, u32, u32) {
-    chrono::NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d")
-        .map(|d| {
-            use chrono::Datelike;
-            (d.year(), d.month(), d.day())
-        })
+    dm_core::clock::ymd(date.trim())
+        .map(|d| (d.year(), d.month(), d.day()))
         .unwrap_or(today)
 }
 
@@ -222,15 +217,14 @@ pub fn date_of(year: i32, month: u32, day: u32) -> String {
     let month = month.clamp(1, 12);
     let last = (28..=31)
         .rev()
-        .find(|d| chrono::NaiveDate::from_ymd_opt(year, month, *d).is_some())
+        .find(|d| dm_core::clock::Date::new(year, month, *d).is_some())
         .unwrap_or(28);
     format!("{year:04}-{month:02}-{:02}", day.clamp(1, last))
 }
 
 /// Today, as `date_parts` takes it.
 pub fn today() -> (i32, u32, u32) {
-    use chrono::Datelike;
-    let now = chrono::Local::now().date_naive();
+    let now = dm_core::clock::local_now().date;
     (now.year(), now.month(), now.day())
 }
 

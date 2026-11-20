@@ -30,9 +30,8 @@ ignore = [
     "RUSTSEC-2026-0206",
     "RUSTSEC-2026-0192",
     # chrono "unmaintained" (RUSTSEC-2026-0543, published 2026-11-17; no fault known, no
-    # version past it). dm reads the local date and time with it (dm-net, dm-core,
-    # dm-desktop-base, dm-gpui), and GPUI, librqbit-dht, serde_with and trash pull it in too;
-    # moving dm's own four crates to `time` or `jiff` is gaps row 215. The line goes when
-    # none of them needs it.
+    # version past it). dm's own crates no longer use it (their dates are `dm_net::clock`,
+    # gaps row 215), but GPUI, librqbit-dht, serde_with and trash pull it in; the line goes
+    # when none of them needs it.
     "RUSTSEC-2026-0543",
 ]

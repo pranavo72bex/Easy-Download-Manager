@@ -43,7 +43,6 @@ brotli-decompressor = "6"
 bytes = "1"
 cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
 chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
-chrono = { version = "0.4.45", default-features = false }
 crc32fast = "1.5"
 # Benches' alone (gaps row 190): only ever a dev-dependency, run by hand with `cargo bench`
 # and never in CI (docs/testing.md, Benchmarks). Already in Cargo.lock through GPUI.

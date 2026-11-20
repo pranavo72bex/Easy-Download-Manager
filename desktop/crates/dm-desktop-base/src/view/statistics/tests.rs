@@ -5,15 +5,13 @@
 
 use std::time::Duration;
 
-use chrono::Utc;
-
 use super::*;
 
 /// 19 November 2026, noon UTC, in seconds since 1970.
 const NOON: u64 = 1_795_089_600;
 
-fn today() -> NaiveDate {
-    NaiveDate::from_ymd_opt(2026, 11, 19).unwrap()
+fn today() -> Date {
+    Date::new(2026, 11, 19).unwrap()
 }
 
 fn row(id: u64, url: &str, name: &str, size: u64, days_ago: Option<u64>, state: &str) -> Entry {
@@ -87,7 +85,7 @@ fn rows() -> Vec<Entry> {
 #[test]
 fn the_finished_rows_are_counted_once_each() {
     let rows = rows();
-    let s = Statistics::of(&rows, today(), &Utc, &SpeedsSeen::default());
+    let s = Statistics::of(&rows, today(), Zone::UTC, &SpeedsSeen::default());
     assert_eq!(s.files, 5);
     assert_eq!(s.bytes, 700 + 300 + 500 + 50 + 100);
 }
@@ -95,13 +93,10 @@ fn the_finished_rows_are_counted_once_each() {
 #[test]
 fn by_day_holds_the_last_thirty_days_oldest_first() {
     let rows = rows();
-    let s = Statistics::of(&rows, today(), &Utc, &SpeedsSeen::default());
+    let s = Statistics::of(&rows, today(), Zone::UTC, &SpeedsSeen::default());
     assert_eq!(s.days.len(), DAYS);
     assert_eq!(s.days[DAYS - 1].date, today());
-    assert_eq!(
-        s.days[0].date,
-        NaiveDate::from_ymd_opt(2026, 10, 21).unwrap()
-    );
+    assert_eq!(s.days[0].date, Date::new(2026, 10, 21).unwrap());
     assert_eq!(
         s.days[DAYS - 1].bytes,
         1_000,
@@ -118,17 +113,17 @@ fn a_day_is_the_computers_own() {
     // Finished at 23:00 UTC on the 18th is the 19th nine hours east.
     let mut late = row(1, "https://a.com/f.bin", "f.bin", 10, None, "completed");
     late.finished_at = Some(NOON - 13 * 3_600);
-    let east = chrono::FixedOffset::east_opt(9 * 3_600).unwrap();
-    let s = Statistics::of([&late], today(), &east, &SpeedsSeen::default());
+    let east = Zone::Fixed(9 * 3_600);
+    let s = Statistics::of([&late], today(), east, &SpeedsSeen::default());
     assert_eq!(s.days[DAYS - 1].bytes, 10);
-    let s = Statistics::of([&late], today(), &Utc, &SpeedsSeen::default());
+    let s = Statistics::of([&late], today(), Zone::UTC, &SpeedsSeen::default());
     assert_eq!(s.days[DAYS - 2].bytes, 10);
 }
 
 #[test]
 fn by_site_puts_the_largest_first_and_www_is_the_same_site() {
     let rows = rows();
-    let s = Statistics::of(&rows, today(), &Utc, &SpeedsSeen::default());
+    let s = Statistics::of(&rows, today(), Zone::UTC, &SpeedsSeen::default());
     assert_eq!(
         s.sites,
         vec![
@@ -156,7 +151,7 @@ fn by_site_names_ten_at_most() {
             row(n, &url, "f.bin", 100 + n, Some(1), "completed")
         })
         .collect();
-    let s = Statistics::of(&many, today(), &Utc, &SpeedsSeen::default());
+    let s = Statistics::of(&many, today(), Zone::UTC, &SpeedsSeen::default());
     assert_eq!(s.sites.len(), SITES);
     assert_eq!(s.sites[0].name, "s14.com");
     assert_eq!(s.files, 15, "every file still counted");
@@ -165,7 +160,7 @@ fn by_site_names_ten_at_most() {
 #[test]
 fn by_category_names_each_kind_as_the_side_panel_does() {
     let rows = rows();
-    let s = Statistics::of(&rows, today(), &Utc, &SpeedsSeen::default());
+    let s = Statistics::of(&rows, today(), Zone::UTC, &SpeedsSeen::default());
     let named: Vec<(&str, u64)> = s
         .categories
         .iter()
@@ -187,7 +182,7 @@ fn nothing_finished_is_all_nothing() {
     let s = Statistics::of(
         std::iter::empty::<&Entry>(),
         today(),
-        &Utc,
+        Zone::UTC,
         &SpeedsSeen::default(),
     );
     assert_eq!(s.files, 0);
@@ -220,7 +215,7 @@ fn the_speeds_seen_average_over_the_time_something_ran() {
     // A computer asleep for an hour counts five seconds at most.
     seen.sample(t0 + Duration::from_secs(3_604), 4_000.0);
     assert_eq!(seen.average(), Some((1_000.0 + 3_000.0 + 20_000.0) / 7.0));
-    let s = Statistics::of(std::iter::empty::<&Entry>(), today(), &Utc, &seen);
+    let s = Statistics::of(std::iter::empty::<&Entry>(), today(), Zone::UTC, &seen);
     assert_eq!(s.best_speed, Some(4_000.0));
 }
 

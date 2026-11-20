@@ -13,7 +13,7 @@
 // Reads outside input: an index out of range here is a crash a server or
 // a file could cause, so every access is checked.
 #![cfg_attr(not(test), deny(clippy::indexing_slicing))]
-use chrono::{Datelike, Local, Timelike};
+use crate::clock;
 
 /// A window in the local week.
 ///
@@ -89,21 +89,15 @@ pub fn is_time(text: &str) -> bool {
 
 /// Today's weekday (0 = Sunday) and the minute past local midnight.
 pub fn weekday_now() -> (u8, u32) {
-    let now = Local::now();
-    (
-        now.weekday().num_days_from_sunday() as u8,
-        now.time().hour() * 60 + now.time().minute(),
-    )
+    let now = clock::local_now();
+    (now.weekday_from_sunday() as u8, now.minute_of_day())
 }
 
 /// The local day (counted from the calendar's start) and the minute past
 /// its midnight, for things that happen at a time of day.
 pub fn now_local() -> (i64, u32) {
-    let now = Local::now();
-    (
-        i64::from(now.num_days_from_ce()),
-        now.time().hour() * 60 + now.time().minute(),
-    )
+    let now = clock::local_now();
+    (now.date.days_from_ce(), now.minute_of_day())
 }
 
 /// Minutes past local midnight, or `None` if that is not a time.
@@ -116,12 +110,12 @@ pub fn minutes(text: &str) -> Option<u32> {
 impl Schedule {
     /// Whether the queue may run now.
     pub fn open(&self) -> bool {
-        let now = Local::now();
+        let now = clock::local_now();
         // With a once-only date set, the date decides (`open_now`).
         self.open_now(
-            (now.year(), now.month() as u8, now.day() as u8),
-            now.weekday().num_days_from_sunday() as u8,
-            now.time().hour() * 60 + now.time().minute(),
+            (now.date.year(), now.date.month() as u8, now.date.day() as u8),
+            now.weekday_from_sunday() as u8,
+            now.minute_of_day(),
         )
     }
 
@@ -165,22 +159,18 @@ impl Schedule {
 /// The span a once-only run covers, as (start, end) in minutes since the
 /// calendar's day one; `None` where `once_at` or the times are not usable.
 fn once_span(schedule: &Schedule) -> Option<(i64, i64)> {
-    let at = chrono::NaiveDateTime::parse_from_str(
-        schedule.once_at.as_deref()?.trim(),
-        "%Y-%m-%d %H:%M",
-    )
-    .ok()?;
+    let (date, hour, minute) = clock::ymd_hm(schedule.once_at.as_deref()?.trim())?;
     let to = minutes(&schedule.to)?;
-    let from = at.time().hour() * 60 + at.time().minute();
-    let day = i64::from(at.date().num_days_from_ce());
+    let from = hour * 60 + minute;
+    let day = date.days_from_ce();
     let start = day * 24 * 60 + i64::from(from);
     let end_day = if to > from { day } else { day + 1 };
     Some((start, end_day * 24 * 60 + i64::from(to)))
 }
 
 fn since_day_one((year, month, day): (i32, u8, u8), minute_of_day: u32) -> Option<i64> {
-    let date = chrono::NaiveDate::from_ymd_opt(year, u32::from(month), u32::from(day))?;
-    Some(i64::from(date.num_days_from_ce()) * 24 * 60 + i64::from(minute_of_day))
+    let date = clock::Date::new(year, u32::from(month), u32::from(day))?;
+    Some(date.days_from_ce() * 24 * 60 + i64::from(minute_of_day))
 }
 
 impl Schedule {

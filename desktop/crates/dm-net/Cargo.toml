@@ -28,8 +28,6 @@ thiserror.workspace = true
 serde = { workspace = true, features = ["derive", "rc"] }
 serde_json.workspace = true
 percent-encoding.workspace = true
-# A `Retry-After` given as a date, measured against the response's own `Date`.
-chrono = { workspace = true, features = ["clock", "std"] }
 # Digest sign-ins.
 sha2.workspace = true
 md-5.workspace = true
@@ -44,12 +42,14 @@ url.workspace = true
 flate2.workspace = true
 brotli-decompressor.workspace = true
 
-# Calls into the C library that std does not wrap. Already in the tree through tokio.
+# Calls into the C library that std does not wrap (the local time: `clock`). Already in the
+# tree through tokio.
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_System_Threading"] }
+# The second path's interfaces; the local time's zone rules (`clock`, Win32_System_Time).
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_System_Threading", "Win32_System_Time"] }
 
 [dev-dependencies]
 # The logins and secrets tests use (gaps row X10).

@@ -29,8 +29,7 @@ getrandom.workspace = true
 # The system's language, for the window's first one: from the OS itself,
 # since an app opened from the Dock or a login item has no LANG (i18n.rs).
 sys-locale.workspace = true
-# Dates and addresses as a row's details say them (format.rs, details.rs).
-chrono = { workspace = true, features = ["clock", "std"] }
+# Addresses as a row's details say them (format.rs, details.rs).
 url.workspace = true
 # The login item on macOS and Windows (login.rs): a launch agent, the Run key.
 auto-launch.workspace = true

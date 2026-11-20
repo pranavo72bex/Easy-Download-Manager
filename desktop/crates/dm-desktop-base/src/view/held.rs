@@ -30,10 +30,9 @@ pub fn opens_after(schedule: &dm_core::Schedule, today: u32, minute: u32) -> Opt
 /// When a closed schedule next opens, as a person reads it: "01:00" later
 /// today, "Mon 01:00" on another day. `None` if it never does.
 pub fn opens_next(schedule: &dm_core::Schedule) -> Option<String> {
-    use chrono::{Datelike, Timelike};
-    let now = chrono::Local::now();
-    let today = now.weekday().num_days_from_sunday();
-    let minute = now.time().hour() * 60 + now.time().minute();
+    let now = dm_core::clock::local_now();
+    let today = now.weekday_from_sunday();
+    let minute = now.minute_of_day();
     opens_after(schedule, today, minute).map(|(days, at)| {
         let clock = format!("{:02}:{:02}", at / 60, at % 60);
         if days == 0 {
@@ -51,12 +50,11 @@ pub fn opens_next(schedule: &dm_core::Schedule) -> Option<String> {
 /// The settings with a once-only schedule date that has passed put away
 /// (`schedule::spent_once_put_away`, as of now), where one has.
 pub fn spent_once_now(settings: &Settings) -> Option<Settings> {
-    use chrono::{Datelike, Timelike};
-    let now = chrono::Local::now();
+    let now = dm_core::clock::local_now();
     dm_shell::app::schedule::spent_once_put_away(
         settings,
-        (now.year(), now.month() as u8, now.day() as u8),
-        now.hour() * 60 + now.minute(),
+        (now.date.year(), now.date.month() as u8, now.date.day() as u8),
+        now.minute_of_day(),
     )
 }
 
