@@ -27,7 +27,9 @@ listed for the maintainer's word.
 State when pushed: the finders of nine areas had reported (60 findings in the first six: 16
 bugs, 26 slow spots, the rest duplicate or dead code and rule breaks); the runs stopped once at
 the weekly usage limit and were resumed; no branch had a commit yet. Done on `main`: 5bca6f0e
-(`cargo fmt` on `popmenu.rs`, the only file it changed).
+(`cargo fmt` on `popmenu.rs`, the only file it changed); d3dc02d4 (`fetch.rs` split from 803 lines
+to 751 lines into `sidecar.rs` and `files.rs`, `cargo xtask layers` passing clean); empty root
+`Cargo.toml` removed. Worktrees and branches kept intact.
 
 **Remaining, in this order:**
 1. Let the three workflows finish (or resume them from cache: the script is the session's
