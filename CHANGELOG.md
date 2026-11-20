@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- YouTube: a premiere or a live stream not begun yet is waited for, its row saying when it starts, then recorded.
+- Videos: HLS streams whose picture and sound come from separate playlists are saved when scrambled with SAMPLE-AES or when their key or initialisation segment changes part-way, and a live SAMPLE-AES recording is saved in the clear. Fixed: such a pair whose AES-128 key changed part-way was decrypted with its first key throughout.
+- YouTube: a video whose streams come only through YouTube's framed stream is downloaded by dm's own reader of it.
 - The benchmark's `wan` case runs over TLS: dm trusts the harness's certificate named by `DM_BENCH_CA`, a test switch.
 - dm's own crates no longer use chrono (flagged unmaintained): dates and the local time come from dm's own clock, reading every date as before.
 - Linux (Wayland without XWayland): Copy link and Copy details put the text on the clipboard.

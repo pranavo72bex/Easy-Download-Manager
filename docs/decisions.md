@@ -8128,3 +8128,15 @@ On Linux under Wayland (`WAYLAND_DISPLAY` set) dm's own copies go through GPUI's
 
 `dm_core::download::notes` names each note (`PARTS_LEFT_OUT`, `UNPACKED`, …) and builds `NOTES` from them in the same order; no `NOTES[n]` index is left in the code, as one once sent the wrong sentence (07c56e68).
 
+## A premiere's wait is a row note, not a hold (2026-11-20, gaps row Y5)
+
+W11's hold is for the whole queue and pauses rows; a premiere is one running download, so its wait is a note on its row ("Waiting: …") and Stop and Cancel work on it as on any running download. Its timings (a week at most ahead, 3 s after the start, the video read again every 30 minutes before and every 30 s after, 6 hours past its time, three failed reads) are named in `videopage/fetch/premiere.rs`.
+
+## A transport-stream SAMPLE-AES track of a pair keeps its locks beside it (2026-11-20, gaps row Y16)
+
+A transport stream cannot be cleared in place, so its locks are written to `track{n}.locks` beside the gathered track, before it is named, and the join clears it; a fragmented MP4 is cleared in place before it is named. A gathered track found after a stop is so always either cleared or has its locks.
+
+## YouTube's framed stream: dm's own reader, no token (2026-11-20, gaps row Y2)
+
+The protobuf and UMP readers are dm's own. A framed format is used only where nothing with an address gives its quality, and an answer whose formats are all framed only after every other client was asked; a framed stream that fails falls back to the formats with addresses. No proof-of-origin token is minted (a decision of its own, not taken): where the stream asks one, dm says so. The message field numbers are from the protocol's published descriptions and unchecked against the service until a live run.
+
