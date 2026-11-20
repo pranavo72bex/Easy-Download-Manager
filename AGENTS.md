@@ -69,11 +69,16 @@ extension that hands it the browser's downloads.
   `dm_gpui::run_app(args, application)`, which `main.rs` calls with GPUI's platform for the computer and the
   phone's `android_main` (`crates/dm-android`) with the phone's (gpui-android's `SharedPlatform`), after handing
   `set_phone` its `phone::Phone` and setting dm's folders (`DM_HOME`, `TMPDIR`, `set_phone_folders`). On Android what only the phone can do
-  (a notification, opening a file and showing its folder, the clipboard, the wake lock, a share's link)
+  (a notification, opening a file and showing its folder, the clipboard, the wake lock, a share's link,
+  publishing a finished file to `Download/dm` and the folders dm writes by path (N9), the connection
+  and battery for the phone's rules (N10), the schedule's alarm (N12))
   goes through one seam, `dm_desktop_base::phone`: the app hands its `PhoneServices` to `set_phone` before
-  the window starts, and each `platform/` module's Android arm asks through it; what a phone lacks (the
-  login item, the Trash, the tray, the file panels, moving the window) is refused in words or does
-  nothing (gaps row N17). `cargo packager -p dm-gpui` there builds the installers,
+  the window starts, and each `platform/` module's Android arm (and, for publishing, the engine through
+  `dm_core::folders::set_publisher`) asks through it; what a phone lacks (the
+  login item, the Trash, the tray, moving the window) is refused in words or does
+  nothing (gaps row N17); the file panels are GPUI's file prompt and dm's own folders (N9). dm's four
+  Java classes (`DmActivity`, `DmService`, `DmActionReceiver`, `DmBootReceiver`) only hand their
+  events to Rust (`android/natives.rs`). `cargo packager -p dm-gpui` there builds the installers,
   from `assets/app-icons/` and `assets/macos/Info.plist`; its `Cargo.toml`
   holds dm's version. What is not code is in one folder, `desktop/assets/`
   (the window's `icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), and

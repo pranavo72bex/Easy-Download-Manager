@@ -96,9 +96,10 @@ pub trait PhoneServices: Send + Sync {
     }
 
     /// The folders dm can download into by their path on this phone (gaps row N9): on Android
-    /// 10 and up only the app's own folders and, where the phone lets dm write there, the
-    /// shared `Download/dm`; a folder of the storage picker's is an address, not a path. What
-    /// Browse… offers on a phone.
+    /// 10 and up dm's own folder alone (each finished file is then published to the shared
+    /// `Download/dm`, [`PhoneServices::publish`]); on 8 and 9 also the shared `Download/dm`,
+    /// first, where storage is allowed. A folder of the storage picker's is an address, not a
+    /// path. What Browse… offers on a phone.
     fn download_folders(&self) -> Result<Vec<PathBuf>, String> {
         Err(NO_FOLDERS.into())
     }

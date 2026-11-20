@@ -63,7 +63,9 @@ impl Java for Arc<Recorded> {
     }
     fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String> {
         self.said(format!("publish {}", path.display()));
-        Ok(Some(PathBuf::from("/sdcard/Download/dm").join(path.file_name().unwrap())))
+        Ok(Some(
+            PathBuf::from("/sdcard/Download/dm").join(path.file_name().unwrap()),
+        ))
     }
     fn network(&self) -> PhoneNetwork {
         PhoneNetwork::default()

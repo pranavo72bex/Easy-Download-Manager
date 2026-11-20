@@ -31,7 +31,10 @@ fn new_downloads_go_to_dms_own_folder_from_android_10() {
     // Android 9 before storage is allowed, and 13 with the shared folder not writable.
     assert_eq!(places(28, None, own.clone()).first(), own.as_ref());
     let thirteen = places(33, None, own.clone());
-    assert_eq!((thirteen.first(), thirteen.save.as_ref()), (own.as_ref(), own.as_ref()));
+    assert_eq!(
+        (thirteen.first(), thirteen.save.as_ref()),
+        (own.as_ref(), own.as_ref())
+    );
     assert_eq!(places(33, None, None), Places::default());
     assert_eq!(
         own_downloads(Path::new("/e/files")),

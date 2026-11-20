@@ -55,9 +55,11 @@ impl Storage {
         let external = app.external_data_path();
         let private = storage::private_folders(external.as_deref(), home);
         let sdk = jvm::with("read the Android version", |env, _| jvm::sdk(env)).unwrap_or(0);
-        let public = jvm::with("find the Download folder", |env, _| public_downloads_in(env))
-            .ok()
-            .flatten();
+        let public = jvm::with("find the Download folder", |env, _| {
+            public_downloads_in(env)
+        })
+        .ok()
+        .flatten();
         let shared = public
             .as_ref()
             .map(|public| public.join("dm"))
