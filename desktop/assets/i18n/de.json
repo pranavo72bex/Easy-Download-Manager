@@ -998,5 +998,9 @@
  "Any network": "Beliebiges Netzwerk",
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Jeder Download geht nur über dieses Netzwerk, etwa das Ihres VPN. Solange es nicht verbunden ist, warten Downloads, sagen es und machen von selbst weiter, wenn es zurück ist. Torrents und Livestreams starten nicht, solange eines gewählt ist, und das zweite Netzwerk wird nicht verwendet.",
  "Waiting for the network": "Warte auf das Netzwerk",
- "the network downloads go only through is not connected. dm goes on when it is back": "das Netzwerk, über das allein heruntergeladen wird, ist nicht verbunden. dm macht weiter, sobald es zurück ist"
+ "the network downloads go only through is not connected. dm goes on when it is back": "das Netzwerk, über das allein heruntergeladen wird, ist nicht verbunden. dm macht weiter, sobald es zurück ist",
+ "the premiere starts in {} hours": "die Premiere beginnt in {} Stunden",
+ "the premiere starts in {} minutes": "die Premiere beginnt in {} Minuten",
+ "the premiere starts in a moment": "die Premiere beginnt gleich",
+ "the premiere has not begun yet": "die Premiere hat noch nicht begonnen"
 }

@@ -37,6 +37,7 @@ mod kept;
 mod pages;
 mod player;
 mod playlist;
+mod premiere;
 mod reading;
 mod solving;
 
@@ -47,6 +48,7 @@ use chapters::{chapters_in, largest_thumbnail, publish_date};
 #[cfg(test)]
 use choosing::{choose, xtags};
 use choosing::{choose_named, ended_stream_playlist, played_from_playlist, set_dubs_aside};
+pub(crate) use clients::playlist_address;
 #[cfg(test)]
 use clients::{ask_player, sapisid_hash};
 use clients::{
@@ -65,6 +67,7 @@ use playlist::{channel_id_in, gather, playlist_title};
 pub use playlist::{
     channel_of, is_list, playlist_id, read_playlist, Channel, Playlist, PlaylistEntry,
 };
+use premiere::{premiere_reading, scheduled_start};
 pub(crate) use reading::watch_page_of;
 use reading::{
     chosen_of, cuttable_of, fetch_script, formats_of, player_script, reading_of, watch_address_of,
@@ -590,6 +593,13 @@ async fn read_within(
             if session.is_some() && !asks.iter().any(|(_, s)| *s) && wants_sign_in(refused) {
                 asks.extend(signed_in_clients(&page).into_iter().map(|c| (c, true)));
             }
+            // A premiere, or a live stream not begun: read as the time it is set to start, which
+            // the download waits for before it reads the video again (gaps row Y5). Its page is
+            // not kept, so that reading asks afresh.
+            if let Some(at) = scheduled_start(refused) {
+                forget_pages(&watch_address_of(&origin, id));
+                return Ok(premiere_reading(id, refused, at));
+            }
         }
         let player = match answer.and_then(plays) {
             Ok(player) => player,
@@ -608,7 +618,7 @@ async fn read_within(
             let live = player
                 .pointer("/streamingData/hlsManifestUrl")
                 .and_then(Value::as_str)
-                .filter(|u| u.starts_with("https://"));
+                .filter(|u| playlist_address(u));
             let Some(live) = live else {
                 return Err(Error::Internal("a live stream".into()));
             };

@@ -998,5 +998,9 @@
  "Any network": "",
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "",
  "Waiting for the network": "",
- "the network downloads go only through is not connected. dm goes on when it is back": ""
+ "the network downloads go only through is not connected. dm goes on when it is back": "",
+ "the premiere starts in {} hours": "",
+ "the premiere starts in {} minutes": "",
+ "the premiere starts in a moment": "",
+ "the premiere has not begun yet": ""
 }

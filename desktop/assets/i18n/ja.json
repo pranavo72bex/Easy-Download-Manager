@@ -998,5 +998,9 @@
  "Any network": "任意のネットワーク",
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "すべてのダウンロードはこのネットワーク (VPN など) だけを通ります。接続されていない間はダウンロードが理由を示して待機し、戻ると自動で再開します。選択中はトレントとライブ配信は開始せず、2つ目のネットワークも使いません。",
  "Waiting for the network": "ネットワーク待機中",
- "the network downloads go only through is not connected. dm goes on when it is back": "ダウンロードに使うネットワークが接続されていません。戻ると dm が再開します"
+ "the network downloads go only through is not connected. dm goes on when it is back": "ダウンロードに使うネットワークが接続されていません。戻ると dm が再開します",
+ "the premiere starts in {} hours": "プレミア公開は{}時間後に始まります",
+ "the premiere starts in {} minutes": "プレミア公開は{}分後に始まります",
+ "the premiere starts in a moment": "プレミア公開はまもなく始まります",
+ "the premiere has not begun yet": "プレミア公開はまだ始まっていません"
 }

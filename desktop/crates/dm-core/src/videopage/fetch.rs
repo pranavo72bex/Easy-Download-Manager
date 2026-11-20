@@ -23,8 +23,10 @@ use super::{finish_dm_tagged, remove_staging};
 use crate::download::{Finished, Options, Update};
 use crate::{category, Error};
 
+mod premiere;
 mod streams;
 
+pub use premiere::waits_for_premiere;
 use streams::{fetch, resolve};
 #[cfg(test)]
 use streams::{interned, iso_day, merge_progress, subtitles, sum};
@@ -64,6 +66,9 @@ pub async fn download_page(
         .map_err(Error::Disk)?;
 
     let read = resolve(url, options, false).await?;
+    // A premiere, or a live stream not begun: waited for, its row saying so, then read again
+    // (gaps row Y5).
+    let read = premiere::waited(url, options, report.as_ref(), read).await?;
     // A live stream (YouTube's own HLS playlist of it): recorded by the engine's live HLS
     // recording, as a stream's address is, from now until it ends or is stopped (gaps row Y5).
     if read.info.is_live == Some(true) && !part {
@@ -72,7 +77,7 @@ pub async fn download_page(
             .single
             .url
             .as_deref()
-            .filter(|u| u.starts_with("https://"))
+            .filter(|u| crate::youtube::playlist_address(u))
             .filter(|_| read.info.single.protocol.as_deref() == Some("m3u8_native"))
         {
             return crate::download::once_more(client, live, options, report).await;
@@ -306,6 +311,10 @@ struct Info {
     single: Format,
     #[serde(default)]
     is_live: Option<bool>,
+    /// When a premiere, or a live stream not begun, is set to start (Unix seconds): it names
+    /// no stream until then (gaps row Y5).
+    #[serde(default)]
+    premiere_at: Option<u64>,
     /// Subtitles asked for, by language.
     #[serde(default)]
     requested_subtitles: Option<HashMap<String, Subtitle>>,
