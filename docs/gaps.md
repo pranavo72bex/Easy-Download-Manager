@@ -11,6 +11,28 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## Resume here (2026-11-20, night): every branch merged into `main`
+
+`main` is the only branch left with finished work; it is 119 commits ahead of `origin/main`
+(at badfd90c, which holds the earlier ~95), not pushed. Merged in: `android-rust` (63 commits:
+the Android work and the rows of the section below it; conflicts in `window.rs`, `decisions.md`
+and `gaps.md` resolved by keeping both sides), `a10-platform`'s first commit, `u35-rtl`,
+`f10-rar`, `fix-commands-tests`, and Dependabot's brotli-decompressor 6.3.2, hyper 1.12.0, sha2
+0.11.1, toml 1.1.6, rfd 0.18.0, action-gh-release 3.0.4 and install-action 2.90.5
+(`android.yml`'s pins moved to match). Recorded with `-s ours` (history kept, content not
+taken, being superseded, already in `main` or check-only): `u27-mac-keys`,
+`windows-qa-2026-11-13`, `arm-check-2026-11-18`, `win-debug`, `fix/keep-awake-while-downloading`,
+`fix/original-audio-track`, `ram-optimization`, and the older Dependabot bumps. The merged
+local branches and their worktrees are deleted (the `refine-<area>` branches had no commits; the
+pass below starts again from `main`). The branches on `origin` are still there: deleting them
+is a push.
+
+Kept, unfinished, each a WIP commit on its own branch and worktree: `a10-platform`
+(`D:\dm-wt\a10-platform`, dm-shell's system code moved under `platform/`) and `n15-view`
+(`D:\dm-wt\n15-view`, the views split into a `dm-view` crate). Neither compiled. Nothing
+merged tonight was compiled either: the Mac's run (fmt, clippy, `cargo test --workspace`,
+layers, `cargo ndk check -p dm-android`) is the next step, rfd 0.18 and sha2 0.11.1 included.
+
 ## Resume here (2026-11-20, evening): the fix-and-optimise pass
 
 The maintainer, 2026-11-20: "refine the code and make it professional and easy to manage", then
