@@ -60,6 +60,9 @@ impl Java for Arc<Recorded> {
         self.said(format!("publish {}", path.display()));
         Ok(Some(PathBuf::from("/sdcard/Download/dm").join(path.file_name().unwrap())))
     }
+    fn network(&self) -> PhoneNetwork {
+        PhoneNetwork::default()
+    }
 }
 
 fn phone() -> (Phone<Arc<Recorded>>, Arc<Recorded>) {

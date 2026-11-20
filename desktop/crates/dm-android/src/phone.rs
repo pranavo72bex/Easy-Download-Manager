@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use dm_desktop_base::phone::{Busy, PhoneServices};
+use dm_desktop_base::phone::{Busy, PhoneNetwork, PhoneServices};
 use dm_desktop_base::quiet::Note;
 
 /// The calls into Android that dm's services are made of. Each comes from any of dm's threads
@@ -44,6 +44,9 @@ pub trait Java: Send + Sync + 'static {
     /// own folders (gaps row N9): where it now is, `None` where it is left, or why it could not
     /// be, the file then kept. Asked on one of the engine's blocking threads.
     fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String>;
+    /// The phone's connection and battery now, for its rules (gaps row N10); what a call could
+    /// not read is unknown, which holds nothing.
+    fn network(&self) -> PhoneNetwork;
 }
 
 /// The ongoing notification's second line where [`Busy::words`] has none.
@@ -242,6 +245,10 @@ impl<J: Java> PhoneServices for Phone<J> {
 
     fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String> {
         self.java.publish(path)
+    }
+
+    fn network(&self) -> PhoneNetwork {
+        self.java.network()
     }
 
     fn download_folders(&self) -> Result<Vec<PathBuf>, String> {

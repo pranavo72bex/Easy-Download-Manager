@@ -8342,3 +8342,16 @@ dm writes it by path once storage is allowed. A file dm writes for the person (E
 dm) still goes to the shared `Download/dm` where the probe file could be written there (8 and 9
 with the permission, 11 and up, which let an app make its own files there by path), else to dm's
 own folder (`Places::save`); Android 10 alone keeps it in dm's own folder, not published.
+
+## A phone's rules are W11's holds (2026-11-20, gaps rows N10, N12)
+
+The phone's connection and battery are the computer state W11 already reads: on Android
+`metered::System` asks the app's `PhoneServices::network` (read through JNI from
+`ConnectivityManager` and the battery's sticky broadcast, no Java), so mobile data is W11's
+metered hold and a low battery W11's battery hold, under Options' existing lines. The phone's
+own lines (Wi-Fi only, not while roaming, Data Saver) are three more `dm_core::Hold`s on the
+same path (the schedule's pause, put back by `may_run`), read at the same tick. Dropped: a
+`Platform` callback of the engine's own for these (a second mechanism beside W11's), and
+`AlarmManager` and `BOOT_COMPLETED` for the schedule (N12), which need a receiver class: Java,
+waiting for the maintainer's word with N6's service. The three Options lines are built for
+Android alone and wait for the maintainer's word on their wording.

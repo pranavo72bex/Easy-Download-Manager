@@ -15,6 +15,7 @@ mod intent;
 mod java;
 mod jvm;
 mod keystore;
+mod network;
 mod notify;
 mod open;
 mod storage;

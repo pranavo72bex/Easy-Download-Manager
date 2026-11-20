@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use dm_core::Hold;
 use dm_shell::app::backend::Backend;
 
-use crate::metered::{hold_of, watched, Reading, Source, System};
+use crate::metered::{hold_of, phone, watched, Reading, Source, System};
 
 use super::{Driver, Effect, Session};
 
@@ -30,6 +30,8 @@ pub(super) struct Waits {
     read_at: Option<Instant>,
     /// What it said then.
     reading: Reading,
+    /// What a phone said then, for its own rules (gaps row N10).
+    phone: crate::phone::PhoneNetwork,
     /// The person's answer for this metered period: go on (`true`) or wait.
     answer: Option<bool>,
     /// Whether this metered period's question has been asked.
@@ -68,9 +70,10 @@ impl Session {
         let downloads = backend.settings().downloads;
         let now = Instant::now();
         let waits = &mut self.waits;
-        if !watched(&downloads.on_metered, downloads.battery_below) {
+        if !watched(&downloads.on_metered, downloads.battery_below) && !phone::watched(&downloads) {
             waits.read_at = None;
             waits.reading = Reading::default();
+            waits.phone = crate::phone::PhoneNetwork::default();
         } else if waits
             .read_at
             .is_none_or(|at| now.duration_since(at) >= READ_EVERY)
@@ -79,6 +82,10 @@ impl Session {
             waits.reading = match &waits.source {
                 Some(source) => source.read(),
                 None => System.read(),
+            };
+            waits.phone = match &waits.source {
+                Some(source) => source.phone(),
+                None => System.phone(),
             };
         }
         // A metered period ended: its answer and its question go with it.
@@ -94,7 +101,8 @@ impl Session {
             &downloads.on_metered,
             downloads.battery_below,
             answer,
-        );
+        )
+        .or_else(|| phone::rules(&waits.phone, &downloads));
         if hold == Some(Hold::Metered) && asks && answer.is_none() && !waits.asked {
             waits.asked = true;
             effects.push(Effect::AskMetered);
