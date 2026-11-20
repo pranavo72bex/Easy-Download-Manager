@@ -20,7 +20,8 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
-/// A card's height, in points: a name, a bar and two lines of figures, a finger's room around.
+/// A card's height, in points: a name, a bar and two lines of figures, a finger's room around
+/// (well over `space::TOUCH`).
 pub(crate) const CARD_HEIGHT: f32 = 84.0;
 
 /// The cards of the place chosen, only those on screen laid out, scrolled as the table is.
@@ -113,6 +114,7 @@ fn card(
         .aria_selected(chosen)
         .aria_row_index(i + 1)
         .w_full()
+        .relative()
         .h(px(CARD_HEIGHT))
         .px(px(space::L))
         .py(px(space::M))
@@ -162,19 +164,27 @@ fn card(
                         .text_ellipsis()
                         .child(screen.label(name)),
                 )
-                .child(
-                    div()
-                        .id(("card-menu", id as usize))
-                        .role(Role::Button)
-                        .aria_label(t("Row menu"))
-                        .flex_none()
-                        .px(px(space::M))
-                        .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .on_click(cx.listener(move |view, _, _, cx| {
-                            view.open_card_menu(id, cx);
-                        }))
-                        .child(screen.mark(t("Row menu"), div().child("⋯"))),
-                ),
+                // Room for the card's menu over its top right.
+                .child(div().flex_none().w(px(space::TOUCH - space::L))),
+        )
+        // The card's menu: a finger's target in the card's top right corner.
+        .child(
+            div()
+                .id(("card-menu", id as usize))
+                .role(Role::Button)
+                .aria_label(t("Row menu"))
+                .absolute()
+                .top_0()
+                .right_0()
+                .size(px(space::TOUCH))
+                .flex()
+                .items_center()
+                .justify_center()
+                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(cx.listener(move |view, _, _, cx| {
+                    view.open_card_menu(id, cx);
+                }))
+                .child(screen.mark(t("Row menu"), div().child("⋯"))),
         )
         .child(div().w_full().child(crate::window::table::progress_track(
             fraction.unwrap_or(0.0),

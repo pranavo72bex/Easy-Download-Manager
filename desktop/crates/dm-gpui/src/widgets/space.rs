@@ -30,6 +30,10 @@ pub const XXL: f32 = 20.0;
 /// Twenty-four points.
 pub const XXXL: f32 = 24.0;
 
+/// Forty-eight points: a finger's least target at a phone's width (gaps row N7), as phones'
+/// own guidelines ask (44 to 48).
+pub const TOUCH: f32 = 48.0;
+
 /// A rule's or a border's thickness, and the gap that shows one between two parts.
 pub const LINE: f32 = 1.0;
 

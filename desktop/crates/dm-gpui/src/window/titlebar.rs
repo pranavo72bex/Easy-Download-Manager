@@ -50,6 +50,12 @@ pub fn height() -> f32 {
     HEIGHT.max(crate::window::zoom::of(HEIGHT))
 }
 
+/// The bar's height at a phone's width (gaps row N7): tall enough for a finger's target
+/// ([`space::TOUCH`]), else as [`height`].
+pub fn narrow_height() -> f32 {
+    height().max(crate::window::zoom::of(space::TOUCH))
+}
+
 /// Where the traffic lights go, centred in the bar as tall as it is when
 /// the window opens: the system places them once, so a size chosen later
 /// centres them at the next start.
@@ -159,16 +165,26 @@ pub fn titlebar(
             Some(gap) => drag_space().w(gpui::px(gap)).flex_none(),
             None => drag_space().flex_1(),
         })
-        .child(search_box(view, width, searching, shown, theme, screen, cx))
+        .child(search_box(
+            view,
+            Some(width),
+            searching,
+            shown,
+            theme,
+            screen,
+            cx,
+        ))
         .child(drag_space().flex_1())
         .children(window_buttons(theme, window.is_maximized()))
 }
 
 /// The top bar at a phone's width (gaps row N7), in place of the menus' titles, the search
-/// box and the toolbar: the places' drawer, the title, Add, and the overflow menu holding the
-/// toolbar's commands and the menus (`narrow.rs`). Still the window's title bar where dm draws
-/// one: past the traffic lights, its empty space moving the window, the window's own buttons
-/// at its end on Windows.
+/// box and the toolbar: the places' drawer, the place chosen's name (else "dm"), search, Add,
+/// and the overflow menu holding the toolbar's commands and the menus (`narrow.rs`). Search
+/// opens the desktop's own search box across the bar, the same words narrowing the same list,
+/// with a close that clears them. Still the window's title bar where dm draws one: past the
+/// traffic lights, its empty space moving the window, the window's own buttons at its end on
+/// Windows. Each button a finger's target ([`space::TOUCH`]).
 pub fn narrow_titlebar(
     view: &Downloads,
     theme: Theme,
@@ -183,8 +199,8 @@ pub fn narrow_titlebar(
             .role(Role::Button)
             .aria_label(words)
             .flex_none()
-            .min_w(px(30.0))
-            .h(px(28.0))
+            .min_w(px(space::TOUCH))
+            .h(px(space::TOUCH))
             .px(px(space::XS))
             .flex()
             .items_center()
@@ -194,14 +210,18 @@ pub fn narrow_titlebar(
             // Its own click: not the bar's, whose double-click zooms the window.
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
     };
+    let icon =
+        |path: &'static str, colour: gpui::Rgba| svg().path(path).size(px(17.0)).text_color(colour);
     let places = t("Places");
     let add = t(Command::AddUrl.label());
     let menu = t("Menu");
-    div()
+    let filter = t("Filter");
+    let close = t("Close");
+    let bar = div()
         .id("titlebar")
         .role(Role::Group)
         .aria_label(menu)
-        .h(gpui::px(height()))
+        .h(gpui::px(narrow_height()))
         .flex_none()
         .flex()
         .items_center()
@@ -209,8 +229,20 @@ pub fn narrow_titlebar(
         .bg(crate::window::theme::frame(theme.sidebar))
         .border_b_1()
         .border_color(theme.separator)
-        .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none())
-        .child(
+        .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none());
+    let bar = if view.narrow_searching() {
+        let words = view.list.filter.read(cx).value().to_string();
+        let searching = !words.trim().is_empty();
+        let shown = view.list.shown.len();
+        bar.child(search_box(view, None, searching, shown, theme, screen, cx))
+            .child(
+                button("search-close", close)
+                    .on_click(cx.listener(|view, _, window, cx| view.close_search(window, cx)))
+                    .child(screen.mark(close, div().child("✕"))),
+            )
+    } else {
+        let title = crate::window::sidebar::place_name(view).unwrap_or_else(|| "dm".into());
+        bar.child(
             button("drawer-button", places)
                 .aria_toggled(if view.layout.narrow.drawer.is_some() {
                     gpui::Toggled::True
@@ -218,15 +250,7 @@ pub fn narrow_titlebar(
                     gpui::Toggled::False
                 })
                 .on_click(cx.listener(|view, _, _, cx| view.toggle_drawer(cx)))
-                .child(
-                    screen.mark(
-                        places,
-                        svg()
-                            .path("icons/sidebar.svg")
-                            .size(px(17.0))
-                            .text_color(theme.muted),
-                    ),
-                ),
+                .child(screen.mark(places, icon("icons/sidebar.svg", theme.muted))),
         )
         .child(
             drag_space()
@@ -235,21 +259,20 @@ pub fn narrow_titlebar(
                 .flex()
                 .items_center()
                 .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
                 .font_weight(gpui::FontWeight::SEMIBOLD)
-                .child(screen.label("dm")),
+                .child(screen.label(title)),
+        )
+        .child(
+            button("search-button", filter)
+                .on_click(cx.listener(|view, _, window, cx| view.open_search(window, cx)))
+                .child(screen.mark(filter, icon("icons/search.svg", theme.muted))),
         )
         .child(
             button("add-button", add)
                 .on_click(cx.listener(|view, _, _, cx| view.run(Command::AddUrl, cx)))
-                .child(
-                    screen.mark(
-                        add,
-                        svg()
-                            .path("icons/add.svg")
-                            .size(px(17.0))
-                            .text_color(theme.text),
-                    ),
-                ),
+                .child(screen.mark(add, icon("icons/add.svg", theme.text))),
         )
         .child(
             button("overflow-button", menu)
@@ -257,7 +280,8 @@ pub fn narrow_titlebar(
                 .on_click(cx.listener(|view, _, _, cx| view.open_overflow(cx)))
                 .child(screen.mark(menu, div().child("⋮"))),
         )
-        .children(window_buttons(theme, window.is_maximized()))
+    };
+    bar.children(window_buttons(theme, window.is_maximized()))
 }
 
 /// Empty space in the bar: where it is the window's title bar, it moves the
@@ -275,10 +299,10 @@ fn drag_space() -> gpui::Div {
     })
 }
 
-/// The search box, `width` points on screen wide.
+/// The search box, `width` points on screen wide, or the room it is given where none.
 fn search_box(
     view: &Downloads,
-    width: f32,
+    width: Option<f32>,
     searching: bool,
     shown: usize,
     theme: Theme,
@@ -291,12 +315,17 @@ fn search_box(
         // the list.
         .on_key_down(cx.listener(|view, event: &gpui::KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" {
+                // At a phone's width, the box closed as well (gaps row N7).
+                view.layout.narrow.searching = false;
                 view.clear_filter(window, cx);
                 window.focus(&view.focus, cx);
                 cx.stop_propagation();
             }
         }))
-        .w(gpui::px(width))
+        .map(|d| match width {
+            Some(width) => d.w(gpui::px(width)),
+            None => d.flex_1().min_w_0(),
+        })
         .h(px(BOX_HEIGHT))
         .flex()
         .items_center()

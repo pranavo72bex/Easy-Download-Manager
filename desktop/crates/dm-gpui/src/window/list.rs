@@ -378,6 +378,10 @@ impl Downloads {
     /// Find (⌘F): the keyboard to the top bar's search box, its words
     /// chosen, as a code editor's ⌘P puts it in its command centre.
     pub fn find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // At a phone's width the box is opened across the top bar (gaps row N7).
+        if self.layout.narrow.laid_out {
+            self.layout.narrow.searching = true;
+        }
         self.list.filter.update(cx, |f, cx| {
             f.focus(window, cx);
             f.select_all(window, cx);
@@ -657,7 +661,9 @@ impl Render for Downloads {
             // The system's size for a list's rows and every control.
             .text_size(crate::window::zoom::px(crate::widgets::native::TEXT));
         // At a phone's width, the phone's layout of the same views (gaps row N7).
-        let root = if crate::window::narrow::is_narrow(window) {
+        let narrow = crate::window::narrow::is_narrow(window);
+        self.layout.narrow.laid_out = narrow;
+        let root = if narrow {
             self.narrow_window(root, theme, &screen, shown, window, cx)
         } else {
             root.child(crate::window::titlebar::titlebar(

@@ -388,7 +388,12 @@ impl Downloads {
         let state = self.list.scroll.0.borrow();
         // Not laid out yet: nothing on screen to hold.
         state.last_item_size?;
-        let height = f32::from(crate::window::zoom::px(ROW_HEIGHT));
+        // A card's height at a phone's width, a table row's at a desktop's (gaps row N7).
+        let height = f32::from(crate::window::zoom::px(if self.layout.narrow.laid_out {
+            crate::window::narrow::CARD_HEIGHT
+        } else {
+            ROW_HEIGHT
+        }));
         let offset = f32::from(state.base_handle.offset().y);
         if height <= 0.0 {
             return None;
