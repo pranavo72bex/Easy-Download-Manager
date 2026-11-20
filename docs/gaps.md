@@ -11,10 +11,38 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
-## Resume here (2026-11-20, night): every branch merged into `main`
+## Resume here (2026-11-20, late night): on the MacBook, compile and test what the laptop coded
 
-`main` is the only branch left with finished work; it is 119 commits ahead of `origin/main`
-(at badfd90c, which holds the earlier ~95), not pushed. Merged in: `android-rust` (63 commits:
+The Windows laptop codes only; the MacBook builds and tests. `main` is pushed and every branch
+on `origin` but `main` is deleted (the maintainer's word). **Nothing below was compiled.**
+
+**Coded on the laptop tonight, each merged into `main` (what each row's Status says to run):**
+- N16: every window kept clear of a phone's status and navigation bars (`dm-gpui`
+  `window/safe.rs`, the main window, the phone layout's drawer and sheet, the 22 dialog and
+  Options windows); zero insets on the desktops, so nothing moves there.
+- N5: the clipboard watch on a phone looks only while dm is in front (`clipwatch.rs`,
+  `links::Clipboard::turn_unread`, `Java::in_front`).
+- A10: dm-shell's opener, RAS and owner-only code under `platform/`.
+- P8: the system's programs behind each crate's `platform::programs` (dm-shell, dm-net, dm-core);
+  the table in `docs/how-it-works.md` "The system's programs".
+- 206: no fault found by reading; `DM_FINISH_TRACE` now says what a differing seam or lead
+  compared. Run `bench.mjs fast` 50 times with the trace.
+- Y25: SILK and hybrid Opus, on branch `y25-silk` (merged if its Status says so).
+
+**On the MacBook, in this order:**
+1. `cargo fmt --check`, `cargo check --workspace --all-targets`, clippy `-D warnings`,
+   `cargo test --workspace`, `cargo xtask layers`, `privacy`; for Windows and Android targets
+   `cargo check` too (`--target x86_64-pc-windows-msvc`, `cargo ndk -t arm64-v8a check -p
+   dm-android`). Watch first: the moved `platform` paths (A10, P8: test modules reaching them
+   through `use super::*`), rfd 0.18 (the file choosers), sha2 0.11.1, `window/safe.rs`'s test,
+   the dialogs' `kept_clear` wrapping, dm-android's `in_front` (`gpui_android::android::jni::platform`).
+2. Fix what fails; then `human-qa.py` whole (in a visible window) and Android Studio's Run
+   (`docs/android.md`).
+3. The list "Waiting for the maintainer's word" in the section further below.
+
+## Earlier tonight: every branch merged into `main`
+
+Merged in: `android-rust` (63 commits:
 the Android work and the rows of the section below it; conflicts in `window.rs`, `decisions.md`
 and `gaps.md` resolved by keeping both sides), `a10-platform`'s first commit, `u35-rtl`,
 `f10-rar`, `fix-commands-tests`, and Dependabot's brotli-decompressor 6.3.2, hyper 1.12.0, sha2
@@ -24,8 +52,8 @@ taken, being superseded, already in `main` or check-only): `u27-mac-keys`,
 `windows-qa-2026-11-13`, `arm-check-2026-11-18`, `win-debug`, `fix/keep-awake-while-downloading`,
 `fix/original-audio-track`, `ram-optimization`, and the older Dependabot bumps. The merged
 local branches and their worktrees are deleted (the `refine-<area>` branches had no commits; the
-pass below starts again from `main`). The branches on `origin` are still there: deleting them
-is a push.
+pass below starts again from `main`). The branches on `origin` were deleted after, at the
+maintainer's word.
 
 `a10-platform` finished and merged (dm-shell's opener, RAS and owner-only code under
 `platform/`; row A10). `n15-view` (the `dm-view` crate) was recorded with `-s ours` and
