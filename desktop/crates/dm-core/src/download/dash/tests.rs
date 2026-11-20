@@ -8,6 +8,7 @@
 use super::*;
 
 mod hls_pairs;
+mod in_place;
 mod listed;
 
 /// A manifest's size: exact from every piece's bytes, else about, from the bitrate and the

@@ -4,6 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::hls_text::{HlsTexts, Texts};
+use super::in_place::tracks_in_place;
 use super::*;
 use crate::dash::{self, Medium, Track};
 
@@ -623,23 +624,15 @@ async fn join_tracks(
         if mkv {
             joined = matroska.clone();
         }
-        let partial = options.parts_dir.join(format!(
-            "joined.partial.{}",
-            if mkv { "mkv" } else { extension }
-        ));
-        let _ = fs::remove_file(&partial).await;
-        // Run to the end like the remux of a transport stream: cut loose
-        // from a pause it would go on writing a file a resume makes afresh.
-        let made = joins::join_files(&files, texts, &partial, webm || mkv, options).await;
-        if let Err(why) = made {
-            let _ = fs::remove_file(&partial).await;
-            return Err(Error::Internal(format!(
-                "the picture and sound could not be joined: {why}"
-            )));
-        }
-        fs::rename(&partial, &joined).await?;
-        for file in files {
-            let _ = fs::remove_file(file).await;
+        // No room for the join beside its tracks: an MP4 is written into the largest of them
+        // (gaps row Y21); anything else is refused in the words of the check before fetching,
+        // the tracks kept for when there is room.
+        if let Err(no_room) = room_to_join(&files, &options.parts_dir, options) {
+            if webm || mkv || streams || !tracks_in_place(&files, texts, &joined, options).await? {
+                return Err(no_room);
+            }
+        } else {
+            joins::join_beside(&files, texts, &joined, webm || mkv, options).await?;
         }
     }
     // Saved under the name of what it is.

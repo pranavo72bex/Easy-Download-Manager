@@ -56,6 +56,10 @@ pub(super) async fn fetch(
     // names of their own.
     let part = options.span.map(|span| plan.for_part(span));
     let plan = part.as_ref().unwrap_or(plan);
+    // A join in place into or from a stream cut short: that stream is fetched again (gaps row Y21).
+    for stream in &plan.streams {
+        crate::download::drop_spoiled(&stream.target).await;
+    }
     if let Some(tx) = &report {
         let name = plan
             .produced

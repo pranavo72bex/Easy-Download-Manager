@@ -473,6 +473,7 @@ pub(crate) fn write_with_text_from(
 }
 
 mod cenc;
+mod in_place;
 mod part;
 mod read;
 mod runs;
@@ -480,6 +481,7 @@ mod text;
 mod write;
 
 pub use cenc::clear_cbcs;
+pub use in_place::{join_in_place, joining_mark, InPlace, NotInPlace};
 pub use part::{plan_plain_part, write_plain_part, PlainPart};
 use read::*;
 pub(crate) use read::{boxes, child};
