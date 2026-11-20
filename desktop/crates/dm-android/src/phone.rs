@@ -7,12 +7,13 @@
 //! gaps rows N3, N6, N17), made of the calls into Android that `android/java.rs` makes through
 //! JNI ([`Java`]). What each service does with those calls is decided here, where the host's
 //! tests reach it: a finished file indexed before its notification, the wake lock and the
-//! ongoing notification together, the Trash refused.
+//! ongoing notification together for as long as dm is busy, its words at most once a second,
+//! the Trash refused.
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
-use dm_desktop_base::phone::PhoneServices;
+use dm_desktop_base::phone::{Busy, PhoneServices};
 use dm_desktop_base::quiet::Note;
 
 /// The calls into Android that dm's services are made of. Each comes from any of dm's threads
@@ -40,12 +41,12 @@ pub trait Java: Send + Sync + 'static {
     fn stay_awake(&self, on: bool) -> Result<(), String>;
 }
 
-/// The ongoing notification's words while a download runs (gaps row N6). The count and the
-/// speed it said under the placeholder's engine wait for the seam to carry them (docs/gaps.md,
-/// N6).
-pub const ONGOING_TITLE: &str = "dm is downloading";
-/// The ongoing notification's second line.
+/// The ongoing notification's second line where [`Busy::words`] has none.
 pub const ONGOING_BODY: &str = "Tap to see the downloads";
+
+/// How often the ongoing notification's words change at most: its speed moves many times a
+/// second, and a phone redraws its shade for each change.
+pub const ONGOING_EVERY: Duration = Duration::from_secs(1);
 
 /// How long a finished file's notification waits for the media index to take the file.
 const INDEX_WAIT: Duration = Duration::from_millis(1500);
@@ -55,6 +56,64 @@ const INDEX_WAIT: Duration = Duration::from_millis(1500);
 pub struct Phone<J> {
     java: Arc<J>,
     index_wait: Duration,
+    ongoing: Mutex<Ongoing>,
+}
+
+/// The wake lock and the ongoing notification as last set.
+#[derive(Default)]
+pub struct Ongoing {
+    /// Whether the wake lock is held and the notification up.
+    held: bool,
+    /// The words last shown, and when.
+    shown: Option<((String, String), Instant)>,
+}
+
+/// What the phone is to do as dm's busyness is told.
+#[derive(Debug, PartialEq)]
+pub enum Step {
+    /// Take the wake lock and put the notification up with these words.
+    Hold(String, String),
+    /// Change the notification's words.
+    Say(String, String),
+    /// Take the notification down and let the wake lock go.
+    Let,
+    /// Nothing changes.
+    Keep,
+}
+
+impl Ongoing {
+    /// What to do at `now` when dm's busyness is `words` (`None`: nothing keeps it busy): the
+    /// wake lock and the notification taken and let go at once, the words changed only where
+    /// they differ and at most once each [`ONGOING_EVERY`].
+    pub fn step(&mut self, words: Option<(String, String)>, now: Instant) -> Step {
+        match words {
+            None if self.held => {
+                *self = Ongoing::default();
+                Step::Let
+            }
+            None => Step::Keep,
+            Some((title, body)) if !self.held => {
+                self.held = true;
+                self.shown = Some(((title.clone(), body.clone()), now));
+                Step::Hold(title, body)
+            }
+            Some(words) => match &self.shown {
+                Some((said, at)) if *said == words || now.duration_since(*at) < ONGOING_EVERY => {
+                    Step::Keep
+                }
+                _ => {
+                    self.shown = Some((words.clone(), now));
+                    Step::Say(words.0, words.1)
+                }
+            },
+        }
+    }
+}
+
+/// The notification's title and second line for `busy`, in dm's words.
+fn ongoing_words(busy: &Busy) -> (String, String) {
+    let (title, more) = busy.words();
+    (title, more.unwrap_or_else(|| ONGOING_BODY.to_owned()))
 }
 
 impl<J: Java> Phone<J> {
@@ -63,6 +122,7 @@ impl<J: Java> Phone<J> {
         Phone {
             java: Arc::new(java),
             index_wait: INDEX_WAIT,
+            ongoing: Mutex::default(),
         }
     }
 }
@@ -112,13 +172,30 @@ impl<J: Java> PhoneServices for Phone<J> {
     }
 
     fn keep_awake(&self, on: bool) {
+        // Android's `awake` watch tells `busy`; on or off alone is busy with nothing counted.
+        self.busy(on.then(Busy::default));
+    }
+
+    fn busy(&self, summary: Option<Busy>) {
+        let words = summary.as_ref().map(ongoing_words);
+        let step = match self.ongoing.lock() {
+            Ok(mut ongoing) => ongoing.step(words, Instant::now()),
+            Err(poisoned) => poisoned.into_inner().step(words, Instant::now()),
+        };
         // A refusal (no permission to notify yet) leaves the wake lock to do its part.
-        if on {
-            let _ = self.java.stay_awake(true);
-            let _ = self.java.ongoing(ONGOING_TITLE, ONGOING_BODY);
-        } else {
-            let _ = self.java.end_ongoing();
-            let _ = self.java.stay_awake(false);
+        match step {
+            Step::Hold(title, body) => {
+                let _ = self.java.stay_awake(true);
+                let _ = self.java.ongoing(&title, &body);
+            }
+            Step::Say(title, body) => {
+                let _ = self.java.ongoing(&title, &body);
+            }
+            Step::Let => {
+                let _ = self.java.end_ongoing();
+                let _ = self.java.stay_awake(false);
+            }
+            Step::Keep => {}
         }
     }
 
