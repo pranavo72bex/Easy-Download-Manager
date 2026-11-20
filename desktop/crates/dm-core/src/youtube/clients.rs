@@ -276,3 +276,9 @@ pub(super) fn origin() -> String {
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| "https://www.youtube.com".to_string())
 }
+
+/// Whether `address` is one a live stream or one just ended is played from: an `https` one, or
+/// one on the stand-in a test names for YouTube (`DM_YOUTUBE_HOST`), which is plain HTTP.
+pub(crate) fn playlist_address(address: &str) -> bool {
+    address.starts_with("https://") || address.starts_with(&format!("{}/", origin()))
+}

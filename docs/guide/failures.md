@@ -65,6 +65,20 @@ failure: the download worked.
   (often an advert). dm left them out so the file is one video. Nothing to
   do.
 
+A YouTube premiere, or a live stream that has not begun, is waited for: its
+row says "Waiting:" and one of these until it begins, then records it as a
+live stream. **Pause** or **Cancel** stops the wait; started again, the
+download reads the video afresh and waits again.
+
+- `the premiere starts in … hours`
+- `the premiere starts in … minutes`
+- `the premiere starts in a moment`
+  How long is left until the time YouTube gives for it. dm reads the video
+  again a few seconds after that time. Nothing to do: leave dm open.
+- `the premiere has not begun yet`
+  Its time has passed, but the stream has not come up. dm reads the video
+  again every half minute, for up to six hours past its time.
+
 **Unpack when done** ([Options › Folders](options-folders.md#unpack-when-done),
 or one download's box in [Download details](download-details.md)) says what
 it made of a finished archive:
@@ -459,6 +473,14 @@ a new dm with **Help › Check for updates**.
 - `a live stream`
   The video is live, and YouTube's player named no live playlist for dm to
   record from.
+- `the premiere starts at …, more than a week from now`
+  The premiere, or the live stream, is set to start at that time, on your
+  computer's clock: too far ahead for dm to wait for. Add the video again
+  nearer the time.
+- `the premiere had not begun six hours after the time it was set for`
+  dm waited for the premiere and read the video every half minute, but it
+  did not begin within six hours of its time. It may have been put off or
+  cancelled: check the video in your browser, then click **Retry**.
 - `dm's own reading of the page could not be read (…)`
 - `this video's streams cannot be fetched by dm's own engine`
   dm read the page but its streams are not ones dm can fetch. Try again

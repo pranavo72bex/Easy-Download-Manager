@@ -428,9 +428,11 @@ fn options_from_row(slot: &mut Slot, options: &mut Options, own_parts: &std::pat
      * that checked it (`Update::Note`): a run fetching the file again, which may
      * check a typed digest instead or fail its check, does not carry an earlier
      * run's word; nor what "Unpack when done" made of the last run's archive
-     * (the last five notes, gaps row W14). */
+     * (the five notes from the fifth, gaps row W14), nor a premiere's wait it was stopped in
+     * (gaps row Y5). */
     if slot.entry.said == crate::download::CHECKED_BESIDE
         || crate::download::NOTES[4..].contains(&slot.entry.said.as_str())
+        || crate::videopage::waits_for_premiere(&slot.entry.said)
     {
         slot.entry_mut().said.clear();
     }

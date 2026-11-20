@@ -65,6 +65,9 @@ that part is downloaded. See [Download details](download-details.md).
 - A live stream is recorded as it plays, until it ends, you stop it, or
   **Options › Downloads › Stop recording after (minutes, 0 for no limit)**
   is reached.
+- A YouTube premiere, or a live stream that has not begun, is waited for:
+  its row says "Waiting: the premiere starts in …", and dm records it once it
+  begins. One set more than a week ahead is refused, saying when it starts.
 
 When a video does not download, its row says why: see the video and stream
 sections of [What dm's messages mean](failures.md).

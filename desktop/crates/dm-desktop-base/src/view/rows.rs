@@ -203,7 +203,12 @@ pub fn status_in_english(row: &Entry) -> String {
 pub fn status_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     let state = state_in(row, words);
     // What the download said of itself (`Entry::said`), after its state (gaps rows Y19, Y23).
+    // A premiere waited for says what for in its state's place: "Starting…" read as stuck
+    // (gaps row Y5).
+    let premiere =
+        matches!(row.state, State::Running) && dm_core::videopage::waits_for_premiere(&row.said);
     match note_in(&row.said, words) {
+        Some(note) if premiere => crate::i18n::fill(words("Waiting: {}"), &[&note]),
         Some(note) if !state.is_empty() => format!("{state} · {note}"),
         Some(note) => note,
         None => state,

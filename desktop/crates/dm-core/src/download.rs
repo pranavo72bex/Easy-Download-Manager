@@ -570,9 +570,9 @@ pub async fn download(
 }
 
 /// Every note a download may put on its row ([`Update::Note`]), so the window has each in
-/// every language; a note with a number says it as `{}`. The last five say what "Unpack when
-/// done" made of a finished archive (dm-shell's `app::unpack`, gaps row W14).
-pub const NOTES: [&str; 9] = [
+/// every language; a note with a number says it as `{}`. From the fifth, five say what "Unpack
+/// when done" made of an archive (gaps row W14); the last four, a premiere's wait (row Y5).
+pub const NOTES: [&str; 13] = [
     "higher qualities are copy-protected, so the best one that is not was taken",
     "{} pieces of the live stream were gone before dm could fetch them",
     "checked against the checksum file published beside it",
@@ -582,6 +582,10 @@ pub const NOTES: [&str; 9] = [
     "unpacked into a folder of its name, but the archive could not be sent to the Trash",
     "not unpacked: the archive has a password",
     "not unpacked: Extract here on its menu says why",
+    "the premiere starts in {} hours",
+    "the premiere starts in {} minutes",
+    "the premiere starts in a moment",
+    "the premiere has not begun yet",
 ];
 
 /// The note of a file checked against a checksum file found beside it ([`NOTES`], gaps row F5).

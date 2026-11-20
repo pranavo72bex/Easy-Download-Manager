@@ -95,7 +95,7 @@ pub(super) fn ended_stream_playlist(player: &Value) -> Option<&str> {
     player
         .pointer("/streamingData/hlsManifestUrl")
         .and_then(Value::as_str)
-        .filter(|u| ended && u.starts_with("https://"))
+        .filter(|u| ended && playlist_address(u))
 }
 
 /// The stream's `xtags` (`acont=original:lang=es:vb=1`) as pairs, from its

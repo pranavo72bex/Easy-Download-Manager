@@ -998,5 +998,9 @@
  "Any network": "Elk netwerk",
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Elke download gaat alleen via dit netwerk, zoals dat van je VPN. Zolang het niet verbonden is, wachten downloads en zeggen dat, en gaan ze vanzelf verder als het terug is. Torrents en livestreams starten niet zolang er een gekozen is, en het tweede netwerk wordt niet gebruikt.",
  "Waiting for the network": "Wacht op het netwerk",
- "the network downloads go only through is not connected. dm goes on when it is back": "het netwerk waarlangs downloads alleen gaan is niet verbonden. dm gaat verder zodra het terug is"
+ "the network downloads go only through is not connected. dm goes on when it is back": "het netwerk waarlangs downloads alleen gaan is niet verbonden. dm gaat verder zodra het terug is",
+ "the premiere starts in {} hours": "de première begint over {} uur",
+ "the premiere starts in {} minutes": "de première begint over {} minuten",
+ "the premiere starts in a moment": "de première begint zo",
+ "the premiere has not begun yet": "de première is nog niet begonnen"
 }

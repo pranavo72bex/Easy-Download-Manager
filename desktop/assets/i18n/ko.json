@@ -998,5 +998,9 @@
  "Any network": "모든 네트워크",
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "모든 다운로드가 이 네트워크(예: VPN)로만 나갑니다. 연결되지 않은 동안 다운로드는 그 이유를 표시하며 기다리고, 다시 연결되면 저절로 이어집니다. 선택된 동안 토렌트와 라이브 스트림은 시작되지 않으며 두 번째 네트워크는 사용하지 않습니다.",
  "Waiting for the network": "네트워크 기다리는 중",
- "the network downloads go only through is not connected. dm goes on when it is back": "다운로드에 쓰는 네트워크가 연결되어 있지 않습니다. 다시 연결되면 dm이 이어서 받습니다"
+ "the network downloads go only through is not connected. dm goes on when it is back": "다운로드에 쓰는 네트워크가 연결되어 있지 않습니다. 다시 연결되면 dm이 이어서 받습니다",
+ "the premiere starts in {} hours": "최초 공개가 {}시간 후에 시작됩니다",
+ "the premiere starts in {} minutes": "최초 공개가 {}분 후에 시작됩니다",
+ "the premiere starts in a moment": "최초 공개가 곧 시작됩니다",
+ "the premiere has not begun yet": "최초 공개가 아직 시작되지 않았습니다"
 }

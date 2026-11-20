@@ -26,7 +26,7 @@ mod page_data;
 mod playlist;
 
 pub use choices::{choices, class_name, list_choices, list_choices_fast, with_mp3, Choice};
-pub use fetch::download_page;
+pub use fetch::{download_page, waits_for_premiere};
 pub use playlist::{playlist_of, read_playlist};
 /// Whether `url` is a YouTube page whose own data lists its qualities
 /// (`list_choices_fast`).

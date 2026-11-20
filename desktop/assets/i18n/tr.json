@@ -998,5 +998,9 @@
  "Any network": "Herhangi bir ağ",
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Her indirme yalnızca bu ağ üzerinden çıkar, örneğin VPN'inizinki. Bağlı değilken indirmeler bunu söyleyerek bekler ve ağ geri geldiğinde kendiliğinden devam eder. Bir ağ seçiliyken torrentler ve canlı yayınlar başlamaz, ikinci ağ da kullanılmaz.",
  "Waiting for the network": "Ağ bekleniyor",
- "the network downloads go only through is not connected. dm goes on when it is back": "indirmelerin yalnızca üzerinden gittiği ağ bağlı değil. dm, ağ geri gelince devam eder"
+ "the network downloads go only through is not connected. dm goes on when it is back": "indirmelerin yalnızca üzerinden gittiği ağ bağlı değil. dm, ağ geri gelince devam eder",
+ "the premiere starts in {} hours": "prömiyer {} saat sonra başlıyor",
+ "the premiere starts in {} minutes": "prömiyer {} dakika sonra başlıyor",
+ "the premiere starts in a moment": "prömiyer birazdan başlıyor",
+ "the premiere has not begun yet": "prömiyer henüz başlamadı"
 }

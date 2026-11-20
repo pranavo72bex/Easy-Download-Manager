@@ -109,6 +109,27 @@ fn a_downloads_note_follows_its_state() {
     assert_eq!(status_in_english(&done), "Complete");
 }
 
+/// A premiere waited for says what it waits for in its state's place, and a stopped one's note
+/// follows its state as any does (gaps row Y5).
+#[test]
+fn a_premiere_waited_for_says_what_it_waits_for() {
+    let mut waiting = row(State::Running, false);
+    waiting.progress.downloaded = 0;
+    waiting.said = dm_core::NOTES[10].replace("{}", "42");
+    assert_eq!(
+        status_in_english(&waiting),
+        "Waiting: the premiere starts in 42 minutes"
+    );
+    waiting.said = dm_core::NOTES[12].into();
+    assert_eq!(
+        status_in_english(&waiting),
+        "Waiting: the premiere has not begun yet"
+    );
+    let mut stopped = row(State::Paused, false);
+    stopped.said = dm_core::NOTES[9].replace("{}", "3");
+    assert!(status_in_english(&stopped).ends_with(" · the premiere starts in 3 hours"));
+}
+
 /// An archive "Unpack when done" sent to the Trash is not a missing file: its row says what
 /// became of it (gaps row W14).
 #[test]
