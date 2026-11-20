@@ -5,7 +5,8 @@
 
 //! The framed stream fetched: a request posted, its answer's parts read as they come, each
 //! whole piece written to its format's file, and the next request saying what is held, until
-//! every format has its last piece.
+//! every format has its last piece. What each file holds is written down beside it after each
+//! piece ([`record`]), so a fetch paused or failed goes on from there.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt as _;
 
 use super::messages::{self, kind, Ask, FormatStart, Held, MediaHeader, NextAsk};
+use super::record::{self, Record};
 use super::ump::Reader;
 use super::{Framed, Wanted, WANTS_TOKEN};
 use crate::download::{Options, Update};
@@ -37,28 +39,22 @@ struct Track<'a> {
     /// Where its pieces are written until every format is whole.
     partial: PathBuf,
     file: tokio::fs::File,
-    written: u64,
-    /// Its first word was heard ([`FormatStart`]).
-    started: bool,
-    /// Its first boxes are written.
-    init: bool,
-    first: Option<u64>,
-    last: Option<u64>,
-    /// Where what it holds ends, in milliseconds.
-    held_ms: u64,
-    end_segment: Option<u64>,
-    end_ms: Option<u64>,
+    /// Its record ([`record::path_of`]), written over after each whole piece.
+    ledger: tokio::fs::File,
+    /// What it holds: its first word heard ([`FormatStart`]), its first boxes, the pieces.
+    held: Record,
 }
 
 impl Track<'_> {
     /// Whether it holds its last piece.
     fn done(&self) -> bool {
-        let Some(last) = self.last.filter(|_| self.init) else {
+        let held = &self.held;
+        let Some(last) = held.last.filter(|_| held.init) else {
             return false;
         };
-        match (self.end_segment, self.end_ms) {
+        match (held.end_segment, held.end_ms) {
             (Some(end), _) => last >= end,
-            (None, Some(end)) => self.held_ms >= end,
+            (None, Some(end)) => held.held_ms >= end,
             (None, None) => false,
         }
     }
@@ -67,14 +63,52 @@ impl Track<'_> {
     /// else the piece after the last one held.
     fn takes(&self, init: bool, sequence: Option<u64>) -> bool {
         if init {
-            return !self.init;
+            return !self.held.init;
         }
-        let next = |n: u64| match self.last {
+        let next = |n: u64| match self.held.last {
             Some(last) => last.checked_add(1) == Some(n),
             None => true,
         };
-        self.init && sequence.is_some_and(next)
+        self.held.init && sequence.is_some_and(next)
     }
+}
+
+/// Format `wanted`'s file, beside its target: taken up from its last whole piece where an
+/// earlier run left it and its record agrees, else begun again.
+async fn track_of(wanted: &Wanted) -> Result<Track<'_>, Error> {
+    let _ = tokio::fs::remove_file(&wanted.target).await;
+    let mut name = wanted.target.clone().into_os_string();
+    name.push(".framed");
+    let partial = PathBuf::from(name);
+    let (file, held, kept) = match record::taken_up(&partial, &wanted.pick).await {
+        Some((file, held)) => (file, held, true),
+        None => (
+            tokio::fs::File::create(&partial).await?,
+            Record::of(&wanted.pick),
+            false,
+        ),
+    };
+    let ledger = tokio::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(!kept)
+        .open(record::path_of(&partial))
+        .await?;
+    if kept {
+        crate::note!(
+            info,
+            "dm: the framed stream's format {} goes on after its piece {}",
+            wanted.pick.itag,
+            held.last.unwrap_or(0)
+        );
+    }
+    Ok(Track {
+        wanted,
+        partial,
+        file,
+        ledger,
+        held,
+    })
 }
 
 /// A piece whose media is coming, under its header's id.
@@ -104,11 +138,15 @@ struct Run<'r> {
     options: &'r Options,
     report: Option<tokio::sync::mpsc::Sender<Update>>,
     began: Instant,
+    /// The bytes an earlier run left, not counted in this one's speed.
+    kept: u64,
 }
 
 /// Every format of `wanted` fetched from the framed stream `framed`, each to its `target`:
 /// written beside it as it comes, and put there once every one is whole. Where every target is
-/// there already (a run stopped after its fetch), nothing is asked.
+/// there already (a run stopped after its fetch), nothing is asked. Stopped or failed, what is
+/// written is kept with its record, as a ranged download's parts are, and the next run asks
+/// only for the pieces after it.
 pub async fn fetch(
     client: &reqwest::Client,
     framed: &Framed,
@@ -125,24 +163,7 @@ pub async fn fetch(
     })?;
     let mut tracks = Vec::new();
     for w in wanted {
-        let _ = tokio::fs::remove_file(&w.target).await;
-        let mut name = w.target.clone().into_os_string();
-        name.push(".framed");
-        let partial = PathBuf::from(name);
-        let file = tokio::fs::File::create(&partial).await?;
-        tracks.push(Track {
-            wanted: w,
-            partial,
-            file,
-            written: 0,
-            started: false,
-            init: false,
-            first: None,
-            last: None,
-            held_ms: 0,
-            end_segment: None,
-            end_ms: None,
-        });
+        tracks.push(track_of(w).await?);
     }
     let run = Run {
         client,
@@ -150,14 +171,16 @@ pub async fn fetch(
         options,
         report,
         began: Instant::now(),
+        kept: tracks.iter().map(|t| t.held.written).sum(),
     };
     let asked = match ask_until_whole(&run, &mut tracks, &config).await {
         Ok(asked) => asked,
         Err(e) => {
-            // Nothing of it is taken up again: a later run asks the stream from its start.
-            for track in tracks {
-                drop(track.file);
-                let _ = tokio::fs::remove_file(&track.partial).await;
+            // Kept, each with its record, for the next run to go on from; a cancel's staging
+            // is cleared by the page's download, as every other download's parts are.
+            for track in &mut tracks {
+                let _ = track.file.sync_data().await;
+                let _ = track.ledger.sync_data().await;
             }
             return Err(e);
         }
@@ -168,7 +191,9 @@ pub async fn fetch(
     }
     for track in tracks {
         drop(track.file);
+        drop(track.ledger);
         tokio::fs::rename(&track.partial, &track.wanted.target).await?;
+        let _ = tokio::fs::remove_file(record::path_of(&track.partial)).await;
     }
     crate::note!(
         info,
@@ -271,7 +296,7 @@ fn ask_of<'a>(
     let player_time_ms = tracks
         .iter()
         .filter(|t| !t.done())
-        .map(|t| t.held_ms)
+        .map(|t| t.held.held_ms)
         .min()
         .unwrap_or(0);
     Ask {
@@ -284,7 +309,7 @@ fn ask_of<'a>(
         video: picks(true),
         started: tracks
             .iter()
-            .filter(|t| t.started)
+            .filter(|t| t.held.started)
             .map(|t| &t.wanted.pick)
             .collect(),
         held: tracks
@@ -292,9 +317,9 @@ fn ask_of<'a>(
             .filter_map(|t| {
                 Some(Held {
                     pick: &t.wanted.pick,
-                    duration_ms: t.held_ms,
-                    first: t.first?,
-                    last: t.last?,
+                    duration_ms: t.held.held_ms,
+                    first: t.held.first?,
+                    last: t.held.last?,
                 })
             })
             .collect(),
@@ -352,7 +377,8 @@ async fn answered(
 }
 
 /// A piece whose media has ended, written to its track's file where it still belongs next
-/// there (another of the same answer may have taken its place). Whether it was.
+/// there (another of the same answer may have taken its place), and then, once it is on the
+/// disk itself, written down in the track's record. Whether it was.
 async fn write_piece(piece: Piece, tracks: &mut [Track<'_>]) -> Result<bool, Error> {
     let Some(track) = piece.track.and_then(|at| tracks.get_mut(at)) else {
         return Ok(false);
@@ -361,16 +387,21 @@ async fn write_piece(piece: Piece, tracks: &mut [Track<'_>]) -> Result<bool, Err
         return Ok(false);
     }
     track.file.write_all(&piece.bytes).await?;
-    track.written += piece.bytes.len() as u64;
+    let held = &mut track.held;
+    held.written += piece.bytes.len() as u64;
     if piece.init {
-        track.init = true;
+        held.init = true;
     } else {
-        track.first = track.first.or(piece.sequence);
-        track.last = piece.sequence;
+        held.first = held.first.or(piece.sequence);
+        held.last = piece.sequence;
         if let Some(end) = piece.end_ms {
-            track.held_ms = track.held_ms.max(end);
+            held.held_ms = held.held_ms.max(end);
         }
     }
+    // Behind the bytes, never ahead of them: a record that lags costs a piece fetched again.
+    track.file.flush().await?;
+    track.file.sync_data().await?;
+    record::put(&mut track.ledger, &track.held).await?;
     Ok(true)
 }
 
@@ -380,7 +411,7 @@ async fn progress(run: &Run<'_>, tracks: &[Track<'_>]) {
     let Some(tx) = &run.report else {
         return;
     };
-    let downloaded: u64 = tracks.iter().map(|t| t.written).sum();
+    let downloaded: u64 = tracks.iter().map(|t| t.held.written).sum();
     let total = tracks
         .iter()
         .map(|t| t.wanted.size)
@@ -388,7 +419,7 @@ async fn progress(run: &Run<'_>, tracks: &[Track<'_>]) {
         .map(|total| total.max(downloaded));
     let seconds = run.began.elapsed().as_secs_f64();
     let speed = if seconds > 0.0 {
-        downloaded as f64 / seconds
+        downloaded.saturating_sub(run.kept) as f64 / seconds
     } else {
         0.0
     };
@@ -467,9 +498,9 @@ fn take(
         kind::FORMAT_INITIALIZATION_METADATA => {
             let start = FormatStart::read(data);
             if let Some(t) = of_itag(tracks, start.itag).and_then(|at| tracks.get_mut(at)) {
-                t.started = true;
-                t.end_segment = start.end_segment.or(t.end_segment);
-                t.end_ms = start.end_ms.or(t.end_ms);
+                t.held.started = true;
+                t.held.end_segment = start.end_segment.or(t.held.end_segment);
+                t.held.end_ms = start.end_ms.or(t.held.end_ms);
             }
         }
         kind::NEXT_REQUEST_POLICY => heard.next = Some(NextAsk::read(data)),

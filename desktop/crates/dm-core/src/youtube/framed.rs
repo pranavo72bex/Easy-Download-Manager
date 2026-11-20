@@ -21,6 +21,7 @@ use serde_json::{json, Value};
 use super::{Format, PlayerClient};
 
 pub mod messages;
+mod record;
 mod session;
 pub mod ump;
 pub mod wire;
