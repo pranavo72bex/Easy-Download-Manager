@@ -400,3 +400,19 @@ pub(crate) async fn claim_path(dir: &Path, name: &str) -> Result<PathBuf, Error>
     }
     Err(all_taken(dir, name))
 }
+
+/// The server's date on the finished file, where asked.
+pub(super) fn set_server_date(options: &Options, info: &Probe, path: &Path) {
+    // The server's date on the file, where asked: a file a person sorts by
+    // date then sorts by when it was made, not when it was fetched.
+    if options.server_dates {
+        if let Some(when) = info.modified.as_deref().and_then(http_date) {
+            // A file system that keeps no such date leaves the download's
+            // own, which is no reason to fail a whole file.
+            let _ = std::fs::File::options()
+                .write(true)
+                .open(path)
+                .and_then(|file| file.set_modified(when));
+        }
+    }
+}
