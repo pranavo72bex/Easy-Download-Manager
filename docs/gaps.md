@@ -34,13 +34,14 @@ coding part")**: the laptop codes only, the Mac builds and tests. `main` has one
 - Other rows: S16, 181, W10 (G2); 185, 186 (G3); Y20, Y21 (G4); Y2's live streams (G6); U16,
   U23 (G7); 200, 191 (G8); A18's ratchet; the Redownload fix (B73, row 221 for the rest);
   `fetch.rs` under 800 lines; two test targets that did not compile (`schedule/tests.rs`'s
-  `Local`, `youtube_premiere.rs`'s E0716); row 215's text put back.
+  `Local`, `youtube_premiere.rs`'s E0716); row 215's text put back; Y25's Opus decoder (CELT
+  complete, checked as a Python copy against RFC 8251's vectors; SILK and hybrid not yet, such a
+  track kept as its WebM).
 
 **Still being coded, on branches of their own (not on `android-rust` yet):**
-- `g5-opus` (row Y25): dm's own Opus decoder in dm-media, for an MP3 from YouTube's Opus sound.
 - `a10-platform` (rows A10, P8): every system `cfg` behind each crate's `platform` module, an
-  xtask check for it, and the system programs in one table. Started from 2e6ab7a9; merged after
-  G5 (it leaves `dm-media/src/mp3/decode` and `opus*` to last).
+  xtask check for it, and the system programs in one table. Started from 2e6ab7a9; it leaves
+  `dm-media/src/mp3/decode` and `opus*` to last (G5's, now merged here).
 
 **Waiting for the maintainer's word (coded where it says so; nothing in the contract changed):**
 1. The narrow layout's proposed contract rows (row N7) and the phone's rows P01–P12
@@ -64,7 +65,7 @@ coding part")**: the laptop codes only, the Mac builds and tests. `main` has one
 1. On the Mac: `cargo fmt --check`, `cargo check --workspace --all-targets`, clippy `-D warnings`,
    `cargo test --workspace`, `cargo xtask layers` and `privacy`, then `cargo ndk -t arm64-v8a
    check -p dm-android` and Android Studio's Run (`docs/android.md`); fix what fails.
-2. Merge `g5-opus` and `a10-platform` here when they report; the same run again.
+2. Merge `a10-platform` here when it reports; the same run again.
 3. The maintainer's word on the list above; then `human-qa.py` whole; then merge into `main`.
 4. Known: row 221 (`window_tests::commands` row menu's Open, `commands.rs:628`); an empty
    untracked `Cargo.toml` at the repository's root in the main checkout, made by an agent by
