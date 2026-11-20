@@ -305,6 +305,10 @@ fn login_item_at_launch(
     // test's fresh home would otherwise put a login item on the computer
     // running it. Turning the setting on in Options still registers one.
     let own_home = dm_core::env::get_os("DM_HOME").is_some_and(|h| !h.is_empty());
+    // Nor where the system has no login item (a phone).
+    if !crate::login::HAS_LOGIN_ITEM {
+        return None;
+    }
     // Only whether it was turned off outside dm is asked here (a read of the
     // registry on Windows, nothing elsewhere), since the setting must say so
     // before the window reads it; the item itself is put in step after the

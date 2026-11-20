@@ -31,10 +31,6 @@ getrandom.workspace = true
 sys-locale.workspace = true
 # Addresses as a row's details say them (format.rs, details.rs).
 url.workspace = true
-# The login item on macOS and Windows (login.rs): a launch agent, the Run key.
-auto-launch.workspace = true
-# A removed file to the Recycle Bin or the Trash (desktop.rs).
-trash.workspace = true
 # The window's native handle, for Windows' taskbar progress (taskbar.rs).
 raw-window-handle.workspace = true
 # A logout or `kill` quits dm as Exit does (signals.rs); the loop with no
@@ -43,6 +39,14 @@ tokio = { workspace = true, features = ["rt-multi-thread", "signal", "time"] }
 # The one channel that wakes the presentation, the window or the loop with
 # none (wakes.rs).
 async-channel.workspace = true
+
+# Neither builds for Android, which has no login item and no Trash: there
+# `login.rs` and `desktop.rs` say so (gaps row N17).
+[target.'cfg(not(target_os = "android"))'.dependencies]
+# The login item on macOS and Windows (login.rs): a launch agent, the Run key.
+auto-launch.workspace = true
+# A removed file to the Recycle Bin or the Trash (desktop.rs).
+trash.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # What VoiceOver is given of each window, read from inside (a11y_tree.rs).

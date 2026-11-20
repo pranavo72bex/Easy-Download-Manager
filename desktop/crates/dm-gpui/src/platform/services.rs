@@ -20,8 +20,13 @@
 //! window's thread. GPUI's prompts are not used: they take no kind of file
 //! and no starting folder. The text fields' own Copy and Paste are
 //! gpui-component's, on GPUI's clipboard.
+//!
+//! On a phone (gaps row N17) the clipboard and notifications are the app's
+//! (`phone.rs`), and no panel opens yet: `ask` answers as if cancelled, as
+//! the desktop's services say (`can_choose_folder`).
 
 use std::path::PathBuf;
+#[cfg(not(target_os = "android"))]
 use std::sync::Mutex;
 
 use dm_desktop_base::desktop::WindowServices;
@@ -33,13 +38,16 @@ pub struct GpuiServices;
 
 /// The clipboard dm copies with, kept: on Linux what was copied is served by
 /// the `arboard::Clipboard` that put it there, and would go with it.
+#[cfg(not(target_os = "android"))]
 static COPIER: Mutex<Option<arboard::Clipboard>> = Mutex::new(None);
 
 impl WindowServices for GpuiServices {
+    #[cfg(not(target_os = "android"))]
     fn clipboard(&self) -> Option<String> {
         arboard::Clipboard::new().ok()?.get_text().ok()
     }
 
+    #[cfg(not(target_os = "android"))]
     fn set_clipboard(&self, text: &str) {
         let mut copier = dm_core::lock(&COPIER);
         if copier.is_none() {
@@ -48,6 +56,18 @@ impl WindowServices for GpuiServices {
         if let Some(clipboard) = copier.as_mut() {
             let _ = clipboard.set_text(text);
         }
+    }
+
+    /// The phone's, through the app.
+    #[cfg(target_os = "android")]
+    fn clipboard(&self) -> Option<String> {
+        crate::platform::phone::clipboard()
+    }
+
+    /// The phone's, through the app.
+    #[cfg(target_os = "android")]
+    fn set_clipboard(&self, text: &str) {
+        crate::platform::phone::set_clipboard(text);
     }
 
     /// On Linux under Wayland: GPUI speaks the compositor's clipboard,
@@ -88,6 +108,7 @@ pub fn copy(platform: &dyn dm_shell::app::platform::Platform, text: &str, cx: &g
 /// save under, of a kind (`filter`: its name and endings), where it starts
 /// and the name it offers.
 #[derive(Debug, Clone, Default, PartialEq)]
+#[cfg_attr(target_os = "android", allow(dead_code))]
 pub struct Asked {
     /// A name to save under, rather than a file to open.
     pub save: bool,
@@ -224,7 +245,13 @@ pub fn ask(asked: Asked) -> std::pin::Pin<Box<dyn std::future::Future<Output = O
         let answer = macos::ask(&asked);
         Box::pin(async move { answer.await.flatten() })
     }
-    #[cfg(not(target_os = "macos"))]
+    // No panel on a phone yet: answered as if cancelled.
+    #[cfg(target_os = "android")]
+    {
+        let _ = asked;
+        Box::pin(async { None })
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "android")))]
     {
         let mut dialog = rfd::AsyncFileDialog::new();
         if let Some((name, extensions)) = asked.filter {

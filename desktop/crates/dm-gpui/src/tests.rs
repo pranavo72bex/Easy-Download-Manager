@@ -29,7 +29,7 @@ fn this_window_carries_the_version_dm_is_released_under() {
 /// start (review).
 #[test]
 fn the_language_chosen_is_in_force_before_the_window_opens() {
-    let source = include_str!("main.rs");
+    let source = include_str!("lib.rs");
     let main = source.split("#[cfg(test)]").next().unwrap_or_default();
     let set = main
         .find("i18n::set(i18n::chosen(")
@@ -45,7 +45,7 @@ fn the_language_chosen_is_in_force_before_the_window_opens() {
 /// launch (gaps row S16).
 #[test]
 fn the_login_item_follows_the_setting_after_the_window_is_made() {
-    let source = include_str!("main.rs");
+    let source = include_str!("lib.rs");
     let main = source.split("#[cfg(test)]").next().unwrap_or_default();
     let opened = main
         .find("open_main_window(")

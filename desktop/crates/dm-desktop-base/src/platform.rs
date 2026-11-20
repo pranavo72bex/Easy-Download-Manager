@@ -15,7 +15,8 @@
 //! button (`taskbar`'s progress, `jumplist`), `drops` (what the system's
 //! drop target takes), `opened` (links and files macOS opens with dm) and
 //! `a11y_tree` (what VoiceOver is given of each window); `metered` (whether the
-//! connection is metered and the computer on its battery, gaps row W11). Each is reached
+//! connection is metered and the computer on its battery, gaps row W11); `phone` (what the
+//! Android app hands in for the phone's own services, gaps row N17). Each is reached
 //! from the crate's root as before (`dm_desktop_base::quiet`).
 
 pub mod a11y_tree;
@@ -31,6 +32,7 @@ pub mod metered;
 pub mod mica;
 #[cfg(target_os = "macos")]
 pub mod opened;
+pub mod phone;
 pub mod power;
 pub mod quiet;
 pub mod region;

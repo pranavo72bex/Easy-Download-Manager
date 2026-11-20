@@ -9,13 +9,17 @@
 //! What a window toolkit's crates do (the clipboard and, away from Windows,
 //! posting a notification) the window supplies through [`WindowServices`],
 //! so that any window can use the rest. The file choosers are the window's
-//! own panels, which answer later, and not asked through here.
+//! own panels, which answer later, and not asked through here. On a phone
+//! (`android.rs`) a file is opened and its folder shown through the app
+//! (`phone`), and there is no login item, Trash or folder chooser.
 
 use std::path::Path;
 
 use dm_shell::app::backend::Platform;
+#[cfg(not(target_os = "android"))]
 use dm_shell::shell;
 
+#[cfg(not(target_os = "android"))]
 use crate::login::{login_item_program, login_launcher};
 use crate::power::{Report, WhenDone};
 use crate::quiet::Note;
@@ -29,6 +33,11 @@ use linux::{file_chooser_portal, show_item};
 mod windows;
 #[cfg(windows)]
 use windows::say_on_windows;
+// On a phone, opening a file and showing its folder are the app's.
+#[cfg(target_os = "android")]
+mod android;
+#[cfg(target_os = "android")]
+use android as shell;
 
 /// What only the window's own crates can do for [`Desktop`].
 pub trait WindowServices: Send + Sync {
@@ -78,6 +87,7 @@ impl<W: WindowServices> Platform for Desktop<W> {
     /// refused (`autostart::refused_at_login`). Not being able to read the
     /// state is fatal only for registering: a login item that cannot be
     /// read must still be one a person can get rid of.
+    #[cfg(not(target_os = "android"))]
     fn set_login_item(&self, wanted: bool) -> Result<(), String> {
         // Linux's entry is dm's own: see `autostart`.
         if cfg!(target_os = "linux") {
@@ -124,11 +134,24 @@ impl<W: WindowServices> Platform for Desktop<W> {
         .map_err(|e| e.to_string())
     }
 
+    /// A phone starts no app at login: one asked for is refused in words.
+    #[cfg(target_os = "android")]
+    fn set_login_item(&self, wanted: bool) -> Result<(), String> {
+        android::login_item(wanted)
+    }
+
     /// To the Recycle Bin or the Trash, not erased: a file deleted by a
     /// mistake can be put back.
+    #[cfg(not(target_os = "android"))]
     fn trash(&self, path: &str) -> Result<(), String> {
         // The Recycle Bin is the shell's: a long path goes as its short form.
         trash::delete(dm_shell::shell::for_shell(path)).map_err(|e| e.to_string())
+    }
+
+    /// A phone's own, where the app has one; else refused and the file kept.
+    #[cfg(target_os = "android")]
+    fn trash(&self, path: &str) -> Result<(), String> {
+        crate::phone::trash(path)
     }
 
     /// Posted from a thread of its own: on macOS, `show` waits on the
@@ -260,15 +283,17 @@ impl<W: WindowServices> Platform for Desktop<W> {
     }
 
     /// On Linux the chooser is the desktop portal's, else zenity's; with
-    /// neither, the window's panel answers as if cancelled. Elsewhere the
-    /// system has one.
+    /// neither, the window's panel answers as if cancelled. A phone has none
+    /// dm can open yet. Elsewhere the system has one.
     fn can_choose_folder(&self) -> bool {
         #[cfg(target_os = "linux")]
         return dm_shell::app::backend::chooser_here(
             file_chooser_portal(),
             std::env::var_os("PATH").as_deref(),
         );
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "android")]
+        return false;
+        #[cfg(not(any(target_os = "linux", target_os = "android")))]
         true
     }
 }

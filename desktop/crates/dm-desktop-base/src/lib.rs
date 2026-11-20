@@ -52,7 +52,7 @@ pub use platform::opened;
 pub use platform::toast;
 pub use platform::{
     a11y_tree, accent, autostart, awake, contrast, desktop, drops, jumplist, login, metered, mica,
-    power, quiet, region, signals, system_theme, taskbar, wake,
+    phone, power, quiet, region, signals, system_theme, taskbar, wake,
 };
 pub use run::{boot, cli, control, headless, mcp, modes, probe, session, wakes};
 pub use view::{

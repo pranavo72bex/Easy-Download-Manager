@@ -13,6 +13,13 @@ publish = false
 # dm-desktop-base. Pinned together:
 # docs/migration/GPUI_DEPENDENCY_DECISION.md 3.1. Its version is dm's: the
 # Makefile's `APP_VERSION`, the workflows and the update check read it here.
+# The window itself is a library (`dm_gpui::run_app`), so a program other
+# than the desktop's can open it: the phone's (dm-android's `android_main`,
+# gaps row N17). The desktop's program, below, hands it GPUI's platform.
+[lib]
+name = "dm_gpui"
+path = "src/lib.rs"
+
 [[bin]]
 name = "dm-gpui"
 path = "src/main.rs"
@@ -137,22 +144,27 @@ gpui-base.workspace = true
 async-channel.workspace = true
 futures-lite.workspace = true
 serde_json.workspace = true
+raw-window-handle.workspace = true
+
+# None of these builds for Android, where the clipboard and notifications are
+# the app's (platform/phone.rs) and there is no tray or file panel (gaps row
+# N17).
+[target.'cfg(not(target_os = "android"))'.dependencies]
 # The window's one clipboard path (services.rs): GPUI's needs the window's
 # thread, and the clipboard's watch reads off it (gaps P6).
 arboard.workspace = true
 # Plumbing GPUI lacks: the status item in the menu bar and the tray, with its
 # menu (tray-icon, which brings muda; D4's fallback).
 tray-icon.workspace = true
-raw-window-handle.workspace = true
 
 # The window's notifier (notify.rs): plumbing GPUI lacks. Not on Windows,
 # where dm posts its toasts itself (dm_desktop_base::toast).
-[target.'cfg(not(windows))'.dependencies]
+[target.'cfg(not(any(windows, target_os = "android")))'.dependencies]
 notify-rust.workspace = true
 
 # dm's own icon in a taskbar's tray, and Windows' window pictures, read and
 # written as PNGs (tray.rs, syswindow.rs).
-[target.'cfg(not(target_os = "macos"))'.dependencies]
+[target.'cfg(not(any(target_os = "macos", target_os = "android")))'.dependencies]
 png.workspace = true
 # The window's one file-chooser path (services.rs `ask`; on macOS dm begins
 # the panels itself): GPUI's prompts take no kind of file and no starting
