@@ -8,6 +8,8 @@
 
     python3 scripts/stress-check.py [phase ...]       # all phases, or those named
     python3 scripts/stress-check.py --list
+    python3 scripts/stress-check.py soak [--minutes 4320] [--count 50000]   # the long run (not in "all")
+    python3 scripts/stress-check.py soak --minutes 20 --count 500           # a quick try of it
 
 Everything stays on this computer: a local HTTP server (127.0.0.1 only) that
 makes its files up as they are asked for, a dm of its own (a throwaway
@@ -2499,15 +2501,419 @@ def p_import(ctx):
         listed.unlink(missing_ok=True)
 
 
+# ------------------------------------------------------------ the soak
+
+# Phases left out of a run that names none: the soak is three days long by default.
+LONG = {"soak"}
+# What the command line said for the soak (`--minutes`, `--count`, `--every`, `--inflight`, `--csv`).
+SOAK_ARGS = {}
+
+
+def soak_reader(pid):
+    """A reader of dm's resident memory and private bytes (MB) and open handles, read without
+    starting a process each minute, and its closer. Windows: the working set, the private commit
+    and GetProcessHandleCount (with the GDI and USER objects); Linux: VmRSS, the private pages of
+    smaps_rollup and /proc/<pid>/fd; macOS: proc_pid_rusage's resident size and footprint, and
+    proc_pidinfo's list of descriptors (lsof and ps if libproc cannot be read). None for what
+    cannot be read."""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+
+        class Counters(ctypes.Structure):
+            _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
+                (n, ctypes.c_size_t) for n in (
+                    "PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage",
+                    "QuotaPagedPoolUsage", "QuotaPeakNonPagedPoolUsage", "QuotaNonPagedPoolUsage",
+                    "PagefileUsage", "PeakPagefileUsage", "PrivateUsage")]
+
+        k32.OpenProcess.restype = wintypes.HANDLE
+        k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        k32.K32GetProcessMemoryInfo.restype = wintypes.BOOL
+        k32.K32GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
+        k32.GetProcessHandleCount.restype = wintypes.BOOL
+        k32.GetProcessHandleCount.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        k32.CloseHandle.argtypes = [wintypes.HANDLE]
+        user32.GetGuiResources.restype = wintypes.DWORD
+        user32.GetGuiResources.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        # PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, on this account's own process.
+        handle = k32.OpenProcess(0x0400 | 0x0010, False, pid)
+
+        def read():
+            if not handle:
+                return None, None, None, ""
+            c = Counters()
+            c.cb = ctypes.sizeof(Counters)
+            n = wintypes.DWORD()
+            mem = k32.K32GetProcessMemoryInfo(handle, ctypes.byref(c), c.cb)
+            got = k32.GetProcessHandleCount(handle, ctypes.byref(n))
+            gui = f"gdi {user32.GetGuiResources(handle, 0)} user {user32.GetGuiResources(handle, 1)}"
+            return (c.WorkingSetSize / MB if mem else None, c.PrivateUsage / MB if mem else None,
+                    n.value if got else None, gui)
+
+        def close():
+            if handle:
+                k32.CloseHandle(handle)
+        return read, close
+    if sys.platform.startswith("linux"):
+        def read():
+            rss = private = fds = None
+            try:
+                for line in pathlib.Path(f"/proc/{pid}/status").read_text().splitlines():
+                    if line.startswith("VmRSS:"):
+                        rss = int(line.split()[1]) / 1024
+            except (OSError, ValueError, IndexError):
+                pass
+            try:
+                kb = 0
+                for line in pathlib.Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+                    if line.startswith(("Private_Clean:", "Private_Dirty:")):
+                        kb += int(line.split()[1])
+                private = kb / 1024
+            except (OSError, ValueError, IndexError):
+                pass
+            try:
+                fds = len(os.listdir(f"/proc/{pid}/fd"))
+            except OSError:
+                pass
+            return rss, private, fds, ""
+        return read, lambda: None
+    import ctypes
+    try:
+        libproc = ctypes.CDLL("/usr/lib/libproc.dylib")
+    except OSError:
+        libproc = None
+
+    def read():
+        rss = private = fds = None
+        if libproc:
+            # rusage_info_v2: a 16-byte uuid, then 64-bit fields; resident_size is the 7th of
+            # them and phys_footprint (what Activity Monitor calls Memory) the 8th.
+            buf = (ctypes.c_uint64 * 64)()
+            if libproc.proc_pid_rusage(pid, 2, ctypes.byref(buf)) == 0:
+                rss, private = buf[8] / MB, buf[9] / MB
+            # PROC_PIDLISTFDS: a proc_fdinfo of 8 bytes for each open descriptor.
+            want = libproc.proc_pidinfo(pid, 1, ctypes.c_uint64(0), None, 0)
+            if want > 0:
+                fdbuf = ctypes.create_string_buffer(want + 64 * 8)
+                got = libproc.proc_pidinfo(pid, 1, ctypes.c_uint64(0), fdbuf, len(fdbuf))
+                if got > 0:
+                    fds = got // 8
+        try:
+            if fds is None:
+                out = subprocess.run(["lsof", "-p", str(pid)], capture_output=True, text=True,
+                                     encoding="utf-8", errors="replace").stdout
+                fds = max(0, len(out.splitlines()) - 1)
+            if rss is None:
+                out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True,
+                                     encoding="utf-8", errors="replace").stdout.split()
+                rss = float(out[0]) / 1024 if out else None
+        except (OSError, ValueError):
+            pass
+        return rss, private, fds, ""
+    return read, lambda: None
+
+
+def soak_flat(samples, key, warm, what):
+    """Whether each stretch of `warm` seconds after the first, by its median, stays within a
+    tenth over the level dm settled at: the median of the first stretch's second half. Falling
+    is no leak and passes. (ok, what was found)."""
+    vals = [(s["t"], s[key]) for s in samples if s[key] is not None]
+    first = [v for t, v in vals if warm / 2 <= t <= warm]
+    if not first or not any(t > warm for t, _ in vals):
+        return False, f"{what}: too few samples to judge (warm-up {warm / 60:.0f} min)"
+    level = sorted(first)[len(first) // 2]
+    worst, at = level, 0
+    k = 1
+    while True:
+        part = [v for t, v in vals if warm * k < t <= warm * (k + 1)]
+        if not part:
+            break
+        med = sorted(part)[len(part) // 2]
+        if med > worst:
+            worst, at = med, k
+        k += 1
+    ok = worst <= level * 1.10
+    rise = 100 * (worst / level - 1) if level else 0.0
+    return ok, (f"{what}: level {level:.1f} in the warm-up, highest stretch median after it {worst:.1f}"
+                f"{f' (stretch {at + 1} of {k})' if at else ''}, {rise:+.1f}%")
+
+
+def kind_of(row):
+    return row["state"]["kind"] if isinstance(row["state"], dict) else str(row["state"])
+
+
+@phase
+def p_soak(ctx):
+    """The long run: downloads added and finished or removed for hours against cuts and outages; memory, handles, the list file and the window's answer stay level (not in a run of all phases)."""
+    base, root, server = ctx["base"], ctx["root"], ctx["server"]
+    args = SOAK_ARGS
+    minutes = float(args.get("minutes") or os.environ.get("DM_SOAK_MINUTES") or 72 * 60)
+    count = int(args.get("count") or os.environ.get("DM_SOAK_COUNT") or 50000)
+    duration = minutes * 60
+    # The first hour is the warm-up the levels are judged from; a short try takes a third of itself.
+    warm = min(3600.0, duration / 3)
+    every = float(args.get("every") or os.environ.get("DM_SOAK_EVERY") or min(15.0, minutes / 5)) * 60
+    most = int(args.get("inflight") or os.environ.get("DM_SOAK_INFLIGHT") or 40)
+    csv_path = pathlib.Path(args.get("csv") or os.environ.get("DM_SOAK_CSV")
+                            or pathlib.Path(tempfile.gettempdir()) / time.strftime("dm-soak-%Y%m%d-%H%M%S.csv"))
+    measure("soak", f"{minutes:.0f} min, {count:,} downloads, at most {most} at once, a cut or an outage every "
+                    f"{every / 60:.1f} min, warm-up {warm / 60:.0f} min; samples to {csv_path}")
+    # Sizes from a page's icon to a large video, the small ones most often; the larger paced so
+    # they are still running when the server is cut. (size, weight, bytes/s a connection)
+    sizes = [(4096, 30, 0), (65537, 25, 0), (MB, 20, 0), (4 * MB + 7, 14, 4 * MB),
+             (16 * MB, 8, 4 * MB), (48 * MB + 3, 3, 8 * MB)]
+    weights = [w for _, w, _ in sizes]
+    rnd = random.Random(int(os.environ.get("DM_SOAK_SEED", "72")))
+    dm = DM(root, {"connections": 4, "concurrency": 8, "attempts": 10}, name="soak", window=True).start()
+    dm._stop.set()                      # the soak reads its own figures, once a minute
+    read, close = soak_reader(dm.proc.pid)
+    live = {}                           # name -> what was added: seed, size, id, path, retries
+    tally = {"added": 0, "verified": 0, "cancelled": 0, "gave_up": 0, "retried": 0}
+    bad = []
+    samples = []
+    net = {"flaky_until": 0.0, "outage_end": None, "events": 0}
+    t0 = time.time()
+    next_look = next_clear = next_sample = t0
+    next_event = t0 + every
+    stopped = None                      # why the run ended early, if it did
+    csv_file = open(csv_path, "w", encoding="utf-8", newline="")
+    csv_file.write("elapsed_s,rss_mb,private_mb,handles,gui,queue_json_kb,journal_kb,ui_texts_ms,"
+                   "rows,inflight,added,verified,cancelled,gave_up,broken,network\n")
+
+    def whole(name, rec, path):
+        """A finished file checked against what the server made (size, then digest), then deleted."""
+        p = pathlib.Path(path) if path else dm.out / name
+        why = None
+        if not p.exists():
+            why = "file missing"
+        elif p.stat().st_size != rec["size"]:
+            why = f"size {p.stat().st_size} != {rec['size']}"
+        else:
+            want = expected_sha(rec["seed"], rec["size"])
+            _EXPECTED.pop((rec["seed"], rec["size"]), None)
+            if file_sha(p) != want:
+                why = "content differs"
+        if why:
+            bad.append((name, why))
+            finding("critical", "soak", f"{name} ({rec['size']} bytes) finished broken: {why}")
+        else:
+            tally["verified"] += 1
+        try:
+            p.unlink(missing_ok=True)   # the disk stays as it began
+        except OSError:
+            pass
+
+    def name_of(row):
+        return urllib.parse.urlparse(row["url"]).path.rsplit("/", 1)[-1]
+
+    def look(rows):
+        """What each row of ours is doing: a failed or paused one started again, up to three times
+        (as a person retries after an outage), then cancelled; one running row in a hundred
+        cancelled, as a person changes their mind."""
+        stuck, drop = [], []
+        for r in rows:
+            rec = live.get(name_of(r))
+            if not rec:
+                continue
+            rec["id"], rec["path"] = r["id"], r.get("path") or rec["path"]
+            kind = kind_of(r)
+            if kind in ("failed", "paused") and net["outage_end"] is None and not rec["cancel"]:
+                if rec["retries"] < 3:
+                    rec["retries"] += 1
+                    stuck.append(r["id"])
+                else:
+                    rec["cancel"] = True
+                    drop.append(r["id"])
+                    tally["gave_up"] += 1
+            elif kind == "running" and not rec["cancel"] and rnd.random() < 0.01:
+                rec["cancel"] = True
+                drop.append(r["id"])
+                tally["cancelled"] += 1
+        if stuck:
+            tally["retried"] += len(stuck)
+            dm.call("downloads.resume", ids=stuck)
+        if drop:
+            dm.call("downloads.cancel", ids=drop)
+
+    def clear():
+        """Delete Completed, as a person does now and then: every finished file checked whole and
+        taken off the disk first, then the finished and cancelled rows taken off the list. A row
+        that finished between the two is checked where it was being saved."""
+        for r in dm.rows():
+            rec = live.get(name_of(r))
+            if rec and kind_of(r) == "completed" and not rec["checked"]:
+                rec["id"], rec["path"] = r["id"], r.get("path") or rec["path"]
+                whole(name_of(r), rec, rec["path"])
+                rec["checked"] = True
+        ran = dm.call("command.run", id="downloads.clear_finished")
+        if not ran.get("ok"):
+            finding("high", "soak", f"Delete Completed was refused: {ran.get('error')}")
+        # The command runs off the window's thread: its rows go a moment later.
+        time.sleep(1)
+        listed = {name_of(r) for r in dm.rows()}
+        for name in [n for n, rec in live.items() if n not in listed and rec["id"] is not None]:
+            rec = live.pop(name)
+            if not rec["checked"] and not rec["cancel"]:
+                whole(name, rec, rec["path"])
+
+    def sample(now):
+        rss, private, handles, gui = read()
+        q = dm.home / "queue.json"
+        j = dm.home / "queue.journal"
+        t = time.time()
+        try:
+            took = (time.time() - t) * 1000 if dm.call("ui.texts").get("ok") else None
+        except (OSError, ValueError):
+            took = None
+        rows = len(dm.rows())
+        state = "down" if net["outage_end"] else ("cuts" if now < net["flaky_until"] else "up")
+        samples.append({"t": now - t0, "rss": rss, "private": private, "handles": handles, "texts": took})
+
+        def cell(v):
+            return "" if v is None else (f"{v:.1f}" if isinstance(v, float) else str(v))
+        csv_file.write(",".join(cell(v) for v in (
+            round(now - t0), rss, private, handles, gui,
+            q.stat().st_size / 1024 if q.exists() else None, j.stat().st_size / 1024 if j.exists() else None,
+            took, rows, len(live), tally["added"], tally["verified"], tally["cancelled"], tally["gave_up"],
+            len(bad), state)) + "\n")
+        csv_file.flush()
+        if len(samples) % 60 == 1:
+            measure("soak", f"{(now - t0) / 3600:.1f} h: rss {cell(rss)} MB, private {cell(private)} MB, "
+                            f"handles {cell(handles)} {gui}, queue.json {cell(q.stat().st_size / 1024 if q.exists() else None)} KB, "
+                            f"ui.texts {cell(took)} ms, {tally['added']:,} added, {tally['verified']:,} whole, "
+                            f"{rows} rows, network {state}")
+
+    try:
+        while True:
+            now = time.time()
+            if dm.proc.poll() is not None:
+                stopped = f"dm exited with {dm.proc.returncode} after {(now - t0) / 3600:.2f} h"
+                finding("critical", "soak", stopped)
+                break
+            adding = now - t0 < duration and tally["added"] < count
+            if not adding and not live:
+                break
+            if not adding and now - t0 > duration + 1800:
+                stopped = f"{len(live)} downloads still not done 30 min after the run's end"
+                finding("high", "soak", stopped)
+                break
+            if free_gb(tempfile.gettempdir()) < MIN_FREE_GB:
+                stopped = f"only {free_gb(tempfile.gettempdir()):.1f} GB free"
+                finding("info", "soak", f"stopped early: {stopped}")
+                break
+            # The network, by turns: every connection dropped and a stretch in which a response
+            # may break off part-way (`flaky`), or an outage of 20 to 45 seconds.
+            if net["outage_end"] and now >= net["outage_end"]:
+                server.down = False
+                net["outage_end"] = None
+                measure("soak", f"{(now - t0) / 3600:.2f} h: the network is back")
+            if adding and now >= next_event:
+                net["events"] += 1
+                server.cut_all()
+                if net["events"] % 2:
+                    server.down = False
+                    net["flaky_until"] = now + every / 3
+                    measure("soak", f"{(now - t0) / 3600:.2f} h: every connection cut; cuts on for {every / 180:.1f} min")
+                else:
+                    net["outage_end"] = now + rnd.uniform(20, 45)
+                    measure("soak", f"{(now - t0) / 3600:.2f} h: the network is down for {net['outage_end'] - now:.0f} s")
+                next_event = now + every
+            # A steady stream, paced so `count` are added by the end, never more than `most` at once.
+            due = (min(count, int(count * (now - t0) / duration) + 1) - tally["added"]) if adding else 0
+            room = most - len(live)
+            if due > 0 and room > 0 and net["outage_end"] is None:
+                urls = []
+                for _ in range(min(due, room, 200)):
+                    size, _, rate = rnd.choices(sizes, weights)[0]
+                    seed, name = f"soak{tally['added']}", f"s{tally['added']}.bin"
+                    q = [f"rate={rate}"] if rate else []
+                    if now < net["flaky_until"]:
+                        q.append("flaky=0.3")
+                    urls.append(f"{base}/f/{seed}/{size}/{name}" + ("?" + "&".join(q) if q else ""))
+                    live[name] = {"seed": seed, "size": size, "id": None, "path": None,
+                                  "retries": 0, "cancel": False, "checked": False}
+                    tally["added"] += 1
+                r = dm.add(urls)
+                if not r.get("ok"):
+                    finding("high", "soak", f"adding {len(urls)} links was refused: {r.get('error')}")
+            if now >= next_look:
+                look(dm.rows())
+                next_look = now + 5
+            if now >= next_clear:
+                clear()
+                next_clear = now + 60
+            if now >= next_sample:
+                sample(now)
+                # What the server may serve is a ceiling a minute, not for the whole run: the
+                # files are taken off the disk as they are checked.
+                with Stats.lock:
+                    Stats.total = 0
+                next_sample = now + 60
+            time.sleep(1)
+        server.down = False
+        if dm.proc.poll() is None:
+            clear()
+            sample(time.time())
+            ends = []
+            for _ in range(5):
+                t = time.time()
+                dm.call("ui.texts")
+                ends.append(time.time() - t)
+                time.sleep(1)
+            ends.sort()
+            last = ends[len(ends) // 2]
+            measure("soak", f"ui.texts at the end: median {last * 1000:.0f} ms, worst {ends[-1] * 1000:.0f} ms of 5")
+            check("soak", "ui.texts answers in under 100 ms at the end", last < 0.1, f"median {last * 1000:.0f} ms")
+            left = [p.name for p in dm.out.iterdir()] if dm.out.exists() else []
+            if left:
+                finding("low", "soak", f"{len(left)} files left in the download folder after every row was checked or removed: {left[:5]}")
+        took = time.time() - t0
+        measure("soak", f"{took / 3600:.2f} h: {tally['added']:,} added, {tally['verified']:,} finished whole, "
+                        f"{tally['cancelled']:,} cancelled, {tally['retried']:,} restarts after a failure, "
+                        f"{tally['gave_up']:,} given up, {len(bad)} broken, {net['events']} cuts and outages")
+        if samples:
+            a, z = samples[0], samples[-1]
+            measure("soak", f"first sample to last: rss {a['rss']} -> {z['rss']} MB, private {a['private']} -> {z['private']} MB, "
+                            f"handles {a['handles']} -> {z['handles']}")
+        check("soak", "dm ran to the end", stopped is None, stopped or "")
+        check("soak", f"all {count:,} downloads added", tally["added"] >= count,
+              f"{tally['added']:,} added in {took / 3600:.2f} h")
+        check("soak", "every finished file whole (size and digest)", not bad, f"{bad[:3]}")
+        if tally["gave_up"]:
+            finding("medium", "soak", f"{tally['gave_up']} downloads still failed after three restarts and were cancelled")
+        check("soak", "no download given up after three restarts", not tally["gave_up"], f"{tally['gave_up']}")
+        for key, what in (("rss", "resident memory (MB)"), ("private", "private bytes (MB)"), ("handles", "open handles")):
+            ok, detail = soak_flat(samples, key, warm, what)
+            measure("soak", detail)
+            if not check("soak", f"{what} after the warm-up within a tenth of its level", ok, detail):
+                finding("high", "soak", detail)
+    finally:
+        server.down = False
+        csv_file.close()
+        close()
+        dm.stop()
+        shutil.rmtree(dm.out, ignore_errors=True)
+        print(f"   samples: {csv_path}", flush=True)
+
+
 # ----------------------------------------------------------------- main
 
 def main():
-    args = sys.argv[1:]
+    args = []
+    given = iter(sys.argv[1:])
+    for a in given:
+        if a in ("--minutes", "--count", "--every", "--inflight", "--csv"):
+            SOAK_ARGS[a[2:]] = next(given, "")
+        else:
+            args.append(a)
     if "--list" in args:
         for k, f in PHASES.items():
             print(f"{k:12} {f.__doc__}")
         return
-    names = [a for a in args if not a.startswith("-")] or list(PHASES)
+    names = [a for a in args if not a.startswith("-")] or [k for k in PHASES if k not in LONG]
     if not BINARY.exists():
         sys.exit(f"no dm at {BINARY}: (cd desktop && cargo build -p dm-gpui)")
     root = pathlib.Path(tempfile.mkdtemp(prefix="dm-stress-"))
