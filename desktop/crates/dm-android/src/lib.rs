@@ -30,12 +30,9 @@ mod system;
 pub use row::{Row, RowState, TorrentSwarm};
 pub use system::AndroidSystem;
 
-uniffi::setup_scaffolding!();
-
 /// What a call into the engine is refused with, in dm's own words for the person. Flat: Kotlin's
 /// exception carries the sentence as its `message`, and nothing else.
-#[derive(Debug, thiserror::Error, uniffi::Error)]
-#[uniffi(flat_error)]
+#[derive(Debug, thiserror::Error)]
 pub enum EngineError {
     /// dm could not start: its runtime or its home folder.
     #[error("{0}")]
@@ -46,7 +43,7 @@ pub enum EngineError {
 }
 
 /// What adding links gave: the rows made and each link left out, with why.
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Added {
     /// The new rows' numbers, in the order asked.
     pub ids: Vec<u64>,
@@ -57,7 +54,6 @@ pub struct Added {
 /// dm's engine, running for as long as this object lives: the queue, the settings in force and
 /// the runtime every download runs on. The app makes one, in its foreground service
 /// (gaps row N6), and every screen asks it.
-#[derive(uniffi::Object)]
 pub struct Engine {
     backend: Backend,
     /// Kept for as long as dm runs; dropped last (fields drop in order), after the backend has
@@ -65,12 +61,10 @@ pub struct Engine {
     _runtime: tokio::runtime::Runtime,
 }
 
-#[uniffi::export]
 impl Engine {
     /// Starts dm with its settings, queue and lists in `home` (the app's own files folder) and
     /// new downloads, until Options says otherwise, in `downloads`. `system` is the phone's
     /// side: notifications, the clipboard, opening files, and the call that the list changed.
-    #[uniffi::constructor]
     pub fn start(
         home: String,
         downloads: String,

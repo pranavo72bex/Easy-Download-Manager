@@ -8,7 +8,7 @@
 use dm_core::{Entry, State, Swarm};
 
 /// Where a download has got to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowState {
     /// Waiting for its turn.
     Queued,
@@ -25,7 +25,7 @@ pub enum RowState {
 }
 
 /// A torrent's swarm now: the details screen's Peers line (gaps row N8).
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TorrentSwarm {
     /// Peers connected now.
     pub connected: u32,
@@ -38,7 +38,7 @@ pub struct TorrentSwarm {
 }
 
 /// One download, as the list and its details screen show it.
-#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Row {
     /// The row's number, never reused.
     pub id: u64,

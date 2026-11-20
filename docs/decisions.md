@@ -8186,3 +8186,20 @@ phone cannot do from the engine (open a file, show its folder) is said in words
 (`shell/opener/android.rs`); the app does it through `Platform`. Everything else takes Linux's
 answer or the fallback's, unchanged on the desktop. CI checks the build for arm64-v8a and x86_64
 with the runner's own NDK (`.github/workflows/android.yml`), no third-party action fetching one.
+
+## dm on Android in Rust alone: Slint screens over the shared code (2026-11-20, gaps row N1 again)
+
+At the maintainer's word of 2026-11-20 ("use rust only and build android app. it should be same
+for all platform. the code should be shared"), asked which of two: "Share all but screens". This
+replaces the entry above of the same day (Compose and UniFFI), whose Kotlin app was removed
+unbuilt. The desktop keeps GPUI, unchanged; the phone's screens are Rust, drawn with Slint (it
+runs on Android through `android-activity` and on the desktop, so the phone's screens can be
+run and tested on a laptop as a window of a phone's size; GPL-3.0, as dm). Everything under the
+screens is one code for every system: the engine, the application's rules (`dm-shell`'s
+`Backend`), and the toolkit-free view code that turns rows, sizes, speeds, dates and Options into
+words (`dm-desktop-base`'s `view`, moved into a crate of its own, `dm-view`, so the phone links it
+without the desktop's system crates). What only the phone has (the link a share hands over,
+notifications, opening a file, the Keystore) is reached from Rust through JNI. Dropped: Kotlin
+and Compose (not Rust), UniFFI (nothing to bind when both sides are Rust), egui (left on the
+desktop on 2026-11-13), GPUI on Android (no backend), one UI for desktop and phone (it would
+rewrite the desktop's window against the behaviour contract).

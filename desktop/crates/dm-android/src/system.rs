@@ -13,7 +13,6 @@ use dm_shell::app::power::{Report, WhenDone};
 
 /// The phone's side, implemented by the app in Kotlin. Each call comes from one of the
 /// engine's threads, never the window's: the app posts what draws to its main thread.
-#[uniffi::export(with_foreign)]
 pub trait AndroidSystem: Send + Sync {
     /// A notification: `path` is the finished file a tap opens, `failed` the row a Retry
     /// button tries again; neither for a plain message.

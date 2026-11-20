@@ -22,20 +22,6 @@ dm-shell.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
-# The interface to Kotlin, written once as proc macros on the Rust side (docs/decisions.md,
-# 2026-11-20). `cli` only for the generator below, which no build of the library needs.
-uniffi.workspace = true
-
-[features]
-# `cargo run -p dm-android --features bindgen --bin uniffi-bindgen -- generate --library
-# <libdm_android.so> --language kotlin --out-dir <dir>`: the Kotlin bindings, made by the
-# Gradle build (mobile/android) and never checked in.
-bindgen = ["uniffi/cli"]
-
-[[bin]]
-name = "uniffi-bindgen"
-path = "src/bin/uniffi-bindgen.rs"
-required-features = ["bindgen"]
 
 [dev-dependencies]
 tempfile.workspace = true
