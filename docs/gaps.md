@@ -82,9 +82,7 @@ merged when it reports; merged and pushed after, none compiled or run here since
 maintainer's word (asked in each row): F2's Grabber box (B60, B61), F10's password dialog, W9's
 search in Help, Y25's bit-rate choice (B43), Y6's subtitle files beside a video, W23's 416 strings
 changed since 2026-10-24, F6's real update key and `DM_UPDATE_SIGNING_KEY` secret (the next
-`desktop-v` tag stops at signing until then). Found by reading, not run: `dash_live.rs:325`
-sends `NOTES[2]` where `NOTES[3]` looks meant; Move/Rename on a failed download may do nothing
-(`commands::applies`).
+`desktop-v` tag stops at signing until then).
 
 Earlier the same day, in the order of "Work order" below:
 - A13's whole `cargo test --workspace --no-fail-fast` on Windows: 103 of 104 test binaries
