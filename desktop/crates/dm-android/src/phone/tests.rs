@@ -15,6 +15,8 @@ use super::*;
 struct Recorded {
     calls: Mutex<Vec<String>>,
     now: Mutex<i64>,
+    /// dm's window gone behind another app's.
+    behind: Mutex<bool>,
 }
 
 impl Recorded {
@@ -42,6 +44,9 @@ impl Java for Arc<Recorded> {
     fn reveal(&self, path: &str) -> Result<(), String> {
         self.said(format!("reveal {path}"));
         Ok(())
+    }
+    fn in_front(&self) -> bool {
+        !*self.behind.lock().unwrap()
     }
     fn clipboard(&self) -> Option<String> {
         Some(String::new())
@@ -239,6 +244,16 @@ fn the_rest_go_to_the_phone_and_the_trash_is_refused_in_words() {
         calls(&recorded),
         ["reveal /x/c.apk", "clipboard https://example.com/a"]
     );
+}
+
+#[test]
+fn the_clipboard_is_readable_only_while_dms_window_is_in_front() {
+    let (phone, recorded) = phone();
+    assert!(phone.clipboard_readable());
+    *recorded.behind.lock().unwrap() = true;
+    assert!(!phone.clipboard_readable());
+    *recorded.behind.lock().unwrap() = false;
+    assert!(phone.clipboard_readable());
 }
 
 /// Browse… on the phone offers the shared `Download/dm` first, then dm's own folder; a file dm

@@ -51,6 +51,12 @@ pub trait PhoneServices: Send + Sync {
         None
     }
 
+    /// Whether the clipboard can be read now: Android 10 and up let only the app in front
+    /// read it, and answer the others as if it were empty (gaps row N5).
+    fn clipboard_readable(&self) -> bool {
+        true
+    }
+
     /// Puts `text` on the clipboard.
     fn set_clipboard(&self, text: &str) {
         let _ = text;
@@ -260,6 +266,12 @@ pub fn reveal(path: &str) -> Result<(), String> {
 /// The phone's clipboard text.
 pub fn clipboard() -> Option<String> {
     phone()?.clipboard()
+}
+
+/// Whether the phone's clipboard can be read now (dm's window in front); with no phone handed
+/// in, nothing refuses it.
+pub fn clipboard_readable() -> bool {
+    phone().is_none_or(|phone| phone.clipboard_readable())
 }
 
 /// Puts `text` on the phone's clipboard.

@@ -259,6 +259,9 @@ pub struct Clipboard {
     pub dismissed: std::collections::HashSet<String>,
     /// When the clipboard was last read.
     pub polled: Option<std::time::Instant>,
+    /// Turned on where the clipboard could not be read (a phone, dm's window
+    /// not in front): the first look that reads it seeds the watch instead.
+    pub unseeded: bool,
 }
 
 /// What one look at the clipboard found.
@@ -287,7 +290,18 @@ impl Clipboard {
             return;
         }
         self.last = now();
+        self.unseeded = false;
         self.polled = Some(std::time::Instant::now());
+    }
+
+    /// Turns the watch on or off where the clipboard cannot be read now: on
+    /// a phone, Android 10 and up let only the app in front read it (gaps
+    /// row N5). Turned on, the first look that can read it seeds the watch,
+    /// as [`Clipboard::turn`] does, so a link copied before is still not
+    /// offered.
+    pub fn turn_unread(&mut self, on: bool) {
+        self.turn(on, || None);
+        self.unseeded = on;
     }
 
     /// One look at the clipboard's `text`, with the list as it stands
@@ -303,6 +317,11 @@ impl Clipboard {
             return Looked::Nothing;
         }
         self.polled = Some(std::time::Instant::now());
+        if self.unseeded {
+            self.unseeded = false;
+            self.last = text;
+            return Looked::Nothing;
+        }
         if text == self.last {
             return Looked::Nothing;
         }
@@ -441,6 +460,47 @@ mod clipboard_tests {
         assert!(watch.dismissed.contains("https://e.com/b.zip"));
         watch.turn(false, || None);
         assert!(!watch.on && watch.offered.is_none());
+    }
+
+    #[test]
+    fn turned_on_unread_the_first_look_that_reads_seeds_the_watch() {
+        // A phone: dm's window not in front, so the clipboard was not read.
+        let mut watch = Clipboard::default();
+        watch.turn_unread(true);
+        assert!(watch.on && watch.unseeded);
+        // In front: what was copied before is not offered...
+        assert_eq!(
+            watch.look(Some("https://e.com/old.zip".into()), &[], false),
+            Looked::Nothing
+        );
+        assert_eq!(watch.offered, None);
+        assert!(!watch.unseeded);
+        // ...nor taken at once where copied links start themselves.
+        assert_eq!(
+            watch.look(Some("https://e.com/old.zip".into()), &[], true),
+            Looked::Nothing
+        );
+        // What is copied after is offered, as on a desktop.
+        assert_eq!(
+            watch.look(Some("https://e.com/new.zip".into()), &[], false),
+            Looked::Offered
+        );
+        assert_eq!(watch.offered.as_deref(), Some("https://e.com/new.zip"));
+        // Turned off: nothing offered, nothing left to seed.
+        watch.turn_unread(false);
+        assert!(!watch.on && !watch.unseeded && watch.offered.is_none());
+        // Turned on unread, then with a read: seeded by that read.
+        watch.turn_unread(true);
+        watch.turn(true, || Some("https://e.com/seen.zip".into()));
+        assert!(!watch.unseeded);
+        assert_eq!(
+            watch.look(Some("https://e.com/seen.zip".into()), &[], false),
+            Looked::Nothing
+        );
+        assert_eq!(
+            watch.look(Some("https://e.com/next.zip".into()), &[], false),
+            Looked::Offered
+        );
     }
 }
 
