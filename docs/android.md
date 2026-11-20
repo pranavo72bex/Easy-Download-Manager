@@ -117,6 +117,12 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
 - [ ] **A finished download's notification (N6).** It appears; tapping it opens the file.
 - [ ] **Where files land (N9).** On API 26: before storage is allowed the file goes to dm's own
       folder; once allowed, to `Download/dm`. On API 35: `Download/dm`, seen in Files.
+- [ ] **Choosing files and folders (N9).** ⋮ › File › Import: the system's document picker
+      opens; a `.dmlist` or a `.torrent` picked from Downloads is imported. Export: no panel, the
+      list is written to `Download/dm` (`downloads.dmlist`, then `downloads (1).dmlist`) and the
+      status line says where. Back up dm and Restore the same way. Options › Save to Browse…:
+      a prompt offers `Download/dm` and the app's own folder, saying "On a phone dm downloads
+      only into these folders."; Cancel leaves the field as it was.
 - [ ] **Phone's rules and secrets (N10, N11).** Nothing to try yet: no Wi-Fi-only or battery
       Options (N10, the maintainer's word), the Keystore side of secrets not coded (N11);
       a saved login is kept in clear in dm's private folder meanwhile.
@@ -137,11 +143,12 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 | File | What it does |
 |------|--------------|
 | `src/android.rs` | `android_main`: the phone's services handed to `dm_desktop_base::phone::set_phone` first; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, `dm_core::folders::set_phone_folders` with the download folder: `Download/dm` in shared storage, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed |
-| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), the wake lock and the ongoing notification together (`keep_awake`), open, reveal, the clipboard, the Trash refused. Tested on the host |
+| `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), the wake lock and the ongoing notification together (`keep_awake`), open, reveal, the clipboard, the Trash refused, the folders dm downloads and saves into (`Places`). Tested on the host |
 | `src/shared.rs` | What a shared intent hands over (tested on the host) |
 | `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard, the ongoing notification, the wake lock |
 | `src/android/intent.rs` | The activity's intent, read when the activity comes to the front (a thread watching gpui-android's `is_active`): SEND text and VIEW magnet or web address go to `dm_desktop_base::phone::shared`, a `.torrent` is copied into `files/dm/torrents` and goes to `phone::shared_file`; the window adds both as it adds a dropped link |
 | `src/android/notify.rs` | Notification channels and messages, the ongoing notification, the partial wake lock, the permissions asked for once the window is up |
+| `src/android/storage.rs` | The folders dm can write by path, found once at start (`phone::Places`): the shared `Download/dm` where dm may write there, the app's own folder on the storage; the default download folder, what Browse… offers, where Export writes (N9) |
 | `src/android/open.rs`, `jvm.rs` | Opening a file; the Java machine and the activity, kept once at start |
 | `java/` | The activity's Java classes (below) |
 | `android/` | The Gradle project that makes the APK: `app/src/main/AndroidManifest.xml` (package `com.dm.android`, Android 8.0 (API 26) and up, built against API 35, the permissions and the intent filters) and `app/build.gradle.kts` |
@@ -162,7 +169,7 @@ buttons) without a word of its own:
 | Class | From | Why |
 |-------|------|-----|
 | `dev.gpui.mobile.GpuiInputActivity` | gpui-mobile, unchanged | The activity the manifest names: a NativeActivity with a hidden `EditText` whose `InputConnection` reports composition and commits to `Java_dev_gpui_mobile_GpuiInputActivity_nativeIme` (gpui-android `jni.rs`), and `gpuiShowKeyboard`/`gpuiHideKeyboard`/`gpuiResetComposition`, which gpui-android calls. It also loads `libdm_android.so` with `System.loadLibrary` so the JNI methods resolve |
-| `dev.gpui.mobile.GpuiPathPicker` | gpui-mobile, unchanged | GPUI's `prompt_for_paths`: the system's document picker, the documents imported into the app's cache as paths |
+| `dev.gpui.mobile.GpuiPathPicker` | gpui-mobile, unchanged | GPUI's `prompt_for_paths`: the system's document picker, the documents imported into the app's cache as paths; dm's Import, Restore and Choose… ask through it (N9) |
 
 Both are taken under GPL-3.0-or-later, as gpui-android is.
 

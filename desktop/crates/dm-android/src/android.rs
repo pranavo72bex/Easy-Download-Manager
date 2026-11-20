@@ -8,7 +8,8 @@
 //! services (`crate::phone`, over `java`), sets dm's folders, and runs dm-gpui's own window
 //! (`dm_gpui::run_app`, gaps rows N3, N17) on GPUI's Android platform (gpui-android, N16).
 //! What only a phone has is reached through JNI: the link another app hands over (`intent`),
-//! notifications and the wake lock (`notify`), opening a file (`open`).
+//! notifications and the wake lock (`notify`), opening a file (`open`), the folders dm writes by
+//! path (`storage`).
 
 mod intent;
 mod java;
@@ -16,6 +17,7 @@ mod jvm;
 mod keystore;
 mod notify;
 mod open;
+mod storage;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -23,7 +25,8 @@ use std::time::Duration;
 
 use android_activity::AndroidApp;
 use gpui_android::android::{jni as gpui_jni, AndroidPlatform, SharedPlatform};
-use jni::{jni_sig, jni_str, JValue};
+
+use crate::phone::Places;
 
 /// How often the activity's coming back to the front is looked for (a share may have started
 /// it again).
@@ -45,8 +48,12 @@ fn android_main(app: AndroidApp) {
     if let Err(why) = jvm::init(app.vm_as_ptr(), app.activity_as_ptr()) {
         dm_core::note!(error, "{why}");
     }
-    dm_desktop_base::phone::set_phone(Box::new(crate::phone::Phone::new(java::Jni)));
-    let home = match folders(&app) {
+    // The folders dm can write by path, found once (gaps row N9): the default download
+    // folder, what Browse… offers and where Export writes.
+    let places = storage::places(&app);
+    let phone = crate::phone::Phone::new(java::Jni).with_places(places.clone());
+    dm_desktop_base::phone::set_phone(Box::new(phone));
+    let home = match folders(&app, &places) {
         Ok(home) => home,
         Err(why) => {
             dm_core::note!(error, "dm could not start: {why}");
@@ -68,7 +75,7 @@ fn android_main(app: AndroidApp) {
 /// folder, `files/dm`) as `DM_HOME`, the folder it stages files in (`TMPDIR`: an app may not
 /// write to the system's `/data/local/tmp`), and the phone's folders for `dm_core::folders`
 /// (gaps row N2), so the download folder of a first start is the phone's. dm's home comes back.
-fn folders(app: &AndroidApp) -> Result<PathBuf, String> {
+fn folders(app: &AndroidApp, places: &Places) -> Result<PathBuf, String> {
     let home = app
         .internal_data_path()
         .ok_or("Android gave dm no folder of its own")?
@@ -80,7 +87,7 @@ fn folders(app: &AndroidApp) -> Result<PathBuf, String> {
     std::env::set_var("TMPDIR", tmp);
     // dm's secrets sealed by the Android Keystore (gaps row N11), before the engine starts.
     let _ = dm_core::secretstore::set_android_store(Box::new(keystore::store(&home)));
-    let downloads = downloads(app, &home);
+    let downloads = downloads(places, &home);
     dm_core::folders::set_phone_folders(home.clone(), downloads);
     Ok(home)
 }
@@ -113,62 +120,14 @@ fn watch(platform: Arc<AndroidPlatform>, torrents: PathBuf) {
     }
 }
 
-/// Where downloads go on the first start: `Download/dm` in the phone's shared storage, which
-/// the Files app shows; else the app's own folder on it (`Android/data/com.dm.android/files`,
-/// on Android 10, which lets no app write to the shared folders by path, or on 8 and 9 before
-/// the storage permission is granted); else one in dm's home. Options changes it later (N9).
-fn downloads(app: &AndroidApp, home: &Path) -> PathBuf {
-    let public = jvm::with("find the Download folder", |env, _| {
-        let name = env
-            .get_static_field(
-                jni_str!("android/os/Environment"),
-                jni_str!("DIRECTORY_DOWNLOADS"),
-                jni_sig!(java.lang.String),
-            )?
-            .l()?;
-        let folder = env
-            .call_static_method(
-                jni_str!("android/os/Environment"),
-                jni_str!("getExternalStoragePublicDirectory"),
-                jni_sig!("(Ljava/lang/String;)Ljava/io/File;"),
-                &[JValue::Object(&name)],
-            )?
-            .l()?;
-        if folder.is_null() {
-            return Ok(None);
-        }
-        let path = env
-            .call_method(
-                &folder,
-                jni_str!("getAbsolutePath"),
-                jni_sig!("()Ljava/lang/String;"),
-                &[],
-            )?
-            .l()?;
-        jvm::string_of(env, path)
-    });
-    if let Ok(Some(public)) = public {
-        let folder = PathBuf::from(public).join("dm");
-        if writable(&folder) {
-            return folder;
-        }
-    }
-    if let Some(own) = app.external_data_path() {
-        let folder = own.join("Download");
-        if writable(&folder) {
-            return folder;
-        }
-    }
-    home.join("Download")
-}
-
-/// Whether dm can make `folder` and write a file in it.
-fn writable(folder: &Path) -> bool {
-    if std::fs::create_dir_all(folder).is_err() {
-        return false;
-    }
-    let probe = folder.join(".dm-probe");
-    let written = std::fs::write(&probe, b"").is_ok();
-    let _ = std::fs::remove_file(&probe);
-    written
+/// Where downloads go on the first start: the first of `places` (`storage`), the shared
+/// `Download/dm`, which the Files app shows, else the app's own folder on the phone's storage
+/// (on Android 10, which lets no app write to the shared folders by path, or on 8 and 9 before
+/// the storage permission is granted); else one in dm's home. Options changes it later, to
+/// another of `places` (N9).
+fn downloads(places: &Places, home: &Path) -> PathBuf {
+    places
+        .first()
+        .cloned()
+        .unwrap_or_else(|| home.join("Download"))
 }

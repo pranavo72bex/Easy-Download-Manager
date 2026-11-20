@@ -136,3 +136,29 @@ fn the_rest_go_to_the_phone_and_the_trash_is_refused_in_words() {
         ["reveal /x/c.apk", "clipboard https://example.com/a"]
     );
 }
+
+/// Browse… on the phone offers the shared `Download/dm` first, then the app's own folder;
+/// a file dm writes goes to the first of them; with neither, both are refused in words.
+#[test]
+fn the_folders_dm_writes_by_path_are_offered_shared_first() {
+    let (bare, _) = phone();
+    assert_eq!(bare.download_folders(), Ok(vec![]));
+    assert!(bare.save_folder().is_err());
+    let shared = PathBuf::from("/storage/emulated/0/Download/dm");
+    let own = PathBuf::from("/storage/emulated/0/Android/data/com.dm.android/files/Download");
+    let both = phone().0.with_places(Places {
+        shared: Some(shared.clone()),
+        own: Some(own.clone()),
+    });
+    assert_eq!(
+        both.download_folders(),
+        Ok(vec![shared.clone(), own.clone()])
+    );
+    assert_eq!(both.save_folder(), Ok(shared));
+    let own_only = phone().0.with_places(Places {
+        shared: None,
+        own: Some(own.clone()),
+    });
+    assert_eq!(own_only.download_folders(), Ok(vec![own.clone()]));
+    assert_eq!(own_only.save_folder(), Ok(own));
+}

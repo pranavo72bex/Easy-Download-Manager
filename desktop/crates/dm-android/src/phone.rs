@@ -9,6 +9,7 @@
 //! tests reach it: a finished file indexed before its notification, the wake lock and the
 //! ongoing notification together, the Trash refused.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -55,6 +56,27 @@ const INDEX_WAIT: Duration = Duration::from_millis(1500);
 pub struct Phone<J> {
     java: Arc<J>,
     index_wait: Duration,
+    places: Places,
+}
+
+/// The folders of the phone's storage dm can write by their path (gaps row N9), found once as
+/// dm starts (`android/storage.rs`): on Android 10 and up a folder of the storage picker's is
+/// an address only that picker's permission opens, not a path the engine can resume a
+/// segmented download in, so these are what Browse… offers.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Places {
+    /// The shared `Download/dm`, which the Files app shows, where the phone lets dm write there.
+    pub shared: Option<PathBuf>,
+    /// The app's own folder on the phone's storage (`Android/data/com.dm.android/files/Download`).
+    pub own: Option<PathBuf>,
+}
+
+impl Places {
+    /// Where new downloads go by default, and where a file dm writes for the person (Export,
+    /// Back up dm) goes: the shared folder, else the app's own.
+    pub fn first(&self) -> Option<&PathBuf> {
+        self.shared.as_ref().or(self.own.as_ref())
+    }
 }
 
 impl<J: Java> Phone<J> {
@@ -63,7 +85,14 @@ impl<J: Java> Phone<J> {
         Phone {
             java: Arc::new(java),
             index_wait: INDEX_WAIT,
+            places: Places::default(),
         }
+    }
+
+    /// The services, with the folders dm can write by path.
+    pub fn with_places(mut self, places: Places) -> Self {
+        self.places = places;
+        self
     }
 }
 
@@ -120,6 +149,18 @@ impl<J: Java> PhoneServices for Phone<J> {
             let _ = self.java.end_ongoing();
             let _ = self.java.stay_awake(false);
         }
+    }
+
+    fn download_folders(&self) -> Result<Vec<PathBuf>, String> {
+        let Places { shared, own } = &self.places;
+        Ok(shared.iter().chain(own).cloned().collect())
+    }
+
+    fn save_folder(&self) -> Result<PathBuf, String> {
+        self.places
+            .first()
+            .cloned()
+            .ok_or_else(|| "this phone gave dm no folder on its storage to save in".into())
     }
 
     // `trash`: the seam's own answer. A phone has no Trash dm can reach, so the file is kept

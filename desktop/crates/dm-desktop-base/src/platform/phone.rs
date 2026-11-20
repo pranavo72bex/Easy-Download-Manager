@@ -16,6 +16,7 @@
 //! dm's words that the phone cannot, or does nothing where nothing is the answer (a
 //! notification, the clipboard, keeping awake).
 
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use crate::drops::Dropped;
@@ -63,6 +64,21 @@ pub trait PhoneServices: Send + Sync {
         let _ = path;
         Err(NO_TRASH.into())
     }
+
+    /// The folders dm can download into by their path on this phone (gaps row N9): on Android
+    /// 10 and up only the app's own folders and, where the phone lets dm write there, the
+    /// shared `Download/dm`; a folder of the storage picker's is an address, not a path. What
+    /// Browse… offers on a phone.
+    fn download_folders(&self) -> Result<Vec<PathBuf>, String> {
+        Err(NO_FOLDERS.into())
+    }
+
+    /// The folder a file dm writes for the person goes to (Export, Back up dm, Save settings
+    /// to a file): the phone has no save panel dm's window can ask (GPUI's answers none), so
+    /// the file is written here and the window says where.
+    fn save_folder(&self) -> Result<PathBuf, String> {
+        Err(NO_SAVE.into())
+    }
 }
 
 /// What is said where the phone's own way is not handed in.
@@ -70,6 +86,12 @@ const NOT_YET: &str = "this phone cannot do that for dm yet";
 
 /// What is said when a file is to go to the Trash on a phone.
 const NO_TRASH: &str = "a phone has no Trash: the file is kept where it is";
+
+/// What is said where the phone names no folder dm can download into.
+const NO_FOLDERS: &str = "this phone names no folder dm can download into";
+
+/// What is said where the phone names no folder for a file dm writes.
+const NO_SAVE: &str = "this phone names no folder dm can save a file in";
 
 /// The phone's services, once the app has handed them in.
 static PHONE: RwLock<Option<Arc<dyn PhoneServices>>> = RwLock::new(None);
@@ -133,6 +155,30 @@ pub fn trash(path: &str) -> Result<(), String> {
     phone().map_or_else(|| Err(NO_TRASH.into()), |phone| phone.trash(path))
 }
 
+/// The folders dm can download into on the phone, or why there are none.
+pub fn download_folders() -> Result<Vec<PathBuf>, String> {
+    match phone().map_or_else(|| Err(NO_FOLDERS.into()), |phone| phone.download_folders()) {
+        Ok(folders) if folders.is_empty() => Err(NO_FOLDERS.into()),
+        answer => answer,
+    }
+}
+
+/// Where a file dm writes for the person, offered as `name`, goes on the phone: the save
+/// folder, made where it is not there yet, under `name` or, where something has that name,
+/// the first `name (n)` free, so nothing of the person's is written over.
+pub fn save_place(name: &str) -> Result<PathBuf, String> {
+    let folder = phone().map_or_else(|| Err(NO_SAVE.into()), |phone| phone.save_folder())?;
+    save_place_in(&folder, name)
+}
+
+/// [`save_place`] in `folder`.
+fn save_place_in(folder: &std::path::Path, name: &str) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(folder)
+        .map_err(|e| format!("{} could not be made: {e}", folder.display()))?;
+    let name = if name.is_empty() { "dm" } else { name };
+    Ok(folder.join(dm_core::free_name(folder, name)))
+}
+
 /// A link (or lines of links) the phone's share sheet handed dm: added as a link dropped on
 /// the window is, the window woken to read it (`drops`).
 pub fn shared(text: String) {
@@ -162,5 +208,23 @@ mod tests {
         assert_eq!(nothing.clipboard(), None);
         nothing.keep_awake(true);
         nothing.set_clipboard("x");
+        assert_eq!(nothing.download_folders(), Err(NO_FOLDERS.to_string()));
+        assert_eq!(nothing.save_folder(), Err(NO_SAVE.to_string()));
+    }
+
+    /// A file dm writes on the phone goes into the save folder, made where it is missing,
+    /// and never over a file already there.
+    #[test]
+    fn a_saved_file_takes_a_free_name() {
+        let dir = std::env::temp_dir().join(format!("dm-phone-save-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let folder = dir.join("Download").join("dm");
+        let first = save_place_in(&folder, "downloads.dmlist").unwrap();
+        assert_eq!(first, folder.join("downloads.dmlist"));
+        std::fs::write(&first, b"x").unwrap();
+        let second = save_place_in(&folder, "downloads.dmlist").unwrap();
+        assert_eq!(second, folder.join("downloads (1).dmlist"));
+        assert_eq!(save_place_in(&folder, "").unwrap(), folder.join("dm"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
