@@ -11,302 +11,81 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
-## Resume here (2026-11-21, afternoon): step 8 on the MacBook
+## Where it stands (2026-11-21)
 
-The laptop's coding of 2026-11-20 is compiled and gated on the Mac (f95fdca2, e6251d1c), the
-workspace is at the repository's root (02599740), and `human-qa.py` on the Mac at d9a6de56 held
-78 of 79 checks: B25's two pictures alone failed, as Download details had gained B69's box, and
-were retaken (dbf92b08). That closed N23 (its seven rows all hold now).
+`main` is pushed and every crate builds from the repository's root. The test pass (step 8 of
+the work order below) has run on the Mac. Everything there passed: ten whole `cargo test
+--workspace` runs, `human-qa.py` 76 of 76, `chrome-check.py` ten of ten in Edge (109 of 109 with
+`DM_CHROME_YOUTUBE=1`), `youtube-check.py` ten of ten, `bench.mjs fast` fifty runs with none
+refetched, the whole benchmark (`bench/results/darwin-2026-11-21`), `stress-check.py hidden`,
+and `sites-check.py --public` (9 of 12 sites whole; Dailymotion a sign-up wall, Rumble and
+Reddit bot checks). Defects found by those runs were fixed: the panel over YouTube's embedded
+player (Y12), a silent Instagram reel offered nothing, two window tests' races, the Android CI's
+JDK.
 
-**Next, on the Mac (the work order's step 8, "Everywhere" and "macOS"):** ten whole `cargo test --workspace` runs passed
-(2026-11-21, closing 195, 198 and 202); `bench.mjs fast` fifty runs with
-`DM_FINISH_TRACE` all whole, 0% refetched, 17 requests each, no seam differing (closing 206:
-not seen in 78 runs since its one; the trace names the check if it comes back); `chrome-check.py` ten runs in Edge, 105 of
-105 each, no hand-off before the check's click (closing 208); `youtube-check.py` ten runs, 80 of 80
-each (178's macOS part again; 209 stays: which player a run had is not kept). G10's
-`drag-out-check.py` needs this terminal allowed under Accessibility (the maintainer's). The whole
-benchmark on macOS (release, `bench/results/darwin-2026-11-21`): every scenario whole, `wan`
-over TLS with `DM_BENCH_CA` (closing 217; honouring it in a shipped dm stays on the security
-review's list, `docs/decisions.md`). `chrome-check.py` with `DM_CHROME_YOUTUBE=1` found
-Y12's embedded players offered no panel (YouTube's new embed hangs its controls off the frame's
-body; `seen` now takes a player-sized frame as the player, `panel::frame_is_player`): fixed,
-109 of 109, Y12 closed; `human-qa.py` after it 76 of 76. F14 closed: parity's
-served-rules, answers, B60, B61, B62 and tray rows PASS from today's runs (`stress-check.py
-hidden` too; scorecard 344 of 371); its Dock click and real login are a person's (parity says
-so). `sites-check.py --public` (rows 220, 205, 170): 9 of 12 sites whole, Instagram's silent reel
-fixed (`social_cdn`), Dailymotion a sign-up wall, Rumble and Reddit bot checks; gate after it:
-`cargo test --workspace` (a menu test's race fixed), `chrome-check.py` 105 of 105,
-`human-qa.py` 76 of 76. Next: the rows "Coded, waits for step 8" whose checks run here. The Windows laptop's and
-Linux's lines of step 8 are theirs.
+What is left of step 8 is on other machines or needs a person:
+- **The Mac, by hand:** G10 (`drag-out-check.py` needs this terminal allowed under Privacy &
+  Security › Accessibility), U15 (each notification clicked), U16, 187 (`purge` needs a password).
+- **The Windows laptop and Linux in Docker:** their lines in step 8 below.
+- **The outside world:** step 8's "Sites" line.
 
-## The Mac's first run (2026-11-20, late night): `main` before the laptop's last merges
+## Waiting for the maintainer
 
-The Mac ran the gate on everything merged uncompiled: `cargo fmt --check`, clippy `-D warnings`
-(about 25 fixes: a duplicate `fetch/after.rs` left by two splits of `fetch.rs`, RAR's private
-writer items, a double `&mut` borrow in `unpack.rs`, newer clippy lints) and `cargo test
---workspace`. 22 tests failed the first time and were fixed: RAR's test writers (codes made per
-table, the end of a file's tables), `unfinished_moved`'s server, the Opus IMDCT's second rotation,
-the i18n catalogs (the phone's 11 new phrases in 15 languages, as unread machine translations),
-the settings round trip, the size gate's three files, row 221 (the test expected the wrong
-wording: the port refuses "Open" first), the scorecard, and the doubles baseline (pollster 1.0
-came with rfd 0.18; the baseline grew rather than rfd going back: the maintainer may prefer
-`rfd = "0.17"`). Android: rows N18 and N19 below; how it was run is in `docs/android.md`.
+Gathered from the sessions of 2026-11-18 to 2026-11-20; each row's Status has the detail.
+- **Approval in words (the contract):** Y10's Options line ("Sound language"), Y7, Y27, U20, A4,
+  A16, W10, W11, W12, W14, W15, W16, W17 (and its private-window hand-over against B37), W18,
+  W20, W26; F10's RAR password dialog and B71 (RAR, coded on branch `f10-rar`); F2's Grabber box
+  (B60, B61); W9's search in Help; Y25's bit-rate choice (B43); Y6's subtitle files beside a
+  video; Y8's codec words; Y2's two failure sentences; N7's narrow-layout rows and the phone's
+  rows P01 to P12 (`docs/android.md`), with the desktop's least width of 360; N8 (a laptop that
+  changes network announces its torrents at once; Wait on a metered connection or a low battery
+  pauses sharing too); N10's three phone-only Options lines; Y21's and Y20's new reasons and
+  choices (`docs/guide/failures.md`); 200's RTMPT changes (no redirect followed, dm's User-Agent,
+  a 30 s read timeout).
+- **A decision:** P4, P5, F8, F11, F12, W5, W13, W22, W25; A9's MMS refusal; A7's two headless
+  differences (Hang up when done ignored; the queue running dry missed between ticks); X5's
+  Theme on Linux (to be seen first); `DM_BENCH_CA` and `DM_BENCH_DNS` read in release builds
+  (`docs/decisions.md`: keep them, or only in a bench build); rfd 0.18 (it brought pollster 1.0,
+  and the doubles baseline grew) or `rfd = "0.17"`; whether a social site's picture seen with no
+  sound stays offered alone (2026-11-21, `dm_protocol::media::social_cdn`: right for a silent
+  reel, wrong where a player fetches the sound only once it is turned on).
+- **Only the maintainer can do:** 163, R1, R4, W24, R2's submissions, F4's export file, row 5's
+  readers, F6's real update key and the `DM_UPDATE_SIGNING_KEY` secret (the next `desktop-v` tag
+  stops at signing until then), W23's 416 strings changed since 2026-10-24.
+- **Not finished, to restart from `main` if still wanted:** the fix-and-optimise pass of
+  2026-11-20 (13 areas, run as workflows of agents on the Windows laptop): its branches
+  `refine-<area>` had no commits when it stopped, and they were deleted.
 
-## Earlier tonight: every branch merged into `main`
+## Watch: tests seen failing once
 
-Merged in: `android-rust` (63 commits:
-the Android work and the rows of the section below it; conflicts in `window.rs`, `decisions.md`
-and `gaps.md` resolved by keeping both sides), `a10-platform`'s first commit, `u35-rtl`,
-`f10-rar`, `fix-commands-tests`, and Dependabot's brotli-decompressor 6.3.2, hyper 1.12.0, sha2
-0.11.1, toml 1.1.6, rfd 0.18.0, action-gh-release 3.0.4 and install-action 2.90.5
-(`android.yml`'s pins moved to match). Recorded with `-s ours` (history kept, content not
-taken, being superseded, already in `main` or check-only): `u27-mac-keys`,
-`windows-qa-2026-11-13`, `arm-check-2026-11-18`, `win-debug`, `fix/keep-awake-while-downloading`,
-`fix/original-audio-track`, `ram-optimization`, and the older Dependabot bumps. The merged
-local branches and their worktrees are deleted (the `refine-<area>` branches had no commits; the
-pass below starts again from `main`). The branches on `origin` were deleted after, at the
-maintainer's word.
+Each passed on its re-run; a second failure makes it a row.
+- `hls_memory` `a_streams_segment_is_written_as_it_comes` (Linux CI, 188 MB at its most for a
+  160 MB segment).
+- `shutdown.rs` `quitting_with_twenty_downloads_running_stops_them_within_two_seconds_and_they_resume_whole`
+  (Windows CI; line 145's failure now prints each row's state at the deadline: read it before
+  changing the 2 s).
+- `limits.rs` `connections_a_server_turns_away_step_aside_at_once` (macOS CI, 1.73 s of 1.5) and
+  `a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection` (Linux CI
+  and the laptop, 5.65 to 5.69 s of 5.6).
+- `window_tests::lists::the_toolbar_acts_on_the_selected_row` (macOS CI).
+- `grow.rs` `a_server_that_shares_one_rate_keeps_eight` (macOS CI, 11 connections of 9).
+- `secretstore::credentials`' 32-byte key test (Windows, a whole run).
+- `instance::tests::a_dm_starting_while_the_host_probes_waits_the_probe_out` (Windows, under load).
 
-`a10-platform` finished and merged (dm-shell's opener, RAS and owner-only code under
-`platform/`; row A10). `n15-view` (the `dm-view` crate) was recorded with `-s ours` and
-deleted: row N15 was dropped with Slint. Nothing
-merged tonight was compiled either: the Mac's run (fmt, clippy, `cargo test --workspace`,
-layers, `cargo ndk check -p dm-android`) is the next step, rfd 0.18 and sha2 0.11.1 included.
+These wall-clock checks fail on a loaded runner by a few per cent. Next, if they keep failing:
+one way for them to allow for the runner's speed, as `bench/` scales its floors by the
+computer's measured ceiling, rather than loosening each.
 
-## Resume here (2026-11-20, evening): the fix-and-optimise pass
+## Notes for the Windows laptop
 
-The maintainer, 2026-11-20: "refine the code and make it professional and easy to manage", then
-"focus on coding part. fix and optimize code". A read-only pass (nothing built on this laptop),
-run as three workflows of agents over 13 areas, each with its own branch and worktree
-`D:\dm-wt\refine-<area>`: core-download, core-queue, core-youtube, core-streams, media,
-shell-app, shell-rest, base, net-protocol, gpui-window, gpui-dialogs, js, browser-xtask.
-Each area: find (bugs with the input that triggers them, slow code on hot paths, dead or
-duplicated code, breaks of AGENTS.md's rules) → a skeptic tries to refute each finding → the
-kept ones fixed and committed on the branch (a regression test with each bug) → an independent
-review of the diff. A fix that would change a behaviour-contract row is not applied; it is
-listed for the maintainer's word.
-
-State when pushed: the finders of nine areas had reported (60 findings in the first six: 16
-bugs, 26 slow spots, the rest duplicate or dead code and rule breaks); the runs stopped once at
-the weekly usage limit and were resumed; no branch had a commit yet. Done on `main`: 5bca6f0e
-(`cargo fmt` on `popmenu.rs`, the only file it changed); d3dc02d4 (`fetch.rs` split from 803 lines
-to 751 lines into `sidecar.rs` and `files.rs`, `cargo xtask layers` passing clean); empty root
-`Cargo.toml` removed. Worktrees and branches kept intact.
-
-**Remaining, in this order:**
-1. Let the three workflows finish (or resume them from cache: the script is the session's
-   `refine-code-*.js`, areas passed as `args`); the finders for media, net-protocol, js and
-   browser-xtask, then verify, fix and review in all 13 areas.
-2. Merge each `refine-<area>` branch into `main` (their files are disjoint); list the fixes
-   needing the maintainer's word here.
-3. On the Mac: `cargo fmt --check`, clippy `-D warnings`, `cargo test --workspace` and `cargo
-   xtask layers` on the merged tree (nothing of the pass was compiled), then `human-qa.py`.
-4. Remove the 13 worktrees and branches once merged; the untracked empty `Cargo.toml` at the
-   repository's root is no one's and can go.
-
-## Resume here (2026-11-20, evening: branch `android-rust`)
-
-**Where it is.** Branch `android-rust` (pushed at the maintainer's word, "write down the remaning
-work and push it") holds `main` up to ac54e719 plus the day's Android work and the coding rows
-below, each merged from a branch of its own in `D:\dm-wt`. **Nothing on it has been compiled
-since the maintainer's word of the afternoon ("instead of building. make sure to finish the
-coding part")**: the laptop codes only, the Mac builds and tests. `main` has one commit since
-(5bca6f0e, `popmenu.rs` formatted; the same change is on this branch). The other session's
-`main` is not touched; this branch is merged into it once the Mac's run passes.
-
-**On it, coded and not compiled (each row's Status says what to run):**
-- Android (rows N2–N17): dm-gpui itself on the phone over `vendor/gpui-android` (dm's
-  copy of gpui-mobile, at gpui-pre 0.3.12; official GPUI Android replaces it when it ships), the
-  narrow phone layout (N7, below 600 points; the desktop window's least width 640 → 360), windows
-  as a stack with Back (N16), the share and open intents (N5), the foreground service, Retry and
-  Stop All buttons, boot and the schedule's alarm (N6, N12: four small Java classes, approved),
-  storage in dm's own folder published to `Download/dm` (N9), the file and folder choosers (N9),
-  the phone's rules (N10), the Keystore (N11), torrents following a network change (N8), the
-  ongoing notification (N6), CI's emulator and release jobs and Android Studio's Run (N13, N14).
-  How to try it on the Mac: `docs/android.md`, first section.
-- Other rows: S16, 181, W10 (G2); 185, 186 (G3); Y20, Y21 (G4); Y2's live streams (G6); U16,
-  U23 (G7); 200, 191 (G8); A18's ratchet; the Redownload fix (B73, row 221 for the rest);
-  `fetch.rs` under 800 lines; two test targets that did not compile (`schedule/tests.rs`'s
-  `Local`, `youtube_premiere.rs`'s E0716); row 215's text put back; Y25's Opus decoder (CELT
-  complete, checked as a Python copy against RFC 8251's vectors; SILK and hybrid not yet, such a
-  track kept as its WebM).
-
-**Still being coded, on branches of their own (not on `android-rust` yet):**
-- `a10-platform` (rows A10, P8): every system `cfg` behind each crate's `platform` module, an
-  xtask check for it, and the system programs in one table. Started from 2e6ab7a9; it leaves
-  `dm-media/src/mp3/decode` and `opus*` to last (G5's, now merged here).
-
-**Waiting for the maintainer's word (coded where it says so; nothing in the contract changed):**
-1. The narrow layout's proposed contract rows (row N7) and the phone's rows P01–P12
-   (`docs/android.md`), and the desktop's least width 360.
-2. N8: a laptop changing network announces its torrents again at once; Wait on a metered
-   connection or a low battery now also pauses sharing (B76 names downloads only).
-3. N10: three phone-only Options lines (Wi-Fi only, Not while roaming, Pause when Data Saver is
-   on) and their status words.
-4. Y21: a DASH or YouTube download that stopped with "not enough room" now joins in place; its
-   new reasons are in `docs/guide/failures.md`. Y20: the quality picked changes where the join
-   would have failed.
-5. 200: RTMPT follows no redirect now, sends dm's User-Agent and a 30 s read timeout.
-6. U35 (branch `u35-rtl`, not merged): Arabic and Hebrew, the mirrored window, the DirectWrite
-   patch; two new entries in View › Language and Options › General.
-7. Clippy for Android: `missing_const_for_thread_local` is wrong on Android targets (std's `os`
-   thread-locals); allow that one lint for Android, then add CI's Android clippy step (row N17).
-8. S16's window drawn before the queue loads (an empty list first), and 181's cached views
-   (they hide words from the control port): measure first.
-
-**Next, in this order:**
-1. On the Mac: `cargo fmt --check`, `cargo check --workspace --all-targets`, clippy `-D warnings`,
-   `cargo test --workspace`, `cargo xtask layers` and `privacy`, then `cargo ndk -t arm64-v8a
-   check -p dm-android` and Android Studio's Run (`docs/android.md`); fix what fails.
-2. Merge `a10-platform` here when it reports; the same run again.
-3. The maintainer's word on the list above; then `human-qa.py` whole; then merge into `main`.
-4. Known: row 221 (`window_tests::commands` row menu's Open, `commands.rs:628`); an empty
-   untracked `Cargo.toml` at the repository's root in the main checkout, made by an agent by
-   mistake (the maintainer deletes it).
-
-## Resume here (2026-11-20)
-
-**Windows, 2026-11-20: coded with agents six at a time, merged, built, and `human-qa.py` run.**
-`main` is about 95 commits ahead of `origin/main` and NOT pushed (the maintainer: pull the Mac's
-CI fixes, taking theirs, and push nothing). Merged: Y13, W2 (`wan`, `lossy`, `slowname`), 205,
-U27 (and macOS's keys, dm's own NSMenu), P6, 218, 215, Y12's and 205's checks, F14's checks, 217,
-the named notes and A10's media decoders, Y5, Y16 (and its live test), Y2 (with resume and the
-context updates), W3, W4, issue #45 (row 220), and the Mac's 13c93bac, be512881, b22e4386. Not
-merged: `f10-rar` (RAR 5 and RAR 4 in dm's own code) waits for the maintainer's word on B71;
-`u27-mac-keys` (gpui-component vendored) is superseded.
-
-The debug build compiles with all of it (D:/dm-target). `human-qa.py` on it, five runs: 62, 70,
-71, 68 of 76 rows; fixed along the way: B70 (the first tick at opening), B72 (Tab in a dialog,
-and `sha2` optimised in debug builds), B75 (a follow drawn at once) and the checks' own faults
-(WALK's `tray.rs` path, B69's locked file, B74's folder name, B72's waits, B75's scroll, B77's
-held pop-up and its address on Windows, B25's Download details picture with Keep no record).
-The browser rows (B26, B33 to B36, B59) failed once with dm's first request 13 to 35 s after a
-click, a loaded laptop by every sign; they passed in the runs before. The last run stopped at
-its first picture: the screen was locked.
-
-**Next, in this order:**
-1. `human-qa.py` whole on this tree with the screen awake (from PowerShell, outside the tool's
-   sandbox: inside it the window is pictured black); report every row.
-2. On the Mac: `cargo test --workspace`, clippy and fmt on this tree (nothing of the day's rows
-   has run its tests), then the CI.
-3. The maintainer's word: B71 (RAR), row 219, Y2's two failure sentences in the window's
-   catalogs, `DM_BENCH_CA` and `DM_BENCH_DNS` read in release builds (the security review), and
-   step 0's list below.
-
-## Resume here (2026-11-19)
-
-**Evening, 2026-11-19 (Windows):** the workspace compiles again (16df5c2f: a future that was
-not `Send` since Y20, found by bisecting), `cargo test --workspace` passes target by target
-(fb517383; dm-gpui's window tests run with fewer threads, as the 4-core laptop ran out of memory
-with all of them at once) and `main` was pushed at the maintainer's word. Then W16, W15, W18,
-W10, W11 and W12 were merged (8f872cbd) and compile (four fixes: quick-xml types in
-`dm_core::feed`, `Category` hashable for Statistics, `accept_same` in Download details' add).
-**Work stopped here for the day at the maintainer's word; `main` is ahead of `origin/main` by
-the merge and is not pushed.**
-
-**Next, in this order (2026-11-20):**
-1. `cargo test --workspace` on this tree (`CARGO_TARGET_DIR=D:/dm-target`, `-j 2` and
-   `RUST_TEST_THREADS=2`: with more, the laptop runs out of memory, error 1455 while compiling,
-   `0xc0000409` while dm-gpui's tests run). The run was stopped while compiling: no test of the
-   six rows has run yet. Fix what fails, then push.
-2. `human-qa.py` in a visible window, started by the maintainer from PowerShell (rows B72 to
-   B77 are new; W18 added an Options › General line, so B25's pictures may need retaking).
-3. The maintainer's word on W17's private-window hand-over against B37, Y8, Y27, W20, and step
-   0's other items (A4, A16, U20, U27, U35, P4, P5, F8, F11, F12, W5, W8, W13, W22, W25, W26,
-   Y7); then three agents at a time on what is approved.
-4. Known: `secretstore::credentials`' 32-byte key test failed once in the full run and passed
-   alone; watch it.
-
-**Earlier the same day:** nothing of 2026-11-19 was compiled or pushed. `main` is about 80 commits ahead of
-`origin/main` (8b890718, pushed from the Mac); the maintainer's word on the laptop is to code and
-commit only, no build and no push. Coded that day, three agents at a time, each on a branch of
-its own in `D:\dm-wt` and merged when it reported (each row's Status says what it waits for):
-P8 (`dm_shell::registry`), Y10 (`dm_core::sound_language`), Y20 (DASH and HLS subtitles), Y21
-(room before a join; the HLS remux from its segments), Y5 (a stream just ended), A20 (comments),
-A5 (dm-desktop-base folders, one `Mode`), A11 (`dm_core::env`, `EngineConfig`), A19 (`note!`,
-named timings), A12 (long functions split; the size gate and its baselines), A8 (`dm_core::paths`,
-format numbers, a struct per Options page), A17 and X5 (the GPUI copies as patches, `cargo xtask
-vendor`, the weekly job), X7 (`cargo xtask build`, `test`, `package`, `qa`), A7 (`Session`'s tick,
-`Downloads`' state), A9 (`FailKind`; then one error type per crate), A14 (no waiting on files on
-the window's thread), A21 (`DownloadList`), the streams' silence fix, rows 215 and 216 (CI). Later
-the same day: Y20's leftovers (DASH's pieced WebVTT, cues after a discontinuity, a pair in
-Matroska), A11's tests' switches, and A12 to its end: no product file over 800 lines and no
-function over 150, both baselines empty (about 110 commits ahead of `origin/main` in all). D5, D6, X3 and X6 closed at
-the maintainer's word (no developer pages).
-
-**Next, in this order:**
-1. On the Mac, step 8 on this tree, starting with `cargo check` and clippy on every crate: two
-   days of rows were merged uncompiled. The size gate's baselines (`tooling/xtask/size-baseline.txt`,
-   `fn-baseline.txt`) were counted by a Python copy of the Rust count after each merge: if xtask's
-   count differs by a line, lower or recount the entry with `cargo xtask size-baseline`.
-2. Push at the maintainer's word, then CI (row 216): the contract coverage file and actionlint's
-   finding are named only in the jobs' logs, which this laptop cannot read.
-3. Step 0's questions to the maintainer in one message: the approvals and decisions listed under
-   "Work order" below, and the day's own: Y10's Options line, Y8's codec words, A9's MMS refusal,
-   A7's two headless differences (Hang up when done ignored; the queue running dry missed between
-   ticks), X5's Theme on Linux (to be seen first).
-
-## Resume here (2026-11-18)
-
-**Pushed to `origin/main` on 2026-11-18, evening** at the maintainer's word ("testing work will
-be done in mac so push it anyway"). Coded the same day with agents working in parallel, each
-checked only by its own crates' clippy and tests (the work order's "while coding" rule), then
-merged: rows 210, X4, W19, W6, R3, X2, Y6, W23, F6, W21, W9, F2, Y25, Y14, Y4, R5, F10 and Y16
-(each row's Status says what is owed). On the merged tree on Windows: `cargo fmt --check`,
-clippy `-D warnings` on the workspace (all targets, before the last merges), xtask's 63 tests;
-dm-shell's lib 372 of 373 (`instance::tests::a_dm_starting_while_the_host_probes_waits_the_probe_out`
-failed once under nine agents' builds: run it again quiet); dm-core's whole suite was not
-finished on this tree. **Next, on the Mac: step 8 on this tree** (`cargo test --workspace`, the
-`youtube_cover.rs` Unix tests of Y6 and Y14, A10, and the window checks of X2).
-
-Still being coded when this was pushed (each on a branch of its own in `D:\dm-wt\<branch>`,
-merged when it reports; merged and pushed after, none compiled or run here since its last edits: S4, 190, U41, 186, P3, 200, Y9, 181, W7. On 2026-11-19 P8's `reg` part (`dm_shell::registry`), Y10's engine part (`dm_core::sound_language`), Y20's DASH subtitles, Y21's room check before a join, Y5's stream just ended and A20's comments (the earlier toolkit's name gone, `cargo xtask layers` refusing it) A5's dm-desktop-base folders and `Mode`, A11's table of `DM_*` switches, Y20's HLS subtitles, A19's `note!` and named timings, A12's first splits in dm-gpui, A8's `paths` and format numbers, A17/X5's GPUI copies as patches, X7's `cargo xtask` tasks, A12's engine splits, A7's `Session` tick and `Downloads` state, Y21's remux from the segments, A9's failure kinds, A11's `EngineConfig`, A12's size gate, the streams' silence fix, A14's bridge and A21's `DownloadList` were coded the same way: not compiled. All of the day's agent work is merged. Waiting for the
-maintainer's word (asked in each row): F2's Grabber box (B60, B61), F10's password dialog, W9's
-search in Help, Y25's bit-rate choice (B43), Y6's subtitle files beside a video, W23's 416 strings
-changed since 2026-10-24, F6's real update key and `DM_UPDATE_SIGNING_KEY` secret (the next
-`desktop-v` tag stops at signing until then).
-
-Earlier the same day, in the order of "Work order" below:
-- A13's whole `cargo test --workspace --no-fail-fast` on Windows: 103 of 104 test binaries
-  passed; xtask's layers test found `window/list.rs` at 2525 lines, now split (2448).
-- X1 (`dm_core::folders`), X10 (`crates/dm-test-support`) and A19's widgets part
-  (`widgets/space.rs`, the colours in `theme.rs`). Checked: clippy `-D warnings` on the
-  workspace, all targets; the tests of xtask, dm-test-support, dm-protocol, dm-shell,
-  dm-desktop-base, the extension, dm-gpui (388) and `dm-core --lib folders`. Not yet run on
-  this tree: the whole `cargo test --workspace` (it comes once, after the moves: step 8).
-- A6 step 1: `crates/dm-media` (dm-core's media modules, 14,700 lines; dm-core keeps
-  their paths; `docs/decisions.md`, 2026-11-18). Checked: clippy `-D warnings` on dm-media and
-  dm-core, all targets; dm-media's tests (84 here); dm-core's lib tests and its `mp3`, `mp4mux`,
-  `frames_cover`, `live_gif`, `fuzz` and `hls` tests; `cargo xtask layers`; dm-media checked
-  and clippy-clean for Linux and macOS from this laptop (`rustup target add
-  x86_64-unknown-linux-gnu aarch64-apple-darwin`, `cargo check --target ...`, no linker).
-- A6 step 2: `crates/dm-torrent`, the one crate that names librqbit (`docs/decisions.md`,
-  2026-11-18); dm-core's `torrent.rs` drives it. Checked: clippy `-D warnings` on the
-  workspace, all targets; dm-core's torrent unit tests (14), `torrent` (3), `torrent_features`
-  (14), `torrent_names` (1) and `torrent_stress` with `--ignored` (6); `mse_interop` needs
-  Docker (step 8); `cargo xtask layers`, which now refuses librqbit outside dm-torrent.
-
-- A6 step 3: `crates/dm-net`, the network with `Error`, the stop flag and the proxy
-  script's runner (`docs/decisions.md`, 2026-11-18). Checked: clippy `-D warnings` on the
-  workspace, all targets; dm-net's tests (83) and dm-core's lib tests (491: 574 together, as
-  before); dm-core's `auth`, `browser_agent_limited`, `connect_first`, `cookies`, `download`,
-  `errors`, `headers`, `http2_only`, `identify_as`, `ntlm`, `pages`, `proxy` and `second_path`
-  suites; `cargo xtask layers` and `privacy` (which now reads the three new crates). Its macOS
-  and Linux code moved unchanged; every item dm-core names from dm-net checked public. Built
-  there in step 8.
-
-Pick up in this order:
-0. On this laptop, while A10 waits for the Mac: work-order step 1's row **210** (the queue's
-   snapshot, 40 ms in debug at 10,000 rows; then `ui-bench.py --only many` three runs).
-1. **A10**'s rest (each system's `cfg` behind `platform/`, ~70 files across the crates) is
-   mostly macOS and Linux code this laptop cannot compile: do it on the Mac.
-2. Then "Then, before step 1: the GPUI migration closed" (G11, 211, U43, G10 and G6 need the
-   maintainer at the screen: do the rest first and ask for those together).
-
-Notes for this laptop: no git identity is set; commit with
-`git -c user.name=pranavo72bex -c user.email=pranavj304@gmail.com commit`. Write multi-line
-edits through a file or the editor, not a shell heredoc: the shell mangled `\\` and `\n` in
-two of today's edits (both found and fixed).
+- Builds: `CARGO_INCREMENTAL=0` (D: filled with 138 GB of incremental cache and the linker failed
+  with LNK1180); `-j 2` and `RUST_TEST_THREADS=2` for `cargo test --workspace`, or the laptop runs
+  out of memory (error 1455 compiling, `0xc0000409` in dm-gpui's tests).
+- `human-qa.py` from PowerShell, outside the tool's sandbox (inside it the window is pictured
+  black), with the screen awake; `sh scripts/package.sh` first after a pull that changes
+  `crates/dm-catcher/`.
+- No git identity is set: `git -c user.name=pranavo72bex -c user.email=pranavj304@gmail.com commit`.
+  Write multi-line edits through a file or the editor: the shell mangled `\\` and `\n` in a heredoc.
 
 ## Bottom line (the maintainer, 2026-11-10)
 
@@ -336,285 +115,58 @@ must prove each one.
 
 ## Work order (the maintainer, 2026-11-17: the coding first and fast, the tests last and at once)
 
-This is the order the rows below are taken in. It replaces "Order across the tables" in the audit
-of 2026-11-11 and the "Order" line of rows W; the rows themselves stay in their tables, where
-their detail is. Each row is named here once.
+The order the rows below are taken in; the rows themselves stay in their tables, where their
+detail is.
 
 **While coding (steps 1 to 7):** a row is coded with `cargo check`, clippy on the crates it
 touches and its own tests only (`cargo test -p <crate> <name>`), then committed. The whole
 `cargo test --workspace`, `human-qa.py`, the benchmark, the site checks and every "owed on
 Windows / Linux / by hand" are not run row by row: they are step 8, once. A row whose code is
 done moves to "Coded, waits for step 8" in its Status and is deleted only when step 8 passes it.
-A row is not held up waiting for an answer: step 0's questions are asked together, and coding
+A row is not held up waiting for an answer: the questions are asked together (above), and coding
 goes on with the rows that need none.
 
-**0. Asked of the maintainer in one message, before step 1** (answers come while steps 1 to 5 run)
-- Approval in words (the contract): Y10's Options line (Downloads › a "Sound language" list), Y7, Y27, U20, A4, A16, W8, W10, W11, W12, W14, W15, W16,
-  W17, W18, W20, W26.
-- A decision: P4, P5, F8, F11, F12, W5, W13, W22, W25.
-- Only the maintainer can do: 163, R1, R4, W24, R2's submissions, F4's export file, row 5's
-  readers.
+**Before step 1: the GPUI migration closed.** Checked on the system each names: G11 (Mica drawn
+black on Windows 11), fixed and seen; 213 (`dm-gpui`'s test process ending with 0xc0000409 on
+Windows); 211 seen (Light and Dark at start and from Options), then `human-qa.py` whole on
+Windows (G7); U43 (a drag on each of the list's bars, then the two window tests ported); G10 (a
+finished file dragged out, seen landing on each system); G6 (IME by hand; on Linux the 50-window
+churn and the package's size); G8 (the release workflow's packages from a draft through
+`human-qa.py` on every system).
 
-**First of all: the structure, as GPUI's makers lay out theirs** (the maintainer, 2026-11-17:
-"add it to gaps.md and give it first priority", of a reading of their public repository beside
-dm's tree; rows X and A below). Each is a pure move: nothing a person sees changes, B25's
-pictures stay, and each is committed alone with `cargo check`, clippy and its crates' tests.
-Smallest first:
-1. ~~X8~~ done 2026-11-17: every version once in `Cargo.toml`'s `[workspace.dependencies]`,
-   `Cargo.lock` unchanged, `cargo xtask layers` refuses a version written in a crate.
-2. ~~A15~~ done 2026-11-17: one workspace, rooted from the repository's root with `crates/dm-catcher/` a member (one lock,
-   one target folder, the WebAssembly built with `--profile extension`); why not the top:
-   `docs/decisions.md`. CI's extension jobs and the Docker images are owed a run (step 8).
-3. ~~X9~~ done 2026-11-17: `assets/` (`icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`),
-   compiled in through the `dm-assets` crate; the installers' contents are owed a package build
-   (step 8).
-4. ~~A13~~ done 2026-11-17: dm-gpui in `window/`, `dialogs/`, `options/`, `widgets/`, `platform/`;
-   `foo.rs` beside `foo/` everywhere; 83 inline test modules moved out; xtask holds both. Its
-   whole `cargo test --workspace --no-fail-fast` on Windows, 2026-11-18: 103 of 104 test
-   binaries passed; xtask's layers test found `window/list.rs` at 2525 lines, split into
-   `list/questions.rs` and `list/rowline.rs` (2448).
-5. ~~X1~~ done 2026-11-18: `dm_core::folders` answers where a person's files live (15 places
-   moved to it, `dirs` out of dm-shell); `cargo xtask layers` refuses those reads elsewhere.
-6. ~~X10~~ done 2026-11-18: `crates/dm-test-support` (the tests' secrets), a
-   dev-dependency only; `cargo xtask layers` refuses a `#[path]` out of a crate.
-7. ~~A19's widgets part~~ done 2026-11-18 (`widgets/space.rs`, the colours in `theme.rs`);
-   A10 (a system's code in `platform/`).
-8. ~~A6~~ coded 2026-11-18: `dm-media`, `dm-torrent`, `dm-net` out of dm-core. About ten crates is the aim, not the
-   hundreds a large team keeps.
-Not taken from them: a crate's first file named after the crate (dm keeps `lib.rs`).
+**1. Broken today:** G11, 205 (Reddit's sound), 210 (the queue's snapshot).
 
-**Then, before step 1: the GPUI migration closed** (the maintainer, 2026-11-17: "add in first
-priority"; detail under "GPUI migration: where it stands" below). Its whole runs (`cargo test
---workspace`, `human-qa.py`) come after the moves above, so they are run once on the tree as it
-will stay. These rows' checks are run on the system each names, not left for step 8:
-- G11 (Mica drawn black on Windows 11), fixed and seen.
-- `cargo test --workspace` whole on Windows, for `dm-gpui`'s test process ending with
-  0xc0000409: its cause found if it shows again.
-- 211 seen (Light and Dark at start and from Options), then `human-qa.py` whole on Windows on
-  a build after rows 210 to 212 (G7).
-- U43: a drag on each of the list's bars, then the two window tests ported.
-- G10: a finished file dragged out, seen landing on Windows; macOS and Linux on theirs.
-- G6: IME by hand; on Linux the 50-window churn and the package's size.
-- G8: the release workflow's packages from a draft through `human-qa.py` on every system.
-- The four commits on `main` pushed.
+**2. Small, nothing to ask:** X4, X2, S4, Y6, Y10, U41, U27, Y14, 172 (the harness's batch case),
+190 (criterion benches), R3 (Windows on Arm in the release matrix), W23, P8.
 
-**1. Broken today** (small, seen failing): G11 (with the block above), 204 (Vimeo), 205 (Reddit's
-sound), 210 (the queue's snapshot).
+**3. Speed, memory and CPU** (each change judged by its one `bench` or `ui-bench.py` case): 175,
+176, 177, 171, S5, S6, S16, 181, S11, 185, 186.
 
-**2. Small, nothing to ask** (a day or less each): X4 (each system's traps), X2, W19, S4, Y6 (SRT and VTT writers), Y10, U41,
-U27, Y14 (numbered segments), 172 (the harness's batch case), 190 (criterion benches), R3
-(Windows on Arm in the release matrix), W23 (the translating page), P8.
+**4. Videos:** Y9, Y8, Y13, Y16, Y20, Y21, Y25, Y4, Y5, Y2.
 
-**3. Speed, memory and CPU** (each change judged by its one `bench` or `ui-bench.py` case, not
-the whole benchmark): 175, 176, 177, 171, S5, S6, S16, 181, S11, 185 (the copy across drives
-after a Cancel), 186 (what dm itself receives twice).
+**5. Features with nothing to ask:** F6 (its key first: W5 and W21 use it), W21, W7, F10, F2, W9,
+U16, U35, P6, P3, then CI's own: W6, R5.
 
-**4. Videos:** Y9, Y8, Y13, Y16, Y20, Y21, Y25, Y4, Y5 (a premiere, a stream just ended), Y2.
+**6. Rows approved or decided** (above), as each answer comes, smallest first: W14, W17, W26,
+W18, W20, U20, Y27, Y7; then W5, W10, W11, W12, W15, W16, P4, P5; then F8, F11, F12, W13, W25,
+W22.
 
-**5. Features with nothing to ask:** F6 (its key first: W5 and W21 use it), W21, W7, F10, F2,
-W9, U16 (the title), U35, P6, P3, then CI's own: W6, R5.
-
-**6. Rows approved or decided in step 0**, as each answer comes, smallest first: W8, W14, W17,
-W26, W18, W20, U20, Y27, Y7; then W5, W10, W11, W12, W15, W16, P4, P5; then F8, F11, F12, W13,
-W25, W22.
-
-**7. Structure and docs** (pure moves, after the features so they are moved once and no feature
-is written against a file about to be split; X1, X10, A10, A6 and A19's
-widgets are taken first of all, above): A5, A11, A19 (what is left), A20, A21, A14, A8, A9, A7,
-A12, A17 (with X5), A18, A4, X7, A16.
-
-Not taken (closed and deleted 2026-11-19 at the maintainer's word, "no need of these type of changes like new comer dev page"): D5, D6, X3 and X6, pages and tables for developers.
+**7. Structure and docs** (pure moves): A5, A6, A10, A11, A19, A20, A21, A14, A8, A9, A7, A12,
+A17 (with X5), A18, A4, X7, A16.
 
 **8. The test pass, once, at the end** (every failure it finds is fixed, then only what failed is
-run again):
-- Everywhere: `cargo fmt`, clippy `-D warnings`, `cargo test --workspace` ten whole runs (done 2026-11-21 on macOS, ten of ten: 195,
-  198, 202), the extension's tests, `chrome-check.py` ten runs (done 2026-11-21 on macOS, 208 closed), `youtube-check.py` ten
-  runs (178, 209), `bench.mjs fast` fifty runs (done 2026-11-21 on macOS: 206 closed, none
-  refetched); the cause of 208 is fixed from what its runs name.
+run again). Done on macOS on 2026-11-21 (above); left:
 - Windows laptop, a release installer built after step 7: `human-qa.py` whole (G7, G8, 211, 193,
-  194, U2, U23, U43), G10 (a drag out), 191, 20, 39, T5, U15 (each notification clicked), 187,
-  188, 189, `ui-bench.py` (210, S11), R2 (`scoop install`, `winget validate`), then
-  `node bench/bench.mjs` whole and `compare.mjs` (171, 175, 176, 177, W1, W2).
-- macOS: `human-qa.py` whole, G10, U15, U16, 187, the whole benchmark.
+  194, U2, U23, U43), G10, 191, 20, 39, T5, U15, 187, 188, 189, `ui-bench.py` (210, S11), R2
+  (`scoop install`, `winget validate`), `youtube-check.py` ten runs (178), then `node
+  bench/bench.mjs` whole and `compare.mjs` (171, 175, 176, 177, W1, W2).
+- macOS, by hand: G10, U15, U16, 187.
 - Linux in Docker: `linux-human-qa.sh`, `linux-gui-check.sh`, G6 and G7's owed checks, G10, 185,
-  186, 188, 189, 190 (arm64), 194, R2 (`flatpak-builder`).
-- Sites and the outside world: Y26 (every line of `docs/site-list.md`), 121, Y12, F14, 200, 47.
+  186, 188, 189, 190 (arm64), 194, R2 (`flatpak-builder`), `youtube-check.py` ten runs (178).
+- Sites and the outside world: Y26 (every line of `docs/site-list.md`), 121, 200, 205, 209, 220, 47.
 - Long and by count: W3 (the twenty tasks), W4 (the 72 hours).
 
-**Not in the order:** 170 (a sign-in), 192 and S13 (closed by decision), and step 0's third line
-until the maintainer has done it.
-
-## Paused (2026-11-16, night): where to pick up
-
-S16's start speed-up committed 2026-11-17 (the background save at start marks the write owed first, so a `flush` right after start still writes; a queue test caught it).
-
-Done and pushed on 2026-11-16: A22 closed; S9 closed; S6 tried and dropped; U18 (the popup's
-download list, its two steps and the "!" badge); 207 (the coverage gate); 209 part (YouTube's
-second player); the sort click and showing panels made cheap (S11); README pictures retaken and
-its install steps folded. Next, in order: finish S16 (the first read's 75 ms, then the window's own
-190 ms), 209 (a `youtube-check.py` run known to have had the second player), 208 (the panel's
-early hand-off: run `chrome-check.py` until it shows again, its log now says which), U43 (a drag on
-the scroll bars, needs a visible window), then 204 and 205 (Vimeo, Reddit's sound).
-
-## Paused (2026-11-13, evening): where to pick up
-
-The partial rows were worked one at a time (tested, committed, pushed to main) and then paused at
-the maintainer's word ("we will do the tasks later"). Closed this session: F5, U12, U13, U17, U6,
-S14, S18, Y11, Y17, C1, U29, S1, S21; part-done: U2, Y13, A21 (each row says what is left).
-Every other PARTIAL or OPEN row below is as it stood.
-
-0.10.0 (extension 3.4.0), checked on 2026-11-14 at aaa042f2: `cargo test --workspace` 2301
-passed, clippy `-D warnings` clean, the extension's 166 tests, `chrome-check.py` 92 of 92,
-`human-qa.py` 66 of 66 rows on macOS and 66 of 66 on Linux (`linux-human-qa.sh`, a build of the
-checkout); Windows' `human-qa.py` on the laptop by the maintainer. The rows still open below wait
-for a later release, at the maintainer's word of that day.
-
-Seen once on CI at aaa042f2 and passed on its re-run (watch for them again):
-`hls_memory` `a_streams_segment_is_written_as_it_comes` on Linux (188 MB at its most for a 160 MB
-segment); `window_tests::commands::the_queue_arrows_start_and_stop_the_queue_chosen` failed twice on Windows, reading the status line before it was said, and now waits for it.
-
-Windows CI on 2026-11-14 (97ce58de to de16912a), each passing on its re-run, to fix after 0.10.0:
-- `shutdown.rs` `quitting_with_twenty_downloads_running_stops_them_within_two_seconds_and_they_resume_whole`
-  failed in 3 of 6 Desktop runs. Three times at line 209: bytes the loopback held when dm let go
-  went past `held_by_buffers` (5,293,312 against 5,242,880; Windows' buffers hold more than the
-  128 KiB a connection measured on macOS), the files whole. Once at line 145, all 20 runs still
-  going at the 2 s deadline, in the same run as `slow_disk.rs:120` (memory grew 15.5 MB while the
-  disk held it back): a loaded runner is the guess, not checked. Line 209's allowance is now
-  256 KiB a connection on Windows (128 elsewhere); line 145's failure now prints each row's state
-  and bytes at the deadline. Next time it fails, read that before changing the 2 s.
-- `limits.rs:374` `connections_a_server_turns_away_step_aside_at_once` on macOS CI: 1.73 s where
-  1.5 s is allowed (about 1 s here).
-- `window_tests::lists::the_toolbar_acts_on_the_selected_row` on macOS CI at 3fb9d7fc: the row
-  still "Stopped" 10 s after the toolbar's Resume was clicked (the click came as soon as the row
-  read Paused; a click on a frame still showing Resume greyed is the guess, not checked). Once.
-- `limits.rs:614` `a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection`
-  on Linux CI at ff86b78a: 5.69 s where 0.7 of one connection's 8 s (5.6) is allowed. Once.
-These wall-clock checks fail on a loaded runner by a few per cent; each release tag's run has
-needed a re-run. Next: one way for them to allow for the runner's speed, as `bench/` scales its
-floors by the computer's measured ceiling, rather than loosening each.
-
-Before the next release (as it stood on 2026-11-13):
-
-1. Main's Desktop CI green: a7408d59 fixed the three window tests that failed on the runners and
-   was still running when this was written; `gh run list --branch main` first. `grow.rs`
-   `a_server_that_shares_one_rate_keeps_eight` failed once on macOS CI (11 connections where it
-   allows 9) and passed elsewhere: watch for it again before loosening it.
-2. `python3 scripts/human-qa.py` whole, in a visible window, on macOS and on the Windows laptop:
-   this session changed the window (row buttons, keys, Download details' folder, View's kept
-   toggles) and the engine (streams written as they come, tags and covers, the shared client).
-
-Taken up again on 2026-11-14 on main: the two Windows runner timing tests fixed (a7408d59's run
-failed on `hls.rs`'s wall-clock check and the narrowed list's frame budget), `ram-optimization`
-(row 175's heap give-back) merged, with its call moved to `dm_core::heap` (it was in the
-macOS-only `memory` module and broke the Windows and Linux builds), A10's `second_path.rs` split
-and Y3 closed. Next: S5 and Y16 (each more than an hour), then the rows that need the Windows
-laptop, a phone or a person.
-
-### Resume here (Windows release QA, 2026-11-17, at 54625da9)
-
-Done on the Windows laptop on 2026-11-17:
-- Release installer `dm-gpui_0.10.0_x64-setup.exe` (`cargo packager --release -p dm-gpui
-  --formats nsis --out-dir D:/dm-target/release/bundle`, run from `crates/dm-gpui`: from
-  the checkout's root it finds no configuration), installed with `/S`. `human-qa.py` against
-  the installed `dm-gpui.exe`: 66 of 66 rows (B25 0.00/0.00/0.12%, B36 74 of 74 and 76 of 76).
-  Log: `D:/t/qa-0.10.0-installer-2.log`. A first run was 64 of 66 because `dist/chrome` was
-  still extension 3.4.0, which does not keep the menu the app serves (A22); `sh
-  scripts/package.sh` before QA after a pull that changes `crates/dm-catcher/`.
-- `every_menu_item_clicked_does_what_it_says`: the stalled row did time out and retry ("No
-  answer (retry 2 of 15)"). The window tests' harness built its client with the fixed 30 s
-  (`dm_core::client()`), not the settings' read timeout as a launch does (`shell::start`); it
-  now builds it as a launch does, and the test gives `stalled.bin` 600 s. The rule is as it was.
-- `dm-core` `tests/rows.rs`: `removing_many_rows_writes_the_queue_once` and
-  `flushes_made_at_once_write_one_change_once` failed nearly every run here since S16 made
-  `persist_to`'s write a background one: it landed inside the counted window. The two tests
-  now wait for that write first (`persisted`).
-- `each_part_is_joined_no_further_than_its_span` (step 4 of 2026-11-14) passes on Windows.
-- Row 203 closed: the debug frame test's slowness was GPUI built at opt-level 0; the dev profile
-  now builds GPUI optimised (`docs/decisions.md`, 2026-11-17). The frame test 20 to 25 ms, the
-  whole `dm-gpui` suite 195 s where it was 641 to 887. Row 188's Windows baseline stored
-  (`scripts/ui-bench-baselines/win32-x86_64.json`); row 210 added from it.
-- Row 202: `flaky.bin` refused until its test lets it be fetched. `tests/rows.rs`'s batch test
-  also writes what the adds owe before it counts (it saw 2 saves for 1 once more under load).
-  `torrent_features.rs`'s seeder tries another port where its bind is refused (os error 10013
-  once in a whole run); `torrent.rs`, `torrent_stress.rs` and `mse_interop.rs` find their ports
-  the same way and have not failed so.
-
-- Row 210 (the window's slowest answer at 10,000 rows on Windows) part done, row 211 (Theme's
-  Light and Dark ignored on Windows) written, row 212 (a settings or queue file with a UTF-8 mark
-  set aside) fixed with tests; G11's Mica seen drawing the frame black.
-
-Left, for the final test pass (the maintainer, 2026-11-17: the coding first, the tests last):
-- `cargo test --workspace` whole: the last run (before rows 211 and 212) had `dm-gpui`'s test
-  process end with 0xc0000409 after 380 of 389 passed; the 9 left passed alone. Run it again.
-- Row 211 seen in the window (Light and Dark at start and from Options); `human-qa.py` whole.
-1. `tests/limits.rs` `a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection`
-   took 5.65 s against its 5.6 (0.7 of 8) once beside `dm-gpui`'s window tests; alone 5.81 s
-   for the whole target, three of three passing. Load, as its comment allows for; watch it.
-
-#### GPUI migration: where it stands (read 2026-11-17 at 0262fc50, nothing run for it)
-
-Done: egui is gone (no egui or eframe package in `Cargo.lock`, no `dm-desktop` crate;
-the word is left in comments and in the installer's step that removes the older program);
-`dm-gpui` is the only window and the default on macOS, Windows and Linux; 0.10.0's
-`human-qa.py` held 66 of 66 on each (Windows from the release installer, at 54625da9).
-
-Not closed, each in its own row and in the work order above:
-- G11 (step 1): Mica on draws the frame solid black on Windows 11. Off by default.
-- G10: a finished file dragged out is coded, never seen landing on any system.
-- U43: the list's bars are drawn; a drag on them unchecked, the two egui window tests not ported.
-- 211: Theme's Light and Dark on Windows coded, not yet seen.
-- G8: the release workflow's packages from a draft, not yet through `human-qa.py` on every system.
-- G6: IME by hand only; on Linux the 50-window churn and the package's size.
-
-Before it is called finished:
-- `dm-gpui`'s test process ended with 0xc0000409 in the last whole `cargo test --workspace` on
-  Windows (first bullet of "Left" above). Not repeated, its cause not known: if it shows again
-  it is a row of its own, not load.
-- Windows' 66 of 66 is of 54625da9. Rows 210 to 212 changed `desktop/` since (530a102e,
-  0262fc50), so the contract asks for `human-qa.py` whole again.
-- G7's row still names a whole Windows run on an installer built after the review fixes of
-  2026-11-11 as owed: the run of 2026-11-17 above is that run. What G7 still waits for on
-  Windows is the run after rows 210 to 212.
-- Four commits on `main` are not pushed.
-
-Builds on this laptop: `CARGO_INCREMENTAL=0`. D: filled (398 GB in `D:/dm-target/debug`, 138
-of it the incremental cache) and the linker failed with LNK1180.
-
-## State (2026-11-09)
-
-The GPUI migration (rows G1 to G9, maintainer, 2026-11-09; `docs/migration/`) is the work that
-can be done here: G6, the GPUI shell (G1 to G5, Phase A, closed 2026-11-10). The other rows need a Windows
-computer, a device or a person.
-On 2026-11-11, on the Windows computer: the GPUI window built, run, checked from its installer (63 of
-64, B36's click timing once) and made Windows' default (G6 to G9; the bullet "Windows" under the GPUI migration below).
-Checks on 2026-11-09 on the Mac: `cargo test --workspace` passes, line coverage 93.7% (CI's
-floor 91%), the extension's 92 Edge checks, `video-sites-check.py` signed out (P0 7 of 7),
-`human-qa.py` 64 of 64 rows. The 0.9.0 release's own files, downloaded from its draft (digests
-as `latest.json` gives them), with extension 3.3.0's released zip: the macOS `.dmg` 64 of 64 rows;
-the arm64 `.deb` installed by apt on Debian 12 with Chromium in Edge's place, 64 of 64 with
-`DM_RELEASE=desktop-v0.9.0 sh scripts/linux-human-qa.sh` (B25 against the Linux baselines).
-
-0.9.0 from its GitHub release, tested on Windows on 2026-11-09 (installed with its setup.exe, the
-extension from dm-chrome-3.3.0.zip): `smoke.py`, `memory-check.py`, `launch-latency.py`,
-`out-of-box-check.py` (30 of 30) and `human-qa.py` (64 of 64 rows) pass. Measured beside
-reference A the same day, dm was slower in three cases (rows 166 to 168). On 2026-11-10 rows 167
-and 168 closed (a reconnect no longer fetches its end again; past 8, connections only while they
-add speed), and row 166 closed (across drives, a file a range as reference A stages one: 512 MiB in
-2.1 to 2.9 s from the first request against reference A's 3.1 to 4.9). Row 169 (the extension's
-JavaScript moved into Rust) closed on 2026-11-11 with the Firefox run on macOS; row 171 is what is left
-of the flaky and outage cases, and row 172 the batch case, which the harness cannot yet compare.
-On 2026-11-11 the benchmark moved into the repository (`bench/`). Reference A's 84 runs are
-frozen there as the floor for every parameter, on every system. Judged that way, dm is ahead
-end to end in `fast`, `per_conn`, `flaky` and `outage`, but worse in memory (row 175), in CPU
-over capped connections (row 176), and in the finish after the last byte (row 177).
-
-Removed from the list on 2026-11-09 at the maintainer's word (`docs/decisions.md`, "The work
-list keeps only what can be done"): every check that needs a site sign-in (Facebook, Instagram,
-Reddit, YouTube signed in, rows 63, 71, 75, 110, 122, 142, 152), one that needs reference A's
-dialogs set by hand (row 65's proxies) or a person's hands or eyes on the window (rows 60, 66,
-72f), the blocked proof-of-origin token (row 37), a reporter's confirmation (row 30), the site
-rules that could only be checked signed in (rows 68 and 69), and the notes that were not work
-(their findings are in `docs/reference-behavior.md`).
+**Not in the order:** 170 (a sign-in), and the maintainer's own items until done.
 
 ## Open work
 
@@ -648,7 +200,6 @@ rules that could only be checked signed in (rows 68 and 69), and the notes that 
 | 189 | (optimization spec §7; [audit](optimization-audit.md#7-cargo-build-and-release)) The release profile is measured for `dm-gpui` on macOS only, and a release keeps no symbols. Measured on macOS (2026-11-11, `docs/decisions.md`, "The release profile measured for `dm-gpui`", other work running): thin LTO 28.0 MB against 19.95 MB (+40%), GPUI's crates at `opt-level` 3 +11%, `panic = "abort"` −21%, none of them faster at start, idle or in a 512 MB download's CPU, and GPUI at 3 no faster at 10,000 rows. The profile is kept; abort is not taken (a panic in a decoder of what a server sends would close dm with every download, and dm has no crash reporting). `[profile.profiling]` exists. Symbols kept apart cost nothing in the binary but 1.3 GB more in the link (5.69 GB), so they wait for Linux's link to be measured. The judged benchmark (`bench fast`, `per_conn`) was not run on the variants: it is the other track's | PARTIAL | The same table on Linux (Linux: owed to the final Linux pass, with the link's peak memory in Docker with and without debug info) and on Windows (owed to the Windows laptop). A release build's symbols kept apart (dSYM, PDB, `.debug`) and attached to the release outside the installers the update manifest lists, once the Linux link holds them. `node bench/bench.mjs fast per_conn` run again by the benchmark's track after the merge, no worse |
 | 190 | (optimization spec §8, §10; [audit](optimization-audit.md#8-profiling-and-benchmarking)) dm lacks two of the spec's tools. Done on macOS (2026-11-11): `deny.toml` (licences compatible with GPL-3.0-or-later, crates.io the only source, duplicates warned, the advisories of `audit.toml`, an unmaintained crate refused where dm depends on it itself; the four under GPUI, `instant`, `rustls-pemfile`, `rustybuzz` and `ttf-parser`, are upstream's). `cargo deny --locked --config deny.toml check` passes for `desktop/` and `crates/dm-catcher/` with cargo-deny 0.20.2, and `audit.yml` runs it for both. dm's own crates are marked `publish = false`, which they always were in fact. `docs/testing.md` has a Profiling section with each system's command, and `[profile.profiling]` builds the release with its symbols. `cargo bloat --release -p dm-gpui --crates` is recorded with row 189 in `docs/decisions.md`. Coded on Windows (2026-11-18; `cargo clippy -p dm-core -p dm-shell --all-targets -- -D warnings` passed, no bench run yet): `criterion` (0.8, already in `Cargo.lock` through GPUI; a dev-dependency only) and three `[[bench]]`s with `harness = false`: `plan` (dm-core: `dm_core::plan` over 512 KiB to 1 TiB and 1 to 64 connections), `naming` (dm-core: `sanitize_name`, `filename_for`, `nth_free_name` and `nth_free_name_with` at 100, 1,000 and 10,000 names) and `large_list` (dm-shell: `Session::read`, `SavedSizes::apply`, `Places` and `earlier_of_the_same_name` over a real queue of 10,000 rows and 4 running). Run by hand (`docs/testing.md`, Benchmarks, with the baseline flags), never by `cargo test` or CI. Left: Linux arm64 ships, and its packages are smoke-tested, but its tests are never run | PARTIAL | Each bench run once on the Mac (`cargo bench -p dm-core --bench plan`, `--bench naming`, `cargo bench -p dm-shell --bench large_list`, with `-- --warm-up-time 1 --measurement-time 2`) and its numbers recorded in `docs/decisions.md`. CI's test job also runs on `ubuntu-22.04-arm`, once the tests have passed on arm64 Linux (Linux: owed to the final Linux pass, in Docker on this Mac's arm64) |
 | 191 | (optimization spec §6; [audit](optimization-audit.md#6-cross-platform)) Windows: the window has not been tried across monitors of different scale, nor has dm been used in a path longer than 260 characters. GPUI declares PerMonitorV2 in the manifest it links, and handles `WM_DPICHANGED`. Still, nobody has moved the window between a 100% display and a 150% one. That manifest has no `longPathAware`. Rust's `std::fs` reaches long paths by itself, but Open, Show in folder, the trash and the installer go through the shell. Coded (2026-11-12, compiled for Windows, not run): the manifest cannot take `longPathAware`, as it is GPUI's own and three of its users turn it on (`gpui-pre-platform`, `gpui-component`, `gpui-base`), so Open, Show in folder, Open with and Delete file hand the shell a path of 260 letters or more as its 8.3 short form (`dm_shell::shell::for_shell`, `GetShortPathNameW` on the verbatim path; as it is where a volume keeps no short names), tested off Windows for the forms it makes. Unicode names are tested (`shared/naming-cases.json`). Owed to the Windows laptop | OPEN. The `dm-core` test coded 2026-11-20, not compiled (the laptop codes only): `tests/long_paths.rs` (`a_file_lands_whole_past_260_characters_with_cjk_and_emoji_names`) downloads a 4 MiB file over several connections into a folder whose full path is over 300 characters, its parts staged under it too, named by its address in Chinese, Japanese, Korean and emoji, and a second into a folder named in the same scripts under it; each row is Completed, its `filename` and `path` are those asked for (not shortened, not in `\\?\` form) and the file is whole. No `cfg`: it runs on every system, Windows CI's included (`desktop.yml`'s Tests job on `windows-latest` runs `cargo xtask test --profile ci`, nextest over the whole workspace; `windows-tests.yml` is dm-gpui's alone). The Mac runs `cargo test -p dm-core --test long_paths` and clippy; Windows CI's run of it is the row's line. Owed still: the two displays, `human-qa.py` on the second, Open, Show in folder and Delete file on such a file, and row 183's panels | On Windows with two displays, at 100% and 150%: the main window and a dialog are dragged from one display to the other. Each redraws at the new scale, clicks land where things show, and there is a picture of each. `human-qa.py` passes whole with the window on the second display. A download completes into a folder whose full path is 300 characters long, and into one with CJK and emoji in its name, and Open, Show in folder and Delete file each work on it. A `dm-core` test of a 300-character path runs on Windows CI. Row 183's panels on Windows (`rfd`'s async common dialog, for Import, Export, Browse… and Open with…) are seen to open and to leave the window drawing, and `stress-check.py handlers import` passes there |
-| 192 | (optimization spec §6; [audit](optimization-audit.md#6-cross-platform)) Linux: the GPUI window is unchecked across desktops, GPUs and disks. None of these has been run: GNOME (mutter) and KDE Plasma (KWin) on Wayland. G6 has X11, and Wayland only for its checks 2 and 4. Niri and Hyprland: only unit tests of their minimize rule (`dm-desktop-base/src/tray.rs:223`). Real NVIDIA, AMD and Intel drivers: only Mesa in Docker. The portal file chooser, and its zenity fallback. The tray and notifications on each desktop. A full disk: `stress-protocols.py fulldisk` runs on macOS only. A mount removed mid-download. The window's own speed (rows 180 to 182, 186, measured on macOS 2026-11-12): `ui-bench.py --rows 10000 --only idle,list,busy` (paging with 60 downloads, idle frames) and `stress-check.py window quit`. Row 184's `dm-core/tests/locks.rs` (a write of the queue file held 2 s: no read, download or change held back; passes on macOS 2026-11-12)Row 183's panels (`rfd`'s async dialogs: the portal and zenity) and `stress-check.py handlers import` (Import of 10,000 links and the same list again, its list given through `ui.choose`). Row 180's count of a frame's costs: `stress-check.py frame` with a debug `dm-gpui` (no `block_on`, no file-system call, a copy of the settings at most per frame), its `scripts/fs-count.c` built and preloaded with `LD_PRELOAD` (its Linux half, which also counts `statx`, the call Rust's standard library makes, is unbuilt and unrun). Owed to the final Linux pass | CLOSED BY DECISION (the maintainer, 2026-11-13: "real desktop check is not needed"): Linux holds 66 of 66 in the Debian 12 container under X; GNOME and KDE on Wayland and real GPU drivers are not to be run | On real Linux computers: `human-qa.py` passes on GNOME Wayland, Plasma Wayland, Niri and Hyprland. On each, the tray (or its fallback), a notification and the folder chooser are checked, the chooser both with the portal and with zenity and no portal. The window draws correctly on at least two of NVIDIA, AMD and Intel. `fulldisk` runs on a small tmpfs or loop device, and a mount is pulled mid-download. Both end in a paused row with its reason, and dm still answers. |
 | 193 | Links on the clipboard's Save to (B67, issue #32: "choose or create a new folder") is built and checked on macOS only: the shared Save to (`dm-desktop-base` `save_to.rs`, `dm-gpui` `savefolder.rs`) in Links on the clipboard and Download links, a typed folder made when the links are added, one that cannot be said. Checked on macOS over the control port (2026-11-11): `app-check.py` (109 ok, 0 failed; its new clipboard checks all hold) and screenshots at 60, 100 and 120%. Owed on macOS too: a whole `human-qa.py` run with B67 (written, not run: the extension is not built in this worktree, the disk had 2 to 5 GB free with the other track building, and the benchmark was running). Not checked anywhere: the system's folder panel itself, opened by Browse… (it waits for a person; New Folder in it is read from GPUI's source, `NSOpenPanel` `canCreateDirectories`). Linux: owed to the final Linux pass (`app-check.py` and `human-qa.py` B67 under Xvfb with xclip; the portal's or GTK's folder chooser offering a new folder; `cargo check` of the Linux paths, none of which is new). Windows: owed on its laptop (the folder picker's New folder; `human-qa.py` B67) | PARTIAL | `human-qa.py` B67 holds on Linux and Windows, and Browse…'s panel is seen to make a folder on each system |
 | 194 | A question opening and closing held the main window's thread about 0.27 s each, whatever the question. Done on macOS (2026-11-12, `docs/decisions.md`, "A question's sheet slides with dm working on"): the time was AppKit's sheet slide, `-[NSWindow beginSheet:]` and `endSheet:` each running a run loop of their own (`_NSMoveTimerRunLoopMode`, 263 ms measured) in which the main dispatch queue, where GPUI runs everything, is not served; `sample` showed the window's thread idle under `NSSheetMoveHelper`, not working. dm now begins and ends the sheet itself (`dm-gpui/src/sheets.rs`), from a run loop timer outside GPUI, and runs the default mode's waiting work every 4 ms while it slides; the slide is AppKit's, unchanged, and the question is drawn before it slides in. Measured (macOS, Apple M1, the release code with symbols, other work running): "Already in the list" opened and closed ten times over 10 rows, `ui.texts` every 20 ms worst 305 ms (20 waits over 50 ms, one per opening and closing) to 24 ms (none); `stress-check.py import` with 10,000 rows, the same list again worst 299 ms to 34 ms, asked in 373 to 134 ms, skipped in 0.9 to 0.4 s, and the phase now holds it under 100 ms. Options, File properties, a progress window, Add URL and the Scheduler (windows of their own, not sheets) were not held: worst 13 to 28 ms opening and closing, before and after. Linux: owed to the final Linux pass (there a question is a `Floating` window, no sheet; `stress-check.py import` to be run). Windows: on the Windows laptop (GPUI's `Dialog`, no sheet; the same check) | PARTIAL | `stress-check.py import` holds `ui.texts` under 100 ms while a question opens and closes on Linux and Windows, as it does on macOS |
 | 205 | Reddit: the panel's "HLS stream, best quality" saved `HLSPlaylist.mp4` with the picture and no sound (20.3 s, 640 tall; https://www.reddit.com/r/oddlysatisfying/comments/1xu7qco/, `sites-check.py`, 2026-11-16, macOS, Edge). Seen once: the two runs after met Reddit's "Prove your humanity" check, so it is not yet known whether the build before A22's change does the same. The joining of an HLS stream's sound is the app's downloader, which A22 did not touch | Coded, waits for step 8 (2026-11-20, 5e4df2cf): no fault in dm found for Reddit's usual shape (grouped audio, with or without DEFAULT, fMP4 by byte ranges: `stream/reddit_tests.rs`, `dash/tests/hls_pairs.rs` `a_reddit_post_is_saved_with_its_picture_and_its_sound`); the post was most likely silent (r/oddlysatisfying, the master named `HLSPlaylist.mp4`, so the master was handed). Fixed beside it: a rendition naming no audio group whose CODECS are a picture's alone now takes the master's sound (`stream::ungrouped_audio_playlist`), refused rather than saved silent where the pair cannot be joined. `sites-check.py` passes a picture alone where the stream dm got lists no sound ("picture only expected") and fails one whose stream lists a sound (2a63eddf). Left: the tests on the Mac and `sites-check.py reddit` on a post with sound from a network Reddit does not challenge. Earlier: OPEN · S to M (2026-11-18 on the Mac: not run; Reddit answers this network "Prove your humanity" in Edge and 403 to its `.json` addresses, so no post could be opened: run it from another network) | `python3 scripts/sites-check.py reddit` passes: a whole video with sound lands in dm's folder · 2026-11-21, macOS: Reddit answered "Prove your humanity" to the listing, signed out; still owed from a network Reddit does not challenge |
@@ -667,9 +218,8 @@ Asked for by the maintainer on 2026-11-11: "look for improvement … what things
 remove to make it better app … like [reference A] but clean room implementation. No third party
 plugin or package", "over all UI UX improvement", "website like youtube download and how to make
 it better", "optimize the code and make it faster", and "architecture and maintainable code …
-highly optimize and maintainable structure even noob can follow … pure rust and GPUI". Listed
-only: nothing here is coded yet. Found by reading the code and the docs, not by running anything,
-so a row's first step is to see the gap happen (a test or a run that fails) before it is closed.
+highly optimize and maintainable structure even noob can follow … pure rust and GPUI". Found by
+reading the code and the docs; each row's Status says how far it has come.
 
 Two goals these rows add to the bottom line, in the maintainer's words of that day:
 
@@ -677,16 +227,11 @@ Two goals these rows add to the bottom line, in the maintainer's words of that d
    and run, nothing found on the computer and run in dm's place. Rows P.
 4. **A beginner can follow and maintain it.** Rows A and D.
 
-Status is OPEN for every row. "the maintainer's word (Bxx)" marks a row that changes that
+"the maintainer's word (Bxx)" marks a row that changes that
 contract row, which is edited in the same commit as the change (`CLAUDE.md`). "decide" marks a
 row where the first step is a decision recorded in `docs/decisions.md`; the recommended option is
 named. Size: S a day or less, M days, L weeks, XL more. Rows in each table are in the order they
 are worth doing.
-
-**Order across the tables** (each step leaves the tree building and tested): A1, A2, G9 and A3
-are done (egui removed, 2026-11-13); P1 and D1 (no fetched program, and the privacy text true); S1 to S4 (the
-measured deficits of rows 171 and 175 to 177); U1 to U9 (the window's dead ends); Y1 to Y6
-(YouTube's single points of failure); then A4 onwards beside the rest.
 
 ### P. Clean room: helper programs, third-party feature code, a second toolkit
 
@@ -736,7 +281,6 @@ staging on the download drive, copying to it during the download.
 | S5  | The finish across drives does work per range on top of the copy: each range file opened, cut to size, copied and deleted, with two thread-pool hops each (`assemble.rs:123-151, 367-374`), and S2 multiplies the ranges. On one drive macOS already finishes in 47 to 70 ms. The harness asks every 100 ms, so `lastByteToDoneMs` carries up to 100 ms of its own | PARTIAL · S: done (2026-11-13): the ranges are cut to their spans in one blocking task, where each took two hops to the thread pool; the stage is marked in the finish trace (`DM_FINISH_TRACE`). The cut folded into the join (2026-11-14): no task of its own, each range held to its span as it is copied, or by a cut of the file a rename made (`join_parts`' spans; `assemble::tests::each_part_is_joined_no_further_than_its_span`). Left: the trace on Windows with the GPUI build, and `lastByteToDoneMs` measured there | First a stage trace (an environment switch printing the milliseconds of each stage of the finish) on Windows with the GPUI build; then the cut folded into the copy in one blocking task. `lastByteToDoneMs` under the floor in every case (row 177) |
 | S6  | Every chunk is copied once more into the file handle's buffer and written through the blocking pool. Tried and measured (2026-11-16, macOS, M1): one positional writer per range, the ledger in the same trip, one write in flight; against the build before it, alternated, 8 runs each, no gain (`per_conn` CPU 1,075 against 980 ms, `flaky` 1,185 against 1,205, `fast` 500 against 490, memory equal), so dropped (`docs/decisions.md`, 2026-11-16). Open only for Windows, where the blocking pool cost more | OPEN · M · measure on Windows first | `cpuMs` in `per_conn` and `flaky` on Windows falls by a tenth or more with such a writer; otherwise closed as not worth it |
 | S11 | A wake of the window rebuilds for every row. Mostly done by row 181 (a read works out names, places and sorting again only where a row was added, removed or changed). Measured 2026-11-16 (`ui-bench.py`, release, M1, 3 runs): a scroll 0.027 s at 100 rows and 0.028 s at 10,000, so scrolling holds; 20 downloads queued cost 10.8 to 13.2% of a core at 100 rows and 9.9 to 18.5% at 10,000 over five runs (medians 13.0 and 17.7), too spread to say it grows; `sample` during the 10,000-row runs found the threads nearly all waiting and could not name dm's own functions, the release build keeping no symbols (row 189). Found and fixed on the way: a click on a heading saved and applied every setting on the window's thread (0.069 s at 100 rows, 0.017 s at the baseline), now `keep_look` (0.017 s; 0.033 s at 10,000, 0.263 s at the baseline) | PARTIAL · M | `ui-bench.py --only busy` at 10,000 rows within a tenth of its figure at 100 |
-| S13 | The runtime is the default: a worker per core, up to 512 blocking threads, default stacks (`boot.rs:101`); 25 to 26 threads were counted against reference A's 9 | CLOSED BY DECISION (2026-11-12): kept as tokio's defaults on purpose, as `boot.rs` says and row 185 measured: every connection's writes go to the blocking pool and are awaited before it reads on, so a smaller pool queues writes behind one another under the most connections dm runs; idle threads are reaped after 10 s. Reopened only with a benchmark that shows fewer threads costing nothing | Two workers, sixteen blocking threads with a short keep-alive; private bytes (row 175) and every benchmark case no slower |
 | S16 | The start waits on the main thread for the settings, the client and the whole queue before any window exists (`boot.rs:105-109`, `shell.rs:416-489`), then for the login item; macOS compiles its shaders at each launch (`runtime_shaders`) | PARTIAL · M: done (2026-11-12, 74afdf06): the login item is put in step after the window is made, on a thread of its own. Left: the settings, the client and the queue before any window; measured 2026-11-16 (`ui-bench.py --only start`, release, M1): first drawn frame 0.40 s at 100 rows, 0.63 s at 10,000. Traced the same day (`DM_FINISH_TRACE`, `start: …` marks, release, M1, 10,000 rows): settings, client and list 165 to 197 ms (72 with an empty list), the window made 190 ms whatever the list, its first read 75 ms (none empty). Done then: the list's save at start is no longer waited for (45 ms) and the parts folder is listed once, not looked at row by row (30 ms): 110 to 150 ms, the first frame at 370 to 410 ms where it was 428 to 518. Tried and dropped: each folder listed once to name the rows, 5 ms of the read's 40. Left: the read's 75 ms (the names of every row, 35 ms; names used twice, 22 ms; the places, 11 ms) and the window's own 190 ms. Coded 2026-11-20, not compiled (the laptop codes only): before the first frame only the rows it can show are named (the first 200 as shown, those chosen and those running: `window/list/placing.rs` `name_first_screenful`), the rest once it is drawn (`on_next_frame`, `name_the_rest`) or before a port's answer can read them; GPUI's application (its platform and text system) is made on the main thread while dm boots on a `dm-boot` thread (`lib.rs` `boot_and_run`), the window still made once the queue is read; and `runtime-shaders`, a dm-gpui feature on by default, so that a Mac with the Metal compiler builds with `--no-default-features` and has the shaders compiled ahead. Not coded: the window drawn before the queue is read, which shows an empty list in its first frame (a change a person sees: the maintainer's word first). The Mac: build, test and clippy; then `DM_FINISH_TRACE=1` (`start: …` marks), `ui-bench.py --only start` and `launch-latency.py` at 100 and 10,000 rows, before and after, and once more built with `--no-default-features` where `xcrun -f metal` answers; if the shaders ahead help, the macOS package's build passes it (the packager's `beforePackagingCommand`) | The window drawn while the queue loads; the login item later; shaders built ahead. `launch-latency.py`: 0.32 s at 100 rows and 0.43 s at 10,000 both fall |
 
 ### U. The window and the browser: fewer steps, no dead ends
@@ -833,16 +377,16 @@ of 60 in the base and 16 of 98 in the window, 307 lines in all (`secretstore/too
 
 Asked for by the maintainer on 2026-11-17: "things we need to implement to make the application
 best in the market of this category … better than [reference A] and best in market which user
-wants". Listed only: nothing here is coded. Found by reading this list, `docs/feature-status.md`,
+wants". Found by reading this list, `docs/feature-status.md`,
 `docs/parity.md`, `docs/feature-matrix.md` and a search of the source for each thing, not by
-running anything, so a row's first step is to see the gap happen (a run or a test that fails).
+running anything; each row's Status says how far it has come.
 
 A fifth goal beside the four above, in the maintainer's words of that day:
 
 5. **Best in its market, and what a person wants.** Ahead of every download manager a person can
    get, free or paid, not reference A alone, and holding what people ask a download manager for.
 
-Status is OPEN for every row. Every row that adds a control, a dialog, a line of Options or a
+Every row that adds a control, a dialog, a line of Options or a
 word to the window changes what `docs/behaviour-contract.md` fixes or adds to it, so it is marked
 "the maintainer's word" and waits for approval in words before it is coded (`CLAUDE.md`). "decide"
 and the sizes are as in the audit of 2026-11-11.
@@ -856,11 +400,9 @@ system's store.
 **What stands between dm and "better than reference A" today** is already in this list, and comes
 before every row W: memory (175), CPU on Windows (176), the finish after the last byte on Windows
 (177), `flaky` and `outage` on Windows (171), the `batch` case (172), the site list's 59 "not yet"
-lines (Y26), Vimeo and Reddit (204, 205), nothing signed (R1), no store listing for Chrome-family
+lines (Y26), Reddit's sound (205), nothing signed (R1), no store listing for Chrome-family
 browsers (R4), an update that only opens its installer (F6).
 
-**Order:** W1 to W4 (the claim measured), W5 to W9 (what a person meets in the first week), W10
-to W20 (what people ask for), W21 to W26 (trust and reach).
 
 ### W, first part: the claim measured
 
@@ -917,8 +459,8 @@ on 2026-11-17; the maintainer asked for one on 2026-11-20 (rows N below).
 
 The maintainer, 2026-11-20: "we will make it android app too. all feature should work like
 desktop. we can share the link in the our download manager and it will downlaod and it will
-work like a bittorrent android app". Listed only: nothing here is coded or run. Found by reading
-the tree at c010a3dc, not by running anything, so each row's first step is to see the gap happen.
+work like a bittorrent android app". Found by reading
+the tree at c010a3dc; each row's Status says how far it has come (first run on a phone 2026-11-21).
 
 **What is meant:** dm on Android phones and tablets with the desktop's features (segmented HTTP
 with resume, the queue and its schedule, YouTube and the streams, BitTorrent with magnets and
@@ -943,8 +485,6 @@ dm-gpui itself, on a GPUI platform for Android that dm writes (N16); the window 
 as a phone's screen when narrow (N7); everything under it is the desktop's (`docs/decisions.md`).
 The Kotlin app and the Slint shell were removed unbuilt; the shell's JNI modules are kept.
 
-**Order:** N16 and N17 (GPUI and dm's window on the phone), N2 and N3 (the engine on the phone); N5 to N9 (the
-app a person uses); N10 to N12 (system rules); N13 and N14 (tests and release).
 
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
@@ -963,298 +503,6 @@ app a person uses); N10 to N12 (system rules); N13 and N14 (tests and release).
 | N13 | No tests and no QA on Android: `human-qa.py` drives a desktop window | PARTIAL · M: 2026-11-20, host tests of the intent's decisions, the `.torrent`'s name and the ongoing notification's words beside the engine's. CODED, not run (no SDK here; the first CI run is its test): `android.yml`'s `emulator` job, API 26 and 35 in a matrix, the runner's own SDK tools (KVM, `sdkmanager`, `avdmanager`, `emulator`, no third-party action), then `scripts/android-emulator-check.sh`: the debug APK installed, the activity started, its process, the resumed activity and dm's window not blank on a `screencap` (16 colours and 2 % of the pixels off the background, the system's bars left out; dm's blue went with the placeholder) checked, then a SEND share of a file served on the runner (10.0.2.2) downloaded whole (SHA-256) into one of dm's folders; screen, logcat and dumps kept as an artifact. The phone's contract rows (P01 to P12) drafted as a proposal in `docs/android.md`, waiting for the maintainer's word, not in the contract. Android Studio (2026-11-20, coded, not run: no Studio or Gradle on the laptop): Run builds the Rust itself (`app/build.gradle.kts`'s `cargoNdkDebug`/`cargoNdkRelease`), and `docs/android.md` opens with "Test on the Mac with Android Studio": installs, the emulators (API 35 and 26, arm64), sharing a link, a magnet and a `.torrent`, Logcat (`tag:gpui-android`), and a checklist from N3, N5 to N11 and N7. Left: the job's first green run, the maintainer's first Run on the Mac through that checklist, the rows approved and their QA script, the narrow layout's window tests (N7) | `dm-android`'s host tests; the phone's window seen on the desktop as dm-gpui's at a phone's width (N7) and its window tests there (the Slint window on a computer, `cargo run -p dm-android`, removed with Slint, 2026-11-20); the APK on an emulator in CI (`x86_64`, API 26 and the newest); a phone section of `docs/behaviour-contract.md` (the maintainer's word) and its QA script |
 | N14 | Nothing to install: no APK, no store | PARTIAL · S · R1's rule: 2026-11-20, packaging moved from cargo-apk to cargo-ndk and a minimal Gradle project (`crates/dm-android/android`: Kotlin DSL, no Kotlin sources; the manifest `com.dm.android`, label dm, API 26 to 35, INTERNET, ACCESS_NETWORK_STATE, WAKE_LOCK, POST_NOTIFICATIONS, WRITE_EXTERNAL_STORAGE up to 28, `singleTask`, the intent filters, the activity gpui-mobile's `GpuiInputActivity`; `docs/android.md`), as gpui-mobile's example builds; CI's Android job builds the x86_64 library with cargo-ndk and the debug APK with Gradle 8.14.3 (checked against its SHA-256), kept as an artifact; not run yet (no NDK, SDK or Gradle on this laptop). Release CODED 2026-11-20, not run: `android.yml`'s `release` job at a tag `android-v<version>` (not `v*`, the extension's, nor `desktop-v*`), after the build and the emulator pass: the tag checked against the crate's and Gradle's version, cargo-ndk for arm64-v8a, armeabi-v7a and x86_64 (paths remapped), `gradle assembleRelease` signed by `app/build.gradle.kts`'s env-read signing config from the secrets `DM_ANDROID_KEYSTORE` (base64), `DM_ANDROID_KEYSTORE_PASSWORD`, `DM_ANDROID_KEY_ALIAS`, `DM_ANDROID_KEY_PASSWORD`, `apksigner verify`, `dm-<version>.apk` and its `.sha256` on a draft release never marked latest; without the secrets `dm-<version>-unsigned.apk` and a notice, as R1. F-Droid's needs written in `docs/android.md` (free deps checked, the recipe, reproducibility, NonFreeNet), nothing submitted. Gradle builds the Rust itself (2026-11-20, coded, not run): `cargoNdkDebug`/`cargoNdkRelease` before `preDebugBuild`/`preReleaseBuild` run cargo-ndk from the repository's root (`dm.abis`, default the device Android Studio runs on else arm64-v8a; debug the dev profile, release `--release`; cargo found on PATH or `~/.cargo/bin`; the NDK from `ANDROID_NDK_HOME` or the SDK's `ndk/27.2.12479018`; a missing cargo, cargo-ndk, Rust target or NDK named with its install command; skipped when no source changed) into `app/build/rustJniLibs/<type>`; CI passes `-Pdm.skipCargo=true` and its NDK as `dm.ndkVersion`; `gradle/wrapper/gradle-wrapper.properties` for Gradle 8.14.3 (the SHA-256 CI checks; the wrapper's jar and scripts made once with `gradle wrapper`, owed). Left: the debug job's and the release job's first green runs, a first sync and Run in Android Studio, armeabi-v7a's first build, dm's key made and put in the secrets (the maintainer's), the F-Droid submission | A release APK (arm64-v8a, armeabi-v7a, x86_64) built by CI at a tag with cargo-ndk and Gradle and attached to the release, signed with a key of dm's own (free); F-Droid, which is free, as the store; Google Play needs a fee and is BLOCKED as R1 and R4 are, until the maintainer says |
 | N19 | When Android starts dm's activity again in the same process (seen once on the emulator: a start from System UI with `FLAG_ACTIVITY_CLEAR_TASK`, likely a tap on dm's notification), gpui-android logs "PLATFORM already set — duplicate init_platform?" and the process exits | OPEN · S: not reproduced on a phone 2026-11-21 (Samsung SM-M156B, Android 16): a tap on the ongoing notification with dm in the background brought dm back in the same process. Seen 2026-11-20 on the API 37 emulator, not reproduced (no notification was up in the later runs). `gpui-android` `jni.rs` `init_platform` keeps the first `AndroidApp` (`OnceLock`) and the new activity's `android_main` then ends | On a phone: start a download, leave dm, tap its notification; if dm closes, keep the process's platform and attach the new `AndroidApp` to it, or start the activity without clearing the task. 2026-11-21: a second `android_main` in a process whose window was made now ends that process and starts dm's activity in a fresh one (`android/engine.rs`, made for "Keep downloads and torrents going when dm is closed"), seen working on the phone for a reopen while dm went on with no window; the notification-tap case itself is still to be seen |
-
-## GPUI migration: picking it up (rows G1 to G9)
-
-Written so that a new session can start from here alone. The maintainer asked on 2026-11-09
-for dm's window to move from egui to GPUI, following a specification they attached (its
-substance is in `docs/migration/GPUI_MIGRATION_PLAN.md`). The maintainer also said, twice:
-**take the recommended option at every decision and keep going; do not stop to ask.** Record
-each decision so taken in `docs/decisions.md` ("at the maintainer's word of 2026-11-09").
-
-### Where and how
-
-- **Branch `gpui-migration`**, not `main`: `git switch gpui-migration`. `main` receives it only
-  by fast-forward after the full gate below, at the end of a phase.
-- **Read first**, in this order: `docs/migration/GPUI_MIGRATION_PLAN.md` (phases, the decisions
-  D1 to D5 and the recommended option for each), `docs/migration/GPUI_UI_ARCHITECTURE.md` (the
-  design every step builds towards: crates, tick, state, views, `WindowProbe`),
-  `docs/migration/GPUI_TEST_PLAN.md` (the gate and what each row adds to it),
-  `docs/migration/CURRENT_UI_ARCHITECTURE.md`
-  (sections 3.3 the real tick order, 4.2 the rules still in `DmApp`, 5.2 the control port,
-  8 what a GPUI window must provide, 9 docs against code), then for the step at hand
-  `EGUI_FEATURE_INVENTORY.md`, `PLATFORM_GAP_ANALYSIS.md`, `GPUI_DEPENDENCY_DECISION.md`, and
-  `docs/architecture/MODULE_BOUNDARIES.md` (what may depend on what; `cargo xtask layers`
-  enforces it from `tooling/xtask/src/main.rs`, `fn layers`, the `GUI` and `SOCKETS` lists).
-- **Rules that still hold** (CLAUDE.md): no behaviour in `docs/behaviour-contract.md` changes
-  (Phase A moves code, it changes nothing a person sees); name no other download manager
-  ("reference A", "reference B"); no GPUI dependency in any crate before G6.
-- **The gate, after every step that touches `crates/`, `assets/` or `extension/`**, before
-  its commit (all four, in this order; report every row they print):
-  1. `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
-  2. `sh scripts/windows-check.sh clippy` (Docker running; the Windows-only code G2 and G3 move
-     is never built on the Mac otherwise; a plain `cargo check --target x86_64-pc-windows-msvc`
-     stops at `ring`'s C, which needs the Windows headers the container carries)
-  3. `cargo build -p dm-gpui && sh scripts/package.sh && python3 scripts/human-qa.py`
-     (macOS, a visible window, about 20 minutes): 64 of 64
-  4. `sh scripts/linux-human-qa.sh` (Docker running; builds the checkout in Debian): 64 of 64
-  Record each row's progress in `docs/migration/EGUI_PARITY_REPORT.md` once GPUI slices start.
-  A row that fails once and passes on a second whole run (B40 did on 2026-11-09) is reported
-  as such; a row that fails twice is a defect to fix before the commit.
-- **One commit per step** (or per module moved, in G2 and G3), message naming the row.
-  When a row closes, delete it here and say what was done in `CHANGELOG.md` (Unreleased,
-  as "Inside, no change to what a person sees: ...") and in the plan's status line.
-
-### State of each row (2026-11-09)
-
-- **G1, docs and code agree: done** (2026-11-10). `refresh()` calls `changes::take()`, `logic()`
-  reads `changes::pending()`; the architecture docs give the tick as the code runs it; stale
-  comments fixed. Decided, not changed: `DmApp::logic` keeps running from both `Window::logic`
-  and `DmApp::ui` (the window tests drive `DmApp::ui` alone).
-- **G2, a toolkit-free crate: done** (2026-11-10). `crates/dm-desktop-base` holds
-  what the desktop program does that is not drawing (`MODULE_BOUNDARIES.md`), with no window
-  crate (`cargo xtask layers`); dm-desktop re-exports each module at its old path. `Desktop`
-  takes the clipboard, file choosers and non-Windows notifications from the window through
-  `desktop::WindowServices` (`docs/decisions.md`, 2026-11-10). `--help` and MCP's
-  `initialize`/`tools/list` byte for byte as before; `launch-latency.py` unchanged;
-  `handover-check.py` 67 of 68 (LibreOffice, row 173, failing before G2 too); both QA runs 64/64.
-- **G3, rules into `dm_shell::app`: done** (2026-11-10). Moved, each with a dm-shell test:
-  `handoff::Cancels`, `hints::Hint`, `commands::remembered_limit` and `when_done_command`,
-  `session::new_download_asked`, `WhenDone::possible`, `schedule::spent_once_put_away`,
-  `names::PendingRenames`, `snapshot::SavedSizes`, `questions::Questions` (B39 to B41),
-  `search::due_now`/`by_site_folder`/`seen_saved`, `update::weekly`, `control_api::ScriptGuard`,
-  `dialup::hang_up_later`, `Session::add`, `backend::Undo`, the links dialog's rules
-  (`links::looks_like_page` and the rest), `names::category_folder`, `rules::replacing`. Left in
-  the window by decision (`docs/decisions.md`, 2026-11-10): `apply_settings`' words and view
-  updates, the sounds and notifications' words, dialogs' drafts. Both QA runs 64/64 at 0b0a699.
-- **G4, `ui.*` as a contract: done** (2026-11-10). `dm_desktop_base::probe`: typed requests and
-  answers for every `ui.*` method and `commands.list`/`command.run`, the `WindowProbe` trait, and
-  `probe::input`/`probe::view` (the two doors; a batch reaches `view` only); nine tests fix the
-  JSON. The egui window implements it (`app/human.rs`'s `Probe`); `ui.screenshot` stays in
-  `answer_control` (its answer comes when the frame's pixels do). `human-qa.py` unchanged, both QA
-  runs 64/64 at 7cf34db.
-- **G5, egui's own costs: done** (2026-11-10). `scripts/ui-bench.py`; egui's numbers at 100,
-  1,000 and 10,000 rows are in `GPUI_TEST_PLAN.md` section 4 (release build, M1, macOS 27).
-  Linux and Windows numbers come with G6, measured the same way beside GPUI's.
-- **G6, the GPUI shell: built and shipped (0.10.0); what its row still owes is under "GPUI
-  migration: where it stands" above. As written on 2026-11-10:** `crates/dm-gpui` (binary `dm-gpui`) on the pins
-  opens its main window on macOS, type-checks for Windows and builds on Linux (2026-11-10;
-  `GPUI_TEST_PLAN.md` section 5's findings). Check 1 (screen readers in a dialog's own window,
-  and 50 windows opened and closed) passes on macOS; Windows (NVDA, a Windows computer) and
-  Linux (Orca over AT-SPI, `linux-gui-check.sh`'s image) are to run. Since: both windows start
-  dm through `dm_desktop_base::boot` (one engine); the shell reads the queue once per wake from one
-  foreground task (a burst of changes coalesced over 250 ms; a clock every second while something
-  runs, else 30 s), draws the rows with `uniform_list` (only those on screen laid out) in the
-  system's own light or dark colours and font, and quits on SIGTERM as Exit does. Seen with
-  10,000 rows; it answers the control port (`ui.texts`, `ui.scroll`, `ui.inspect`, the
-  application's methods; the rest refused by name), so `ui-bench.py` measures it. **Owed:**
-  `linux-human-qa.sh` for 43a565d (the shared startup; macOS 64/64): the run of 2026-11-10 failed
-  only for a full Docker disk ("0 bytes free"), and the maintainer deferred Linux QA for now; it
-  runs before anything merges into `main`. Since: the shell's release numbers are beside egui's
-  (`GPUI_TEST_PLAN.md` section 4: at 10,000 rows a third of egui's CPU with 20 downloads, 28 % less
-  footprint, an 11.6 MB binary against 18.0 MB); dm's menus are in macOS's menu bar, built from the
-  command registry, each command's keys bound (⌘Q quits through the menu's action); the words on
-  screen are recorded where each frame lays them out, and `ui.click`, `ui.scroll` and `ui.key` go
-  through GPUI's own input path, so `human-qa.py` can drive the GPUI window. Phase C slice 1 under
-  way: the toolbar in a unified title bar (macOS's traffic lights beside it, a picture with its word
-  on each button, the person's order and hiding from `commands::toolbar_shown`, moved out of the egui
-  crate; the bar's space drags the window, a double-click on it does the system's setting), and the
-  side panel as a macOS source list (places, their counts and the filter's matching moved out of the
-  egui crate to `dm_shell::app::places`, with `Place::from_word` for `ui.place`), and the status
-  bar (its counts from `rules::tally`, moved out of the egui crate with `fetched_all` and
-  `waits_for_its_queue`; the egui window's own sentences). `human-qa.py` 64/64 on macOS for the egui
-  window after these moves (f02e438). The file-kind pictures in rows (B45: told apart by shape, each
-  in its kind's colour, the row's height unchanged; seen with one file of each kind). Next: slice 1's
-  rows checked through `human-qa.py` with `DM_BINARY` naming dm-gpui (the GPUI window still lacks
-  Add URL and the progress windows B63 needs: slices 4 and 6). Slice 2 under way: the table (a row's
-  words and the columns moved to `dm_desktop_base::rows` and `columns`; the GPUI table shows the
-  person's columns with the egui window's headings and words, sorts by a heading's click, cuts long
-  words with an ellipsis, a progress bar under a running row's status) and its selection (click,
-  ⌘-click, ⇧-click, ↑ and ↓; chosen rows in the selection colour; `ui.select`, `ui.inspect`).
-  Slice 3 under way: every command the application carries out by itself (`commands::verb`: Resume,
-  Stop, Download again, the queue moves, Resume all, Stop all, Delete completed, Start and Stop
-  Queue, When done) runs from the toolbar, the menu bar, its keys and `command.run`, enabled as
-  `commands::applies` says for the rows chosen; and the row menu (right-click or Control-click, the
-  egui row menu's items and words, drawn as a macOS context menu); Copy link and Copy details through
-  GPUI's clipboard (the system pasteboard), said in the status bar as the egui window says them.
-  Questions are asked as macOS sheets (`question.rs`; `docs/decisions.md` 2026-11-10: B42 for the
-  GPUI window's questions changes at D5), with dm's words (`dm_desktop_base::asks`, the Remove
-  question's rules moved there from the egui dialog); Remove and Delete file ask, finished rows leave
-  with Undo; every window's words are recorded for the port, so `ui.texts` and `ui.click` reach a
-  sheet as they reach egui's dialogs. Slice 4 under way: Add URL is a window of its own (B01,
-  B42): the address (a link on the clipboard put in and selected), Recent with Clear history, the
-  sign-in, the warning line; what OK does is dm's for both windows (`dm_desktop_base::add_url`).
-  Download details is a window of its own (B02 for a plain file): Category, Save to folder with
-  Browse… (the system's folder panel), Save as (the server's name, once asked), Size, Note, Delete
-  file after, the name's clash (numbered, or Replace once whole), Start now and Add for later to a
-  queue, the row begun while it asks where Options says so; what it offers and adds moved to
-  `dm_desktop_base::file_info` for both windows. "Already in the list" is a sheet with its four
-  answers and Remember my choice (`add_url::carry`, both windows). Pickers are pop-up buttons
-  opening the system's own menu (gpui-component's `NativeMenu`, an `NSMenu` on macOS), and a
-  dialog's window is as tall as what it holds (`fit.rs`). The port types (`ui.type`) and says
-  where the GPUI windows are (`ui.windows`). Found and fixed on the way: the main window's wake
-  loop ended for good once a dialog that read the main view closed (GPUI's
-  `WeakEntity::update_in` runs in whichever window last drew the view); it updates in its own
-  window now. The questions a download raises (B39 to B41) are sheets, one at a time, with dm's
-  words for both windows (`dm_desktop_base::asks`); running them found B39 naming a query
-  address's file by the list's label (`127.0.0.1/dl?id=7`, the contract says `dl`) and asking
-  about a name the server never sent, fixed for both windows (`names::address_file_name`). Quit
-  is the application's (⌘Q from a dialog in front too, as on every Mac), and Exit closes the
-  dialogs first: macOS held its terminate while a sheet asked, so a logout or `kill` waited on an
-  unanswered question. The dialogs, sheets and main window take AppKit's measures, taken from the
-  system's own dialog (`native.rs`: 13 and 11-point text, 24-point controls, 20-point margins,
-  forms with a label column, the default button rightmost); a question is asked on dm's own
-  window once it is in front (it went with Add URL as Add URL closed, and was never shown while
-  dm was in the background). `human-qa.py` 64/64 on macOS for the egui window at 1711002.
-  "Exit dm?" (Exit while downloads run: its words follow the list while it is open, its
-  buttons never move) and "Start outside the schedule?" (Resume or Start now on downloads the
-  schedule or the download limit holds) are sheets, with dm's words for both windows
-  (`asks::exit`, `asks::outside`, `dm_desktop_base::held`). The Playlist window: a YouTube
-  playlist read by dm, each video ticked, Select all, one Video quality (`file_info::playlist_adds`,
-  both windows). Slice 4 is done in the GPUI window: the browser's hand-offs reach it (it had no
-  `--native-host` at all: every way dm runs with no window, the host, the warm page reader,
-  `--version`, `--help`, the command-line client, MCP, `--register`, a typo, now
-  `dm_desktop_base::modes` for both windows, and macOS's "open with" Apple events
-  `dm_desktop_base::opened`); Download details for a hand-off (the page, the sign-in, the panel's
-  quality and Part, "From …", "Always save here without asking", a site's second cancel offering
-  to leave it to the browser), a video's Quality chips, Part, Shape and GIF, a ZIP's Contents with
-  Take out (B44), a page that lists several videos opening Playlist; "Download links" for a page's
-  links (`dm_desktop_base::links_import`, both windows); and the tick each wake (`tick.rs`):
-  `--new-download` and `--when-done` from the command line, notifications and sounds for
-  finished and failed downloads (the window's own notifier, `notify.rs`), an address handed
-  over again said, the schedules' hooks, When done with its countdown as a sheet (Cancel the
-  default), "Delete file after", the watched folder, the big download hint, problems above the
-  list with Dismiss. The port chooses in a pop-up as a person does (a click on the pop-up holds
-  its choices instead of opening the system's modal menu; a click on a choice's words picks it),
-  and reads only the words in view, so `human-qa.py` can drive the GPUI window. The window's top bar holds the search
-  box, as a code editor's title bar does (the maintainer's word, "take reference from vscode"):
-  the list narrowed as one types, ⌘F, Find next and previous, Escape; the toolbar a row under it.
-  Slice 5 under way: the Scheduler (B49, B62, B65: the queues at its left with Start now and Stop,
-  each queue's hours or the Main queue's, weekly or once, When done, tries again, a program to
-  run; `dm_desktop_base::scheduler::SchedulerDraft`, both windows), the Speed limiter (its
-  presets, on and off, the download limit, slower hours), Start Queue and Stop Queue saying what
-  they did, and their queue lists in Downloads' menu and beside the toolbar's buttons (B64).
-  The Grabber (B60, B61: a site's pages searched for files, its templates, other sites, the
-  site's folders kept, sizes and paths, the files found ticked and added for later) and its
-  saved searches, run by themselves on the tick (`dm_desktop_base::grabber`, both windows).
-  Slice 5 is done but B52, which comes with the tray (slice 8). Slice 6 under way: each
-  download's progress window (B53, B54, B63: its status and next step, size, speed, time left,
-  whether it can resume, a bar of its pieces, its own limit, Connections with each piece's bar
-  and speed, a torrent's swarm; opened on Start now where Options says, for a download started
-  elsewhere, and by File › Show progress; closed as it finishes), "Download complete" (each
-  file's Open, Open with…, Open folder; "Don't show this window again"), and "Cancel this
-  download?" as a sheet; `dm_desktop_base::progress` for both windows. The GPUI window's
-  services are the system's own (the clipboard; the open and save panels). The file and list
-  commands: Open, Open with…, Preview, Show in Finder, Extract here and Extract to…, Select all,
-  Import (asked first where some of a list is listed already) and Export, Help, the categories
-  and toolbar shown or hidden, and Sort by (`actions.rs`). The row dialogs: Update download
-  link (a fresh address, or "Get it from the browser" with the bar above the list until the
-  next download clicked there is taken; offered by itself when a link runs out part-way,
-  where Options says), Move to queue, Move/Rename and File properties (status and next step,
-  size, category, where it is saved, the page it came from, address, sign-in and note, a
-  torrent's files and their priorities, a finished file's SHA-256 and Check against, a
-  finished ZIP's Contents: B44's Properties half), each a window of its own, their OK
-  `dm_desktop_base::row_edits` for both windows; a double-click on a row (B46). Add numbered
-  series (every address listed before anything is fetched), Links on the clipboard (one
-  already listed offered unticked), About dm with Check for updates, What's new and Download
-  the update, the update offered above the list once verified (Install now, Later), the
-  weekly check, and Help's topics, Tip of the day, home page, support and Tell a friend
-  (`dm_desktop_base::project`, both windows). A control client's click a moment ago runs no
-  file and installs no update (the script guard, gaps row 159 f). Slice 7 is done: Options, its
-  six pages (B43, B51, B56, B57) with the egui window's words in macOS's settings layout, OK and
-  Restore defaults on `dm_desktop_base::options` for both windows, the look it asks for, and the
-  clipboard watched as it says. Slice 8 under way: the tray (B52; the status item, its menu and
-  tooltip), the close button as Options says with "Keep running in the tray?", the window back
-  from the tray, the Dock, a second launch and the browser, a login launch into the tray, File ›
-  Close (⌘W), and every dialog's close button doing what its Cancel does (B42). The bars above
-  the list the egui window has (a download paused for want of room, downloads that did not
-  finish, the way to add dm to a browser) and a new install's "Add dm to your browser". The
-  control port answers every method in the GPUI window: `ui.inspect` with the dialogs open, the
-  status line and problems, `ui.texts` with what fields hold (not a password's),
-  `ui.screenshot` (the system's own picture of the window) and `ui.move_window`. Links dragged
-  from a browser and files dropped on the window are taken (`drops.rs`), and the floating drop
-  target (View › Drop target, the last of the menus' commands) is a window of its own
-  (`droptarget.rs`). `human-qa.py` on the GPUI window: 63 of 64 on its second run (B48 then failed
-  only because Escape did not close the progress window it found open; put right), and B25's
-  pictures saved as the GPUI window's own baseline (`docs/behaviour-baseline/gpui/macos/`, D3,
-  looked at). Since: macOS's Edit and Window menus; Downloads › When done carried out (it was
-  offered and did nothing) and the menus' ticks (When done, the speed limiter, View's toggles) and
-  "…" as the egui window's; `control.port` forgotten as the window quits; and `--headless` in the
-  GPUI binary (`dm_desktop_base::headless`, no GPUI at all, so it needs no display):
-  `app-check.py` 98 of 98 and `smoke.py` pass with dm-gpui. View's Columns, Customize toolbar
-  (its three styles drawn), Language and Sort by as menu items, ticked as they stand; a column
-  moved by dragging its heading, a toolbar button by dragging it onto another; Resume says
-  Retry or Start now for the rows chosen, in the File menu and the row menu, as the egui
-  window's does (`rows::resume_word`). The main window comes back where and as large as it was
-  left (`frame.rs`); on Linux as large and zoomed as it was, where the desktop places it. Synced with `main` at a6faac1 (the engine's speed work, the extension's
-  background and popup in Rust); `human-qa.py` 64 of 64 on the GPUI window on that tree.
-  The release bundle from its .dmg: `smoke.py` and `human-qa.py` 64 of 64. The menus' titles in the
-  top bar beside the search box, on every system (the maintainer's words); only the system's fonts.
-  Windows and Linux coded here (`syswindow.rs`, the title bar, the tray's icon, window names): Linux's
-  GPUI binary passes `smoke.py` and `app-check.py` under Xvfb; Windows builds and lints, and on
-  2026-11-11 was run and checked on a Windows computer (the bullet "Windows" below). Each system's own colours (Fluent on Windows, libadwaita on Linux); a
-  browser's link dropped on the window on Windows through the OLE target both windows now share.
-  **Still owed in G7:** (View › Text size built 2026-11-11, `zoom.rs`, B66). Then
-  (`changes::subscribe`
-  waking one foreground task), `WindowProbe` for what it draws, a dialog window, then the
-  checks one by one, check 1 (screen readers) first. As planned: Recommended pin (D2):
-  `gpui = { package = "gpui-pre", version = "=0.3.12" }`,
-  `gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }` (macOS features
-  `font-kit`, `runtime_shaders`; Linux `wayland`, `x11`; Windows none),
-  `gpui-component = "=0.9.1"`; fallback `gpui-ce` 0.3.0 if the pair will not build. A new
-  crate `crates/dm-gpui` (binary `dm-gpui`), depending on dm-core, dm-shell and
-  dm-desktop-base only; add it to `cargo xtask layers` as a window crate. It opens the main
-  window and one dialog window, runs the tick once per wake from one foreground waker
-  (`changes::subscribe`), keeps the tokio runtime for the engine, and implements `WindowProbe`
-  for what it draws. Judge it on `GPUI_MIGRATION_PLAN.md` Phase B's seven checks, each pass or
-  fail per system, written to `GPUI_TEST_PLAN.md`. D1 (go): recommended go if check 1
-  (screen readers reach OK and Cancel in the dialog's own window on macOS, Windows and Linux)
-  passes, or can be made to pass by a patch to GPUI kept in `vendor/` as eframe's is;
-  no-go otherwise, and then the plan stops at Phase A, which stands on its own.
-- **macOS first, every step (maintainer, 2026-11-10).** "First migrate on macos, all steps, then
-  we will move for linux. Windows part will be handled on windows so no need to do here. Focus on
-  macos and coding part here." So: Phases B to E are carried out and proved on macOS here (taken
-  as D1 go for macOS, with D2 the recommended pin, `gpui-pre` 0.3.12); Linux follows once macOS is
-  done; Windows (its builds, runs and checks) is done on a Windows computer, not here. The code
-  stays cross-platform. Owed before anything merges into `main`: Windows' whole run on the
-  reviewed installer (G7); the Linux runs held on 2026-11-11.
-- **Windows (maintainer, 2026-11-11: "complete the windows part"): done on a Windows computer.**
-  The GPUI window builds there (`dm-gpui/build.rs`: icon and version; GPUI's own manifest), runs,
-  and was checked against the contract: `human-qa.py` on the debug build (63 of 64 twice, B36's
-  click timing), then from the release installer (`cargo packager -p dm-gpui --formats nsis`,
-  63 of 64: B36's click timing, 1.76 s on its first pass, 0.71 s on its second), with B25's pictures drawn for Windows
-  (`docs/behaviour-baseline/gpui/windows/`, D3, looked at). Phase B on Windows: check 1 pass
-  (`windows-a11y-check.py` 5 of 5, after 50 windows opened and closed too), 3 and 4 pass, 2 by
-  reading (WARP; CI's GPU-less runner is the run), 5 drop-in coded and drag-out missing (G10),
-  6 by hand, 7 measured (`GPUI_TEST_PLAN.md` section 5). Put right on the way: the port's
-  window titles and frames (GPUI's Windows windows say neither), pictures without the invisible
-  resizing borders, the caption glyphs, High Contrast, the jump list and taskbar progress,
-  Options' magnet/.torrent owners and Dial Up / VPN (B43), a greyed control that stopped the
-  wheel and still took clicks, the chosen language put in force only once Options was saved (every
-  system), a hand-off that waited out the window's quarter-second coalescing (B36's click-to-first-
-  request), Download details asking the server only once its window was made, and
-  `cargo packager` making both windows' installers. Windows' default is the GPUI window
-  (Makefile, CI, the scripts), as macOS's (`docs/decisions.md`, 2026-11-11). Left on Windows:
-  a whole `human-qa.py` run, B36's click timing included, on an installer built after the review
-  fixes (G7); G10, Options' Mica switch (G11), IME by hand (check 6), CI's draft run of the release
-  workflow (G8).
-- **Linux (maintainer, 2026-11-11: "only focus on linux part. i am working on windows part on
-  windows laptop"): done on the Mac, in Docker.** Linux ships the GPUI window (`docs/decisions.md`,
-  2026-11-11): `linux-human-qa.sh` 64/64 (B25 compared), `linux-gui-check.sh` 122/122 with real
-  input, the Wayland close check, links dropped on X11 and Wayland, the .deb, AppImage and .rpm
-  built and the .deb installed and driven. Every Linux check builds `dm-gpui`
-  (`scripts/linux/window.sh`). Left on Linux: drag out (G10), IME by hand.
-- **Native feel and speed (maintainer, 2026-11-10).** Every GPUI slice (G6 to G8) is built as
-  each system's own programs behave and measured against G5's egui numbers: the plan's section
-  "Native feel and speed". A contract row a native change alters is updated with its baseline in
-  the same commit, naming that word.
-- **G7 to G9: after D1.** The plan's Phases C, D and E. D3 (new B25 pictures): recommended
-  approve once every other row holds in GPUI, drawing them with `--save-baseline` and looking
-  at them. D4: for a row GPUI cannot hold as written, recommended the fallback the gap
-  analysis names (for example `tray-icon`, `rfd`, dm's own drag-out code). D5: recommended
-  switch the default only after 64/64 on macOS, Windows and Linux from release packages,
-  and remove egui in a change of its own (done 2026-11-13, at the maintainer's word of
-  2026-11-12).
 
 ## Periodic
 
