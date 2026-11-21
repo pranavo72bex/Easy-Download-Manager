@@ -64,6 +64,9 @@ pub mod extract;
 // A file-storage service's share address, turned into the file's (gaps row W7).
 mod filehost;
 
+// The video a web page carries, read from the page, for any site (the maintainer, 2026-11-21).
+pub mod pagemedia;
+
 pub use dm_media::fmp4;
 
 pub use dm_media::frames;

@@ -249,7 +249,14 @@ pub fn init_logger() {
     INIT.get_or_init(|| {
         android_logger::init_once(
             android_logger::Config::default()
-                .with_max_level(log::LevelFilter::Info)
+                // dm(android-release-log): a release build logs warnings and errors alone;
+                // its info lines (a heartbeat every five seconds, each frame's events) are for a
+                // debug build's Logcat.
+                .with_max_level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Info
+                } else {
+                    log::LevelFilter::Warn
+                })
                 .with_tag("gpui-android"),
         );
         log::info!("gpui-android logger initialised");

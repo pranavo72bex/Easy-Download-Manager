@@ -111,7 +111,11 @@ impl Downloads {
             self, theme, screen, window, cx,
         ))
         .child(self.narrow_list(theme, screen, shown, cx))
-        .child(crate::window::statusbar::statusbar(self, theme, screen, cx))
+        // A phone says how the downloads go under the top bar's title: no second bar over the
+        // bottom navigation.
+        .when(!crate::platform::ON_A_PHONE, |root| {
+            root.child(crate::window::statusbar::statusbar(self, theme, screen, cx))
+        })
         .child(bottomnav::bottom_nav(self, theme, screen, cx))
         .when_some(drawer, |root, drawer| {
             root.child(

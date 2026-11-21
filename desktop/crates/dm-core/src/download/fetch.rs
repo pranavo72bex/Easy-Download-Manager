@@ -351,12 +351,28 @@ async fn page_answer(
                         && !matches!(e, Error::Paused | Error::Cancelled) => {}
                 outcome => return outcome.map(Some),
             }
-        } else if !document && options.media {
+        }
+        /* Any other site's page (a link shared from an app, typed, or handed over): read for
+         * the video or sound it carries (`pagemedia`: JSON-LD, Open Graph, the page's own
+         * video tags, a player's data), which is fetched in its place under the page's title.
+         * A page that carries none goes on as before, and so does one a person has said to
+         * save as the page it is. */
+        if !youtube && !document && !options.accept_page {
+            if let Some(done) = or_stop(
+                &options.control,
+                crate::pagemedia::download_from(client, &info.final_url, options, report.clone()),
+            )
+            .await?
+            {
+                return Ok(Some(done));
+            }
+        }
+        if !youtube && !document && options.media {
             /* A page the browser's panel handed over for its video (gaps row 155): dm reads
              * YouTube's pages only, and this site's video comes from its player's own files,
              * which the browser had not seen. Not an expired link, and not a page to save. */
             return Err(Error::Internal(crate::PAGE_NOT_READ.into()));
-        } else if !document {
+        } else if !youtube && !document {
             /* Asked about in the window as an address that ends like a file is (contract row
              * B40, gaps row 136): a person who typed a page may want it, and Yes saves it as
              * HTML. The words say the asking's phrase, and where a video comes from. */

@@ -53,8 +53,17 @@ pub fn height() -> f32 {
 /// The bar's height at a phone's width (gaps row N7): tall enough for a finger's target
 /// ([`space::TOUCH`]), else as [`height`].
 pub fn narrow_height() -> f32 {
-    height().max(crate::window::zoom::of(space::TOUCH))
+    // A phone's: room for the title and the line under it that says how the downloads go.
+    let least = if crate::platform::ON_A_PHONE {
+        PHONE_BAR
+    } else {
+        space::TOUCH
+    };
+    height().max(crate::window::zoom::of(least))
 }
+
+/// A phone's top bar's height: Material's top app bar (64 dp).
+const PHONE_BAR: f32 = 64.0;
 
 /// Where the traffic lights go, centred in the bar as tall as it is when
 /// the window opens: the system places them once, so a size chosen later
@@ -241,19 +250,39 @@ pub fn narrow_titlebar(
         let title = crate::window::sidebar::place_name(view).unwrap_or_else(|| "dm".into());
         // The place's name as the bar's title, as a phone's apps name the screen shown; the
         // places are the bottom navigation's, and Add URL the button floating over the list.
+        // On a phone, under the title, how the downloads go: the status bar's first words,
+        // where a computer shows them along the window's foot.
+        let summary = crate::platform::ON_A_PHONE
+            .then(|| crate::window::statusbar::parts(view).into_iter().next())
+            .flatten();
         bar.child(
             drag_space()
                 .flex_1()
                 .min_w_0()
                 .pl(px(space::L))
                 .flex()
-                .items_center()
+                .flex_col()
+                .justify_center()
                 .overflow_hidden()
                 .whitespace_nowrap()
-                .text_ellipsis()
-                .text_size(px(native::TEXT + 5.0))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .child(screen.label(title)),
+                .child(
+                    div()
+                        .overflow_hidden()
+                        .text_ellipsis()
+                        .text_size(px(native::TEXT + 5.0))
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .child(screen.label(title)),
+                )
+                .when_some(summary, |column, summary| {
+                    column.child(
+                        div()
+                            .overflow_hidden()
+                            .text_ellipsis()
+                            .text_size(px(native::SMALL_TEXT))
+                            .text_color(theme.muted)
+                            .child(screen.label(gpui::SharedString::from(summary))),
+                    )
+                }),
         )
         .child(
             button("search-button", filter)

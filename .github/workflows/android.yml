@@ -250,7 +250,7 @@ jobs:
           echo "DM_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/dm.keystore" >> "$GITHUB_ENV"
       - name: The release APK
         working-directory: desktop/crates/dm-android/android
-        run: gradle --no-daemon assembleRelease -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION"
+        run: gradle --no-daemon assembleRelease -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION" "-Pdm.abis=arm64-v8a,armeabi-v7a,x86_64"
       # Signed, apksigner checks the signature and prints the key's digest, the one people
       # compare (docs/android.md). The APK's SHA-256 goes beside it.
       - name: Named, checked, its SHA-256
@@ -258,17 +258,26 @@ jobs:
         run: |
           rm -f "$RUNNER_TEMP/dm.keystore"
           mkdir -p "$GITHUB_WORKSPACE/dist"
-          if [ -f app-release.apk ]; then
-            apksigner verify --verbose --print-certs app-release.apk
-            name="dm-$VERSION.apk"
-            cp app-release.apk "$GITHUB_WORKSPACE/dist/$name"
-          else
-            name="dm-$VERSION-unsigned.apk"
-            cp app-release-unsigned.apk "$GITHUB_WORKSPACE/dist/$name"
-          fi
+          # One APK for each processor and a universal one (app/build.gradle.kts's splits):
+          # dm-<version>-arm64-v8a.apk (phones), …-armeabi-v7a, …-x86_64 and …-universal, each
+          # "-unsigned" where the repository has no key.
+          for apk in app-*-release*.apk; do
+            abi="${apk#app-}"
+            abi="${abi%%-release*}"
+            case "$apk" in
+              *-unsigned.apk) name="dm-$VERSION-$abi-unsigned.apk" ;;
+              *)
+                apksigner verify --verbose --print-certs "$apk"
+                name="dm-$VERSION-$abi.apk"
+                ;;
+            esac
+            cp "$apk" "$GITHUB_WORKSPACE/dist/$name"
+          done
           cd "$GITHUB_WORKSPACE/dist"
-          sha256sum "$name" > "$name.sha256"
-          cat "$name.sha256"
+          for apk in *.apk; do
+            sha256sum "$apk" > "$apk.sha256"
+            cat "$apk.sha256"
+          done
       - name: Publish
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:

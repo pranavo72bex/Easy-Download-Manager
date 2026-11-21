@@ -388,6 +388,15 @@ fn row_cells(
                                 .build(window, cx)
                         })
                     })
+                    // Its state in its colour, as the phone's cards say it: a failure in the
+                    // warning's, a finished download in the success colour, one going in the
+                    // accent; on a chosen row, the choice's own text colour.
+                    .when(!theme.is_chosen(), |c| match row.state {
+                        State::Failed(_) => c.text_color(theme.warning),
+                        State::Completed => c.text_color(theme.success),
+                        State::Running => c.text_color(theme.accent),
+                        _ => c,
+                    })
                     .child(screen.label(said))
                     .when_some(fraction, |c, f| {
                         c.child(cells::progress_track(f, told, theme))

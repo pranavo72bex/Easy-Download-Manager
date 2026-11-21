@@ -120,6 +120,18 @@ android {
         }
     }
 
+    // A release's APKs for GitHub (gaps row N14): one for each processor built, small to
+    // download (a phone takes arm64-v8a), and a universal one for any phone. Only for a release
+    // build, so Android Studio's Run installs its one debug APK as before.
+    splits {
+        abi {
+            isEnable = gradle.startParameter.taskNames.any { it.contains("Release") }
+            reset()
+            include(*dmAbis.toTypedArray())
+            isUniversalApk = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
