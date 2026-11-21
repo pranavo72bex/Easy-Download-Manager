@@ -219,8 +219,9 @@ impl DownloadList {
 
     /// A finished file handed to the app's publisher (`folders/publish.rs`), off the runtime's
     /// threads: a large file is a long copy. A torrent's files stay where its seeding reads
-    /// them, and a folder where it is; a file that could not be published stays, whole, in
-    /// dm's own folder, and the person is told why.
+    /// them while it is shared, else go as a file does, a torrent's folder file by file; a
+    /// file that could not be published stays, whole, in dm's own folder, and the person is
+    /// told why.
     #[cfg(target_os = "android")]
     async fn publish_finished(
         &self,
@@ -234,13 +235,19 @@ impl DownloadList {
         let Some(publisher) = crate::folders::publisher() else {
             return Ok(finished);
         };
-        if crate::torrent::is_torrent(url) {
+        // A torrent still shared keeps its files where its session reads them; one that is not
+        // shared (sharing off, or none to share with) is published as a file is, a folder of
+        // files file by file (gaps row N22).
+        let torrent = crate::torrent::is_torrent(url);
+        if torrent && crate::torrent::sharing(&finished.path).is_some() {
             return Ok(finished);
         }
         let path = finished.path.clone();
         let asked = tokio::task::spawn_blocking(move || {
             if path.is_file() {
                 crate::folders::published(&path, &*publisher)
+            } else if torrent && path.is_dir() {
+                crate::folders::published_folder(&path, &*publisher)
             } else {
                 (path, None)
             }

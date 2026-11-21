@@ -23,7 +23,7 @@ pub use phone::set_phone_folders;
 #[cfg(any(target_os = "android", test))]
 mod publish;
 #[cfg(target_os = "android")]
-pub(crate) use publish::{published, publisher};
+pub(crate) use publish::{published, published_folder, publisher};
 #[cfg(target_os = "android")]
 pub use publish::{set_publisher, Publisher};
 
