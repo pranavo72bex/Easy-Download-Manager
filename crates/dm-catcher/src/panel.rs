@@ -239,6 +239,15 @@ pub fn layer_fits(video: f64, player: Option<f64>, layer: f64) -> bool {
     room > 0.0 && layer.is_finite() && layer <= room * 2.5
 }
 
+/// Whether a frame's whole page is a player's own: a frame (`in_frame`) whose viewport, of
+/// `viewport` square pixels, is the size of a player's layer by `layer_fits`. An embedded
+/// player's frame holds the player and nothing else, so a layer anywhere in it is the player's
+/// (YouTube's embed keeps its controls under the frame's body, gaps row Y12); a page in a frame
+/// as large as a page is judged as any page.
+pub fn frame_is_player(in_frame: bool, video: f64, player: Option<f64>, viewport: f64) -> bool {
+    in_frame && layer_fits(video, player, viewport)
+}
+
 /// Whether `outer` is `inner` or one of its ancestors, by `parent` — the
 /// page's composed tree, where a shadow root's child goes up to its host.
 pub fn composed_within<N: PartialEq>(

@@ -277,7 +277,8 @@ pub fn clean_title(title: &str, page_url: &str) -> String {
         .iter()
         .rev()
         .find(|l| l.len() > 2 && !matches!(**l, "co" | "com" | "org" | "net"))
-        .map(|l| plain(l))
+        // YouTube's embed host, `youtube-nocookie.com`, names itself YouTube (gaps row Y12).
+        .map(|l| plain(l.trim_end_matches("-nocookie")))
         .unwrap_or_default();
     for separator in [" - ", " | ", " – ", " — ", " · ", " • "] {
         if let Some((front, back)) = text.rsplit_once(separator) {
@@ -325,6 +326,13 @@ mod title_tests {
         assert_eq!(clean_title("▶ A talk | YouTube", page), "A talk");
         assert_eq!(clean_title("Name - Other Site", page), "Name - Other Site");
         assert_eq!(clean_title("YouTube", page), "YouTube");
+        assert_eq!(
+            clean_title(
+                "Me at the zoo - YouTube",
+                "https://www.youtube-nocookie.com/embed/jNQXAC9IVRw"
+            ),
+            "Me at the zoo"
+        );
         assert_eq!(clean_title("(2020) A film", page), "(2020) A film");
         assert_eq!(clean_title("Clip - Vimeo", "https://vimeo.com/12"), "Clip");
         assert_eq!(clean_title("News - BBC", "https://www.bbc.co.uk/x"), "News");

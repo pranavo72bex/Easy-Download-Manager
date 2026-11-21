@@ -105,7 +105,7 @@ pub(super) fn seen(window: &Window, element: &Element) -> bool {
     // its controls and caption beside the video's own wrappers): the closest
     // element holding both it and the video, if that is player-sized and not
     // the page, is the player, and the layer is one of its own.
-    std::iter::successors(composed_parent(&top), composed_parent)
+    let shared = std::iter::successors(composed_parent(&top), composed_parent)
         .take(12)
         .take_while(|e| {
             let tag = e.tag_name().to_ascii_lowercase();
@@ -118,7 +118,25 @@ pub(super) fn seen(window: &Window, element: &Element) -> bool {
                 positioned.map(area),
                 area(&shared),
             )
-        })
+        });
+    // A frame no larger than a player is the player: YouTube's embed hangs its control layer
+    // off the frame's body, beside the video's own wrappers (gaps row Y12).
+    shared
+        || panel::frame_is_player(
+            in_frame(window),
+            rect.width() * rect.height(),
+            positioned.map(area),
+            view.0 * view.1,
+        )
+}
+
+/// Whether this document is a frame inside another page.
+fn in_frame(window: &Window) -> bool {
+    window
+        .top()
+        .ok()
+        .flatten()
+        .is_some_and(|top| JsValue::from(top) != JsValue::from(window.clone()))
 }
 
 /// The element through the shadow root holding it, or its parent.

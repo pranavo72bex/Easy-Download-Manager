@@ -1248,6 +1248,12 @@ def embedded(base, origin, host, path, offered, listed_name):
             click_at(tab, box["x"] + box["w"] / 2, box["y"] + box["h"] / 2)
             rect = wait_for(playing, 15)
         rect = rect or frame.evaluate(EMBED_RECT)
+        # "Me at the zoo" is 19 s long and autoplays from the page's load, so by now it may have
+        # ended under YouTube's end screen, which covers the player (no panel, row 125): it is
+        # started again from its beginning, as a person would replay it, before the hover.
+        frame.evaluate("(() => { const v = document.querySelector('video');"
+                       " if (v && (v.ended || v.currentTime > v.duration - 8)) { v.currentTime = 0; v.play(); } })()")
+        rect = wait_for(playing, 10) or rect
     if rect and rect["w"] > 0:
         at = {"x": box["x"] + rect["x"], "y": box["y"] + rect["y"], "w": rect["w"], "h": rect["h"]}
         hover(tab, at)
@@ -1258,7 +1264,11 @@ def embedded(base, origin, host, path, offered, listed_name):
         shown = shown or {}
     check(offered, shown.get("title") == "Download video" and bool(shown.get("caret")),
           f"no out-of-process frame of {host}/embed/{EMBED_VIDEO}" if not frame
-          else str(shown) if rect and rect["w"] > 0 else f"no player in the frame: {rect}")
+          else (str(shown) if shown else
+                f"no panel over the player {rect}; in the frame: dm-panel "
+                f"{frame.evaluate('!!document.querySelector(\"dm-panel\")')}, its state {panel(frame)}, "
+                f"its words {str(frame.evaluate('document.body && document.body.innerText'))[:160]!r}")
+          if rect and rect["w"] > 0 else f"no player in the frame: {rect}")
     lines = []
     if shown:
         click_at(tab, box["x"] + shown["x"] + 60, box["y"] + shown["y"] + shown["h"] / 2)

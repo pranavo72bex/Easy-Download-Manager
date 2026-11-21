@@ -147,6 +147,26 @@ fn a_player_is_hit_tested_where_it_is_on_screen() {
 }
 
 #[test]
+fn an_embedded_players_frame_is_the_player() {
+    // YouTube's embed: a 4:3 video in a 640×360 frame, its controls under the frame's body.
+    assert!(frame_is_player(
+        true,
+        480.0 * 360.0,
+        Some(0.0),
+        640.0 * 360.0
+    ));
+    // The same layer in a page of its own is not taken for the player's.
+    assert!(!frame_is_player(
+        false,
+        480.0 * 360.0,
+        Some(0.0),
+        640.0 * 360.0
+    ));
+    // A frame as large as a page (an article inside it) is judged as a page.
+    assert!(!frame_is_player(true, 480.0 * 360.0, None, 1280.0 * 2000.0));
+}
+
+#[test]
 fn a_layer_in_another_shadow_tree_is_still_the_players() {
     // mux-player's shape: a gesture layer (3) in mux-player's tree, the
     // <video> (6) inside <mux-video>'s (4) shadow root (5). Composed
