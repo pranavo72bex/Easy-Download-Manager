@@ -581,6 +581,8 @@
  "Not now": "ليس الآن",
  "Back": "رجوع",
  "Share": "مشاركة",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "عند إزالته من التطبيقات الأخيرة، يواصل dm العمل تحت إشعاره حتى تنتهي كل التنزيلات وتنتهي مشاركة كل تورنت.",
+ "Keep downloads and torrents going when dm is closed": "مواصلة التنزيلات والتورنت عند إغلاق dm",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "نُسخ تقرير إلى الحافظة لإرفاقه ببلاغ: لم يُرسل شيء.",
  "Copy a report": "نسخ تقرير",
  "Named after the page's title": "يُسمّى باسم عنوان الصفحة",

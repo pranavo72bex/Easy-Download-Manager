@@ -402,7 +402,15 @@ pub fn checkbox(
         .items_center()
         .gap(px(space::S))
         .child(tick_box(ticked, theme))
-        .child(screen.label(words))
+        // On a phone long words wrap under themselves rather than running off the screen.
+        .map(|row| {
+            if crate::platform::ON_A_PHONE {
+                row.w_full()
+                    .child(div().flex_1().min_w_0().child(screen.label(words)))
+            } else {
+                row.child(screen.label(words))
+            }
+        })
 }
 
 /// The box of a check box.

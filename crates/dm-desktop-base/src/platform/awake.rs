@@ -59,12 +59,28 @@ pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
     let _ = busy;
 }
 
+/// How many phone watches have started in this process: the newest is the one that speaks.
+static PHONE_WATCH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The phone watch running now steps aside at its next look, leaving the foreground service as
+/// it is: called as a window's dm winds down, before its downloads stop, so the service holds
+/// the process until dm boots again without the window (`dm-android`'s engine), and nothing
+/// reads the closed queue.
+pub fn retire_phone_watch() {
+    PHONE_WATCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
 /// On a phone: tells it what keeps dm busy (`phone::busy`), each time the queue changes and
 /// once a second while anything does, so its ongoing notification follows the count and the
 /// speed and its wake lock is held while a row runs, a queued one is due or a finished torrent
 /// is shared (gaps row N6). `summary` reads the queue; the phone decides what to show and
 /// when. Its own thread, as `watch`'s.
 pub fn watch_phone(summary: impl Fn() -> Option<crate::phone::Busy> + Send + 'static) {
+    // The newest watch alone speaks for dm: a phone's dm that goes on without its window boots
+    // again in the same process (`dm-android`'s engine), and the window's watch, whose queue
+    // has closed, then steps aside at its next look rather than read a queue that is gone.
+    let generation = PHONE_WATCH.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    let newest = move || PHONE_WATCH.load(std::sync::atomic::Ordering::SeqCst) == generation;
     let (nudge, nudged) = std::sync::mpsc::sync_channel::<()>(1);
     dm_shell::app::changes::subscribe(move || {
         let _ = nudge.try_send(());
@@ -72,6 +88,9 @@ pub fn watch_phone(summary: impl Fn() -> Option<crate::phone::Busy> + Send + 'st
     let _ = std::thread::Builder::new()
         .name("dm-awake".into())
         .spawn(move || loop {
+            if !newest() {
+                return;
+            }
             let busy = summary();
             let held = busy.is_some();
             crate::phone::busy(busy);

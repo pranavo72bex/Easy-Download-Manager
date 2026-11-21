@@ -581,6 +581,8 @@
  "Not now": "Pas maintenant",
  "Back": "Retour",
  "Share": "Partager",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "Balayé des applications récentes, dm continue sous sa notification jusqu'à la fin de chaque téléchargement et du partage de chaque torrent.",
+ "Keep downloads and torrents going when dm is closed": "Poursuivre les téléchargements et les torrents quand dm est fermé",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "Un rapport a été copié dans le presse-papiers pour un signalement : rien n'a été envoyé.",
  "Copy a report": "Copier un rapport",
  "Named after the page's title": "Nommé d'après le titre de la page",

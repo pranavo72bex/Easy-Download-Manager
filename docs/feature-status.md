@@ -530,6 +530,12 @@ and is not carried over.
       stand-in C compiler for ring, no NDK); dm-android's host tests; the
       narrow layout's window tests at 412 × 915 on the desktop. Not checked:
       a link with the NDK, an APK, a run on an emulator or a phone, any CI job
+      Since run on a phone (2026-11-21, `docs/android.md`). Going on once
+      closed (Options › Downloads, "Keep downloads and torrents going when
+      dm is closed"): checked on the phone with two public torrents, closed
+      mid-download, reopened, and left to finish and let the process go
+      (`android/engine.rs`, `headless::QUIT_WHEN_IDLE`; the idle rule's
+      host test in `headless/tests.rs`)
 
 ## More features
 Checked against the code. These live in the client; the extension has none

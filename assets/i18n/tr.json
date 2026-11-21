@@ -581,6 +581,8 @@
  "Not now": "Şimdi değil",
  "Back": "Geri",
  "Share": "Paylaş",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "Son uygulamalardan kaydırıldığında dm, her indirme bitene ve her torrent paylaşımı bitene kadar bildirimiyle sürer.",
+ "Keep downloads and torrents going when dm is closed": "dm kapatıldığında indirmeleri ve torrentleri sürdür",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "Bir sorun bildirimi için rapor panoya kopyalandı: hiçbir şey gönderilmedi.",
  "Copy a report": "Rapor kopyala",
  "Named after the page's title": "Sayfanın başlığıyla adlandırılır",

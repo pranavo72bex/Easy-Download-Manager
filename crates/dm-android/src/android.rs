@@ -15,6 +15,7 @@
 //! notification's buttons, the schedule's alarm and the phone's start (`receivers`), and the
 //! native methods of dm's Java classes (`natives`).
 
+mod engine;
 mod intent;
 mod java;
 mod jvm;
@@ -77,11 +78,27 @@ fn android_main(app: AndroidApp) {
     // Each of these only makes the phone friendlier; dm runs without them.
     let _ = open::allow_file_uris();
     let _ = notify::channels();
+    // Opened again while dm goes on with no window in this process: that dm is stopped (all
+    // saved), and dm starts in a fresh process, as GPUI's platform is made once a process.
+    if engine::window_made_before() {
+        engine::stop();
+        if let Err(why) = engine::relaunch() {
+            dm_core::note!(warn, "{why}");
+        }
+        std::process::exit(0);
+    }
     let platform = gpui_jni::init_platform(&app);
     watch(Arc::clone(platform), home.join("torrents"));
     dm_gpui::run_app(&[], || {
         gpui::Application::with_platform(SharedPlatform::new(Arc::clone(platform)).into_rc())
     });
+    // Closed with downloads left, where the person asked for them to go on (Options ›
+    // Downloads): dm goes on with no window (`engine`), and this returns so Android lets the
+    // activity go. Else the process ends, and the next start begins afresh.
+    if engine::wanted(&home) {
+        engine::start();
+        return;
+    }
     std::process::exit(0);
 }
 

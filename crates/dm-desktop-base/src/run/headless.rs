@@ -53,6 +53,26 @@ const SEARCHES_EVERY: Duration = Duration::from_secs(60);
 /// so a batch is not left waiting a second a link.
 const HAND_OFFS_AT_ONCE: usize = 256;
 
+/// Set by a phone's app when its window has closed and dm goes on without one (Options ›
+/// Downloads, "Keep downloads and torrents going when dm is closed"): the headless loop then
+/// ends by itself once nothing has been downloading or sharing for [`IDLE_FOR`], so the
+/// process is let go. Never set on a computer, where `--headless` runs until it is told to end.
+pub static QUIT_WHEN_IDLE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// How long nothing must be downloading or sharing before [`QUIT_WHEN_IDLE`] ends the loop: a
+/// queued download starting a moment after another ends is not taken for the end.
+const IDLE_FOR: Duration = Duration::from_secs(10);
+
+/// Whether `rows` keep dm busy: one downloading or putting its file together, or one waiting
+/// that the queue lets start, or a finished torrent being shared (`sharing`).
+fn busy(rows: &[Arc<Entry>], sharing: bool) -> bool {
+    sharing
+        || rows
+            .iter()
+            .any(|row| matches!(row.state, dm_core::State::Running | dm_core::State::Queued))
+}
+
 /// What a step over the port is refused with: there is nothing to click,
 /// type into or scroll.
 pub const NO_WINDOW: &str =
@@ -107,10 +127,19 @@ pub fn run(
     woken: &crate::wakes::Woken,
 ) {
     let mut dm = Headless::new(backend, requests, assistants_only);
+    let mut idle_since: Option<Instant> = None;
     while !crate::signals::SIGNALLED.load(Ordering::SeqCst) {
         dm.tick();
         if dm.quit_asked {
             break;
+        }
+        // A phone's window closed with work left: done once that work is.
+        if QUIT_WHEN_IDLE.load(Ordering::SeqCst) {
+            if busy(&dm.rows, dm_core::sharing_any()) {
+                idle_since = None;
+            } else if idle_since.get_or_insert_with(Instant::now).elapsed() >= IDLE_FOR {
+                break;
+            }
         }
         // Waited for on the runtime, from this thread, which draws nothing
         // (`Backend`'s rule). The timeout is made inside the future: made out

@@ -461,6 +461,13 @@ impl Downloads {
     /// session, a logoff, a shutdown or restart, quits GPUI from its own
     /// window and ends the process as soon as the quit's handlers return).
     pub(crate) fn wind_down(&mut self) {
+        // On a phone the window's awake watch steps aside first: the stop below would have it
+        // let go of the foreground service, and Android may end a process without one at once,
+        // before a windowless dm takes the downloads up again (`dm-android`'s engine). Where
+        // none does, the process ends, and the service with it.
+        if crate::platform::ON_A_PHONE {
+            dm_desktop_base::awake::retire_phone_watch();
+        }
         // The downloads stopped and awaited, as a pause stops them, the
         // queue written last (gaps row 186).
         self.backend.shut_down();

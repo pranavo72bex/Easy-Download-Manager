@@ -1750,6 +1750,7 @@ const A_FULL_FILE: &str = r#"{
     "wifi_only": true,
     "not_roaming": true,
     "data_saver_waits": true,
+    "keep_after_close": true,
 
     "speed_limit": 512,
     "retry_wait": 9,
@@ -1835,6 +1836,7 @@ fn a_full_settings_file_reads_into_the_pages_and_is_written_back_the_same() {
     // A phone's Options lines (gaps row N10) and the one network (W12).
     let phone = &read.downloads;
     assert!(phone.wifi_only && phone.not_roaming && phone.data_saver_waits);
+    assert!(phone.keep_after_close);
     assert_eq!(read.advanced.only_through, "en0");
     assert_eq!(read.advanced.proxy.host, "proxy.example");
     assert_eq!(read.limit_hours, 24);

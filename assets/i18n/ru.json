@@ -581,6 +581,8 @@
  "Not now": "Не сейчас",
  "Back": "Назад",
  "Share": "Поделиться",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "Если смахнуть dm из недавних приложений, он продолжит работу под своим уведомлением, пока не завершатся все загрузки и раздачи торрентов.",
+ "Keep downloads and torrents going when dm is closed": "Продолжать загрузки и торренты, когда dm закрыт",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "Отчёт для обращения скопирован в буфер обмена: ничего не отправлено.",
  "Copy a report": "Скопировать отчёт",
  "Named after the page's title": "По названию страницы",

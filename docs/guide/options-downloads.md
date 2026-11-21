@@ -89,7 +89,7 @@ A site that allows fewer connections can be given its own number: see
   or is above it again." Their rows say "Waiting: the battery is low". 0,
   the setting at first, never waits.
 
-On a phone, three more lines follow, each off at first:
+On a phone, four more lines follow, each off at first:
 
 - **Wi-Fi only:** "On mobile data, downloads wait, and go on by themselves
   on Wi-Fi." Their rows say "Waiting: the phone is not on Wi-Fi".
@@ -98,6 +98,7 @@ On a phone, three more lines follow, each off at first:
 - **Pause when Data Saver is on:** "Downloads wait while Android's Data
   Saver is on, and go on once it is off." Their rows say "Waiting: Data
   Saver is on".
+- **Keep downloads and torrents going when dm is closed:** "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing." Opened again, dm shows them where they got to.
 
 A connection or a battery the system says nothing of never holds a
 download. A download you start with **Start download** while they wait

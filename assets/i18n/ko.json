@@ -581,6 +581,8 @@
  "Not now": "나중에",
  "Back": "뒤로",
  "Share": "공유",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "최근 앱에서 밀어서 닫아도 모든 다운로드가 끝나고 모든 토렌트 공유가 끝날 때까지 dm이 알림과 함께 계속됩니다.",
+ "Keep downloads and torrents going when dm is closed": "dm을 닫아도 다운로드와 토렌트 계속하기",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "문제 보고용 보고서를 클립보드에 복사했습니다. 아무것도 전송되지 않았습니다.",
  "Copy a report": "보고서 복사",
  "Named after the page's title": "페이지 제목으로 이름 지정",

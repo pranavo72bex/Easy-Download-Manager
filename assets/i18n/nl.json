@@ -581,6 +581,8 @@
  "Not now": "Niet nu",
  "Back": "Terug",
  "Share": "Delen",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "Weggeveegd uit de recente apps gaat dm onder zijn melding door tot elke download klaar is en elke torrent klaar is met delen.",
+ "Keep downloads and torrents going when dm is closed": "Downloads en torrents laten doorgaan als dm gesloten is",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "Een rapport is naar het klembord gekopieerd voor een melding: er is niets verzonden.",
  "Copy a report": "Rapport kopiëren",
  "Named after the page's title": "Genoemd naar de titel van de pagina",

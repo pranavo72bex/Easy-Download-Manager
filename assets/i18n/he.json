@@ -581,6 +581,8 @@
  "Not now": "לא עכשיו",
  "Back": "חזרה",
  "Share": "שיתוף",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "לאחר החלקה מהאפליקציות האחרונות, dm ממשיך תחת ההתראה שלו עד שכל הורדה תסתיים וכל טורנט יסיים את השיתוף.",
+ "Keep downloads and torrents going when dm is closed": "להמשיך הורדות וטורנטים כש-dm סגור",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "דוח הועתק ללוח לצורך דיווח: דבר לא נשלח.",
  "Copy a report": "העתקת דוח",
  "Named after the page's title": "ייקרא על שם כותרת הדף",

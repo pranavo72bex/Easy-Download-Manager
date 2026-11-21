@@ -246,6 +246,35 @@ Stop All is `ask_running_to_stop_all` (`stop-all`, which the watcher carries out
 `Command::StopAll` does: `DownloadList::pause_all`). The window follows from the queue's change.
 A dm that is not running takes them at its next start.
 
+### Going on once dm is closed
+
+Options › Downloads › "Keep downloads and torrents going when dm is closed" (off by default;
+`downloads.keep_after_close`). Swiping dm away from the recent apps ends `android_main`
+(android-activity's `onDestroy` waits for it); the window's quit has by then stopped every
+download and put it back in line. With the setting on and a saved row running or waiting
+(`dm_core::saved_rows`, `wakeup::goes_on`), `android_main` starts dm again on a thread of its
+own, as `--headless` runs on a computer (`src/android/engine.rs`), and returns. The queue
+resumes, a finished torrent is shared, and the foreground service with its ongoing notification
+holds the process (Stop All reaches the headless dm through the inbox). Once nothing has been
+downloading, waiting or sharing for ten seconds the headless loop ends
+(`headless::QUIT_WHEN_IDLE`) and the process with it. The window's awake watch is retired as
+the window winds down, before its downloads stop (`awake::retire_phone_watch` in `wind_down`):
+left to speak, it let go of the foreground service at the stop, and Android's low-memory killer
+ended the process in the moment before the headless dm took over (seen on the phone). The
+headless dm's own watch then alone holds the service.
+
+Checked on a phone (2026-11-21, Samsung SM-M156B, Android 16) with two public torrents: closed
+from the recent apps mid-download, dm went on at 2 to 7 MB/s under its notification while the
+low-memory killer reaped other processes; opened again, it came back in a fresh process with the
+torrent where it got to and going on; closed again, the torrent finished, went to
+`Download/dm/Tears of Steel`, and the process ended about ten seconds later, leaving "Download
+finished".
+
+Opened again while the headless dm runs, the new `android_main` stops it (all saved, as Exit
+saves it), starts dm's launch activity in a new task and ends the process: GPUI's platform is
+made once a process (gpui-android's `init_platform`, gaps row N19), so the window cannot be made
+twice in one, and Android starts the activity in a fresh process that resumes the queue.
+
 ### The schedule and the phone's start
 
 dm-desktop-base's wake watch hands the schedule's next start to the phone every minute

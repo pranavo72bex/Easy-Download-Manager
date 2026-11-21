@@ -581,6 +581,8 @@
  "Not now": "暂不",
  "Back": "返回",
  "Share": "分享",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "从最近使用的应用中划掉后，dm 会在通知下继续运行，直到所有下载完成、所有种子做种结束。",
+ "Keep downloads and torrents going when dm is closed": "关闭 dm 后继续下载和做种",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "已将报告复制到剪贴板以便提交问题：未发送任何内容。",
  "Copy a report": "复制报告",
  "Named after the page's title": "以页面标题命名",

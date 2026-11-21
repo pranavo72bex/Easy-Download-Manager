@@ -174,6 +174,7 @@ pub fn tab_settings(tab: Tab) -> &'static [&'static str] {
             "connections",
             "data_saver_waits",
             "forget_after_days",
+            "keep_after_close",
             "not_roaming",
             "on_complete",
             "on_metered",

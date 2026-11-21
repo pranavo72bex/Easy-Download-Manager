@@ -47,4 +47,16 @@ pub(super) fn phone_rules(p: &mut Page, cx: &mut Context<Options>, s: &Settings)
     p.hint(t(
         "Downloads wait while Android's Data Saver is on, and go on once it is off.",
     ));
+    check(
+        p,
+        cx,
+        "keep-after-close",
+        t("Keep downloads and torrents going when dm is closed"),
+        s.downloads.keep_after_close,
+        true,
+        |s| s.downloads.keep_after_close = !s.downloads.keep_after_close,
+    );
+    p.hint(t(
+        "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.",
+    ));
 }

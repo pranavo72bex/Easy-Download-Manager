@@ -267,3 +267,32 @@ fn with_no_window_a_followed_ones_reading_is_taken_in() {
         vec!["the followed Weekly could not be read: refused".to_string()]
     );
 }
+
+/// A phone's dm going on without its window ends once nothing downloads, waits to start, or is
+/// shared: a stopped, failed or finished download keeps nothing going.
+#[test]
+fn only_downloading_waiting_or_sharing_keeps_a_windowless_phone_going() {
+    let row = |kind: &str| -> Arc<Entry> {
+        Arc::new(
+            serde_json::from_value(serde_json::json!({
+                "id": 1,
+                "url": "https://example.com/a.bin",
+                "state": if kind == "failed" {
+                    serde_json::json!({ "kind": "failed", "reason": "gone" })
+                } else {
+                    serde_json::json!({ "kind": kind })
+                },
+                "progress": { "downloaded": 0, "total": null, "speed": 0.0, "eta": null },
+                "filename": "a.bin",
+            }))
+            .expect("an entry"),
+        )
+    };
+    assert!(busy(&[row("running")], false));
+    assert!(busy(&[row("queued")], false));
+    assert!(busy(&[row("completed")], true), "a torrent still shared");
+    for kind in ["paused", "completed", "failed", "cancelled"] {
+        assert!(!busy(&[row(kind)], false), "{kind}");
+    }
+    assert!(!busy(&[], false));
+}

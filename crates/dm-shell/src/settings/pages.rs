@@ -262,6 +262,12 @@ pub struct DownloadSettings {
     /// On a phone, every download waits while the system's Data Saver is on (gaps row N10).
     #[serde(default)]
     pub data_saver_waits: bool,
+    /// On a phone, downloads and torrents (a torrent's sharing included) go on when dm is
+    /// closed (swiped away from the recent apps), under the ongoing notification, until they
+    /// are done (the maintainer, 2026-11-21). Off by default; a computer's Options do not show
+    /// it and nothing there reads it.
+    #[serde(default)]
+    pub keep_after_close: bool,
 }
 
 /// `on_metered`'s default: downloading goes on.
@@ -298,6 +304,7 @@ impl Default for DownloadSettings {
             wifi_only: false,
             not_roaming: false,
             data_saver_waits: false,
+            keep_after_close: false,
         }
     }
 }

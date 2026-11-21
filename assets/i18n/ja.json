@@ -581,6 +581,8 @@
  "Not now": "今はしない",
  "Back": "戻る",
  "Share": "共有",
+ "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing.": "最近使ったアプリから閉じても、すべてのダウンロードとトレントの共有が終わるまで、dm は通知を出したまま続けます。",
+ "Keep downloads and torrents going when dm is closed": "dm を閉じてもダウンロードとトレントを続ける",
  "Copied a report to the clipboard, for an issue: nothing was sent.": "問題報告用のレポートをクリップボードにコピーしました。何も送信していません。",
  "Copy a report": "レポートをコピー",
  "Named after the page's title": "ページのタイトルで名前を付けます",
