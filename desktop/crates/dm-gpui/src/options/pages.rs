@@ -43,7 +43,16 @@ const SCALE_WIDTH: f32 = 200.0;
 const STOP_WIDTH: f32 = 40.0;
 
 /// Under a check box, its explanation lines up with its words.
-const UNDER_CHECK: f32 = 20.0;
+const UNDER_CHECK: f32 = if crate::platform::ON_A_PHONE {
+    // A phone's larger check box (22) and the gap after it, so the words line up.
+    28.0
+} else {
+    20.0
+};
+
+/// How much nearer its setting a hint or note stands on a phone than one setting to the next:
+/// close under what it explains, the settings apart from each other.
+const HINT_PULL: f32 = native::ROW_GAP - space::XS;
 
 /// The looks this window draws: the computer's, light or dark (a `classic`
 /// kept in the settings is drawn as the computer's).
@@ -98,6 +107,13 @@ impl Page {
         let heading = div()
             .mt(px(space::M_L))
             .font_weight(gpui::FontWeight::SEMIBOLD)
+            // A phone's settings head each group in the accent colour, set apart above.
+            .when(crate::platform::ON_A_PHONE, |heading| {
+                heading
+                    .mt(px(space::XL))
+                    .text_size(px(native::SMALL_TEXT + 1.0))
+                    .text_color(self.theme.accent)
+            })
             .child(self.screen.label(words.to_string()));
         self.add(heading);
     }
@@ -105,18 +121,22 @@ impl Page {
     /// What a check box does, under its words.
     fn hint(&mut self, words: &str) {
         self.says(words);
-        let hint = div().pl(px(UNDER_CHECK)).child(native::note(
-            words.to_string(),
-            self.theme.muted,
-            &self.screen,
-        ));
+        let hint = div()
+            .pl(px(UNDER_CHECK))
+            .when(crate::platform::ON_A_PHONE, |hint| hint.mt(px(-HINT_PULL)))
+            .child(native::note(
+                words.to_string(),
+                self.theme.muted,
+                &self.screen,
+            ));
         self.add(hint);
     }
 
     /// Small words of their own, at the page's edge.
     fn note(&mut self, words: &str) {
         self.says(words);
-        let note = native::note(words.to_string(), self.theme.muted, &self.screen);
+        let note = native::note(words.to_string(), self.theme.muted, &self.screen)
+            .when(crate::platform::ON_A_PHONE, |note| note.mt(px(-HINT_PULL)));
         self.add(note);
     }
 
@@ -135,6 +155,12 @@ impl Page {
             .flex_wrap()
             .items_center()
             .gap(px(native::LABEL_GAP))
+            // A phone's: the words above their control, every setting alike, as a phone's
+            // own settings are; beside it where it fitted and under it where not read as
+            // two layouts on one page.
+            .when(crate::platform::ON_A_PHONE, |row| {
+                row.flex_col().items_start().gap(px(space::S))
+            })
             .child(self.screen.label(words.to_string()))
             .child(control);
         self.add(native::enabled(on, row));
@@ -181,6 +207,11 @@ fn input(
     div()
         .w(px(width))
         .flex_none()
+        // A phone's: as wide as the room it has, never past the screen's edge with what
+        // stands beside it (a folder's Browse…).
+        .when(crate::platform::ON_A_PHONE, |d| {
+            d.flex_shrink(1.0).min_w_0().max_w_full()
+        })
         .child(native::field_if(&field, name, on, theme))
         .when(not_a_number, |d| {
             d.child(native::note(

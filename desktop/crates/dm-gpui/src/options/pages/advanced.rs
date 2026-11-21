@@ -27,7 +27,9 @@ pub(super) fn advanced(
     proxy(o, p, window, cx);
     if std::mem::take(&mut o.to_proxy) {
         // Its heading at the top of the page, its settings under it.
-        o.scroll.scroll_to_top_of_item(proxy_at);
+        // A phone's page holds the search and the pages' strip first.
+        o.scroll
+            .scroll_to_top_of_item(proxy_at + usize::from(crate::platform::ON_A_PHONE));
     }
     // A dial-up or VPN connection every download waits for, in reference
     // A's words and order (contract B43). Windows

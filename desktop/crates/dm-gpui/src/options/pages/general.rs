@@ -68,6 +68,14 @@ fn appearance(
             .map(|(_, words)| t(words))
             .unwrap_or_else(|| t("As the computer is"))
     };
+    // A phone's own words for following its dark theme.
+    let theme_words = move |word: &str| {
+        if crate::platform::ON_A_PHONE && word == "system" {
+            t("As the phone is")
+        } else {
+            theme_words(word)
+        }
+    };
     p.labelled(
         t("Theme"),
         true,
@@ -116,6 +124,9 @@ fn appearance(
         div()
             .flex()
             .items_center()
+            // A phone's: the percentage level with the slider's line, not with the middle of
+            // the line and its stops' words under it.
+            .when(crate::platform::ON_A_PHONE, |row| row.items_start())
             // Room for the end stops' percentages, which stand half outside
             // the track.
             .gap(px(STOP_WIDTH / 2.0))
@@ -148,8 +159,18 @@ fn appearance(
 /// Starting and updating: signing in, closing the window, an address
 /// already listed, who may control dm, and updates.
 fn starting(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
-    let (theme, screen) = (p.theme, p.screen.clone());
     p.section(t("Starting and updating"));
+    // Signing in and closing the window are a computer's: a phone starts dm when asked and
+    // keeps it while a download runs.
+    if !crate::platform::ON_A_PHONE {
+        desktop_starting(p, cx, s);
+    }
+    starting_rest(p, cx, s);
+}
+
+/// Signing in and closing the window, on a computer.
+fn desktop_starting(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     check(
         p,
         cx,
@@ -176,6 +197,11 @@ fn starting(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
             &screen,
         ),
     );
+}
+
+/// An address already listed, the same file already here, who may control dm, and updates.
+fn starting_rest(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
+    let (theme, screen) = (p.theme, p.screen.clone());
     // What a caught or typed address already in the list does, asked once
     // and remembered from the question's tick: undone here.
     let duplicate_words = [
@@ -222,30 +248,33 @@ fn starting(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
             &screen,
         ),
     );
-    check(
-        p,
-        cx,
-        "allow-command-line",
-        t("Allow the command line to control dm"),
-        s.general.allow_command_line,
-        true,
-        |s| s.general.allow_command_line = !s.general.allow_command_line,
-    );
-    p.hint(t(
-        "Lets other programs on this computer add and stop downloads.",
-    ));
-    check(
-        p,
-        cx,
-        "allow-mcp",
-        t("Allow AI assistants to control dm (MCP)"),
-        s.general.allow_mcp,
-        true,
-        |s| s.general.allow_mcp = !s.general.allow_mcp,
-    );
-    p.hint(t(
-        "Lets an AI assistant you run on this computer add and manage downloads.",
-    ));
+    // Other programs and an AI assistant on the same computer: a phone runs neither beside dm.
+    if !crate::platform::ON_A_PHONE {
+        check(
+            p,
+            cx,
+            "allow-command-line",
+            t("Allow the command line to control dm"),
+            s.general.allow_command_line,
+            true,
+            |s| s.general.allow_command_line = !s.general.allow_command_line,
+        );
+        p.hint(t(
+            "Lets other programs on this computer add and stop downloads.",
+        ));
+        check(
+            p,
+            cx,
+            "allow-mcp",
+            t("Allow AI assistants to control dm (MCP)"),
+            s.general.allow_mcp,
+            true,
+            |s| s.general.allow_mcp = !s.general.allow_mcp,
+        );
+        p.hint(t(
+            "Lets an AI assistant you run on this computer add and manage downloads.",
+        ));
+    }
     check(
         p,
         cx,

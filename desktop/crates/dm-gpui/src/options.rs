@@ -367,9 +367,61 @@ impl Render for Options {
             crate::options::pages::search(self, &wanted, theme, window, cx)
         };
         // The pages as a tab view's segments, as macOS draws them.
+        let phone = crate::platform::ON_A_PHONE;
+        // A phone's Options has no Browser page: no browser extension reaches dm there.
         let tabs = options::TABS
             .iter()
+            .filter(|(tab, _)| !(phone && *tab == options::Tab::FileTypes))
             .map(|(tab, words)| self.page_tab(*tab, words, theme, &screen, cx));
+        let mut header = Some(
+            div()
+                .pt(px(native::MARGIN - 6.0))
+                .pb(px(native::ROW_GAP))
+                .flex()
+                .items_center()
+                .justify_center()
+                // A phone's: search across the top, the pages' strip under it from the
+                // screen's start, scrolled sideways where it is wider (centred, it cut
+                // the first page's name).
+                .when(phone, |bar| {
+                    bar.flex_col()
+                        .items_stretch()
+                        .gap(px(space::M))
+                        .px(px(native::MARGIN))
+                })
+                // Search, for a setting whose page is not known (gaps row U24).
+                .child(div().when(!phone, |d| d.w(px(170.0))).child(native::field(
+                    &self.search,
+                    "Find a setting",
+                    theme,
+                )))
+                .child(
+                    div()
+                        .id("pages")
+                        .role(Role::TabList)
+                        // A phone's: every page's name whole, on a second line where the
+                        // screen has no room for them on one.
+                        .when(phone, |strip| strip.flex_wrap())
+                        .p(px(1.0))
+                        .flex()
+                        .gap(px(space::LINE))
+                        .rounded(px(native::RADIUS))
+                        .border_1()
+                        .border_color(theme.control_border)
+                        .bg(theme.control)
+                        // A phone's: each page a chip of its own, apart, from the start.
+                        .when(phone, |strip| {
+                            strip
+                                .justify_start()
+                                .gap(px(space::S))
+                                .p_0()
+                                .border_0()
+                                .bg(gpui::transparent_black())
+                        })
+                        .children(tabs),
+                )
+                .into_any_element(),
+        );
         let root = crate::widgets::native::dialog("options", t("Options"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
@@ -387,43 +439,26 @@ impl Render for Options {
             .text_color(theme.text)
             .flex()
             .flex_col()
-            .child(
-                div()
-                    .pt(px(native::MARGIN - 6.0))
-                    .pb(px(native::ROW_GAP))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .gap(px(native::LABEL_GAP))
-                    // Search, for a setting whose page is not known (gaps row U24).
-                    .child(div().w(px(170.0)).child(native::field(
-                        &self.search,
-                        "Find a setting",
-                        theme,
-                    )))
-                    .child(
-                        div()
-                            .id("pages")
-                            .role(Role::TabList)
-                            .p(px(1.0))
-                            .flex()
-                            .gap(px(space::LINE))
-                            .rounded(px(native::RADIUS))
-                            .border_1()
-                            .border_color(theme.control_border)
-                            .bg(theme.control)
-                            .children(tabs),
-                    ),
-            )
+            // A computer's search and pages stay above the page; a phone's scroll away with
+            // it, so the settings have the screen (fixed, they took a third of it).
+            .when(!phone, |root| {
+                root.child(header.take().unwrap_or_else(|| div().into_any_element()))
+            })
             .child(
                 div()
                     .id("page")
                     .flex_1()
                     .min_h_0()
-                    .mx(px(native::MARGIN))
-                    .rounded(px(native::RADIUS))
-                    .border_1()
-                    .border_color(theme.separator)
+                    // A phone's page runs edge to edge, as a phone's settings do.
+                    .when(!phone, |page| {
+                        page.mx(px(native::MARGIN))
+                            .rounded(px(native::RADIUS))
+                            .border_1()
+                            .border_color(theme.separator)
+                    })
+                    .when(phone, |page| {
+                        page.border_t_1().border_color(theme.separator)
+                    })
                     .overflow_y_scroll()
                     .track_scroll(&self.scroll)
                     // The settings its own children, so the page scrolls to one by its
@@ -433,6 +468,14 @@ impl Render for Options {
                     .flex()
                     .flex_col()
                     .gap(px(native::ROW_GAP))
+                    .when(phone, |page| {
+                        page.child(
+                            div()
+                                .mx(px(-space::XL))
+                                .mt(px(-space::XL))
+                                .child(header.take().unwrap_or_else(|| div().into_any_element())),
+                        )
+                    })
                     .children(page),
             )
             .child(self.footer(theme, &screen, cx));
@@ -456,7 +499,15 @@ impl Options {
             .role(Role::Tab)
             // Reached by Tab, chosen by Space or Return (gaps row U2).
             .tab_index(0)
-            .focus(move |s| s.bg(theme.stripe))
+            // A phone's chip chosen by a tap keeps its colour: the focus a tap leaves it was
+            // drawn over it, and no page looked chosen.
+            .focus(move |s| {
+                if on && crate::platform::ON_A_PHONE {
+                    s.bg(theme.accent)
+                } else {
+                    s.bg(theme.stripe)
+                }
+            })
             .aria_label(SharedString::from(t(words)))
             .aria_selected(on)
             .px(px(space::L))
@@ -464,6 +515,12 @@ impl Options {
             .flex()
             .items_center()
             .rounded(px(native::RADIUS - 1.0))
+            .when(crate::platform::ON_A_PHONE, |chip| {
+                chip.rounded_full()
+                    .border_1()
+                    .border_color(theme.control_border)
+                    .bg(theme.control)
+            })
             .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
             .child(screen.label(t(words)))
             .on_click(cx.listener(move |this, _, _, cx| this.show(tab, cx)))
@@ -506,6 +563,14 @@ impl Options {
         div()
             .px(px(native::MARGIN))
             .pb(px(native::MARGIN))
+            // A phone's: its own bar under the page, a line above, as a phone's bottom bar,
+            // so the page's last setting does not run into the buttons.
+            .when(crate::platform::ON_A_PHONE, |bar| {
+                bar.pt(px(space::S))
+                    .border_t_1()
+                    .border_color(theme.separator)
+                    .bg(theme.window)
+            })
             .flex()
             .flex_col()
             .gap(px(native::ROW_GAP))

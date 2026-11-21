@@ -57,7 +57,13 @@ pub(super) fn folders(
     // name on disk, as it is.
     let kinds = dm_core::Category::ALL;
     for pair in kinds.chunks(2) {
-        let mut row = div().flex().gap(px(space::XL));
+        // Two kinds a line on a computer; one a line on a phone, which has room for one.
+        let mut row = div()
+            .flex()
+            .gap(px(space::XL))
+            .when(crate::platform::ON_A_PHONE, |row| {
+                row.flex_col().gap(px(native::ROW_GAP))
+            });
         for kind in pair {
             let i = kinds.iter().position(|k| k == kind).unwrap_or(0);
             let name = dm_desktop_base::i18n::name(&dm_desktop_base::format::titled(
