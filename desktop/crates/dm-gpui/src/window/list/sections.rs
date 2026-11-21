@@ -130,6 +130,26 @@ impl Downloads {
                 this.delete_after_chosen(it.seconds, cx)
             }),
         )
+        // Help › Copy a report (gaps row W8).
+        .on_action(
+            cx.listener(|this, _: &crate::window::menus::CopyReport, _, cx| {
+                let settings = this.backend.settings();
+                let rows: Vec<dm_core::Entry> = this.rows.iter().map(|r| (**r).clone()).collect();
+                let text = dm_desktop_base::details::report(
+                    &rows,
+                    settings.downloads.connections,
+                    &settings.folders.download_dir,
+                );
+                crate::platform::services::copy(&*this.backend.platform, &text, cx);
+                this.say(
+                    dm_desktop_base::i18n::t(
+                        "Copied a report to the clipboard, for an issue: nothing was sent.",
+                    )
+                    .into(),
+                );
+                cx.notify();
+            }),
+        )
         .on_action(
             cx.listener(|this, _: &crate::window::menus::TipOfTheDay, _, cx| {
                 this.tip_of_the_day(cx)

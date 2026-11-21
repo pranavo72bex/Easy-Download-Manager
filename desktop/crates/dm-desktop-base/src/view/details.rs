@@ -180,5 +180,32 @@ pub fn blocks_for(
     }
 }
 
+/// Help › "Copy a report" (gaps row W8): what a person can paste into an issue, sent nowhere:
+/// dm's version and the system, how many downloads there are and how many did not finish, and
+/// for each that failed its block, as "Copy details" writes it, with no path, query, cookie,
+/// sign-in or name of a file in it.
+pub fn report(rows: &[Entry], connections: usize, download_dir: &std::path::Path) -> String {
+    let failed = rows
+        .iter()
+        .filter(|row| matches!(row.state, State::Failed(_)))
+        .count();
+    let mut text = format!(
+        "dm {} on {} ({})\nDownloads: {}, failed: {}",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        rows.len(),
+        failed
+    );
+    match blocks_for(rows, connections, download_dir) {
+        Some((blocks, _)) => {
+            text.push_str("\n\n");
+            text.push_str(&blocks);
+        }
+        None => text.push_str("\nNo download failed."),
+    }
+    text
+}
+
 #[cfg(test)]
 mod tests;

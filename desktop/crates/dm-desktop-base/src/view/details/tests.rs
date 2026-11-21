@@ -180,3 +180,47 @@ fn a_finished_or_running_row_has_no_reason_line() {
     assert!(text.contains("State: running"), "{text}");
     assert!(!text.contains("Reason:"), "{text}");
 }
+
+/// Help › "Copy a report" (gaps row W8): the version, the system and the count, each failure's
+/// block, and nothing secret: no path, no query, no cookie, no referrer, no file name.
+#[test]
+fn a_report_gives_away_no_address_secret_or_file() {
+    let rows = vec![
+        failed(
+            "https://files.example/private/archive.zip?token=SECRET123",
+            "the server answered 403 for https://files.example/private/archive.zip?token=SECRET123",
+            "session=COOKIEVALUE",
+            "https://site.example/account/page?id=42",
+        ),
+        serde_json::from_value(serde_json::json!({
+            "id": 8,
+            "url": "https://ok.example/done/movie.mp4",
+            "state": { "kind": "completed" },
+            "progress": { "downloaded": 1, "total": 1, "speed": 0.0, "eta": null },
+            "filename": "movie.mp4",
+        }))
+        .expect("an entry"),
+    ];
+    let text = report(&rows, 8, std::path::Path::new("/nowhere"));
+    assert!(
+        text.starts_with(&format!("dm {}", env!("CARGO_PKG_VERSION"))),
+        "{text}"
+    );
+    assert!(text.contains("Downloads: 2, failed: 1"), "{text}");
+    assert!(text.contains("Host: files.example"), "{text}");
+    assert!(text.contains("State: failed"), "{text}");
+    for secret in [
+        "SECRET123",
+        "COOKIEVALUE",
+        "/private",
+        "archive.zip",
+        "?",
+        "site.example",
+        "movie.mp4",
+        "ok.example",
+    ] {
+        assert!(!text.contains(secret), "{secret} given away: {text}");
+    }
+    let none = report(&rows[1..], 8, std::path::Path::new("/nowhere"));
+    assert!(none.ends_with("No download failed."), "{none}");
+}

@@ -212,6 +212,11 @@ pub struct BringAllToFront;
 #[action(namespace = dm, no_json)]
 pub struct TipOfTheDay;
 
+/// Help › Copy a report (gaps row W8): what an issue needs, on the clipboard, sent nowhere.
+#[derive(Clone, PartialEq, Default, Action)]
+#[action(namespace = dm, no_json)]
+pub struct CopyReport;
+
 /// Hides dm, as every macOS program's app menu does.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]

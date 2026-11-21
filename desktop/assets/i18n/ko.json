@@ -581,6 +581,8 @@
  "Not now": "나중에",
  "Back": "뒤로",
  "Share": "공유",
+ "Copied a report to the clipboard, for an issue: nothing was sent.": "문제 보고용 보고서를 클립보드에 복사했습니다. 아무것도 전송되지 않았습니다.",
+ "Copy a report": "보고서 복사",
  "Named after the page's title": "페이지 제목으로 이름 지정",
  "As the phone is": "휴대전화 설정대로",
  "Share a link to dm from any app, or add one here.": "어떤 앱에서든 링크를 dm으로 공유하거나 여기에서 추가하세요.",

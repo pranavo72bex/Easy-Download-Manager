@@ -252,6 +252,7 @@ pub(super) fn help_menu() -> Menu {
         MenuItem::action(t("Tip of the day"), TipOfTheDay),
         MenuItem::separator(),
         page(t("Home page"), dm_desktop_base::project::SOURCE.to_string()),
+        MenuItem::action(t("Copy a report"), CopyReport),
         page(
             t("Contact support"),
             dm_desktop_base::project::SUPPORT.to_string(),
