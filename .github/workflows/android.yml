@@ -112,8 +112,6 @@ jobs:
       fail-fast: false
       matrix:
         api: [26, 35]
-    defaults:
-      run:
     env:
       IMAGE: system-images;android-${{ matrix.api }};google_apis;x86_64
     steps:
