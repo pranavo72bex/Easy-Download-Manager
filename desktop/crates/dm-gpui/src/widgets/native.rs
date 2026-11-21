@@ -326,7 +326,11 @@ pub fn path_field(
             )
         }
     });
-    let shown = shown.filter(|(words, _)| !words.is_empty());
+    // On a phone the field draws its own text and hint over anything laid on it, so nothing is
+    // laid on it there: the path, or its hint, shows as the field draws it.
+    let shown = shown
+        .filter(|(words, _)| !words.is_empty())
+        .filter(|_| !crate::platform::ON_A_PHONE);
     field(input, name, theme).when_some(shown, |d, (shown, colour)| {
         d.child(
             div()

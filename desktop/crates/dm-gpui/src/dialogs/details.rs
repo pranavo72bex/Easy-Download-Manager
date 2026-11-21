@@ -198,6 +198,15 @@ impl Details {
                 .name
                 .map(|name| dm_core::stream_titled(&name, Some(&self.handed.title), None));
         }
+        // A web page that is not YouTube's: the engine reads it for its video and names the
+        // file after the page's title (`dm_core::pagemedia`), so neither the address's host
+        // ("vt.tiktok.com") nor the page's own name is offered as the file's.
+        if found.page && !self.youtube() {
+            found.name = None;
+            self.name.update(cx, |n, cx| {
+                n.set_placeholder(t("Named after the page's title"), window, cx)
+            });
+        }
         if let Some(name) = found.name.clone() {
             if self.name.read(cx).value().is_empty() {
                 self.name.update(cx, |n, cx| n.set_value(name, window, cx));
