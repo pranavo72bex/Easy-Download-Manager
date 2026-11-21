@@ -22,6 +22,7 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+mod bottomnav;
 mod cards;
 mod sheet;
 
@@ -111,6 +112,7 @@ impl Downloads {
         ))
         .child(self.narrow_list(theme, screen, shown, cx))
         .child(crate::window::statusbar::statusbar(self, theme, screen, cx))
+        .child(bottomnav::bottom_nav(self, theme, screen, cx))
         .when_some(drawer, |root, drawer| {
             root.child(
                 over(cx, |view| view.layout.narrow.drawer = None).child(

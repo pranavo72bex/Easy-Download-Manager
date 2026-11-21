@@ -179,8 +179,8 @@ pub fn titlebar(
 }
 
 /// The top bar at a phone's width (gaps row N7), in place of the menus' titles, the search
-/// box and the toolbar: the places' drawer, the place chosen's name (else "dm"), search, Add,
-/// and the overflow menu holding the toolbar's commands and the menus (`narrow.rs`). Search
+/// box and the toolbar: the place chosen's name (else "dm") as its title, search, and the
+/// overflow menu holding the toolbar's commands and the menus (`narrow.rs`). Search
 /// opens the desktop's own search box across the bar, the same words narrowing the same list,
 /// with a close that clears them. Still the window's title bar where dm draws one: past the
 /// traffic lights, its empty space moving the window, the window's own buttons at its end on
@@ -192,7 +192,6 @@ pub fn narrow_titlebar(
     window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    use dm_shell::app::commands::Command;
     let button = |id: &'static str, words: &'static str| {
         div()
             .id(id)
@@ -211,9 +210,7 @@ pub fn narrow_titlebar(
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
     };
     let icon =
-        |path: &'static str, colour: gpui::Rgba| svg().path(path).size(px(17.0)).text_color(colour);
-    let places = t("Places");
-    let add = t(Command::AddUrl.label());
+        |path: &'static str, colour: gpui::Rgba| svg().path(path).size(px(24.0)).text_color(colour);
     let menu = t("Menu");
     let filter = t("Filter");
     let close = t("Close");
@@ -242,41 +239,30 @@ pub fn narrow_titlebar(
             )
     } else {
         let title = crate::window::sidebar::place_name(view).unwrap_or_else(|| "dm".into());
+        // The place's name as the bar's title, as a phone's apps name the screen shown; the
+        // places are the bottom navigation's, and Add URL the button floating over the list.
         bar.child(
-            button("drawer-button", places)
-                .aria_toggled(if view.layout.narrow.drawer.is_some() {
-                    gpui::Toggled::True
-                } else {
-                    gpui::Toggled::False
-                })
-                .on_click(cx.listener(|view, _, _, cx| view.toggle_drawer(cx)))
-                .child(screen.mark(places, icon("icons/sidebar.svg", theme.muted))),
-        )
-        .child(
             drag_space()
                 .flex_1()
                 .min_w_0()
+                .pl(px(space::L))
                 .flex()
                 .items_center()
                 .overflow_hidden()
                 .whitespace_nowrap()
                 .text_ellipsis()
+                .text_size(px(native::TEXT + 5.0))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .child(screen.label(title)),
         )
         .child(
             button("search-button", filter)
                 .on_click(cx.listener(|view, _, window, cx| view.open_search(window, cx)))
-                .child(screen.mark(filter, icon("icons/search.svg", theme.muted))),
-        )
-        .child(
-            button("add-button", add)
-                .on_click(cx.listener(|view, _, _, cx| view.run(Command::AddUrl, cx)))
-                .child(screen.mark(add, icon("icons/add.svg", theme.text))),
+                .child(screen.mark(filter, icon("icons/search.svg", theme.text))),
         )
         .child(
             button("overflow-button", menu)
-                .text_size(px(native::TEXT + 4.0))
+                .text_size(px(native::TEXT + 8.0))
                 .on_click(cx.listener(|view, _, _, cx| view.open_overflow(cx)))
                 .child(screen.mark(menu, div().child("⋮"))),
         )

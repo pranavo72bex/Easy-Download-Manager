@@ -14,7 +14,7 @@ use dm_desktop_base::columns::Column;
 use dm_desktop_base::i18n::t;
 use gpui::{div, prelude::*, uniform_list, Context, Role, SharedString};
 
-use crate::widgets::{native, space};
+use crate::widgets::space;
 use crate::window::list::{kind_picture, Downloads};
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
@@ -23,10 +23,19 @@ use crate::window::zoom::px;
 /// A card's height, in points: a name, a bar and two lines of figures, a finger's room around
 /// (well over `space::TOUCH`); taller on a phone, whose text is larger.
 pub(crate) const CARD_HEIGHT: f32 = if crate::platform::ON_A_PHONE {
-    108.0
+    92.0
 } else {
     84.0
 };
+
+/// A card's file name, as a phone's lists set an item's first line (Material's 16 sp).
+const NAME_TEXT: f32 = 16.0;
+/// A card's line of state and figures (Material's 13 sp supporting text).
+const META_TEXT: f32 = 13.0;
+/// The tile of the file's kind at a card's start.
+const TILE: f32 = 44.0;
+/// The round Stop or Resume button.
+const QUICK: f32 = 40.0;
 
 /// The cards of the place chosen, only those on screen laid out, scrolled as the table is.
 pub(super) fn cards(
@@ -124,10 +133,53 @@ fn card(
             .min_w_0()
             .overflow_hidden()
             .whitespace_nowrap()
-            .text_size(px(native::SMALL_TEXT))
+            .text_ellipsis()
+            .text_size(px(META_TEXT))
             .text_color(colour)
             .child(screen.label(SharedString::from(words)))
     };
+    // Its state in its colour, as a phone's torrent apps colour it: going in the accent, failed
+    // in the warning's, finished in the success colour.
+    let state_colour = if chosen {
+        card_theme.text
+    } else {
+        match row.state {
+            State::Running => theme.accent,
+            State::Failed(_) => theme.warning,
+            State::Completed => theme.success,
+            _ => theme.muted,
+        }
+    };
+    let left_words = {
+        let size = size_words(row);
+        if size.is_empty() || matches!(row.state, State::Failed(_)) {
+            status.clone()
+        } else if row.state == State::Running {
+            // How far it is, the bar shows already: what has come of the whole is said.
+            size
+        } else {
+            format!("{status} · {size}")
+        }
+    };
+    // The speed under the bar; the time left beside the name, where the line under the bar has
+    // no room for both with a size in gigabytes.
+    let right_words = speed;
+    let round = |id: (&'static str, usize), words: SharedString| {
+        div()
+            .id(id)
+            .role(Role::Button)
+            .aria_label(words)
+            .flex_none()
+            .size(px(space::TOUCH))
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded_full()
+            .active(move |b| b.bg(theme.control))
+            // Its own tap, not the card's.
+            .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+    };
+    let tint = if chosen { card_theme.text } else { colour };
     div()
         .id(("card", id as usize))
         .role(Role::ListItem)
@@ -135,13 +187,12 @@ fn card(
         .aria_selected(chosen)
         .aria_row_index(i + 1)
         .w_full()
-        .relative()
         .h(px(CARD_HEIGHT))
-        .px(px(space::L))
-        .py(px(space::M))
+        .pl(px(space::L))
+        .pr(px(space::XS))
         .flex()
-        .flex_col()
-        .justify_between()
+        .items_center()
+        .gap(px(space::M))
         .border_b_1()
         .border_color(theme.separator)
         .when(chosen, |c| {
@@ -163,52 +214,75 @@ fn card(
             }
             view.card_tapped(id, event.click_count(), cx);
         }))
-        // The name, with its kind's picture and the card's menu.
+        // Its kind's picture on a tile of its colour.
         .child(
             div()
+                .flex_none()
+                .size(px(TILE))
+                .rounded(px(TILE / 4.0))
                 .flex()
                 .items_center()
-                .gap(px(space::M))
-                .child(
-                    gpui::svg()
-                        .path(picture)
-                        .size(px(16.0))
-                        .flex_none()
-                        .text_color(if chosen { card_theme.text } else { colour }),
-                )
+                .justify_center()
+                .bg(gpui::Rgba { a: 0.16, ..tint })
+                .child(gpui::svg().path(picture).size(px(24.0)).text_color(tint)),
+        )
+        // Its name, its bar, and a line of its state and figures.
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .gap(px(space::S))
                 .child(
                     div()
-                        .flex_1()
-                        .min_w_0()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .text_ellipsis()
-                        .child(screen.label(name)),
+                        .flex()
+                        .items_center()
+                        .gap(px(space::M))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .overflow_hidden()
+                                .whitespace_nowrap()
+                                .text_ellipsis()
+                                .text_size(px(NAME_TEXT))
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .child(screen.label(name)),
+                        )
+                        .when(!left.trim().is_empty(), |line| {
+                            line.child(div().flex_none().child(small(left, card_theme.muted)))
+                        }),
                 )
-                // Room for the card's buttons over its top right.
+                .child(div().w_full().child(crate::window::table::progress_track(
+                    fraction.unwrap_or(0.0),
+                    false,
+                    card_theme,
+                )))
                 .child(
-                    div().flex_none().w(px(
-                        if quick.is_some() { 2.0 } else { 1.0 } * space::TOUCH - space::L
-                    )),
+                    div()
+                        .flex()
+                        .justify_between()
+                        .gap(px(space::M))
+                        .child(small(left_words, state_colour))
+                        .child(
+                            div()
+                                .flex_none()
+                                .child(small(right_words, card_theme.muted)),
+                        ),
                 ),
         )
-        // Its one-tap action, left of the menu.
+        // Its one-tap action: Stop while it runs or waits, Resume while stopped or failed.
         .when_some(quick, |card, (command, picture, words)| {
             card.child(
-                div()
-                    .id(("card-quick", id as usize))
-                    .role(Role::Button)
-                    .aria_label(words.clone())
-                    .absolute()
-                    .top_0()
-                    .right(px(space::TOUCH))
-                    .size(px(space::TOUCH))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded_full()
-                    .active(move |b| b.bg(theme.control))
-                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                round(("card-quick", id as usize), words.into())
+                    .size(px(QUICK))
+                    .border_1()
+                    .border_color(if chosen {
+                        card_theme.text
+                    } else {
+                        theme.control_border
+                    })
                     .on_click(cx.listener(move |view, _, _, cx| {
                         view.choose_card(id);
                         view.run(command, cx);
@@ -220,51 +294,25 @@ fn card(
                             gpui::svg()
                                 .path(picture)
                                 .size(px(20.0))
-                                .text_color(card_theme.text),
+                                .text_color(if chosen {
+                                    card_theme.text
+                                } else {
+                                    theme.accent
+                                }),
                         ),
                     ),
             )
         })
-        // The card's menu: a finger's target in the card's top right corner.
+        // Its menu.
         .child(
-            div()
-                .id(("card-menu", id as usize))
-                .role(Role::Button)
-                .aria_label(t("Row menu"))
-                .absolute()
-                .top_0()
-                .right_0()
-                .size(px(space::TOUCH))
-                .flex()
-                .items_center()
-                .justify_center()
-                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            round(("card-menu", id as usize), t("Row menu").into())
+                .w(px(space::TOUCH - space::S))
+                .text_size(px(NAME_TEXT + 4.0))
+                .text_color(card_theme.muted)
                 .on_click(cx.listener(move |view, _, _, cx| {
                     view.open_card_menu(id, cx);
                 }))
-                .child(screen.mark(t("Row menu"), div().child("⋯"))),
-        )
-        .child(div().w_full().child(crate::window::table::progress_track(
-            fraction.unwrap_or(0.0),
-            false,
-            card_theme,
-        )))
-        // Its size and speed, then its state and time left.
-        .child(
-            div()
-                .flex()
-                .justify_between()
-                .gap(px(space::M))
-                .child(small(size_words(row), card_theme.muted))
-                .child(small(speed, card_theme.muted)),
-        )
-        .child(
-            div()
-                .flex()
-                .justify_between()
-                .gap(px(space::M))
-                .child(small(status, card_theme.text))
-                .child(small(left, card_theme.muted)),
+                .child(screen.mark(t("Row menu"), div().child("⋮"))),
         )
         .into_any_element()
 }

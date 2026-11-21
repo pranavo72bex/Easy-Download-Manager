@@ -44,17 +44,18 @@ fn at_a_phones_width_the_rows_are_cards() {
     add_later(&mut h, &world, &["file.zip", "page.html"]);
     h.until_shown("file.zip");
     assert!(h.shows("page.html"), "{:?}", h.texts());
-    // The top bar: no menus' titles, no toolbar; the drawer's, Add's and the menu's buttons.
+    // The top bar: no menus' titles, no toolbar; search and the menu's button; the bottom
+    // navigation's Places; Add URL floating over the cards.
     assert!(!h.shows("Tasks"), "{:?}", h.texts());
     assert!(!h.shows("Stop All"), "{:?}", h.texts());
-    for button in ["Places", "Add URL", "Menu"] {
+    for button in ["Places", "Add URL", "Menu", "Filter"] {
         assert!(h.shows(button), "{button}: {:?}", h.texts());
     }
     // Each card says its state, as the table's Status does.
     let row = h.row("file.zip");
     let state = dm_desktop_base::rows::status_of(&row);
     assert!(h.shows(&state), "{state}: {:?}", h.texts());
-    // A tap chooses the card alone.
+    // A tap chooses the card alone, and opens it as a double-click opens its row.
     h.person_click("file.zip", 1);
     h.until("the card chosen", |h| {
         h.view(|view| view.list.selected == [row.id].into())
@@ -117,25 +118,26 @@ fn the_overflow_menu_runs_the_toolbars_and_the_menus_commands() {
     });
 }
 
-/// The side panel is a drawer from the top bar: its categories and queues, and a place
-/// chosen in it shows its rows and closes it.
+/// The side panel is a drawer from the bottom navigation's Places: its categories and queues,
+/// and a place chosen in it shows its rows and closes it.
 #[test]
 fn the_drawer_shows_the_categories_and_queues() {
     let _file = settings_file();
     let world = world();
     let mut h = phone(&world);
     h.until_shown("Places");
-    assert!(!h.shows("Unfinished"), "the side panel beside the cards");
+    assert!(!h.shows("Main queue"), "the side panel beside the cards");
     h.person_click("Places", 1);
-    h.until_shown("Unfinished");
-    for place in ["Finished", "Main queue"] {
-        assert!(h.shows(place), "{place}: {:?}", h.texts());
-    }
-    h.person_click("Finished", 1);
-    h.until("Finished chosen and the drawer closed", |h| {
-        h.view(|view| view.list.place == Place::Finished && view.layout.narrow.drawer.is_none())
+    h.until_shown("Main queue");
+    assert!(h.shows("Videos"), "{:?}", h.texts());
+    h.person_click("Main queue", 1);
+    h.until("the queue chosen and the drawer closed", |h| {
+        h.view(|view| {
+            view.list.place == Place::Queue("Main queue".into())
+                && view.layout.narrow.drawer.is_none()
+        })
     });
-    assert!(!h.shows("Unfinished"), "{:?}", h.texts());
+    assert!(!h.shows("Videos"), "{:?}", h.texts());
 }
 
 /// Escape (a phone's Back, gaps row N16) closes what the phone's layout holds over the
@@ -160,12 +162,12 @@ fn escape_closes_the_sheet_and_the_drawer_one_step_at_a_time() {
         h.view(|view| view.layout.narrow.sheet.is_none())
     });
     h.person_click("Places", 1);
-    h.until_shown("Unfinished");
+    h.until_shown("Main queue");
     h.key("escape", &[]);
     h.until("the drawer closed", |h| {
         h.view(|view| view.layout.narrow.drawer.is_none())
     });
-    assert!(!h.shows("Unfinished"), "{:?}", h.texts());
+    assert!(!h.shows("Main queue"), "{:?}", h.texts());
 }
 
 /// At the least width the desktop window had (640 points) and down to the breakpoint, the
@@ -203,7 +205,7 @@ fn search_at_a_phones_width_narrows_the_cards() {
     h.until("the search box open", |h| {
         h.view(|view| view.narrow_searching())
     });
-    h.until("the bar to give way to the box", |h| !h.shows("Places"));
+    h.until("the bar to give way to the box", |h| !h.shows("Menu"));
     h.type_text("page");
     h.until("the cards narrowed", |h| {
         h.view(|view| view.list.shown.len() == 1)
@@ -215,7 +217,7 @@ fn search_at_a_phones_width_narrows_the_cards() {
     h.until("every card again, the bar back", |h| {
         h.view(|view| view.list.shown.len() == 3 && !view.narrow_searching())
     });
-    h.until_shown("Places");
+    h.until_shown("Menu");
     assert!(
         h.view(|view| view.list.filter_text.is_empty()),
         "the words stayed"
@@ -229,13 +231,13 @@ fn the_top_bar_names_the_place_chosen() {
     let world = world();
     let mut h = phone(&world);
     h.until_shown("dm");
-    let finished = dm_desktop_base::i18n::t("Finished");
-    assert!(!h.shows(finished), "{:?}", h.texts());
+    let queue = "Main queue";
+    assert!(!h.shows(queue), "{:?}", h.texts());
     h.update(|view, cx| {
-        view.choose(Place::Finished);
+        view.choose(Place::Queue(queue.into()));
         cx.notify();
     });
-    h.until_shown(finished);
+    h.until_shown(queue);
 }
 
 /// The list's kept place across a refresh counts cards at a phone's width: the card at the
@@ -274,4 +276,26 @@ fn the_card_at_the_top_holds_its_place_across_a_refresh() {
         h.view(|view| view.position_of(was) == Some(19))
     });
     assert_eq!(h.view(top), Some(was), "the list moved");
+}
+
+/// The bottom navigation shows All, Unfinished and Finished in a tap, each the side panel's own
+/// place, and its Places opens the drawer of the rest.
+#[test]
+fn the_bottom_navigation_chooses_the_places() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.until_shown("Places");
+    for (words, place) in [
+        ("Unfinished", Place::Unfinished),
+        ("Finished", Place::Finished),
+        ("All", Place::All),
+    ] {
+        h.person_click(dm_desktop_base::i18n::t(words), 1);
+        h.until(words, |h| h.view(|view| view.list.place == place));
+    }
+    h.person_click("Places", 1);
+    h.until("the drawer open", |h| {
+        h.view(|view| view.layout.narrow.drawer.is_some())
+    });
 }
