@@ -1,10 +1,10 @@
 # The egui presentation as it stands (before the GPUI migration)
 
-An audit of `desktop/crates/dm-desktop` on branch `gpui-migration` at
+An audit of `crates/dm-desktop` on branch `gpui-migration` at
 `aea95ae` (2026-11-09), written to plan replacing egui with GPUI while
-`dm_shell::app` (`desktop/crates/dm-shell/src/app/`) and `dm-core` stay as
+`dm_shell::app` (`crates/dm-shell/src/app/`) and `dm-core` stay as
 they are. Everything here was read in the code. Nothing was built or run.
-Paths are relative to `desktop/crates/` unless they start with `docs/`,
+Paths are relative to `crates/` unless they start with `docs/`,
 `scripts/` or `desktop/`. A statement marked **(guess)** or **(inferred)**
 was not traced to the end.
 
@@ -140,7 +140,7 @@ If only `allow_mcp` opened it, the port answers MCP and nothing else
 | Renderer | glow (OpenGL). eframe features: `default_fonts, glow, persistence, wayland, x11, accesskit, clipboard`. No wgpu in the shipped binary; tests use `egui_kittest` with `wgpu` | `dm-desktop/Cargo.toml` |
 | Viewport | title `"dm"`, app id `"dm"` (Wayland `StartupWMClass`), inner size 820×500, min size `MIN_WINDOW / 2`. The real min is set per frame by `DmApp::ui`, divided by zoom. Icon from `icons/128x128.png`. `with_transparent(true)` under Mica (Windows) | `main.rs:535-553` |
 | Persistence | `persist_window: true`. `persistence_path` is `$DM_HOME/window.ron` when `DM_HOME` is set, otherwise eframe's default for app id `"dm"`. `persist_egui_memory` keeps its default (`true`) and `App::save` is not implemented, so the store holds the window geometry **and egui's `Memory`** | `main.rs:94-101, 554-560` |
-| Patched crates | `[patch.crates-io]` for `winit` 0.30.13 (link drops and drag-out on X11 and Wayland), `egui-winit` 0.37 (`OTHER_WINDOWS_INPUT`: control-port input for dialog windows), `eframe` 0.37 (an AccessKit adapter for each window) | `desktop/Cargo.toml`, `desktop/vendor/README.md` |
+| Patched crates | `[patch.crates-io]` for `winit` 0.30.13 (link drops and drag-out on X11 and Wayland), `egui-winit` 0.37 (`OTHER_WINDOWS_INPUT`: control-port input for dialog windows), `eframe` 0.37 (an AccessKit adapter for each window) | `Cargo.toml`, `vendor/README.md` |
 
 **What egui's memory persists (inferred, not traced end to end):**
 
@@ -592,7 +592,7 @@ field), `ui.place`, `ui.scroll`, `ui.move_window`, `ui.windows`
 ### 5.4 AccessKit
 
 eframe has the `accesskit` feature. The vendored eframe gives each dialog
-window its own adapter (gaps row 160, `desktop/vendor/README.md`).
+window its own adapter (gaps row 160, `vendor/README.md`).
 `DmApp::ui` labels the root node `"dm"`. Kittest tests find controls by
 their AccessKit labels. `a11y_tree.rs` reads the result back through
 NSAccessibility for `ui.accessibility`. The behaviour contract's

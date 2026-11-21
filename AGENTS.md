@@ -27,7 +27,8 @@ browser; look at a screenshot; then update the page it belongs to.
 A free download manager for Windows, macOS and Linux, with a browser
 extension that hands it the browser's downloads.
 
-- `desktop/` is the product. `crates/dm-core` is the engine (probe, plan,
+- The app is the product: the crates in `crates/`, one Cargo workspace at the
+  repository's root (`Cargo.toml`), with `tooling/xtask` beside them. `crates/dm-core` is the engine (probe, plan,
   ranged fetch, resume, assembly, queue, HLS, DASH, Metalink, BitTorrent,
   video-page handling), and on macOS the allocator the GPUI window runs with
   (`memory`: large blocks go back to the system when freed). `crates/dm-js` is dm's own
@@ -80,7 +81,7 @@ extension that hands it the browser's downloads.
   Java classes (`DmActivity`, `DmService`, `DmActionReceiver`, `DmBootReceiver`) only hand their
   events to Rust (`android/natives.rs`). `cargo packager -p dm-gpui` there builds the installers,
   from `assets/app-icons/` and `assets/macos/Info.plist`; its `Cargo.toml`
-  holds dm's version. What is not code is in one folder, `desktop/assets/`
+  holds dm's version. What is not code is in one folder, `assets/`
   (the window's `icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), and
   `crates/dm-assets` compiles in what the program reads of it. The older
   egui window (`crates/dm-desktop`) was removed with its
@@ -101,7 +102,7 @@ extension that hands it the browser's downloads.
   says, and makes the panel's list of a player's streams
   (`dm_protocol::media`); a new feature goes in the app, through those
   mechanisms, not in the extension (`docs/how-it-works.md`).
-- `browser/` is the browser extension, in Rust (crate `dm-catcher`),
+- `crates/dm-catcher/` is the browser extension, in Rust (crate `dm-catcher`),
   compiled to WebAssembly. It catches downloads and hands them to the app,
   and downloads nothing itself: with no app the browser keeps them.
   `extension/` holds what the browser loads around it: two manifests, the
@@ -112,7 +113,7 @@ extension that hands it the browser's downloads.
   and the popup (`pkg/background.js`, with the WebAssembly in it so Rust registers the listeners on the
   worker's first turn, `web/listen.rs`; `pkg/popup.js`): they have no JavaScript of their own.
   What the extension says (the popup, the four menu items, the panel, its name) is listed in
-  `browser/src/words.rs` and said through the browser's own `i18n` from `extension/_locales`,
+  `crates/dm-catcher/src/words.rs` and said through the browser's own `i18n` from `extension/_locales`,
   one catalog per language the app speaks; a word added there needs an entry in every catalog,
   which `words/tests.rs` checks.
 - `scripts/` holds the checks that drive the built program, a browser or a
@@ -155,26 +156,26 @@ All of it that needs no window, in one command (formatting, lints, licences and 
 the app and the extension; each step runs, and the failures are listed at the end):
 
 ```sh
-cd desktop && cargo xtask check
+cargo xtask check
 ```
 
 Underneath:
 
 ```sh
-cd browser && cargo test                   # the extension's decisions, on the host
-cd browser && cargo clippy --target wasm32-unknown-unknown -- -D warnings
+cd crates/dm-catcher && cargo test                   # the extension's decisions, on the host
+cd crates/dm-catcher && cargo clippy --target wasm32-unknown-unknown -- -D warnings
 sh scripts/package.sh                      # the WebAssembly, dist/chrome, dist/firefox, zips
-cd desktop && cargo test --workspace       # Rust unit + integration (real HTTP server)
+cargo test --workspace       # Rust unit + integration (real HTTP server)
 python3 scripts/contract-coverage.py       # extension-app contract, each file >= 95% of lines
-cd desktop && cargo clippy --workspace --all-targets -- -D warnings
-cd desktop && cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --check
 python3 scripts/app-check.py               # drives the built binary (DM_BINARY= for a packaged one)
 python3 scripts/readme-shots.py           # the README's pictures, of the GPUI window (macOS)
 ./target/debug/dm-gpui --control 0         # drive the running window, the one shipped: see dm-desktop-base control.rs
 ./target/debug/dm-gpui --headless --control 0   # no window, for scripts and agents
 ./target/debug/dm-gpui mcp                 # MCP tools for an AI client, relayed to a running dm
 ./target/debug/dm-gpui list | status N | pause N | resume N | cancel N   # the command line, against a running dm
-cd desktop && cargo test -p dm-gpui window_tests   # the window, driven through the control port's methods
+cargo test -p dm-gpui window_tests   # the window, driven through the control port's methods
 cargo xtask scorecard | layers | privacy   # the scorecard, the crates' layers, nothing phones home
 cargo test -p dm-core --test zoo -- --nocapture   # the server zoo; DM_RAISE_FLOOR=1 after a fix
 PROPTEST_CASES=200000 cargo test --release -p dm-core --test fuzz   # a deep fuzz hunt
@@ -194,9 +195,7 @@ the frozen standard that reference A was measured against.
 
 ### On Windows (learnt the hard way, 2026-11-04)
 
-- Build outside `C:`: `CARGO_TARGET_DIR=D:/dm-target` for `desktop/`, and a
-  directory of its own (`D:/dm-target-browser`) for `browser/`, so the two do
-  not wait on each other's lock.
+- Build outside `C:`: `CARGO_TARGET_DIR=D:/dm-target` for the workspace.
 - `python3` can be the Microsoft Store's placeholder, which only prints how to
   install Python: `scripts/package.sh` finds a Python that runs; elsewhere call
   `python`.
@@ -249,7 +248,7 @@ the frozen standard that reference A was measured against.
    outside input gets a property test in its crate's `tests/fuzz.rs`.
 8. Keep modules small and by concern: a source file over 800 lines, or a
    function over 150, fails `cargo xtask layers`, but for those over when the
-   gate came in, named in `desktop/xtask/size-baseline.txt` and
+   gate came in, named in `tooling/xtask/size-baseline.txt` and
    `fn-baseline.txt`, which may only shrink (`cargo xtask size-baseline`
    lowers them); no file passes 2,500. One layout: a module with children is `foo.rs`
    beside `foo/`, never `foo/mod.rs`. A module's tests go in `tests.rs`
@@ -306,11 +305,11 @@ still missing is in `docs/gaps.md`, rows 180 to 192.
    reviewer's reading. Prefer a safe crate that already does it.
 8. No new dependency without saying, in the commit, why the ones already in
    `Cargo.lock` cannot do it, and what it adds to the build time and the
-   binary. Its version goes once in `desktop/Cargo.toml`'s
+   binary. Its version goes once in `Cargo.toml`'s
    `[workspace.dependencies]`; a crate writes `name.workspace = true` with
    its own features (`cargo xtask layers` refuses a version in a crate).
    A crate `Cargo.lock` holds in more than one version is a double: no new
-   one, and none in more versions than `desktop/xtask/doubles-baseline.txt`
+   one, and none in more versions than `tooling/xtask/doubles-baseline.txt`
    lists (`cargo xtask layers`); the list only shrinks
    (`cargo xtask doubles-baseline` shortens it).
 9. Every task spawned has an owner that can cancel it, and a plan for when

@@ -1,0 +1,235 @@
+[package]
+name = "dm-gpui"
+version = "0.10.0"
+authors = ["pranavo72bex"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+description = "dm — a download manager, with a window drawn in Rust (GPUI)"
+# Never published: its paths to the other crates are this repository's
+# (deny.toml).
+publish = false
+
+# dm's window, the one every system ships. It uses dm-core, dm-shell and
+# dm-desktop-base. Pinned together:
+# docs/migration/GPUI_DEPENDENCY_DECISION.md 3.1. Its version is dm's: the
+# Makefile's `APP_VERSION`, the workflows and the update check read it here.
+# The window itself is a library (`dm_gpui::run_app`), so a program other
+# than the desktop's can open it: the phone's (dm-android's `android_main`,
+# gaps row N17). The desktop's program, below, hands it GPUI's platform.
+[lib]
+name = "dm_gpui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "dm-gpui"
+path = "src/main.rs"
+
+
+# The installers: `cargo packager --release -p dm-gpui` from this directory
+# (`make build-macos`, `make build-linux`; Windows' on CI). A .app and .dmg on
+# macOS, a .deb and an AppImage on Linux, an NSIS installer on Windows, with
+# their name, id, icons (`icons/`) and the types they open. The update check
+# reads the release's own latest.json.
+[package.metadata.packager]
+productName = "dm"
+identifier = "com.dm.desktop"
+description = "Multi-connection downloads that resume"
+longDescription = "dm splits a file across several connections, resumes what was interrupted, and takes over the downloads you start in a browser."
+category = "Utility"
+beforePackagingCommand = "cargo build --release -p dm-gpui"
+outDir = "../../target/release/bundle"
+binaries = [{ path = "dm-gpui", main = true }]
+icons = [
+  "../../assets/app-icons/32x32.png",
+  "../../assets/app-icons/128x128.png",
+  "../../assets/app-icons/128x128@2x.png",
+  "../../assets/app-icons/icon.icns",
+  "../../assets/app-icons/icon.ico",
+]
+
+# The .deb: the package is still `dm`, so it upgrades an earlier dm's in place.
+[package.metadata.packager.deb]
+# dm's own entry rather than the one generated from the binary's name: the
+# window's app id is "dm", and a launcher without StartupWMClass=dm is not
+# matched to its window on Wayland (a second, generic icon in the dock).
+# It also makes dm the handler for magnet links.
+desktopTemplate = "../../packaging/deb.desktop"
+# `/usr/bin/dm-desktop`, the name an earlier dm's program had, running this
+# window: the command the README and the extension's popup give, and what a
+# login item or a browser's host written by an earlier dm names, until dm
+# writes them again for this binary as it starts.
+# Its icon and a hidden launcher under the old name too: a login entry
+# and a magnet or .torrent default saved by an earlier dm name them, and
+# lost them with the upgrade (the new launcher is dm-gpui.desktop).
+files = { "../../packaging/dm-desktop" = "usr/bin/dm-desktop", "../../assets/app-icons/128x128.png" = "usr/share/icons/hicolor/128x128/apps/dm-desktop.png", "../../packaging/dm-desktop.desktop" = "usr/share/applications/dm-desktop.desktop" }
+depends = [
+  # Linked: X11 through xcb, the keyboard's layout, the font rasteriser.
+  "libxcb1",
+  "libxkbcommon0",
+  "libxkbcommon-x11-0",
+  "libfreetype6",
+  "libfontconfig1",
+  # Opened as it starts: Vulkan where the computer has a driver for it, else
+  # GL through EGL (Mesa draws without a GPU); Wayland where the desktop is.
+  "libvulkan1",
+  "libegl1",
+  "libwayland-client0",
+  "libwayland-egl1",
+  # Open and Open folder go through xdg-open (dm-shell/src/shell.rs).
+  "xdg-utils",
+  # secret-tool: the saved logins, cookies and passwords go to the desktop's
+  # Secret Service through it (dm-core/src/secretstore.rs).
+  "libsecret-tools",
+]
+
+[package.metadata.packager.macos]
+minimumSystemVersion = "11.0"
+# Ad-hoc: the whole bundle signed with no certificate ("-"). Unsigned as a
+# bundle (only the linker's signature on the binary), a downloaded dm.app
+# was "damaged and can't be opened" on Apple silicon, with only Move to Bin
+# on offer; signed ad hoc it gets the ordinary "cannot verify" prompt, which
+# System Settings › Privacy & Security lets a person open anyway. A real
+# Developer ID, when there is one, replaces "-" (docs/RELEASING.md).
+signingIdentity = "-"
+# Merged into the bundle's Info.plist: dm opens magnet: links and .torrent
+# files. Here rather than the packager's own deep-link and file-type keys,
+# which the Windows installer would also write, taking the keys from another
+# program; on Windows dm registers itself (dm-shell's register.rs).
+infoPlistPath = "../../assets/macos/Info.plist"
+
+# The uninstaller tells the browsers dm is going and removes its login item
+# before the files go: `--unregister`, as the README asks a person to run by
+# hand elsewhere. An uninstaller section ("un.") placed here comes before the
+# template's own `Section Uninstall`, so it runs first. Upgrading through
+# "uninstall first" runs it too; the next launch writes both back
+# (`register::ensure_this_copy`, the login item following the setting).
+# Installed over a dm that still has the older window, `dm-desktop.exe`
+# (beside this one in the same folder), that program is taken away
+# first, so the login item and the browsers' registrations that start it
+# find it gone and follow this one at its first start (`autostart::takes_over`, `register::ensure_this_copy`). Still
+# running, it is ended first, as the installer ends a running dm-gpui.exe
+# (its queue is written as it goes: contract B21), or it would hold the
+# single-instance lock and the file.
+[package.metadata.packager.nsis]
+preinstallSection = """
+Section "dmReplaceEguiWindow"
+  IfFileExists "$INSTDIR\\dm-desktop.exe" 0 dmNoEguiWindow
+    nsExec::Exec 'taskkill /F /IM dm-desktop.exe'
+    Pop $0
+    Sleep 500
+    Delete "$INSTDIR\\dm-desktop.exe"
+  dmNoEguiWindow:
+SectionEnd
+Section "un.dmUnregister"
+  ExecWait '"$INSTDIR\\${MAINBINARYNAME}.exe" --unregister'
+SectionEnd
+"""
+
+# On macOS GPUI's Metal shaders are compiled as dm starts (`runtime-shaders`, on by default), so
+# a Mac without the Metal compiler of full Xcode builds dm; built with `--no-default-features`
+# where `xcrun -f metal` answers, they are compiled with the program and the window opens
+# without compiling them at each launch (gaps row S16). Nothing elsewhere.
+[features]
+default = ["runtime-shaders"]
+runtime-shaders = ["gpui_platform/runtime_shaders"]
+
+[dependencies]
+dm-core.workspace = true
+dm-protocol.workspace = true
+dm-shell.workspace = true
+dm-desktop-base.workspace = true
+# Its files that are not code: assets/ (gaps row X9).
+dm-assets.workspace = true
+gpui.workspace = true
+# Text fields and the controls core GPUI does not have, built for the same
+# GPUI (it pins gpui-pre =0.3.12): docs/migration/GPUI_DEPENDENCY_DECISION.md 3.1.
+gpui-component.workspace = true
+# gpui-component's own base, for text a person can select and copy (a
+# digest) as the system's labels can be; the same version it pins.
+gpui-base.workspace = true
+# The wake-ups from any thread to the window's own, and waiting for the
+# first of a wake and a second (both already in the tree through GPUI).
+async-channel.workspace = true
+futures-lite.workspace = true
+serde_json.workspace = true
+raw-window-handle.workspace = true
+
+# None of these builds for Android, where the clipboard and notifications are
+# the app's (platform/phone.rs) and there is no tray or file panel (gaps row
+# N17).
+[target.'cfg(not(target_os = "android"))'.dependencies]
+# The window's one clipboard path (services.rs): GPUI's needs the window's
+# thread, and the clipboard's watch reads off it (gaps P6).
+arboard.workspace = true
+# Plumbing GPUI lacks: the status item in the menu bar and the tray, with its
+# menu (tray-icon, which brings muda; D4's fallback).
+tray-icon.workspace = true
+
+# The window's notifier (notify.rs): plumbing GPUI lacks. Not on Windows,
+# where dm posts its toasts itself (dm_desktop_base::toast).
+[target.'cfg(not(any(windows, target_os = "android")))'.dependencies]
+notify-rust.workspace = true
+
+# dm's own icon in a taskbar's tray, and Windows' window pictures, read and
+# written as PNGs (tray.rs, syswindow.rs).
+[target.'cfg(not(any(target_os = "macos", target_os = "android")))'.dependencies]
+png.workspace = true
+# The window's one file-chooser path (services.rs `ask`; on macOS dm begins
+# the panels itself): GPUI's prompts take no kind of file and no starting
+# folder (gaps P6).
+rfd.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Its Metal shaders as the `runtime-shaders` feature below says.
+gpui_platform = { workspace = true, features = ["font-kit"] }
+# What GPUI cannot ask of a window (appkit.rs): put away into the tray without
+# closing it, moved, pictured.
+objc2.workspace = true
+objc2-foundation = { workspace = true, features = ["std", "NSArray", "NSGeometry", "NSString", "NSURL"] }
+# The row menu (platform/popmenu.rs) is an NSMenu of dm's own, its items with their keys:
+# NSMenu, NSMenuItem, NSEvent's modifier flags and NSCell's tick, which GPUI's macOS crate
+# already has on.
+objc2-app-kit = { workspace = true, features = ["std", "NSResponder", "NSView", "NSWindow", "NSScreen", "NSGraphics", "objc2-core-foundation", "block2", "NSOpenPanel", "NSSavePanel", "NSPanel", "NSMenu", "NSMenuItem", "NSEvent", "NSCell"] }
+# The open and save panels' completion handler (services.rs), as rfd and
+# GPUI give theirs.
+block2.workspace = true
+[target.'cfg(target_os = "linux")'.dependencies]
+gpui_platform = { workspace = true, features = ["wayland", "x11"] }
+# The X server itself, for what GPUI cannot ask of an X11 window (syswindow.rs):
+# put away into the tray and back, moved, pictured. Already in the tree (GPUI's).
+x11rb.workspace = true
+[target.'cfg(windows)'.dependencies]
+gpui_platform.workspace = true
+# What GPUI cannot ask of the window there (syswindow.rs): hidden into the
+# tray and shown again, moved, pictured; the picture saved as a PNG.
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_Xps",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+dm-test-support.workspace = true
+# A home of its own for each run of the real binary (tests/quit.rs).
+tempfile.workspace = true
+# Random and hostile requests on the control port, answered by the window (`window_tests/fuzz.rs`).
+proptest.workspace = true
+# The window opened in GPUI's test platform and driven through its control-port methods, as
+# a script drives it (`src/harness.rs`).
+gpui = { workspace = true, features = ["test-support"] }
+# What the harness's downloads fetch from: a server on the loopback.
+axum.workspace = true
+futures-util.workspace = true
+tokio = { workspace = true, features = ["full"] }
+# A real archive for the tests that extract one.
+zip.workspace = true
+
+# The Windows program's icon and version (build.rs).
+[build-dependencies]
+embed-resource.workspace = true
+
+[lints]
+workspace = true

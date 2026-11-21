@@ -35,14 +35,14 @@ gh secret set APPLE_TEAM_ID
 ```
 
 The identity, `Developer ID Application: NAME (TEAMID)`, goes in
-`desktop/crates/dm-gpui/Cargo.toml` (the window macOS ships) as `packager.macos.signingIdentity`.
+`crates/dm-gpui/Cargo.toml` (the window macOS ships) as `packager.macos.signingIdentity`.
 Without these the build still succeeds — it just produces something
 Gatekeeper distrusts.
 
 ### 2. Windows
 
 Authenticode signing is configured under `packager.windows` in
-`desktop/crates/dm-gpui/Cargo.toml` (the window Windows ships; a certificate
+`crates/dm-gpui/Cargo.toml` (the window Windows ships; a certificate
 thumbprint or a sign command). Without it, SmartScreen warns until enough people install it
 anyway.
 
@@ -53,14 +53,13 @@ is the signature of the project's Ed25519 key (gaps row F6). The key is free
 and made here; nobody but the maintainer holds its private half.
 
 ```sh
-cd desktop
 cargo xtask update-key
 ```
 
 It prints two lines:
 
 - the **public key**: paste it as `SIGNING_KEY` in
-  `desktop/crates/dm-shell/src/app/update.rs`, replacing the placeholder,
+  `crates/dm-shell/src/app/update.rs`, replacing the placeholder,
   and commit that;
 - the **private key**: set it as the repository secret, and keep a copy
   offline (a password manager). Never commit it or paste it anywhere else.
@@ -87,12 +86,12 @@ page by hand. Keep the copy.
 
 ```sh
 # The version appears in these places and they must agree.
-$EDITOR desktop/crates/dm-gpui/Cargo.toml      # version (and dm-core's, dm-shell's,
+$EDITOR crates/dm-gpui/Cargo.toml      # version (and dm-core's, dm-shell's,
                                                # dm-desktop-base's: a test holds them equal)
-$EDITOR desktop/packaging/PKGBUILD             # pkgver
+$EDITOR packaging/PKGBUILD             # pkgver
 
-cd desktop && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
-cd ../browser && cargo test && cd .. && sh scripts/package.sh && python3 scripts/chrome-check.py
+cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
+(cd crates/dm-catcher && cargo test) && sh scripts/package.sh && python3 scripts/chrome-check.py
 
 git commit -am "dm 0.2.0"
 git tag desktop-v0.2.0
@@ -122,8 +121,8 @@ Every release carries, beside its installers (gaps row W21):
 
 - `crates.txt`: every crate and version the app (`dm-gpui`) and the browser
   extension (`dm-catcher`) are built from, every system's together, each with
-  where it comes from: crates.io and the SHA-256 `desktop/Cargo.lock` pins for
-  it, a git repository, a copy vendored in `desktop/vendor/`, or dm's own
+  where it comes from: crates.io and the SHA-256 `Cargo.lock` pins for
+  it, a git repository, a copy vendored in `vendor/`, or dm's own
   folder. Written by `cargo xtask crates-list <file>` from the lock file
   (`cargo tree` without dev-dependencies, for every target), so what a test
   alone uses is not in it.
@@ -141,12 +140,11 @@ yours with `SHA256SUMS` and `SHA256SUMS.sig`) and, from a checkout of the
 release's tag:
 
 ```sh
-cd desktop
 cargo xtask verify-release ~/Downloads/dm-0.10.0
 ```
 
 It checks the signature against the public key dm carries
-(`SIGNING_KEY` in `desktop/crates/dm-shell/src/app/update.rs`), then each file
+(`SIGNING_KEY` in `crates/dm-shell/src/app/update.rs`), then each file
 present against its line, and `latest.json.sig` against `latest.json` when
 both are there. A changed file, a changed line or another key fails it; files
 the list names that are not in the folder are said and left unchecked.
@@ -178,16 +176,16 @@ What fixes a build, and how to repeat the release job's:
 - **Rust**: `rust-toolchain.toml` at the repository's root pins the toolchain
   (1.98.1 when this was written; the release jobs pin the same). rustup
   installs it on the first `cargo` in the checkout.
-- **Crates**: `desktop/Cargo.lock`, with `--locked` so nothing in it moves;
+- **Crates**: `Cargo.lock`, with `--locked` so nothing in it moves;
   `crates.txt` is what it resolved to for the release. The patched crates are
-  in `desktop/vendor/`, in the checkout.
-- **Profile**: `[profile.release]` in `desktop/Cargo.toml` (size first, LTO,
+  in `vendor/`, in the checkout.
+- **Profile**: `[profile.release]` in `Cargo.toml` (size first, LTO,
   one codegen unit, stripped, a few crates at `opt-level = 3`); the extension
   is the `extension` profile.
 - **Flags**: `CARGO_BUILD_RUSTFLAGS="$(sh scripts/release-flags.sh)"`, which
   writes the checkout, Cargo's folders and the home folder under neutral names
   so a build elsewhere carries the same paths. Windows keeps its own target
-  flags (`+crt-static`, `desktop/.cargo/config.toml`), which Cargo takes over
+  flags (`+crt-static`, `.cargo/config.toml`), which Cargo takes over
   these.
 - **Target**: the release's are `x86_64-unknown-linux-gnu` and
   `aarch64-unknown-linux-gnu` (built on Ubuntu 22.04), `x86_64-pc-windows-msvc`,
@@ -196,7 +194,6 @@ What fixes a build, and how to repeat the release job's:
 
 ```sh
 git checkout desktop-v0.10.0
-cd desktop
 CARGO_BUILD_RUSTFLAGS="$(sh ../scripts/release-flags.sh)"   cargo build --release --locked -p dm-gpui --target x86_64-unknown-linux-gnu
 ```
 
@@ -253,7 +250,7 @@ write the manifests from its `latest.json`:
 python3 scripts/package-managers.py
 ```
 
-It writes `desktop/packaging/managers/`: a Homebrew cask (both Mac dmgs), a
+It writes `packaging/managers/`: a Homebrew cask (both Mac dmgs), a
 Scoop manifest (the Windows portable zip, registered with the browser from
 Scoop's `current` folder), the three winget files (the setup.exe) and a Flatpak
 manifest (the .deb repackaged, both arches). Each carries the digests
@@ -272,8 +269,8 @@ manifest (the .deb repackaged, both arches). Each carries the digests
 
 ## The browser extension
 
-The zips are built by `sh scripts/package.sh`, which compiles `browser/` to
-WebAssembly with the wasm-bindgen CLI matching `desktop/Cargo.lock`. The
+The zips are built by `sh scripts/package.sh`, which compiles `crates/dm-catcher/` to
+WebAssembly with the wasm-bindgen CLI matching `Cargo.lock`. The
 Chrome zip carries the manifest `key` that fixes the unpacked id; remove it
 before a Web Store upload (the store assigns its own id, which is then
 registered with `dm-desktop --register <id>`). Chrome's needs uploading to the
@@ -298,7 +295,7 @@ review, given the AMO API key as the secrets `AMO_JWT_ISSUER` and
 `AMO_JWT_SECRET` (Developer Hub › Manage API Keys). The add-on must first
 exist as a listed submission in the Developer Hub. Mozilla accepts each
 version once, so bump `extension/manifest.json`,
-`extension/manifest.firefox.json` and `browser/Cargo.toml` together (the
+`extension/manifest.firefox.json` and `crates/dm-catcher/Cargo.toml` together (the
 release checks all three agree with the tag). 3.0.0 went to the deleted
 unlisted add-on and 3.0.1 to the listed one; 3.0.2 adds the `scripting`
 permission (to read links on a tab open before the extension was); 3.0.3
@@ -313,10 +310,10 @@ The parts that are easy to get wrong, and how they were checked here:
 
 ```sh
 # The window's controls do what they claim, against a real queue.
-cd desktop && cargo test -p dm-gpui window_tests
+cargo test -p dm-gpui window_tests
 
 # The packaged app, driven: lock, hand-off, proxy, schedule, --hidden.
-DM_BINARY=desktop/target/release/bundle/dm.app/Contents/MacOS/dm-gpui python3 scripts/app-check.py
+DM_BINARY=target/release/bundle/dm.app/Contents/MacOS/dm-gpui python3 scripts/app-check.py
 sh scripts/linux-package.sh     # builds the .deb and AppImage, installs the .deb, drives it
 
 # The release's own Linux .deb and extension, downloaded from its draft and checked
@@ -345,5 +342,5 @@ for self-distribution › Run workflow** (`.github/workflows/firefox-signed.yml`
 signs the Firefox build as unlisted — automatic, about two minutes — and
 attaches `dm-firefox-<version>.xpi` to the release named. It installs and stays
 installed in ordinary Firefox (the README's Firefox step). Each version signs
-once, listed or not: bump both manifests and `browser/Cargo.toml` first.
+once, listed or not: bump both manifests and `crates/dm-catcher/Cargo.toml` first.
 3.0.5 was signed this way on 2026-10-19 and attached to `desktop-v0.2.0`.

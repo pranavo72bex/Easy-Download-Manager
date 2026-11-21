@@ -75,7 +75,7 @@ else
   { git ls-files -z --cached --others --exclude-standard; } | tar --null -T - -cf - \
     | docker run --rm -i -e CARGO_PROFILE_RELEASE_LTO -e CARGO_PROFILE_RELEASE_CODEGEN_UNITS \
       -v dm-linux-target:/target -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
-      dm-linux-check sh -c 'set -e; mkdir -p /work && cd /work && tar -xf - && cd desktop && cargo build -q $2 -p "$1"' build "$binary" "$build_flag"
+      dm-linux-check sh -c 'set -e; mkdir -p /work && cd /work && tar -xf - && cargo build -q $2 -p "$1"' build "$binary" "$build_flag"
 fi
 if [ -n "$DM_EXTENSION_ZIP" ]; then
   mkdir -p "$stage/in/chrome"

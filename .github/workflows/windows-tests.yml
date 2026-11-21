@@ -31,10 +31,8 @@ jobs:
           toolchain: 1.98.1 # as rust-toolchain.toml
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: desktop
           key: windows-tests
       - name: The chosen tests
-        working-directory: desktop
         env:
           FILTER: ${{ inputs.filter }}
         run: cargo test -p dm-gpui --locked -- $env:FILTER --nocapture --test-threads=1

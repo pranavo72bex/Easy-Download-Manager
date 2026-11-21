@@ -31,7 +31,7 @@ git ls-files -z --cached --others --exclude-standard \
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends sway python3-gi gir1.2-gtk-3.0 dbus-x11 dbus-daemon \
           libglib2.0-bin >/dev/null
-        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        cargo build -q -p "$(basename "$DM_BINARY")"
         useradd -m tester && chmod 777 /shots && chmod -R a+rX /work
         su tester -w DM_BINARY -c "dbus-run-session -- sh /work/scripts/linux/wayland_close_session.sh"
       '

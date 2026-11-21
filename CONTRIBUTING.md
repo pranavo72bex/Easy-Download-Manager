@@ -31,20 +31,18 @@ You need rustup from <https://rustup.rs>; it fetches the Rust dm is built with
 
 ```sh
 # every check that needs no window, both the app and the extension
-cd desktop
 cargo xtask check
 
 # the app
 cargo run -p dm-gpui
 
 # the browser extension
-cd browser
+cd crates/dm-catcher
 cargo test
-cd .. && sh scripts/package.sh     # builds dist/chrome and dist/firefox
+cd ../.. && sh scripts/package.sh     # builds dist/chrome and dist/firefox
 ```
 
-`cargo xtask build`, `test`, `package` and `qa`, from the repository's root or
-`desktop/`, do the same on Windows, macOS and Linux: dm and the extension built
+`cargo xtask build`, `test`, `package` and `qa`, from the repository's root, do the same on Windows, macOS and Linux: dm and the extension built
 for release, the workspace's tests as CI runs them, this system's installers
 (it needs `cargo install cargo-packager --locked`) and `scripts/human-qa.py`
 whole, with what the system needs set for it.
@@ -103,9 +101,9 @@ Actions secrets only (docs/RELEASING.md).
   // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
   ```
 
-  `cargo xtask headers fix` (in `desktop/`) writes it into a new file;
+  `cargo xtask headers fix` (from the repository's root) writes it into a new file;
   `cargo xtask headers`, which CI runs, fails a file without it. Third-party
-  code in `desktop/vendor/` keeps its own licence and takes no header, and
+  code in `vendor/` keeps its own licence and takes no header, and
   test data under `fixtures/` takes none either. The NOTICE's section 7(b)
   term asks everyone who copies dm's code to keep these notices unchanged.
 

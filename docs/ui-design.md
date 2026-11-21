@@ -3,7 +3,7 @@
 How dm's window looks, and the rules that keep it consistent: the look is
 written down as tokens, every widget draws from them, and every visual change
 is checked by looking at a picture of the real window. The pictures are dm's
-own (`desktop/assets/icons/`).
+own (`assets/icons/`).
 
 The window is the GPUI one (`crates/dm-gpui`): its tokens are in
 `crates/dm-gpui/src/window/theme.rs`, and its look is held by the pictures in

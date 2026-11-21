@@ -19,7 +19,7 @@ dm-desktop       the egui window (today's), on dm-desktop-base (kept until G9)
 dm-gpui          the GPUI window (G6), on dm-desktop-base      (new)
 ```
 
-`cargo xtask layers` (desktop/xtask) holds the edges: dm-desktop-base may use dm-core,
+`cargo xtask layers` (tooling/xtask) holds the edges: dm-desktop-base may use dm-core,
 dm-protocol and dm-shell and no GUI crate; dm-gpui may use those and dm-desktop-base and GPUI,
 never dm-desktop, never egui. Neither window crate may be used by anything.
 

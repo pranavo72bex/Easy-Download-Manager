@@ -59,7 +59,7 @@ status=0
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends chromium openbox xdotool dbus-x11 \
           at-spi2-core python3-pyatspi libglib2.0-bin imagemagick >/dev/null 2>&1
-        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        cargo build -q -p "$(basename "$DM_BINARY")"
         export DISPLAY=:79 DM_SHOTS=/shots
         Xvfb :79 -screen 0 2400x1200x24 >/dev/null 2>&1 &
         sleep 1

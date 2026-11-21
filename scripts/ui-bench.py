@@ -52,7 +52,7 @@ group by group (`--only` picks groups; all of them by default):
 Every figure is lower-is-better. Each is the median of the runs, printed with the spread (the
 fastest and slowest run). The results, with what produced them (`provenance.py`: commit, rustc,
 target, profile, binary size, CPU, GPU, display scale, the rows), are written as JSON
-(`--json`, else desktop/target/ui-bench/<time>.json) and compared with the stored baseline for
+(`--json`, else target/ui-bench/<time>.json) and compared with the stored baseline for
 this system, scripts/ui-bench-baselines/<system>-<machine>.json, where there is one;
 `--save-baseline` makes this run the baseline. Numbers taken while other work runs on the
 computer are upper bounds: say so where they are written.
@@ -134,8 +134,8 @@ METRICS = {
 
 def binary(named):
     for candidate in (named, os.environ.get("DM_BINARY"),
-                      ROOT / "desktop/target/release/dm-gpui",
-                      ROOT / "desktop/target/debug/dm-gpui"):
+                      ROOT / "target/release/dm-gpui",
+                      ROOT / "target/debug/dm-gpui"):
         if candidate and pathlib.Path(candidate).exists():
             return pathlib.Path(candidate)
     sys.exit("no dm binary: build one, or name it")
@@ -552,7 +552,7 @@ def main():
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--idle", type=int, default=60)
     ap.add_argument("--only", default=",".join(GROUPS), help="groups: " + ",".join(GROUPS))
-    ap.add_argument("--json", help="where the results go (default desktop/target/ui-bench/<time>.json)")
+    ap.add_argument("--json", help="where the results go (default target/ui-bench/<time>.json)")
     ap.add_argument("--save-baseline", action="store_true", help="make this run the stored baseline")
     args = ap.parse_args()
     groups = {g.strip() for g in args.only.split(",") if g.strip()}
@@ -595,7 +595,7 @@ def main():
     record = {"provenance": made_by, "results": {str(k): v for k, v in results.items()},
               "runs": {str(k): v for k, v in every.items()}}
     out = pathlib.Path(args.json) if args.json else \
-        ROOT / "desktop/target/ui-bench" / time.strftime("%Y-%m-%dT%H-%M-%S.json")
+        ROOT / "target/ui-bench" / time.strftime("%Y-%m-%dT%H-%M-%S.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(record, indent=1), encoding="utf-8")
     print(f"\nwritten to {out}")

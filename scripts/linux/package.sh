@@ -8,7 +8,7 @@
 # installs the .deb the way a person would, and drives what it installed.
 #
 # The release configuration, as CI uses it: cargo-packager reading the
-# metadata in desktop/crates/dm-gpui/Cargo.toml (the GPUI window).
+# metadata in crates/dm-gpui/Cargo.toml (the GPUI window).
 set -e
 cd /work
 
@@ -32,7 +32,7 @@ apt-get install -y --no-install-recommends \
 FORMATS="${DM_FORMATS:-deb,appimage}"
 echo "== building: $FORMATS"
 # The GPUI window (docs/gaps.md G9); the version is the workspace's own.
-cd desktop/crates/dm-gpui
+cd crates/dm-gpui
 # AppImage tools are themselves AppImages, and a container has no FUSE.
 APPIMAGE_EXTRACT_AND_RUN=1 CARGO_BUILD_RUSTFLAGS="$(sh "$(dirname "$0")/../release-flags.sh")" cargo packager --release -p dm-gpui --formats "$FORMATS" \
   --out-dir /target/release/bundle
@@ -42,7 +42,7 @@ BUNDLE=/target/release/bundle
 # Built only, for `make build-linux`: the packages the release has, the .rpm
 # among them, copied out; nothing installed or driven.
 if [ -n "${DM_BUILD_ONLY:-}" ]; then
-  version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/dm-gpui/Cargo.toml | head -1)
+  version=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/dm-gpui/Cargo.toml | head -1)
   sh scripts/linux/nfpm.sh /target/release/dm-gpui "$version" "$BUNDLE"
   for f in "$BUNDLE"/*.deb "$BUNDLE"/*.AppImage "$BUNDLE"/*.rpm; do
     [ -e "$f" ] || continue

@@ -4,7 +4,7 @@
 # image and copied in, as a person copies a binary or installs the .rpm.
 # What is installed is what a Fedora user has or would add: the browser from
 # Fedora's own repositories, the libraries the .rpm names
-# (desktop/packaging/nfpm.yaml), Mesa for GL under Xvfb, and the test's own
+# (packaging/nfpm.yaml), Mesa for GL under Xvfb, and the test's own
 # X server, window manager, xdotool and screenshots (ImageMagick).
 FROM fedora:41
 ARG BROWSER=chromium

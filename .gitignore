@@ -1,14 +1,14 @@
 dist/
 target/
 # dm-core's FTP `target` module's own folder (its tests), not a build's.
-!desktop/crates/dm-core/src/ftp/target/
+!crates/dm-core/src/ftp/target/
 pkg/
 __pycache__/
 .DS_Store
 .claude/
 human-shots/
 
-# Local test logins and secrets (desktop/crates/dm-test-support/src/secrets.rs); never pushed.
+# Local test logins and secrets (crates/dm-test-support/src/secrets.rs); never pushed.
 .env
 .env.*
 !.env.example
@@ -48,7 +48,7 @@ graphify-out/
 bench/local.json
 bench/results/
 
-# A test run inside a vendored crate (desktop/vendor/README.md) makes a lock
-# file of its own there; dm's build uses desktop/Cargo.lock.
-desktop/vendor/librqbit/Cargo.lock
-desktop/vendor/librqbit-sha1-wrapper/Cargo.lock
+# A test run inside a vendored crate (vendor/README.md) makes a lock
+# file of its own there; dm's build uses Cargo.lock.
+vendor/librqbit/Cargo.lock
+vendor/librqbit-sha1-wrapper/Cargo.lock

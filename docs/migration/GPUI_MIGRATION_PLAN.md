@@ -100,7 +100,7 @@ chose (`docs/architecture/`), finished.
 
 ### Phase B: the GPUI shell, as a go/no-go spike
 
-A separate crate and binary (proposed `desktop/crates/dm-gpui`, binary
+A separate crate and binary (proposed `crates/dm-gpui`, binary
 `dm-gpui`), on the proposed pin, depending on dm-shell, dm-core and A2's crate
 only. It opens the main window and one dialog window, runs the A3 tick on one
 foreground waker, keeps the tokio runtime for the engine, and implements a

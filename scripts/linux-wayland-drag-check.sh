@@ -38,7 +38,7 @@ git ls-files -z --cached --others --exclude-standard \
           && wayland-scanner client-header wlr-virtual-pointer-unstable-v1.xml /tmp/wlr-virtual-pointer-unstable-v1-client-protocol.h \
           && wayland-scanner private-code wlr-virtual-pointer-unstable-v1.xml /tmp/vp-protocol.c \
           && cc -I/tmp -o /tmp/vpointer vpointer.c /tmp/vp-protocol.c -lwayland-client)
-        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        cargo build -q -p "$(basename "$DM_BINARY")"
         # sway will not run as root: the session runs as an ordinary user.
         useradd -m tester && chmod 777 /shots && chmod -R a+rX /work
         su tester -w DM_WAYLAND_DEBUG,DM_BINARY -c "dbus-launch --exit-with-session sh /work/scripts/linux/wayland_session.sh"

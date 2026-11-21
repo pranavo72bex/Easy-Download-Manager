@@ -8,7 +8,7 @@ shell confirms or overturns it.
 
 ## 1. What dm needs from a GPUI dependency
 
-These requirements come from dm's present window (`desktop/crates/dm-desktop`)
+These requirements come from dm's present window (`crates/dm-desktop`)
 and its behaviour contract:
 
 - **A screen reader reaches every dialog in that dialog's own window.**
@@ -36,12 +36,12 @@ and its behaviour contract:
 
 | Fact | Value | Where |
 |---|---|---|
-| Window stack | eframe/egui 0.37, features `default_fonts, glow, persistence, wayland, x11, accesskit, clipboard`. winit 0.30, egui-winit and eframe are patched copies in `desktop/vendor`. | `desktop/crates/dm-desktop/Cargo.toml`, `desktop/Cargo.toml` |
+| Window stack | eframe/egui 0.37, features `default_fonts, glow, persistence, wayland, x11, accesskit, clipboard`. winit 0.30, egui-winit and eframe are patched copies in `vendor`. | `crates/dm-desktop/Cargo.toml`, `Cargo.toml` |
 | Other window crates | `tray-icon 0.26` (`ksni`), `rfd 0.17`, `arboard 3`, `raw-window-handle 0.6`, `unicode-bidi 0.3`, `egui_extras 0.37` (table) | same |
-| AccessKit in the lock file | `accesskit 0.25.1`, `accesskit_macos 0.27.1` (through egui) | `desktop/Cargo.lock` |
+| AccessKit in the lock file | `accesskit 0.25.1`, `accesskit_macos 0.27.1` (through egui) | `Cargo.lock` |
 | Toolchain | No `rust-toolchain` file. CI uses `dtolnay/rust-toolchain` on `stable`. This machine has rustc 1.98.1. Current stable is 1.99.1 (channel manifest dated 2026-10-15). | `.github/workflows/*.yml`, `rustc --version`, https://static.rust-lang.org/dist/channel-rust-stable.toml (2026-11-09) |
-| Release profile | `opt-level = "z"`, `lto = true`, `codegen-units = 1`, `strip = true`. `egui` and `epaint` are built at `opt-level = 3`. No `panic = "abort"`. | `desktop/Cargo.toml` |
-| Licence | GPL-3.0-or-later | `desktop/crates/dm-desktop/Cargo.toml` |
+| Release profile | `opt-level = "z"`, `lto = true`, `codegen-units = 1`, `strip = true`. `egui` and `epaint` are built at `opt-level = 3`. No `panic = "abort"`. | `Cargo.toml` |
+| Licence | GPL-3.0-or-later | `crates/dm-desktop/Cargo.toml` |
 | 0.9.0 package sizes | .dmg (aarch64) 9.7 MB; .deb amd64 13.3 MB and arm64 12.4 MB; AppImage x86_64 13.2 MB; Windows setup .exe 9.9 MB; portable .zip 11.8 MB; .rpm x86_64 13.6 MB | `gh release view desktop-v0.9.0` (2026-11-09) |
 
 ## 2. Distributions available on 2026-11-09
@@ -464,7 +464,7 @@ Secondary sources give 2 to 15 MB, without the build settings (search on
 - `gpui-component`'s required dependencies (§2.5);
 - `gpui-pre-http-client`;
 - GPUI Kit's advice to build `gpui-pre` at `opt-level = 3`. dm found that a
-  whole-program opt-level 3 gave a 27 MB binary (`desktop/Cargo.toml`
+  whole-program opt-level 3 gave a 27 MB binary (`Cargo.toml`
   comment).
 
 ### 4.9 Windows maturity

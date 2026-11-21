@@ -26,7 +26,7 @@ progress window's Connections, open or shut and turned by a click.
 
 Windows only (on Linux, `scripts/linux-gui-check.sh` asks AT-SPI the same);
 standard library and Windows PowerShell only. The binary is `DM_BINARY`, else
-the debug build under `CARGO_TARGET_DIR` or `desktop/target`. Exits non-zero,
+the debug build under `CARGO_TARGET_DIR` or `target`. Exits non-zero,
 naming each dialog, button and list check not reached. The window is shown as
 a person's is: leave the mouse and keyboard alone while it runs (two minutes
 or so).
@@ -217,7 +217,7 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 def binary():
     if os.environ.get("DM_BINARY"):
         return pathlib.Path(os.environ["DM_BINARY"])
-    for target in filter(None, [os.environ.get("CARGO_TARGET_DIR"), str(ROOT / "desktop" / "target")]):
+    for target in filter(None, [os.environ.get("CARGO_TARGET_DIR"), str(ROOT / "target")]):
         # The window dm ships on Windows (docs/gaps.md G9).
         candidate = pathlib.Path(target) / "debug" / "dm-gpui.exe"
         if candidate.exists():

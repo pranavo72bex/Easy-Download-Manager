@@ -1,13 +1,13 @@
 name: Next GPUI
 
-# Whether dm's patched GPUI copies (desktop/vendor/gpui-pre-linux and gpui-pre-windows, gaps rows
+# Whether dm's patched GPUI copies (vendor/gpui-pre-linux and gpui-pre-windows, gaps rows
 # A17 and X5) carry over to the next gpui-pre snapshot. Weekly, crates.io is asked for the newest
-# gpui-pre; where it is newer than the one desktop/Cargo.toml pins, `cargo xtask vendor --version`
+# gpui-pre; where it is newer than the one Cargo.toml pins, `cargo xtask vendor --version`
 # makes both copies from it with dm's patches (no SHA-256 is held for a new version, and the
 # command says so), the pin is moved to it in this run's checkout alone, and dm-gpui is checked on
 # Linux. The job summary says whether each patch still applies and whether the build passes; the
 # job fails where one does not. Nothing is committed or pushed: moving to the new snapshot is done
-# by hand, as desktop/vendor/README.md says.
+# by hand, as vendor/README.md says.
 on:
   schedule:
     - cron: '0 5 * * 2'
@@ -31,9 +31,9 @@ jobs:
         run: |
           set -eu
           held=$(sed -n 's/^gpui = { package = "gpui-pre", version = "=\([^"]*\)" }.*$/\1/p' \
-            desktop/Cargo.toml)
+            Cargo.toml)
           if [ -z "$held" ]; then
-            echo "desktop/Cargo.toml pins no gpui-pre version this job can read" >&2
+            echo "Cargo.toml pins no gpui-pre version this job can read" >&2
             exit 1
           fi
           newest() {
@@ -80,7 +80,6 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         if: steps.next.outputs.newer == 'true'
         with:
-          workspaces: desktop
           save-if: false
 
       - name: What the window (dm-gpui, GPUI) builds against
@@ -95,7 +94,6 @@ jobs:
       - name: Make both GPUI copies from it, with dm's patches
         id: vendor
         if: steps.next.outputs.newer == 'true'
-        working-directory: desktop
         env:
           NEXT: ${{ steps.next.outputs.next }}
         run: |
@@ -118,15 +116,14 @@ jobs:
         run: |
           set -eu
           sed -i "s/\(package = \"gpui-pre[a-z-]*\", version = \"=\)$HELD\"/\1$NEXT\"/" \
-            desktop/Cargo.toml
-          grep -n 'package = "gpui-pre' desktop/Cargo.toml
+            Cargo.toml
+          grep -n 'package = "gpui-pre' Cargo.toml
 
       # Not --locked: the lock file moves to the new snapshot here. A copy whose version the
       # graph does not ask for is left unused by cargo, which says so; that is a failure too.
       - name: Check dm-gpui on Linux with it
         id: build
         if: steps.next.outputs.newer == 'true' && steps.vendor.outputs.linux == 'applied'
-        working-directory: desktop
         run: |
           set -u
           log="$RUNNER_TEMP/check.log"

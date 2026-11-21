@@ -3,9 +3,9 @@ name: Audit
 # Known vulnerabilities in what dm depends on, from the RustSec database.
 # Weekly as well as on a change, because an advisory can be published
 # against a lockfile nobody has touched. Advisories looked at and found
-# unreachable are listed, each with its reason, in desktop/.cargo/audit.toml.
+# unreachable are listed, each with its reason, in .cargo/audit.toml.
 # `cargo deny` holds the same advisories, and the licences and sources of
-# every crate, to desktop/deny.toml (gaps row 190).
+# every crate, to deny.toml (gaps row 190).
 on:
   push:
     branches: [main]
@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [desktop]
+        dir: [.]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
@@ -42,13 +42,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dir: [desktop]
+        dir: [.]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: cargo-deny
-      # One workspace, the extension in it (gaps row A15), and one set of rules: desktop/deny.toml.
+      # One workspace, the extension in it (gaps row A15), and one set of rules: deny.toml.
       - name: cargo deny
         working-directory: ${{ matrix.dir }}
-        run: cargo deny --locked --config ${{ github.workspace }}/desktop/deny.toml check
+        run: cargo deny --locked --config ${{ github.workspace }}/deny.toml check

@@ -17,7 +17,7 @@
 # It does not run them: that is for a Windows computer.
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
-src="$root/desktop/crates/dm-desktop-base/src/platform"
+src="$root/crates/dm-desktop-base/src/platform"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/src"
@@ -36,7 +36,7 @@ for module in quiet contrast jumplist; do
   printf '#[path = "%s/%s.rs"]\npub mod %s;\n' "$src" "$module" "$module" >> "$work/src/lib.rs"
 done
 # The native host's look for the browser that started it.
-printf '#[path = "%s/desktop/crates/dm-shell/src/host/parent.rs"]\npub mod parent;\n' "$root" >> "$work/src/lib.rs"
+printf '#[path = "%s/crates/dm-shell/src/host/parent.rs"]\npub mod parent;\n' "$root" >> "$work/src/lib.rs"
 cd "$work"
 echo "== check for x86_64-pc-windows-msvc"
 cargo check --target x86_64-pc-windows-msvc

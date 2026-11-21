@@ -9,7 +9,7 @@ commit, which names the approval.
 Every row is checked by `scripts/human-qa.py`, which drives the real window
 and Microsoft Edge the way a person does, slowly and in sight, and fails if
 any row below was not checked. Run it whole, not a part of it: before a merge,
-after any change to `desktop/`, `browser/` or `extension/`, and whenever
+after any change to `crates/`, `assets/` or `extension/`, and whenever
 someone asks for QA.
 
     python3 scripts/human-qa.py

@@ -3,8 +3,16 @@
 # Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-# `cargo xtask <job>` from the repository's root as well as from desktop/,
-# whose own .cargo/config.toml says the same for that folder (gaps row X4):
-# `cargo xtask package` makes this system's installers from here.
+# `cargo xtask <job>`: the project's own checks, from the repository's root,
+# the one workspace (gaps row X4).
 [alias]
-xtask = "run --quiet --manifest-path desktop/Cargo.toml -p xtask --"
+xtask = "run --quiet -p xtask --"
+
+# The C runtime linked into the Windows binary rather than loaded from
+# VCRUNTIME140.dll, which a clean Windows does not have and the installer
+# does not bring: without it dm would not start there at all. The same on
+# Windows on Arm (gaps row R3), whose installer brings no runtime either.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

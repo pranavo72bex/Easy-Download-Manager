@@ -957,7 +957,7 @@ print("LEAKS" if bad else "HOLDS", bad)
         finding("info", "torrent", "skipped: the sandbox that keeps the torrent test off the public network could not be shown to hold")
         return
     build = subprocess.run(["cargo", "test", "-p", "dm-core", "--release", "--test", "torrent_stress", "--no-run", "--message-format=json"],
-                           cwd=ROOT / "desktop", capture_output=True, text=True, timeout=1500, encoding="utf-8", errors="replace")
+                           cwd=ROOT, capture_output=True, text=True, timeout=1500, encoding="utf-8", errors="replace")
     binary = None
     for line in build.stdout.splitlines():
         try:

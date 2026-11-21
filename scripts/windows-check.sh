@@ -32,7 +32,7 @@ git ls-files -z --cached --others --exclude-standard \
       -v dm-xwin-rustup:/usr/local/rustup \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
       -e CARGO_TARGET_DIR=/target \
-      messense/cargo-xwin sh -c "mkdir -p /work && cd /work && tar -xf - && cd desktop \
+      messense/cargo-xwin sh -c "mkdir -p /work && cd /work && tar -xf - \
         && rustup -q toolchain install \
         && rustup -q target add x86_64-pc-windows-msvc \
         && cargo xwin $job --workspace --all-targets --target x86_64-pc-windows-msvc $flags"

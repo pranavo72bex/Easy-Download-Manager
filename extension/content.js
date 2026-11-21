@@ -8,9 +8,9 @@
 // forbids WebAssembly: a click with a key held (Alt leaves a download with
 // the browser, Shift hands it to dm, as the app's rules name them) and the
 // page's links for "Download all/selected links".
-// The "Download video" panel is written in Rust (browser/src/content.rs),
+// The "Download video" panel is written in Rust (crates/dm-catcher/src/content.rs),
 // compiled to WebAssembly; a content script cannot be a module, so the
-// background puts it in when the page shows media. Message names are those in browser/src/decide.rs.
+// background puts it in when the page shows media. Message names are those in crates/dm-catcher/src/decide.rs.
 (() => {
   const ext = globalThis.browser ?? globalThis.chrome;
   // Put in again by the background when it found no page script answering
@@ -357,7 +357,7 @@
     let hideTimer = null;
     let lastScan = 0;
     // A word in the browser's language from the extension's catalog (extension/_locales, keys
-    // as browser/src/words.rs names them), its English where the browser gives none.
+    // as crates/dm-catcher/src/words.rs names them), its English where the browser gives none.
     const t = (key, english) => {
       try { return ext.i18n.getMessage(key) || english; } catch { return english; }
     };

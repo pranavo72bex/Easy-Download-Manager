@@ -39,7 +39,7 @@ SHELL := /bin/sh
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 UNAME := $(shell uname -s)
-# dm's window, on every system: GPUI (desktop/crates/dm-gpui).
+# dm's window, on every system: GPUI (crates/dm-gpui).
 WINDOW := dm-gpui
 VERSION := $(shell sed -n 's/.*"version": "\([^"]*\)".*/\1/p' extension/manifest.json | head -1)
 
@@ -52,11 +52,11 @@ BINDIR := $(PREFIX)/bin
 # but has no icon and no place in the Applications folder.
 APPDIR ?= /Applications
 
-BINARY := desktop/target/release/$(WINDOW)
+BINARY := target/release/$(WINDOW)
 # The building computer's paths taken out of release builds (scripts/release-flags.sh).
 RELEASE_FLAGS := $(shell sh scripts/release-flags.sh)
 # The version the client says it is, for the installers' names.
-APP_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/$(WINDOW)/Cargo.toml | head -1)
+APP_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' crates/$(WINDOW)/Cargo.toml | head -1)
 # Where `make build` puts what it made, one folder a platform.
 BUILD := build
 # Arguments for the client: make run ARGS="--hidden"
@@ -192,7 +192,7 @@ doctor:
 
 $(BINARY):
 	@echo "$(BOLD)building the client$(OFF) — a few minutes the first time"
-	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo build --release -p $(WINDOW)
+	@CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo build --release -p $(WINDOW)
 
 client: doctor $(BINARY)
 	@install -d "$(BINDIR)"
@@ -200,9 +200,9 @@ client: doctor $(BINARY)
 	@echo "installed $(BINDIR)/dm"
 ifeq ($(UNAME),Linux)
 	@install -d "$(PREFIX)/share/applications" "$(PREFIX)/share/icons/hicolor/128x128/apps"
-	@sed 's|^Exec=.*|Exec=$(BINDIR)/dm %u|' desktop/packaging/dm.desktop \
+	@sed 's|^Exec=.*|Exec=$(BINDIR)/dm %u|' packaging/dm.desktop \
 	  > "$(PREFIX)/share/applications/dm.desktop"
-	@install -m 644 desktop/assets/app-icons/128x128.png \
+	@install -m 644 assets/app-icons/128x128.png \
 	  "$(PREFIX)/share/icons/hicolor/128x128/apps/dm.png"
 	@echo "installed a menu entry and an icon"
 endif
@@ -217,12 +217,12 @@ endif
 app:
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --locked"; exit 1; }
-	@cd desktop/crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW)
+	@cd crates/$(WINDOW) && CI=true CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo packager --release -p $(WINDOW)
 	@echo
-	@echo "built desktop/target/release/bundle/"
+	@echo "built target/release/bundle/"
 ifeq ($(UNAME),Darwin)
 	@rm -rf "$(APPDIR)/dm.app"
-	@cp -R desktop/target/release/bundle/dm.app "$(APPDIR)/dm.app"
+	@cp -R target/release/bundle/dm.app "$(APPDIR)/dm.app"
 	@echo "installed $(APPDIR)/dm.app"
 	@echo "$(DIM)unsigned, so the first launch is right-click → Open$(OFF)"
 endif
@@ -230,7 +230,7 @@ endif
 # -------------------------------------------------------------- extension
 
 # Built rather than copied: the extension is Rust compiled to WebAssembly
-# (browser/), with a loader and two manifests (extension/). package.sh adds
+# (crates/dm-catcher/), with a loader and two manifests (extension/). package.sh adds
 # the wasm32 target and the matching wasm-bindgen CLI if they are missing.
 #
 # Loading it is two clicks no Makefile can make: Chrome and Firefox refuse an
@@ -308,10 +308,10 @@ endif
 # Like `flutter run`: build what changed and start the real program, its
 # window and all, from this checkout. Quit it as usual; ARGS go to dm.
 run:
-	@cd desktop && cargo run -p $(WINDOW) -- $(ARGS)
+	@cargo run -p $(WINDOW) -- $(ARGS)
 
 run-release:
-	@cd desktop && CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo run --release -p $(WINDOW) -- $(ARGS)
+	@CARGO_BUILD_RUSTFLAGS="$(RELEASE_FLAGS)" cargo run --release -p $(WINDOW) -- $(ARGS)
 
 # Like `flutter build` with no platform named: everything this computer can
 # build, each into build/<platform>/, and a list of what was made. A platform
@@ -339,10 +339,10 @@ endif
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)macOS$(OFF): dm.app and the .dmg"
-	@cd desktop && cargo xtask package --out-dir "$(CURDIR)/desktop/target/release/bundle"
+	@cargo xtask package --out-dir "$(CURDIR)/target/release/bundle"
 	@rm -rf $(BUILD)/macos && mkdir -p $(BUILD)/macos
-	@cp -R desktop/target/release/bundle/dm.app $(BUILD)/macos/
-	@cp desktop/target/release/bundle/*.dmg $(BUILD)/macos/
+	@cp -R target/release/bundle/dm.app $(BUILD)/macos/
+	@cp target/release/bundle/*.dmg $(BUILD)/macos/
 	@ls $(BUILD)/macos | sed 's|^|  $(BUILD)/macos/|'
 
 # dm's Safari extension, put into the dm.app build-macos made and into its .dmg
@@ -360,9 +360,9 @@ ifeq ($(UNAME),Linux)
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF): .deb, AppImage and .rpm"
-	@cd desktop && cargo xtask package --out-dir "$(CURDIR)/desktop/target/release/bundle"
-	@for f in desktop/target/release/bundle/*.deb desktop/target/release/bundle/*.AppImage \
-	          desktop/target/release/bundle/*.rpm; do \
+	@cargo xtask package --out-dir "$(CURDIR)/target/release/bundle"
+	@for f in target/release/bundle/*.deb target/release/bundle/*.AppImage \
+	          target/release/bundle/*.rpm; do \
 	  [ -e "$$f" ] || continue; n=$$(basename "$$f"); \
 	  case "$$n" in $(WINDOW)_*) n="dm_$${n#$(WINDOW)_}" ;; dm-desktop_*) continue ;; esac; cp "$$f" "$(BUILD)/linux/$$n"; done
 else
@@ -402,29 +402,29 @@ devices:
 
 # Like `flutter analyze`: what CI refuses, before CI refuses it.
 analyze:
-	@cd desktop && cargo clippy --workspace --all-targets --locked -- -D warnings
-	@cd desktop && cargo fmt --all --check
-	@cd desktop && cargo xtask privacy
-	@cd desktop && cargo xtask layers
-	@cd browser && cargo clippy --all-targets -- -D warnings
-	@cd browser && cargo fmt --check
+	@cargo clippy --workspace --all-targets --locked -- -D warnings
+	@cargo fmt --all --check
+	@cargo xtask privacy
+	@cargo xtask layers
+	@cd crates/dm-catcher && cargo clippy --all-targets -- -D warnings
+	@cd crates/dm-catcher && cargo fmt --check
 	@echo "no warnings, formatted, nothing phones home"
 
 format:
-	@cd desktop && cargo fmt --all
-	@cd browser && cargo fmt
+	@cargo fmt --all
+	@cd crates/dm-catcher && cargo fmt
 
 # The behaviour contract, every row, in sight (docs/behaviour-contract.md): the debug build,
 # the extension where dist/ has none, then python3 scripts/human-qa.py, as on every system.
 qa:
-	@cd desktop && cargo xtask qa
+	@cargo xtask qa
 
 qa-docker:
 	@sh qa/run.sh
 
 # Every test of the workspace, the extension's crate among them, as CI runs them.
 test:
-	@cd desktop && cargo xtask test
+	@cargo xtask test
 
 # What the extension and the app say to each other, each file held to
 # docs/contract-coverage-floor.txt (needs cargo-llvm-cov).
@@ -432,6 +432,6 @@ coverage:
 	@python3 scripts/contract-coverage.py
 
 clean:
-	@cd desktop && cargo clean
+	@cargo clean
 	@rm -rf dist extension/pkg $(BUILD)
 	@echo "removed build output"

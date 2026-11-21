@@ -9,7 +9,7 @@
     python3 scripts/readme-shots.py             # into docs/
     python3 scripts/readme-shots.py some/folder
 
-dm's GPUI window (`desktop/target/debug/dm-gpui`, or DM_BINARY) is started
+dm's GPUI window (`target/debug/dm-gpui`, or DM_BINARY) is started
 with a home of its own, in the light look and then the dark one, and given
 four downloads from a server on 127.0.0.1, as a person would have them: one
 finished, one running (its server sends it slowly), one added for later
@@ -40,7 +40,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs"
 KiB = 1024
 
@@ -205,7 +205,7 @@ def main():
     if sys.platform != "darwin":
         sys.exit("the README's pictures are taken on macOS, where dm's window is pictured by the system")
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p dm-gpui")
+        sys.exit(f"no dm at {BINARY}: cargo build -p dm-gpui")
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Files)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_address[1]}/files"

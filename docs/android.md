@@ -36,7 +36,7 @@ work; from a terminal: `gradle installDebug -Pdm.abis=arm64-v8a` with `JAVA_HOME
 
 ### Open and run
 
-1. File › Open, and choose `desktop/crates/dm-android/android` (this folder, not the
+1. File › Open, and choose `crates/dm-android/android` (this folder, not the
    repository's top). Android Studio writes `local.properties` (where the SDK is) and syncs.
    The sync downloads Gradle 8.14.3 (`gradle/wrapper/gradle-wrapper.properties`, checked
    against its SHA-256) and the Android Gradle plugin; the first one takes a few minutes.
@@ -44,13 +44,13 @@ work; from a terminal: `gradle installDebug -Pdm.abis=arm64-v8a` with `JAVA_HOME
    **API 35, arm64-v8a** (on Apple silicon the images are arm64). Make a second one with an
    **API 26** (Android 8.0) arm64-v8a image: the oldest Android dm takes.
 3. Choose the device in the toolbar and press Run (the green triangle). Gradle runs
-   `cargoNdkDebug` first, which runs, from `desktop/`:
+   `cargoNdkDebug` first, which runs, from the repository's root:
 
    `cargo ndk --platform 26 -t arm64-v8a -o …/app/build/rustJniLibs/debug build -p dm-android --lib`
 
    The first build compiles all of dm and takes a long time (many minutes); later ones only
-   what changed, and Gradle skips the step when no file under `desktop/crates`,
-   `desktop/vendor`, `desktop/assets`, `Cargo.toml` or `Cargo.lock` changed. The processor is
+   what changed, and Gradle skips the step when no file under `crates`,
+   `vendor`, `assets`, `Cargo.toml` or `Cargo.lock` changed. The processor is
    the one of the device chosen (arm64-v8a on an Apple-silicon Mac and on phones); to build
    others, put `dm.abis=arm64-v8a,x86_64` in `~/.gradle/gradle.properties`.
 4. A phone works the same: Developer options › USB debugging on, plugged in, chosen in the
@@ -176,9 +176,9 @@ Note what broke, with the Logcat lines around it; each finding is a gaps row's n
 
 dm's phone app is Rust (`docs/decisions.md`, 2026-11-20, "dm on Android with GPUI"): the
 desktop's own window, dm-gpui's (`dm_gpui::run_app`), which starts the desktop's engine and
-`dm-shell`'s `Backend` as on a computer, run from `desktop/crates/dm-android`. GPUI has no Android platform of its makers', so dm carries one:
-`desktop/vendor/gpui-android`, gpui-mobile's Android platform at a pinned commit, moved to dm's
-`gpui-pre` 0.3.12 (gaps row N16, `desktop/vendor/README.md`). What only a phone has is reached
+`dm-shell`'s `Backend` as on a computer, run from `crates/dm-android`. GPUI has no Android platform of its makers', so dm carries one:
+`vendor/gpui-android`, gpui-mobile's Android platform at a pinned commit, moved to dm's
+`gpui-pre` 0.3.12 (gaps row N16, `vendor/README.md`). What only a phone has is reached
 through JNI. The activity is gpui-mobile's NativeActivity with two small Java classes of
 gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 
@@ -269,7 +269,7 @@ JDK 17, Gradle 8.14.3 (`gradle/wrapper/gradle-wrapper.properties`; the wrapper's
 jar are not in git, made once with `gradle wrapper --gradle-version 8.14.3`), and cargo-ndk.
 Gradle builds the Rust itself (`app/build.gradle.kts`): `cargoNdkDebug` before `preDebugBuild`
 and `cargoNdkRelease` (with `--release`) before `preReleaseBuild` run `cargo ndk --platform 26
--t <abi> -o app/build/rustJniLibs/<type> build -p dm-android --lib` from `desktop/`, into a
+-t <abi> -o app/build/rustJniLibs/<type> build -p dm-android --lib` from the repository's root, into a
 folder per build type that the build type's source set packs (so `gradle assemble`, both
 types at once, never packs one type's library in the other's APK). Its Gradle properties:
 
@@ -281,12 +281,12 @@ types at once, never packs one type's library in the other's APK). Its Gradle pr
 
 cargo is looked for on PATH, then in `CARGO_HOME/bin` and `~/.cargo/bin`; a missing cargo,
 cargo-ndk, Rust target or NDK stops the build with the command that installs it. Gradle skips the
-step when nothing under `desktop/crates` (this Gradle project aside), `desktop/vendor`,
-`desktop/assets`, `Cargo.toml`, `Cargo.lock`, `.cargo/config.toml` or `rust-toolchain.toml`
+step when nothing under `crates` (this Gradle project aside), `vendor`,
+`assets`, `Cargo.toml`, `Cargo.lock`, `.cargo/config.toml` or `rust-toolchain.toml`
 changed; cargo decides what to rebuild.
 
 ```sh
-cd desktop/crates/dm-android/android
+cd crates/dm-android/android
 gradle assembleDebug -Pdm.abis=arm64-v8a,x86_64   # app/build/outputs/apk/debug/app-debug.apk
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
@@ -294,7 +294,6 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 Or the library by hand, as CI builds it:
 
 ```sh
-cd desktop
 cargo ndk --platform 26 -t arm64-v8a -t x86_64 \
     -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release
 cd crates/dm-android/android
@@ -313,7 +312,7 @@ out unsigned (`app-release-unsigned.apk`).
 
 | Job | When | Its steps |
 |-----|------|-----------|
-| `android` | each push to main, each pull request touching `desktop/` | cargo-ndk check for arm64-v8a and x86_64; dm-android's host tests; the x86_64 library with cargo-ndk; Android 35's platform and build tools from the runner's SDK; Gradle 8.14.3, checked against its SHA-256; `gradle assembleDebug -Pdm.skipCargo=true` (the library built above; the runner's NDK as `dm.ndkVersion`); the APK kept as the artifact `dm-android-x86_64-apk` |
+| `android` | each push to main, each pull request touching `crates/` | cargo-ndk check for arm64-v8a and x86_64; dm-android's host tests; the x86_64 library with cargo-ndk; Android 35's platform and build tools from the runner's SDK; Gradle 8.14.3, checked against its SHA-256; `gradle assembleDebug -Pdm.skipCargo=true` (the library built above; the runner's NDK as `dm.ndkVersion`); the APK kept as the artifact `dm-android-x86_64-apk` |
 | `emulator` | after `android`, for API 26 and API 35 | KVM opened to the runner's user; the emulator, platform-tools and Google's x86_64 system image through `sdkmanager`; an AVD at a phone's size (1080 x 2340, 420 dpi), booted without a window, the GPU in software (SwiftShader); `scripts/android-emulator-check.sh`; what it saw kept as `dm-android-emulator-api<N>` |
 | `release` | a tag `android-v<version>`, after both above pass | the three Rust targets; the tag checked against dm-android's `Cargo.toml` and Gradle's `versionName`; the library for arm64-v8a, armeabi-v7a and x86_64 (paths remapped); platform and build tools; Gradle; dm's key from the secrets, else a notice; `gradle assembleRelease -Pdm.skipCargo=true`; `apksigner verify --print-certs`; `dm-<version>.apk` (or `dm-<version>-unsigned.apk`) and its `.sha256` attached to a draft release, never marked latest |
 
@@ -396,14 +395,14 @@ submitted. What it needs, and where dm stands:
   Java classes (gpui-mobile's, GPL-3.0-or-later), `android-activity`, `jni` and `wgpu` (MIT or
   Apache-2.0), all free. No Google Play Services, Firebase, analytics or AndroidX; the one
   Gradle plugin is the Android Gradle plugin, which F-Droid builds with. `cargo deny`
-  (`desktop/deny.toml`) already holds every crate's licence to the allowed list. Prebuilt
+  (`deny.toml`) already holds every crate's licence to the allowed list. Prebuilt
   binaries in the source are not allowed: `jniLibs/` is not in git, and dm carries none.
 - **A build recipe** (fdroiddata's `metadata/com.dm.android.yml`, written by whoever submits):
   the repository; the tag `android-v<version>` as the commit; `subdir:
-  desktop/crates/dm-android/android`; `gradle: [yes]`; the NDK by version (`ndk:`, the one the
+  crates/dm-android/android`; `gradle: [yes]`; the NDK by version (`ndk:`, the one the
   release run prints); `sudo` installing Rust 1.98.1 with rustup (with the three Android
   targets) and cargo-ndk; and a `prebuild:` running the release job's `cargo ndk … build
-  --release --locked` from `desktop/`, with `gradleprops: [dm.skipCargo=true]` so Gradle does
+  --release --locked` from the repository's root, with `gradleprops: [dm.skipCargo=true]` so Gradle does
   not build it again. `UpdateCheckMode: Tags ^android-v.*$`, which reads
   `versionName` and `versionCode` from `app/build.gradle.kts` (both literal there for that
   reason).

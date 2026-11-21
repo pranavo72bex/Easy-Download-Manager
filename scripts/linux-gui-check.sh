@@ -36,7 +36,7 @@ git ls-files -z --cached --others --exclude-standard \
           python3-gi gir1.2-gtk-3.0 \
           at-spi2-core python3-pyatspi libglib2.0-bin orca speech-dispatcher \
           haskell-status-notifier-item-utils >/dev/null
-        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        cargo build -q -p "$(basename "$DM_BINARY")"
         export DISPLAY=:77
         Xvfb :77 -screen 0 1280x800x24 >/dev/null 2>&1 &
         sleep 1

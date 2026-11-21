@@ -18,7 +18,7 @@
 #
 # CARGO_BUILD_RUSTFLAGS is build.rustflags, which Cargo leaves aside where a
 # target has rustflags of its own: the Windows target's +crt-static
-# (desktop/.cargo/config.toml) is kept, and Windows builds are as before.
+# (.cargo/config.toml) is kept, and Windows builds are as before.
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 home=${HOME:-}

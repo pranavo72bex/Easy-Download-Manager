@@ -1,6 +1,6 @@
 name: CI
 
-# The browser extension: Rust (browser/) compiled to WebAssembly, a loader
+# The browser extension: Rust (crates/dm-catcher/) compiled to WebAssembly, a loader
 # and two manifests (extension/). Its deciding parts are tested on the
 # runner; the WebAssembly is built and zipped for both browsers; and the
 # built extension is loaded into Chrome for Testing and watched handing a
@@ -26,26 +26,24 @@ jobs:
           targets: wasm32-unknown-unknown
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          workspaces: desktop
 
       - name: Test what it decides
-        working-directory: browser
+        working-directory: crates/dm-catcher
         run: cargo test
 
       # Twice: the host build sees only the deciding parts, the wasm32 build
       # the browser side as well.
       - name: Refuse warnings
-        working-directory: browser
+        working-directory: crates/dm-catcher
         run: |
           cargo clippy --all-targets -- -D warnings
           cargo clippy --target wasm32-unknown-unknown -- -D warnings
 
       - name: Check formatting
-        working-directory: browser
+        working-directory: crates/dm-catcher
         run: cargo fmt -- --check
 
-      # Installs the wasm-bindgen CLI matching desktop/Cargo.lock, builds the
+      # Installs the wasm-bindgen CLI matching Cargo.lock, builds the
       # WebAssembly, and refuses a build missing anything a manifest names or
       # carrying JavaScript other than the loader and wasm-bindgen's module.
       - name: Build both store zips
@@ -72,7 +70,6 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: desktop
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
@@ -92,8 +89,6 @@ jobs:
           toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-        with:
-          workspaces: desktop
 
       - name: Linux libraries dm links and Chrome needs
         run: |
@@ -113,7 +108,7 @@ jobs:
 
       - name: Build dm and the extension
         run: |
-          (cd desktop && cargo build -p dm-gpui)
+          cargo build -p dm-gpui
           sh scripts/package.sh
 
       - name: Load it and watch a hand-off

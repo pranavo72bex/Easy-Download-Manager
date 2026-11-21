@@ -7,7 +7,7 @@
 # Runs inside a container with no network (only loopback): the workspace
 # tests, then the stress phases that need nothing but local servers.
 set -u
-cd /work/desktop || exit 1
+cd /work || exit 1
 # Four jobs: more links at once ran Docker's 8 GB out of memory (ld killed, 2026-11-06).
 export CARGO_TARGET_DIR=/target CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
 echo "== cargo test --workspace"

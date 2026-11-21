@@ -10,10 +10,10 @@
 #   sh scripts/package.sh --build    build extension/pkg only, for loading
 #                                    extension/ unpacked
 #
-# The extension is Rust (browser/), compiled to WebAssembly, plus the page
+# The extension is Rust (crates/dm-catcher/), compiled to WebAssembly, plus the page
 # scripts and manifests in extension/. wasm-bindgen turns the build into the
 # module the background and the popup import, and its CLI must be exactly the version of the
-# wasm-bindgen crate in desktop/Cargo.lock (one workspace, browser/ in it) — a mismatch is refused at load
+# wasm-bindgen crate in Cargo.lock (one workspace, crates/dm-catcher/ in it) — a mismatch is refused at load
 # time, in the browser, with an error nobody sees — so it is checked here and
 # installed if it is missing or different.
 
@@ -56,11 +56,11 @@ if ! rustup target list --installed 2>/dev/null | grep -qx wasm32-unknown-unknow
   rustup target add wasm32-unknown-unknown
 fi
 
-[ -f "$root/desktop/Cargo.lock" ] || (cd "$root/desktop" && cargo generate-lockfile)
+[ -f "$root/Cargo.lock" ] || (cd "$root" && cargo generate-lockfile)
 wanted=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/version = |"/, ""); print; exit }' \
-  "$root/desktop/Cargo.lock")
+  "$root/Cargo.lock")
 if [ -z "$wanted" ]; then
-  echo "could not read the wasm-bindgen version from desktop/Cargo.lock" >&2
+  echo "could not read the wasm-bindgen version from Cargo.lock" >&2
   exit 1
 fi
 have=$(wasm-bindgen --version 2>/dev/null | awk '{ print $2 }' || true)
@@ -74,10 +74,10 @@ fi
 echo "building the extension (dm-catcher, wasm32)"
 # Without the building computer's paths in the WebAssembly the stores publish
 # (scripts/release-flags.sh). The workspace's `extension` profile: built for size, and a
-# panic stops it (desktop/Cargo.toml).
-(cd "$root/browser" && CARGO_BUILD_RUSTFLAGS="$(sh "$root/scripts/release-flags.sh")" \
+# panic stops it (Cargo.toml).
+(cd "$root/crates/dm-catcher" && CARGO_BUILD_RUSTFLAGS="$(sh "$root/scripts/release-flags.sh")" \
   cargo build --profile extension --target wasm32-unknown-unknown --locked)
-wasm="${CARGO_TARGET_DIR:-$root/desktop/target}/wasm32-unknown-unknown/extension/dm_catcher.wasm"
+wasm="${CARGO_TARGET_DIR:-$root/target}/wasm32-unknown-unknown/extension/dm_catcher.wasm"
 rm -rf "$pkg"
 wasm-bindgen --target web --no-typescript --out-dir "$pkg" "$wasm"
 # The panel's copy, which the background puts into a page's frame with
@@ -110,7 +110,7 @@ import base64, pathlib, sys
 pkg = pathlib.Path(sys.argv[1])
 data = base64.b64encode((pkg / "dm_catcher_bg.wasm").read_bytes()).decode()
 (pkg / "background.js").write_text(
-    "// Built by scripts/package.sh: starts the extension's background, which is Rust (browser/src)\n"
+    "// Built by scripts/package.sh: starts the extension's background, which is Rust (crates/dm-catcher/src)\n"
     + "// compiled to WebAssembly, with the WebAssembly written in here.\n"
     + "import * as dm from './dm_catcher.js';\n"
     + "const text = atob('" + data + "');\n"
@@ -121,7 +121,7 @@ data = base64.b64encode((pkg / "dm_catcher_bg.wasm").read_bytes()).decode()
     + "// For a test harness attached to the worker; nothing in the extension uses it.\n"
     + "globalThis.dmReady = Promise.resolve(dm);\n")
 (pkg / "popup.js").write_text(
-    "// Built by scripts/package.sh: starts the toolbar popup, which is Rust (browser/src/popup.rs).\n"
+    "// Built by scripts/package.sh: starts the toolbar popup, which is Rust (crates/dm-catcher/src/popup.rs).\n"
     + "import init, { popup_start } from './dm_catcher.js';\n"
     + "init().then(() => popup_start()).catch((e) => console.error('dm:', e));\n")
 PY

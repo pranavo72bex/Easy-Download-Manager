@@ -7,7 +7,7 @@ name: Edge Add-ons, upload and submit
 # that draft for review, through the Edge Add-ons publish API.
 #
 # Each submission needs a version above the listing's: bump the extension's
-# version (both manifests and browser/Cargo.toml) before running it again.
+# version (both manifests and crates/dm-catcher/Cargo.toml) before running it again.
 #
 # Secrets, from Partner Center › Microsoft Edge › Publish API:
 #   EDGE_CLIENT_ID, EDGE_API_KEY  the API credentials
@@ -45,7 +45,7 @@ jobs:
           toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
       - name: Tests
-        working-directory: browser
+        working-directory: crates/dm-catcher
         run: cargo test --locked
       - name: Build the Edge zip
         run: |

@@ -9,7 +9,7 @@
     python3 scripts/package-managers.py                    # the latest release, through gh
     python3 scripts/package-managers.py path/latest.json   # a latest.json at hand
 
-Writes, under desktop/packaging/managers/:
+Writes, under packaging/managers/:
   homebrew/easy-download-manager.rb   a Homebrew cask (both Mac dmgs)
   scoop/easy-download-manager.json    a Scoop manifest (the Windows portable zip)
   winget/<version>/*.yaml             the three winget files (the Windows setup.exe)
@@ -33,7 +33,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT = ROOT / "desktop" / "packaging" / "managers"
+OUT = ROOT / "packaging" / "managers"
 REPO = "pranavo72bex/Easy-Download-Manager"
 HOME = f"https://github.com/{REPO}"
 SUMMARY = "A download manager: many connections, resume, and a queue"

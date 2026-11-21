@@ -14,7 +14,7 @@ on:
     branches: [main]
     tags: ['desktop-v*']
   pull_request:
-    paths: ['desktop/**', 'scripts/**', '.github/workflows/desktop.yml']
+    paths: ["crates/**", "tooling/**", "assets/**", "vendor/**", "packaging/**", "Cargo.toml", "Cargo.lock", ".cargo/**", 'scripts/**', '.github/workflows/desktop.yml']
   workflow_dispatch:
 
 # Read-only by default: builds and tests run on pull requests too. Only the
@@ -27,10 +27,6 @@ permissions:
 concurrency:
   group: desktop-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-defaults:
-  run:
-    working-directory: desktop
 
 env:
   CARGO_TERM_COLOR: always
@@ -61,7 +57,6 @@ jobs:
       # than writing a copy of its own that pushes main's out.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: desktop
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
 
@@ -110,7 +105,7 @@ jobs:
       - name: Name the tests that failed or needed a retry
         if: always()
         shell: bash
-        run: python3 ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml || python ../scripts/ci-failed-tests.py target/nextest/ci/junit.xml
+        run: python3 scripts/ci-failed-tests.py target/nextest/ci/junit.xml || python scripts/ci-failed-tests.py target/nextest/ci/junit.xml
 
   coverage:
     # Line coverage of the desktop workspace, held to a floor that is only ever raised (the
@@ -126,7 +121,6 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: desktop
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
@@ -135,7 +129,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
       - name: Measure, and hold to the floor
         run: |
-          floor=$(cat ../docs/coverage-floor.txt)
+          floor=$(cat docs/coverage-floor.txt)
           cargo llvm-cov --workspace --locked --summary-only --fail-under-lines "$floor" | tee coverage.txt
       - name: Say the total in the run's summary
         if: always()
@@ -148,7 +142,6 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: .
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Shell scripts
@@ -161,7 +154,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends desktop-file-utils
-          desktop-file-validate desktop/packaging/dm.desktop
+          desktop-file-validate packaging/dm.desktop
 
   bundle:
     name: ${{ matrix.name }}
@@ -280,7 +273,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: desktop
           key: bundle-${{ matrix.artifact }}
 
       - name: Linux packaging tools
@@ -297,7 +289,7 @@ jobs:
       # CI is set on every runner, which is what tells the .dmg step to skip
       # the Finder AppleScript a headless machine cannot run.
       - name: Build the installers
-        working-directory: desktop/crates/${{ matrix.crate }}
+        working-directory: crates/${{ matrix.crate }}
         # Apple: a Developer ID certificate and an app-specific password, from
         # the repository's Actions secrets. Absent, the macOS build is
         # unsigned and Gatekeeper refuses it until someone right-clicks and
@@ -316,7 +308,7 @@ jobs:
           # Windows keeps its own target flags, which this does not replace.
           # Set, then exported: `export X="$(…)"` hides the command's failure
           # (shellcheck SC2155, which failed the packaging lint).
-          CARGO_BUILD_RUSTFLAGS="$(sh ../../../scripts/release-flags.sh)"
+          CARGO_BUILD_RUSTFLAGS="$(sh ../../scripts/release-flags.sh)"
           export CARGO_BUILD_RUSTFLAGS
           # A named target (the Intel Mac's) for the packager's own
           # beforePackagingCommand too, which has no --target: without it that
@@ -342,23 +334,21 @@ jobs:
       # --dmg). Built for the job's target, as dm.app is.
       - name: The Safari extension, in dm.app and the dmg
         if: runner.os == 'macOS'
-        working-directory: .
         shell: bash
         run: |
           CARGO_BUILD_RUSTFLAGS="$(sh scripts/release-flags.sh)"
           export CARGO_BUILD_RUSTFLAGS
           if [ -n "${{ matrix.target }}" ]; then export CARGO_BUILD_TARGET=${{ matrix.target }}; fi
-          dmg=$(find desktop/target/release/bundle -maxdepth 1 -name '*.dmg' | head -1)
+          dmg=$(find target/release/bundle -maxdepth 1 -name '*.dmg' | head -1)
           test -n "$dmg"
-          sh scripts/safari-extension.sh desktop/target/release/bundle/dm.app --dmg "$dmg"
-          program="desktop/target/release/bundle/dm.app/Contents/PlugIns/dm Safari Extension.appex/Contents/MacOS/dm-safari"
+          sh scripts/safari-extension.sh target/release/bundle/dm.app --dmg "$dmg"
+          program="target/release/bundle/dm.app/Contents/PlugIns/dm Safari Extension.appex/Contents/MacOS/dm-safari"
           found=$(strings "$program" | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
           echo "paths of this runner in dm-safari: $found"
           test "$found" = 0
 
       - name: No build paths in what ships
         if: runner.os != 'Windows'
-        working-directory: desktop
         shell: bash
         run: |
           found=$(strings "$OUT/${{ matrix.crate }}" | grep -c -e "$HOME" -e "$GITHUB_WORKSPACE" || true)
@@ -370,23 +360,21 @@ jobs:
       # (a profile changed, a crate added by mistake), anything less is only
       # said, in the log and in the run's summary.
       - name: The binary's size
-        working-directory: .
         shell: bash
         run: |
-          binary="desktop/$OUT/${{ matrix.crate }}"
+          binary="$OUT/${{ matrix.crate }}"
           if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
           py=python3; command -v python3 >/dev/null || py=python
           # A cross build is held to its own system's size, not the runner's.
           "$py" scripts/binary-size.py "$binary" ${{ matrix.size-key && format('--as={0}', matrix.size-key) || '' }} | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Fedora, openSUSE and their kin: the same binary, laid out as the
-      # Arch package is (desktop/packaging/nfpm.yaml).
+      # Arch package is (packaging/nfpm.yaml).
       - name: The rpm
         if: runner.os == 'Linux'
-        working-directory: .
         run: |
-          version=$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/crates/${{ matrix.crate }}/Cargo.toml | head -1)
-          sh scripts/linux/nfpm.sh desktop/target/release/${{ matrix.crate }} "$version" desktop/target/release/bundle
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/${{ matrix.crate }}/Cargo.toml | head -1)
+          sh scripts/linux/nfpm.sh target/release/${{ matrix.crate }} "$version" target/release/bundle
 
       # cargo-packager names the .deb, the AppImage and the Windows installer
       # after the binary (dm-gpui_…) and only the .dmg after the
@@ -396,7 +384,7 @@ jobs:
       - name: Name the installers dm
         shell: bash
         # The packager's outDir, the same for a named target (the Intel Mac's).
-        working-directory: desktop/target/release/bundle
+        working-directory: target/release/bundle
         run: |
           for f in ${{ matrix.crate }}_*; do
             [ -e "$f" ] || continue
@@ -413,30 +401,29 @@ jobs:
       - name: The portable zip
         if: runner.os == 'Windows'
         shell: pwsh
-        working-directory: .
         run: |
-          $version = (Select-String -Path desktop/crates/${{ matrix.crate }}/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          $version = (Select-String -Path crates/${{ matrix.crate }}/Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
           $arch = if ('${{ matrix.target }}' -like 'aarch64-*') { 'arm64' } else { 'x64' }
-          $dir = Join-Path desktop/target/release/bundle "dm_${version}_${arch}-portable"
+          $dir = Join-Path target/release/bundle "dm_${version}_${arch}-portable"
           New-Item -ItemType Directory -Path $dir | Out-Null
-          Copy-Item "desktop/$env:OUT/${{ matrix.crate }}.exe" $dir
+          Copy-Item "$env:OUT/${{ matrix.crate }}.exe" $dir
           New-Item -ItemType File -Path (Join-Path $dir 'portable') | Out-Null
-          Copy-Item desktop/packaging/portable-readme.txt (Join-Path $dir 'README.txt')
+          Copy-Item packaging/portable-readme.txt (Join-Path $dir 'README.txt')
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
           Remove-Item -Recurse $dir
-          Get-ChildItem desktop/target/release/bundle
+          Get-ChildItem target/release/bundle
 
       - name: Keep the installers
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-${{ matrix.artifact }}
           path: |
-            desktop/target/release/bundle/*.deb
-            desktop/target/release/bundle/*.rpm
-            desktop/target/release/bundle/*.AppImage
-            desktop/target/release/bundle/*-setup.exe
-            desktop/target/release/bundle/*-portable.zip
-            desktop/target/release/bundle/*.dmg
+            target/release/bundle/*.deb
+            target/release/bundle/*.rpm
+            target/release/bundle/*.AppImage
+            target/release/bundle/*-setup.exe
+            target/release/bundle/*-portable.zip
+            target/release/bundle/*.dmg
           if-no-files-found: error
 
   installed:
@@ -464,7 +451,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        working-directory: .
         shell: bash
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -592,7 +578,6 @@ jobs:
           toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
       - name: Build the Chrome and Firefox zips
-        working-directory: .
         run: sh scripts/package.sh
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -621,7 +606,6 @@ jobs:
       # installer for its machine is: dm downloads it as any other download
       # when the person asks, and they open it. Nothing installs itself.
       - name: The update manifest
-        working-directory: .
         run: |
           version="${GITHUB_REF_NAME#desktop-v}"
           base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
@@ -649,10 +633,9 @@ jobs:
         with:
           toolchain: 1.98.1 # as rust-toolchain.toml
       - name: Sign the update manifest
-        working-directory: desktop
         env:
           DM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
-        run: cargo xtask sign-manifest ../installers/latest.json
+        run: cargo xtask sign-manifest installers/latest.json
 
       # What the release is built from and that its files are the ones published
       # (gaps row W21): `crates.txt`, every crate and version in the app and the
@@ -663,13 +646,12 @@ jobs:
       # (`cargo xtask verify-release`, docs/RELEASING.md). Fails without the secret
       # as the step above does.
       - name: The crate list and the signed digests
-        working-directory: desktop
         env:
           DM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
         run: |
-          cargo xtask crates-list ../installers/crates.txt
-          cargo xtask sign-release ../installers
-          cargo xtask verify-release ../installers
+          cargo xtask crates-list installers/crates.txt
+          cargo xtask sign-release installers
+          cargo xtask verify-release installers
 
       - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
@@ -696,14 +678,13 @@ jobs:
       # with pacman, and the installed dm asked to answer a hand-off. The
       # same script `scripts/arch-check.sh` runs locally.
       - name: Build, check and install the Arch package from this checkout
-        working-directory: .
         run: sh scripts/arch/inside.sh
 
       # A tag also builds the package the way an AUR user would, from the
       # tag's GitHub archive.
       - name: Build the release package from the tag's archive
         if: startsWith(github.ref, 'refs/tags/desktop-v')
-        working-directory: desktop/packaging
+        working-directory: packaging
         run: |
           version="${GITHUB_REF_NAME#desktop-v}"
           # The digest in the PKGBUILD is the last release's, pinned once its
@@ -723,5 +704,5 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-arch-package
-          path: desktop/packaging/*.pkg.tar.zst
+          path: packaging/*.pkg.tar.zst
           if-no-files-found: error

@@ -15,7 +15,7 @@ make doctor || true
 
 echo
 echo "== dm's own JavaScript (dm-js, gaps row F15)"
-(cd desktop && cargo test -p dm-js)
+cargo test -p dm-js
 
 echo
 echo "== the client, without a desktop tray host"

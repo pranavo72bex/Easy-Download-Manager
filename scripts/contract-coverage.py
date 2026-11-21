@@ -15,15 +15,15 @@ that promise is three parts, each measured with its own tests and each held, fil
 to the floor in docs/contract-coverage-floor.txt (95% of lines, the maintainer's, 2026-11-15):
 
   * dm-protocol, the frames both sides read and write, the catch rule and the panel's list
-    (desktop/crates/dm-protocol, its unit tests and tests/wire.rs against every released
+    (crates/dm-protocol, its unit tests and tests/wire.rs against every released
     extension's frozen frames);
-  * the extension's deciding parts (browser/, everything compiled for the host; the browser
+  * the extension's deciding parts (crates/dm-catcher/, everything compiled for the host; the browser
     side is WebAssembly and is driven by scripts/chrome-check.py instead);
-  * the native host that answers the extension (desktop/crates/dm-shell/src/host*).
+  * the native host that answers the extension (crates/dm-shell/src/host*).
 
 A file under the floor fails the run, naming the file and its lines not run, so code added
 untested to the contract shows before a merge. Test helpers shared between crates
-(desktop/crates/dm-test-support) are not the contract and are not counted. Needs cargo-llvm-cov.
+(crates/dm-test-support) are not the contract and are not counted. Needs cargo-llvm-cov.
 Standard library only.
 """
 import json, os, pathlib, subprocess, sys
@@ -40,9 +40,9 @@ FLOOR_FILE = ROOT / "docs" / "contract-coverage-floor.txt"
 
 # (what it is, the directory cargo runs in, its arguments, which files count)
 PARTS = [
-    ("dm-protocol", ROOT / "desktop", ["-p", "dm-protocol"], "/crates/dm-protocol/src/"),
-    ("extension", ROOT / "desktop", ["-p", "dm-catcher"], "/browser/src/"),
-    ("native host", ROOT / "desktop", ["-p", "dm-shell"], "/crates/dm-shell/src/host"),
+    ("dm-protocol", ROOT, ["-p", "dm-protocol"], "/crates/dm-protocol/src/"),
+    ("extension", ROOT, ["-p", "dm-catcher"], "/crates/dm-catcher/src/"),
+    ("native host", ROOT, ["-p", "dm-shell"], "/crates/dm-shell/src/host"),
 ]
 NOT_COUNTED = ("/dm-test-support/", "/tests/", "tests.rs", "_tests.rs")
 

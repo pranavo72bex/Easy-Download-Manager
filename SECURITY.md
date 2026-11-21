@@ -38,4 +38,4 @@ expected, not a vulnerability.
 
 `cargo audit` runs on every change and weekly (`.github/workflows/audit.yml`).
 Advisories that were looked at and are unreachable in dm are listed in
-`desktop/.cargo/audit.toml`, each with the reason.
+`.cargo/audit.toml`, each with the reason.

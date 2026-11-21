@@ -2,7 +2,7 @@
 
 Phase 1 of the UI-independent refactor (branch `ui-independent-architecture`,
 at `f9d071d`). I read the code and docs only: I built nothing and ran nothing.
-Paths are relative to `desktop/crates/` unless they start with `docs/` or
+Paths are relative to `crates/` unless they start with `docs/` or
 `scripts/`. Line numbers are as of `f9d071d`. A record of that day: much of
 what it lists as in the window has moved since (ARCHITECTURE.md says where
 things are now; `docs/migration/CURRENT_UI_ARCHITECTURE.md` is the audit of
@@ -20,7 +20,7 @@ proposed here may change a row.
 | `dm-core` | The engine and the queue: probe, plan, ranged/HLS/DASH/FTP/torrent/live fetch, muxers, persistence | none | no GUI (`xtask/src/main.rs:324`) |
 | `dm-shell` | Everything around the window: settings, native host and inbox, startup, single-instance lock, lists and crawler, registration, dial-up | dm-core, dm-protocol | no GUI (`xtask/src/main.rs:326`) |
 | `dm-desktop` | The egui window, tray, login item, notifications, control protocol, MCP, CLI | dm-core, dm-protocol, dm-shell | may use GUI (`xtask/src/main.rs:327`) |
-| `dm-catcher` (`browser/`) | The extension (WebAssembly) | dm-protocol | no GUI, no sockets (`xtask/src/main.rs:329`) |
+| `dm-catcher` (`crates/dm-catcher/`) | The extension (WebAssembly) | dm-protocol | no GUI, no sockets (`xtask/src/main.rs:329`) |
 
 `layers()` checks only the edges between crates and the GUI and socket
 crates each one may use (GUI list at `xtask/src/main.rs:286-295`). It refuses

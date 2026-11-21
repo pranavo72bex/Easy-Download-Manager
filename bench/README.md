@@ -30,7 +30,7 @@ Use a release build. The baseline was measured against one, and a debug build is
 slower.
 
 ```sh
-cd desktop && cargo build --release -p dm-gpui      # the window dm ships, on every system
+cargo build --release -p dm-gpui      # the window dm ships, on every system
 cd ..
 node bench/bench.mjs                                 # idle fast per_conn flaky outage batch big40 ceiling
 node bench/compare.mjs                               # judges the newest folder in bench/results
@@ -250,7 +250,7 @@ in `docs/gaps.md` (171, 175 to 177):
 ## Changing the baseline: never
 
 `cargo test --workspace` fails when `reference-a-baseline.json` differs by a byte from what was
-frozen (`desktop/xtask/src/baseline.rs`, `the_reference_a_baseline_never_changes`), and
+frozen (`tooling/xtask/src/baseline.rs`, `the_reference_a_baseline_never_changes`), and
 `compare.mjs` refuses to judge against a changed one. Both pin its SHA-256
 (`113366e4f1b8c4c1fca96c4285fcbfd706f6d72a7b8cc67fcb88b75447f568f8`, with `\n` line endings).
 

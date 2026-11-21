@@ -10,7 +10,7 @@
 #   sh scripts/linux/nfpm.sh BINARY VERSION OUTDIR
 #
 # Used by the release workflow and by scripts/rpm-check.sh. The package's
-# layout is desktop/packaging/nfpm.yaml.
+# layout is packaging/nfpm.yaml.
 set -eu
 # Absolute, since the script changes directory below.
 BINARY=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
@@ -36,10 +36,10 @@ cd "$(dirname "$0")/../.."
 # nfpm reads the binary from where nfpm.yaml says; it does not expand
 # variables in a source path.
 # A folder of its own, so the release build beside it is left alone.
-mkdir -p desktop/target/release/nfpm
-if ! cmp -s "$BINARY" desktop/target/release/nfpm/dm; then
-  cp "$BINARY" desktop/target/release/nfpm/dm
+mkdir -p target/release/nfpm
+if ! cmp -s "$BINARY" target/release/nfpm/dm; then
+  cp "$BINARY" target/release/nfpm/dm
 fi
 mkdir -p "$OUT"
-VERSION=$VERSION ARCH=$arch "$TOOLS/nfpm" package -f desktop/packaging/nfpm.yaml -p rpm -t "$OUT/"
+VERSION=$VERSION ARCH=$arch "$TOOLS/nfpm" package -f packaging/nfpm.yaml -p rpm -t "$OUT/"
 ls -la "$OUT"/*.rpm

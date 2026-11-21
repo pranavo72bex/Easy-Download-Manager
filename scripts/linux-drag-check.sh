@@ -33,7 +33,7 @@ git ls-files -z --cached --others --exclude-standard \
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends openbox xdotool wmctrl dbus-x11 xz-utils bzip2 \
           libasound2 libdbus-glib-1-2 libx11-xcb1 libpci3 libgtk-3-0 imagemagick >/dev/null
-        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        cargo build -q -p "$(basename "$DM_BINARY")"
         export DISPLAY=:79
         Xvfb :79 -screen 0 1280x800x24 >/dev/null 2>&1 &
         sleep 1

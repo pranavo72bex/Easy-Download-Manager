@@ -55,7 +55,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
 MIN_FREE_GB = float(os.environ.get("DM_STRESS_MIN_FREE_GB", "8"))
 MAX_SERVE_GB = float(os.environ.get("DM_STRESS_MAX_SERVE_GB", "3"))     # per phase
 MB = 1024 * 1024
@@ -1718,7 +1718,7 @@ def p_frame(ctx):
         drawing = (dm.call("ui.frames").get("result") or {}).get("drawing")
         if drawing is None:
             finding("info", "frame", "skipped: a frame's costs are counted by a debug build only "
-                                     "(DM_BINARY=desktop/target/debug/dm-gpui)")
+                                     "(DM_BINARY=target/debug/dm-gpui)")
             return
         dm.add([f"{base}/f/fd{i}/1024/fd{i}.bin" for i in range(500)])
         finished = wait_for(lambda: states(dm.rows()).get("completed", 0) == 500, 120, every=1)
@@ -2915,7 +2915,7 @@ def main():
         return
     names = [a for a in args if not a.startswith("-")] or [k for k in PHASES if k not in LONG]
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: (cd desktop && cargo build -p dm-gpui)")
+        sys.exit(f"no dm at {BINARY}: cargo build -p dm-gpui")
     root = pathlib.Path(tempfile.mkdtemp(prefix="dm-stress-"))
     server, base = start_server()
     ctx = {"root": root, "base": base, "server": server}

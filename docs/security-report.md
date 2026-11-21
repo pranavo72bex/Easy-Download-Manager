@@ -22,7 +22,7 @@ the one that counts for L3.
 
 
 Authorized black-box + source review. Target: this repository
-(branch its file), debug build `desktop/target/debug/dm-desktop` (dm 0.8.4).
+(branch its file), debug build `target/debug/dm-desktop` (dm 0.8.4).
 All testing on 127.0.0.1 against local servers; download_dir pointed at a temp folder
 (`scratchpad/pentest/downloads`); DM_HOME = `scratchpad/pentest/dmhome`.
 DoS/resource-exhaustion out of scope and not reported.
@@ -43,7 +43,7 @@ all confirmed safe by live testing.
 ## Findings
 
 ### M1 — SSRF: redirects to loopback / link-local / private addresses are followed (Medium, high confidence)
-**What.** `redirect_policy` (`desktop/crates/dm-core/src/lib.rs:525`) restricts only https->http
+**What.** `redirect_policy` (`crates/dm-core/src/lib.rs:525`) restricts only https->http
 downgrades and the redirect count (<=10). It does not restrict the destination IP. A download
 from an attacker URL that returns 3xx Location to an internal address makes dm connect there (GET).
 
@@ -177,7 +177,7 @@ release — arbitrary downloads are never auto-extracted. Torrent/metalink names
 - Declared 5, sent 50: saved exactly 5 bytes, extra ignored. No overflow.
 
 ### S11 — Dependency audit: clean
-cargo audit (1386 advisories): desktop/ (807 deps) exit 0, no vulns/warnings; browser/ (72 deps) exit 0,
+cargo audit (1386 advisories): desktop/ (807 deps) exit 0, no vulns/warnings; crates/dm-catcher/ (72 deps) exit 0,
 clean. Evidence: `evidence/cargo_audit_desktop.txt`, `evidence/cargo_audit_browser.txt`.
 
 ---

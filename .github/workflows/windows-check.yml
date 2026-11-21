@@ -29,21 +29,19 @@ jobs:
         with:
           toolchain: 1.98.1 # as rust-toolchain.toml
       - name: dm
-        working-directory: desktop
         # The runner has no graphics driver: GPUI draws through Direct3D 11
         # on Windows' own software adapter (WARP), which needs nothing beside
         # the program (docs/decisions.md, 2026-11-11).
         run: cargo build --release -p dm-gpui --locked
       - name: app-check
         env:
-          DM_BINARY: ${{ github.workspace }}\desktop\target\release\dm-gpui.exe
+          DM_BINARY: ${{ github.workspace }}\target\release\dm-gpui.exe
           PYTHONUNBUFFERED: "1"
         run: python scripts/app-check.py
       - name: YouTube read by dm's own JavaScript alone
         # dm-js (gaps row F15), with Windows' own Chakra kept out (DM_JS_ONLY): live
         # videos read and the first kilobyte of each chosen stream asked for, as a download
         # asks it.
-        working-directory: desktop
         env:
           DM_JS_ONLY: "1"
           DM_FETCH_FIRST: "1"

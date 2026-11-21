@@ -8,7 +8,7 @@ Everything not met is a row in [gaps.md](gaps.md), rows 180 to 192, each marked 
 spec §N)". Linux and Windows were audited from the code and the docs only. A measurement on
 them is owed to the final Linux pass or to the Windows laptop.
 
-Paths are under `desktop/crates/` unless they say otherwise. `g/` is `dm-gpui/src`, `s/` is
+Paths are under `crates/` unless they say otherwise. `g/` is `dm-gpui/src`, `s/` is
 `dm-shell/src`, `b/` is `dm-desktop-base/src` and `c/` is `dm-core/src`.
 
 ## §2 Architecture
@@ -18,7 +18,7 @@ engine (`dm-core`) and the application layer (`dm-shell`) are already apart from
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
-| GPUI only in the presentation; the engine and app core never depend on it (rule 1) | MET | `cargo xtask layers` (`desktop/xtask/src/main.rs:287-345`) refuses any GUI crate in `dm-protocol`, `dm-core`, `dm-shell` and `dm-desktop-base`, GPUI included under all four of its names. It runs in `cargo test --workspace` (`xtask/src/main.rs:729`) and in CI (`.github/workflows/desktop.yml:87`) |
+| GPUI only in the presentation; the engine and app core never depend on it (rule 1) | MET | `cargo xtask layers` (`tooling/xtask/src/main.rs:287-345`) refuses any GUI crate in `dm-protocol`, `dm-core`, `dm-shell` and `dm-desktop-base`, GPUI included under all four of its names. It runs in `cargo test --workspace` (`xtask/src/main.rs:729`) and in CI (`.github/workflows/desktop.yml:87`) |
 | No `cfg(target_os)` in shared logic unless genuinely platform-specific (rule 2) | MET | About 102 lines in `dm-core` and 57 in `dm-shell`. They are OS bindings: the keychain and credential store (`c/secretstore.rs`), the system's JavaScript engine (`c/javascript.rs`), free space and FAT32 (`c/download/space.rs`), network interfaces (`c/second_path.rs`), the registry or manifest files of a browser host (`s/register.rs`), Windows' RAS (`s/dialup.rs`) and the system's openers (`s/shell.rs`) |
 | Platform code behind small documented adapter interfaces (rule 3) | MET | `s/app/platform.rs:14` `trait Platform`: notifications, clipboard, reveal and open, trash, sounds, power, file choosers. `b/desktop.rs` implements it. `docs/architecture/MODULE_BOUNDARIES.md` says what may call what |
 | UI state is never the source of truth for downloads (rule 4) | MET | The window reads snapshots that it shares with the queue (`s/app/backend.rs:84-96`, `Vec<Arc<Entry>>`). It owns only its view state (MODULE_BOUNDARIES.md, "State has one owner") |
@@ -179,12 +179,12 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
-| Evaluate `opt-level`, thin vs fat LTO, `codegen-units`, strip and `panic = "abort"`; keep separate debug symbols; measure startup, throughput, memory and binary size | PARTLY (row 189) | `desktop/Cargo.toml:16-45` sets `"z"` with `dm-core` and the CPU-bound crates at 3, fat LTO, `codegen-units = 1` and `strip = true`. That was measured on 2026-11-06 for the egui window (`docs/decisions.md`, "Release profile"). It has not been measured again for `dm-gpui`, and its overrides still name `egui` and `epaint`. Thin LTO has never been measured on macOS (on Linux in Docker, fat LTO's link ran out of 7.6 GB, G8). No debug symbols are kept for a release build. `panic = "abort"` was turned down for the egui tray's `catch_unwind` (`dm-desktop/src/tray.rs:152`), which `dm-gpui` does not have. dm has no crash reporting by rule (AGENTS.md rule 6), so the trade-off is tokio's per-task panic isolation against size |
+| Evaluate `opt-level`, thin vs fat LTO, `codegen-units`, strip and `panic = "abort"`; keep separate debug symbols; measure startup, throughput, memory and binary size | PARTLY (row 189) | `Cargo.toml:16-45` sets `"z"` with `dm-core` and the CPU-bound crates at 3, fat LTO, `codegen-units = 1` and `strip = true`. That was measured on 2026-11-06 for the egui window (`docs/decisions.md`, "Release profile"). It has not been measured again for `dm-gpui`, and its overrides still name `egui` and `epaint`. Thin LTO has never been measured on macOS (on Linux in Docker, fat LTO's link ran out of 7.6 GB, G8). No debug symbols are kept for a release build. `panic = "abort"` was turned down for the egui tray's `catch_unwind` (`dm-desktop/src/tray.rs:152`), which `dm-gpui` does not have. dm has no crash reporting by rule (AGENTS.md rule 6), so the trade-off is tokio's per-task panic isolation against size |
 | Fast incremental dev builds | MET | The default dev profile. CI uses `line-tables-only` (`desktop.yml`, env) |
 | Reproducible profiling builds | NOT MET (row 189) | No `[profile.profiling]` (release with debug info) exists |
 | Record compiler version, target triple, features and dependency revisions with benchmark results | NOT MET (row 188) | `bench.mjs` records the OS, CPU, memory, Node and the binary's size and date (`bench/bench.mjs:386-395`). It does not record the commit, rustc, the target, the profile, the GPU or the display scale |
-| Pin GPUI to a known revision | MET | `gpui = { package = "gpui-pre", version = "=0.3.12" }`, `gpui-component = "=0.9.1"` (`g/Cargo.toml`). One patched copy is vendored (`desktop/vendor/gpui-pre-linux`) |
-| Commit Cargo.lock; no floating git branches | MET | `desktop/Cargo.lock` and `browser/Cargo.lock` are tracked, and every source is the registry (no `source = "git`). CI builds with `--locked` |
+| Pin GPUI to a known revision | MET | `gpui = { package = "gpui-pre", version = "=0.3.12" }`, `gpui-component = "=0.9.1"` (`g/Cargo.toml`). One patched copy is vendored (`vendor/gpui-pre-linux`) |
+| Commit Cargo.lock; no floating git branches | MET | `Cargo.lock` and `crates/dm-catcher/Cargo.lock` are tracked, and every source is the registry (no `source = "git`). CI builds with `--locked` |
 | Review unnecessary default features | MET | `reqwest`, `tokio-rustls`, `librqbit`, `zip`, `tray-icon`, `image`, `eframe` and `objc2-*` are built with `default-features = false`. GPUI keeps its four defaults (font-kit, wayland, x11, windows-manifest), which dm uses |
 | Track each dependency's compile time and binary-size contribution | NOT MET (row 190) | No `cargo bloat` or `--timings` record is kept |
 | Update dependencies in controlled batches | MET | Dependabot, weekly, at most 5 pull requests per ecosystem (`.github/dependabot.yml`) |
@@ -194,7 +194,7 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 | Tool | Verdict | Evidence |
 |---|---|---|
 | clippy, rustfmt | MET | `desktop.yml:72`, `:84`; `ci.yml:41-46` (the extension) |
-| cargo audit | MET | `.github/workflows/audit.yml:35`, with each ignored advisory explained (`desktop/.cargo/audit.toml`) |
+| cargo audit | MET | `.github/workflows/audit.yml:35`, with each ignored advisory explained (`.cargo/audit.toml`) |
 | cargo deny | NOT MET (row 190) | There is no `deny.toml`. It was left as "the maintainer's to write" (BUGLOG.md:461), and the spec now asks for it |
 | cargo nextest | MET | `desktop.yml:106` |
 | cargo llvm-cov | MET | `desktop.yml:135-141`, against `docs/coverage-floor.txt` |
@@ -227,13 +227,13 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 
 These numbers come from an Apple M1 (8 cores, 16 GB) on macOS 27.0.1, with the built-in Retina
 display (2560 × 1600, scale 2), and the release `dm-gpui` built from `5b03929f` with the profile in
-`desktop/Cargo.toml` (19,868,544 bytes, rustc 1.98.1, `aarch64-apple-darwin`). They were taken on
+`Cargo.toml` (19,868,544 bytes, rustc 1.98.1, `aarch64-apple-darwin`). They were taken on
 2026-11-11 **while another track was building and benchmarking the engine on the same computer**, so
 treat them as upper bounds. Commands:
 
-- `python3 scripts/ui-bench.py --rows 100,10000 --runs 3 --idle 30 desktop/target/release/dm-gpui`
+- `python3 scripts/ui-bench.py --rows 100,10000 --runs 3 --idle 30 target/release/dm-gpui`
   (medians of 3; the rows are queued for later, against a local server)
-- `DM_BINARY=desktop/target/release/dm-gpui python3 scripts/stress-check.py window`
+- `DM_BINARY=target/release/dm-gpui python3 scripts/stress-check.py window`
 
 | Rows | Start to first frame | Idle CPU | Resident | Footprint | Scroll (one, through the control port) | CPU, 20 downloads at 1 MB/s |
 |---|---|---|---|---|---|---|

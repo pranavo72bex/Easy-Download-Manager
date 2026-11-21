@@ -1,0 +1,24 @@
+[package]
+name = "dm-torrent"
+version = "0.10.0"
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (deny.toml).
+publish = false
+
+# BitTorrent's engine behind dm's own words (gaps rows A6, P3): the one crate that names
+# librqbit, so dm-core speaks of a session, a torrent and its stats, and the library can be
+# replaced piece by piece behind them. None of dm's other crates.
+[dependencies]
+# rustls to match reqwest, so the binary carries one TLS stack rather than two; in the
+# vendored copy `rust-tls` means ring and the pure-Rust SHA-1, so no second crypto library
+# (aws-lc, built in C with cmake) and no axum come with it (vendor/README.md).
+librqbit.workspace = true
+# A .torrent's bytes, handed to the library without a copy.
+bytes.workspace = true
+# The token that shuts a session down, which dm-core also keeps for a shared torrent.
+tokio-util.workspace = true
+
+[lints]
+workspace = true

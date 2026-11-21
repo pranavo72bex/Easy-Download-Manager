@@ -19,7 +19,7 @@ difference is a row in `docs/gaps.md`.
   video, the person's own upload.
 * A stream protected by a DRM system (Widevine, PlayReady, FairPlay; most paid course platforms
   and paid music) is refused by both apps, which decrypt none; dm says so in words (row 131,
-  `browser/src/decide/protection.rs`). That is the expected result there, not a gap.
+  `crates/dm-catcher/src/decide/protection.rs`). That is the expected result there, not a gap.
 * A site that is gone, or answers an automated browser with a challenge, is written down as that.
 
 **How dm gets it**, in the tables: *panel* is the button over a playing video, from the

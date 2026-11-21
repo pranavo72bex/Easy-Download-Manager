@@ -20,7 +20,7 @@ The run fails if any row of the contract was not checked, so the list is
 gone through whole every time; a row the script cannot reach on this
 computer (no Edge, no network) is a failure, not a skip.
 
-Needs a debug build (`cd desktop && cargo build -p dm-gpui`), the
+Needs a debug build (`cargo build -p dm-gpui`), the
 extension (`sh scripts/package.sh`) and Microsoft Edge. DM_BINARY and
 DM_QA_EDGE name others. The download folder and dm's home are made under
 /tmp/dm-human-qa and removed at the end. Standard library only.
@@ -49,9 +49,9 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONTRACT = ROOT / "docs" / "behaviour-contract.md"
 BASELINE = ROOT / "docs" / "behaviour-baseline"
-# The window dm ships, on every system: GPUI (desktop/crates/dm-gpui).
+# The window dm ships, on every system: GPUI (crates/dm-gpui).
 SHIPPED = "dm-gpui"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug"
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug"
                       / (SHIPPED + (".exe" if sys.platform == "win32" else "")))
 # One set of pictures for each system whose fonts and window frames differ.
 BASELINE_SET = BASELINE / "gpui" / {"win32": "windows", "linux": "linux"}.get(sys.platform, "macos")
@@ -1513,7 +1513,7 @@ def walk(dm, origin):
     # B52: the tray's Speed menu has Settings…, which the tray cannot be driven
     # here to click: its menu is built from the same command as Downloads ›
     # Speed limiter › Settings…, which a person tries by hand in the tray.
-    tray_src = (ROOT / "desktop" / "crates" / SHIPPED / "src" / "platform" / "tray.rs").read_text(encoding="utf-8")
+    tray_src = (ROOT / "crates" / SHIPPED / "src" / "platform" / "tray.rs").read_text(encoding="utf-8")
     check("B52", "the tray's Speed menu is built with the limiter's Settings… command",
           "Command::SpeedLimiterSettings" in tray_src, "tray.rs does not name the command")
 
@@ -2617,7 +2617,7 @@ def told_list(dm, origin):
 
 def main():
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
+        sys.exit(f"no dm at {BINARY}: cargo build -p {SHIPPED}")
     rows = re.findall(r"^\| (B\d\d) \|", CONTRACT.read_text(encoding="utf-8"), re.M)
     shutil.rmtree(WORK, ignore_errors=True)
     home = WORK / "home"

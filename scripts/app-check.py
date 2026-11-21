@@ -34,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Where cargo put the client: its own target directory unless one was named.
-TARGET = pathlib.Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else ROOT / "desktop" / "target"
+TARGET = pathlib.Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else ROOT / "target"
 # The window dm ships, on every system: GPUI (docs/gaps.md G9).
 CLIENT = "dm-gpui"
 EXE = CLIENT + (".exe" if WINDOWS else "")
@@ -324,7 +324,7 @@ def main():
     print("building the client")
     cargo = shutil.which("cargo") or str(pathlib.Path.home() / ".cargo" / "bin" / "cargo")
     if not os.environ.get("DM_BINARY"):
-        subprocess.run([cargo, "build", "-p", CLIENT], cwd=ROOT / "desktop", check=True,
+        subprocess.run([cargo, "build", "-p", CLIENT], cwd=ROOT, check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     global HOME

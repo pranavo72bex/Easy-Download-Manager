@@ -1,0 +1,126 @@
+[package]
+name = "dm-core"
+version = "0.10.0"
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (deny.toml).
+publish = false
+
+[dependencies]
+# dm's own media code: the muxers, the MP3 and GIF encoders, the decoders (gaps row A6).
+dm-media.workspace = true
+# dm's network: the HTTP client, proxies, sign-ins, cookies, the stop flag, `Error` (gaps row A6).
+dm-net.workspace = true
+# Already in the tree through reqwest; named for its chunk type.
+bytes.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process", "net"] }
+# rustls rather than the system OpenSSL: a download manager that fails to
+# build on a machine without libssl headers is one nobody can package.
+# `socks`, or a SOCKS proxy in the settings failed every HTTP download with
+# "unsupported scheme".
+# 0.13, as the torrent library has it, so one reqwest is built; its TLS is
+# handed the same rustls set-up as the stream protocols (`tls_backend`):
+# ring and the public roots, as 0.12's `rustls-tls` had it.
+reqwest.workspace = true
+# FTP through a SOCKS proxy: the handshake, after which the connection is a
+# plain one. HTTP CONNECT is a few lines and is written here.
+tokio-socks.workspace = true
+# rtmps:// streams (rtmp.rs): TLS as reqwest has it, its set-up dm-net's (`tls_config`).
+tokio-rustls.workspace = true
+# rtsp:// streams (rtsp.rs): RTSP, RTP and the H.264, H.265 and AAC
+# depacketizers, which every camera and media server speaks.
+retina.workspace = true
+# The `Proxy-Authorization` an HTTP CONNECT to a proxy with a login carries.
+base64.workspace = true
+futures-util.workspace = true
+thiserror.workspace = true
+# The queue's rows and the engine's types are saved and sent as JSON (the
+# queue file, the control port): derived here, beside the types, rather than
+# copied into each crate that sends them.
+serde = { workspace = true, features = ["derive", "rc"] }
+# The queue is written to disk so a restart does not lose it.
+serde_json.workspace = true
+# Already in the tree via reqwest's url dependency; named so the hand-rolled
+# byte-scanner it replaces cannot come back.
+percent-encoding.workspace = true
+sha2.workspace = true
+md-5.workspace = true
+# SHA-1 digests a person checks a file against (`checksum.rs`); already in the build through
+# the torrent engine, which names torrents by it.
+sha1.workspace = true
+# CRC-32 digests the same way; already in the build through flate2 and png.
+crc32fast.workspace = true
+# Unpredictable bytes: the secrets' file's key, a retry's jitter.
+getrandom.workspace = true
+quick-xml.workspace = true
+url.workspace = true
+aes.workspace = true
+cbc.workspace = true
+# Seals the file of a row's secrets under a key the operating system's store keeps (`secretstore.rs`).
+chacha20poly1305.workspace = true
+# BitTorrent, the one kind of download the browser side cannot do at all: an
+# extension has no sockets. Its engine (librqbit) behind dm's own words (gaps rows A6, P3).
+dm-torrent.workspace = true
+tokio-util.workspace = true
+dirs.workspace = true
+zip.workspace = true
+
+# A .tar.gz extracted (`extract/tar.rs`), a zip's entries read (`zipinfo.rs`).
+flate2.workspace = true
+
+# Calls into the C library that std does not wrap. Already in the tree through tokio.
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+# The free space on a disk, so a file too large for it is refused at the
+# start. Already in the tree through tokio and others; only its
+# file-system module is named.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Credentials", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_LibraryLoader", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+dm-test-support.workspace = true
+# The small MP4 and WebM files dm-media makes for tests (`mp4mux::testing`).
+dm-media = { workspace = true, features = ["testing"] }
+# The torrent tests' own seeding peer, and the .torrent files they make.
+librqbit.workspace = true
+# Random and hostile input for the readers of outside data (tests/fuzz.rs),
+# on stable Rust inside cargo test.
+proptest.workspace = true
+tokio = { workspace = true, features = ["full"] }
+axum.workspace = true
+# A server that speaks HTTP/2 alone (tests/http2_only.rs), as axum::serve speaks both.
+hyper.workspace = true
+hyper-util.workspace = true
+rand.workspace = true
+# Cleans up after itself. The hand-rolled version left a directory of
+# downloaded parts behind on every run.
+tempfile.workspace = true
+sha2.workspace = true
+memory-stats.workspace = true
+aes.workspace = true
+cbc.workspace = true
+# A certificate for the rtsps:// bridge's test server.
+rcgen.workspace = true
+# The benches (benches/), run by hand and never in CI (gaps row 190).
+criterion.workspace = true
+
+# Run by hand (`cargo bench -p dm-core --bench <name>`), never by `cargo test` or CI: criterion's
+# own main, not the test harness (docs/testing.md, Benchmarks; gaps row 190).
+[[bench]]
+name = "plan"
+harness = false
+
+[[bench]]
+name = "naming"
+harness = false
+
+# Used as `md5` (checksums and Digest sign-ins), which the name `md-5` hides
+# from cargo-machete.
+[package.metadata.cargo-machete]
+ignored = ["md-5"]
+
+[lints]
+workspace = true

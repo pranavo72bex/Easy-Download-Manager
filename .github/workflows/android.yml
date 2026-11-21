@@ -1,14 +1,14 @@
 name: Android, the engine built
 
-# dm on Android, all in Rust (gaps rows N1, N2, N14, N16): desktop/crates/dm-android is the
+# dm on Android, all in Rust (gaps rows N1, N2, N14, N16): crates/dm-android is the
 # desktop's engine and its rules (dm-core, dm-net, dm-media, dm-torrent, dm-shell) under a GPUI
-# window on gpui-android (desktop/vendor/gpui-android, dm's copy of gpui-mobile's Android
+# window on gpui-android (vendor/gpui-android, dm's copy of gpui-mobile's Android
 # platform), with the phone's services through JNI. This keeps it building for the phone's two
 # kinds of processor, the ARM of phones (arm64-v8a) and the x86_64 of the emulator, with the
 # Android NDK the runner already carries, so a desktop change that breaks Android is seen
 # before it lands; runs dm-android's own tests on the runner itself; and packages the APK for
 # the emulator: libdm_android.so built by cargo-ndk, then the small Gradle project in
-# desktop/crates/dm-android/android (gpui-mobile's two Java classes, no Kotlin), kept as
+# crates/dm-android/android (gpui-mobile's two Java classes, no Kotlin), kept as
 # the run's artifact (docs/android.md). The emulator job then runs that APK on Android 8.0
 # (API 26) and Android 15 (API 35): started, its window drawn, a link shared to it downloaded
 # (row N13, scripts/android-emulator-check.sh). At a tag `android-v<version>` the release job
@@ -21,7 +21,7 @@ on:
     branches: [main]
     tags: ['android-v*']
   pull_request:
-    paths: ['desktop/**', 'scripts/android-emulator-check.sh', '.github/workflows/android.yml']
+    paths: ["crates/**", "tooling/**", "assets/**", "vendor/**", "packaging/**", "Cargo.toml", "Cargo.lock", ".cargo/**", 'scripts/android-emulator-check.sh', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:
@@ -31,10 +31,6 @@ permissions:
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-defaults:
-  run:
-    working-directory: desktop
 
 env:
   CARGO_TERM_COLOR: always
@@ -56,7 +52,6 @@ jobs:
           targets: aarch64-linux-android,x86_64-linux-android
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: desktop
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
@@ -96,12 +91,12 @@ jobs:
       # dm.skipCargo: the library is built above, so Gradle's own cargoNdk task (Android
       # Studio's) is skipped; dm.ndkVersion: Gradle strips with the NDK cargo-ndk used.
       - name: The APK, for the emulator (x86_64)
-        working-directory: desktop/crates/dm-android/android
+        working-directory: crates/dm-android/android
         run: gradle --no-daemon assembleDebug -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dm-android-x86_64-apk
-          path: desktop/crates/dm-android/android/app/build/outputs/apk/debug/app-debug.apk
+          path: crates/dm-android/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
   # The debug APK on the emulator (row N13): Android 8.0, the oldest dm takes, and Android 15,
@@ -119,7 +114,6 @@ jobs:
         api: [26, 35]
     defaults:
       run:
-        working-directory: .
     env:
       IMAGE: system-images;android-${{ matrix.api }};google_apis;x86_64
     steps:
@@ -251,12 +245,12 @@ jobs:
           echo "$DM_ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/dm.keystore"
           echo "DM_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/dm.keystore" >> "$GITHUB_ENV"
       - name: The release APK
-        working-directory: desktop/crates/dm-android/android
+        working-directory: crates/dm-android/android
         run: gradle --no-daemon assembleRelease -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION" "-Pdm.abis=arm64-v8a,armeabi-v7a,x86_64"
       # Signed, apksigner checks the signature and prints the key's digest, the one people
       # compare (docs/android.md). The APK's SHA-256 goes beside it.
       - name: Named, checked, its SHA-256
-        working-directory: desktop/crates/dm-android/android/app/build/outputs/apk/release
+        working-directory: crates/dm-android/android/app/build/outputs/apk/release
         run: |
           rm -f "$RUNNER_TEMP/dm.keystore"
           mkdir -p "$GITHUB_WORKSPACE/dist"

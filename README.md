@@ -214,7 +214,7 @@ Or built from source, with the PKGBUILD in this repository:
 
 ```sh
 git clone https://github.com/pranavo72bex/Easy-Download-Manager
-cd Easy-Download-Manager/desktop/packaging
+cd Easy-Download-Manager/packaging
 makepkg -si
 ```
 
@@ -568,8 +568,8 @@ make help         # everything else: test, analyze, format, qa, install
 The quick checks, on any computer with Rust:
 
 ```sh
-(cd desktop && cargo test --workspace)
-(cd browser && cargo test)
+cargo test --workspace
+(cd crates/dm-catcher && cargo test)
 ```
 
 The Docker QA stack: dm built from this checkout, run headless against a

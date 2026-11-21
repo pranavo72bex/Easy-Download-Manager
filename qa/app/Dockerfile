@@ -16,16 +16,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CARGO_TARGET_DIR=/target CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0
 # The extension's tools, before the source: kept by the build cache while
 # only the source changes. wasm-bindgen's version is the one the lock pins.
-COPY desktop/Cargo.lock /tmp/dm.lock
+COPY Cargo.lock /tmp/dm.lock
 RUN rustup target add wasm32-unknown-unknown \
     && v=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/version = |"/, ""); print; exit }' /tmp/dm.lock) \
     && cargo install wasm-bindgen-cli --version "$v" --locked && rm -rf /usr/local/cargo/registry/src
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/target \
-    cd desktop && cargo build -p dm-gpui --locked && cp /target/debug/dm-gpui /usr/local/bin/dm-gpui
+    cargo build -p dm-gpui --locked && cp /target/debug/dm-gpui /usr/local/bin/dm-gpui
 # The extension, as scripts/package.sh builds it (WebAssembly and both zips).
-# package.sh reads the build from desktop/target, so not the cached target dir.
+# package.sh reads the build from target, so not the cached target dir.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     env -u CARGO_TARGET_DIR sh scripts/package.sh && mkdir -p /out && cp -R dist /out/dist
 

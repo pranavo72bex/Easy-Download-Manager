@@ -65,7 +65,7 @@ reaches past `dm_core::DownloadList` (and the control port the same queue serves
 | Files and persistence | `download/files.rs`, `download/space.rs`, `queue/persist.rs`, `dm-shell/src/settings.rs` (a staged file and a ledger per range; the queue file) |
 | Scheduling and concurrency | `queue/runner.rs`, `limit.rs` (speed), `quota.rs` (tokio tasks; one speed limiter shared by connections) |
 | Errors and recovery | `retry.rs`, `error.rs` |
-| Integration and platform | `dm-shell` (the native host, `--register`, the one-instance lock), `dm-desktop-base` (the system's services), `browser/`, `extension/` |
+| Integration and platform | `dm-shell` (the native host, `--register`, the one-instance lock), `dm-desktop-base` (the system's services), `crates/dm-catcher/`, `extension/` |
 
 ## Where the code is today (2026-11-09, on main)
 

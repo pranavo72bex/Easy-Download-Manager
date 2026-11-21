@@ -208,7 +208,7 @@ itself. The floating drop target (View › Drop target) is a small always-on-top
 (`droptarget.rs`): it takes drops the same way, shows how far the downloads are along its foot and
 how fast on hover, moves when dragged, brings the window back on a double-click, and has Show dm and
 Hide the drop target on its right-click menu, as the egui window's card has. The GPUI app is
-bundled beside the egui window's (`make app-gpui`, `desktop/target/release/bundle-gpui/`), with the
+bundled beside the egui window's (`make app-gpui`, `target/release/bundle-gpui/`), with the
 same name, id, icons and the types it opens, until GPUI is the window dm ships (Phase E).
 
 ## 2026-11-10: `human-qa.py` drives the GPUI window as a person does, through the same port
@@ -450,7 +450,7 @@ needing the window's handle. Dropped: allowing those crates in `dm-desktop-base`
 ## 2026-11-10: G2's code moves are gated per batch; `dm-desktop-base` is the toolkit-free crate
 
 At the maintainer's word of 2026-11-09 (take the recommended option). G2 moves the desktop
-program's modules that draw nothing into `desktop/crates/dm-desktop-base`, which `cargo xtask
+program's modules that draw nothing into `crates/dm-desktop-base`, which `cargo xtask
 layers` forbids every window crate; `dm_desktop` keeps each at its old path with a `pub use`, so
 no caller, test or script changes. Each batch of the survey in `docs/gaps.md` is a commit (the
 first, `quiet`, came with the crate; a batch's manifests share lines, so a commit per module
@@ -2686,7 +2686,7 @@ winit:
   winit's own, one with a URL or text holding a link is taken by dm.
 - Windows: winit's drop target is revoked and dm registers its own OLE
   `IDropTarget`, which reads files, `UniformResourceLocatorW` and text.
-- X11: winit is vendored (`desktop/vendor/winit`, `[patch.crates-io]`) with a
+- X11: winit is vendored (`vendor/winit`, `[patch.crates-io]`) with a
   small patch, marked `dm:`, choosing `_NETSCAPE_URL` or UTF-8 text when no
   `text/uri-list` is offered — Firefox offers none for a link. Dragging out
   is dm's own XDND source on a connection of its own (`xdnd.rs`): winit's
@@ -4202,7 +4202,7 @@ sees and make B42 impossible to check; and the system's own input
 (`SendInput` and its kin), which is a different program for each system and
 moves the person's real pointer. A plain setting does not do it; there is none.
 
-So `desktop/vendor/egui-winit` is the published crate **egui-winit 0.37.0**, the
+So `vendor/egui-winit` is the published crate **egui-winit 0.37.0**, the
 version eframe 0.37.0 depends on, licence **MIT OR Apache-2.0** (its
 `Cargo.toml`; the published package carries no licence text of its own, the
 project does: github.com/emilk/egui), used through `[patch.crates-io]` as
@@ -4213,7 +4213,7 @@ whose viewport is not the first, just before returning it. Its `Cargo.lock` is
 left out, as a path dependency uses the workspace's. dm sets the function once
 at start (`main.rs`) to `dialogs::apart::feed`, which gives a window the events
 a control client queued for it (`app/human.rs`). Nothing else differs from the
-published crate (`desktop/vendor/README.md`); carry the change over when eframe
+published crate (`vendor/README.md`); carry the change over when eframe
 is upgraded, or drop the copy when eframe offers a hook of its own.
 
 Also found: eframe's glow integration answers screenshot commands for the first
@@ -5004,7 +5004,7 @@ caught elsewhere is H.264. Checked on Linux: a real YouTube part to a GIF in
 ## 2026-11-06: Encrypted peer connections in a patched librqbit (gaps row 150)
 
 At the maintainer's answer ("build it in a patched copy"). librqbit 9.0.1 has
-no MSE/PE; `desktop/vendor/librqbit` is the published crate with
+no MSE/PE; `vendor/librqbit` is the published crate with
 `src/mse.rs` and the hooks for it, used through `[patch.crates-io]` as winit
 is. Policy: plaintext first, as before, and encrypted again where a peer hangs
 up on the plaintext handshake (an encryption-only peer does exactly that), so
@@ -5018,7 +5018,7 @@ not a client application, so that no other product is named. MSE with RC4 and
 a 768-bit group hides BitTorrent from simple traffic shaping and reaches the
 peers that insist on it; it is not strong encryption, and the window does not
 call it that. Cost: the patch is carried over at each librqbit upgrade until
-upstream has MSE (`desktop/vendor/README.md` says where each change is).
+upstream has MSE (`vendor/README.md` says where each change is).
 
 ## 2026-11-07: Windows' memory budget at rest (gaps row 137)
 
@@ -5127,7 +5127,7 @@ does, so its words stand.
 
 Every dialog became a window of its own on 2026-11-01 (contract row B42), and eframe 0.37's
 glow backend gives AccessKit to the root window only, so a screen reader read none of them.
-Chosen: a copy of eframe 0.37.0 in `desktop/vendor/eframe`, used through `[patch.crates-io]`
+Chosen: a copy of eframe 0.37.0 in `vendor/eframe`, used through `[patch.crates-io]`
 as winit and egui-winit are, with one change in `src/native/glow_integration.rs` (search
 `dm:`): the proxy the root's adapter was given is kept, and a window made after it (a dialog,
 or the root made again) is created hidden, given an adapter, and shown as asked (AccessKit
@@ -5636,7 +5636,7 @@ because it is the bottom line and a standard, and that every parameter goes in. 
   stricter, and it is never looser than here. The ceiling is a reference client of the harness's
   own (`ceiling-client.mjs`: a process of its own, 8 ranges, 4 MiB buffered writes). It was
   measured on the same laptop on 2026-11-11, 6 runs, best 2.601 s for 512 MiB.
-- **Frozen by its digest.** `desktop/xtask/src/baseline.rs` (`the_reference_a_baseline_never_changes`,
+- **Frozen by its digest.** `tooling/xtask/src/baseline.rs` (`the_reference_a_baseline_never_changes`,
   in `cargo test --workspace`) and `compare.mjs` both pin the file's SHA-256. A new measurement
   of reference A goes into a new file beside it.
 - **Not taken.** Re-measuring reference A now: the maintainer asked for the benchmark that exists
@@ -5683,7 +5683,7 @@ packages carry the GPUI window, as macOS's have since 2026-11-10, and the egui w
 own once Windows holds the contract in GPUI (G9). The GPUI window uses the system's fonts only.
 
 - **The installed command stays.** The .deb installs `dm-gpui` and a two-line `/usr/bin/dm-desktop`
-  that runs it (`desktop/packaging/dm-desktop`, through the deb's `files`): the README's commands,
+  that runs it (`packaging/dm-desktop`, through the deb's `files`): the README's commands,
   an autostart entry and a browser's native-host manifest written by an earlier dm name
   `/usr/bin/dm-desktop`, and an upgrade that removed it would have stopped a login launch until
   dm was opened by hand. cargo-packager can neither rename a binary nor make a link; a copy of the
@@ -5706,7 +5706,7 @@ own once Windows holds the contract in GPUI (G9). The GPUI window uses the syste
 - **The main window is in gpui-component's `Root`,** as every dialog's is: on Linux its drawn
   menus (the top bar's) live in the overlay `Root` holds; without it a click on a menu's title
   opened nothing. The list keeps the keyboard inside it, so commands reach it as before.
-- **A patched `gpui-pre-linux` 0.3.12** (`desktop/vendor/README.md`): GPUI tells AccessKit where
+- **A patched `gpui-pre-linux` 0.3.12** (`vendor/README.md`): GPUI tells AccessKit where
   an X11 window stands as it starts and as it moves. Upstream defines the call and makes it
   nowhere, so a screen reader placed every control as if the window stood at (0, 0).
 - **Dialogs on X11 are placed where they asked to be** (`syswindow::place`: the position and
@@ -5793,7 +5793,7 @@ which is not modal and offers a copy outside the program; on Wayland the data de
 - **No `drag` crate in `dm-gpui`.** It would be a feature crate (the clean-room rule), and on
   macOS a second drag beside GPUI's. GPUI's drag also draws the system's own icon for the file's
   kind, and a drag that comes back into the window is GPUI's again.
-- **X11 is added to the vendored GPUI** (`desktop/vendor/gpui-pre-linux`, `x11/drag_out.rs`),
+- **X11 is added to the vendored GPUI** (`vendor/gpui-pre-linux`, `x11/drag_out.rs`),
   where upstream declines: the egui window's XDND source (`dm-desktop` `xdnd.rs`), moved behind
   `start_external_drag`, on a connection and thread of its own, ending GPUI's drag with a client
   message to the window when it is over. Winit's display is not involved, so the Xlib calls of
@@ -6002,7 +6002,7 @@ not start when the check pressed play.
 
 ## 2026-11-11: `cargo deny`, and what it refuses (gaps row 190)
 
-- `desktop/deny.toml` serves both workspaces (`desktop/`, and `browser/` through `--config`). It
+- `deny.toml` serves both workspaces (`desktop/`, and `crates/dm-catcher/` through `--config`). It
   allows the licences dm's 1,100-odd crates carry that are compatible with GPL-3.0-or-later, and
   allows OFL-1.1 and the Ubuntu font licence for `epaint_default_fonts` only, the egui window's
   fonts, until that window goes (G9). crates.io is the only source. Duplicates are warned about,
@@ -6786,14 +6786,14 @@ was the cost.
 
 ## 2026-11-12: One gate command, a pinned Rust, the lints in one place (gaps row A1)
 
-- **`cargo xtask check`** (`desktop/xtask/src/check.rs`) runs what needs no window, for both
+- **`cargo xtask check`** (`tooling/xtask/src/check.rs`) runs what needs no window, for both
   workspaces: formatting, clippy (desktop, browser on the host and as WebAssembly), cargo-deny's
   licences, bans and sources (advisories stay with `audit.yml`: they need the database fetched),
   the tests (nextest where installed, then doctests; else `cargo test`, doctests included). Every
   step runs and the failures are listed at the end. **Dropped: a Python or shell script**: dm
   already has three languages in its gate; xtask is Rust and runs anywhere cargo does.
 - **`rust-toolchain.toml` at the repository root** pins 1.98.1 with clippy, rustfmt, llvm-tools
-  and the wasm32 target, so `browser/` is pinned as well; the workflows name the same version.
+  and the wasm32 target, so `crates/dm-catcher/` is pinned as well; the workflows name the same version.
   Raised by hand in a change of its own.
 - **`[workspace.lints]`** holds `missing_docs` and the three clippy lints that were pasted into
   six crate roots. They now reach each crate's tests too, which found two gaps (an undocumented
@@ -7092,9 +7092,9 @@ or built:
 ## 2026-11-13: BitTorrent's library, a recorded exception (gaps row P3)
 
 Taken at the maintainer's word of 2026-11-12, the row's recommendation: the vendored `librqbit`
-(`desktop/vendor/librqbit`, with its SHA-1 wrapper since gaps row P7) is a recorded exception to
+(`vendor/librqbit`, with its SHA-1 wrapper since gaps row P7) is a recorded exception to
 "no third-party package that is a feature": a library compiled into dm, never a program it runs or
-fetches, and patched in dm's tree (`dm:` marks, `desktop/vendor/README.md`). Writing BEP 3, 5, 9,
+fetches, and patched in dm's tree (`dm:` marks, `vendor/README.md`). Writing BEP 3, 5, 9,
 10, 11, 29 and the stream encryption of dm's own is months of work for no gain a person sees. It is
 to be kept behind one crate of its own (`dm-torrent`, with gaps row A6) so it can be replaced piece
 by piece, and brought to upstream 9.1.0 (a bencode recursion limit, a bounds fix, a listener panic)
@@ -7116,7 +7116,7 @@ told to use is not reached. Test: `dm-core/tests/http2_only.rs`, a server that s
 At the maintainer's word of 2026-11-12 (above): the `dm-desktop` crate, its fonts (Inter,
 Selawik, the Fluent icon font), its vendored `winit`, `egui-winit` and `eframe`, kittest, the
 egui baseline pictures, `make app-egui`, `DM_WINDOW=egui` and `scripts/tabular-digits.py` are
-gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 1,151 packages to
+gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 packages to
 1,022.
 
 - **What dm-gpui borrowed moved into it**: `icons/` (the installers', the tray's and the Windows
@@ -7279,20 +7279,20 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
 
 ## 2026-11-17: One Cargo workspace, rooted in desktop/, the extension in it (gaps rows X8, A15)
 
-* **Done**: every dependency's version once in `desktop/Cargo.toml`'s `[workspace.dependencies]`
-  (X8); `browser/` a member of that workspace through `package.workspace = "../desktop"` (A15).
-  One `Cargo.lock` (`desktop/Cargo.lock`; `browser/Cargo.lock` deleted), one target folder
-  (`desktop/target`), and `cargo test --workspace`, clippy, `cargo fmt --all`, `cargo deny` and
+* **Done**: every dependency's version once in `Cargo.toml`'s `[workspace.dependencies]`
+  (X8); `crates/dm-catcher/` a member of that workspace through `package.workspace = "../desktop"` (A15).
+  One `Cargo.lock` (`Cargo.lock`; `crates/dm-catcher/Cargo.lock` deleted), one target folder
+  (`target`), and `cargo test --workspace`, clippy, `cargo fmt --all`, `cargo deny` and
   `cargo audit` cover the extension's crate. The WebAssembly is built with
-  `--profile extension` (release, opt-level "s", panic "abort": what browser/'s own release
+  `--profile extension` (release, opt-level "s", panic "abort": what crates/dm-catcher/'s own release
   profile was), so `scripts/package.sh` reads `wasm32-unknown-unknown/extension/`.
 * **Rooted in desktop/, not the repository's top**: the row offered either. Moving the root up
-  would rename `desktop/target` in about sixty places (every script's default binary, the
+  would rename `target` in about sixty places (every script's default binary, the
   Makefile, the release workflow's bundle paths, `packaging.rs`'s check) that cannot all be run
   on one machine; rooted in desktop/ the only paths that moved are the extension's lock and
   build. The move to the top stays possible and is a rename of paths alone.
 * **The lock**: the extension's crates now resolve from the desktop lock, a few patch versions
-  older than browser/'s was (bitflags 2.13.1, cfg-if 1.0.4, indexmap 2.14.1 and the like);
+  older than crates/dm-catcher/'s was (bitflags 2.13.1, cfg-if 1.0.4, indexmap 2.14.1 and the like);
   wasm-bindgen stays pinned at 0.2.127. `xtask layers` refuses a version written in any
   member's manifest, the extension's included.
 
@@ -7336,7 +7336,7 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
 
 * **Done**: `desktop/test-support/secrets.rs`, pulled in by `#[path]` from seven files in six
   crates (dm-core's lib and its integration tests' `common`, dm-shell, dm-protocol, dm-gpui,
-  xtask, the extension), is `dm_test_support::secrets` in `desktop/crates/dm-test-support`,
+  xtask, the extension), is `dm_test_support::secrets` in `crates/dm-test-support`,
   named in each crate's `[dev-dependencies]`; the callers' `test_secrets` name is kept by a
   `use ... as`. Nothing a person runs changed: the crate is never a normal dependency, so it
   is not in the program.
@@ -7369,7 +7369,7 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
 
 ## 2026-11-18: dm's media code, a crate of its own (gaps row A6, step 1)
 
-* **Done**: `desktop/crates/dm-media` holds what was dm-core's `aac`, `fmp4`, `frames` (with
+* **Done**: `crates/dm-media` holds what was dm-core's `aac`, `fmp4`, `frames` (with
   `av1.rs`, `win.rs`), `gif`, `mf`, `mkvmux`, `mp3` (with `decode/`, `tables.rs`), `mp4mux`,
   `tsmux`, `subtitles` and `shape`: 14,700 lines and 89 tests moved as they were. It uses none
   of dm's crates, no tokio and no sockets (`cargo xtask layers` holds it so); its decoders
@@ -7403,7 +7403,7 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
 
 ## 2026-11-18: BitTorrent's engine behind dm's own words: dm-torrent (gaps rows A6 step 2, P3)
 
-* **Done**: `desktop/crates/dm-torrent` is the one crate that names librqbit. It offers a
+* **Done**: `crates/dm-torrent` is the one crate that names librqbit. It offers a
   `Session` (started from a `Setup`: output folder, private or not, listening or not, blocklist,
   cancel token, both ceilings, a SOCKS5 proxy), a `Torrent` added to it from a `Source` (a
   magnet or a .torrent's bytes) with its `files`, `stats` (`Stats`, `State`), name, info-hash and
@@ -7424,7 +7424,7 @@ gone. `cargo tree` has no egui, eframe or winit; `desktop/Cargo.lock` went from 
 
 ## 2026-11-18: dm's network, a crate of its own: dm-net (gaps row A6, step 3)
 
-* **Done**: `desktop/crates/dm-net` holds what was dm-core's `agents`, `auth`, `ntlm`,
+* **Done**: `crates/dm-net` holds what was dm-core's `agents`, `auth`, `ntlm`,
   `connect_first`, `control`, `cookies`, `decode`, `dns`, `error`, `hex`, `http_client`,
   `javascript`, `limit`, `pac`, `processes`, `proxy`, `redirects` and `second_path` (6,300 lines
   with their tests), with `lock`, `retry_after` (from `retry`) and `tls_config` (from
@@ -7539,10 +7539,10 @@ holds every row to the numbers it had; Windows' sizes are to be set again in tha
 
 ## 2026-11-18: Strings no native speaker has read, in lists of their own (gaps row W23)
 
-Unread strings are tracked in `desktop/assets/i18n/unread/<code>.json`, a list of the English of
+Unread strings are tracked in `assets/i18n/unread/<code>.json`, a list of the English of
 each string no native speaker has read; a reader deletes a line to mark it read. A marker inside
 the catalog's own text would have shown in the window. New languages start from
-`desktop/assets/i18n/template/catalog.json` (every string, empty translations); a test keeps it
+`assets/i18n/template/catalog.json` (every string, empty translations); a test keeps it
 equal to the catalogs. Both live in subfolders because the browser tests read every top-level
 `i18n/*.json` as a language. `cargo xtask i18n` uses its own small JSON reader so it can report
 line numbers and strings given twice, and adds no dependency. It fails only on malformed files;
@@ -7759,8 +7759,8 @@ loop. Written with no build on the Windows laptop: compiled and run on Windows n
 ## 2026-11-18: The BitTorrent library as published 9.1.0 plus dm's patch (gaps row P3)
 
 librqbit and its SHA-1 wrapper are vendored as the published 9.1.0 crates, remade by
-`desktop/vendor/vendor.sh` (SHA-256 pinned, nothing of theirs run), with dm's changes kept as
-`desktop/vendor/patches/*.patch`, each hunk explained (encrypted peer connections, the listener's
+`vendor/vendor.sh` (SHA-256 pinned, nothing of theirs run), with dm's changes kept as
+`vendor/patches/*.patch`, each hunk explained (encrypted peer connections, the listener's
 collected checks, file names checked before any file is made, one crypto library and no axum,
 pure-Rust SHA-1). The other `librqbit-*` crates come from crates.io at 9.1.0. Files the build
 does not use are not vendored (webui, resources, examples, the crates' own locks,
@@ -7844,10 +7844,10 @@ and test on safari." Safari loads a web extension only from inside an app: an ap
 the extension's native messages to that extension's program (`NSExtensionRequestHandling`), not
 to a native messaging host. This Mac has the command line tools and no Xcode, so neither Xcode's
 converter nor its template is used: `scripts/safari-extension.sh` lays the bundle out, writes its
-Info.plist (`desktop/assets/macos/safari/`), and signs it, the extension with its sandbox first
+Info.plist (`assets/macos/safari/`), and signs it, the extension with its sandbox first
 and then dm.app around it (not `--deep`, which would sign the extension again without one).
 
-- **The program is Rust, with no Swift or Objective-C file** (`desktop/crates/dm-safari`): its
+- **The program is Rust, with no Swift or Objective-C file** (`crates/dm-safari`): its
   `main` makes the handler class the Info.plist names (`DMSafariHandler`) through the
   Objective-C runtime with `objc2`, already in Cargo.lock through GPUI (no crate added), and
   hands the program to Foundation's `NSExtensionMain`. Foundation's objects are reached by
@@ -8161,7 +8161,7 @@ Dailymotion's CDN refuses about one ask in ten of a master playlist with an empt
 At the maintainer's word of 2026-11-20 ("yes go ahead with compose and uniffi"). The phone app
 is a Gradle project in `mobile/android/`, its window written in Jetpack Compose (Kotlin), Android
 8.0 (API 26) and up. The engine is the desktop's, unchanged in what it does: one `cdylib`,
-`desktop/crates/dm-android`, over `dm_shell::app::backend::Backend` (the same rules the desktop's
+`crates/dm-android`, over `dm_shell::app::backend::Backend` (the same rules the desktop's
 window and the headless run follow), bound to Kotlin with UniFFI's proc macros; the bindings are
 generated from the built library (`cargo run -p dm-android --features bindgen --bin
 uniffi-bindgen`), never written by hand or checked in. What the phone does for the engine
@@ -8203,7 +8203,7 @@ a matter of dm's layout code. Each platform's text system decides the rest:
   takes each glyph's place from `CTRunGetPositions`, so a line is drawn right to left. Works.
 * Linux (`gpui-pre-wgpu`, cosmic-text): `ShapeLine` with `Shaping::Advanced` shapes with harfrust
   and reorders by `unicode-bidi` (first strong letter), and GPUI takes `glyph.x`. Works.
-* Windows (`desktop/vendor/gpui-pre-windows`, DirectWrite): `IDWriteTextLayout` shapes and runs
+* Windows (`vendor/gpui-pre-windows`, DirectWrite): `IDWriteTextLayout` shapes and runs
   the bidirectional algorithm, but GPUI's own `TextRenderer::DrawGlyphRun` ignores the run's
   `baselineOriginX` and `bidiLevel` and places glyphs one after another from the left in the
   order they come. DirectWrite hands a right-to-left run's glyphs in logical order, to be drawn
@@ -8230,8 +8230,8 @@ window mirrored, then the two catalogs.
 Coded on the laptop without a build or a run (the maintainer's word of 2026-11-20: the Mac
 builds and tests); waiting for the maintainer's word on the contract row and picture.
 
-* **Windows' text** (`dwrite-rtl` in `desktop/vendor/gpui-pre-windows`, its row in
-  `desktop/vendor/README.md`): `DrawGlyphRun` reads the run's bidi level; a right-to-left run is
+* **Windows' text** (`dwrite-rtl` in `vendor/gpui-pre-windows`, its row in
+  `vendor/README.md`): `DrawGlyphRun` reads the run's bidi level; a right-to-left run is
   placed leftward from `baselineOriginX`, its glyphs reversed into visual order (the order GPUI's
   wrapping reads, as CoreText and cosmic-text hand them); after `Draw`, a line holding one has
   every run moved to DirectWrite's origin, shifted so the leftmost starts at 0, and sorted by
@@ -8463,7 +8463,7 @@ wait for the maintainer's word on their wording.
 
 The maintainer was asked "Allow one small Java file per feature that just hands its call to
 Rust?" and answered "Yes, all four" (2026-11-20). So four classes join gpui-mobile's two, in
-`desktop/crates/dm-android/java/com/dm/android/`, package `com.dm.android`, with dm's licence
+`crates/dm-android/java/com/dm/android/`, package `com.dm.android`, with dm's licence
 header: `DmActivity` (gpui-mobile's activity with `onNewIntent`, N5), `DmService` (the dataSync
 foreground service, N6), `DmActionReceiver` (a notification's Retry, Stop All and Open, and the
 schedule's alarm; not exported, N6, N12) and `DmBootReceiver` (`BOOT_COMPLETED`, N12). Each does
@@ -8610,3 +8610,22 @@ app is offered within a second of dm coming to the front. Dropped: watching in t
 (Android refuses it), a foreground read on every resume of its own (the one-second look already
 runs while the watch is on), and treating every empty read as refused (a cleared clipboard is
 also empty, and the seed would then swallow the first link copied).
+
+## One workspace at the repository's root, every crate in crates/ (2026-11-21, maintainer's request)
+
+The maintainer asked for the folder layout of a large Rust project such as the Zed editor:
+the Cargo workspace at the repository's root (`Cargo.toml`, `Cargo.lock`, `.cargo/`,
+`clippy.toml`, `deny.toml`, `rustfmt.toml`, `.config/nextest.toml` there), every crate one
+folder in `crates/` (`members = ["crates/*", "tooling/xtask"]`), the project's own tooling in
+`tooling/xtask`, and what is not code beside them at the root (`assets/`, `vendor/`,
+`packaging/`). `desktop/` is gone; the extension's crate moved from `browser/` to
+`crates/dm-catcher`, the folder named after its package as every other crate's is. This
+replaces 2026-11-17's "rooted in desktop/": that kept the move small, and this makes the one
+workspace the repository's. No behaviour, window, wording or package name changed; the only
+paths that moved are the folders above, so a crate's `../../assets` and its neighbours' paths
+are as they were. Kept as they are: the crates' `dm-` names (Rust's own `core`, and GPUI's
+`gpui`, would clash with names without it) and their `src/lib.rs` (a rename to `src/<crate>.rs`
+changes no structure and every doc that names a `lib.rs`); `packaging/PKGBUILD`'s `_srcdir`,
+which names the released `desktop-v` tag's archive and moves with the next release; and the
+history (CHANGELOG, BUGLOG, earlier entries here and done rows of gaps.md), which say where
+things were then.

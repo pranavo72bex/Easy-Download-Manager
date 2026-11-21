@@ -10,7 +10,7 @@ name: Contract on Linux (reported, not gating)
 # REPORTED, NOT GATING. A row that fails here does not fail the workflow: the job and its QA step
 # are continue-on-error, and nothing else reads them. The contract's own QA run stays a person's:
 # `python3 scripts/human-qa.py` in a visible window, before a merge and after any change to
-# desktop/, browser/ or extension/ (CLAUDE.md). This run neither replaces it nor changes any of
+# crates/, tooling/ or extension/ (CLAUDE.md). This run neither replaces it nor changes any of
 # human-qa.py's rules.
 on:
   push:

@@ -6,19 +6,19 @@ phases. The behavioural oracle throughout is [docs/behaviour-contract.md](../beh
 checked whole by `scripts/human-qa.py`; [EGUI_PARITY_REPORT.md](EGUI_PARITY_REPORT.md) records
 each row's state in each window.
 
-## 1. The gate (every step that touches `desktop/`, `browser/` or `extension/`)
+## 1. The gate (every step that touches `crates/`, `assets/` or `extension/`)
 
 Run in this order, before the step's commit. A step is not done until all four pass.
 
 | # | Command | Passes when |
 |---|---|---|
-| 1 | `cd desktop && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` | No diff, no warning, no failed test (about 2,135 tests on 2026-11-09) |
+| 1 | `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` | No diff, no warning, no failed test (about 2,135 tests on 2026-11-09) |
 | 2 | `sh scripts/windows-check.sh clippy` (Docker running; every crate, all targets) | Compiles with no warning for Windows: the Windows-only code that moves in G2 and G3 is never built on the Mac otherwise (a plain `cargo check --target x86_64-pc-windows-msvc` stops at `ring`'s C, which needs the Windows headers the container carries) |
-| 3 | `cd desktop && cargo build -p dm-desktop && cd .. && sh scripts/package.sh && python3 scripts/human-qa.py` | macOS, visible window: `64 of 64 rows hold` | **pass** (2026-11-11: `human-qa.py` B42 on the GPUI window: Add URL a window of its own over the middle of dm's window, its OK and Cancel given to a screen reader, moved half outside dm's window and still working there, Options holding dm's window) 
+| 3 | `cargo build -p dm-desktop && sh scripts/package.sh && python3 scripts/human-qa.py` | macOS, visible window: `64 of 64 rows hold` | **pass** (2026-11-11: `human-qa.py` B42 on the GPUI window: Add URL a window of its own over the middle of dm's window, its OK and Cancel given to a screen reader, moved half outside dm's window and still working there, Options holding dm's window) 
 | 4 | `sh scripts/linux-human-qa.sh` (Docker running) | Debian 12 on X11, a build of the checkout: `64 of 64 rows hold` | **pass** but the menu (2026-11-11: `--hidden` makes no window, `CGWindowListCopyWindowInfo` lists none of dm's, and the tray is made with no problem said; `ui.window` shows the window and puts it back; the tray's menu itself is drawn by the system and needs a person's click, not run here) 
 
 `cargo xtask layers` is part of `cargo test` (the xtask tests); a crate added by G2 or G6 must be
-added to its list in `desktop/xtask/src/main.rs` in the same commit.
+added to its list in `tooling/xtask/src/main.rs` in the same commit.
 
 A row that fails once and passes on a second whole run is reported as such (B40 did once on
 2026-11-09, with no change between the runs); a row that fails twice is a defect, fixed before
@@ -118,9 +118,9 @@ PLATFORM_GAP_ANALYSIS.md section 11.
 | 6 | Text input: IME (Chinese, Japanese), Arabic and Hebrew in reading order | By hand with the system's input methods | | | | |
 | 7 | Size: the release package against today's (`.dmg` 9.7 MB, `.deb` 12.4 to 13.3 MB, setup `.exe` 9.9 MB, 0.9.0) | `cargo packager` on the release profile | `.dmg` 10.4 MB (2026-11-10, `make app-gpui`, section 7) | setup `.exe` 10.4 MB (2026-11-11; the program 32.7 MB) | | |
 
-D1 (go): check 1 passes on all four, or a patch to GPUI kept in `desktop/vendor/` makes it pass.
+D1 (go): check 1 passes on all four, or a patch to GPUI kept in `vendor/` makes it pass.
 
-Findings so far (2026-11-10, `desktop/crates/dm-gpui` on `gpui-pre` and `gpui-pre-platform`
+Findings so far (2026-11-10, `crates/dm-gpui` on `gpui-pre` and `gpui-pre-platform`
 0.3.12, the pins of GPUI_DEPENDENCY_DECISION.md 3.1 without `gpui-component` yet):
 
 - **Builds.** macOS (Rust 1.99.1, Apple M1): `cargo build -p dm-gpui` in 1 min 34 s from cold;
@@ -163,7 +163,7 @@ Findings so far (2026-11-10, `desktop/crates/dm-gpui` on `gpui-pre` and `gpui-pr
 
 | Today | Count (2026-11-09) | Where they go |
 |---|---|---|
-| `desktop/crates/dm-desktop/tests/*.rs` (egui_kittest and `DmApp`) | 485 `#[test]` | Assertions about the application (what a command does to rows, settings, files) move to dm-shell's tests in G3; assertions about the window are rewritten on GPUI's test context in the slice that draws them (G7) |
+| `crates/dm-desktop/tests/*.rs` (egui_kittest and `DmApp`) | 485 `#[test]` | Assertions about the application (what a command does to rows, settings, files) move to dm-shell's tests in G3; assertions about the window are rewritten on GPUI's test context in the slice that draws them (G7) |
 | dm-desktop unit tests | 216 | With their module (G2 moves the toolkit-free ones unchanged) |
 | dm-shell, dm-core, dm-protocol tests | the rest | Unchanged |
 | `human-qa.py` and the scripts | 64 rows and their checks | Unchanged: they speak to the control port, which every window answers (G4) |

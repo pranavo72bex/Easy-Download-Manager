@@ -9,9 +9,9 @@ no Rust to do it, though the check below runs best with it.
 
 | File | What it holds |
 | --- | --- |
-| `desktop/assets/i18n/<code>.json` | A language's catalog: each English string the window says, and its translation |
-| `desktop/assets/i18n/unread/<code>.json` | The English of each string in that catalog no native speaker has read yet |
-| `desktop/assets/i18n/template/catalog.json` | Every English string, each with an empty translation: the file a new language starts from |
+| `assets/i18n/<code>.json` | A language's catalog: each English string the window says, and its translation |
+| `assets/i18n/unread/<code>.json` | The English of each string in that catalog no native speaker has read yet |
+| `assets/i18n/template/catalog.json` | Every English string, each with an empty translation: the file a new language starts from |
 | `extension/_locales/<code>/messages.json` | The browser extension's words, in the browser's own format |
 
 A catalog is keyed by the English itself:
@@ -30,7 +30,7 @@ English.
 
 ## Check a catalog
 
-From the `desktop/` folder (with Rust from <https://rustup.rs>):
+From the repository's root (with Rust from <https://rustup.rs>):
 
 ```sh
 cargo xtask i18n            # every language: translated, missing, unread
@@ -72,7 +72,7 @@ own checks catch a malformed file too.
 ## Read a language: the unread strings
 
 Some translations were written without a native speaker; they are listed in
-`desktop/assets/i18n/unread/<code>.json`. The maintainer posts one issue per
+`assets/i18n/unread/<code>.json`. The maintainer posts one issue per
 language with those strings (made by `cargo xtask i18n --issue <code>`). To
 take one:
 
@@ -94,8 +94,8 @@ Any other string you find wrong, unread or not, can be mended the same way.
    writes it: the two-letter language (`hi` for Hindi, `vi` for Vietnamese,
    `uk` for Ukrainian), and a region only where the language differs by it
    (`pt-BR`, `zh-CN`).
-2. Copy `desktop/assets/i18n/template/catalog.json` to
-   `desktop/assets/i18n/<code>.json`. Every translation in it is empty, so
+2. Copy `assets/i18n/template/catalog.json` to
+   `assets/i18n/<code>.json`. Every translation in it is empty, so
    `cargo xtask i18n <code>` starts with every string missing.
 3. Fill in the translations. A file part done is welcome: the check shows what
    is left, and someone else can finish it.
@@ -117,4 +117,4 @@ toolbar, columns and status bar laid out from the right (gaps row U35). Their
 translations were written without a native speaker, so every string of them is
 in their unread lists. Persian and Urdu would read the same way: a new
 right-to-left language is added to `Direction::of` in
-`desktop/crates/dm-desktop-base/src/view/i18n.rs` with its catalog.
+`crates/dm-desktop-base/src/view/i18n.rs` with its catalog.

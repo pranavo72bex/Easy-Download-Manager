@@ -10,14 +10,14 @@
 // On the sites the app's rules name, the JSON answer of the requests the rules
 // list is passed on too (at most 1 MiB of it), because a page that builds its
 // own stream puts the address in an answer and not in a request of its own.
-// What is a stream in it is decided in Rust (browser/src/decide/answers.rs).
+// What is a stream in it is decided in Rust (crates/dm-catcher/src/decide/answers.rs).
 (() => {
   if (globalThis.__dmHook) return;
   globalThis.__dmHook = true;
   // A manifest, a playlist or a whole media file a player asks for, on any site. The pieces of a
   // stream (segments, initialisation slices, byte ranges) are not passed on: they are not what a
   // person comes to save, and a player asks for hundreds. What is a stream is decided in Rust
-  // (browser/src/decide/streams.rs); this only keeps the traffic to the extension small.
+  // (crates/dm-catcher/src/decide/streams.rs); this only keeps the traffic to the extension small.
   const STREAM_URL = /\.(m3u8|mpd|webm|mp4|m4a|aac|f4m)(\?|#|$)/i;
   const PIECE_URL = /\.(ts|m4s|m4f|cmfv|cmfa)(\?|#|$)|[?&](range|bytestart|byterange|sq|segment)=/i;
   const told = new Set();

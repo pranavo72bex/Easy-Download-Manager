@@ -21,7 +21,7 @@ cd "$(dirname "$0")/.."
 # The window Linux ships (dm-gpui), whose libraries nfpm.yaml names.
 # shellcheck source=scripts/linux/window.sh
 . scripts/linux/window.sh
-version=$(sed -n 's/^version = "\(.*\)"/\1/p' "desktop/crates/$binary/Cargo.toml" | head -1)
+version=$(sed -n 's/^version = "\(.*\)"/\1/p' "crates/$binary/Cargo.toml" | head -1)
 docker build -q -t dm-linux-check scripts/linux >/dev/null
 stream() { git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -; }
 
@@ -29,7 +29,7 @@ echo "== building dm $version and its .rpm"
 stream | docker run --rm -i -v dm-linux-target:/target \
   -v "$HOME/.cargo/registry":/usr/local/cargo/registry dm-linux-check sh -c "
     set -e; mkdir -p /work && cd /work && tar -xf -
-    cd desktop && cargo build -q --release -p $binary && cd ..
+    cargo build -q --release -p $binary
     rm -rf /target/rpm
     NFPM_DIR=/target sh scripts/linux/nfpm.sh /target/release/$binary $version /target/rpm"
 

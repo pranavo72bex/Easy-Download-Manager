@@ -15,12 +15,11 @@ restart. Never record a run that did not happen.
 ## On any machine with Rust
 
 ```sh
-cd desktop
 cargo test --workspace                          # engine, protocol, shell and window
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 cargo xtask scorecard | layers | privacy | secrets
-cd ../browser && cargo test                     # the extension's decisions, on the host
+cd crates/dm-catcher && cargo test                     # the extension's decisions, on the host
 ```
 
 - The engine's tests run against a real HTTP server on loopback and a real
@@ -40,16 +39,16 @@ cd ../browser && cargo test                     # the extension's decisions, on 
   [parity.md](parity.md) and [zoo.md](zoo.md); a test fails if it is stale.
 - Tests use their own temporary directories and never touch a real
   Downloads folder or browser profile. A password or token in a test comes
-  from `dm_test_support::secrets` (`desktop/crates/dm-test-support`), never
+  from `dm_test_support::secrets` (`crates/dm-test-support`), never
   from the code.
 
 ## The testing plan, and where each part lives
 
 The maintainer's plan (2026-10-29) in six parts, and what answers each:
 
-1. **Unit tests**: `cargo test --workspace` in `desktop/` (the engine's
+1. **Unit tests**: `cargo test --workspace` from the repository's root (the engine's
    ranges, retries, pause and resume, names, speed limits, the queue; 1 250
-   tests against real servers on loopback) and `browser/` (the extension's
+   tests against real servers on loopback) and `crates/dm-catcher/` (the extension's
    decisions). Property tests in each crate's `tests/fuzz.rs`.
 2. **Integration**: the Docker QA stack (`sh qa/run.sh`: 37 scenarios on
    servers that misbehave, 69 browser checks), the browser checks in real
@@ -124,7 +123,7 @@ written here so the next person need not meet it again (gaps row X4):
   now looks at its first picture and, if it is one colour all over or did
   not come back, stops there and says so, rather than reporting rows it
   could not see. Start it from PowerShell or Windows Terminal, naming the
-  build when `CARGO_TARGET_DIR` put it outside `desktop/target`:
+  build when `CARGO_TARGET_DIR` put it outside `target`:
 
   ```powershell
   $env:DM_BINARY = "D:\dm-target\debug\dm-gpui.exe"
@@ -138,10 +137,10 @@ written here so the next person need not meet it again (gaps row X4):
   $env:CARGO_INCREMENTAL = "0"; $env:CARGO_TARGET_DIR = "D:\dm-target"
   ```
 - **Packages: `cargo xtask package`.** `cargo packager` finds its settings
-  only in the window's own folder (`desktop/crates/dm-gpui/Cargo.toml`,
+  only in the window's own folder (`crates/dm-gpui/Cargo.toml`,
   `[package.metadata.packager]`): from the checkout's root it found none,
   and in the workspace without `-p` it packaged every crate that has them.
-  `cargo xtask package`, from the root or `desktop/`, runs it in that folder
+  `cargo xtask package`, from the repository's root, runs it in that folder
   for `dm-gpui` with this system's formats (NSIS on Windows, `.app` and
   `.dmg` on macOS, `.deb` and AppImage on Linux); anything after `package`
   goes to cargo-packager (`--formats`, `--target`, `--out-dir`). With
@@ -206,7 +205,7 @@ why, and dm must keep answering.
 
 A profile is read against a build that has symbols. The release profile strips them, so
 `cargo build --profile profiling -p dm-gpui` builds the same code (the release profile, with
-line tables and symbols kept) into `desktop/target/profiling/dm-gpui`. Run that, do what is slow,
+line tables and symbols kept) into `target/profiling/dm-gpui`. Run that, do what is slow,
 and sample it:
 
 - **macOS.** `sample dm-gpui 10 -file dm.sample.txt` (in the system, no install) writes 10 seconds
@@ -215,7 +214,7 @@ and sample it:
   the memory is, `leaks dm-gpui` what leaked. With Xcode, Instruments' Time Profiler
   (`xcrun xctrace record --template 'Time Profiler' --attach dm-gpui`) gives a flame graph, and its
   Animation Hitches template the frame times (GPUI reports none of its own). `samply record
-  desktop/target/profiling/dm-gpui` (`cargo install samply`) opens a flame graph in the browser.
+  target/profiling/dm-gpui` (`cargo install samply`) opens a flame graph in the browser.
 - **Linux.** `perf record -g --call-graph dwarf -p $(pidof dm-gpui) -- sleep 10`, then `perf report`;
   or `samply record`, or `cargo flamegraph --profile profiling -p dm-gpui`. Memory: `heaptrack`.
 - **Windows.** `wpr -start CPU -filemode`, do the slow thing, `wpr -stop dm.etl`, and open it in
@@ -234,7 +233,7 @@ What a release binary is made of: `cargo bloat --release -p dm-gpui --crates` wi
 Microbenchmarks, with the `criterion` crate, of the code a large list leans on (gaps row 190).
 They are run by hand, on a quiet machine, to compare two builds on that machine; **they never
 gate CI**, and no CI job runs them, as shared runners are too noisy for them. `cargo test`
-neither builds nor runs them (it would only with `--benches`). From `desktop/`:
+neither builds nor runs them (it would only with `--benches`). From the repository's root:
 
 | Bench | What it times | Command |
 |---|---|---|
@@ -295,7 +294,7 @@ test and the release gate. `--phases engine` runs one phase; `--list` prints eve
 | `scripts/chrome-check.py` with `CHROME_PATH` set to Microsoft Edge | The same 69 checks in Edge itself (catching, helping connections, PDF in a tab, Alt, paused sites, popup, no-host); Edge's and Chrome's host registrations are set aside for the run and put back | `CHROME_PATH="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" DM_CHROME_HEADLESS=1 python3 scripts/chrome-check.py` |
 | `scripts/panel-check.py` | The "Download video" panel's hard cases in Chromium | `python3 scripts/panel-check.py` |
 | `scripts/ui-shot.py` | A picture of the window for checking a visual change by eye | `python3 scripts/ui-shot.py` |
-| `scripts/launch-latency.py` | How long from a browser click (a `download.start` to the native host) to dm's first request for the file, with dm closed (cold) and running (warm). Numbers for comparing two builds, not a pass or a fail | `xvfb-run -a python3 scripts/launch-latency.py desktop/target/release/dm-desktop` |
+| `scripts/launch-latency.py` | How long from a browser click (a `download.start` to the native host) to dm's first request for the file, with dm closed (cold) and running (warm). Numbers for comparing two builds, not a pass or a fail | `xvfb-run -a python3 scripts/launch-latency.py target/release/dm-desktop` |
 | `tests/throughput.rs` | The engine's own speed: loopback with no pacing, a server 80 ms away, and one holding each connection to 1 MB/s. Ignored by default; for comparing two builds on one machine | `cargo test -p dm-core --release --test throughput -- --ignored --nocapture --test-threads=1` |
 
 By hand only (they reach real sites, so no change's CI runs them):
@@ -364,7 +363,7 @@ differs from a developer's machine in ways that are not dm's:
   of room: a GUI check shows a row "Paused: not enough room", which is dm
   telling the truth. The build volume `dm-linux-target` gathers a stale copy of
   the workspace crates' artifacts with every source change (17 GB after a day's
-  work); `cd desktop && cargo clean -p dm-core -p dm-protocol -p dm-shell
+  work); `cargo clean -p dm-core -p dm-protocol -p dm-shell
   -p dm-desktop-base -p dm-gpui -p xtask` inside a container on that volume frees them and
   keeps the third-party builds. Nothing in these scripts deletes anything.
 

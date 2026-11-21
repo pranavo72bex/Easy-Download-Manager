@@ -31,7 +31,6 @@ jobs:
         with:
           toolchain: 1.98.1 # as rust-toolchain.toml
       - name: The reader
-        working-directory: desktop
         run: cargo build --release -p dm-core --example youtube_read --locked
       - name: Read real videos, and ask for each stream's first kilobyte
         id: read
@@ -46,7 +45,7 @@ jobs:
             'https://www.youtube.com/watch?v=LXb3EKWsInQ',
             'https://www.youtube.com/shorts/0HAETg7L15o'
           )
-          & desktop\target\release\examples\youtube_read.exe @videos | Tee-Object -FilePath "$env:RUNNER_TEMP\youtube.txt"
+          & target\release\examples\youtube_read.exe @videos | Tee-Object -FilePath "$env:RUNNER_TEMP\youtube.txt"
           $lines = Get-Content "$env:RUNNER_TEMP\youtube.txt"
           # YouTube's bot check ("Sign in to confirm you're not a bot") turns the runner's
           # address away before dm reads anything: it says nothing of dm's reader, and is not
@@ -82,7 +81,7 @@ jobs:
 
           A line ``FAIL`` is a video dm could not read (its words follow); ``REFUSED`` is a stream
           YouTube would not give for the answers dm worked out, which means the player changed in a
-          way ``desktop/crates/dm-core/src/youtube/player.rs`` does not know. ``PLAYER`` names the
+          way ``crates/dm-core/src/youtube/player.rs`` does not know. ``PLAYER`` names the
           player script read. "Sign in to confirm you're not a bot" is YouTube turning the runner's
           address away, not the player: run it again, or read the same videos on a person's machine:
 

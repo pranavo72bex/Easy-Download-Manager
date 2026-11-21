@@ -1,7 +1,8 @@
 # dm - Development rules
 
-`desktop/` is the product and does the downloading; the browser extension
-(`browser/`, Rust compiled to WebAssembly) catches downloads and hands them
+The app (the crates in `crates/`, one Cargo workspace at the repository's root) is the
+product and does the downloading; the browser extension
+(`crates/dm-catcher/`, Rust compiled to WebAssembly) catches downloads and hands them
 to it. What is done, with the evidence for each line, is in
 [docs/feature-status.md](docs/feature-status.md); the behaviour checklist is
 [docs/parity.md](docs/parity.md).
@@ -20,7 +21,7 @@ everything below, the work list included:
   easier.
 * QA means the whole list: `python3 scripts/human-qa.py`, in a visible
   window, never headless and never a part of it. Run it before a merge and
-  after any change to `desktop/`, `browser/` or `extension/`. It fails when a
+  after any change to `crates/`, `assets/` or `extension/`. It fails when a
   row fails or was not checked; report every row it prints.
 * Name no other download manager in code, comments or docs: the reference
   apps are "reference A" and "reference B".

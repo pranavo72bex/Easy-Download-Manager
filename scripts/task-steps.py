@@ -29,7 +29,7 @@ closed before counting begins. The work folder is DM_TASKS_WORK, or
 dm-task-steps under the system's temporary folder; the record is
 task-steps.json there.
 
-Needs a debug build (`cd desktop && cargo build -p dm-gpui`); DM_BINARY names
+Needs a debug build (`cargo build -p dm-gpui`); DM_BINARY names
 another. DM_TASKS_PACE (1.0 at first) sets how long each step stays on screen.
 Standard library only. On Windows, start it from PowerShell or Windows Terminal,
 not from Git Bash (from there dm's window is not shown as a person sees it),
@@ -49,7 +49,7 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TASKS_DOC = ROOT / "docs" / "tasks.md"
 SHIPPED = "dm-gpui"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug"
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug"
                       / (SHIPPED + (".exe" if sys.platform == "win32" else "")))
 PACE = float(os.environ.get("DM_TASKS_PACE", "1.0"))
 WORK = pathlib.Path(os.environ.get("DM_TASKS_WORK") or pathlib.Path(tempfile.gettempdir()) / "dm-task-steps").resolve()
@@ -806,7 +806,7 @@ def main():
         sys.exit(f"docs/tasks.md and this script disagree on what is driven: "
                  f"{sorted(driven_doc ^ set(DRIVEN))}")
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cd desktop && cargo build -p {SHIPPED}")
+        sys.exit(f"no dm at {BINARY}: cargo build -p {SHIPPED}")
     shutil.rmtree(WORK, ignore_errors=True)
     WORK.mkdir(parents=True)
     origin = start_server()

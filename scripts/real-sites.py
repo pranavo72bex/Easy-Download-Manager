@@ -37,7 +37,7 @@ import media_check  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # dm's agent, as dm-core says it (USER_AGENT), for curl's second opinion.
 AGENT = "dm/0.1.0 (+https://github.com/pranavo72bex/Easy-Download-Manager)"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
 
 # (site, url, what should happen, how the result is checked)
 CASES = [

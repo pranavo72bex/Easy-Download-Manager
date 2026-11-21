@@ -5,10 +5,10 @@ line names the test or run that showed it, dated where it has a date. `[x]`
 means done and tested; an unticked box says what is missing rather than
 nothing.
 
-`desktop/` is the product and does the
+The app (`crates/`) is the product and does the
 downloading; the browser extension catches downloads and hands them to it,
 and downloads nothing itself — with no app, the browser keeps its downloads.
-Everything is Rust: the extension is `browser/` compiled to WebAssembly. Its
+Everything is Rust: the extension is `crates/dm-catcher/` compiled to WebAssembly. Its
 background and popup scripts are written by `scripts/package.sh` with the
 WebAssembly in them, so Rust registers the listeners on the worker's first
 turn (`web/listen.rs`); only the two page scripts (`content.js`,
@@ -55,8 +55,8 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
 - [x] The tray's Speed menu has Settings… (contract row B52); the Downloads menu's Speed limiter On/Off and Settings… already existed
 - [x] A running download's Connections section names each piece's own speed (contract row B53), and a failed download's window and Properties say one next step under the reason where the reason stops at what went wrong (row B54). Written 2026-11-01, not yet built or run.
 - [x] The browser panel's video list takes a part of the video: a "Part" line (start and end) whose times reach Download details filled in (contract row B59). Evidence: unit tests (`dm-protocol` `a_start_carries_the_part_of_a_video_and_an_older_one_has_none`, `dm-shell` host `the_part_asked_for_in_the_panel_reaches_the_app...`, `browser` `the_panels_part_line_hands_over_a_time_and_nothing_else`) and the window test `a_part_asked_for_in_the_browsers_panel_fills_download_details`. Run on real pages on Windows in Microsoft Edge, 2026-11-08 (`scripts/part-check.py`, the part 0:02 to 0:06): the hls.js demo playing Mux's HLS test stream, through the Part line, gave a 10.0 s file (a transport stream is joined at the pieces the part overlaps); dash.js's player of Akamai's DASH Big Buck Bunny, through the Part line and through Download details, gave 4.0 s; W3C's media page playing a plain MP4, whose file the panel hands without a list, gave 4.0 s through Download details; each with picture and sound. A page whose player loaded one stream gets it at once from the panel, its part set in Download details, which opens for it. Not cut: a WebM DASH pair is joined at its nearest pieces, not trimmed; a plain MP4 whose server gives no ranges or no length is refused (gaps row 45, closed). Found on the way and fixed: a part typed was dropped where Download details was off.
-- [x] "Copy details" on a failed download puts a support block with no secret in it on the clipboard (contract row B55). Evidence: unit tests in `desktop/crates/dm-desktop-base/src/view/details.rs` (`a_row_carrying_a_login_and_a_token_gives_away_neither`, `the_block_says_the_version_the_system_the_state_and_the_disk`, `a_status_is_read_from_the_words_and_not_from_an_address`, `an_address_in_a_reason_is_cut_to_its_host`, `a_finished_or_running_row_has_no_reason_line`); the clipboard check is `scripts/human-qa.py` B55. Written, not yet built or tested.
-- [x] Site rules served by the app (gaps rows 68, 69): `Rules::parse`, `Rules::newest`, `answers_for` (`dm-protocol/src/rules.rs` tests), the shipped and the home `rules.json` (`dm-shell/src/host/served.rs` tests, `host/tests.rs` `a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them`), the extension's merge (`browser/src/decide/excluded.rs` and `rules.rs` tests) and the answer reader (`browser/src/decide/answers.rs` tests). The update check fetches a `rules` entry of `latest.json` (`dm-desktop/src/update.rs` `rules_in`, `fetch_rules`; `dm-shell` `served::adopt`; tests in both). Written, not yet built or tested; no site has a rule yet.
+- [x] "Copy details" on a failed download puts a support block with no secret in it on the clipboard (contract row B55). Evidence: unit tests in `crates/dm-desktop-base/src/view/details.rs` (`a_row_carrying_a_login_and_a_token_gives_away_neither`, `the_block_says_the_version_the_system_the_state_and_the_disk`, `a_status_is_read_from_the_words_and_not_from_an_address`, `an_address_in_a_reason_is_cut_to_its_host`, `a_finished_or_running_row_has_no_reason_line`); the clipboard check is `scripts/human-qa.py` B55. Written, not yet built or tested.
+- [x] Site rules served by the app (gaps rows 68, 69): `Rules::parse`, `Rules::newest`, `answers_for` (`dm-protocol/src/rules.rs` tests), the shipped and the home `rules.json` (`dm-shell/src/host/served.rs` tests, `host/tests.rs` `a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them`), the extension's merge (`crates/dm-catcher/src/decide/excluded.rs` and `rules.rs` tests) and the answer reader (`crates/dm-catcher/src/decide/answers.rs` tests). The update check fetches a `rules` entry of `latest.json` (`dm-desktop/src/update.rs` `rules_in`, `fetch_rules`; `dm-shell` `served::adopt`; tests in both). Written, not yet built or tested; no site has a rule yet.
 - [x] Find previous, Shift-F3, in the Downloads menu beside Find next, wrapping round from the first row to the last (`app/search.rs` `next_match`, five unit tests; `tests/window/lists.rs`; contract row B48)
 - [x] HTTP/HTTPS downloading
 - [x] Multi-connection downloading — and a limit of a site's own (Options ›
@@ -112,7 +112,7 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
 ## Browser integration
 - [x] The toolbar popup lists what dm is fetching and its last failure (gaps row U18, 2026-11-16): the window writes `going.json` (`dm_shell::app::going`), the host answers `downloads.list` from it (`feature::LISTS_DOWNLOADS`), the popup asks every 2 s while open; not connected is one line, two steps and the command folded under them, connecting by itself, with "!" on the toolbar icon (`decide::badge`). Checked by `chrome-check.py` (the list, the steps, the badge, reconnecting with the popup open) and `going/tests.rs`, `host::tests::the_popup_is_told_what_the_window_is_fetching`.
 - [x] The extension does the bare minimum and the app decides (gaps row A22, 2026-11-15): the app's hello serves the right-click menu (`served_menus`, items named by mechanism, `menu_does`), a click on an item the app added goes to it (`menu.clicked`, `host::menu_start`), each caught download is judged by the app's rules as saved now (`catch.judge`, `Judge::judged_by`), the app may send the browser's words (`Notice`, `Hello::status`) and makes the panel's list (`media.streams`, `dm_protocol::media::panel_list`); each by a `feature` name, so an older side on either end goes on as before. Extension 3.5.0's frames frozen (`tests/wire/extension-3.5.0.json`), answered by the app (`every_frame_a_released_extension_sends_is_answered`) and read by the extension (`the_app_drives_the_menu_the_catch_its_words_and_the_panel_list`, `decide/contract/tests.rs`). Held to 95% line coverage per file before a merge (`scripts/contract-coverage.py`, CI): 97.8% of 6,345 lines.
-- [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`browser/src/decide/excluded.rs`)
+- [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`crates/dm-catcher/src/decide/excluded.rs`)
 State of the Rust extension, 2026-10-12. What the JavaScript one had
 verified (Firefox 145 install, its own Chrome suite) was of different code
 and is not carried over.
@@ -123,7 +123,7 @@ and is not carried over.
       logs no errors. Also in CI under Xvfb (written, not yet run there)
 - [ ] Safari extension (gaps row R4, 2026-11-18) — `dist/safari` inside
       `dm Safari Extension.appex` in dm.app (`scripts/safari-extension.sh`), its
-      program Rust (`desktop/crates/dm-safari`) starting `dm --native-host` per
+      program Rust (`crates/dm-safari`) starting `dm --native-host` per
       message. Checked: `pluginkit -m -i com.dm.desktop.safari-extension` lists
       it from a dm.app in /Applications; a `download.start` handed to the host
       from inside the extension's sandbox (its entitlements) opened dm through
@@ -234,10 +234,10 @@ and is not carried over.
 
 ## UI
 - [x] Download manager — the client's. Its window is drawn in Rust with
-      GPUI (`desktop/crates/dm-gpui`), no web view: the one built and
+      GPUI (`crates/dm-gpui`), no web view: the one built and
       shipped on macOS since its .dmg held the behaviour contract
       (64 of 64, 2026-11-10), on Windows and Linux since 2026-11-11 (gaps G9), held to
-      `scripts/human-qa.py`. The older egui window (`desktop/crates/dm-desktop`,
+      `scripts/human-qa.py`. The older egui window (`crates/dm-desktop`,
       which replaced a Tauri web-view window on 2026-10-11) was removed on
       2026-11-13 with its fonts (Inter, Selawik, the Fluent icon font), its
       three vendored patches (winit, egui-winit, eframe) and its scripts and
@@ -264,7 +264,7 @@ and is not carried over.
       folder not there yet is made when the links are added, one that cannot
       be is said and the dialog stays. Contract row B67. Checked on macOS over
       the control port; Linux and Windows owed
-- [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of dm's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds dm's window until it is answered; dm's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `desktop/vendor/README.md`). Contract row B42.
+- [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of dm's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds dm's window until it is answered; dm's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `vendor/README.md`). Contract row B42.
 - [x] The window — menu bar (Program, File, Downloads, View, Help),
       toolbar, category tree with Everything, In progress, Done and Queues,
       a sortable table (Name, Queue, Size, Status, Time left, Speed, Date,
@@ -323,7 +323,7 @@ and is not carried over.
       on macOS by dm's own handler on winit's window delegate (tested on a
       real pasteboard), on Windows by dm's own OLE drop target (compiled and
       unit-tested, run in CI), and on X11 by a patched, vendored winit
-      (`desktop/vendor/winit`) that reads `_NETSCAPE_URL` and text —
+      (`vendor/winit`) that reads `_NETSCAPE_URL` and text —
       `scripts/linux-drag-check.sh` drags a link from real Firefox with
       xdotool and sees it queued. Finished files drag out on macOS and
       Windows (`drag` crate) and on X11 by dm's own XDND source (`xdnd.rs`),
@@ -387,7 +387,7 @@ and is not carried over.
 
 ## Reliability
 - [x] Unit tests — all Rust: the desktop workspace and the extension's host
-      tests (`cargo test --workspace`, `cd browser && cargo test`); there is no
+      tests (`cargo test --workspace`, `cd crates/dm-catcher && cargo test`); there is no
       JavaScript suite. Counts are not kept here: `docs/scorecard.md`
       is generated and `docs/testing.md` says how each check is run
 - [x] Integration tests — Rust against a real HTTP server; the extension in
@@ -404,7 +404,7 @@ and is not carried over.
       container — one normally, none with `--hidden`; on this Mac the shell
       may not script System Events, so there it says "not checked" rather
       than "ok", which it used to
-- [x] Window tests — `desktop/crates/dm-gpui/src/window_tests/` (ported
+- [x] Window tests — `crates/dm-gpui/src/window_tests/` (ported
       from the egui window's `tests/window.rs`), in CI: the window opened in
       GPUI's test platform and driven through its control port's methods
       against a real queue,
@@ -462,7 +462,7 @@ and is not carried over.
 
 ## Packaging
 - [ ] Linux — packages: .deb and AppImage (cargo-packager), .rpm (nfpm,
-      `desktop/packaging/nfpm.yaml`) and Arch (PKGBUILD), for x86_64 and
+      `packaging/nfpm.yaml`) and Arch (PKGBUILD), for x86_64 and
       arm64. Each names what winit and glow open at run time (X11, Xcursor,
       X11-xcb, Xi, Wayland, xkbcommon, GL); the .deb named too few until
       2026-10-16, when GTK — which had brought the X11 ones along — left
@@ -521,7 +521,7 @@ and is not carried over.
       `window.rs`. Never run against a real release: none has been published
 - [ ] Code signing / notarisation
 - [ ] Android (gaps rows N1 to N17, 2026-11-20) — coded, not run. The phone
-      app is dm-gpui's window on gpui-android (`desktop/crates/dm-android`,
+      app is dm-gpui's window on gpui-android (`crates/dm-android`,
       `docs/android.md`), with the narrow layout below 600 points, shares,
       magnets and `.torrent` files, the Keystore's sealed secrets, the wake
       lock and notifications, a Gradle project and `android.yml`'s build,

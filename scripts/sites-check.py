@@ -647,7 +647,7 @@ def sites(base, origin, engine_dl, engine_home, worker):
     # follow these (rows 69, 118, 125) read them, and failed with the shipped ones left there.
     rules = engine_home / "rules.json"
     own = json.loads(rules.read_text(encoding="utf-8")) if rules.exists() else None
-    shipped = json.loads((cc.ROOT / "desktop/assets/rules/rules.json").read_text(encoding="utf-8"))
+    shipped = json.loads((cc.ROOT / "assets/rules/rules.json").read_text(encoding="utf-8"))
     shipped["revision"] = 1000
     rules.write_text(json.dumps(shipped), encoding="utf-8")
     ask_again = ("dmReady.then(m => { m.forget_app();"

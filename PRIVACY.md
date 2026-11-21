@@ -147,8 +147,8 @@ new folder; it contacts nothing and runs nothing it extracts.
 dm is open source; if this document and the code ever disagree, the code is
 the truth and the disagreement is a bug worth reporting.
 
-This is also checked, not only promised: `cargo xtask privacy` (in
-`desktop/`, and as a test in every build) fails if any crate that sends
+This is also checked, not only promised: `cargo xtask privacy` (from the
+repository's root, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
 shipped code names any address but GitHub's. dm reaches GitHub only when
 you check for updates or open Help. The two extension stores are

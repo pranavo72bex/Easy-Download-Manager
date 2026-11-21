@@ -38,7 +38,6 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          workspaces: desktop
           shared-key: site-watch-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
@@ -58,7 +57,7 @@ jobs:
         id: build
         run: |
           echo "WATCH=$RUNNER_TEMP/site-watch" >> "$GITHUB_ENV"
-          (cd desktop && cargo build --release -p dm-gpui --locked)
+          cargo build --release -p dm-gpui --locked
           sh scripts/package.sh
 
       - name: The table's own workings
@@ -74,7 +73,7 @@ jobs:
         run: |
           set +e
           mkdir -p "$WATCH"
-          DM_BINARY="$PWD/desktop/target/release/dm-gpui" \
+          DM_BINARY="$PWD/target/release/dm-gpui" \
             xvfb-run -a -s '-screen 0 1280x800x24' \
             python3 scripts/youtube-check.py --json "$WATCH/youtube.json" 2>&1 | tee "$WATCH/youtube.log"
           echo "youtube-check.py ended with ${PIPESTATUS[0]}"
@@ -90,7 +89,7 @@ jobs:
         run: |
           set +e
           mkdir -p "$WATCH"
-          DM_BINARY="$PWD/desktop/target/release/dm-gpui" \
+          DM_BINARY="$PWD/target/release/dm-gpui" \
             xvfb-run -a -s '-screen 0 1280x800x24' \
             python3 scripts/sites-check.py --public --json "$WATCH/sites.json" 2>&1 | tee "$WATCH/sites.log"
           echo "sites-check.py ended with ${PIPESTATUS[0]}"

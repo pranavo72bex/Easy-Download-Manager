@@ -1,7 +1,7 @@
 # Module boundaries
 
 Which code may depend on which, and what each part owns. The crate rules are
-enforced by `cargo xtask layers` (`desktop/xtask/src/main.rs`, run by
+enforced by `cargo xtask layers` (`tooling/xtask/src/main.rs`, run by
 `cargo test --workspace`); the rest is held by review and by this page.
 
 ## Crates
@@ -13,7 +13,7 @@ enforced by `cargo xtask layers` (`desktop/xtask/src/main.rs`, run by
 | `dm-shell` | `dm-core`, `dm-protocol` | a window toolkit | the application layer (`dm_shell::app`), settings, the browser's native host, the inbox, lists, registration |
 | `dm-desktop-base` | `dm-core`, `dm-protocol`, `dm-shell` | a window toolkit | what the desktop program does that is not drawing: `Desktop` (the Platform, taking `WindowServices` from the window), the login item, the control port's server, MCP, the command line, the words (`i18n` and its catalogs) and numbers (`format`, `details`), the system's services (quiet hours, sounds and When done, keeping awake, the wake timer, Windows' toasts, taskbar and jump list, theme and High Contrast, signals) |
 | `dm-gpui` | `dm-core`, `dm-protocol`, `dm-shell`, `dm-desktop-base` | — | the window built and shipped on macOS, Windows and Linux, drawn with GPUI: dialogs, table, tray, drops and dragging out, what the system does for `Desktop` (clipboard, file choosers, notifications), and the `ui.*` answers (`probe.rs`) |
-| `dm-catcher` (browser/) | `dm-protocol` | a window toolkit, sockets | the extension's decisions, compiled to WebAssembly |
+| `dm-catcher` (crates/dm-catcher/) | `dm-protocol` | a window toolkit, sockets | the extension's decisions, compiled to WebAssembly |
 
 `dm-gpui` took the older egui window's (`dm-desktop`'s) place as the program
 people install, and that crate was removed on 2026-11-13 (gaps row G9).

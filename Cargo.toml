@@ -1,0 +1,258 @@
+# The engine is its own crate, deliberately.
+#
+# It is the product: everything a download manager is judged on — many connections, resume,
+# throughput — lives here, and none of it needs a window. Keeping it free of
+# the GUI means it can be tested against real servers in milliseconds rather
+# than driven through a webview, and the shell becomes a thin thing on top
+# rather than the place the logic hides.
+[workspace]
+resolver = "2"
+# One workspace at the repository's root, every crate in crates/ (the extension's dm-catcher,
+# built for wasm32-unknown-unknown, among them) and the project's own tooling in tooling/:
+# one lock file and one target folder for both sides, and `cargo test --workspace` tests the
+# extension's deciding parts too (gaps row A15).
+members = ["crates/*", "tooling/xtask"]
+# A patched copy, used through [patch.crates-io] (gpui-android, which crates.io has not, by its
+# path below), not a member.
+exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/gpui-pre-linux", "vendor/gpui-pre-windows", "vendor/gpui-pre-wgpu", "vendor/gpui-android"]
+
+# Every dependency's version, once (gaps row X8): a crate names it with `x.workspace = true`
+# and adds its own features there; `cargo xtask layers` refuses a version written in a crate.
+# Features here are the ones every crate using it asks for.
+[workspace.dependencies]
+# dm's own crates.
+dm-android = { path = "crates/dm-android" }
+dm-assets = { path = "crates/dm-assets" }
+dm-core = { path = "crates/dm-core" }
+dm-desktop-base = { path = "crates/dm-desktop-base" }
+# The window, a library too (`dm_gpui::run_app`): the phone's app opens it (gaps row N3).
+dm-gpui = { path = "crates/dm-gpui" }
+dm-js = { path = "crates/dm-js" }
+dm-media = { path = "crates/dm-media" }
+dm-net = { path = "crates/dm-net" }
+dm-protocol = { path = "crates/dm-protocol" }
+dm-shell = { path = "crates/dm-shell" }
+dm-torrent = { path = "crates/dm-torrent" }
+# Tests' alone: only ever a dev-dependency (gaps row X10).
+dm-test-support = { path = "crates/dm-test-support" }
+# GPUI's Android platform, dm's copy of gpui-mobile's (vendor/README.md, gaps row N16):
+# not on crates.io, so a path, as dm's own crates are.
+gpui-android = { path = "vendor/gpui-android" }
+
+# From crates.io (or patched below).
+# The phone's NativeActivity glue (dm-android's `android_main`), the version gpui-android uses.
+android-activity = { version = "0.6", features = ["native-activity"] }
+aes = "0.9.3"
+arboard = "3"
+async-channel = "2"
+auto-launch = "0.6"
+axum = "0.8"
+base64 = "0.22"
+block2 = "0.6"
+brotli-decompressor = "6"
+bytes = "1"
+cbc = { version = "0.2.1", features = ["block-padding", "alloc"] }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+crc32fast = "1.5"
+# Benches' alone (gaps row 190): only ever a dev-dependency, run by hand with `cargo bench`
+# and never in CI (docs/testing.md, Benchmarks). Already in Cargo.lock through GPUI.
+criterion = "0.8"
+dirs = "7.0.0"
+embed-resource = "3"
+flate2 = "1"
+# The extension's, for its browser build alone.
+futures-channel = "0.3"
+futures-lite = "2"
+futures-util = "0.3"
+getrandom = "0.4"
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui-base = "=0.9.1"
+gpui-component = "=0.9.1"
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
+hyper = { version = "1", features = ["server", "http2"] }
+hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service", "http2"] }
+# The phone's calls into Android (dm-android, gaps rows N5, N6): the version gpui-android and
+# android-activity already use, so one copy.
+jni = "0.22.4"
+js-sys = "0.3"
+libc = "0.2"
+librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"] }
+md-5 = "0.11.0"
+md4 = "0.11"
+memory-stats = "1.2.0"
+notify-rust = "4"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false }
+objc2-foundation = { version = "0.3", default-features = false }
+percent-encoding = "2"
+png = "0.18"
+proptest = "1"
+quick-xml = "0.42.0"
+rand = "0.8"
+rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+raw-window-handle = "0.6"
+rcgen = "0.14"
+reqwest = { version = "0.13", default-features = false, features = ["stream", "rustls-no-provider", "system-proxy", "socks", "http2"] }
+retina = "0.4"
+rfd = "0.18"
+# Ed25519 for the update manifest's signature (gaps row F6): already in the tree as rustls's
+# provider, so no second crypto library.
+ring = "0.17"
+serde = "1"
+serde_json = "1"
+sha1 = "0.11"
+sha2 = "0.11.0"
+symphonia-bundle-mp3 = "0.6.1"
+symphonia-codec-aac = "0.6.1"
+symphonia-core = "0.6.1"
+sys-locale = "0.3"
+tempfile = "3"
+thiserror = "2"
+tokio = "1"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+tokio-socks = "0.5"
+tokio-util = "0.7"
+toml = "1.1"
+trash = "5.2.9"
+tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
+url = "2.5.8"
+# Pinned exactly: the wasm-bindgen CLI that turns the extension's build into what its loader
+# imports must be the same version, and scripts/package.sh checks it against Cargo.lock.
+wasm-bindgen = "=0.2.127"
+wasm-bindgen-futures = "0.4"
+web-sys = "0.3"
+webpki-roots = "1"
+windows = "0.62"
+windows-sys = "0.61"
+x11rb = "0.13"
+zbus = { version = "5", default-features = false, features = ["blocking-api"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
+# The lints every dm crate keeps, in one place rather than pasted into each crate's root
+# (gaps row A1); each crate's `[lints] workspace = true` takes them. Clippy refuses warnings in
+# CI (`cargo clippy -- -D warnings`), so these hold.
+[workspace.lints.rust]
+# Every public item says what it is for (gaps row 27).
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+# From Google's Rust style guide: an `unsafe` block says why it is sound (`// SAFETY:`, on every
+# platform, Windows included), a string is built with `format!` rather than `+`, and a loop is a
+# loop rather than `for_each`.
+undocumented_unsafe_blocks = "warn"
+string_add = "warn"
+needless_for_each = "warn"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+
+# Built for speed where the work is the CPU's: dm's engine and its media code
+# (dm-media: the MP3, GIF and resampling code, "z" made it three times as
+# slow; gaps row A6), digests, unpacking,
+# TLS, AAC decoding and drawing. The rest waits on the network or the window
+# and is built for size. Not dm-gpui: with LTO a binary's setting becomes
+# the whole program's (the older egui window's binary at 3 was 27 MB).
+# docs/decisions.md, 2026-11-06 and 2026-11-12 (gaps row S12).
+[profile.release.package.dm-core]
+opt-level = 3
+[profile.release.package.dm-media]
+opt-level = 3
+[profile.release.package.symphonia-codec-aac]
+opt-level = 3
+[profile.release.package.symphonia-core]
+opt-level = 3
+[profile.release.package.sha2]
+opt-level = 3
+[profile.release.package.md-5]
+opt-level = 3
+[profile.release.package.crc32fast]
+opt-level = 3
+[profile.release.package.miniz_oxide]
+opt-level = 3
+[profile.release.package.ring]
+opt-level = 3
+# The HTTP stack every byte of a download passes through: the connection's
+# reading (hyper), the runtime that wakes for each piece (tokio) and TLS's
+# records (rustls). At 3 a 512 MiB download over plain HTTP took 5 % fewer
+# instructions and 10 % less CPU for 329 KB of binary; rustls's share is not
+# measured yet (gaps row S12).
+[profile.release.package.hyper]
+opt-level = 3
+[profile.release.package.tokio]
+opt-level = 3
+[profile.release.package.rustls]
+opt-level = 3
+# The shipped window's drawing: GPUI's frame (gpui-pre), its layout (taffy)
+# and each system's window, renderer and text. On macOS the window is
+# gpui-pre-macos and the Metal renderer and the text are gpui-pre-apple; on
+# Linux the window is gpui-pre-linux and the renderer and text gpui-pre-wgpu;
+# on Windows all three are gpui-pre-windows. Not gpui-component or GPUI's
+# small helper crates (sum-tree and the like): the 2026-11-11 trial that had
+# them grew the binary 11 % for nothing measured.
+[profile.release.package.gpui-pre]
+opt-level = 3
+[profile.release.package.taffy]
+opt-level = 3
+[profile.release.package.gpui-pre-macos]
+opt-level = 3
+[profile.release.package.gpui-pre-apple]
+opt-level = 3
+[profile.release.package.gpui-pre-linux]
+opt-level = 3
+[profile.release.package.gpui-pre-wgpu]
+opt-level = 3
+[profile.release.package.gpui-pre-windows]
+opt-level = 3
+
+# The same crates optimised in debug builds and tests too: built at opt-level 0, GPUI's layout
+# and painting of a screenful of rows took about 120 ms of a 168 ms frame on the Windows laptop
+# (gaps row 203), so the window tests timed GPUI rather than dm, which stays at opt-level 0
+# with its debug assertions. Built once per target folder; not dm's own crates.
+[profile.dev.package.gpui-pre]
+opt-level = 2
+[profile.dev.package.taffy]
+opt-level = 2
+[profile.dev.package.gpui-pre-macos]
+opt-level = 2
+[profile.dev.package.gpui-pre-apple]
+opt-level = 2
+[profile.dev.package.gpui-pre-linux]
+opt-level = 2
+[profile.dev.package.gpui-pre-wgpu]
+opt-level = 2
+[profile.dev.package.gpui-pre-windows]
+opt-level = 2
+# The passphrase of a backup and of the sealed sign-ins is stretched 600,000 rounds of
+# SHA-256 (`secretstore::passphrase`): at opt-level 0 a debug build took about 18 s to back
+# dm up, past what a person (and B72's check) waits for.
+[profile.dev.package.sha2]
+opt-level = 3
+
+# The extension's WebAssembly (scripts/package.sh: `cargo build --profile extension --target
+# wasm32-unknown-unknown`), as crates/dm-catcher/ built it as a workspace of its own: for size, and a
+# panic stops it. The release's per-crate opt-levels above are the desktop's crates, none in it.
+[profile.extension]
+inherits = "release"
+opt-level = "s"
+panic = "abort"
+
+# The release build with its symbols and line tables kept, for a profiler
+# (docs/testing.md, Profiling): `cargo build --profile profiling -p dm-gpui`.
+# The same code as the release (line tables do not change it: stripped, it was
+# within 1.2 KB of the release binary on macOS), built about a fifth slower.
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
+split-debuginfo = "packed"
+strip = false
+
+# Crates built with a change of dm's own (vendor/README.md).
+[patch.crates-io]
+librqbit = { path = "vendor/librqbit" }
+librqbit-sha1-wrapper = { path = "vendor/librqbit-sha1-wrapper" }
+gpui-pre-linux = { path = "vendor/gpui-pre-linux" }
+gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
+gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu" }

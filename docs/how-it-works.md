@@ -56,7 +56,7 @@ connection, Download complete, Properties, Add numbered series, Files on a
 site, Scheduler, Speed limiter, Options. It is held together like this:
 
 - **A command registry** (`dm_shell::app::commands`: each command's name,
-  label and keys; the GPUI window's menus in `desktop/crates/dm-gpui/src/window/menus.rs`). The menus,
+  label and keys; the GPUI window's menus in `crates/dm-gpui/src/window/menus.rs`). The menus,
   the toolbar, the row menu, the keyboard and the control protocol all run
   the same named commands.
 - **An application layer under the window** (`dm_shell::app`,
@@ -72,7 +72,7 @@ site, Scheduler, Speed limiter, Options. It is held together like this:
 - **The whole window held to the behaviour contract**
   (`scripts/human-qa.py`, in a visible window, against the GPUI window as
   shipped), and the control port's checks (`scripts/app-check.py`). The
-  window's own tests (`desktop/crates/dm-gpui/src/window_tests/`) open it in
+  window's own tests (`crates/dm-gpui/src/window_tests/`) open it in
   GPUI's test platform over a real queue and drive it through the control
   port's methods (`src/harness.rs`): menus, toolbar, row commands, dialogs
   and Options, each checked for what it does.
@@ -148,8 +148,8 @@ installs system-wide instead of under `~/.local`.
 
 ```sh
 sh scripts/package.sh                         # dist/chrome, dist/firefox and their zips
-(cd desktop && cargo build --release -p dm-gpui)
-desktop/target/release/dm-gpui --register     # from a copy outside ~/Downloads on macOS
+cargo build --release -p dm-gpui
+target/release/dm-gpui --register     # from a copy outside ~/Downloads on macOS
 ```
 
 **Chrome, Edge, Brave, Vivaldi, Opera** — `chrome://extensions`, turn on
@@ -181,7 +181,7 @@ why. Install to `/Applications` (or `make install`) and register that copy.
 
 ## The desktop client
 
-`desktop/` is all Rust: `dm-core` is the
+The app is all Rust, one crate per folder in `crates/`: `dm-core` is the
 engine and has no idea a screen exists; `dm-net` is how it reaches a server (the HTTP client,
 proxies, sign-ins, cookies, `Error`); `dm-media` is dm's own media code (the muxers, the MP3
 and GIF encoders, the decoders), files in and files out, which the engine calls; `dm-shell` is the settings, the
@@ -191,7 +191,6 @@ MCP, the words); `dm-gpui` is the window, drawn with GPUI — no web view, no
 Electron.
 
 ```sh
-cd desktop
 cargo run -p dm-gpui          # the window
 cargo test --workspace        # the engine against a real HTTP server, a loopback BitTorrent
                               # swarm, and the window driven through its control port
@@ -289,7 +288,7 @@ not in this list.
 
 The phone app is in development: coded, not yet run on a phone
 ([android.md](android.md), gaps rows N1 to N17). It is the same window, not
-a second one. `desktop/crates/dm-android` holds only what a phone adds.
+a second one. `crates/dm-android` holds only what a phone adds.
 
 - **Start.** `android_main` (`src/android.rs`) opens the Java side (`jvm.rs`),
   then hands `dm_desktop_base::phone::set_phone` its `phone::Phone`. It sets
@@ -359,7 +358,7 @@ A line clicked on the first list is taken at its height.
 
 ## How the hand-off works
 
-**The extension** is Rust (`browser/`, crate `dm-catcher`) compiled to
+**The extension** is Rust (`crates/dm-catcher/`, crate `dm-catcher`) compiled to
 WebAssembly with wasm-bindgen. Every decision — which downloads are
 candidates, what a menu click hands over, how long an answer about the app is
 believed — is plain Rust tested on the build machine; the browser side reads
@@ -369,7 +368,7 @@ listeners on its first turn, so `scripts/package.sh` writes the WebAssembly
 into the background's script (`pkg/background.js`), which starts it at once
 (`initSync`) and Rust registers them (`web/listen.rs`); the popup's script
 (`pkg/popup.js`) only starts the Rust. Its words are the browser's language:
-each is named in `browser/src/words.rs` and read with `i18n.getMessage` from
+each is named in `crates/dm-catcher/src/words.rs` and read with `i18n.getMessage` from
 `extension/_locales` (English and the app's other languages), the English
 where the browser gives none; the background's reasons and notifications are
 English still. Permissions:
@@ -388,7 +387,7 @@ to that policy, so the panel cannot load there; the right-click menu still
 works.
 
 **The protocol** is native messaging, and its vocabulary, message types and
-the catch rule are one Rust crate (`desktop/crates/dm-protocol`) used by both
+the catch rule are one Rust crate (`crates/dm-protocol`) used by both
 sides, where it used to be two languages kept in step by hand:
 
 | extension sends | host answers |
@@ -407,7 +406,7 @@ to, and the extension reads a reply of any version for the fields it knows. The 
 hello says its version and what it can do (`Greeting`, kept by the app as `extension.json` in
 dm's home), the app's says what it can do (`features`), and a new ability is a name in
 `dm_protocol::feature`, not a new version. What each released extension sends is frozen in
-`desktop/crates/dm-protocol/tests/wire/`, and the tests hold every later app to answering it.
+`crates/dm-protocol/tests/wire/`, and the tests hold every later app to answering it.
 
 **The extension does the bare minimum; the app decides (gaps row A22).** The extension keeps
 only what needs the browser: it catches the browser's downloads and holds them, sees what the
@@ -457,11 +456,11 @@ window is where the download is.
 native messages to that app's extension program rather than to a host. `scripts/safari-extension.sh`
 (`make build-safari`) puts `dm Safari Extension.appex` into dm.app/Contents/PlugIns: its
 Resources are `dist/safari` (`extension/manifest.safari.json`), and its program is Rust
-(`desktop/crates/dm-safari`), which starts dm's own program as the host (`dm --native-host`) for
+(`crates/dm-safari`), which starts dm's own program as the host (`dm --native-host`) for
 each message, with the person's own `HOME`, and gives Safari its answer. Safari keeps no port
 open for answers, so there the extension sends each request with `runtime.sendNativeMessage`
 (`decide::one_message_at_a_time`). The extension and the host it starts run in macOS's sandbox,
-allowed dm's own folder and outgoing connections (`desktop/assets/macos/safari/entitlements.plist`);
+allowed dm's own folder and outgoing connections (`assets/macos/safari/entitlements.plist`);
 a dm the host must start is opened through `open`, outside it. Safari has no `downloads` API:
 what Safari itself downloads stays with Safari, and the menu, Alt-click, "Download all links",
 the popup and the panel are the ways in. Signed ad hoc, it runs only with Safari's Develop ›
@@ -530,14 +529,14 @@ Linux, under Wayland and KDE's compositor) is in [testing.md](testing.md).
 The common ones:
 
 ```sh
-cd browser && cargo test                       # the extension's decisions, on the host
-cd browser && cargo clippy --target wasm32-unknown-unknown -- -D warnings
+cd crates/dm-catcher && cargo test                       # the extension's decisions, on the host
+cd crates/dm-catcher && cargo clippy --target wasm32-unknown-unknown -- -D warnings
 sh scripts/package.sh                          # build the WebAssembly, dist/chrome, dist/firefox, the zips
 python3 scripts/chrome-check.py                # Chrome for Testing, handing off to a real dm
 
-cd desktop && cargo xtask check                # all of the gate that needs no window, app and extension
-cd desktop && cargo test --workspace           # engine, protocol, shell and window tests
-cd desktop && cargo clippy --workspace --all-targets -- -D warnings
+cargo xtask check                # all of the gate that needs no window, app and extension
+cargo test --workspace           # engine, protocol, shell and window tests
+cargo clippy --workspace --all-targets -- -D warnings
 python3 scripts/app-check.py                   # drives the built binary: lock, hand-off, proxy, schedule
 sh scripts/linux-check.sh                      # the same, on Linux, in a container
 python3 scripts/firefox-check.py [native]      # a real Firefox, when one is installed
@@ -560,7 +559,7 @@ The built window is driven through the control port (`ui.texts`, `ui.click`,
 `ui.type`) by `scripts/human-qa.py` and `scripts/app-check.py`.
 
 ```
-browser/                  the extension, in Rust (crate dm-catcher)
+crates/dm-catcher/        the extension, in Rust (crate dm-catcher)
   src/decide.rs           every decision, tested on the host; its parts are decide/ (download,
                           menu, app, media_panel, sites, streams, timing), re-exported from it
   src/web.rs              the browser side: extension APIs, native messaging; web/ holds plumbing,
@@ -572,8 +571,8 @@ extension/
   manifest.firefox.json   Firefox
   pkg/                    built by scripts/package.sh (not in git): the WebAssembly and its glue,
                           background.js and popup.js that start it, panel.js for a page's frame
-desktop/
-  crates/dm-core/
+crates/                   the app's crates, one folder each (the workspace is the root's Cargo.toml)
+  dm-core/
     download/             one download: mod.rs (options, the entry points), ranged.rs (the
                           range workers, resume; ranged/limits.rs keeps to a server that
                           limits connections or requests), http.rs, mirrors.rs, hls.rs (playlists and
@@ -624,7 +623,7 @@ desktop/
     ftp.rs                FTP (ftp/: transport, target, reply, session, listing, transfer)
     (the HTTP client, proxies and the proxy script, sign-ins, cookies, the stop flag and
     `Error` are dm-net's, re-exported under their old paths: `dm_core::client`, `dm_core::pac`)
-  crates/dm-media/        dm's own media code (gaps row A6): files in, files out; no sockets, no
+  dm-media/               dm's own media code (gaps row A6): files in, files out; no sockets, no
                           async runtime, none of dm's other crates
     mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4, WebM or MKV (mp4mux/: read, write,
                           text, part; mkvmux/from_mp4.rs: an MP4's samples as Matroska blocks, for a
@@ -637,7 +636,7 @@ desktop/
                           and Windows, Media Foundation in mf.rs; AV1 by rav1d on Linux), each
                           system's in a file of its own (frames/, mp3/decode/: macos, win, linux)
     shape.rs, subtitles.rs     a picture cropped to a shape; subtitles read and written
-  crates/dm-net/          dm's network (gaps row A6): how a server is reached, whatever is fetched
+  dm-net/                 dm's network (gaps row A6): how a server is reached, whatever is fetched
     http_client.rs        the client builder, its TLS (`tls_config`, shared with RTMP, RTSP and
                           FTPS), `Retry-After`
     trust.rs              certificates trusted beside the public roots, given before the TLS
@@ -653,33 +652,34 @@ desktop/
     only_through.rs       the one network every download is held to (a VPN's): each client bound
                           to its address, FTP's sockets too; downloads wait while it is gone
     control.rs, error.rs  the stop flag a row's work checks; dm's `Error`
-  crates/dm-torrent/      BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate
+  dm-torrent/             BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate
                           that names librqbit; a session, a torrent added to it, its stats and
                           files, a .torrent's trackers. What a download means to dm stays in
                           dm-core's torrent.rs
-  crates/dm-protocol/     what the extension and the host say, and the catch rule
-  crates/dm-safari/       Safari's extension's program (macOS): each message to `dm --native-host`
-  crates/dm-shell/        settings, the browser host, --register, one-instance lock, startup;
+  dm-protocol/            what the extension and the host say, and the catch rule
+  dm-safari/              Safari's extension's program (macOS): each message to `dm --native-host`
+  dm-shell/               settings, the browser host, --register, one-instance lock, startup;
                           app/ the application layer every window drives
-  crates/dm-desktop-base/ the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,
+  dm-desktop-base/        the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,
                           the system's services (tray, toasts, taskbar…)
-  crates/dm-gpui/         the window shipped, in GPUI: window/ (list.rs the rows and each wake's
+  dm-gpui/                the window shipped, in GPUI: window/ (list.rs the rows and each wake's
                           read, tick.rs, table.rs, menus.rs, the bars, theme.rs), dialogs/ (one
                           file per window beside the main one), options.rs with options/pages.rs
                           and pages/ (a file per page),
                           widgets/ (what GPUI lacks), platform/ (syswindow/, tray.rs, services,
                           drags and drops), port.rs and probe.rs (the control port); harness.rs
                           and window_tests/ the window's tests
-  crates/dm-assets/       the files below compiled in: the window's pictures, the catalogs,
+  dm-assets/              the files below compiled in: the window's pictures, the catalogs,
                           the shipped site rules
-  crates/dm-test-support/ what the crates' tests share (the logins and secrets they use);
+  dm-test-support/        what the crates' tests share (the logins and secrets they use);
                           only ever a dev-dependency
-  assets/                 what is not code: icons/ (the window's), app-icons/ and macos/
+assets/                   what is not code: icons/ (the window's), app-icons/ and macos/
                           (the installers'), i18n/ (the catalogs, with template/ the file
                           a new language starts from and unread/ each language's strings no
                           native speaker has read: docs/guide/translating.md), rules/ (rules.json)
-  xtask/                  cargo xtask scorecard | layers | privacy | secrets | i18n
-  packaging/PKGBUILD      the Arch package
+vendor/                   patched copies of crates.io crates (GPUI, librqbit), vendor/README.md
+tooling/xtask/            cargo xtask scorecard | layers | privacy | secrets | i18n
+packaging/PKGBUILD        the Arch package
 shared/naming-cases.json  filename cases the engine's naming is held to
 scripts/package.sh        builds the extension and the store zips
 scripts/chrome-check.py   the extension in Chrome for Testing, handing off to dm

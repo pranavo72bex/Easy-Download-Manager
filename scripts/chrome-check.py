@@ -6,7 +6,7 @@
 """Loads the built extension into a real Chrome and watches it hand off.
 
     sh scripts/package.sh                      # builds dist/chrome
-    (cd desktop && cargo build -p dm-gpui)  # the app the host starts
+    cargo build -p dm-gpui  # the app the host starts
     python3 scripts/chrome-check.py
 
 Chrome for Testing, because branded Chrome stopped honouring
@@ -67,7 +67,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "chrome"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "desktop/target/debug/dm-gpui")
+BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
 CACHE = pathlib.Path(os.environ.get("DM_CHROME_CACHE") or pathlib.Path.home() / ".cache/dm-chrome-for-testing")
 ENDPOINT = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
 
@@ -1644,7 +1644,7 @@ def main():
     if not (EXT / "pkg" / "dm_catcher_bg.wasm").exists():
         sys.exit("no built extension at dist/chrome — run: sh scripts/package.sh")
     if not BINARY.exists():
-        sys.exit(f"no dm binary at {BINARY} — run: (cd desktop && cargo build -p dm-gpui)")
+        sys.exit(f"no dm binary at {BINARY} — run: cargo build -p dm-gpui")
     chrome = find_chrome()
     manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))
     der = base64.b64decode(manifest["key"])

@@ -6,7 +6,7 @@
 
 """Names each test a CI run failed as a GitHub annotation.
 
-    python3 scripts/ci-failed-tests.py desktop/target/nextest/ci/junit.xml
+    python3 scripts/ci-failed-tests.py target/nextest/ci/junit.xml
 
 A job's log is open to the repository's administrators only; its annotations
 are open to everyone (the checks API), so a failure is named where whoever

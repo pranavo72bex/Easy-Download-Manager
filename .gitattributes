@@ -1,5 +1,5 @@
 # Text files keep \n line endings on every checkout, Windows included: the
-# generated documents (docs/window-catalog.md, docs/scorecard.md) are compared
+# generated documents (docs/scorecard.md) are compared
 # byte for byte with what the code generates, and a CRLF checkout made the
 # Windows CI job fail that comparison.
 * text=auto eol=lf

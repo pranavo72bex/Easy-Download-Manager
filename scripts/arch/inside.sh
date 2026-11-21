@@ -17,7 +17,7 @@ pacman -S --noconfirm --needed rust pkgconf git fontconfig freetype2 libxcb wayl
 id builder >/dev/null 2>&1 || useradd -m builder
 mkdir -p /home/builder/.cargo && chown -R builder:builder /home/builder
 
-version=$(sed -n 's/^pkgver=//p' desktop/packaging/PKGBUILD)
+version=$(sed -n 's/^pkgver=//p' packaging/PKGBUILD)
 top="Easy-Download-Manager-desktop-v$version"
 build=/home/builder/pkg
 rm -rf "$build" && mkdir -p "$build/$top"
@@ -27,8 +27,8 @@ cp -r . "$build/$top/"
 # Its digest is the release tarball's, which this tarball made just now is
 # not: skipped for it, and kept in the PKGBUILD a person builds.
 sed -e "s|^source=.*|source=(\"dm-$version.tar.gz\")|" \
-    -e "s|^sha256sums=.*|sha256sums=('SKIP')|" desktop/packaging/PKGBUILD > "$build/PKGBUILD"
-cp desktop/packaging/dm.desktop "$build/" 2>/dev/null || true
+    -e "s|^sha256sums=.*|sha256sums=('SKIP')|" packaging/PKGBUILD > "$build/PKGBUILD"
+cp packaging/dm.desktop "$build/" 2>/dev/null || true
 chown -R builder:builder "$build"
 
 echo "== makepkg (build, check, package)"

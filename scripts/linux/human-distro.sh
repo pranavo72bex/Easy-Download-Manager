@@ -57,7 +57,7 @@ docker build -q ${platform:+--platform $platform} -t dm-linux-check$suffix scrip
 stream | docker run --rm -i ${platform:+--platform $platform} -e DM_BINARY="/target/debug/$binary" -v dm-linux-target$suffix:/target \
   -v "$HOME/.cargo/registry":/usr/local/cargo/registry dm-linux-check$suffix sh -c '
     set -e; mkdir -p /work && cd /work && tar -xf -
-    cd desktop && cargo build -q -p "$(basename "$DM_BINARY")"'
+    cargo build -q -p "$(basename "$DM_BINARY")"'
 
 echo "== $browser on $distro"
 base=

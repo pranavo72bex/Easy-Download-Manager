@@ -66,7 +66,7 @@ read: lifecycle events in order, progress coalesced (EVENT_FLOW.md).
 
 - `cargo test --workspace` runs `xtask layers`: a window toolkit in dm-core or
   dm-shell fails it.
-- Every change to `desktop/`, `browser/` or `extension/` is held to the whole
+- Every change to `crates/`, `assets/` or `extension/` is held to the whole
   behaviour contract (`python3 scripts/human-qa.py`) before it is merged.
 - Moves keep the old path with `pub use`; delete the shim only when nothing
   uses it.

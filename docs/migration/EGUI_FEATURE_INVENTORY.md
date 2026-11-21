@@ -8,7 +8,7 @@ its 64 rows (B01 to B65; there is no B58) is mapped in the index at the end.
 
 How to read the tables:
 
-* **egui module(s)**: paths under `desktop/crates/dm-desktop/` (`src/…`,
+* **egui module(s)**: paths under `crates/dm-desktop/` (`src/…`,
   `tests/…`). `main.rs`, `tray.rs`, `platform.rs`, `window.rs`, `hidden.rs`,
   `login.rs`, `signals.rs`, `dock.rs` and `opened.rs` are modules of the binary,
   not of the `dm_desktop` library.
@@ -140,7 +140,7 @@ How to read the tables:
 
 | # | Feature | Contract row(s) | egui module(s) | Application API used | Target GPUI view/component | Platform dependency | Test coverage | Migration status |
 |---|---|---|---|---|---|---|---|---|
-| 70 | Each dialog a window of its own: system title bar and close button, first over the middle of dm's window, movable anywhere; closing dm closes them; in the test harness drawn inside the main window instead | B42, B25 | `src/dialogs/apart.rs`, `src/dialogs/frame.rs` (`Dialog`, `window`), `src/dialogs/mod.rs` (`show`); vendored `desktop/vendor/egui-winit` (`OTHER_WINDOWS_INPUT`) | none | `DialogWindow` (one GPUI window each) | winit multi-viewport (all OS) | kt `tests/dialog_windows.rs` (8 tests); `tests/dialogs_cover.rs`; HQA B42 | egui only |
+| 70 | Each dialog a window of its own: system title bar and close button, first over the middle of dm's window, movable anywhere; closing dm closes them; in the test harness drawn inside the main window instead | B42, B25 | `src/dialogs/apart.rs`, `src/dialogs/frame.rs` (`Dialog`, `window`), `src/dialogs/mod.rs` (`show`); vendored `vendor/egui-winit` (`OTHER_WINDOWS_INPUT`) | none | `DialogWindow` (one GPUI window each) | winit multi-viewport (all OS) | kt `tests/dialog_windows.rs` (8 tests); `tests/dialogs_cover.rs`; HQA B42 | egui only |
 | 71 | A dialog that keeps the clicks (a question, Options) holds the main window: dimmed behind it, no clicks or keys, a click brings the dialog forward | B42, B38 | `src/dialogs/mod.rs` (`hold_the_window`, smoke), `src/dialogs/state.rs` (`modal`, `modal_layers`, `asking`, `in_front`) | none | `DialogWindow` modality | winit focus | kt `tests/window/dialogs.rs` `the_window_behind_a_dialog_takes_no_clicks`; `tests/window/downloads.rs` `the_list_behind_the_remove_question_takes_no_clicks`; HQA B42 | egui only |
 | 72 | A dialog asked for again while open is raised and keeps what was typed | none | `src/dialogs/state.rs` (`keep`, `raise`) | none | `DialogStack` | none | kt `tests/window/dialogs.rs` `a_dialog_asked_for_while_open_keeps_what_was_typed_in_it`; unit `src/dialogs/state.rs` `a_dialog_asked_for_again_is_raised_and_kept` | egui only |
 | 73 | Dialogs sized to their content, on screen at large text and on a small screen, title and buttons always in view | none | `src/dialogs/apart.rs`, `src/dialogs/frame.rs` | none | `DialogWindow` sizing | winit monitor size | kt `tests/window/commands.rs` `every_dialog_keeps_its_title_and_buttons_on_screen_at_large_text`; `tests/window/layout.rs` `dialogs_keep_their_place_and_show_the_size`; `tests/dialog_windows.rs` `a_dialog_stays_on_a_small_screen_and_opens_where_it_says` | egui only |
@@ -254,7 +254,7 @@ How to read the tables:
 | # | Feature | Contract row(s) | egui module(s) | Application API used | Target GPUI view/component | Platform dependency | Test coverage | Migration status |
 |---|---|---|---|---|---|---|---|---|
 | 143 | Every control named for a screen reader (AccessKit through eframe); the window's root node named; column edges, menu items and drawn widgets given labels | B42 | throughout (`accesskit_node_builder`, `widget_info` in `src/app/menus.rs`, `src/table.rs`, `src/table/menus.rs`, `src/app/ui.rs`, `src/dialogs/*`) | none | GPUI accessibility (to be confirmed) | AccessKit (all OS) | kt `tests/window/commands.rs` `every_control_has_a_name_a_screen_reader_can_say`; every kittest finds controls by their accessible names; `scripts/windows-a11y-check.py`, `scripts/linux-gui-check.sh` | egui only |
-| 144 | Each dialog window has its own AccessKit adapter, so dialogs reach a screen reader | B42 | vendored `desktop/vendor/eframe` (`src/native/glow_integration.rs`, `ADAPTER_PER_WINDOW`) | none | GPUI per-window accessibility | AccessKit (all OS) | HQA B42 (`ui.accessibility`, macOS); `scripts/windows-a11y-check.py` | egui only |
+| 144 | Each dialog window has its own AccessKit adapter, so dialogs reach a screen reader | B42 | vendored `vendor/eframe` (`src/native/glow_integration.rs`, `ADAPTER_PER_WINDOW`) | none | GPUI per-window accessibility | AccessKit (all OS) | HQA B42 (`ui.accessibility`, macOS); `scripts/windows-a11y-check.py` | egui only |
 | 145 | What VoiceOver is given of each window, read from inside dm (`ui.accessibility`) | B42 | `src/a11y_tree.rs` | none | test hook | macOS NSAccessibility (objc2); elsewhere an error | HQA B42 | egui only |
 
 ## 18. Automation: control port, MCP, headless
@@ -272,7 +272,7 @@ How to read the tables:
 
 Each contract row and the inventory entries (by #) that carry it. "Engine"
 rows are dm-core's behaviour; the window's part is only to show and drive it.
-"Browser" rows live in the extension (`browser/`, `extension/`); the window's
+"Browser" rows live in the extension (`crates/dm-catcher/`, `extension/`); the window's
 part is what it does with what is handed over.
 
 | Row | What | Inventory # | egui code that carries it |
@@ -383,11 +383,11 @@ part is what it does with what is handed over.
    by `scripts/human-qa.py` for B25 at 1% of pixels. Any GPUI rendering will
    differ; new baselines need the maintainer's approval (the contract's rule).
 5. **HQA B52 reads source.** `scripts/human-qa.py` checks that
-   `desktop/crates/dm-desktop/src/tray.rs` names
+   `crates/dm-desktop/src/tray.rs` names
    `Command::SpeedLimiterSettings`; moving the tray code moves that check.
-6. **Vendored crates patched for egui.** `desktop/vendor/egui-winit`
-   (input to dialog windows, `OTHER_WINDOWS_INPUT`) and `desktop/vendor/eframe`
-   (an AccessKit adapter per window) exist only for egui. `desktop/vendor/winit`
+6. **Vendored crates patched for egui.** `vendor/egui-winit`
+   (input to dialog windows, `OTHER_WINDOWS_INPUT`) and `vendor/eframe`
+   (an AccessKit adapter per window) exist only for egui. `vendor/winit`
    (X11 and Wayland link drops, Wayland drag out) matters to any winit-based
    window and would need an equivalent if GPUI does not use winit.
 7. **Dialogs as egui viewports.** `src/dialogs/apart.rs` and `frame.rs` make

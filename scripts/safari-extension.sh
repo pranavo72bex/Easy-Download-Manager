@@ -23,9 +23,9 @@
 # Xcode's converter makes one; this makes the same with the command line tools alone:
 #
 # - the extension's files, for Safari (`dist/safari`, from scripts/package.sh);
-# - the program, Rust (desktop/crates/dm-safari), which hands each message to dm's own
+# - the program, Rust (crates/dm-safari), which hands each message to dm's own
 #   native host and gives Safari its answer;
-# - its Info.plist and its sandbox (desktop/assets/macos/safari/);
+# - its Info.plist and its sandbox (assets/macos/safari/);
 # - signed: the extension with its sandbox, then dm.app again around it. With no
 #   DM_SIGN_IDENTITY it is signed ad hoc ("-"), as dm.app is, and Safari runs it only with
 #   Develop > Allow Unsigned Extensions (docs/how-it-works.md, Safari).
@@ -75,7 +75,7 @@ while [ $# -gt 0 ]; do
 done
 target=${CARGO_BUILD_TARGET:-}
 identity=${DM_SIGN_IDENTITY:--}
-assets="$root/desktop/assets/macos/safari"
+assets="$root/assets/macos/safari"
 
 # ------------------------------------------------------------------ build
 
@@ -88,8 +88,8 @@ sh "$root/scripts/package.sh"
 
 echo "building the Safari extension's program (dm-safari, $profile)"
 # shellcheck disable=SC2086
-(cd "$root/desktop" && cargo build -p dm-safari $cargo_profile --locked)
-program="${CARGO_TARGET_DIR:-$root/desktop/target}/${target:+$target/}$profile/dm-safari"
+(cd "$root" && cargo build -p dm-safari $cargo_profile --locked)
+program="${CARGO_TARGET_DIR:-$root/target}/${target:+$target/}$profile/dm-safari"
 [ -x "$program" ] || {
   echo "no dm-safari at $program" >&2
   exit 1

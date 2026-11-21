@@ -35,7 +35,7 @@ jobs:
       # A release that ships a broken build helps nobody, so the same suite
       # that guards a pull request guards a tag.
       - name: Tests
-        working-directory: browser
+        working-directory: crates/dm-catcher
         run: cargo test
 
       # The version in the manifest is what browsers show and what the store
@@ -55,9 +55,9 @@ jobs:
               exit 1
             fi
           done
-          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' browser/Cargo.toml | head -1)
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/dm-catcher/Cargo.toml | head -1)
           if [ "$tag" != "$crate" ]; then
-            echo "tag v$tag does not match browser/Cargo.toml ($crate)"
+            echo "tag v$tag does not match crates/dm-catcher/Cargo.toml ($crate)"
             exit 1
           fi
           echo "v$tag matches both manifests and the crate"

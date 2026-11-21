@@ -63,13 +63,12 @@ jobs:
           tail -40 /tmp/alone.log
           ls /tmp/alone/Default/Extensions 2>/dev/null || true
       - name: dm
-        working-directory: desktop
         run: cargo build -p dm-gpui --locked
       - name: The check
         env:
           DM_STORE: "1"
           CHROMIUM: /usr/bin/microsoft-edge-stable
-          DM_BINARY: ${{ github.workspace }}/desktop/target/debug/dm-gpui
+          DM_BINARY: ${{ github.workspace }}/target/debug/dm-gpui
           DM_SHOTS: ${{ github.workspace }}/store-shots
         run: |
           export DISPLAY=:79

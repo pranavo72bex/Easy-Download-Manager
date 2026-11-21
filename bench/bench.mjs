@@ -21,7 +21,7 @@
 // new scenario instead.
 //
 // Environment (all optional):
-//   DM_BINARY             dm to run (default: a release build under CARGO_TARGET_DIR or desktop/target)
+//   DM_BINARY             dm to run (default: a release build under CARGO_TARGET_DIR or target)
 //   BENCH_APPS            dm, or refa,dm (default: refa,dm on Windows when bench/local.json names it)
 //   BENCH_OUT             results folder (default: bench/results/<system>-<date>)
 //   BENCH_WORK            scratch folder (default: <temp>/dm-bench)
@@ -72,7 +72,7 @@ const REFA = {
 // The window dm ships, on every system (docs/gaps.md G9).
 const SHIPPED = 'dm-gpui';
 function defaultDm() {
-  for (const t of [process.env.CARGO_TARGET_DIR, path.join(REPO, 'desktop', 'target')].filter(Boolean)) {
+  for (const t of [process.env.CARGO_TARGET_DIR, path.join(REPO, "target")].filter(Boolean)) {
     const p = path.join(t, 'release', SHIPPED + (WIN ? '.exe' : ''));
     if (fs.existsSync(p)) return p;
   }
@@ -92,7 +92,7 @@ const CURL = process.env.BENCH_CURL || (WIN && fs.existsSync(path.join(process.e
   ? path.join(process.env.SystemRoot || 'C:\Windows', 'System32', 'curl.exe') : 'curl');
 
 if (APPS.includes('dm') && (!DM || !fs.existsSync(DM))) {
-  console.error(`No dm to run: set DM_BINARY, or build one (cd desktop && cargo build --release -p ${SHIPPED}).`);
+  console.error(`No dm to run: set DM_BINARY, or build one cargo build --release -p ${SHIPPED}.`);
   process.exit(2);
 }
 if (WITH_REFA && !(WIN && REFA.exe && REFA.process && REFA.title)) {

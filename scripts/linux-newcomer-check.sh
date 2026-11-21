@@ -34,7 +34,7 @@ git ls-files -z --cached --others --exclude-standard \
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends openbox xdotool x11-utils wmctrl dbus-x11 \
           at-spi2-core python3-pyatspi libglib2.0-bin imagemagick >/dev/null
-        cd desktop && cargo build -q -p "$(basename "$DM_BINARY")" && cd ..
+        cargo build -q -p "$(basename "$DM_BINARY")"
         export DISPLAY=:81
         Xvfb :81 -screen 0 1280x800x24 >/dev/null 2>&1 &
         sleep 1

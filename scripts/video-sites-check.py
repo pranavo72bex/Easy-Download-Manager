@@ -53,7 +53,7 @@ written with the plan's evidence fields to report.md and report.json in the
 report folder, with the release gate worked out from them.
 
 Environment:
-  DM_BINARY          dm-gpui to test (default: $CARGO_TARGET_DIR/debug, then desktop/target/debug)
+  DM_BINARY          dm-gpui to test (default: $CARGO_TARGET_DIR/debug, then target/debug)
   DM_VIDEO_WORK      folder for the run's throwaway files (default: the system's temp)
   DM_VIDEO_REPORT    where the report goes (default: <work>/report, kept after the run)
   DM_TEST_LARGE_GB   size of ENG-08's file, in GiB (default 4.5; 0 skips it)
@@ -111,11 +111,11 @@ def default_binary():
     if os.environ.get("DM_BINARY"):
         return pathlib.Path(os.environ["DM_BINARY"])
     for target in filter(None, [os.environ.get("CARGO_TARGET_DIR"), "D:/dm-target" if sys.platform == "win32" else None,
-                                str(ROOT / "desktop" / "target")]):
+                                str(ROOT / "target")]):
         candidate = pathlib.Path(target) / "debug" / f"{SHIPPED}{EXE}"
         if candidate.exists():
             return candidate
-    return ROOT / "desktop" / "target" / "debug" / f"{SHIPPED}{EXE}"
+    return ROOT / "target" / "debug" / f"{SHIPPED}{EXE}"
 
 
 BINARY = default_binary()
@@ -1361,7 +1361,7 @@ def main():
     if unknown:
         sys.exit(f"no phase called {', '.join(sorted(unknown))}")
     if not BINARY.exists():
-        sys.exit(f"no dm binary at {BINARY}: cd desktop; cargo build -p {SHIPPED} (or set DM_BINARY)")
+        sys.exit(f"no dm binary at {BINARY}: cargo build -p {SHIPPED} (or set DM_BINARY)")
     base = os.environ.get("DM_VIDEO_WORK")
     if base:
         pathlib.Path(base).mkdir(parents=True, exist_ok=True)
