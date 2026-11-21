@@ -427,6 +427,12 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
     let filtered = !view.list.filter.read(cx).value().trim().is_empty();
     let (heading, line, next_step) =
         dm_desktop_base::rows::empty_words(!view.rows.is_empty(), filtered);
+    // A phone has no browser extension and nothing is dropped on it: a link comes by Share.
+    let line = if crate::platform::ON_A_PHONE && next_step {
+        t(PHONE_EMPTY)
+    } else {
+        line
+    };
     div()
         .id("empty-list")
         .flex_1()
@@ -446,6 +452,7 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
                 .text_color(theme.muted)
                 .child(screen.label(SharedString::from(line))),
         )
+        .text_center()
         .when(next_step, |empty| {
             empty
                 .child(
@@ -462,17 +469,24 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
                         })),
                     ),
                 )
-                .child(
-                    div()
-                        .pt(px(space::M))
-                        .text_size(px(crate::widgets::native::SMALL_TEXT))
-                        .text_color(theme.muted)
-                        .child(
-                            screen.label(SharedString::from(t(crate::platform::drops::DROP_HINT))),
-                        ),
-                )
+                .when(!crate::platform::ON_A_PHONE, |empty| {
+                    empty.child(
+                        div()
+                            .pt(px(space::M))
+                            .text_size(px(crate::widgets::native::SMALL_TEXT))
+                            .text_color(theme.muted)
+                            .child(
+                                screen.label(SharedString::from(t(
+                                    crate::platform::drops::DROP_HINT,
+                                ))),
+                            ),
+                    )
+                })
         })
 }
+
+/// What an empty list says of the next step on a phone.
+pub(crate) const PHONE_EMPTY: &str = "Share a link to dm from any app, or add one here.";
 
 /// The rows of the place chosen.
 pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {

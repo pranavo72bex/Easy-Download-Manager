@@ -51,7 +51,9 @@ impl Downloads {
     /// progress window of one that has it open, else in a window listing the rest; a progress
     /// window closes where it is not.
     pub(crate) fn finished(&mut self, ids: &[dm_core::Id], cx: &mut Context<Self>) {
-        let show = self.backend.settings().general.show_complete;
+        // A phone says a download finished in its notification, which opens the file; a
+        // window over the list besides it was one more thing to close.
+        let show = self.backend.settings().general.show_complete && !crate::platform::ON_A_PHONE;
         for id in ids {
             // Its progress window open: that window becomes Download complete itself, with
             // Open and Open folder, rather than a second window opening over it (gaps row U11,

@@ -92,7 +92,7 @@ impl Downloads {
         // Resume opens each row's progress window where Options says, but
         // not one its person closed: fifteen Resumes opened it fifteen
         // times over the list. Show progress still opens it.
-        if command == Command::DownloadNow && self.backend.settings().general.show_progress {
+        if command == Command::DownloadNow && self.progress_opens_itself() {
             for id in chosen {
                 if !self.windows.progress_closed.contains(id) {
                     self.show_progress(*id, cx);

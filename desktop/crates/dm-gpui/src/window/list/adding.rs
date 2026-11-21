@@ -37,7 +37,7 @@ impl Downloads {
         // Its progress window opens as it starts, where that is asked for
         // (B63), for one download at a time.
         if let [(id, _, false)] = added.rows.as_slice() {
-            if self.backend.settings().general.show_progress {
+            if self.progress_opens_itself() {
                 self.show_progress(*id, cx);
             }
         }
@@ -342,5 +342,14 @@ impl Downloads {
         for search in due {
             self.run_search(search);
         }
+    }
+}
+
+impl Downloads {
+    /// Whether a download's progress window opens by itself as it starts (Options › General,
+    /// B63). Never on a phone: its card shows how it goes, and a window over the list at every
+    /// shared link was one more to close; a tap on the card opens it.
+    pub(crate) fn progress_opens_itself(&self) -> bool {
+        self.backend.settings().general.show_progress && !crate::platform::ON_A_PHONE
     }
 }

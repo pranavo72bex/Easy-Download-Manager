@@ -135,7 +135,7 @@ impl Downloads {
             // browser's hand-off, a second launch) opens its progress window
             // as one started here does, where that is asked for.
             Effect::StartedElsewhere(only) => {
-                if !self.progress_closed_has(only) {
+                if !self.progress_closed_has(only) && !crate::platform::ON_A_PHONE {
                     self.show_progress(only, cx);
                 }
             }

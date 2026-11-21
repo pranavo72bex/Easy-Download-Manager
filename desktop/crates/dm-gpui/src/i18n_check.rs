@@ -161,6 +161,7 @@ fn run_time_words() -> Vec<&'static str> {
     words.extend(base::i18n::BUILT_IN_NAMES);
     words.extend(base::format::MONTHS);
     words.push(crate::platform::drops::DROP_HINT);
+    words.push(crate::window::table::PHONE_EMPTY);
     words.extend(base::format::REASONS.iter().map(|(_, plain)| *plain));
     words.extend(base::format::NEXT_STEPS.iter().map(|(_, step)| *step));
     words.extend(base::format::RETRY_CAUSES);
