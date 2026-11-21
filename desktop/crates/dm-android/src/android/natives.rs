@@ -68,6 +68,21 @@ pub extern "system" fn Java_com_dm_android_DmActivity_newIntent<'caller>(
     }
 }
 
+/// `DmActivity`'s insets listener: what the status bar, the navigation bar and a cut-out
+/// cover, in the screen's pixels, kept as the window's safe area (gpui-android's
+/// `set_system_insets`; it touches nothing of Java's).
+#[no_mangle]
+pub extern "system" fn Java_com_dm_android_DmActivity_systemInsets<'caller>(
+    _env: EnvUnowned<'caller>,
+    _class: JClass<'caller>,
+    top: jni::sys::jint,
+    bottom: jni::sys::jint,
+    left: jni::sys::jint,
+    right: jni::sys::jint,
+) {
+    gpui_android::android::jni::set_system_insets(top, bottom, left, right);
+}
+
 /// `DmService.onStartCommand`.
 #[no_mangle]
 pub extern "system" fn Java_com_dm_android_DmService_started<'caller>(

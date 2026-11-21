@@ -70,6 +70,10 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     "place-folder",
     // A row's own Open button (gaps row U13).
     "open",
+    // A phone's dialog: its top bar's Back.
+    "back",
+    // A phone's floating Add URL button.
+    "plus",
 );
 
 /// The picture at `path` (`icons/<name>.svg`), if dm has it.

@@ -307,6 +307,10 @@ impl AndroidPlatform {
                 "/system/fonts/NotoSansArabic-Regular.ttf",
                 "/system/fonts/NotoSansHebrew-Regular.ttf",
                 "/system/fonts/NotoSansThai-Regular.ttf",
+                // dm(android-look): the symbols Roboto lacks (⋮ ✕ ✓ ▸ ▾ ⋯), which dm's
+                // window draws; without them each is a missing glyph's box.
+                "/system/fonts/NotoSansSymbols-Regular-Subsetted.ttf",
+                "/system/fonts/NotoSansSymbols-Regular-Subsetted2.ttf",
                 // Emoji fonts — loaded so glyphs like 🦀 ✅ ❤️ render.
                 // NOTE: On Android 13+ (API 33+) the system NotoColorEmoji.ttf
                 // uses COLR v1 color outlines which swash cannot render.  We
@@ -1108,8 +1112,12 @@ impl Platform for AndroidPlatform {
         )))
     }
 
+    // dm(android-look): the phone's night mode, not always Dark.
     fn window_appearance(&self) -> WindowAppearance {
-        WindowAppearance::Dark
+        match super::window::system_appearance() {
+            super::window::WindowAppearance::Dark => WindowAppearance::Dark,
+            _ => WindowAppearance::Light,
+        }
     }
 
     fn open_url(&self, url: &str) {

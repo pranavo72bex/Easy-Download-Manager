@@ -6,7 +6,10 @@ Open the Gradle project in Android Studio, press Run, and dm comes up on an emul
 Gradle builds dm's Rust library itself before it packs the APK, so there is nothing to build by
 hand first. First run on a Mac (Apple M1) on 2026-11-20: the APK builds, installs and starts,
 and dm picks a renderer; the window is not drawn on the emulator (below, "The emulator on an
-Apple-silicon Mac"), so a drawn window is still to be seen on a phone.
+Apple-silicon Mac"). On a phone (Samsung SM-M156B, Android 16, Mali-G57 over Vulkan,
+2026-11-21) the window draws and the checklist's downloads, notifications, Back and a magnet
+work; from a terminal: `gradle installDebug -Pdm.abis=arm64-v8a` with `JAVA_HOME` a JDK 17 and
+`ANDROID_HOME` the SDK.
 
 ### Install once
 

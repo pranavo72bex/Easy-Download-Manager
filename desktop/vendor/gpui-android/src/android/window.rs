@@ -197,6 +197,15 @@ pub type ResizeCallback = Box<dyn FnMut(Size<DevicePixels>, f32) + Send + 'stati
 /// Called when the window is destroyed (surface lost).
 pub type CloseCallback = Box<dyn FnOnce() + Send + 'static>;
 
+/// dm(android-look): the phone's appearance now (its night mode).
+pub(crate) fn system_appearance() -> WindowAppearance {
+    if crate::android::jni::query_night_mode_via_jni() {
+        WindowAppearance::Dark
+    } else {
+        WindowAppearance::Light
+    }
+}
+
 /// Called when the window appearance (light/dark) changes.
 pub type AppearanceCallback = Box<dyn FnMut(WindowAppearance) + Send + 'static>;
 
@@ -219,7 +228,7 @@ pub enum WindowAppearance {
 /// These represent the areas of the screen occupied by system UI elements
 /// (status bar, navigation bar, camera notch, etc.) that the app content
 /// should avoid drawing into — or at least pad/account for.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct SafeAreaInsets {
     /// Top inset in device pixels (status bar / camera notch).
     pub top: f32,
@@ -391,7 +400,9 @@ impl AndroidWindow {
             height,
             scale_factor,
             safe_area_insets: SafeAreaInsets::default(),
-            appearance: WindowAppearance::Light,
+            // dm(android-look): the phone's own appearance from the first frame, not Light
+            // until the next configuration change.
+            appearance: system_appearance(),
             is_active: true,
             transparent,
             surface_window_addr,
@@ -997,11 +1008,14 @@ impl AndroidWindow {
         content_bottom: i32,
     ) {
         let mut state = self.state.lock();
+        // dm(android-look): the larger of the content rect's and the system bars' own
+        // (`jni::set_system_insets`): drawn edge to edge, the content rect is the whole screen.
+        let (top, bottom, left, right) = crate::android::jni::system_insets();
         let insets = SafeAreaInsets {
-            top: content_top as f32,
-            bottom: (state.height - content_bottom).max(0) as f32,
-            left: content_left as f32,
-            right: (state.width - content_right).max(0) as f32,
+            top: content_top.max(top) as f32,
+            bottom: (state.height - content_bottom).max(bottom).max(0) as f32,
+            left: content_left.max(left) as f32,
+            right: (state.width - content_right).max(right).max(0) as f32,
         };
         log::info!(
             "safe_area_insets updated: top={:.0} bottom={:.0} left={:.0} right={:.0} (physical px)",
@@ -1010,7 +1024,13 @@ impl AndroidWindow {
             insets.left,
             insets.right,
         );
+        let changed = state.safe_area_insets != insets;
         state.safe_area_insets = insets;
+        drop(state);
+        // dm(android-look): laid out again with the new safe area, though the size is the same.
+        if changed {
+            self.repaint_in_full();
+        }
     }
 
     /// dm(android-stack): the next frame drawn in full, as after a surface swap: a window

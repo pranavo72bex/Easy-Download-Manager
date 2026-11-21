@@ -579,6 +579,7 @@
  "dm can't record this kind of encrypted stream": "dm はこの種類の暗号化ストリームを録画できません",
  "Chrome and others": "Chrome など",
  "Not now": "今はしない",
+ "Back": "戻る",
  "Add dm to your browser:": "ブラウザーに dm を追加：",
  "Sends browser downloads to dm once the extension is added.": "拡張機能を追加すると、ブラウザーのダウンロードが dm に届きます。",
  "the server had a problem on its end. Try again later": "サーバー側で問題が発生しました。しばらくしてからもう一度お試しください",

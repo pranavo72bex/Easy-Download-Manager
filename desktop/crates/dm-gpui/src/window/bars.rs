@@ -34,7 +34,11 @@ const BROWSER_LOOKED_FOR: Duration = Duration::from_secs(3);
 /// The browser bar's buttons at their words' width with the macOS and Linux least width,
 /// not Windows' dialog width (`native::BUTTON_MIN`, 120): four of those left its words no
 /// room in Windows' first window.
-const BAR_BUTTON_MIN: f32 = 80.0;
+const BAR_BUTTON_MIN: f32 = if crate::platform::ON_A_PHONE {
+    56.0
+} else {
+    80.0
+};
 
 /// A bar's frame: a line above the list, its words first, its buttons after.
 fn bar(theme: Theme) -> gpui::Div {
@@ -188,6 +192,10 @@ impl Downloads {
         screen: &Screen,
         cx: &mut Context<Self>,
     ) -> Option<gpui::Div> {
+        // No browser extension reaches dm on a phone: a link comes by Share instead.
+        if crate::platform::ON_A_PHONE {
+            return None;
+        }
         let stale = self
             .layout
             .bars

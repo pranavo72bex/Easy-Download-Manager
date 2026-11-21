@@ -579,6 +579,7 @@
  "dm can't record this kind of encrypted stream": "dm non può registrare questo tipo di flusso cifrato",
  "Chrome and others": "Chrome e altri",
  "Not now": "Non ora",
+ "Back": "Indietro",
  "Add dm to your browser:": "Aggiungi dm al tuo browser:",
  "Sends browser downloads to dm once the extension is added.": "Invia i download del browser a dm dopo l'aggiunta dell'estensione.",
  "the server had a problem on its end. Try again later": "Il server ha avuto un problema da parte sua: riprova più tardi",

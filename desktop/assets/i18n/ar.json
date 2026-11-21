@@ -579,6 +579,7 @@
  "dm can't record this kind of encrypted stream": "لا يستطيع dm تسجيل هذا النوع من البث المشفر",
  "Chrome and others": "Chrome وغيره",
  "Not now": "ليس الآن",
+ "Back": "رجوع",
  "Add dm to your browser:": "أضف dm إلى متصفحك:",
  "Sends browser downloads to dm once the extension is added.": "يرسل تنزيلات المتصفح إلى dm بعد إضافة الامتداد.",
  "the server had a problem on its end. Try again later": "واجه الخادم مشكلة من جهته. حاول مرة أخرى لاحقًا",

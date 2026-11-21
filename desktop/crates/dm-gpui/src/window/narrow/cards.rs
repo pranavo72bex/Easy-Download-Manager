@@ -5,9 +5,9 @@
 
 //! The rows of the place chosen as cards, at a phone's width: each its file's kind and name,
 //! its progress bar, its size (what has come of it while it is not finished), its speed, its
-//! time left and its state, in the table's own words (`table::words`). A tap chooses a card, a
-//! tap on the card chosen opens it as a double-click opens a row; its ⋯, a long press or a
-//! right-click opens its row menu as a sheet.
+//! time left and its state, in the table's own words (`table::words`). A tap opens a card as a
+//! double-click opens a row; its Stop or Resume button does that in one tap; its ⋯, a long
+//! press or a right-click opens its row menu as a sheet.
 
 use dm_core::{Entry, State};
 use dm_desktop_base::columns::Column;
@@ -21,8 +21,12 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 /// A card's height, in points: a name, a bar and two lines of figures, a finger's room around
-/// (well over `space::TOUCH`).
-pub(crate) const CARD_HEIGHT: f32 = 84.0;
+/// (well over `space::TOUCH`); taller on a phone, whose text is larger.
+pub(crate) const CARD_HEIGHT: f32 = if crate::platform::ON_A_PHONE {
+    108.0
+} else {
+    84.0
+};
 
 /// The cards of the place chosen, only those on screen laid out, scrolled as the table is.
 pub(super) fn cards(
@@ -57,6 +61,8 @@ pub(super) fn cards(
     )
     .track_scroll(&view.list.scroll)
     .flex_1()
+    // The last card can be scrolled clear of the floating Add URL button over the list.
+    .pb(px(super::FLOATING + 2.0 * space::XL))
 }
 
 /// What a card says of its size: what has come of the whole while it is not finished, the
@@ -97,6 +103,21 @@ fn card(
         _ => row.progress.fraction(),
     };
     let (picture, colour) = kind_picture(kind);
+    // The card's one-tap action, as a phone's download list has it: Stop while it runs, Resume
+    // while it waits, is stopped or failed; none once it is whole or cancelled.
+    let quick = match row.state {
+        State::Running | State::Queued => Some((
+            dm_shell::app::commands::Command::StopDownload,
+            "icons/stop.svg",
+            t("Stop"),
+        )),
+        State::Paused | State::Failed(_) => Some((
+            dm_shell::app::commands::Command::DownloadNow,
+            "icons/resume.svg",
+            t(dm_desktop_base::rows::resume_word(&[row])),
+        )),
+        State::Completed | State::Cancelled => None,
+    };
     let card_theme = if chosen { theme.chosen() } else { theme };
     let small = |words: String, colour| {
         div()
@@ -164,9 +185,46 @@ fn card(
                         .text_ellipsis()
                         .child(screen.label(name)),
                 )
-                // Room for the card's menu over its top right.
-                .child(div().flex_none().w(px(space::TOUCH - space::L))),
+                // Room for the card's buttons over its top right.
+                .child(
+                    div().flex_none().w(px(
+                        if quick.is_some() { 2.0 } else { 1.0 } * space::TOUCH - space::L
+                    )),
+                ),
         )
+        // Its one-tap action, left of the menu.
+        .when_some(quick, |card, (command, picture, words)| {
+            card.child(
+                div()
+                    .id(("card-quick", id as usize))
+                    .role(Role::Button)
+                    .aria_label(words.clone())
+                    .absolute()
+                    .top_0()
+                    .right(px(space::TOUCH))
+                    .size(px(space::TOUCH))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_full()
+                    .active(move |b| b.bg(theme.control))
+                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        view.choose_card(id);
+                        view.run(command, cx);
+                        cx.notify();
+                    }))
+                    .child(
+                        screen.mark(
+                            words,
+                            gpui::svg()
+                                .path(picture)
+                                .size(px(20.0))
+                                .text_color(card_theme.text),
+                        ),
+                    ),
+            )
+        })
         // The card's menu: a finger's target in the card's top right corner.
         .child(
             div()
@@ -226,12 +284,16 @@ impl Downloads {
             self.open_card_menu(id, cx);
             return;
         }
-        let alone = self.list.selected.len() == 1 && self.list.selected.contains(&id);
-        if alone || clicks == 2 {
-            self.double_click(id, cx);
-        } else {
-            self.click_row(id, false, false);
-        }
+        // A tap opens the card, as a phone's list opens what is tapped: what a double-click on
+        // its row does (Options › General), the card chosen first so the menus speak of it.
+        let _ = clicks;
+        self.choose_card(id);
+        self.double_click(id, cx);
         cx.notify();
+    }
+
+    /// Card `id` chosen alone, as a click chooses a row.
+    fn choose_card(&mut self, id: dm_core::Id) {
+        self.click_row(id, false, false);
     }
 }

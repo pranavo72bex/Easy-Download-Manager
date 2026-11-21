@@ -375,6 +375,14 @@ impl Render for Progress {
             )
             .size_full()
             .bg(theme.window)
+            // A phone's: its own top bar, the file's name and Back, as every dialog's there.
+            .when(crate::platform::ON_A_PHONE, |root| {
+                root.child(native::phone_bar(
+                    named.clone().into(),
+                    theme,
+                    |_, window, _| window.remove_window(),
+                ))
+            })
             .child(crate::widgets::fit::fitted(body));
         crate::window::safe::kept_clear(root, window).into_any_element()
     }

@@ -579,6 +579,7 @@
  "dm can't record this kind of encrypted stream": "dm не может записывать такой зашифрованный поток",
  "Chrome and others": "Chrome и другие",
  "Not now": "Не сейчас",
+ "Back": "Назад",
  "Add dm to your browser:": "Добавьте dm в браузер:",
  "Sends browser downloads to dm once the extension is added.": "Передаёт загрузки из браузера в dm после добавления расширения.",
  "the server had a problem on its end. Try again later": "У сервера возникла проблема на его стороне: попробуйте позже",

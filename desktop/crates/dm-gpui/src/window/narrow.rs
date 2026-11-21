@@ -16,9 +16,11 @@ use dm_core::Id;
 use dm_shell::app::places::Place;
 use gpui::{div, prelude::*, Context, Div, Stateful, Window};
 
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
+use crate::window::zoom::px;
 
 mod cards;
 mod sheet;
@@ -36,6 +38,9 @@ pub const NARROW_BELOW: f32 = 600.0;
 /// The least width the main window may be made on the desktop: the narrowest phones held
 /// upright (360 points), so narrowing the window reaches the phone's layout.
 pub const LEAST_WIDTH: f32 = 360.0;
+
+/// The floating Add URL button's size: Android's floating action button.
+pub(super) const FLOATING: f32 = 56.0;
 
 /// How long a press is held on a card before it is the card's menu, as a phone's long press.
 const LONG_PRESS: std::time::Duration = std::time::Duration::from_millis(500);
@@ -136,7 +141,9 @@ impl Downloads {
     ) -> Div {
         let empty = shown.empty;
         let more = self.more_bars_line(shown.more, theme, screen, cx);
+        let add = dm_desktop_base::i18n::t(dm_shell::app::commands::Command::AddUrl.label());
         div()
+            .relative()
             .flex()
             .flex_col()
             .flex_1()
@@ -148,6 +155,41 @@ impl Downloads {
             .when(!empty, |list| list.child(cards::cards(self, theme, cx)))
             .when(empty, |list| {
                 list.child(crate::window::table::empty(self, theme, cx))
+            })
+            // Add URL where the thumb is, at the list's bottom right, as a phone's own
+            // download lists have it; the top bar's + does the same at the top.
+            .when(!empty, |list| {
+                list.child(
+                    div()
+                        .id("add-floating")
+                        .role(gpui::Role::Button)
+                        .aria_label(add)
+                        .absolute()
+                        .bottom(px(space::XL))
+                        .right(px(space::XL))
+                        .size(px(FLOATING))
+                        .rounded_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .bg(theme.accent)
+                        .shadow_md()
+                        .active(move |b| {
+                            b.bg(theme.answering(theme.accent, crate::window::theme::PRESSED))
+                        })
+                        .on_click(cx.listener(|view, _, _, cx| {
+                            view.run(dm_shell::app::commands::Command::AddUrl, cx)
+                        }))
+                        .child(
+                            screen.mark(
+                                add,
+                                gpui::svg()
+                                    .path("icons/plus.svg")
+                                    .size(px(26.0))
+                                    .text_color(theme.on_accent),
+                            ),
+                        ),
+                )
             })
     }
 

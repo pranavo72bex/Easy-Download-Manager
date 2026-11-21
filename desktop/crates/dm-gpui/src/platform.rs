@@ -6,6 +6,10 @@
 //! What the window asks of the system beside drawing: its own window calls, the tray, notifications, the clipboard, drags and drops, and the desktop's services (gaps row A13).
 //! On a phone the notifier and the clipboard are the app's (`phone.rs`, gaps row N17), and there is no tray.
 
+/// Whether dm runs on a phone: no browser extension reaches it there, and what only a
+/// computer has (the browser's bar) is not offered.
+pub(crate) const ON_A_PHONE: bool = cfg!(target_os = "android");
+
 pub(crate) mod clipwatch;
 pub(crate) mod dragout;
 pub(crate) mod drops;

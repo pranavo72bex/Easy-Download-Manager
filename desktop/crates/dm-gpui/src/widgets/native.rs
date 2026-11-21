@@ -33,6 +33,16 @@ const fn pick(macos: f32, windows: f32, gnome: f32) -> f32 {
     .here()
 }
 
+/// `phone` on a phone, where a finger is the pointer and the text is read at arm's length
+/// (Android's 48 dp touch target, 14 to 16 sp body text, 16 dp margins), else `desktop`.
+const fn on_a_phone(phone: f32, desktop: f32) -> f32 {
+    if crate::platform::ON_A_PHONE {
+        phone
+    } else {
+        desktop
+    }
+}
+
 /// One measure for each system, each by its system's name.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Each<T> {
@@ -146,16 +156,16 @@ impl WindowSize {
 
 /// The system font's size for controls and labels (macOS's
 /// `NSFont.systemFontSize`, WinUI's body text, GNOME's).
-pub const TEXT: f32 = pick(13.0, 14.0, 14.0);
+pub const TEXT: f32 = on_a_phone(15.0, pick(13.0, 14.0, 14.0));
 /// The small system font's size: what is said under a control, a dialog's
 /// informative text (macOS's `smallSystemFontSize`, WinUI's caption).
-pub const SMALL_TEXT: f32 = pick(11.0, 12.0, 12.0);
+pub const SMALL_TEXT: f32 = on_a_phone(13.0, pick(11.0, 12.0, 12.0));
 /// A regular control's height: a text field, a push button, a pop-up.
-pub const CONTROL: f32 = pick(24.0, 32.0, 34.0);
+pub const CONTROL: f32 = on_a_phone(44.0, pick(24.0, 32.0, 34.0));
 /// From the window's edges to what it holds.
-pub const MARGIN: f32 = pick(20.0, 24.0, 18.0);
+pub const MARGIN: f32 = on_a_phone(16.0, pick(20.0, 24.0, 18.0));
 /// Between one row of a form and the next.
-pub const ROW_GAP: f32 = pick(8.0, 8.0, 10.0);
+pub const ROW_GAP: f32 = on_a_phone(14.0, pick(8.0, 8.0, 10.0));
 /// Between a label and its control.
 pub const LABEL_GAP: f32 = 8.0;
 /// Between two buttons in a row.
@@ -163,9 +173,9 @@ pub const BUTTON_GAP: f32 = pick(12.0, 8.0, 12.0);
 /// Above the row of buttons.
 pub const FOOTER_GAP: f32 = pick(20.0, 24.0, 18.0);
 /// A push button's narrowest, so OK is not a sliver beside Cancel.
-pub const BUTTON_MIN: f32 = pick(80.0, 120.0, 80.0);
+pub const BUTTON_MIN: f32 = on_a_phone(64.0, pick(80.0, 120.0, 80.0));
 /// A control's corners.
-pub const RADIUS: f32 = pick(5.0, 4.0, 6.0);
+pub const RADIUS: f32 = on_a_phone(10.0, pick(5.0, 4.0, 6.0));
 
 /// A dialog's body: the margins, the system's text, its rows apart.
 pub fn body(theme: Theme) -> Div {
@@ -340,6 +350,10 @@ pub fn path_field(
     })
 }
 
+/// The least room a control keeps beside its label in a phone's form row; with less, it goes
+/// under the label.
+const PHONE_CONTROL_MIN: f32 = 170.0;
+
 /// A form's row: `label` right-aligned in a column `label_width` wide, its
 /// control beside it.
 pub fn row(
@@ -348,6 +362,34 @@ pub fn row(
     screen: &Screen,
     control: impl IntoElement,
 ) -> Div {
+    // A phone's form: the label at the start and its control at the end of one line, as a
+    // phone's own settings are; where the two do not fit across the screen, the control goes
+    // under its label at the whole width. A column of labels beside the controls left the
+    // controls no room and cut long labels.
+    if crate::platform::ON_A_PHONE {
+        return div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .justify_between()
+            .gap_x(px(space::L))
+            .gap_y(px(space::XS))
+            .when_some(label.map(str::to_string), |d, label| {
+                d.child(div().flex_none().max_w_full().child(screen.label(label)))
+            })
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(PHONE_CONTROL_MIN))
+                    .flex()
+                    .flex_wrap()
+                    .items_center()
+                    // Under no label (a check box alone), at the start, as the form's words.
+                    .when(label.is_some(), |d| d.justify_end())
+                    .gap(px(LABEL_GAP))
+                    .child(control),
+            );
+    }
     div()
         .flex()
         .items_center()
@@ -417,7 +459,7 @@ pub fn checkbox(
 /// The box of a check box.
 pub fn tick_box(ticked: bool, theme: Theme) -> Div {
     div()
-        .size(px(14.0))
+        .size(px(on_a_phone(22.0, 14.0)))
         .flex_none()
         .rounded(px(3.5))
         .border_1()
@@ -426,7 +468,7 @@ pub fn tick_box(ticked: bool, theme: Theme) -> Div {
         .flex()
         .items_center()
         .justify_center()
-        .text_size(px(10.0))
+        .text_size(px(on_a_phone(15.0, 10.0)))
         .font_weight(FontWeight::BOLD)
         .when(ticked, |b| {
             b.bg(theme.accent)
@@ -572,10 +614,11 @@ pub fn dialog<V: CloseButton>(
     theme: Theme,
     cx: &gpui::Context<V>,
 ) -> Stateful<Div> {
+    let label = label.into();
     div()
         .id(id)
         .role(Role::Dialog)
-        .aria_label(label.into())
+        .aria_label(label.clone())
         .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" {
                 this.close_button(window, cx);
@@ -583,6 +626,65 @@ pub fn dialog<V: CloseButton>(
         }))
         .size_full()
         .bg(theme.window)
+        // A phone's dialog fills the screen with no title bar of the system's: its own top
+        // bar names it, and its Back does what the close button does, as the phone's Back.
+        .when(crate::platform::ON_A_PHONE, |root| {
+            root.child(phone_bar(
+                label,
+                theme,
+                cx.listener(|this, _: &gpui::ClickEvent, window, cx| this.close_button(window, cx)),
+            ))
+        })
+}
+
+/// A phone's dialog's top bar: Back, and the dialog's name.
+pub fn phone_bar(
+    title: SharedString,
+    theme: Theme,
+    back: impl Fn(&gpui::ClickEvent, &mut gpui::Window, &mut gpui::App) + 'static,
+) -> Div {
+    let back_words = dm_desktop_base::i18n::t("Back");
+    div()
+        .w_full()
+        .h(px(space::TOUCH + space::XS))
+        .flex()
+        .items_center()
+        .gap(px(space::XS))
+        .px(px(space::XS))
+        .border_b_1()
+        .border_color(theme.separator)
+        .child(
+            div()
+                .id("phone-back")
+                .role(Role::Button)
+                .aria_label(back_words)
+                .size(px(space::TOUCH))
+                .flex()
+                .flex_none()
+                .items_center()
+                .justify_center()
+                .rounded_full()
+                .active(move |s| s.bg(theme.control))
+                .on_click(back)
+                .child(
+                    gpui::svg()
+                        .path("icons/back.svg")
+                        .size(px(22.0))
+                        .text_color(theme.text),
+                ),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .text_size(px(TEXT + 4.0))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(theme.text)
+                .child(title),
+        )
 }
 
 /// What closes a window as its close button does: true where the window

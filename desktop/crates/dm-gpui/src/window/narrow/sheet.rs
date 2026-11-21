@@ -3,7 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! A menu drawn in the window at a phone's width, as a sheet under the top bar: the overflow
+//! A menu drawn in the window at a phone's width, as a sheet up from the screen's foot: the overflow
 //! menu (the toolbar's commands, then Tasks, File, Downloads, View and Help) and a card's row
 //! menu. Its items are the desktop's menus' own (`gpui::OwnedMenu`), so each runs its action
 //! as the menu bar's item does; a submenu opens in the sheet's place, with its name at the top
@@ -21,8 +21,8 @@ use crate::window::zoom::px;
 /// An item's height: a finger's target, as a phone's menus have them.
 const ITEM_HEIGHT: f32 = space::TOUCH;
 
-/// The sheet's widest, in points.
-const WIDEST: f32 = 320.0;
+/// A toolbar command's picture before its words, in points.
+const ICON: f32 = 20.0;
 
 /// A sheet open: the menu it opened with, and the submenus walked into, the last shown.
 #[derive(Clone)]
@@ -89,27 +89,30 @@ pub(super) fn drawn(
     cx: &mut Context<Downloads>,
 ) -> Stateful<Div> {
     let viewport = window.viewport_size();
-    let width = (f32::from(viewport.width) - crate::window::zoom::of(2.0 * space::XL))
-        .min(crate::window::zoom::of(WIDEST));
     // Under the top bar, which sits below a phone's status bar; clear of its navigation bar
     // (gaps row N16).
     let safe = crate::window::safe::edges(window);
     let top = crate::window::titlebar::narrow_height() + f32::from(safe.top);
     let walked = sheet.pages.len() > 1;
+    // A bottom sheet, as a phone's menus are: across the screen's foot where the thumb is,
+    // over the navigation bar's room, at most up to the top bar.
     let mut panel = div()
         .id("sheet")
         .role(Role::Menu)
         .absolute()
-        .top(gpui::px(top))
-        .right(px(space::XS) + safe.right)
-        .w(gpui::px(width.max(0.0)))
-        .max_h(viewport.height - gpui::px(top) - safe.bottom - px(space::XL))
+        .bottom_0()
+        .left_0()
+        .right_0()
+        .max_h(viewport.height - gpui::px(top))
         .overflow_y_scroll()
-        .py(px(space::XS))
+        .pt(px(space::M))
+        .pb(px(space::M) + safe.bottom)
+        .pl(safe.left)
+        .pr(safe.right)
         .flex()
         .flex_col()
-        .rounded(px(space::CORNER_L))
-        .border_1()
+        .rounded_t(px(space::CORNER_L * 2.0))
+        .border_t_1()
         .border_color(theme.separator)
         .bg(theme.menu)
         .text_color(theme.text)
@@ -185,11 +188,23 @@ fn item_drawn(
             .into_any_element(),
         OwnedMenuItem::Action {
             name,
+            action,
             checked,
             disabled,
             ..
         } => {
             let disabled = *disabled;
+            // A toolbar command's own picture, as its toolbar button has it on a desktop.
+            let picture = action
+                .as_any()
+                .downcast_ref::<crate::window::menus::Run>()
+                .map(|run| run.0)
+                .filter(|command| {
+                    dm_shell::app::commands::TOOLBAR
+                        .iter()
+                        .any(|(on_bar, _)| on_bar == command)
+                })
+                .map(crate::window::toolbar::icon);
             line(("sheet-item", i), theme)
                 .role(Role::MenuItem)
                 .aria_label(gpui::SharedString::from(name.clone()))
@@ -202,8 +217,18 @@ fn item_drawn(
                 .child(
                     div()
                         .flex_none()
-                        .w(px(space::L))
-                        .when(*checked, |d| d.child("✓")),
+                        .w(px(ICON))
+                        .flex()
+                        .justify_center()
+                        .when_some(picture, |d, picture| {
+                            d.child(
+                                gpui::svg()
+                                    .path(picture)
+                                    .size(px(ICON))
+                                    .text_color(if disabled { theme.muted } else { theme.text }),
+                            )
+                        })
+                        .when(*checked && picture.is_none(), |d| d.child("✓")),
                 )
                 .child(div().flex_1().min_w_0().child(screen.label(name.clone())))
                 .into_any_element()

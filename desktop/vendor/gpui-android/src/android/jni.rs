@@ -87,6 +87,37 @@ static INIT_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
 static WINDOW_RESIZED_PENDING: AtomicBool = AtomicBool::new(false);
 static CONFIG_CHANGED_PENDING: AtomicBool = AtomicBool::new(false);
 
+/// dm(android-look): what the system bars and a cut-out cover on each side (top, bottom,
+/// left, right), in physical pixels, as the activity's view is told them
+/// (`OnApplyWindowInsetsListener`, `DmActivity`). NativeActivity's content rect covers the
+/// whole screen when the window is drawn edge to edge, so it tells no insets of its own.
+static SYSTEM_INSETS: [std::sync::atomic::AtomicI32; 4] = [
+    std::sync::atomic::AtomicI32::new(0),
+    std::sync::atomic::AtomicI32::new(0),
+    std::sync::atomic::AtomicI32::new(0),
+    std::sync::atomic::AtomicI32::new(0),
+];
+
+/// dm(android-look): the system bars' insets, from the activity's UI thread; the window's safe
+/// area takes them on the loop's next turn.
+pub fn set_system_insets(top: i32, bottom: i32, left: i32, right: i32) {
+    for (slot, value) in SYSTEM_INSETS.iter().zip([top, bottom, left, right]) {
+        slot.store(value.max(0), Ordering::Relaxed);
+    }
+    WINDOW_RESIZED_PENDING.store(true, Ordering::Relaxed);
+}
+
+/// dm(android-look): the system bars' insets last told, `(top, bottom, left, right)`.
+pub(crate) fn system_insets() -> (i32, i32, i32, i32) {
+    let [top, bottom, left, right] = &SYSTEM_INSETS;
+    (
+        top.load(Ordering::Relaxed),
+        bottom.load(Ordering::Relaxed),
+        left.load(Ordering::Relaxed),
+        right.load(Ordering::Relaxed),
+    )
+}
+
 use android_activity::{AndroidApp, MainEvent, PollEvent};
 
 use super::platform::{AndroidPlatform, SharedPlatform};
@@ -716,9 +747,11 @@ pub fn run_event_loop(app: &AndroidApp) {
             log::debug!("deferred: WindowResized");
             if let Some(platform) = PLATFORM.get() {
                 if let Some(win) = platform.primary_window() {
-                    win.handle_resize();
+                    // dm(android-look): the safe area first, so the resize lays the window out
+                    // with it.
                     let cr = app.content_rect();
                     win.update_safe_area_from_content_rect(cr.left, cr.top, cr.right, cr.bottom);
+                    win.handle_resize();
                 }
             }
         }
