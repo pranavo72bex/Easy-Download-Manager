@@ -29,17 +29,79 @@ What is left of step 8 is on other machines or needs a person:
 - **The Windows laptop and Linux in Docker:** their lines in step 8 below.
 - **The outside world:** step 8's "Sites" line.
 
+## Mobile first: the order to ship the Android app (the maintainer, 2026-11-21)
+
+The maintainer, 2026-11-21: "give most priority to mobile. it should be ready", and "signing for
+desktop is ignored intentionally". The Android rows (N) come before every other row. The goal is
+an APK a person installs from the release page, which does what `docs/android.md`'s checklist
+says on a real phone. Today it has run on one phone (Samsung SM-M156B, Android 16): downloads,
+Stop and Resume, magnets, a shared link, a YouTube share and the background service all worked.
+What it lacks is below, in the order to take it: what breaks or blocks a release first, then
+what must be seen working, then the maintainer's word, then the release itself. Each step can be
+run on the Mac's emulator (API 35 and 37 installed; API 26 and 29 images to fetch) where no phone
+is plugged in.
+
+**1. Fix first: it breaks, or nothing can be shipped without it** (each S)
+1. N19: opening dm from its notification once closed the app (the emulator, 2026-11-20).
+   Reproduce it on the Mac's emulator and fix it, or see it hold ten times.
+2. N13: CI's emulator job never got past `test -w /dev/kvm` (2026-11-21, ubuntu-latest), so no
+   push installs the APK, starts it and downloads a file. Make that job run, then keep it green.
+3. N17: no Android clippy in CI. Allow `missing_const_for_thread_local` on the Android targets
+   alone (its false finding is explained in the row; the recommended option), and add the step.
+4. N14: the Gradle wrapper's jar and scripts (owed), then the release job's first run at an
+   `android-v<version>` tag. The signing secrets are set (2026-11-21), so the APK it drafts is
+   signed with dm's own key.
+
+**2. Must be seen working before it is sent** (a run on a phone or the emulator, then code where
+the run fails; smallest first)
+5. N11: a sign-in kept in the Keystore and read back after a restart.
+6. N12: the exact-alarm permission asked for once, with its reason; the schedule's start and a
+   resume after a reboot seen.
+7. N5: the clipboard offer, and a link shared while dm is open.
+8. N9: a torrent's files published when its seeding stops; Export and Back up published on
+   Android 10 and up; Remove with file, and the missing-file check, on Android 10.
+9. N8: a magnet still finding its metadata follows a change of network; seeding on mobile data
+   as N10's lines say.
+10. N2 and N3: the CI job's first green run (with step 2), and the APK on API 26, 29 and 35.
+
+**3. The maintainer's word** (asked once, together)
+11. N7: the narrow layout's rows (1) to (12), the phone's rows P01 to P12 (`docs/android.md`) and
+    the desktop window's least width of 360: the phone's section of the contract, and its QA
+    script (N13).
+12. N10: the three phone-only lines in Options (Wi-Fi only, Not while roaming, Pause when Data
+    Saver is on), their status words and their translations.
+13. N8's change on the desktop too: a laptop that changes network announces its torrents at
+    once; Wait on a metered connection or a low battery also pauses sharing (B76).
+
+**4. Ship**
+14. The release APK at an `android-v` tag: a draft on GitHub (never marked latest), installed
+    from it on the emulators and a phone, `docs/android.md`'s checklist run whole.
+15. F-Droid: the recipe is in `docs/android.md`; the submission is the maintainer's.
+
+**Later, not in the way of a first release:** N9's folder of the person's own through the
+storage picker (SAF, L); N16 moved to GPUI's own Android platform when Zed ships one (Periodic);
+Google Play (a fee: BLOCKED, as R1 and R4).
+
+**After the phone, the easiest to ship:**
+- The extension, `v3.5.0`: `firefox-check.py` once, then the tag (the Edge and Firefox stores'
+  secrets are set).
+- The desktop, `desktop-v0.11.0`. Signing is ignored at the maintainer's word: R1 stays set
+  aside, and the release job is made to draft without `DM_UPDATE_SIGNING_KEY` (F6) instead of
+  failing (an unsigned `latest.json`, which dm's own update check then refuses, so a person
+  updates by downloading). Then CI green, `linux-human-qa.sh` in Docker, `human-qa.py` on the
+  Windows laptop, the CHANGELOG tidied and the version raised.
+- Then the work order below, from its step 1.
+
 ## Waiting for the maintainer
 
 Gathered from the sessions of 2026-11-18 to 2026-11-20; each row's Status has the detail.
+- **The phone first (Mobile first's step 3):** N7's rows and P01 to P12, N10's Options lines,
+  N8's change on the desktop.
 - **Approval in words (the contract):** Y10's Options line ("Sound language"), Y7, Y27, U20, A4,
   A16, W10, W11, W12, W14, W15, W16, W17 (and its private-window hand-over against B37), W18,
   W20, W26; F10's RAR password dialog and B71 (RAR, coded on branch `f10-rar`); F2's Grabber box
   (B60, B61); W9's search in Help; Y25's bit-rate choice (B43); Y6's subtitle files beside a
-  video; Y8's codec words; Y2's two failure sentences; N7's narrow-layout rows and the phone's
-  rows P01 to P12 (`docs/android.md`), with the desktop's least width of 360; N8 (a laptop that
-  changes network announces its torrents at once; Wait on a metered connection or a low battery
-  pauses sharing too); N10's three phone-only Options lines; Y21's and Y20's new reasons and
+  video; Y8's codec words; Y2's two failure sentences; Y21's and Y20's new reasons and
   choices (`docs/guide/failures.md`); 200's RTMPT changes (no redirect followed, dm's User-Agent,
   a 30 s read timeout).
 - **A decision:** P4, P5, F8, F11, F12, W5, W13, W22, W25; A9's MMS refusal; A7's two headless
@@ -49,9 +111,9 @@ Gathered from the sessions of 2026-11-18 to 2026-11-20; each row's Status has th
   and the doubles baseline grew) or `rfd = "0.17"`; whether a social site's picture seen with no
   sound stays offered alone (2026-11-21, `dm_protocol::media::social_cdn`: right for a silent
   reel, wrong where a player fetches the sound only once it is turned on).
-- **Only the maintainer can do:** 163, R1, R4, W24, R2's submissions, F4's export file, row 5's
-  readers, F6's real update key and the `DM_UPDATE_SIGNING_KEY` secret (the next `desktop-v` tag
-  stops at signing until then), W23's 416 strings changed since 2026-10-24.
+- **Only the maintainer can do:** 163, R4, W24, R2's submissions, F4's export file, row 5's
+  readers, W23's 416 strings changed since 2026-10-24, F-Droid's submission (N14). Not asked:
+  desktop signing, R1 and F6's update key, ignored at the maintainer's word of 2026-11-21.
 - **Not finished, to restart from `main` if still wanted:** the fix-and-optimise pass of
   2026-11-20 (13 areas, run as workflows of agents on the Windows laptop): its branches
   `refine-<area>` had no commits when it stopped, and they were deleted.
@@ -115,7 +177,7 @@ must prove each one.
 
 ## Work order (the maintainer, 2026-11-17: the coding first and fast, the tests last and at once)
 
-The order the rows below are taken in; the rows themselves stay in their tables, where their
+Taken after "Mobile first" above (the maintainer, 2026-11-21). The order the rows below are taken in; the rows themselves stay in their tables, where their
 detail is.
 
 **While coding (steps 1 to 7):** a row is coded with `cargo check`, clippy on the crates it

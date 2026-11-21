@@ -8629,3 +8629,14 @@ changes no structure and every doc that names a `lib.rs`); `packaging/PKGBUILD`'
 which names the released `desktop-v` tag's archive and moves with the next release; and the
 history (CHANGELOG, BUGLOG, earlier entries here and done rows of gaps.md), which say where
 things were then.
+
+## The phone first, and desktop signing left aside (2026-11-21, the maintainer's word)
+
+The maintainer, 2026-11-21: "signing for desktop is ignored intentionally. give most priority
+to mobile. it should be ready." The Android rows come before every other row, in the order of
+gaps.md's "Mobile first": what breaks or blocks a release, then what must be seen working on a
+phone, then the maintainer's word, then the release. Desktop signing is not a release blocker
+and is not asked about again: R1 (code signing) stays set aside, and F6's update key is not
+made. A desktop release therefore goes out with an unsigned `latest.json`, which dm's own
+update check refuses by design (F6), so a person updates by downloading the new version; the
+release job is to draft without the key rather than fail.
