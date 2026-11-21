@@ -77,11 +77,15 @@ jobs:
       - name: Android 15's platform and build tools
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
       # Gradle itself, checked against the SHA-256 Gradle publishes, so no action of anyone
-      # else's runs; the runner's JDK 17 runs it (the Android Gradle plugin 8.7 needs 17).
+      # else's runs; the runner's JDK 17 runs it (the Android Gradle plugin 8.7 needs 17). Named
+      # by the image's JAVA_HOME_17_X64, as its default JDK moved on (25 from 2026-11-21, which
+      # Gradle 8.14 cannot run on: the build stopped saying only "25.0.5").
       - name: Gradle 8.14.3
         env:
           GRADLE_SHA256: bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531
         run: |
+          test -d "$JAVA_HOME_17_X64"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           curl -sSfL https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -o "$RUNNER_TEMP/gradle.zip"
           echo "$GRADLE_SHA256  $RUNNER_TEMP/gradle.zip" | sha256sum -c -
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
@@ -222,10 +226,13 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
           echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+      # JDK 17 by name, as for the debug APK above.
       - name: Gradle 8.14.3
         env:
           GRADLE_SHA256: bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531
         run: |
+          test -d "$JAVA_HOME_17_X64"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           curl -sSfL https://services.gradle.org/distributions/gradle-8.14.3-bin.zip -o "$RUNNER_TEMP/gradle.zip"
           echo "$GRADLE_SHA256  $RUNNER_TEMP/gradle.zip" | sha256sum -c -
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"

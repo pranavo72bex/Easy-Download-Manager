@@ -128,7 +128,9 @@ fn options_has_the_duplicate_row_and_the_identity_switch() {
     h.run(Command::Options);
     h.until_shown("When an address is already in the list");
     h.click("Advanced");
-    h.until_shown("Second network");
+    // The page's first section: "Second network" is below the fold where text is taller
+    // (Linux, since W12 put "Only through" above it).
+    h.until_shown("Time out a silent connection after (seconds)");
     // Below the fold: the page scrolled to it, as a person scrolls.
     h.scroll_to("Identify as dm only");
     assert!(
