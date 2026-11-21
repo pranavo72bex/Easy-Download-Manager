@@ -221,6 +221,36 @@ fn a_hello_from_an_older_host_with_a_field_no_longer_read_is_still_read() {
     assert_eq!(hello.engine_version, "0.1");
 }
 
+/// Rules of a later format (an `exclude` of another type) leave the rest of the hello read:
+/// the rules are none, and the app is still there (gaps row 219).
+#[test]
+fn a_hello_whose_rules_cannot_be_read_is_still_read_without_them() {
+    let frame = json!({
+        "protocolVersion": 1,
+        "type": "engine.hello",
+        "engineVersion": "0.11",
+        "renews": true,
+        "rules": { "format": 3, "exclude": "every advert, said another way" }
+    });
+    let Ok(Reply::Hello(hello)) = Reply::from_frame(&frame) else {
+        panic!("the hello was dropped with its rules")
+    };
+    assert_eq!(hello.engine_version, "0.11");
+    assert!(hello.renews);
+    assert!(hello.rules.is_none());
+    // Rules it can read are still read.
+    let readable = json!({
+        "protocolVersion": 1,
+        "type": "engine.hello",
+        "engineVersion": "0.11",
+        "rules": serde_json::to_value(Rules::default()).unwrap()
+    });
+    let Ok(Reply::Hello(hello)) = Reply::from_frame(&readable) else {
+        panic!("not read")
+    };
+    assert!(hello.rules.is_some());
+}
+
 #[test]
 fn the_rules_cross_as_written_and_read_from_either_spelling() {
     let reply = Reply::Settings(SettingsReply {

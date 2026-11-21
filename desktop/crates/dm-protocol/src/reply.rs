@@ -114,7 +114,15 @@ pub struct Hello {
     /// The site rules the app serves (what is never caught, and which answers of a site's own
     /// requests name streams), which the extension adds to the tables it was built with. Absent
     /// from an app that serves none.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Rules this side cannot read (a later format, a field of another type) are taken as none,
+    /// and the extension keeps the tables it was built with: the rest of the hello still
+    /// stands, so the app is not taken for absent and downloads go on being handed over (gaps
+    /// row 219).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "rules_or_none"
+    )]
     pub rules: Option<Rules>,
     /// The app takes a newer address of a stream it was handed (`Start::renews`) for a row whose
     /// address ran out. False from an older app, which would add it as another download.
@@ -132,6 +140,15 @@ pub struct Hello {
     /// Absent: the extension's own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<StatusLine>,
+}
+
+/// [`Hello::rules`] as served, or none where they cannot be read.
+fn rules_or_none<'de, D>(deserializer: D) -> Result<Option<Rules>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value::<Rules>(value).ok())
 }
 
 impl Hello {
