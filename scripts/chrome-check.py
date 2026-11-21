@@ -2225,7 +2225,13 @@ def main():
         got = wait_for(lambda: magnets() if len(magnets()) == 7 else None, 30) or magnets()
         check("each of the seven ways a page opens a magnet link reaches dm",
               len(got) == 7, f"missing: {sorted(set(names) - set(got))}")
-        floods = [r.get("url", "") for r in queue_rows(engine_home) if "dn=flood" in r.get("url", "")]
+        def flooded():
+            return [r.get("url", "") for r in queue_rows(engine_home) if "dn=flood" in r.get("url", "")]
+        # The handed magnet's row is written a moment after the extension hands it (CI once read
+        # the queue first, 2026-11-21): waited for, then a little longer, so a second would show.
+        wait_for(lambda: flooded() or None, 15)
+        time.sleep(2.0)
+        floods = flooded()
         check("five magnets a page opens for one click hand dm one", len(floods) == 1, f"{floods}")
 
         # 5. Only the browser can fetch it: dm is refused without the
