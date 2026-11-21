@@ -123,7 +123,7 @@ web-sys = "0.3"
 webpki-roots = "1"
 windows = "0.62"
 windows-sys = "0.61"
-x11rb = "0.13"
+x11rb = "0.14"
 zbus = { version = "5", default-features = false, features = ["blocking-api"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
