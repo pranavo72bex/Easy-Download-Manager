@@ -1,0 +1,63 @@
+{
+ "scenario": "idle",
+ "label": "window up, nothing to do, 20 s",
+ "runs": [
+  {
+   "app": "dm",
+   "scenario": "idle",
+   "rep": 1,
+   "ok": true,
+   "peakWorkingSetMB": 110.2,
+   "peakPrivateMB": null,
+   "cpuMs": 10
+  }
+ ],
+ "meta": {
+  "harness": 1,
+  "run": "mwqg3266",
+  "date": "2026-11-21T13:30:16.181Z",
+  "apps": [
+   "dm"
+  ],
+  "system": {
+   "platform": "darwin",
+   "release": "27.2.0",
+   "arch": "arm64",
+   "cpu": "Apple M1",
+   "logicalCores": 8,
+   "memoryGB": 16
+  },
+  "node": "v26.12.1",
+  "dmBinary": {
+   "path": "/Users/pranav.jha/Easy-Download-Manager/target/release/dm-gpui",
+   "bytes": 24081712,
+   "modified": "2026-11-21T12:26:41.057Z"
+  },
+  "build": {
+   "commit": {
+    "head": "2ab0cffa94c1792958a30b56b55596303f6e101d",
+    "dirty": false
+   },
+   "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+   "target": "aarch64-apple-darwin",
+   "profile": "release",
+   "gpus": [
+    "Apple M1"
+   ],
+   "displays": [
+    {
+     "pixels": "2880 x 1800",
+     "looksLike": "1440 x 900 @ 60.00Hz",
+     "scale": 2
+    }
+   ]
+  },
+  "dmConnections": null,
+  "folders": {
+   "work": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench",
+   "dmHome": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home",
+   "dmDownloads": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home/downloads",
+   "refa": null
+  }
+ }
+}

@@ -1,0 +1,88 @@
+{
+ "scenario": "ceiling",
+ "client": "bench/ceiling-client.mjs",
+ "connections": 8,
+ "dir": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/ceiling/ceiling-mwqg3266",
+ "results": {
+  "fast": {
+   "seconds": [
+    0.238,
+    0.237,
+    0.237
+   ],
+   "best": 0.237
+  },
+  "per_conn": {
+   "seconds": [
+    8.014,
+    8.023,
+    8.031
+   ],
+   "best": 8.014
+  },
+  "flaky": {
+   "seconds": [
+    7.976,
+    7.979,
+    7.979
+   ],
+   "best": 7.976
+  },
+  "big40": {
+   "seconds": [
+    13.031,
+    13.034,
+    13.044
+   ],
+   "best": 13.031
+  }
+ },
+ "meta": {
+  "harness": 1,
+  "run": "mwqg3266",
+  "date": "2026-11-21T13:34:33.007Z",
+  "apps": [
+   "dm"
+  ],
+  "system": {
+   "platform": "darwin",
+   "release": "27.2.0",
+   "arch": "arm64",
+   "cpu": "Apple M1",
+   "logicalCores": 8,
+   "memoryGB": 16
+  },
+  "node": "v26.12.1",
+  "dmBinary": {
+   "path": "/Users/pranav.jha/Easy-Download-Manager/target/release/dm-gpui",
+   "bytes": 24081712,
+   "modified": "2026-11-21T12:26:41.057Z"
+  },
+  "build": {
+   "commit": {
+    "head": "2ab0cffa94c1792958a30b56b55596303f6e101d",
+    "dirty": false
+   },
+   "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+   "target": "aarch64-apple-darwin",
+   "profile": "release",
+   "gpus": [
+    "Apple M1"
+   ],
+   "displays": [
+    {
+     "pixels": "2880 x 1800",
+     "looksLike": "1440 x 900 @ 60.00Hz",
+     "scale": 2
+    }
+   ]
+  },
+  "dmConnections": null,
+  "folders": {
+   "work": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench",
+   "dmHome": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home",
+   "dmDownloads": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home/downloads",
+   "refa": null
+  }
+ }
+}

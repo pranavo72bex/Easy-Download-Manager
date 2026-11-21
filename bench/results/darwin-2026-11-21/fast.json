@@ -1,0 +1,505 @@
+{
+ "scenario": "fast",
+ "label": "512 MiB, local server, no limit",
+ "params": {
+  "size": 536870912
+ },
+ "size": 536870912,
+ "files": 1,
+ "runs": [
+  {
+   "app": "dm",
+   "scenario": "fast",
+   "rep": 1,
+   "ok": true,
+   "seconds": 0.234,
+   "mbps": 2188.03,
+   "firstRequestMs": 15,
+   "lastByteToDoneMs": 96,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 512,
+   "refetchedPct": 0,
+   "requests": 17,
+   "connections": 8,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "perRequest": [
+    [
+     0,
+     8388608,
+     "bytes=0-8388607",
+     ""
+    ],
+    [
+     4,
+     67108928,
+     "bytes=402653120-469762047",
+     ""
+    ],
+    [
+     4,
+     67108928,
+     "bytes=201326528-268435455",
+     ""
+    ],
+    [
+     4,
+     67108928,
+     "bytes=268435392-335544319",
+     ""
+    ],
+    [
+     5,
+     67108928,
+     "bytes=469761984-536870911",
+     ""
+    ],
+    [
+     6,
+     67108928,
+     "bytes=134217664-201326591",
+     ""
+    ],
+    [
+     11,
+     67108928,
+     "bytes=335544256-402653183",
+     ""
+    ],
+    [
+     13,
+     67108928,
+     "bytes=67108800-134217727",
+     ""
+    ],
+    [
+     31,
+     58720256,
+     "bytes=8388608-67108863",
+     ""
+    ],
+    [
+     123,
+     1024,
+     "bytes=469761536-469762559",
+     ""
+    ],
+    [
+     123,
+     512,
+     "bytes=536870400-536870911",
+     ""
+    ],
+    [
+     123,
+     1024,
+     "bytes=402652672-402653695",
+     ""
+    ],
+    [
+     123,
+     1024,
+     "bytes=201326080-201327103",
+     ""
+    ],
+    [
+     123,
+     1024,
+     "bytes=134217216-134218239",
+     ""
+    ],
+    [
+     123,
+     1024,
+     "bytes=268434944-268435967",
+     ""
+    ],
+    [
+     123,
+     1024,
+     "bytes=67108352-67109375",
+     ""
+    ],
+    [
+     123,
+     1024,
+     "bytes=335543808-335544831",
+     ""
+    ]
+   ],
+   "peakWorkingSetMB": 114.7,
+   "peakPrivateMB": null,
+   "cpuMs": 460,
+   "states": [
+    "completed"
+   ],
+   "errors": [],
+   "timeline": [
+    [
+     229,
+     536879040
+    ],
+    [
+     733,
+     536879040
+    ],
+    [
+     1235,
+     536879040
+    ]
+   ]
+  },
+  {
+   "app": "dm",
+   "scenario": "fast",
+   "rep": 2,
+   "ok": true,
+   "seconds": 0.253,
+   "mbps": 2023.72,
+   "firstRequestMs": 17,
+   "lastByteToDoneMs": 94,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 512,
+   "refetchedPct": 0,
+   "requests": 17,
+   "connections": 8,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "perRequest": [
+    [
+     0,
+     8388608,
+     "bytes=0-8388607",
+     ""
+    ],
+    [
+     6,
+     67108928,
+     "bytes=469761984-536870911",
+     ""
+    ],
+    [
+     9,
+     67108928,
+     "bytes=402653120-469762047",
+     ""
+    ],
+    [
+     20,
+     67108928,
+     "bytes=335544256-402653183",
+     ""
+    ],
+    [
+     23,
+     67108928,
+     "bytes=67108800-134217727",
+     ""
+    ],
+    [
+     25,
+     67108928,
+     "bytes=268435392-335544319",
+     ""
+    ],
+    [
+     26,
+     67108928,
+     "bytes=201326528-268435455",
+     ""
+    ],
+    [
+     28,
+     67108928,
+     "bytes=134217664-201326591",
+     ""
+    ],
+    [
+     37,
+     58720256,
+     "bytes=8388608-67108863",
+     ""
+    ],
+    [
+     142,
+     1024,
+     "bytes=469761536-469762559",
+     ""
+    ],
+    [
+     142,
+     512,
+     "bytes=536870400-536870911",
+     ""
+    ],
+    [
+     142,
+     1024,
+     "bytes=402652672-402653695",
+     ""
+    ],
+    [
+     142,
+     1024,
+     "bytes=134217216-134218239",
+     ""
+    ],
+    [
+     142,
+     1024,
+     "bytes=201326080-201327103",
+     ""
+    ],
+    [
+     142,
+     1024,
+     "bytes=335543808-335544831",
+     ""
+    ],
+    [
+     142,
+     1024,
+     "bytes=268434944-268435967",
+     ""
+    ],
+    [
+     142,
+     1024,
+     "bytes=67108352-67109375",
+     ""
+    ]
+   ],
+   "peakWorkingSetMB": 117.1,
+   "peakPrivateMB": null,
+   "cpuMs": 550,
+   "states": [
+    "completed"
+   ],
+   "errors": [],
+   "timeline": [
+    [
+     133,
+     508559680
+    ],
+    [
+     635,
+     536879040
+    ],
+    [
+     1137,
+     536879040
+    ],
+    [
+     1640,
+     536879040
+    ]
+   ]
+  },
+  {
+   "app": "dm",
+   "scenario": "fast",
+   "rep": 3,
+   "ok": true,
+   "seconds": 0.246,
+   "mbps": 2081.3,
+   "firstRequestMs": 16,
+   "lastByteToDoneMs": 91,
+   "filesWhole": 1,
+   "files": 1,
+   "servedMB": 512,
+   "refetchedPct": 0,
+   "requests": 17,
+   "connections": 8,
+   "maxParallelConnections": 8,
+   "maxParallelFiles": 1,
+   "recoveryAfterOutageMs": null,
+   "outageDroppedRequests": 0,
+   "outageAtMs": null,
+   "perRequest": [
+    [
+     0,
+     8388608,
+     "bytes=0-8388607",
+     ""
+    ],
+    [
+     6,
+     67108928,
+     "bytes=335544256-402653183",
+     ""
+    ],
+    [
+     9,
+     67108928,
+     "bytes=469761984-536870911",
+     ""
+    ],
+    [
+     13,
+     67108928,
+     "bytes=201326528-268435455",
+     ""
+    ],
+    [
+     15,
+     67108928,
+     "bytes=67108800-134217727",
+     ""
+    ],
+    [
+     19,
+     67108928,
+     "bytes=402653120-469762047",
+     ""
+    ],
+    [
+     21,
+     67108928,
+     "bytes=134217664-201326591",
+     ""
+    ],
+    [
+     23,
+     67108928,
+     "bytes=268435392-335544319",
+     ""
+    ],
+    [
+     32,
+     58720256,
+     "bytes=8388608-67108863",
+     ""
+    ],
+    [
+     138,
+     1024,
+     "bytes=134217216-134218239",
+     ""
+    ],
+    [
+     138,
+     1024,
+     "bytes=201326080-201327103",
+     ""
+    ],
+    [
+     139,
+     1024,
+     "bytes=402652672-402653695",
+     ""
+    ],
+    [
+     139,
+     1024,
+     "bytes=268434944-268435967",
+     ""
+    ],
+    [
+     139,
+     1024,
+     "bytes=335543808-335544831",
+     ""
+    ],
+    [
+     139,
+     1024,
+     "bytes=469761536-469762559",
+     ""
+    ],
+    [
+     139,
+     1024,
+     "bytes=67108352-67109375",
+     ""
+    ],
+    [
+     139,
+     512,
+     "bytes=536870400-536870911",
+     ""
+    ]
+   ],
+   "peakWorkingSetMB": 115.8,
+   "peakPrivateMB": null,
+   "cpuMs": 600,
+   "states": [
+    "completed"
+   ],
+   "errors": [],
+   "timeline": [
+    [
+     32,
+     82837504
+    ],
+    [
+     533,
+     536879040
+    ],
+    [
+     1036,
+     536879040
+    ],
+    [
+     1538,
+     536879040
+    ]
+   ]
+  }
+ ],
+ "meta": {
+  "harness": 1,
+  "run": "mwqg3266",
+  "date": "2026-11-21T13:30:32.623Z",
+  "apps": [
+   "dm"
+  ],
+  "system": {
+   "platform": "darwin",
+   "release": "27.2.0",
+   "arch": "arm64",
+   "cpu": "Apple M1",
+   "logicalCores": 8,
+   "memoryGB": 16
+  },
+  "node": "v26.12.1",
+  "dmBinary": {
+   "path": "/Users/pranav.jha/Easy-Download-Manager/target/release/dm-gpui",
+   "bytes": 24081712,
+   "modified": "2026-11-21T12:26:41.057Z"
+  },
+  "build": {
+   "commit": {
+    "head": "2ab0cffa94c1792958a30b56b55596303f6e101d",
+    "dirty": false
+   },
+   "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+   "target": "aarch64-apple-darwin",
+   "profile": "release",
+   "gpus": [
+    "Apple M1"
+   ],
+   "displays": [
+    {
+     "pixels": "2880 x 1800",
+     "looksLike": "1440 x 900 @ 60.00Hz",
+     "scale": 2
+    }
+   ]
+  },
+  "dmConnections": null,
+  "folders": {
+   "work": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench",
+   "dmHome": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home",
+   "dmDownloads": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home/downloads",
+   "refa": null
+  }
+ }
+}
