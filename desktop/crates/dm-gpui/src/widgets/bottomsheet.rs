@@ -44,15 +44,20 @@ pub(crate) struct Drag {
     pub(crate) dragging: bool,
 }
 
+/// Closes a sheet.
+pub(crate) type Close = Rc<dyn Fn(&mut Window, &mut App)>;
+/// Puts a sheet where a finger has dragged it.
+pub(crate) type SetDrag = Rc<dyn Fn(Drag, &mut Window, &mut App)>;
+
 /// What a sheet asks of its owner, while drawn and as a finger drags it.
 #[derive(Clone)]
 pub(crate) struct Hooks {
     /// Closes it.
-    pub(crate) close: Rc<dyn Fn(&mut Window, &mut App)>,
+    pub(crate) close: Close,
     /// Where it is now, read as a finger moves (the drawn frame's may be older).
     pub(crate) drag: Rc<dyn Fn(&App) -> Drag>,
     /// Puts it there.
-    pub(crate) set_drag: Rc<dyn Fn(Drag, &mut Window, &mut App)>,
+    pub(crate) set_drag: SetDrag,
 }
 
 /// One line of a sheet, a finger's height.

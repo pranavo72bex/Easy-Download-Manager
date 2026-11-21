@@ -8,7 +8,8 @@ the window works.
 ## Appearance
 
 - **Theme:** **As the computer is** follows the computer's light or dark
-  setting; **Light** and **Dark** keep one.
+  setting; **Light** and **Dark** keep one. On a phone the first is called
+  **As the phone is** and follows the phone's dark theme.
 - **Text size:** how large everything in dm's windows is drawn: 60%, 80%,
   100% or 120%. Drag the slider or click a percentage. It is used at once,
   in every window, and kept even if you then click Cancel. **View › Larger**

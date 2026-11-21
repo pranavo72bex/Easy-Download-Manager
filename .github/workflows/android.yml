@@ -149,6 +149,8 @@ jobs:
             -gpu swiftshader_indirect -camera-back none -camera-front none \
             > "$RUNNER_TEMP/emulator.log" 2>&1 &
           adb wait-for-device
+          # The inner shell expands it, on each pass of its loop: single quotes on purpose.
+          # shellcheck disable=SC2016
           timeout 600 sh -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 5; done'
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0

@@ -134,7 +134,7 @@ pub(super) fn drawn(
         .collect();
     bottomsheet::sheet(
         "sheet",
-        menu.name.clone().into(),
+        menu.name.clone(),
         name,
         walked,
         items,

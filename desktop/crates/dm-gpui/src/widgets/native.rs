@@ -299,65 +299,6 @@ pub fn field_if(input: &Entity<InputState>, name: &'static str, on: bool, theme:
         )
 }
 
-/// A field that holds a folder: while it is not being typed in, it shows the path with the
-/// home folder as `~` and cut in its middle where it is too long, so both where it starts and
-/// the folder it ends in stay in sight (gaps row U17). Typing in it shows it whole, as it is.
-/// Empty, it shows `hint` (the folder used when none is typed) the same way, in the
-/// placeholder's colour, so its end ("(sorted by kind)") is not cut off.
-pub fn path_field(
-    input: &Entity<InputState>,
-    name: &'static str,
-    hint: &str,
-    typing: bool,
-    theme: Theme,
-    cx: &gpui::App,
-) -> impl IntoElement {
-    let value = input.read(cx).value().to_string();
-    let shown = (!typing).then(|| {
-        if value.trim().is_empty() {
-            (
-                SharedString::from(dm_shell::settings::home_short(hint.trim())),
-                theme.muted,
-            )
-        } else {
-            (
-                SharedString::from(dm_shell::settings::home_short(value.trim())),
-                theme.text,
-            )
-        }
-    });
-    // On a phone the field draws its own text and hint over anything laid on it, so nothing is
-    // laid on it there: the path, or its hint, shows as the field draws it.
-    let shown = shown
-        .filter(|(words, _)| !words.is_empty())
-        .filter(|_| !crate::platform::ON_A_PHONE);
-    field(input, name, theme).when_some(shown, |d, (shown, colour)| {
-        d.child(
-            div()
-                .absolute()
-                .top(px(1.0))
-                .bottom(px(1.0))
-                .left(px(1.0))
-                .right(px(1.0))
-                .rounded(px(RADIUS))
-                .bg(theme.field)
-                .px(px(5.0))
-                .flex()
-                .items_center()
-                .overflow_hidden()
-                .text_size(px(TEXT))
-                .text_color(colour)
-                .child(
-                    div()
-                        .w_full()
-                        .whitespace_nowrap()
-                        .text_ellipsis_middle()
-                        .child(shown),
-                ),
-        )
-    })
-}
-
 /// The least room a control keeps beside its label in a phone's form row; with less, it goes
 /// under the label.
 const PHONE_CONTROL_MIN: f32 = 170.0;
@@ -658,56 +599,6 @@ pub fn dialog<V: CloseButton>(
         })
 }
 
-/// A phone's dialog's top bar: Back, and the dialog's name.
-pub fn phone_bar(
-    title: SharedString,
-    theme: Theme,
-    back: impl Fn(&gpui::ClickEvent, &mut gpui::Window, &mut gpui::App) + 'static,
-) -> Div {
-    let back_words = dm_desktop_base::i18n::t("Back");
-    div()
-        .w_full()
-        .h(px(space::TOUCH + space::XS))
-        .flex()
-        .items_center()
-        .gap(px(space::XS))
-        .px(px(space::XS))
-        .border_b_1()
-        .border_color(theme.separator)
-        .child(
-            div()
-                .id("phone-back")
-                .role(Role::Button)
-                .aria_label(back_words)
-                .size(px(space::TOUCH))
-                .flex()
-                .flex_none()
-                .items_center()
-                .justify_center()
-                .rounded_full()
-                .active(move |s| s.bg(theme.control))
-                .on_click(back)
-                .child(
-                    gpui::svg()
-                        .path("icons/back.svg")
-                        .size(px(22.0))
-                        .text_color(theme.text),
-                ),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_ellipsis()
-                .text_size(px(TEXT + 4.0))
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_color(theme.text)
-                .child(title),
-        )
-}
-
 /// What closes a window as its close button does: true where the window
 /// is to go as it is (its dialog gone already).
 type Closer = std::rc::Rc<dyn Fn(&mut gpui::Window, &mut gpui::App) -> bool>;
@@ -863,6 +754,11 @@ pub fn time_picked(time: &mut String, hour: bool, to: usize) {
     let to = to as u32;
     *time = if hour { time_of(to, m) } else { time_of(h, to) };
 }
+
+mod path;
+mod phone;
+pub use path::path_field;
+pub use phone::phone_bar;
 
 #[cfg(test)]
 mod tests;

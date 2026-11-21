@@ -413,10 +413,17 @@ row's right-click menu takes a new address by hand.
   **Download video**.
 - `that address answered with a web page rather than the file; its video, if any, comes from the browser's Download video button when the page plays`
 - `that is a web page; its video, if any, comes from the browser's Download video button when the page plays`
-  The address is a web page, not a file. When an address you add turns
-  out to be a page, dm asks whether to save the page; this is said when it
-  is not saved. dm reads YouTube's pages itself; on any other site, play the video
-  in your browser and click **Download video** on it.
+  The address is a web page, not a file, and dm found no video or sound in
+  it. dm reads any page for the media it plays (the page's video tags, what
+  it tells search engines, its player's data) and downloads that, named
+  after the page's title; a link shared to dm from an app (a short video, a
+  post) works the same way. When it finds none, it asks whether to save the
+  page, and this is said when it is not saved. On such a site, play the
+  video in your browser and click **Download video** on it.
+- `the page did not answer: …`
+- `the page could not be read: …`
+  dm was reading a web page for its video, and the page's server did not
+  answer, or stopped part way. Check that you are online and try again.
 - `this download is a form's answer, and the form is gone since dm was closed: start it again from the page it came from`
   The file was the answer to a form sent from a page, and what the form
   sent is not kept once dm closes. Fill in the form again on the page.

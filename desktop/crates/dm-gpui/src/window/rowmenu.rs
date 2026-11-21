@@ -83,10 +83,11 @@ pub(crate) fn card_menu(view: &Downloads) -> Menu {
     for item in full.items {
         match &item {
             MenuItem::Action { disabled: true, .. } => continue,
-            MenuItem::Separator => {
-                if items.is_empty() || matches!(items.last(), Some(MenuItem::Separator)) {
-                    continue;
-                }
+            // No separator first, nor two in a row.
+            MenuItem::Separator
+                if items.is_empty() || matches!(items.last(), Some(MenuItem::Separator)) =>
+            {
+                continue
             }
             _ => {}
         }
@@ -105,7 +106,7 @@ pub(crate) fn card_menu(view: &Downloads) -> Menu {
     }
     // Named after its card's file, which its sheet shows at the top.
     let name: gpui::SharedString = match view.chosen().as_slice() {
-        [only] => crate::window::table::shown_name(only, &view.known.shown_names).into(),
+        [only] => crate::window::table::shown_name(only, &view.known.shown_names),
         _ => t("Row menu").into(),
     };
     Menu::new(name).items(items)
