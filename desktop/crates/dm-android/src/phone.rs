@@ -37,6 +37,11 @@ pub trait Java: Send + Sync + 'static {
     fn open(&self, path: &str) -> Result<(), String>;
     /// Shows where `path` is: the phone's Downloads.
     fn reveal(&self, path: &str) -> Result<(), String>;
+    /// Offers the file at `path` to another app through the system's share sheet.
+    fn share(&self, path: &str) -> Result<(), String> {
+        let _ = path;
+        Err("this phone cannot share files from dm".into())
+    }
     /// Whether dm's window is in front: Android 10 and up let only the app in front read the
     /// clipboard, and answer the others as if it were empty (gaps row N5).
     fn in_front(&self) -> bool;
@@ -238,6 +243,24 @@ impl<J: Java> PhoneServices for Phone<J> {
         self.java.reveal(path)
     }
 
+    fn share(&self, path: &str) -> Result<(), String> {
+        self.java.share(path)
+    }
+
+    /// A phone has no Trash dm can reach: Delete file deletes the file itself (the question
+    /// before it says so), and the phone's media index forgets it, so the Files app and the
+    /// gallery do not list a file that is gone.
+    fn trash(&self, path: &str) -> Result<(), String> {
+        match std::fs::remove_file(path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("could not delete it: {e}")),
+        }
+        // Scanning a path whose file is gone takes it out of the index.
+        let _ = self.java.index(path);
+        Ok(())
+    }
+
     fn clipboard(&self) -> Option<String> {
         self.java.clipboard().filter(|text| !text.is_empty())
     }
@@ -318,9 +341,6 @@ impl<J: Java> PhoneServices for Phone<J> {
             *armed = Some(at);
         }
     }
-
-    // `trash`: the seam's own answer. A phone has no Trash dm can reach, so the file is kept
-    // and that is said.
 }
 
 /// Whether the phone moved to another kind of connection between two reads: Wi-Fi or a cable

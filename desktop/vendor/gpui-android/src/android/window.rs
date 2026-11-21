@@ -1589,6 +1589,7 @@ impl PlatformWindow for AndroidPlatformWindow {
         // ── Key events → PlatformInput ───────────────────────────────────
         {
             let cb = Arc::clone(&input_cb);
+            let typed_into = Rc::clone(&self.input_handler);
             // dm(android-stack): the window's own layer, which keys reach while it is on top;
             // what GPUI made of the key is handed back, which Back reads.
             super::layers::set(
@@ -1640,8 +1641,33 @@ impl PlatformWindow for AndroidPlatformWindow {
                         return super::layers::UNUSED; // ACTION_MULTIPLE or unknown
                     };
 
-                    let mut guard = cb.lock();
-                    guard(event)
+                    // dm(android-keys): a character key nothing took (no binding, no action),
+                    // typed into the field that has the keyboard, as GPUI's Linux and Windows
+                    // platforms type it. A hardware keyboard's keys (and `adb shell input`)
+                    // come here, not through the soft keyboard's InputConnection, and were
+                    // dropped.
+                    let typed = match &event {
+                        gpui::PlatformInput::KeyDown(down) => typed_char(&down.keystroke),
+                        _ => None,
+                    };
+                    let result = {
+                        let mut guard = cb.lock();
+                        guard(event)
+                    };
+                    if let Some(text) = typed {
+                        if result.propagate && !result.default_prevented {
+                            // No RefCell borrow spans the handler's update.
+                            let handler = typed_into.borrow_mut().take();
+                            if let Some(mut handler) = handler {
+                                handler.replace_text_in_range(None, &text);
+                                let mut slot = typed_into.borrow_mut();
+                                if slot.is_none() {
+                                    *slot = Some(handler);
+                                }
+                            }
+                        }
+                    }
+                    result
                 }),
             );
         }
@@ -2031,6 +2057,20 @@ impl WindowList {
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
+
+/// dm(android-keys): the text a key types into a field: its character, where it has one that
+/// is not a control character and no Ctrl, Alt or Meta is held (those are shortcuts).
+fn typed_char(keystroke: &gpui::Keystroke) -> Option<String> {
+    let modifiers = &keystroke.modifiers;
+    if modifiers.control || modifiers.alt || modifiers.platform {
+        return None;
+    }
+    keystroke
+        .key_char
+        .as_ref()
+        .filter(|text| !text.is_empty() && !text.chars().any(char::is_control))
+        .cloned()
+}
 
 #[cfg(test)]
 mod tests {

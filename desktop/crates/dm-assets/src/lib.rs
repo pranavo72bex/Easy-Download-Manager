@@ -74,6 +74,9 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     "back",
     // A phone's floating Add URL button.
     "plus",
+    // A phone's card menu: Share, and Copy link.
+    "share",
+    "link",
 );
 
 /// The picture at `path` (`icons/<name>.svg`), if dm has it.

@@ -229,7 +229,7 @@ fn the_ongoing_words_change_at_most_once_a_second() {
 }
 
 #[test]
-fn the_rest_go_to_the_phone_and_the_trash_is_refused_in_words() {
+fn the_rest_go_to_the_phone() {
     let (phone, recorded) = phone();
     assert_eq!(
         phone.open("/x/c.apk"),
@@ -239,10 +239,28 @@ fn the_rest_go_to_the_phone_and_the_trash_is_refused_in_words() {
     // An empty clipboard is no text.
     assert_eq!(phone.clipboard(), None);
     phone.set_clipboard("https://example.com/a");
-    assert!(phone.trash("/x/c.apk").is_err());
     assert_eq!(
         calls(&recorded),
         ["reveal /x/c.apk", "clipboard https://example.com/a"]
+    );
+}
+
+/// A phone has no Trash: Delete file deletes the file, and the phone's index is told, so the
+/// Files app does not list it; a file already gone is no failure.
+#[test]
+fn delete_file_deletes_it_and_tells_the_index() {
+    let (phone, recorded) = phone();
+    let folder = tempfile::tempdir().unwrap();
+    let file = folder.path().join("c.apk");
+    std::fs::write(&file, b"x").unwrap();
+    let path = file.to_string_lossy().into_owned();
+    assert_eq!(phone.trash(&path), Ok(()));
+    assert!(!file.exists());
+    assert_eq!(phone.trash(&path), Ok(()));
+    assert!(
+        calls(&recorded).iter().any(|c| c.contains("c.apk")),
+        "{:?}",
+        calls(&recorded)
     );
 }
 

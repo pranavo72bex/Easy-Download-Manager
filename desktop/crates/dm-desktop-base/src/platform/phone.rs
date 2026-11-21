@@ -82,6 +82,13 @@ pub trait PhoneServices: Send + Sync {
         let _ = minutes;
     }
 
+    /// Offers the file at `path` to the phone's other apps (the system's share sheet), or says
+    /// why it cannot.
+    fn share(&self, path: &str) -> Result<(), String> {
+        let _ = path;
+        Err(NOT_YET.into())
+    }
+
     /// Takes the file at `path` away where it can be put back; a phone has no Trash dm can
     /// reach, so by default it is refused and the file kept.
     fn trash(&self, path: &str) -> Result<(), String> {
@@ -256,6 +263,11 @@ pub fn notify(note: Note) {
 /// Opens `path` through the phone, or says it cannot.
 pub fn open(path: &str) -> Result<(), String> {
     phone().map_or_else(|| Err(NOT_YET.into()), |phone| phone.open(path))
+}
+
+/// Offers `path` to the phone's other apps through its share sheet, or says it cannot.
+pub fn share(path: &str) -> Result<(), String> {
+    phone().map_or_else(|| Err(NOT_YET.into()), |phone| phone.share(path))
 }
 
 /// Shows `path`'s folder through the phone, or says it cannot.

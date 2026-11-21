@@ -56,6 +56,9 @@ pub struct Swarm {
     pub connected: u32,
     /// Peers known: every address found for it this run, connected or not.
     pub known: u32,
+    /// Of those connected, the seeders: peers with the whole torrent. The rest connected are
+    /// leechers, still fetching it themselves.
+    pub seeders: u32,
     /// Bytes sent to peers this run.
     pub uploaded: u64,
     /// Bytes a second sent to peers, over the last sample.
@@ -63,6 +66,11 @@ pub struct Swarm {
 }
 
 impl Swarm {
+    /// Peers connected that are still fetching the torrent themselves (leechers).
+    pub fn leechers(&self) -> u32 {
+        self.connected.saturating_sub(self.seeders)
+    }
+
     /// The swarm as the engine's sample counts it, with the upload speed since
     /// the sample before (`before`, `dt` seconds earlier).
     fn of(stats: &dm_torrent::Stats, before: Option<u64>, dt: f64) -> Swarm {
@@ -71,6 +79,7 @@ impl Swarm {
         Swarm {
             connected,
             known: stats.peers_seen.unwrap_or(0).max(connected),
+            seeders: stats.seeders_connected.unwrap_or(0).min(connected),
             uploaded,
             upload_speed: match before {
                 Some(before) if dt > 0.0 => uploaded.saturating_sub(before) as f64 / dt,

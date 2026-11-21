@@ -262,7 +262,7 @@ impl Downloads {
         }
         self.list.cursor = Some(id);
         self.layout.narrow.drawer = None;
-        let menu = crate::window::rowmenu::row_menu(self, false).owned();
+        let menu = crate::window::rowmenu::card_menu(self).owned();
         self.layout.narrow.sheet = Some(Sheet::new(menu));
         cx.notify();
     }

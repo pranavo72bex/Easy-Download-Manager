@@ -130,6 +130,17 @@ impl Java for Jni {
         .map_err(|why| no_app(why, &format!("no app on this phone opens {name}")))
     }
 
+    fn share(&self, path: &str) -> Result<(), String> {
+        let name = std::path::Path::new(path)
+            .file_name()
+            .map_or_else(|| path.to_owned(), |n| n.to_string_lossy().into_owned());
+        jvm::with("share the file", |env, context| {
+            let intent = open::share(env, context, path)?;
+            start(env, context, &intent)
+        })
+        .map_err(|why| no_app(why, &format!("no app on this phone takes {name}")))
+    }
+
     fn reveal(&self, _path: &str) -> Result<(), String> {
         // A phone shows no one folder of a file: its Downloads app lists what was downloaded.
         jvm::with("show the phone's Downloads", |env, context| {

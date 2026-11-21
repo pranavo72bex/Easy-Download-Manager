@@ -65,7 +65,7 @@ fn at_a_phones_width_the_rows_are_cards() {
     h.until("the row menu's sheet", |h| {
         h.view(|view| view.layout.narrow.sheet.is_some())
     });
-    let menu = h.view(|view| crate::window::rowmenu::row_menu(view, false).owned());
+    let menu = h.view(|view| crate::window::rowmenu::card_menu(view).owned());
     let first = menu
         .items
         .iter()

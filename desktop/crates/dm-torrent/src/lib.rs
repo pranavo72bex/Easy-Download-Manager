@@ -263,6 +263,8 @@ pub struct Stats {
     pub peers_connected: Option<u32>,
     /// Peers known this run, connected or not, while it is live.
     pub peers_seen: Option<u32>,
+    /// Of the peers connected, those that have the whole torrent (seeders), while it is live.
+    pub seeders_connected: Option<u32>,
 }
 
 impl Torrent {
@@ -323,6 +325,7 @@ impl Torrent {
             finished: stats.finished,
             peers_connected: peers.map(|p| p.live),
             peers_seen: peers.map(|p| p.seen),
+            seeders_connected: peers.map(|p| p.live_seeders),
         }
     }
 }

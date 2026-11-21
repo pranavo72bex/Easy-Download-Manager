@@ -289,6 +289,12 @@ impl Downloads {
         else {
             return;
         };
+        // On a phone a download shared from another app starts as it is, under the name its
+        // server sends (a video's title, not its address's last part): the question's own
+        // default, taken without stopping it to ask.
+        if crate::platform::ON_A_PHONE && matches!(question, Question::Name { .. }) {
+            return self.promote_asks(cx);
+        }
         let ask = match &question {
             Question::Name {
                 address_name,

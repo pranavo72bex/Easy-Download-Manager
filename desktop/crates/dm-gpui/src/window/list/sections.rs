@@ -120,6 +120,10 @@ impl Downloads {
                 this.run_on_queue(run.command, &run.queue, cx)
             }),
         )
+        // A phone card menu's Share.
+        .on_action(
+            cx.listener(|this, _: &crate::window::rowmenu::ShareFile, _, cx| this.share_chosen(cx)),
+        )
         // The row menu's "Delete file after" (gaps row U8).
         .on_action(
             cx.listener(|this, it: &crate::window::rowmenu::DeleteAfter, _, cx| {

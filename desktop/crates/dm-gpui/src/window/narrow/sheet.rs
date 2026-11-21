@@ -121,6 +121,34 @@ pub(super) fn drawn(
         return panel;
     };
     panel = panel.aria_label(menu.name.clone());
+    // A bottom sheet's handle, as a phone's sheets have one.
+    panel = panel.child(
+        div()
+            .flex_none()
+            .w_full()
+            .flex()
+            .justify_center()
+            .pb(px(space::S))
+            .child(div().w(px(36.0)).h(px(4.0)).rounded_full().bg(theme.muted)),
+    );
+    // The sheet's name at its top: a card's file, or dm's menu.
+    if !walked {
+        panel = panel.child(
+            div()
+                .flex_none()
+                .px(px(space::L))
+                .pb(px(space::S))
+                .mb(px(space::XS))
+                .border_b_1()
+                .border_color(theme.separator)
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .text_size(px(native::TEXT + 2.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .child(screen.label(menu.name.clone())),
+        );
+    }
     // A submenu's name at the top: a tap goes back to the menu it opened from.
     if walked {
         panel = panel.child(
@@ -180,6 +208,21 @@ fn item_drawn(
             }))
             .child(
                 div()
+                    .flex_none()
+                    .w(px(ICON))
+                    .flex()
+                    .justify_center()
+                    .when_some(menu_picture(&sub.name), |d, picture| {
+                        d.child(
+                            gpui::svg()
+                                .path(picture)
+                                .size(px(ICON))
+                                .text_color(theme.muted),
+                        )
+                    }),
+            )
+            .child(
+                div()
                     .flex_1()
                     .min_w_0()
                     .child(screen.label(sub.name.clone())),
@@ -194,17 +237,8 @@ fn item_drawn(
             ..
         } => {
             let disabled = *disabled;
-            // A toolbar command's own picture, as its toolbar button has it on a desktop.
-            let picture = action
-                .as_any()
-                .downcast_ref::<crate::window::menus::Run>()
-                .map(|run| run.0)
-                .filter(|command| {
-                    dm_shell::app::commands::TOOLBAR
-                        .iter()
-                        .any(|(on_bar, _)| on_bar == command)
-                })
-                .map(crate::window::toolbar::icon);
+            // A command's picture, as its toolbar button has it on a desktop.
+            let picture = picture_of(action.as_ref());
             line(("sheet-item", i), theme)
                 .role(Role::MenuItem)
                 .aria_label(gpui::SharedString::from(name.clone()))
@@ -235,6 +269,51 @@ fn item_drawn(
         }
         OwnedMenuItem::SystemMenu(_) => div().into_any_element(),
     }
+}
+
+/// The picture beside a sheet's item that runs `action`: a toolbar command's own, and the row
+/// menu's commands' where one says them; none for the rest.
+fn picture_of(action: &dyn gpui::Action) -> Option<&'static str> {
+    use dm_shell::app::commands::Command as C;
+    if action.as_any().is::<crate::window::rowmenu::ShareFile>() {
+        return Some("icons/share.svg");
+    }
+    let command = action
+        .as_any()
+        .downcast_ref::<crate::window::menus::Run>()?
+        .0;
+    if dm_shell::app::commands::TOOLBAR
+        .iter()
+        .any(|(on_bar, _)| *on_bar == command)
+    {
+        return Some(crate::window::toolbar::icon(command));
+    }
+    Some(match command {
+        C::OpenFile | C::OpenWith | C::Preview => "icons/open.svg",
+        C::OpenFolder => "icons/place-folder.svg",
+        C::DeleteFile => "icons/delete.svg",
+        C::Properties => "icons/details.svg",
+        C::CopyLink | C::UpdateLink => "icons/link.svg",
+        C::Redownload => "icons/resume.svg",
+        C::MoveToQueue | C::RemoveFromQueue => "icons/place-queue.svg",
+        _ => return None,
+    })
+}
+
+/// The picture beside one of the window's menus in the overflow sheet, by its name.
+fn menu_picture(name: &str) -> Option<&'static str> {
+    use dm_desktop_base::i18n::t;
+    let pictures = [
+        (t("Tasks"), "icons/start-queue.svg"),
+        (t("File"), "icons/place-folder.svg"),
+        (t("Downloads"), "icons/place-all.svg"),
+        (t("View"), "icons/sidebar.svg"),
+        (t("Help"), "icons/details.svg"),
+    ];
+    pictures
+        .into_iter()
+        .find(|(words, _)| *words == name)
+        .map(|(_, picture)| picture)
 }
 
 impl Downloads {

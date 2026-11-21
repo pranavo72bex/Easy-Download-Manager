@@ -241,6 +241,7 @@ mod swarm_tests {
         let lines = swarm_lines(&dm_core::Swarm {
             connected: 3,
             known: 12,
+            seeders: 1,
             uploaded: 2 * 1024 * 1024,
             upload_speed: 64.0 * 1024.0,
         });

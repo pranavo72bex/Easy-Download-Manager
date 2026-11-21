@@ -100,6 +100,47 @@ pub(crate) fn view<'local>(
 
 /// `path`'s address in the media index (`MediaStore.Files`, the `external` volume), where the
 /// index holds it.
+/// The system's share sheet for the file at `path`: `ACTION_SEND` with the file as its stream
+/// (by its media index address where it has one, so the app picked may read it), in the
+/// system's chooser.
+pub(crate) fn share<'local>(
+    env: &mut Env<'local>,
+    context: &JObject<'_>,
+    path: &str,
+) -> jni::errors::Result<JObject<'local>> {
+    let uri = match indexed(env, context, path)? {
+        Some(uri) => uri,
+        None => file_uri(env, path)?,
+    };
+    let kind = mime_type(env, path)?;
+    let kind = env.new_string(kind)?;
+    let send = jvm::intent(env, "android.intent.action.SEND")?;
+    env.call_method(
+        &send,
+        jni_str!("setType"),
+        jni_sig!("(Ljava/lang/String;)Landroid/content/Intent;"),
+        &[JValue::Object(&kind)],
+    )?;
+    let stream = env.new_string("android.intent.extra.STREAM")?;
+    env.call_method(
+        &send,
+        jni_str!("putExtra"),
+        jni_sig!("(Ljava/lang/String;Landroid/os/Parcelable;)Landroid/content/Intent;"),
+        &[JValue::Object(&stream), JValue::Object(&uri)],
+    )?;
+    jvm::add_flags(env, &send, GRANT_READ)?;
+    let chooser = env
+        .call_static_method(
+            jni_str!("android/content/Intent"),
+            jni_str!("createChooser"),
+            jni_sig!("(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;"),
+            &[JValue::Object(&send), JValue::Object(&JObject::null())],
+        )?
+        .l()?;
+    jvm::add_flags(env, &chooser, GRANT_READ | jvm::FLAG_ACTIVITY_NEW_TASK)?;
+    Ok(chooser)
+}
+
 fn indexed<'local>(
     env: &mut Env<'local>,
     context: &JObject<'_>,

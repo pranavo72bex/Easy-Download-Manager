@@ -65,6 +65,52 @@ pub struct DeleteAfter {
     pub seconds: Option<u64>,
 }
 
+/// A phone's Share in a card's menu: the finished file chosen offered to the phone's other apps
+/// through its share sheet.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = dm, no_json)]
+pub struct ShareFile;
+
+/// The row menu as a phone's card menu shows it: only what applies to the card (a phone's menus
+/// do not grey what they cannot do), and Share after Open where the card's file is whole.
+pub(crate) fn card_menu(view: &Downloads) -> Menu {
+    let full = row_menu(view, false);
+    let finished = view
+        .chosen()
+        .iter()
+        .any(|r| r.state == dm_core::State::Completed);
+    let mut items: Vec<MenuItem> = Vec::new();
+    for item in full.items {
+        match &item {
+            MenuItem::Action { disabled: true, .. } => continue,
+            MenuItem::Separator => {
+                if items.is_empty() || matches!(items.last(), Some(MenuItem::Separator)) {
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        let opens = matches!(
+            &item,
+            MenuItem::Action { action, .. }
+                if action.as_any().downcast_ref::<Run>().map(|r| r.0) == Some(Command::OpenFile)
+        );
+        items.push(item);
+        if opens && finished && crate::platform::ON_A_PHONE {
+            items.push(MenuItem::action(t("Share"), ShareFile));
+        }
+    }
+    while matches!(items.last(), Some(MenuItem::Separator)) {
+        items.pop();
+    }
+    // Named after its card's file, which its sheet shows at the top.
+    let name: gpui::SharedString = match view.chosen().as_slice() {
+        [only] => crate::window::table::shown_name(only, &view.known.shown_names).into(),
+        _ => t("Row menu").into(),
+    };
+    Menu::new(name).items(items)
+}
+
 /// One item of the row menu: what it runs, its words, and whether it applies to the rows chosen.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Item {

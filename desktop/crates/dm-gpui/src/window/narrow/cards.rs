@@ -37,6 +37,15 @@ const TILE: f32 = 44.0;
 /// The round Stop or Resume button.
 const QUICK: f32 = 40.0;
 
+/// What a card's round button does.
+#[derive(Clone)]
+enum Quick {
+    /// Runs this command on the card.
+    Run(dm_shell::app::commands::Command),
+    /// Stops sharing the whole torrent whose files are here.
+    StopSharing(String),
+}
+
 /// The cards of the place chosen, only those on screen laid out, scrolled as the table is.
 pub(super) fn cards(
     view: &Downloads,
@@ -116,15 +125,27 @@ fn card(
     // while it waits, is stopped or failed; none once it is whole or cancelled.
     let quick = match row.state {
         State::Running | State::Queued => Some((
-            dm_shell::app::commands::Command::StopDownload,
+            Quick::Run(dm_shell::app::commands::Command::StopDownload),
             "icons/stop.svg",
             t("Stop"),
         )),
         State::Paused | State::Failed(_) => Some((
-            dm_shell::app::commands::Command::DownloadNow,
+            Quick::Run(dm_shell::app::commands::Command::DownloadNow),
             "icons/resume.svg",
             t(dm_desktop_base::rows::resume_word(&[row])),
         )),
+        // A whole torrent still shared: its sharing stopped in a tap, as a phone's torrent
+        // apps pause a seeding torrent.
+        State::Completed
+            if dm_core::is_torrent(&row.url)
+                && dm_core::sharing(std::path::Path::new(&row.path)).is_some() =>
+        {
+            Some((
+                Quick::StopSharing(row.path.clone()),
+                "icons/stop.svg",
+                t("Stop sharing"),
+            ))
+        }
         State::Completed | State::Cancelled => None,
     };
     let card_theme = if chosen { theme.chosen() } else { theme };
@@ -150,20 +171,43 @@ fn card(
             _ => theme.muted,
         }
     };
+    // A torrent's swarm as its engine last saw it, where it is live.
+    let swarm = dm_core::is_torrent(&row.url)
+        .then(|| dm_desktop_base::rows::swarm_of(row.id))
+        .flatten();
     let left_words = {
         let size = size_words(row);
         if size.is_empty() || matches!(row.state, State::Failed(_)) {
             status.clone()
         } else if row.state == State::Running {
-            // How far it is, the bar shows already: what has come of the whole is said.
-            size
+            // How far it is, the bar shows already: what has come of the whole is said; for a
+            // torrent, who it comes from, as a phone's torrent apps say it.
+            match swarm {
+                Some(swarm) => dm_desktop_base::i18n::tf(
+                    "{} seeders · {} leechers",
+                    &[&swarm.seeders, &swarm.leechers()],
+                ),
+                None => size,
+            }
         } else {
             format!("{status} · {size}")
         }
     };
     // The speed under the bar; the time left beside the name, where the line under the bar has
     // no room for both with a size in gigabytes.
-    let right_words = speed;
+    let right_words = match swarm {
+        // A whole torrent still shared: what it sends, and to how many.
+        Some(swarm) if row.state == State::Completed && swarm.connected > 0 => {
+            dm_desktop_base::i18n::tf(
+                "↑ {} · {} leechers",
+                &[
+                    &dm_desktop_base::format::rate(swarm.upload_speed),
+                    &swarm.leechers(),
+                ],
+            )
+        }
+        _ => speed,
+    };
     let round = |id: (&'static str, usize), words: SharedString| {
         div()
             .id(id)
@@ -285,7 +329,12 @@ fn card(
                     })
                     .on_click(cx.listener(move |view, _, _, cx| {
                         view.choose_card(id);
-                        view.run(command, cx);
+                        match &command {
+                            Quick::Run(command) => view.run(*command, cx),
+                            Quick::StopSharing(path) => {
+                                dm_core::stop_sharing(std::path::Path::new(path));
+                            }
+                        }
                         cx.notify();
                     }))
                     .child(

@@ -216,6 +216,10 @@ pub fn button(
         .rounded(px(RADIUS))
         .text_size(px(TEXT))
         .whitespace_nowrap()
+        // A phone's: never wider than the screen, a long name cut with "…".
+        .when(crate::platform::ON_A_PHONE, |b| {
+            b.max_w_full().overflow_hidden().text_ellipsis()
+        })
         .when(default, |b| b.bg(theme.accent).text_color(theme.on_accent))
         .when(!default, |b| {
             b.bg(theme.control)
@@ -487,6 +491,19 @@ pub fn buttons(leading: Vec<gpui::AnyElement>, mut trailing: Vec<gpui::AnyElemen
     // puts the default first and Cancel last.
     if cfg!(windows) {
         trailing.reverse();
+    }
+    // A phone's: the buttons wrap onto another line at the end, as a phone's dialogs stack
+    // theirs, where the screen has no room for them side by side; one row ran off its edge.
+    if crate::platform::ON_A_PHONE {
+        return div()
+            .mt(px(FOOTER_GAP - ROW_GAP))
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .justify_end()
+            .gap(px(BUTTON_GAP))
+            .children(leading)
+            .children(trailing);
     }
     div()
         .mt(px(FOOTER_GAP - ROW_GAP))
