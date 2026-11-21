@@ -953,7 +953,13 @@ impl AndroidPlatform {
     ///
     /// Useful in headless tests where there is no real ALooper.
     pub fn flush_main_thread_tasks(&self) {
-        self.state.lock().dispatcher.flush_main_thread_tasks();
+        // dm(android-flush): the dispatcher taken out of the state's lock before its tasks run.
+        // A task that opens a window (a download's progress window, opened as a link shared
+        // from another app is added) asks the platform for its primary window, which takes
+        // the same lock: held across the tasks, the main thread waited on itself, the window
+        // stayed black and Android reported dm not responding.
+        let dispatcher = Arc::clone(&self.state.lock().dispatcher);
+        dispatcher.flush_main_thread_tasks();
     }
 }
 
