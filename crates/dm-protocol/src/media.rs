@@ -105,6 +105,28 @@ pub fn label_height(label: &str) -> u32 {
     }
 }
 
+/// Whether `url` is on a social site's CDN (`fbcdn.net`, `cdninstagram.com`: Facebook, Instagram,
+/// Threads), whose players fetch each file in pieces named by `bytestart` and `byteend`.
+pub fn social_cdn(url: &str) -> bool {
+    let Some(authority) = url
+        .split_once("://")
+        .map(|(_, rest)| rest.split(['/', '?', '#']).next().unwrap_or(""))
+    else {
+        return false;
+    };
+    let host = authority
+        .rsplit('@')
+        .next()
+        .unwrap_or(authority)
+        .split(':')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    ["fbcdn.net", "cdninstagram.com"]
+        .iter()
+        .any(|d| host == *d || host.ends_with(&format!(".{d}")))
+}
+
 /// The panel's list of what a tab has loaded: manifests first, which
 /// are whole videos, then files, largest first. Two of a kind are told
 /// apart by their file name.
@@ -132,9 +154,13 @@ pub fn panel_list(list: Vec<Stream>) -> Vec<Stream> {
         largest(&list, StreamKind::Sound),
     );
     list.retain(|s| !matches!(s.kind, StreamKind::Picture | StreamKind::Sound));
-    // A file found by its byte ranges that has no partner is a whole file on its own.
+    // A file found by its byte ranges that has no partner is a whole file on its own; so is a
+    // social site's picture with no sound, as its player fetches a post's sound whenever it has
+    // one, muted or not: a silent reel ("Video has no audio", gaps row 220's site watch).
     let alone = match (&picture, &sound) {
-        (Some(p), None) if p.label.ends_with(RANGED_PICTURE) => Some(p.clone()),
+        (Some(p), None) if p.label.ends_with(RANGED_PICTURE) || social_cdn(&p.url) => {
+            Some(p.clone())
+        }
         (None, Some(s)) if s.label == RANGED_SOUND => Some(s.clone()),
         _ => None,
     };

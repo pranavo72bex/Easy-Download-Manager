@@ -73,15 +73,10 @@ fn unbase64(text: &str) -> Option<Vec<u8>> {
 /// The size is left unknown (the pieces seen so far are not the file), so
 /// of several renditions the latest seen is the line's picture.
 pub fn pieces_of(url: &str, mime: &str) -> Option<Stream> {
-    let (authority, rest) = url.split_once("://")?.1.split_once('/')?;
-    let host = authority.split(':').next().unwrap_or(authority);
-    if !(host.ends_with(".fbcdn.net")
-        || host == "fbcdn.net"
-        || host.ends_with(".cdninstagram.com")
-        || host == "cdninstagram.com")
-    {
+    if !dm_protocol::media::social_cdn(url) {
         return None;
     }
+    let (authority, rest) = url.split_once("://")?.1.split_once('/')?;
     let (path, query) = rest.split_once('?')?;
     let query = query.split('#').next().unwrap_or("");
     let names = |pair: &str| pair.split('=').next().unwrap_or("").to_string();

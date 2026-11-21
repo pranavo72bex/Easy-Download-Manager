@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Extension: a silent Instagram, Facebook or Threads video (a reel with no sound at all) is offered in the panel and saved whole. Its player fetches only the picture, and the panel had offered such a site's picture only together with its sound, so it listed nothing and dm said to play the video first.
 - Extension: a YouTube player another site embeds (from youtube.com or youtube-nocookie.com) gets the "Download video" panel again, its list read from the video's watch page and named without " - YouTube". YouTube's new embedded player keeps its controls outside the player's own boxes, so the panel took the player for covered and stayed hidden.
 - Android: Options › Downloads › "Keep downloads and torrents going when dm is closed" (off by default). With it on, swiping dm away from the recent apps no longer stops its downloads: dm goes on with no window under its notification until every download is done and every torrent has finished sharing, then lets go. Opening dm again brings its window back with the downloads where they got to. Checked on a phone with two public torrents. A long check box's words in Options now wrap on a phone rather than run off the screen.
 - For contributors: the repository is one Cargo workspace at its root, every crate in `crates/` (the extension's is `crates/dm-catcher`, once `browser/`), xtask in `tooling/xtask`, and `assets/`, `vendor/` and `packaging/` at the root; `desktop/` is gone, and every command runs from the root. Nothing dm does changed.

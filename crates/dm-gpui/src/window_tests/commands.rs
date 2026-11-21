@@ -465,15 +465,17 @@ fn downloads_items(h: &mut Harness, done: &dm_core::Entry) {
         "nothing slept"
     );
     // Each a list of the queues, as reference A's menu has.
+    // Each says so once the queue has answered, which a loaded computer takes a moment over
+    // (a whole run read the item before's "Speed limiter off.", 2026-11-21).
     press(h, &["Downloads", "Start Queue", "Main queue"]);
-    let said = h.said();
-    assert!(
-        said.starts_with("Started") || said.starts_with("Nothing in"),
-        "Start Queue: {said:?}"
-    );
+    h.until("Start Queue to say what it did", |h| {
+        let said = h.said();
+        said.starts_with("Started") || said.starts_with("Nothing in")
+    });
     press(h, &["Downloads", "Stop Queue", "Main queue"]);
-    let said = h.said();
-    assert!(said.starts_with("Stopped"), "Stop Queue: {said:?}");
+    h.until("Stop Queue to say what it did", |h| {
+        h.said().starts_with("Stopped")
+    });
 }
 
 /// Redownload, Delete Completed, Delete, Import (of the `list` Export wrote) and Exit.

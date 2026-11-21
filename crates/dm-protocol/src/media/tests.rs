@@ -127,6 +127,37 @@ fn a_file_found_by_its_ranges_with_no_partner_is_a_whole_file() {
 }
 
 #[test]
+fn a_social_sites_picture_with_no_sound_is_a_silent_post_offered_whole() {
+    let reel = line(
+        "https://instagram.fktm18-1.fna.fbcdn.net/o1/v/t2/f2/m86/AQ.mp4?efg=x&oh=sig",
+        StreamKind::Picture,
+        None,
+        "video",
+    );
+    let alone = panel_list(vec![reel.clone()]);
+    assert_eq!(alone.len(), 1, "{alone:?}");
+    assert_eq!(
+        (alone[0].kind, alone[0].url.as_str()),
+        (StreamKind::File, reel.url.as_str())
+    );
+    // Beside its sound it is still one line of both.
+    let sound = line(
+        "https://scontent.cdninstagram.com/v/a.mp4?efg=y",
+        StreamKind::Sound,
+        None,
+        "sound",
+    );
+    let both = panel_list(vec![reel, sound.clone()]);
+    assert_eq!(both.len(), 1);
+    assert_eq!(both[0].sound.as_deref(), Some(sound.url.as_str()));
+    // Only those CDNs: a host that merely ends in their name is not one.
+    assert!(social_cdn("https://video-sjc.xx.fbcdn.net/v.mp4"));
+    assert!(social_cdn("https://cdninstagram.com/v.mp4"));
+    assert!(!social_cdn("https://notfbcdn.net/v.mp4"));
+    assert!(!social_cdn("https://fbcdn.net.example.com/v.mp4"));
+}
+
+#[test]
 fn beside_a_playlist_its_own_ranged_files_and_its_sound_alone_are_not_lines() {
     let mut ranged = line(
         "https://c.example/r.mp4",

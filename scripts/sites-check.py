@@ -141,7 +141,10 @@ SITES = {
                "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
     # Its login form's box is named "password", not Facebook's "pass": the shared test took the
     # login page for a signed-in one.
-    "instagram": {"listing": "https://www.instagram.com/nasa/reels/", "discover": INSTAGRAM_JS,
+    # Its player fetches a reel's sound only once the sound is on (2026-11-21: muted, only the
+    # picture's pieces came, and the panel offers no picture apart from its sound): turned on as
+    # a person taps the reel's sound button (`sound_on`).
+    "instagram": {"listing": "https://www.instagram.com/nasa/reels/", "discover": INSTAGRAM_JS, "sound_on": True,
                   "signin_url": "https://www.instagram.com/accounts/login/",
                   "signed_in": """(() => document.readyState === 'complete'
                       && !document.querySelector('input[name="password"], input[name="pass"]')
@@ -196,9 +199,25 @@ RECT = """(() => { const allVideos = () => { const out = []; const promoted = v 
   if (!v) return null; v.scrollIntoView({block: 'center'}); const r = v.getBoundingClientRect();
   return { x: r.left, y: r.top, w: r.width, h: r.height, paused: v.paused, src: (v.currentSrc || v.src || '').slice(0, 120) }; })()"""
 CONSENT = """(() => { const words = /^(accept all|accept|allow all|allow all cookies|agree|i agree|ok|got it|accept cookies|decline optional cookies|continue)$/i;
+  // A sign-up box's own "Continue" (Dailymotion's "Join Dailymotion", gaps row 170) is not a
+  // consent: a box that asks for an address or a password is a wall, left for WALL to say.
+  const asks = b => { const box = b.closest('[role=dialog], [aria-modal=true], form');
+    return !!box && !!box.querySelector('input[type=email], input[type=password], input[name*=mail i]'); };
   for (const b of document.querySelectorAll('button, [role=button]')) {
-    if (words.test((b.innerText || '').trim())) { b.click(); return (b.innerText || '').trim(); } }
+    if (words.test((b.innerText || '').trim()) && !asks(b)) { b.click(); return (b.innerText || '').trim(); } }
   return null; })()"""
+# The playing video's sound turned on, as a person's tap on the player's sound button does.
+SOUND_ON = """(() => { const v = [...document.querySelectorAll('video')]
+    .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+  if (!v) return 'none';
+  // The player's own sound button where it has one (Instagram's "Audio is muted"), as it fetches
+  // the sound itself only when that is pressed; else the video's own sound.
+  const button = [...document.querySelectorAll('button, [role=button]')]
+    .find(b => /audio is muted|unmute|turn (on )?sound|toggle audio/i.test(b.getAttribute('aria-label') || b.innerText || '')
+      || b.querySelector('svg[aria-label*="muted" i], svg[aria-label*="audio" i]'));
+  if (button) { button.click(); return 'pressed: ' + (button.getAttribute('aria-label')
+    || (button.querySelector('svg[aria-label]') || {}).getAttribute?.('aria-label') || ''); }
+  v.muted = false; v.volume = 1; return v.paused ? 'paused' : 'on'; })()"""
 COVER = """(() => { const allVideos = () => { const out = []; const promoted = v => { for (let e = v; e; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null)) { if (/promoted|-ad$/i.test(((e.className || '') + '').split(' ').join(' ') + ' ' + (e.localName || ''))) return true; } return false; }; const walk = r => { r.querySelectorAll('video').forEach(v => { if (!promoted(v)) out.push(v); }); r.querySelectorAll('*').forEach(e => { if (e.shadowRoot) walk(e.shadowRoot); }); }; walk(document); return out; }; const v = allVideos()
     .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
   if (!v) return null; const r = v.getBoundingClientRect();
@@ -225,7 +244,12 @@ WALL = """(() => { const click = __CLICK__; const words = /log ?in|sign ?in|sign
     + ' button[class*=close i], div[class*=CloseWrapper]'),
     ...document.querySelectorAll('[data-e2e=modal-close-inner-button]')].find(seen);
   const said = (login.innerText || '').trim().split(/\\s+/).join(' ').slice(0, 80);
-  if (click && close) { close.click(); return 'closed: ' + said; }
+  // Instagram's close mark is an <svg aria-label="Close">, which has no click(): its button is
+  // pressed, or a click sent to it.
+  const press = close && (close.closest('button, [role=button]') || close);
+  if (click && press) { if (typeof press.click === 'function') press.click();
+    else press.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    return 'closed: ' + said; }
   return 'login wall: ' + said; })()"""
 LOGIN_TITLE = re.compile(r"^(log ?in|sign ?in)\b|\b(log ?in|sign ?in) \|", re.IGNORECASE)
 
@@ -413,6 +437,9 @@ def one(base, name, site, engine_dl, worker=None):
     out["player"] = {k: rect[k] for k in ("w", "h", "src")}
     view.evaluate(PLAY, gesture=True)
     time.sleep(3)
+    if site.get("sound_on"):
+        out["sound_on"] = view.evaluate(SOUND_ON, gesture=True)
+        time.sleep(3)
     # A sign-in dialog over the player is closed first, as a person closes it.
     out["wall"] = tab.evaluate(WALL.replace("__CLICK__", "true"))
     if out["wall"]:
@@ -538,6 +565,12 @@ def one(base, name, site, engine_dl, worker=None):
         out["panel_after"] = panel_of(view)
         if os.environ.get("SITES_EVAL_AFTER"):
             out["eval_after"] = tab.evaluate(pathlib.Path(os.environ["SITES_EVAL_AFTER"]).read_text(encoding="utf-8"))
+        # A sign-in or sign-up box that would not close sits over the page, so the panel's
+        # click reached the box, not dm (Dailymotion's "Join Dailymotion", gaps row 170).
+        if (out.get("wall") or "").startswith("login wall"):
+            out["result"] = (f"a login wall covers the player ({out['wall']}), "
+                             "so dm's panel cannot be used under it")
+            return out
         out["result"] = "the panel listed no qualities"
         return out
     said = cc.wait_for(lambda: (panel_of(view) or {}).get("title") == "Sent to dm" and panel_of(view), 20)
@@ -565,6 +598,9 @@ def one(base, name, site, engine_dl, worker=None):
         # rendition): the stream dm was given is read, as the page reads it, before the file is
         # called short of one (gaps row 205).
         out["sound_listed"], out["stream_read"] = stream_sound(tab, row.get("url") or "", url)
+        # Or the player said so itself: Instagram's sound button reads "Video has no audio".
+        if out["sound_listed"] is None and "no audio" in (out.get("sound_on") or "").lower():
+            out["sound_listed"], out["stream_read"] = False, f"the player: {out['sound_on'].split(': ', 1)[-1]}"
         if out["sound_listed"] is False:
             facts = [f"{m['height']} tall" if m.get("height") else "", f"{m['seconds']:.0f} s"]
             out["result"] = "OK"
