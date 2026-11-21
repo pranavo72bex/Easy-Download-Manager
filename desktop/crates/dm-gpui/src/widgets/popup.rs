@@ -43,7 +43,20 @@ pub struct Held {
     pub choices: Vec<SharedString>,
 }
 
+/// A pop-up's choices shown as a bottom sheet on a phone: which pop-up, its choices, the one
+/// chosen, and where a finger has dragged the sheet.
+#[derive(Clone)]
+struct Picking {
+    field: &'static str,
+    item: usize,
+    choices: Vec<SharedString>,
+    chosen: Option<usize>,
+    drag: crate::widgets::bottomsheet::Drag,
+}
+
 thread_local! {
+    /// The pop-up whose choices a phone shows as a sheet, while one does.
+    static PICKING: std::cell::RefCell<Option<Picking>> = const { std::cell::RefCell::new(None) };
     /// Whether the click being given is the control port's.
     static SCRIPTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// The pop-up the port clicked last, until one of its choices is.
@@ -108,8 +121,21 @@ pub fn button_of(
     screen: &Screen,
 ) -> gpui::Stateful<gpui::Div> {
     use crate::widgets::native::{CONTROL, RADIUS, TEXT};
+    // On a phone its choices are a bottom sheet over the window, as a phone's pickers are,
+    // drawn by the pop-up itself while open (dm's every sheet: `bottomsheet`).
+    let picking = crate::platform::ON_A_PHONE
+        .then(|| {
+            PICKING.with(|p| {
+                p.borrow()
+                    .clone()
+                    .filter(|open| open.field == field && open.item == item)
+            })
+        })
+        .flatten();
+    let picker = picking.map(|open| phone_choices(open, theme, screen));
     div()
         .id((field, item))
+        .when_some(picker, |button, picker| button.child(picker))
         .role(Role::ComboBox)
         // Told off to a screen reader where it is greyed (gaps row U23).
         .off_where_greyed()
@@ -151,8 +177,147 @@ pub fn button_of(
                 });
                 return;
             }
+            if crate::platform::ON_A_PHONE {
+                PICKING.with(|p| {
+                    *p.borrow_mut() = Some(Picking {
+                        field,
+                        item,
+                        choices: choices.clone(),
+                        chosen,
+                        drag: Default::default(),
+                    })
+                });
+                window.refresh();
+                return;
+            }
             open(field, item, &choices, chosen, event.position(), window, cx)
         })
+}
+
+/// The hooks a pop-up's sheet answers through: its state is [`PICKING`].
+fn phone_hooks() -> crate::widgets::bottomsheet::Hooks {
+    use std::rc::Rc;
+    crate::widgets::bottomsheet::Hooks {
+        close: Rc::new(|window, _| {
+            PICKING.with(|p| *p.borrow_mut() = None);
+            window.refresh();
+        }),
+        drag: Rc::new(|_| {
+            PICKING.with(|p| {
+                p.borrow()
+                    .as_ref()
+                    .map(|open| open.drag)
+                    .unwrap_or_default()
+            })
+        }),
+        set_drag: Rc::new(|drag, window, _| {
+            PICKING.with(|p| {
+                if let Some(open) = p.borrow_mut().as_mut() {
+                    open.drag = drag;
+                }
+            });
+            window.refresh();
+        }),
+    }
+}
+
+/// A pop-up's choices as a phone's bottom sheet, over the whole window: a tap on one picks it
+/// (sent as a [`Pick`] to the window, as the system's menu sends it) and closes the sheet.
+fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoElement {
+    use crate::widgets::bottomsheet;
+    let hooks = phone_hooks();
+    let title: SharedString = dm_desktop_base::i18n::t("Choose…").into();
+    let items: Vec<gpui::AnyElement> = open
+        .choices
+        .iter()
+        .enumerate()
+        .map(|(index, words)| {
+            let field = open.field;
+            let item = open.item;
+            let ticked = open.chosen == Some(index);
+            bottomsheet::line(("pick", index), theme)
+                .role(Role::MenuItem)
+                .aria_label(words.clone())
+                .on_click(move |_, window, cx| {
+                    PICKING.with(|p| *p.borrow_mut() = None);
+                    window.dispatch_action(Box::new(Pick { field, item, index }), cx);
+                    window.refresh();
+                })
+                .child(
+                    div()
+                        .flex_none()
+                        .w(px(20.0))
+                        .text_color(theme.accent)
+                        .when(ticked, |d| d.child("✓")),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .when(ticked, |d| d.font_weight(gpui::FontWeight::SEMIBOLD))
+                        .child(screen.label(words.clone())),
+                )
+                .into_any_element()
+        })
+        .collect();
+    let screen = screen.clone();
+    let drag = open.drag;
+    // Drawn over the whole window, whatever the pop-up's own place: deferred, at the window's
+    // origin, a layer the window's size.
+    gpui::deferred(
+        gpui::anchored()
+            .position(gpui::point(gpui::px(0.0), gpui::px(0.0)))
+            .child(PickerLayer {
+                title,
+                items: std::cell::RefCell::new(Some(items)),
+                drag,
+                hooks,
+                theme,
+                screen,
+            }),
+    )
+    .with_priority(10)
+}
+
+/// The layer a pop-up's sheet stands on: the window's size, dimmed, the sheet at its foot.
+#[derive(IntoElement)]
+struct PickerLayer {
+    title: SharedString,
+    items: std::cell::RefCell<Option<Vec<gpui::AnyElement>>>,
+    drag: crate::widgets::bottomsheet::Drag,
+    hooks: crate::widgets::bottomsheet::Hooks,
+    theme: Theme,
+    screen: Screen,
+}
+
+impl RenderOnce for PickerLayer {
+    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
+        use crate::widgets::bottomsheet;
+        let viewport = window.viewport_size();
+        let items = self.items.borrow_mut().take().unwrap_or_default();
+        let name = div()
+            .id("picker-name")
+            .overflow_hidden()
+            .whitespace_nowrap()
+            .text_ellipsis()
+            .child(self.screen.label(self.title.clone()));
+        div()
+            .w(viewport.width)
+            .h(viewport.height)
+            .child(bottomsheet::scrim("picker-scrim", &self.hooks))
+            .child(bottomsheet::sheet(
+                "picker",
+                self.title.clone(),
+                name,
+                false,
+                items,
+                self.drag,
+                &self.hooks,
+                self.theme,
+                &self.screen,
+                window,
+            ))
+    }
 }
 
 /// The system's menu of `choices`, at `at`.

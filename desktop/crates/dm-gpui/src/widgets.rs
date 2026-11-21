@@ -5,6 +5,7 @@
 
 //! The pieces the windows are built of that GPUI and gpui-component do not have (gaps row A13).
 
+pub(crate) mod bottomsheet;
 pub(crate) mod fit;
 pub(crate) mod native;
 pub(crate) mod popup;

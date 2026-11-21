@@ -12,14 +12,11 @@
 use dm_desktop_base::i18n::t;
 use gpui::{div, prelude::*, Context, Div, OwnedMenu, OwnedMenuItem, Role, Stateful, Window};
 
-use crate::widgets::{native, space};
+use crate::widgets::{bottomsheet, space};
 use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
-
-/// An item's height: a finger's target, as a phone's menus have them.
-const ITEM_HEIGHT: f32 = space::TOUCH;
 
 /// A toolbar command's picture before its words, in points.
 const ICON: f32 = 20.0;
@@ -28,12 +25,17 @@ const ICON: f32 = 20.0;
 #[derive(Clone)]
 pub(crate) struct Sheet {
     pages: Vec<OwnedMenu>,
+    /// Where a finger has dragged it.
+    drag: bottomsheet::Drag,
 }
 
 impl Sheet {
     /// A sheet showing `menu`.
     pub(crate) fn new(menu: OwnedMenu) -> Sheet {
-        Sheet { pages: vec![menu] }
+        Sheet {
+            pages: vec![menu],
+            drag: bottomsheet::Drag::default(),
+        }
     }
 
     /// The menu shown.
@@ -88,100 +90,88 @@ pub(super) fn drawn(
     window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> Stateful<Div> {
-    let viewport = window.viewport_size();
-    // Under the top bar, which sits below a phone's status bar; clear of its navigation bar
-    // (gaps row N16).
-    let safe = crate::window::safe::edges(window);
-    let top = crate::window::titlebar::narrow_height() + f32::from(safe.top);
     let walked = sheet.pages.len() > 1;
-    // A bottom sheet, as a phone's menus are: across the screen's foot where the thumb is,
-    // over the navigation bar's room, at most up to the top bar.
-    let mut panel = div()
-        .id("sheet")
-        .role(Role::Menu)
-        .absolute()
-        .bottom_0()
-        .left_0()
-        .right_0()
-        .max_h(viewport.height - gpui::px(top))
-        .overflow_y_scroll()
-        .pt(px(space::M))
-        .pb(px(space::M) + safe.bottom)
-        .pl(safe.left)
-        .pr(safe.right)
-        .flex()
-        .flex_col()
-        .rounded_t(px(space::CORNER_L * 2.0))
-        .border_t_1()
-        .border_color(theme.separator)
-        .bg(theme.menu)
-        .text_color(theme.text)
-        .occlude();
     let Some(menu) = sheet.shown() else {
-        return panel;
+        return div().id("sheet");
     };
-    panel = panel.aria_label(menu.name.clone());
-    // A bottom sheet's handle, as a phone's sheets have one.
-    panel = panel.child(
+    // Its name at the top: a card's file, dm's menu, or the submenu walked into, whose tap
+    // goes back to the menu it opened from.
+    let name = if walked {
         div()
-            .flex_none()
-            .w_full()
+            .id("sheet-back")
+            .h(px(bottomsheet::ITEM_HEIGHT))
             .flex()
-            .justify_center()
-            .pb(px(space::S))
-            .child(div().w(px(36.0)).h(px(4.0)).rounded_full().bg(theme.muted)),
-    );
-    // The sheet's name at its top: a card's file, or dm's menu.
-    if !walked {
-        panel = panel.child(
-            div()
-                .flex_none()
-                .px(px(space::L))
-                .pb(px(space::S))
-                .mb(px(space::XS))
-                .border_b_1()
-                .border_color(theme.separator)
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_ellipsis()
-                .text_size(px(native::TEXT + 2.0))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .child(screen.label(menu.name.clone())),
-        );
-    }
-    // A submenu's name at the top: a tap goes back to the menu it opened from.
-    if walked {
-        panel = panel.child(
-            line(("sheet-back", 0usize), theme)
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .on_click(cx.listener(|view, _, _, cx| {
-                    if let Some(sheet) = view.layout.narrow.sheet.as_mut() {
-                        sheet.pages.pop();
-                    }
-                    cx.notify();
-                }))
-                .child(div().flex_none().child("‹"))
-                .child(screen.label(menu.name.clone())),
-        );
-    }
-    for (i, item) in menu.items.iter().enumerate() {
-        panel = panel.child(item_drawn(i, item, theme, screen, cx));
-    }
-    panel
+            .items_center()
+            .gap(px(space::M))
+            .on_click(cx.listener(|view, _, _, cx| {
+                if let Some(sheet) = view.layout.narrow.sheet.as_mut() {
+                    sheet.pages.pop();
+                }
+                cx.notify();
+            }))
+            .child(div().flex_none().child("‹"))
+            .child(
+                div()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .child(screen.label(menu.name.clone())),
+            )
+    } else {
+        div()
+            .id("sheet-name")
+            .overflow_hidden()
+            .whitespace_nowrap()
+            .text_ellipsis()
+            .child(screen.label(menu.name.clone()))
+    };
+    let items = menu
+        .items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| item_drawn(i, item, theme, screen, cx))
+        .collect();
+    bottomsheet::sheet(
+        "sheet",
+        menu.name.clone().into(),
+        name,
+        walked,
+        items,
+        sheet.drag,
+        &hooks(cx),
+        theme,
+        screen,
+        window,
+    )
 }
 
-/// One line of the sheet, a finger's height.
-fn line(id: impl Into<gpui::ElementId>, theme: Theme) -> Stateful<Div> {
-    div()
-        .id(id)
-        .flex_none()
-        .h(px(ITEM_HEIGHT))
-        .px(px(space::L))
-        .flex()
-        .items_center()
-        .gap(px(space::M))
-        .text_size(px(native::TEXT))
-        .hover(|l| l.bg(theme.control))
+/// What the shared sheet asks of the list's view: the sheet it keeps.
+pub(super) fn hooks(cx: &mut Context<Downloads>) -> bottomsheet::Hooks {
+    let view = cx.entity().downgrade();
+    let (close_view, read_view, set_view) = (view.clone(), view.clone(), view);
+    bottomsheet::Hooks {
+        close: std::rc::Rc::new(move |_, cx| {
+            let _ = close_view.update(cx, |view, cx| {
+                view.layout.narrow.sheet = None;
+                cx.notify();
+            });
+        }),
+        drag: std::rc::Rc::new(move |cx| {
+            read_view
+                .upgrade()
+                .and_then(|view| view.read(cx).layout.narrow.sheet.as_ref().map(|s| s.drag))
+                .unwrap_or_default()
+        }),
+        set_drag: std::rc::Rc::new(move |drag, _, cx| {
+            let _ = set_view.update(cx, |view, cx| {
+                if let Some(sheet) = view.layout.narrow.sheet.as_mut() {
+                    sheet.drag = drag;
+                }
+                cx.notify();
+            });
+        }),
+    }
 }
 
 /// Item `i` of the menu shown.
@@ -199,7 +189,7 @@ fn item_drawn(
             .h(px(space::LINE))
             .bg(theme.separator)
             .into_any_element(),
-        OwnedMenuItem::Submenu(sub) => line(("sheet-item", i), theme)
+        OwnedMenuItem::Submenu(sub) => bottomsheet::line(("sheet-item", i), theme)
             .role(Role::MenuItem)
             .aria_label(sub.name.clone())
             .on_click(cx.listener(move |view, _, _, cx| {
@@ -239,7 +229,7 @@ fn item_drawn(
             let disabled = *disabled;
             // A command's picture, as its toolbar button has it on a desktop.
             let picture = picture_of(action.as_ref());
-            line(("sheet-item", i), theme)
+            bottomsheet::line(("sheet-item", i), theme)
                 .role(Role::MenuItem)
                 .aria_label(gpui::SharedString::from(name.clone()))
                 .when(disabled, |l| l.text_color(theme.muted))
