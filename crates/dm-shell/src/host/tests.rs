@@ -33,6 +33,21 @@ fn the_app_a_program_is_in_is_the_bundle_around_its_macos_folder() {
     }
 }
 
+/// Only a sandboxed host inside a bundle opens dm through the system; else dm is started.
+#[test]
+fn only_a_sandboxed_host_in_a_bundle_opens_dm_through_the_system() {
+    let bundled = Path::new("/Applications/dm.app/Contents/MacOS/dm-gpui");
+    assert_eq!(
+        opened_through_system(bundled, true),
+        Some(PathBuf::from("/Applications/dm.app"))
+    );
+    assert_eq!(opened_through_system(bundled, false), None);
+    assert_eq!(
+        opened_through_system(Path::new("/usr/bin/dm-desktop"), true),
+        None
+    );
+}
+
 #[test]
 fn a_truncated_stream_ends_rather_than_blocking() {
     // The browser going away mid-message is how this normally ends.

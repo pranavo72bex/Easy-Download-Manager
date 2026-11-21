@@ -345,10 +345,9 @@ fn launch_desktop() -> std::io::Result<()> {
     // Started by dm's Safari extension (crates/dm-safari), this host runs in the
     // extension's sandbox, and so would a dm it started itself: the window is opened through
     // the system instead, as a person's click opens it, outside the sandbox.
-    if std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some() {
-        if let Some(app) = app_bundle(&executable) {
-            return crate::platform::programs::open_app(&app);
-        }
+    let sandboxed = std::env::var_os("APP_SANDBOX_CONTAINER_ID").is_some();
+    if let Some(app) = opened_through_system(&executable, sandboxed) {
+        return crate::platform::programs::open_app(&app);
     }
     let start = |breakaway: bool| {
         let mut command = Command::new(&executable);
@@ -377,6 +376,12 @@ fn launch_desktop() -> std::io::Result<()> {
         command.spawn().map(|_| ())
     };
     start(true).or_else(|_| start(false))
+}
+
+/// The app bundle to open through the system rather than start `executable` directly: where
+/// this host runs in a sandbox (Safari's extension) and is inside one.
+fn opened_through_system(executable: &Path, sandboxed: bool) -> Option<PathBuf> {
+    sandboxed.then(|| app_bundle(executable)).flatten()
 }
 
 /// The `.app` a program is the executable of (`dm.app/Contents/MacOS/dm-gpui` gives `dm.app`),

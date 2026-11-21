@@ -125,7 +125,9 @@ webpki-roots = "1"
 windows = "0.62"
 windows-sys = "0.61"
 x11rb = "0.13"
-zbus = { version = "5", default-features = false, features = ["blocking-api"] }
+# async-io: the runtime its blocking calls run on; without it zbus does not build where nothing
+# else asks for one (`cargo test -p dm-android` on Linux; the whole workspace gets it through GPUI).
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
 # The lints every dm crate keeps, in one place rather than pasted into each crate's root

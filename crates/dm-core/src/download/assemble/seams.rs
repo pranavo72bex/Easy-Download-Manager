@@ -431,80 +431,6 @@ pub(super) fn ranges_under(segments: &[Segment], low: u64, high: u64) -> String 
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The trace of a span that differs says how (gaps row 206): zeros on disk where nothing was
-    /// written yet, the server's bytes at another place, or other bytes.
-    #[test]
-    fn a_span_that_differs_is_described_for_the_trace() {
-        let server: Vec<u8> = (0..1024u32).map(|i| (i * 7 + i / 251) as u8 | 1).collect();
-
-        let same = difference(&server, &server);
-        assert_eq!(same, "the same");
-
-        // Nothing on disk past byte 600: zeros, never written.
-        let mut unwritten = server.clone();
-        unwritten[600..].fill(0);
-        let said = difference(&server, &unwritten);
-        assert!(said.starts_with("424 bytes differ, 600 to 1023"), "{said}");
-        assert!(said.contains("the disk is zeros from the first"), "{said}");
-        assert!(!said.contains("shifted"), "{said}");
-
-        // From byte 512 on, the disk holds the server's bytes from 64 further on.
-        let mut ahead = server.clone();
-        ahead[512..960].copy_from_slice(&server[576..1024]);
-        let said = difference(&server, &ahead);
-        assert!(said.contains("shifted by +64"), "{said}");
-        assert!(!said.contains("zeros"), "{said}");
-        // And from 64 back.
-        let mut behind = server.clone();
-        behind[512..].copy_from_slice(&server[448..960]);
-        let said = difference(&server, &behind);
-        assert!(said.contains("shifted by -64"), "{said}");
-
-        // One byte other: where, and both sides of it.
-        let mut one = server.clone();
-        one[100] ^= 0xff;
-        let said = difference(&server, &one);
-        assert!(said.starts_with("1 bytes differ, 100 to 100"), "{said}");
-        let hex = |b: u8| format!("{b:02x}");
-        assert!(
-            said.contains(&format!("server {}", hex(server[100]))),
-            "{said}"
-        );
-        assert!(said.contains(&format!("disk {}", hex(one[100]))), "{said}");
-    }
-
-    /// The ranges under a span, as the trace names them.
-    #[test]
-    fn the_ranges_under_a_span_are_named() {
-        let segments = vec![
-            Segment {
-                start: 0,
-                end: 999,
-                done: 1000,
-            },
-            Segment {
-                start: 2000,
-                end: 2999,
-                done: 10,
-            },
-            Segment {
-                start: 1000,
-                end: 1999,
-                done: 1000,
-            },
-        ];
-        assert_eq!(
-            ranges_under(&segments, 488, 1511),
-            "0 0-999 done 1000, 2 1000-1999 done 1000"
-        );
-        assert_eq!(ranges_under(&segments, 5000, 5100), "none");
-    }
-}
-
 /// `length` bytes of the file from `at`, read from where its ranges are: the staged file, or each
 /// range's own file for the part of the span it holds. `None` where any of it is not on disk.
 async fn bytes_at(job: &Job, segments: &[Segment], at: u64, length: u64) -> Option<Vec<u8>> {
@@ -580,4 +506,78 @@ async fn span_on_disk(path: &Path, at: u64, length: u64) -> Option<Vec<u8>> {
         .await
         .ok()?;
     Some(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The trace of a span that differs says how (gaps row 206): zeros on disk where nothing was
+    /// written yet, the server's bytes at another place, or other bytes.
+    #[test]
+    fn a_span_that_differs_is_described_for_the_trace() {
+        let server: Vec<u8> = (0..1024u32).map(|i| (i * 7 + i / 251) as u8 | 1).collect();
+
+        let same = difference(&server, &server);
+        assert_eq!(same, "the same");
+
+        // Nothing on disk past byte 600: zeros, never written.
+        let mut unwritten = server.clone();
+        unwritten[600..].fill(0);
+        let said = difference(&server, &unwritten);
+        assert!(said.starts_with("424 bytes differ, 600 to 1023"), "{said}");
+        assert!(said.contains("the disk is zeros from the first"), "{said}");
+        assert!(!said.contains("shifted"), "{said}");
+
+        // From byte 512 on, the disk holds the server's bytes from 64 further on.
+        let mut ahead = server.clone();
+        ahead[512..960].copy_from_slice(&server[576..1024]);
+        let said = difference(&server, &ahead);
+        assert!(said.contains("shifted by +64"), "{said}");
+        assert!(!said.contains("zeros"), "{said}");
+        // And from 64 back.
+        let mut behind = server.clone();
+        behind[512..].copy_from_slice(&server[448..960]);
+        let said = difference(&server, &behind);
+        assert!(said.contains("shifted by -64"), "{said}");
+
+        // One byte other: where, and both sides of it.
+        let mut one = server.clone();
+        one[100] ^= 0xff;
+        let said = difference(&server, &one);
+        assert!(said.starts_with("1 bytes differ, 100 to 100"), "{said}");
+        let hex = |b: u8| format!("{b:02x}");
+        assert!(
+            said.contains(&format!("server {}", hex(server[100]))),
+            "{said}"
+        );
+        assert!(said.contains(&format!("disk {}", hex(one[100]))), "{said}");
+    }
+
+    /// The ranges under a span, as the trace names them.
+    #[test]
+    fn the_ranges_under_a_span_are_named() {
+        let segments = vec![
+            Segment {
+                start: 0,
+                end: 999,
+                done: 1000,
+            },
+            Segment {
+                start: 2000,
+                end: 2999,
+                done: 10,
+            },
+            Segment {
+                start: 1000,
+                end: 1999,
+                done: 1000,
+            },
+        ];
+        assert_eq!(
+            ranges_under(&segments, 488, 1511),
+            "0 0-999 done 1000, 2 1000-1999 done 1000"
+        );
+        assert_eq!(ranges_under(&segments, 5000, 5100), "none");
+    }
 }
