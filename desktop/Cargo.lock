@@ -121,9 +121,9 @@ dependencies = [
 
 [[package]]
 name = "aes"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35f0f96ce78e38c3dc6d8948aa8163d06385be74000f3c7a95bf1eef35d3ea32"
+checksum = "fc0fc36d7440d015b45468ba08a21e80e056ebbd014c611c6298bb7503e04bd1"
 dependencies = [
  "cipher 0.5.2",
  "cpubits",
@@ -2091,7 +2091,7 @@ dependencies = [
 name = "dm-core"
 version = "0.10.0"
 dependencies = [
- "aes 0.9.3",
+ "aes 0.9.4",
  "axum",
  "base64 0.22.1",
  "bytes",
@@ -2208,7 +2208,7 @@ version = "0.10.0"
 name = "dm-media"
 version = "0.10.0"
 dependencies = [
- "aes 0.9.3",
+ "aes 0.9.4",
  "cbc 0.2.1",
  "libc",
  "proptest",
