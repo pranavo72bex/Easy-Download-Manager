@@ -7,7 +7,7 @@
 //! in `crate::storage`, tested on the host): on Android 10 and up dm downloads into its own
 //! folder on the shared storage and hands each finished file to the media store's Downloads
 //! (`Download/dm`), through the publisher the engine asks as a run finishes
-//! (`dm_core::folders::set_publisher`); on 8 and 9 the shared folder by path, as before.
+//! (`dm_core::folders::set_publisher`).
 //!
 //! The folders dm writes by path are found once as dm starts, each made and probed with a
 //! file: the shared `Download/dm` (Android's `Environment.getExternalStoragePublicDirectory`,
@@ -31,10 +31,10 @@ use jni::{jni_sig, jni_str, Env, JValue};
 
 use super::jvm;
 use crate::phone::Places;
-use crate::storage::{self, Shared, Way};
+use crate::storage::{self, Shared};
 
 /// The phone's storage, worked out once at start: dm's private folders, the shared Download
-/// folder, the folders dm writes by path and the Android version, which decide where new
+/// folder and the folders dm writes by path, which decide where new
 /// downloads go, what Browse… offers and how a finished file is published. The phone's
 /// `PhoneServices` answers `publish` with [`Storage::publish`] (through `java::Jni`) and the
 /// choosers with [`Storage::places`].
@@ -45,8 +45,6 @@ pub(crate) struct Storage {
     public: Option<PathBuf>,
     /// The folders dm writes by path.
     places: Places,
-    /// The phone's API level (0 where it could not be read: then by path, as on 8 and 9).
-    sdk: i32,
 }
 
 impl Storage {
@@ -54,7 +52,6 @@ impl Storage {
     pub(crate) fn new(app: &AndroidApp, home: &Path) -> Self {
         let external = app.external_data_path();
         let private = storage::private_folders(external.as_deref(), home);
-        let sdk = jvm::with("read the Android version", |env, _| jvm::sdk(env)).unwrap_or(0);
         let public = jvm::with("find the Download folder", |env, _| {
             public_downloads_in(env)
         })
@@ -71,8 +68,7 @@ impl Storage {
         Storage {
             private,
             public,
-            places: storage::places(sdk, shared, own),
-            sdk,
+            places: storage::places(shared, own),
         }
     }
 
@@ -81,9 +77,8 @@ impl Storage {
         &self.places
     }
 
-    /// Where new downloads go on the first start: on Android 10 and up dm's own folder on the
-    /// shared storage; on 8 and 9 the shared `Download/dm` where dm may write it, else dm's
-    /// own folder; else one in dm's `home`.
+    /// Where new downloads go on the first start: dm's own folder on the shared storage, else
+    /// one in dm's `home`.
     pub(crate) fn download_folder(&self, home: &Path) -> PathBuf {
         self.places
             .first()
@@ -94,7 +89,7 @@ impl Storage {
     /// The finished `file` put in the shared `Download/dm`, if it is in one of dm's private
     /// folders: where it now is, `None` where it is left, or why it could not be.
     pub(crate) fn publish(&self, file: &Path) -> Result<Option<PathBuf>, String> {
-        publish(file, &self.private, self.public.as_deref(), self.sdk)
+        publish(file, &self.private, self.public.as_deref())
     }
 }
 
@@ -116,21 +111,11 @@ fn publish(
     file: &Path,
     private: &[PathBuf],
     public: Option<&Path>,
-    sdk: i32,
 ) -> Result<Option<PathBuf>, String> {
     let Some(shared) = storage::shared_place(file, private) else {
         return Ok(None);
     };
-    match storage::way(sdk) {
-        Way::MediaStore => media_store(file, &shared, public).map(Some),
-        Way::ByPath => {
-            let public =
-                public.ok_or_else(|| "the phone has no shared Download folder".to_owned())?;
-            storage::move_into(file, &shared.folder_in(public), &shared.name)
-                .map(Some)
-                .map_err(|e| e.to_string())
-        }
-    }
+    media_store(file, &shared, public).map(Some)
 }
 
 /// The shared Download folder's path (`Environment.getExternalStoragePublicDirectory`), inside

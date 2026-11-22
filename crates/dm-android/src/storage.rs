@@ -11,13 +11,10 @@
 //! (`getExternalFilesDir(DIRECTORY_DOWNLOADS)/dm`), which it writes by path: segmented writes,
 //! resume and every file the engine handles stay as they are. A file finished there is then
 //! put in `Download/dm` (its sub-folder kept) through the media store, and dm's own copy
-//! removed. On Android 8 and 9 (API 26 to 28) the shared folder is written by path, with the
-//! storage permission, as before; a file that was finished in dm's own folder there (before the
-//! permission was granted) is moved across by path. A torrent's files stay where they are
+//! removed. dm runs on Android 10 and up alone (the maintainer, 2026-11-22). A torrent's files stay where they are
 //! (`dm_core`'s queue never hands them over): its seeding reads them there.
 //!
-//! The folders dm writes by path ([`places`]): on Android 10 and up only dm's own is offered for
-//! downloads (the shared one is reached through publishing), while a file dm writes for the
+//! The folders dm writes by path ([`places`]): only dm's own is offered for downloads (the shared one is reached through publishing), while a file dm writes for the
 //! person (Export, Back up dm) goes to the shared `Download/dm` where dm can write a file there
 //! (Android 11 and up let an app make its own files in it by path), else to dm's own.
 
@@ -29,29 +26,6 @@ use crate::phone::Places;
 
 /// The folder, under the shared storage, that dm's finished files are put in.
 pub(crate) const SHARED_FOLDER: &str = "Download/dm";
-
-/// The first Android (API level) with the media store's Downloads (Android 10), and with no
-/// writing to the shared Download folder by path.
-pub(crate) const MEDIA_STORE_FROM: i32 = 29;
-
-/// How a finished file reaches the shared Download folder on a phone of this API level.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Way {
-    /// `MediaStore.Downloads`: inserted pending, written through a file descriptor, then
-    /// shown (Android 10 and up).
-    MediaStore,
-    /// Moved by path into the shared folder, with the storage permission (Android 8 and 9).
-    ByPath,
-}
-
-/// The way for a phone of API level `sdk`.
-pub(crate) fn way(sdk: i32) -> Way {
-    if sdk >= MEDIA_STORE_FROM {
-        Way::MediaStore
-    } else {
-        Way::ByPath
-    }
-}
 
 /// dm's own download folder on the shared storage: `getExternalFilesDir(DIRECTORY_DOWNLOADS)`
 /// (`external` is `getExternalFilesDir(null)`) and `dm` in it.
@@ -72,17 +46,13 @@ pub(crate) fn private_folders(external: Option<&Path>, home: &Path) -> Vec<PathB
     folders
 }
 
-/// The folders dm writes by path on a phone of API level `sdk`, of `shared` (the shared
-/// `Download/dm`, where dm could write a file in it) and `own` (dm's own folder, where it
-/// could): on Android 10 and up downloads go only to dm's own folder (each finished file is
-/// published to the shared one), so the shared one is not offered for them; a file dm writes
-/// for the person goes to the shared one where dm could write there, else to dm's own. On 8
-/// and 9 both are offered, the shared one first (where the storage permission lets dm write
-/// it).
-pub(crate) fn places(sdk: i32, shared: Option<PathBuf>, own: Option<PathBuf>) -> Places {
-    let save = shared.clone().or_else(|| own.clone());
-    let shared = shared.filter(|_| way(sdk) == Way::ByPath);
-    Places { shared, own, save }
+/// The folders dm writes by path, of `shared` (the shared `Download/dm`, where dm could write a
+/// file in it) and `own` (dm's own folder, where it could): downloads go only to dm's own folder
+/// (each finished file is published to the shared one); a file dm writes for the person goes to
+/// the shared one where dm could write there, else to dm's own.
+pub(crate) fn places(shared: Option<PathBuf>, own: Option<PathBuf>) -> Places {
+    let save = shared.or_else(|| own.clone());
+    Places { own, save }
 }
 
 /// Where in the shared storage a finished file goes.
@@ -130,14 +100,6 @@ pub(crate) fn shared_place(file: &Path, private: &[PathBuf]) -> Option<Shared> {
     Some(Shared { sub: parts, name })
 }
 
-/// `name` numbered as the system numbers a second file of the same name: `a (1).zip`.
-fn numbered(name: &str, n: u32) -> String {
-    match name.rfind('.').filter(|&dot| dot > 0) {
-        Some(dot) => format!("{} ({n}){}", &name[..dot], &name[dot..]),
-        None => format!("{name} ({n})"),
-    }
-}
-
 /// Copies every byte of `from` into `to` in chunks, so a file of any size is copied with a
 /// buffer's memory, and puts them on the disk.
 pub(crate) fn stream(from: &Path, to: &mut File) -> io::Result<u64> {
@@ -157,43 +119,6 @@ pub(crate) fn stream(from: &Path, to: &mut File) -> io::Result<u64> {
     }
     to.sync_all()?;
     Ok(copied)
-}
-
-/// Moves the finished `file` into `folder` (made where missing) under `name`, or a numbered
-/// one where that is taken (never over a file already there): renamed where both are on one
-/// disk, else copied and dm's copy removed. Where it now is.
-pub(crate) fn move_into(file: &Path, folder: &Path, name: &str) -> io::Result<PathBuf> {
-    std::fs::create_dir_all(folder)?;
-    let mut n = 0;
-    let (target, mut reserved) = loop {
-        let candidate = folder.join(if n == 0 {
-            name.to_owned()
-        } else {
-            numbered(name, n)
-        });
-        match File::options()
-            .write(true)
-            .create_new(true)
-            .open(&candidate)
-        {
-            Ok(reserved) => break (candidate, reserved),
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists && n < 10_000 => n += 1,
-            Err(e) => return Err(e),
-        }
-    };
-    // The name is held by the empty file made above; a rename takes its place.
-    if std::fs::rename(file, &target).is_ok() {
-        return Ok(target);
-    }
-    if let Err(e) = stream(file, &mut reserved) {
-        drop(reserved);
-        let _ = std::fs::remove_file(&target);
-        return Err(e);
-    }
-    drop(reserved);
-    // Published whole; dm's copy is a spare one now, and one it could not remove is left.
-    let _ = std::fs::remove_file(file);
-    Ok(target)
 }
 
 #[cfg(test)]

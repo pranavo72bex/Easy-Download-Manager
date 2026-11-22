@@ -5,7 +5,7 @@
 // Android Studio's Run builds the library itself: `cargoNdkDebug` (or `cargoNdkRelease`)
 // runs before `preDebugBuild` (`preReleaseBuild`):
 //
-//   cargo ndk --platform 26 -t <abi> -o crates/dm-android/android/app/build/rustJniLibs/debug \
+//   cargo ndk --platform 29 -t <abi> -o crates/dm-android/android/app/build/rustJniLibs/debug \
 //       build -p dm-android --lib            (--release for a release build)
 //
 // and the build type's source set packs that folder. Gradle properties (-P on the command
@@ -29,8 +29,9 @@ plugins {
     id("com.android.application")
 }
 
-// Android 8.0 (API 26) and up (gaps row N1): the APK's minSdk and cargo-ndk's --platform.
-val dmMinSdk = 26
+// Android 10 (API 29) and up (the maintainer, 2026-11-22): the APK's minSdk and cargo-ndk's
+// --platform.
+val dmMinSdk = 29
 
 // The NDK Android Studio's SDK Manager installs (SDK Tools, NDK (Side by side), "Show
 // Package Details"); cargo-ndk links the library with it and AGP strips it with it.
@@ -92,7 +93,7 @@ val releaseKeystore: String? = System.getenv("DM_ANDROID_KEYSTORE_FILE")?.takeIf
 
 android {
     namespace = "com.dm.android"
-    // Built against Android 15; Android 8.0 (API 26) and up (gaps row N1).
+    // Built against Android 15; Android 10 (API 29) and up.
     compileSdk = 35
     ndkVersion = dmNdkVersion
 

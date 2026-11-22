@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   dm's manifest (docs/android.md, gaps rows N1, N5, N6, N12, N14, N16): the package is
-  com.dm.android (app/build.gradle.kts), Android 8.0 (API 26) and up, built against API 35.
+  com.dm.android (app/build.gradle.kts), Android 10 (API 29) and up, built against API 35.
   The activity is dm's DmActivity, gpui-mobile's GpuiInputActivity (a NativeActivity with the
   soft keyboard's input connection, which loads libdm_android.so and runs its android_main)
   with a new intent handed to Rust. dm's service and receivers (java/com/dm/android) each hand
@@ -25,11 +25,6 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Asked for at start on Android 13 and up (src/android/notify.rs, ask_permissions). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Android 10 and up let an app write its own files to the public Download folder
-         without it; Android 8 and 9 need it. -->
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
 
     <!-- GPUI draws through wgpu: Vulkan where the phone has it, else OpenGL ES 3. -->
     <uses-feature

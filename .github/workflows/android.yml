@@ -9,8 +9,8 @@ name: Android, the engine built
 # before it lands; runs dm-android's own tests on the runner itself; and packages the APK for
 # the emulator: libdm_android.so built by cargo-ndk, then the small Gradle project in
 # crates/dm-android/android (gpui-mobile's two Java classes, no Kotlin), kept as
-# the run's artifact (docs/android.md). The emulator job then runs that APK on Android 8.0
-# (API 26) and Android 15 (API 35): started, its window drawn, a link shared to it downloaded
+# the run's artifact (docs/android.md). The emulator job then runs that APK on Android 10
+# (API 29) and Android 15 (API 35): started, its window drawn, a link shared to it downloaded
 # (row N13, scripts/android-emulator-check.sh). At a tag `android-v<version>` the release job
 # builds the release APK for all three processors, signs it with dm's key when the
 # repository has one, and attaches it to a draft release (row N14). Not `v*`, the
@@ -64,20 +64,20 @@ jobs:
           test -d "$ANDROID_NDK_LATEST_HOME"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
           echo "DM_NDK_VERSION=$(sed -n 's/^Pkg.Revision *= *//p' "$ANDROID_NDK_LATEST_HOME/source.properties")" >> "$GITHUB_ENV"
-      # Android 8.0 (API 26) and up, as decided in N1 (docs/decisions.md, 2026-11-20).
+      # Android 10 (API 29) and up (the maintainer, 2026-11-22; docs/decisions.md).
       - name: Check for the phone and the emulator
-        run: cargo ndk --platform 26 -t arm64-v8a -t x86_64 check -p dm-android --locked
+        run: cargo ndk --platform 29 -t arm64-v8a -t x86_64 check -p dm-android --locked
       # Clippy for the phone, warnings as errors (row N17). One lint allowed on Android alone:
       # `missing_const_for_thread_local` flags every `const { }` thread-local there, as std's
       # Android thread-locals (no `target_thread_local`) wrap the initialiser in a plain fn.
       - name: Clippy for the phone
-        run: cargo ndk --platform 26 -t arm64-v8a clippy -p dm-android --locked -- -D warnings -A clippy::missing_const_for_thread_local
+        run: cargo ndk --platform 29 -t arm64-v8a clippy -p dm-android --locked -- -D warnings -A clippy::missing_const_for_thread_local
       - name: dm-android's tests, on the runner
         run: cargo test -p dm-android --locked
       # The APK (row N14). First the library, for the emulator (x86_64), put where Gradle packs
       # it (app/src/main/jniLibs/x86_64/libdm_android.so).
       - name: libdm_android.so, for the emulator (x86_64)
-        run: cargo ndk --platform 26 -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
+        run: cargo ndk --platform 29 -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
       # Android 15's platform (compileSdk 35) and its build tools, from the runner's own SDK.
       - name: Android 15's platform and build tools
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
@@ -108,7 +108,7 @@ jobs:
           path: crates/dm-android/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-  # The debug APK on the emulator (row N13): Android 8.0, the oldest dm takes, and Android 15,
+  # The debug APK on the emulator (row N13): Android 10, the oldest dm takes, and Android 15,
   # the one it is built against. The runner's own SDK tools and Google's system images,
   # fetched by sdkmanager (which checks each package's digest), so no action of anyone else's
   # starts the emulator; KVM is opened to the runner's user as GitHub's runners allow.
@@ -120,7 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [26, 35]
+        api: [29, 35]
     env:
       IMAGE: system-images;android-${{ matrix.api }};google_apis;x86_64
     steps:
@@ -234,7 +234,7 @@ jobs:
       - name: libdm_android.so, for the three processors
         run: |
           export RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/dm --remap-path-prefix=$HOME/.cargo=/cargo"
-          cargo ndk --platform 26 -t arm64-v8a -t armeabi-v7a -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
+          cargo ndk --platform 29 -t arm64-v8a -t armeabi-v7a -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
       - name: Android 15's platform and build tools
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
@@ -302,7 +302,7 @@ jobs:
           make_latest: false
           body: |
             dm for Android ${{ env.VERSION }}: one APK for arm64-v8a, armeabi-v7a and x86_64,
-            Android 8.0 (API 26) and up. Check it with
+            Android 10 (API 29) and up. Check it with
             `sha256sum -c dm-${{ env.VERSION }}.apk.sha256`, then open it on the phone and allow
             installing from this source.
 

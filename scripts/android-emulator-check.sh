@@ -51,7 +51,9 @@ sh_adb() {
     adb shell "$@" | tr -d '\r'
 }
 
-adb logcat -c
+# An emulator may refuse to clear the main log (Android 8.0's did); what is read later is
+# filtered by dm.
+adb logcat -c || true
 adb install -r -g "$apk"
 
 # 1. dm started as the launcher starts it.

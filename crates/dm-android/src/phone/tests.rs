@@ -274,36 +274,22 @@ fn the_clipboard_is_readable_only_while_dms_window_is_in_front() {
     assert!(phone.clipboard_readable());
 }
 
-/// Browse… on the phone offers the shared `Download/dm` first, then dm's own folder; a file dm
-/// writes goes to the save folder, else the first of them; with none, both are refused in
-/// words. On Android 10 and up only dm's own folder is offered, and a file dm writes may still
-/// go to the shared one.
+/// Browse… on the phone offers dm's own folder; a file dm writes goes to the save folder (the
+/// shared `Download/dm`), else dm's own; with none, both are refused in words.
 #[test]
-fn the_folders_dm_writes_by_path_are_offered_shared_first() {
+fn browse_offers_dms_own_folder_and_a_file_dm_writes_goes_to_the_shared_one() {
     let (bare, _) = phone();
     assert_eq!(bare.download_folders(), Ok(vec![]));
     assert!(bare.save_folder().is_err());
     let shared = PathBuf::from("/storage/emulated/0/Download/dm");
     let own = PathBuf::from("/storage/emulated/0/Android/data/com.dm.android/files/Download/dm");
     let both = phone().0.with_places(Places {
-        shared: Some(shared.clone()),
-        own: Some(own.clone()),
-        save: None,
-    });
-    assert_eq!(
-        both.download_folders(),
-        Ok(vec![shared.clone(), own.clone()])
-    );
-    assert_eq!(both.save_folder(), Ok(shared.clone()));
-    let ten = phone().0.with_places(Places {
-        shared: None,
         own: Some(own.clone()),
         save: Some(shared.clone()),
     });
-    assert_eq!(ten.download_folders(), Ok(vec![own.clone()]));
-    assert_eq!(ten.save_folder(), Ok(shared));
+    assert_eq!(both.download_folders(), Ok(vec![own.clone()]));
+    assert_eq!(both.save_folder(), Ok(shared));
     let own_only = phone().0.with_places(Places {
-        shared: None,
         own: Some(own.clone()),
         save: None,
     });

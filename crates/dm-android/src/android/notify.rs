@@ -66,18 +66,14 @@ pub(crate) fn channels() -> Result<(), String> {
     })
 }
 
-/// Asks, once, for what the phone grants only at run time: notifications on Android 13 and up,
-/// writing to the shared Download folder on Android 8 and 9. The answer comes later; until it
-/// does, notifications are not shown and the first start downloads into dm's own folder.
+/// Asks, once, for what the phone grants only at run time: notifications on Android 13 and up.
+/// The answer comes later; until it does, notifications are not shown.
 pub(crate) fn ask_permissions() -> Result<(), String> {
     jvm::with("ask for its permissions", |env, activity| {
         let sdk = jvm::sdk(env)?;
         let mut wanted = Vec::new();
         if sdk >= 33 {
             wanted.push("android.permission.POST_NOTIFICATIONS");
-        }
-        if sdk <= 28 {
-            wanted.push("android.permission.WRITE_EXTERNAL_STORAGE");
         }
         let mut missing = Vec::new();
         for name in wanted {

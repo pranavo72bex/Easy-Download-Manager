@@ -161,24 +161,19 @@ fn ongoing_words(busy: &Busy) -> (String, String) {
 /// where a file dm writes for the person goes.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Places {
-    /// The shared `Download/dm`, which the Files app shows, where dm downloads into it by path:
-    /// on Android 8 and 9 once storage is allowed. On 10 and up dm downloads into its own folder
-    /// and publishes each finished file here instead, so it is not offered there.
-    pub shared: Option<PathBuf>,
     /// dm's own folder on the phone's storage (`Android/data/com.dm.android/files/Download/dm`),
-    /// a finished file in which is published to `Download/dm`.
+    /// where downloads go; a finished file in it is published to `Download/dm`.
     pub own: Option<PathBuf>,
     /// Where a file dm writes for the person goes (Export, Back up dm): the shared
-    /// `Download/dm` where dm can write a file there by path (Android 8 and 9 once storage is
-    /// allowed, 11 and up), else dm's own folder.
+    /// `Download/dm` where dm can write a file there by path (Android 11 and up), else dm's own
+    /// folder.
     pub save: Option<PathBuf>,
 }
 
 impl Places {
-    /// Where new downloads go by default: the shared folder where dm downloads into it, else
-    /// dm's own.
+    /// Where new downloads go by default: dm's own folder.
     pub fn first(&self) -> Option<&PathBuf> {
-        self.shared.as_ref().or(self.own.as_ref())
+        self.own.as_ref()
     }
 }
 
@@ -305,6 +300,12 @@ impl<J: Java> PhoneServices for Phone<J> {
         self.java.publish(path)
     }
 
+    fn wrote(&self, path: &Path) {
+        // Written by path into the shared Download folder, the file is not in the media
+        // index until it is told: the system's picker did not show Export's list (2026-11-22).
+        let _ = self.java.index(&path.to_string_lossy());
+    }
+
     fn network(&self) -> PhoneNetwork {
         let now = self.java.network();
         let before = dm_core::lock(&self.seen_network).replace(now);
@@ -317,8 +318,7 @@ impl<J: Java> PhoneServices for Phone<J> {
     }
 
     fn download_folders(&self) -> Result<Vec<PathBuf>, String> {
-        let Places { shared, own, .. } = &self.places;
-        Ok(shared.iter().chain(own).cloned().collect())
+        Ok(self.places.own.iter().cloned().collect())
     }
 
     fn save_folder(&self) -> Result<PathBuf, String> {

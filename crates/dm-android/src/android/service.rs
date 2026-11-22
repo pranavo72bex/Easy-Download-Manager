@@ -208,31 +208,22 @@ pub(crate) fn started(service: Global<JObject<'static>>) -> Result<(), String> {
     stop(&service, STOP_REMOVE)
 }
 
-/// `service.startForeground(id, notification[, dataSync])`: with its type from Android 10.
+/// `service.startForeground(id, notification, dataSync)`.
 fn foreground(
     env: &mut Env<'_>,
     service: &JObject<'_>,
     built: &JObject<'_>,
 ) -> jni::errors::Result<()> {
-    if jvm::sdk(env)? >= 29 {
-        env.call_method(
-            service,
-            jni_str!("startForeground"),
-            jni_sig!("(ILandroid/app/Notification;I)V"),
-            &[
-                JValue::Int(notify::ONGOING_ID),
-                JValue::Object(built),
-                JValue::Int(TYPE_DATA_SYNC),
-            ],
-        )?;
-    } else {
-        env.call_method(
-            service,
-            jni_str!("startForeground"),
-            jni_sig!("(ILandroid/app/Notification;)V"),
-            &[JValue::Int(notify::ONGOING_ID), JValue::Object(built)],
-        )?;
-    }
+    env.call_method(
+        service,
+        jni_str!("startForeground"),
+        jni_sig!("(ILandroid/app/Notification;I)V"),
+        &[
+            JValue::Int(notify::ONGOING_ID),
+            JValue::Object(built),
+            JValue::Int(TYPE_DATA_SYNC),
+        ],
+    )?;
     Ok(())
 }
 

@@ -13,8 +13,7 @@
 //! with `FLAG_GRANT_READ_URI_PERMISSION`. A file the index does not hold (dm's own folder, or
 //! one not indexed yet) goes as a `file://` address: since Android 7 the VM's StrictMode policy
 //! refuses those with an exception, so dm sets an empty policy once at start
-//! ([`allow_file_uris`]); the app given it reads it where the phone lets it (Android 8 and 9,
-//! and media files on later ones).
+//! ([`allow_file_uris`]); the app given it reads it where the phone lets it (media files).
 
 use jni::objects::JObject;
 use jni::{jni_sig, jni_str, Env, JValue};

@@ -173,7 +173,7 @@ pub(crate) fn service<'local>(
     Ok(service)
 }
 
-/// The phone's Android version as its API level (`Build.VERSION.SDK_INT`): 26 is Android 8.0.
+/// The phone's Android version as its API level (`Build.VERSION.SDK_INT`): 29 is Android 10, the oldest dm takes.
 pub(crate) fn sdk(env: &mut Env<'_>) -> jni::errors::Result<i32> {
     env.get_static_field(
         jni_str!("android/os/Build$VERSION"),

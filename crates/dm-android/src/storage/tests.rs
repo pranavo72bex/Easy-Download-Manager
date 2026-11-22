@@ -7,35 +7,22 @@
 
 use super::*;
 
-/// Android 10 and up go through the media store; 8 and 9 by path.
+/// Downloads go to dm's own folder alone, and a file dm writes for the person to the shared
+/// one where dm could write there, else to dm's own.
 #[test]
-fn the_way_is_the_phones() {
-    assert_eq!(way(26), Way::ByPath);
-    assert_eq!(way(28), Way::ByPath);
-    assert_eq!(way(29), Way::MediaStore);
-    assert_eq!(way(35), Way::MediaStore);
-}
-
-/// On Android 10 and up downloads go to dm's own folder alone, and a file dm writes to the
-/// shared one where dm could write there; on 8 and 9 the shared one first.
-#[test]
-fn new_downloads_go_to_dms_own_folder_from_android_10() {
+fn new_downloads_go_to_dms_own_folder() {
     let own = Some(PathBuf::from("/e/files/Download/dm"));
     let shared = Some(PathBuf::from("/s/Download/dm"));
-    let ten = places(29, shared.clone(), own.clone());
-    assert_eq!((ten.shared.as_ref(), ten.first()), (None, own.as_ref()));
-    assert_eq!(ten.save, shared);
-    let nine = places(28, shared.clone(), own.clone());
-    assert_eq!(nine.first(), shared.as_ref());
-    assert_eq!(nine.save, shared);
-    // Android 9 before storage is allowed, and 13 with the shared folder not writable.
-    assert_eq!(places(28, None, own.clone()).first(), own.as_ref());
-    let thirteen = places(33, None, own.clone());
+    let both = places(shared.clone(), own.clone());
+    assert_eq!(both.first(), own.as_ref());
+    assert_eq!(both.save, shared);
+    // The shared folder not writable.
+    let own_only = places(None, own.clone());
     assert_eq!(
-        (thirteen.first(), thirteen.save.as_ref()),
+        (own_only.first(), own_only.save.as_ref()),
         (own.as_ref(), own.as_ref())
     );
-    assert_eq!(places(33, None, None), Places::default());
+    assert_eq!(places(None, None), Places::default());
     assert_eq!(
         own_downloads(Path::new("/e/files")),
         PathBuf::from("/e/files/Download/dm")
@@ -89,38 +76,6 @@ fn a_file_in_dms_own_folder_has_its_place_in_download() {
         shared_place(Path::new("/e/files/Download/dm/../../x"), &private),
         None
     );
-}
-
-/// A second file of a name is numbered before its extension, as the system does.
-#[test]
-fn a_taken_name_is_numbered() {
-    assert_eq!(numbered("a.zip", 1), "a (1).zip");
-    assert_eq!(numbered("a.tar.gz", 2), "a.tar (2).gz");
-    assert_eq!(numbered("README", 1), "README (1)");
-    assert_eq!(numbered(".hidden", 1), ".hidden (1)");
-}
-
-/// Moved by path: the bytes whole in the shared folder, under a free name, dm's copy gone,
-/// and a file already there untouched.
-#[test]
-fn a_file_is_moved_whole_and_never_over_another() {
-    let root = tempfile::tempdir().expect("a folder for the test");
-    let own = root.path().join("own");
-    std::fs::create_dir_all(&own).expect("dm's folder");
-    let shared = root.path().join("Download").join("dm");
-    std::fs::create_dir_all(&shared).expect("the shared folder");
-    std::fs::write(shared.join("a.bin"), b"already").expect("a file already there");
-    let file = own.join("a.bin");
-    let bytes: Vec<u8> = (0..3_000_000u32).map(|n| (n % 251) as u8).collect();
-    std::fs::write(&file, &bytes).expect("the finished file");
-    let now = move_into(&file, &shared, "a.bin").expect("moved");
-    assert_eq!(now, shared.join("a (1).bin"));
-    assert_eq!(std::fs::read(&now).expect("read back"), bytes);
-    assert_eq!(
-        std::fs::read(shared.join("a.bin")).expect("kept"),
-        b"already"
-    );
-    assert!(!file.exists());
 }
 
 /// The chunked copy carries every byte of a file larger than its buffer.
