@@ -721,24 +721,28 @@ def mockvideo():
 
 @scenario
 def video_page():
-    # A video page of a site other than YouTube, typed or pasted as an address:
-    # dm reads YouTube's pages itself, and every other site's video comes from
-    # the browser's "Download video" button as the page plays (docs/decisions.md;
-    # in the window, contract row B40 asks whether to save the page instead).
-    # Over the control port nobody is asked: refused, in words that say where
-    # the video comes from, and nothing saved in its place.
+    # A video page of a site other than YouTube, typed or pasted as an address.
+    # Since 2026-11-21 (contract row B40, `dm_core::pagemedia`) a page that
+    # carries a video dm can find is not asked about: its video is downloaded
+    # under the page's title (og:title "QA clip"), whole, and nothing of the
+    # page is saved beside it. Only a page with none is refused here
+    # (`video_page_without_media`).
+    import urllib.request
     site = mockvideo()
     dm = DM("video_page").start()
     try:
         dm.add(f"{site}/watch?v=ok")
         row = dm.wait("watch?v=ok", seconds=180)
-        check(row["state"]["kind"] == "failed", f"{row['state']}")
-        said = reason(row) or ""
-        check("web page" in said and "Download video" in said, f"the reason does not say where the video comes from: {said!r}")
-        files = sorted(x.name for x in dm.out.iterdir()) if dm.out.exists() else []
-        check(files == [], f"a page refused, yet the folder holds {files}")
+        check(row["state"]["kind"] == "completed", f"{row['state']} {reason(row)!r}")
+        saved = pathlib.Path(row["path"])
+        with urllib.request.urlopen(f"{site}/clip.mp4", timeout=30) as served:
+            clip = served.read()
+        check(saved.read_bytes() == clip, f"{saved.name} is not the page's clip.mp4 ({saved.stat().st_size} of {len(clip)} bytes)")
+        check(saved.name.startswith("QA clip"), f"named {saved.name!r}, not after the page's title")
+        files = sorted(x.name for x in saved.parent.iterdir())
+        check(files == [saved.name], f"beside the video, the folder holds {files}")
         no_leftovers(dm, row)
-        return said
+        return saved.name
     finally:
         dm.close()
 
