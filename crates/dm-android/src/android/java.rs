@@ -130,6 +130,17 @@ impl Java for Jni {
         .map_err(|why| no_app(why, &format!("no app on this phone opens {name}")))
     }
 
+    fn open_with(&self, path: &str) -> Result<(), String> {
+        let name = std::path::Path::new(path)
+            .file_name()
+            .map_or_else(|| path.to_owned(), |n| n.to_string_lossy().into_owned());
+        jvm::with("offer the file to the apps that open it", |env, context| {
+            let intent = open::choose(env, context, path)?;
+            start(env, context, &intent)
+        })
+        .map_err(|why| no_app(why, &format!("no app on this phone opens {name}")))
+    }
+
     fn share(&self, path: &str) -> Result<(), String> {
         let name = std::path::Path::new(path)
             .file_name()

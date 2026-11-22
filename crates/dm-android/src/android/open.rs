@@ -99,6 +99,26 @@ pub(crate) fn view<'local>(
 
 /// `path`'s address in the media index (`MediaStore.Files`, the `external` volume), where the
 /// index holds it.
+/// Open with…: the file's `ACTION_VIEW` ([`view`]) in the system's chooser, so the person picks
+/// the app each time rather than the phone's default (gaps row N22).
+pub(crate) fn choose<'local>(
+    env: &mut Env<'local>,
+    context: &JObject<'_>,
+    path: &str,
+) -> jni::errors::Result<JObject<'local>> {
+    let view = view(env, context, path)?;
+    let chooser = env
+        .call_static_method(
+            jni_str!("android/content/Intent"),
+            jni_str!("createChooser"),
+            jni_sig!("(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;"),
+            &[JValue::Object(&view), JValue::Object(&JObject::null())],
+        )?
+        .l()?;
+    jvm::add_flags(env, &chooser, GRANT_READ | jvm::FLAG_ACTIVITY_NEW_TASK)?;
+    Ok(chooser)
+}
+
 /// The system's share sheet for the file at `path`: `ACTION_SEND` with the file as its stream
 /// (by its media index address where it has one, so the app picked may read it), in the
 /// system's chooser.

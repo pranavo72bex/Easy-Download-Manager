@@ -23,9 +23,10 @@ pub(super) fn reveal_in_folder(path: &str) -> Result<(), String> {
     crate::phone::reveal(path)
 }
 
-/// Open with…: a phone picks the app itself, so the file is opened.
+/// Open with…: the phone's own chooser of the apps that open the file (no app is picked
+/// beforehand on a phone, gaps row N22).
 pub(super) fn open_with(path: &str, _app: &Path) -> Result<(), String> {
-    crate::phone::open(path)
+    crate::phone::open_with(path)
 }
 
 /// The login item: none to remove, and one asked for refused in words.

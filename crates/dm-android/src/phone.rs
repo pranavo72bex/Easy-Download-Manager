@@ -42,6 +42,10 @@ pub trait Java: Send + Sync + 'static {
         let _ = path;
         Err("this phone cannot share files from dm".into())
     }
+    /// Open with…: the file at `path` in the system's chooser of the apps that open it.
+    fn open_with(&self, path: &str) -> Result<(), String> {
+        self.open(path)
+    }
     /// Whether dm's window is in front: Android 10 and up let only the app in front read the
     /// clipboard, and answer the others as if it were empty (gaps row N5).
     fn in_front(&self) -> bool;
@@ -240,6 +244,10 @@ impl<J: Java> PhoneServices for Phone<J> {
 
     fn share(&self, path: &str) -> Result<(), String> {
         self.java.share(path)
+    }
+
+    fn open_with(&self, path: &str) -> Result<(), String> {
+        self.java.open_with(path)
     }
 
     /// A phone has no Trash dm can reach: Delete file deletes the file itself (the question

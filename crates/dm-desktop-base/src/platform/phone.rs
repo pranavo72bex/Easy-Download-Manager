@@ -88,6 +88,12 @@ pub trait PhoneServices: Send + Sync {
         let _ = minutes;
     }
 
+    /// Open with…: the file at `path` offered to every app that opens it, in the system's own
+    /// chooser (a phone has no app picker of dm's); by default opened as [`Self::open`] does.
+    fn open_with(&self, path: &str) -> Result<(), String> {
+        self.open(path)
+    }
+
     /// Offers the file at `path` to the phone's other apps (the system's share sheet), or says
     /// why it cannot.
     fn share(&self, path: &str) -> Result<(), String> {
@@ -268,6 +274,11 @@ pub fn notify(note: Note) {
 /// Opens `path` through the phone, or says it cannot.
 pub fn open(path: &str) -> Result<(), String> {
     phone().map_or_else(|| Err(NOT_YET.into()), |phone| phone.open(path))
+}
+
+/// Open with… on a phone: the system's chooser of the apps that open `path`.
+pub fn open_with(path: &str) -> Result<(), String> {
+    phone().map_or_else(|| Err(NOT_YET.into()), |phone| phone.open_with(path))
 }
 
 /// Offers `path` to the phone's other apps through its share sheet, or says it cannot.

@@ -38,6 +38,19 @@ impl Downloads {
         after: impl FnOnce(&mut Self, &mut Context<Self>) + 'static,
         cx: &mut Context<Self>,
     ) {
+        // A phone has no app picker of dm's: its own chooser lists the apps (gaps row N22).
+        if crate::platform::ON_A_PHONE {
+            if let Err(e) = self
+                .backend
+                .platform
+                .open_with(path, std::path::Path::new(""))
+            {
+                self.say(e);
+            }
+            after(self, cx);
+            cx.notify();
+            return;
+        }
         let chosen = crate::platform::services::ask(crate::platform::services::Asked::app());
         let path = path.to_string();
         cx.spawn(async move |this, cx| {
