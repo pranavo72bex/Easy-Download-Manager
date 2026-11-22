@@ -8656,3 +8656,26 @@ and is not asked about again: R1 (code signing) stays set aside, and F6's update
 made. A desktop release therefore goes out with an unsigned `latest.json`, which dm's own
 update check refuses by design (F6), so a person updates by downloading the new version; the
 release job is to draft without the key rather than fail.
+
+## 2026-11-22: The phone and the desktop are one app (gaps rows N20 to N31)
+
+The maintainer, 2026-11-22: "if phone and desktop shares same code and same UI how can they miss
+features? they should be one", and before it: the phone is to have the downloading and every
+other feature the desktop already has. No feature of the phone's own across devices is added.
+
+- **Why they drifted:** the engine, the dialogs and Options are shared, but the narrow layout is a
+  second set of ways in (the ⋮ sheet, the cards, the drawer) wired up by hand, so an action whose
+  only way in was the status bar, a right click, a modifier key or the macOS menu bar was missed;
+  and a part the system must do (open a page, choose an app, follow a proxy) had no Android code.
+- **The rule:** every action is declared once, with where it shows; both layouts draw from that
+  one list. An action left off the phone names why (no meaning there: the tray, the login item,
+  the browser's native host, dial-up; or Android forbids it). A test fails on an action the
+  narrow layout cannot reach or shows doing nothing (N20). A system part the phone lacks goes
+  behind `PhoneServices`, never a silent no-op: until it is done, the line is not drawn there.
+- **Left off the phone on purpose** (the audit of 2026-11-22): the tray, the login item, the Dock
+  menu and Jump List, the Window menu, the browser extension and its native host, the video bar
+  and toolbar popup (the share sheet takes their place), Options › Browser, dragging links in and
+  files out (Share instead), the control port and the AI assistant's switch, closing to the
+  tray, When done › Sleep, Hibernate and Shut down, wake from sleep, dial-up and the modem, the
+  firewall question, the Mark of the Web, file associations (intent filters instead), and the
+  taskbar's progress (the ongoing notification instead).

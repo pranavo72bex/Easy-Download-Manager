@@ -42,7 +42,8 @@ work; from a terminal: `gradle installDebug -Pdm.abis=arm64-v8a` with `JAVA_HOME
    against its SHA-256) and the Android Gradle plugin; the first one takes a few minutes.
 2. Tools › Device Manager › Create Virtual Device: a phone (Pixel 8, say), the system image
    **API 35, arm64-v8a** (on Apple silicon the images are arm64). Make a second one with an
-   **API 26** (Android 8.0) arm64-v8a image: the oldest Android dm takes.
+   **API 29** (Android 10) arm64-v8a image: the oldest Android dm takes (the maintainer,
+   2026-11-22).
 3. Choose the device in the toolbar and press Run (the green triangle). Gradle runs
    `cargoNdkDebug` first, which runs, from the repository's root:
 
@@ -98,8 +99,8 @@ phone with USB debugging; an x86-64 computer's emulator, with its GPU's own Vulk
   (or Chrome's Downloads) and pick dm. Or push one and open it:
   `adb push file.torrent /sdcard/Download/` and open it from Files › Downloads.
 
-Downloads land in `Download/dm` (Files › Downloads › dm), on Android 8 and 9 once storage is
-allowed; else in dm's own folder on the phone's storage.
+Downloads land in dm's own folder on the phone's storage and each finished one is put in
+`Download/dm` (Files › Downloads › dm).
 
 ### Where the logs are
 
@@ -114,7 +115,7 @@ of the app as a whole is under `adb logcat -b crash`. The same from a terminal:
 Each line is a gaps row; what it says is owed is what this tries for the first time.
 
 - [ ] **dm starts (N3, N16, N17).** dm's own window comes up, not a black screen, on API 35 and
-      on API 26. Turn the emulator sideways and back: the window is laid out again, dm does not
+      on API 29. Turn the emulator sideways and back: the window is laid out again, dm does not
       start over (no restart in Logcat).
 - [ ] **The narrow layout (N7).** At a phone's width: one top bar (Places, "dm", Add URL, ⋮),
       each download a card (name, bar, size, speed, state, time left), no table and no side
@@ -157,14 +158,15 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
       minute: the download went on. Stop All, Retry and the foreground service: "Checked by
       hand" below. On Android 13 and up dm asks to post notifications once.
 - [ ] **A finished download's notification (N6).** It appears; tapping it opens the file.
-- [ ] **Where files land (N9).** On API 26: before storage is allowed the file goes to dm's own
-      folder; once allowed, to `Download/dm`. On API 35: `Download/dm`, seen in Files.
+- [ ] **Where files land (N9).** `Download/dm`, seen in Files.
 - [ ] **Choosing files and folders (N9).** ⋮ › File › Import: the system's document picker
       opens; a `.dmlist` or a `.torrent` picked from Downloads is imported. Export: no panel, the
       list is written to `Download/dm` (`downloads.dmlist`, then `downloads (1).dmlist`; on API
-      29, dm's own folder) and the status line says where. Back up dm and Restore the same way.
-      Options › Save to Browse…: a prompt offers dm's own folder (on API 26 with storage
-      allowed, `Download/dm` first), saying "On a phone dm downloads only into these folders.";
+      29, dm's own folder), the phone's index told so the picker shows it, and the top bar
+      says where for twelve seconds (a phone has no status line). Seen 2026-11-22 on a phone:
+      a list written before the index was told was missing from the picker's Downloads (found
+      under the phone's own storage); Import's "Imported 5 downloads." under the title. Back up dm and Restore the same way.
+      Options › Save to Browse…: a prompt offers dm's own folder, saying "On a phone dm downloads only into these folders.";
       Cancel leaves the field as it was.
 - [x] **Secrets (N11).** Save a site's login in dm, close dm, open it again: the login is
       still there, and `files/dm/secrets/` holds `.sealed` files, not the login in clear.
@@ -209,7 +211,7 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 | `src/android/natives.rs` | The native methods of dm's Java classes, by their exported `Java_com_dm_android_<Class>_<method>` names |
 | `src/android/open.rs`, `jvm.rs` | Opening a file; the Java machine and dm's context (the activity, or the application's where a receiver started the process) |
 | `java/` | The Java classes (below) |
-| `android/` | The Gradle project that makes the APK: `app/src/main/AndroidManifest.xml` (package `com.dm.android`, Android 8.0 (API 26) and up, built against API 35, the permissions and the intent filters) and `app/build.gradle.kts` |
+| `android/` | The Gradle project that makes the APK: `app/src/main/AndroidManifest.xml` (package `com.dm.android`, Android 10 (API 29) and up, built against API 35, the permissions and the intent filters) and `app/build.gradle.kts` |
 
 dm-gpui's start does the rest as on a computer: the engine, the settings, the queue, the window,
 and on GPUI's quit (the activity destroyed) the downloads stopped and saved to be resumed.
@@ -356,7 +358,7 @@ out unsigned (`app-release-unsigned.apk`).
 | Job | When | Its steps |
 |-----|------|-----------|
 | `android` | each push to main, each pull request touching `crates/` | cargo-ndk check for arm64-v8a and x86_64; clippy for arm64-v8a with `-D warnings` (`missing_const_for_thread_local` allowed: on Android it flags every `const { }` thread-local); dm-android's host tests; the x86_64 library with cargo-ndk; Android 35's platform and build tools from the runner's SDK; Gradle 8.14.3, checked against its SHA-256; `gradle assembleDebug -Pdm.skipCargo=true` (the library built above; the runner's NDK as `dm.ndkVersion`); the APK kept as the artifact `dm-android-x86_64-apk` |
-| `emulator` | after `android`, for API 26 and API 35 | KVM opened to the runner's user; the emulator, platform-tools and Google's x86_64 system image through `sdkmanager`; an AVD at a phone's size (1080 x 2340, 420 dpi), booted without a window, the GPU in software (SwiftShader); `scripts/android-emulator-check.sh`; what it saw kept as `dm-android-emulator-api<N>` |
+| `emulator` | after `android`, for API 29 and API 35 | KVM opened to the runner's user; the emulator, platform-tools and Google's x86_64 system image through `sdkmanager`; an AVD at a phone's size (1080 x 2340, 420 dpi), booted without a window, the GPU in software (SwiftShader); `scripts/android-emulator-check.sh`; what it saw kept as `dm-android-emulator-api<N>` |
 | `release` | a tag `android-v<version>`, after both above pass | the three Rust targets; the tag checked against dm-android's `Cargo.toml` and Gradle's `versionName`; the library for arm64-v8a, armeabi-v7a and x86_64 (paths remapped); platform and build tools; Gradle; dm's key from the secrets, else a notice; `gradle assembleRelease -Pdm.skipCargo=true`; `apksigner verify --print-certs`; `dm-<version>.apk` (or `dm-<version>-unsigned.apk`) and its `.sha256` attached to a draft release, never marked latest |
 
 No action of anyone else's boots the emulator: the runner's own SDK tools do it from the command
@@ -494,6 +496,11 @@ submitted. What it needs, and where dm stands:
   downloads into dm's own folder, and a file finished there is moved across). A torrent's files
   stay in dm's folder, where its seeding reads them. A folder of the person's own through the
   system's storage picker is owed.
+- **The same as the desktop (N20 to N31, `docs/gaps.md`).** Found by reading the code on
+  2026-11-22: web pages (Help, About's links) and Open with… do nothing; Undo after Remove,
+  choosing several downloads and a place's menu cannot be reached by touch; View's columns, the
+  drop target and Sounds are shown and do nothing; no update check, no GIF from a video, no
+  system proxy, no accent colour, no trash; the dialogs not yet seen at a phone's width.
 - **Testing (N13, N14).** None of the Android code has been run yet: the emulator job and the
   release job are written but have had no run. Also owed: dm's release key in the repository's
   secrets (the maintainer's), the phone's contract rows (below, waiting for the maintainer's
