@@ -657,8 +657,11 @@ jobs:
           cargo xtask crates-list installers/crates.txt
           if [ -z "$DM_UPDATE_SIGNING_KEY" ]; then
             # Unsigned: the digests alone, which anyone checks with `sha256sum -c`.
+            # Written beside the folder, then moved in, so the list never holds itself.
             (cd installers && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' \
-              | sort | xargs -d '\n' sha256sum > SHA256SUMS && sha256sum -c SHA256SUMS)
+              | sort | xargs -d '\n' sha256sum > "$RUNNER_TEMP/SHA256SUMS")
+            mv "$RUNNER_TEMP/SHA256SUMS" installers/SHA256SUMS
+            (cd installers && sha256sum -c SHA256SUMS)
             echo "::notice::SHA256SUMS goes out unsigned (no DM_UPDATE_SIGNING_KEY)"
             exit 0
           fi

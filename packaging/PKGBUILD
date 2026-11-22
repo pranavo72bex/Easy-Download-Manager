@@ -32,8 +32,9 @@ source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/desktop-v$pkgver.tar.gz
 sha256sums=('2bd2f56db304c014f8c0ed860874474b82005aac8992f77f6c24007da2d37fcd')
 
 # The name GitHub gives the extracted tag archive, which is the repository
-# name and not the package name.
-_srcdir="Easy-Download-Manager-desktop-v$pkgver/desktop"
+# name and not the package name; the Cargo workspace is at its top (since
+# 2026-11-21, when desktop/ became crates/).
+_srcdir="Easy-Download-Manager-desktop-v$pkgver"
 
 prepare() {
   cd "$srcdir/$_srcdir"
@@ -71,6 +72,6 @@ package() {
     "$pkgdir/usr/share/icons/hicolor/512x512/apps/dm.png"
   install -Dm644 "assets/app-icons/128x128.png" \
     "$pkgdir/usr/share/icons/hicolor/128x128/apps/dm.png"
-  install -Dm644 "../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  install -Dm644 "../NOTICE" "$pkgdir/usr/share/licenses/$pkgname/NOTICE"
+  install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "NOTICE" "$pkgdir/usr/share/licenses/$pkgname/NOTICE"
 }
