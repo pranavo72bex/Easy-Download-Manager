@@ -43,9 +43,13 @@ is plugged in.
 
 **1. Fix first: it breaks, or nothing can be shipped without it** (each S)
 1. (N19 closed 2026-11-22: ten reopens from the notification on the phone, no crash.)
-2. N13: CI's emulator job never got past `test -w /dev/kvm` (2026-11-21, ubuntu-latest), so no
-   push installs the APK, starts it and downloads a file. 2026-11-22: its script passes on the
-   Mac's emulator, and the KVM step waits for udev; left: the job green on a push.
+2. N13: CI's emulator job. 2026-11-22: green on API 35 (Vulkan) on a push. On API 29 dm starts
+   but draws nothing: the emulator's GPU there is OpenGL ES 3.0, and wgpu refuses GPUI's sprite
+   pipeline (`PipelineLayout with 'poly_sprites_layout' label is invalid`, run 44980900326),
+   GLES 3.0 having no storage buffers; the goldfish Vulkan driver is listed but not taken.
+   Next: see whether wgpu finds a Vulkan adapter there (`-feature Vulkan`, or the backend
+   choice in `gpui-pre-wgpu`'s `android-one-backend`); else state the least GPU (Vulkan, or
+   OpenGL ES 3.1) in docs/android.md and run CI's Android 10 job on an image that has it.
 3. (N17 closed 2026-11-22: `android.yml` runs clippy for the phone with `-D warnings`, that one
    lint allowed on Android alone; clean on the Mac.)
 4. N14: the Gradle wrapper's jar and scripts (done 2026-11-22: made by Gradle 8.14.3, the jar
@@ -79,11 +83,12 @@ the run fails; smallest first)
     from it on the emulators and a phone, `docs/android.md`'s checklist run whole.
 15. F-Droid: the recipe is in `docs/android.md`; the submission is the maintainer's.
 
-**The same as the desktop (rows N20 to N31, the audit of 2026-11-22).** The phone runs the
-desktop's own window, so what it lacks is what the narrow layout cannot reach, what is shown and
-does nothing, and what has no Android part yet. N21 and N22 are bugs a person meets at once:
-they go with step 1. N20 (one list of actions, and its test) comes before N23 and N24, which it
-closes. The rest follow the release, in the order N25, N26, N31, N28, N27, N29, N30.
+**The same as the desktop, the phone's way (rows N20 to N24 and N31; the audit of
+2026-11-22).** The phone runs the desktop's own window, so what it lacks is what the narrow
+layout cannot reach and what is shown and does nothing; a desktop habit the phone does its own
+way is hidden there, not copied (`docs/decisions.md`, 2026-11-22). N21 and N22 are bugs a person
+meets at once: they go with step 1. N20 (one list of actions, and its test) comes before N23 and
+N24, which it closes; then N31.
 
 **Later, not in the way of a first release:** N9's folder of the person's own through the
 storage picker (SAF, L); N16 moved to GPUI's own Android platform when Zed ships one (Periodic);
@@ -572,13 +577,7 @@ The Kotlin app and the Slint shell were removed unbuilt; the shell's JNI modules
 | N21 | Web pages do not open on the phone: GPUI's `open_url` on Android only logs "Intent launch not yet implemented" (`vendor/gpui-android/src/android/platform.rs:1170`), and dm's own open builds a file's `ACTION_VIEW` for every address (`dm-android/src/android/java.rs:122`, `open.rs`). So Help (F1), the Help menu's pages (guide topics, Home page, Contact support, Tell a friend) and About's links do nothing | OPEN · S | An `http(s)` address sent as `ACTION_VIEW` with the address's own `Uri` (the patch in `patches/gpui-android.patch` for `open_url`, and `phone::open` telling an address from a path). Test: the host test of the intent's decision; on the emulator, F1 opens the browser |
 | N22 | Open with… (row menu, File menu, progress window) is shown and does nothing: `open_path_with` first asks for an app with `services::ask(Asked::app())`, which on Android answers save requests alone, so it returns None (`dm-gpui/src/window/list/in_front.rs:41`, `platform/services.rs:250-258`) | OPEN · S | On the phone, Open with… goes straight to Android's chooser (`Intent.createChooser` over the file's `ACTION_VIEW`), never through the app picker |
 | N23 | Desktop actions that touch cannot reach: Undo after Remove lives in the status bar (not drawn on the phone) and Edit › Undo (macOS's menu bar alone) (`window/statusbar.rs:113`, `narrow.rs:116`); a tap always picks one card (`narrow/cards.rs:400-423`), so several downloads are chosen only by Select all; a place's menu (a category's Open folder, Add or edit categories, a queue's Start, Stop and Scheduler) opens on a right click alone (`window/sidebar.rs:425`) | OPEN · M · with N20 | Undo offered in the narrow layout's own place for it (the snackbar after Remove); a long press on a card starts choosing, and taps then add or take away cards; a long press on a place opens its menu |
-| N24 | Lines the phone shows that do nothing there: View › Columns, Show categories, Show toolbar (the cards and the narrow bar read none of them, `menus/bar_menus.rs:222-236`); View › Drop target, which would open the floating window as a full screen (`platform/droptarget.rs:196`); Options › General › Sounds (no player on Android: only the notification sounds, a sound file of the person's own never plays, `dm-desktop-base/src/platform/power.rs:190`); Options › Pop-ups' "open the progress window" and "Download complete" window, ignored on the phone (`list/adding.rs:353`, `list/complete.rs:56`) | OPEN · S · with N20 | Each marked desktop-only in N20's list, with its reason, and so not drawn on the phone; Sounds either plays through Android's own player or is hidden there |
-| N25 | Check for updates finds nothing on the phone: `installer_in` knows `.dmg`, `-setup.exe` and `.AppImage` alone (`dm-shell/src/app/update.rs:193-216`), and it reads the desktop's `latest.json`, where the phone's releases are `android-v*` tags (N14) | OPEN · M · after N14's first release | The phone's check reads the newest `android-v*` release and its signed APK, and hands the APK to Android's installer (which asks the person; dm never installs by itself). F-Droid builds have the check off, as F-Droid asks |
-| N26 | Show in folder and a category's Open folder always open the phone's Downloads app (`VIEW_DOWNLOADS`, `dm-android/src/android/java.rs:144-152`), not the file's folder; a torrent's files stay in dm's own folder, which that app does not show | OPEN · M · with N9 | The file's folder opened through the documents app at its `Download/dm/<category>` place where Android allows it; a torrent's files reachable once N9 publishes them when seeding stops |
-| N27 | Save part of a video as a GIF is compiled out on Android: no decoder (`dm-media/src/frames/other.rs`), `possible()` false | OPEN · M | Frames read through Android's own `MediaCodec` over JNI (a part of the system, not a third-party package), behind `frames/android.rs`; the GIF writer is dm's own and already shared |
-| N28 | Options › Advanced's "The computer's proxy settings" is not followed on the phone: reqwest reads only environment variables there, so a Wi-Fi network's proxy is ignored | OPEN · M | The proxy read from Android's `ConnectivityManager.getDefaultProxy()` (and its PAC address) through `PhoneServices`, and handed to the engine as the system's proxy is on the desktop |
-| N29 | "Follow the system's accent colour" does nothing on the phone: `accent::ask()` returns None on Android (`dm-desktop-base/src/platform/accent.rs:79`) | OPEN · S | The accent read from Android 12's dynamic colours (`android.R.color.system_accent1_500`) through JNI; None below Android 12, as now |
-| N30 | Delete file always deletes for good on the phone (`dm-android/src/phone.rs:245`, `NO_TRASH`), where the desktop moves it to the Trash | OPEN · S | On Android 11 and up, a file published to `Download/dm` is sent to the media store's trash (`MediaStore.createTrashRequest`, which asks the person); Android 10 and dm's own folder keep deleting, and the confirmation says so |
+| N24 | Lines the phone shows that do nothing there, or that belong to a desktop's way of working: View › Columns, Show categories, Show toolbar (the cards and the narrow bar read none of them, `menus/bar_menus.rs:222-236`); View › Drop target, which would open the floating window as a full screen (`platform/droptarget.rs:196`); Options › General › Sounds (no player on Android, `dm-desktop-base/src/platform/power.rs:190`: the notification's own sound is the phone's way); Options › Pop-ups' "open the progress window" and "Download complete" window, ignored on the phone (`list/adding.rs:353`, `list/complete.rs:56`); Help › Check for updates (it knows only `.dmg`, `-setup.exe` and `.AppImage`, `dm-shell/src/app/update.rs:193-216`: the store updates the phone's app); Options › Advanced's "The computer's proxy settings" (not followed on Android; a proxy typed in still works); Save part of a video as a GIF (no decoder on Android, `dm-media/src/frames/other.rs`); Delete file's "to the Trash" wording (`NO_TRASH`, `dm-android/src/phone.rs:245`: the confirmation says the file is deleted for good) | OPEN · S · with N20 | Each marked desktop-only in N20's list, with its reason, and so not drawn on the phone |
 | N31 | Not yet seen at a phone's size: each dialog opens as a full-screen window clear of the bars (`safe::edges`), but is still laid out at its desktop width (Scheduler, Grabber, Download details and the video's quality list, Properties, batch download, Statistics, Back up, the speed limiter, the progress window); nor whether a long press in a text field offers Cut, Copy and Paste (on the desktop, Edit's menu) | OPEN · M · a run first | Each dialog opened on the emulator at 360 wide and screenshotted beside `docs/android.md`'s checklist; one that is cut off or scrolls sideways gets a narrow layout of its own, and a text field's long press gets the menu if it lacks one |
 
 ## Periodic
