@@ -65,6 +65,13 @@ see the shell's PATH; the build looks for cargo in `~/.cargo/bin` itself. A rele
 From a terminal instead, with the wrapper in this folder (it fetches Gradle 8.14.3 and checks
 its SHA-256): `./gradlew installDebug` (`gradlew.bat` on Windows).
 
+### The least GPU
+
+dm's window needs Vulkan, or OpenGL ES 3.1 or later (GPUI's renderer uses storage buffers). A
+phone with only OpenGL ES 3.0 starts dm and downloads, but its window stays black. Android 10's
+emulator image is such a device: CI checks dm's start and a download there, and the window on
+Android 15's.
+
 ### The emulator on an Apple-silicon Mac
 
 GPUI's renderer needs storage buffers (OpenGL ES 3.1 or Vulkan). What the emulator offers on an

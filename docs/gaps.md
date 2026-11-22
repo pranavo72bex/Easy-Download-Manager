@@ -47,9 +47,10 @@ is plugged in.
    but draws nothing: the emulator's GPU there is OpenGL ES 3.0, and wgpu refuses GPUI's sprite
    pipeline (`PipelineLayout with 'poly_sprites_layout' label is invalid`, run 44980900326),
    GLES 3.0 having no storage buffers; the goldfish Vulkan driver is listed but not taken.
-   Next: see whether wgpu finds a Vulkan adapter there (`-feature Vulkan`, or the backend
-   choice in `gpui-pre-wgpu`'s `android-one-backend`); else state the least GPU (Vulkan, or
-   OpenGL ES 3.1) in docs/android.md and run CI's Android 10 job on an image that has it.
+   The emulator's own log says why: "Please update the emulator to one that supports the
+   feature(s): Vulkan" (Android 10's image has no guest Vulkan). So that job checks dm's start
+   and a shared download, and not the window (`DM_NO_GPU`); Android 15's checks all. Left: both
+   green on a push; docs/android.md states the least GPU (Vulkan, or OpenGL ES 3.1).
 3. (N17 closed 2026-11-22: `android.yml` runs clippy for the phone with `-D warnings`, that one
    lint allowed on Android alone; clean on the Mac.)
 4. N14: the Gradle wrapper's jar and scripts (done 2026-11-22: made by Gradle 8.14.3, the jar

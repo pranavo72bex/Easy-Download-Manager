@@ -79,7 +79,15 @@ adb exec-out screencap > "$out/screen.raw"
 # a blank window too. What is left must not be blank: at least 2 % of its pixels unlike the
 # commonest colour (the background) and at least 16 colours (4 bits a channel), as text and
 # its anti-aliasing give.
-python3 - "$out/screen.raw" <<'PY' || fail "dm's window is blank: one colour, or nearly (screen.png)"
+# DM_NO_GPU=1: the emulator offers no GPU dm's renderer can use (Android 10's image: no guest
+# Vulkan, and OpenGL ES 3.0 has no storage buffers), so the window is not looked at; dm's start
+# and the shared download below still are.
+blank="dm's window is blank: one colour, or nearly (screen.png)"
+if [ "${DM_NO_GPU:-0}" = 1 ]; then
+    blank="::notice::not drawn here, as expected: this emulator has no GPU dm can use"
+    echo "::notice::the window is not checked on this emulator (DM_NO_GPU)"
+fi
+python3 - "$out/screen.raw" <<'PY' || { [ "${DM_NO_GPU:-0}" = 1 ] && echo "$blank"; } || fail "$blank"
 import struct, sys
 from collections import Counter
 data = open(sys.argv[1], "rb").read()

@@ -121,8 +121,15 @@ jobs:
       fail-fast: false
       matrix:
         api: [29, 35]
+        include:
+          # Android 10's emulator image has no guest Vulkan, and its OpenGL ES 3.0 no storage
+          # buffers, which GPUI's renderer needs: its window is not looked at (a phone with
+          # Vulkan or OpenGL ES 3.1 draws it). Android 15's is.
+          - api: 29
+            no_gpu: 1
     env:
       IMAGE: system-images;android-${{ matrix.api }};google_apis;x86_64
+      DM_NO_GPU: ${{ matrix.no_gpu || 0 }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
