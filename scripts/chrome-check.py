@@ -507,6 +507,9 @@ PANEL_PAGES.update(PLACEMENT_PAGES)
 # (gaps row Y12): "Me at the zoo", as youtube-check.py plays. The one case here that goes to the
 # network, so it is run only with DM_CHROME_YOUTUBE=1 (`embed_checks`).
 EMBED_VIDEO = "jNQXAC9IVRw"
+# Whether the frame holds dm's panel, out of the f-string that reports it: a backslash inside
+# an f-string's braces is Python 3.12's alone, and Debian 12's 3.11 refused the whole file.
+HAS_PANEL = '!!document.querySelector("dm-panel")'
 EMBED_HOSTS = ("www.youtube-nocookie.com", "www.youtube.com")
 EMBED_PAGES = {
     f"/embed-{host.split('.')[1]}.html": (
@@ -1266,7 +1269,7 @@ def embedded(base, origin, host, path, offered, listed_name):
           f"no out-of-process frame of {host}/embed/{EMBED_VIDEO}" if not frame
           else (str(shown) if shown else
                 f"no panel over the player {rect}; in the frame: dm-panel "
-                f"{frame.evaluate('!!document.querySelector(\"dm-panel\")')}, its state {panel(frame)}, "
+                f"{frame.evaluate(HAS_PANEL)}, its state {panel(frame)}, "
                 f"its words {str(frame.evaluate('document.body && document.body.innerText'))[:160]!r}")
           if rect and rect["w"] > 0 else f"no player in the frame: {rect}")
     lines = []

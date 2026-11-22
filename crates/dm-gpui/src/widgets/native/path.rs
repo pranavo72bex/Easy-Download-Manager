@@ -8,7 +8,7 @@
 use gpui::{div, prelude::*, Entity, SharedString};
 use gpui_component::input::InputState;
 
-use super::{field, RADIUS, TEXT};
+use super::{field_drawn, RADIUS, TEXT};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
@@ -44,15 +44,20 @@ pub fn path_field(
     let shown = shown
         .filter(|(words, _)| !words.is_empty())
         .filter(|_| !crate::platform::ON_A_PHONE);
-    field(input, name, theme).when_some(shown, |d, (shown, colour)| {
+    // The field itself is not drawn under the path laid on it: Linux's renderer painted the
+    // field's own text (its hint, the whole path) over the box, and the two were read as one
+    // smudge. The box draws the field's frame in its place.
+    field_drawn(input, name, true, shown.is_none(), theme).when_some(shown, |d, (shown, colour)| {
         d.child(
             div()
                 .absolute()
-                .top(px(1.0))
-                .bottom(px(1.0))
-                .left(px(1.0))
-                .right(px(1.0))
+                .top_0()
+                .bottom_0()
+                .left_0()
+                .right_0()
                 .rounded(px(RADIUS))
+                .border_1()
+                .border_color(theme.separator)
                 .bg(theme.field)
                 .px(px(5.0))
                 .flex()

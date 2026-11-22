@@ -65,11 +65,17 @@ pub struct AfterBoot {
 }
 
 /// What the phone's start does, from whether the saved list has downloads dm goes on with,
-/// the alarm's kept time and the time now.
-pub fn after_boot(going: bool, next_start: Option<i64>, now: i64) -> AfterBoot {
+/// the alarm's kept time, the time now and whether dm already runs. Android 15 and later send
+/// the phone's start to an app opened again after it was force-stopped, though the phone did
+/// not restart (a Galaxy M15 on Android 16, 2026-11-22): dm, running, is already going on with
+/// its downloads and keeps its own schedule, so nothing is said; "dm has downloads to resume"
+/// stayed in the shade after they had finished.
+pub fn after_boot(going: bool, next_start: Option<i64>, now: i64, running: bool) -> AfterBoot {
     let alarm = next_start.filter(|at| *at > now);
     let due = next_start.is_some_and(|at| at <= now);
-    let tell = if going {
+    let tell = if running {
+        None
+    } else if going {
         Some(Tell::Resume)
     } else if due {
         Some(Tell::Due)
@@ -140,6 +146,18 @@ mod tests {
     }
 
     #[test]
+    fn a_start_sent_while_dm_runs_says_nothing() {
+        let later = Some(NOON + 60 * MINUTE);
+        let past = Some(NOON - MINUTE);
+        for kept in [later, past, None] {
+            for going in [true, false] {
+                assert_eq!(after_boot(going, kept, NOON, true).tell, None);
+            }
+        }
+        assert_eq!(after_boot(true, later, NOON, true).alarm, later);
+    }
+
+    #[test]
     fn the_kept_time_is_read_back() {
         assert_eq!(read_next_start(" 1800000000000\n"), Some(1_800_000_000_000));
         assert_eq!(read_next_start("soon"), None);
@@ -159,28 +177,28 @@ mod tests {
         let later = Some(NOON + 60 * MINUTE);
         let past = Some(NOON - MINUTE);
         assert_eq!(
-            after_boot(false, later, NOON),
+            after_boot(false, later, NOON, false),
             AfterBoot {
                 alarm: later,
                 tell: None
             }
         );
         assert_eq!(
-            after_boot(false, past, NOON),
+            after_boot(false, past, NOON, false),
             AfterBoot {
                 alarm: None,
                 tell: Some(Tell::Due)
             }
         );
         assert_eq!(
-            after_boot(true, later, NOON),
+            after_boot(true, later, NOON, false),
             AfterBoot {
                 alarm: later,
                 tell: Some(Tell::Resume)
             }
         );
         assert_eq!(
-            after_boot(false, None, NOON),
+            after_boot(false, None, NOON, false),
             AfterBoot {
                 alarm: None,
                 tell: None

@@ -2242,6 +2242,10 @@ def backing_up():
     try:
         dm.call("ui.window", to="shown")
         pause(0.6)
+        # Chosen before the dialog opens, as Restore's below: where the desktop has no file
+        # chooser (Debian in Docker), the dialog opened first offers a path to type instead,
+        # and the backup went to the download folder, not here.
+        dm.call("ui.choose", path=str(backup))
         dm.call("command.run", id="program.back_up")
         shown = opened("Back up dm")
         words = " ".join(dm.dialog_texts())
@@ -2250,7 +2254,6 @@ def backing_up():
         typed(passphrase)
         dm.call("ui.key", key="Tab")
         typed(passphrase)
-        dm.call("ui.choose", path=str(backup))
         dm.click("Back up")
         # The passphrase is stretched 600,000 rounds: seconds in a debug build.
         for _ in range(240):

@@ -26,6 +26,9 @@ const RUNNING: &str = "dm.running";
 /// The ongoing notification's number (the foreground service's too); the others count up from
 /// 100.
 pub(crate) const ONGOING_ID: i32 = 1;
+/// The phone's start's notification ("dm has downloads to resume", or the schedule's time went
+/// by): one number of its own, so dm's start takes it down (`receivers::dm_started`).
+pub(crate) const AFTER_BOOT_ID: i32 = 2;
 static NEXT_ID: AtomicI32 = AtomicI32::new(100);
 
 /// `NotificationManager.IMPORTANCE_LOW` and `IMPORTANCE_DEFAULT`.
@@ -112,7 +115,11 @@ pub(crate) fn ask_permissions() -> Result<(), String> {
 /// A message in the shade: `open` is a finished file a tap opens; without one a tap brings dm
 /// to the front.
 pub(crate) fn post(title: &str, body: &str, open: Option<&str>) -> Result<(), String> {
-    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    post_as(NEXT_ID.fetch_add(1, Ordering::Relaxed), title, body, open)
+}
+
+/// [`post`], as notification `id`: one posted again under the same number takes its place.
+pub(crate) fn post_as(id: i32, title: &str, body: &str, open: Option<&str>) -> Result<(), String> {
     jvm::with("show a notification", |env, context| {
         let tap = match open {
             Some(path) => open::view(env, context, path)?,

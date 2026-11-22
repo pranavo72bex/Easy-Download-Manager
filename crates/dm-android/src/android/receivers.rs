@@ -55,6 +55,11 @@ static STARTED: OnceLock<PathBuf> = OnceLock::new();
 /// Said by `android_main` once dm's folders are set: dm runs in this process, at `home`.
 pub(crate) fn dm_started(home: PathBuf) {
     let _ = STARTED.set(home);
+    // dm's start is what the phone's start's notification asked for: it goes on with the
+    // downloads itself. Android 15 and later send the phone's start to an app opened again
+    // after a force stop, just before its activity runs, so that notification was up beside a
+    // dm already resuming, and stayed after the downloads finished.
+    let _ = notify::cancel(notify::AFTER_BOOT_ID);
 }
 
 /// dm's home where dm runs in this process.
@@ -203,14 +208,18 @@ pub(crate) fn booted() -> Result<(), String> {
     let kept = std::fs::read_to_string(home.join(wakeup::NEXT_START))
         .ok()
         .and_then(|text| wakeup::read_next_start(&text));
-    let after = wakeup::after_boot(going, kept, now());
+    let after = wakeup::after_boot(going, kept, now(), started().is_some());
     if let Some(at) = after.alarm {
         set_alarm(at)?;
     }
     if let Some(tell) = after.tell {
         let _ = notify::channels();
         let (title, body) = tell.words();
-        notify::post(title, body, None)?;
+        notify::post_as(notify::AFTER_BOOT_ID, title, body, None)?;
+        // dm started while this was being said: it is already going on with them.
+        if started().is_some() {
+            let _ = notify::cancel(notify::AFTER_BOOT_ID);
+        }
     }
     Ok(())
 }

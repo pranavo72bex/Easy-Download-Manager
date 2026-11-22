@@ -247,6 +247,19 @@ pub fn field(input: &Entity<InputState>, name: &'static str, theme: Theme) -> Di
 /// A field that takes no typing while `on` is false, greyed as the
 /// system greys one.
 pub fn field_if(input: &Entity<InputState>, name: &'static str, on: bool, theme: Theme) -> Div {
+    field_drawn(input, name, on, true, theme)
+}
+
+/// `field_if`, with the field itself not drawn where `drawn` is false: it still takes the
+/// keyboard and the pointer, and something laid over it shows in its place. Linux's renderer
+/// painted the field's text over a box laid on it, so both were read at once (`path_field`).
+pub(super) fn field_drawn(
+    input: &Entity<InputState>,
+    name: &'static str,
+    on: bool,
+    drawn: bool,
+    theme: Theme,
+) -> Div {
     let field = Input::new(input)
         .aria_label(dm_desktop_base::i18n::t(name))
         .disabled(!on);
@@ -273,7 +286,8 @@ pub fn field_if(input: &Entity<InputState>, name: &'static str, on: bool, theme:
                 .py(px(0.0))
                 .rounded(px(RADIUS))
                 .bg(theme.field)
-                .border_color(theme.separator),
+                .border_color(theme.separator)
+                .when(!drawn, |f| f.opacity(0.0)),
         )
         // What the field holds is on screen as a person reads it, for the
         // control port (`ui.texts`); a password's is not.
