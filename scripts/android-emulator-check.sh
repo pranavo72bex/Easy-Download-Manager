@@ -119,6 +119,9 @@ python3 -m http.server "$port" --bind 127.0.0.1 --directory "$srv" > "$out/serve
 server=$!
 sleep 1
 adb shell am force-stop "$pkg"
+# An earlier run's probe is taken away first: left in place, dm saves this run's beside it as
+# "dm-ci-probe (1).bin" and the find below reads the old one (seen on a reused emulator).
+sh_adb "rm -f /sdcard/Download/dm/Other/dm-ci-probe*.bin" || true
 adb shell am start -W -a android.intent.action.SEND -t text/plain \
     --es android.intent.extra.TEXT "http://10.0.2.2:$port/$probe" -n "$pkg/$activity"
 
