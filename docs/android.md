@@ -61,8 +61,8 @@ it (cargo, cargo-ndk, a Rust target, the NDK). Android Studio started from the D
 see the shell's PATH; the build looks for cargo in `~/.cargo/bin` itself. A release build
 (Build › Select Build Variant › release) builds the Rust with `--release`.
 
-From a terminal instead (needs Gradle 8.14.3 or a wrapper made once with
-`gradle wrapper --gradle-version 8.14.3` in this folder): `gradle installDebug`.
+From a terminal instead, with the wrapper in this folder (it fetches Gradle 8.14.3 and checks
+its SHA-256): `./gradlew installDebug` (`gradlew.bat` on Windows).
 
 ### The emulator on an Apple-silicon Mac
 
@@ -134,17 +134,21 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
 - [ ] **Add URL downloads (N2, N3).** A download added in the window runs, segmented, and
       finishes; the file is in Files › Downloads › dm. Stop it halfway and Resume: it goes on
       from where it was.
-- [ ] **A shared link (N5).** Shared to dm while dm is closed: dm opens and the link is added
+- [x] **A shared link (N5).** Shared to dm while dm is closed: dm opens and the link is added
       as a link dropped on the window is. Shared while dm is open: it arrives at once
       (`DmActivity.onNewIntent`; "Checked by hand" below). Text with no link in it: nothing
       added.
-- [ ] **A copied link (N5).** Options › General, "Offer to download links I copy" on. In
+- [x] **A copied link (N5).** Options › General, "Offer to download links I copy" on. In
       Chrome, copy a link to a file, then switch to dm: the bar "Link on your clipboard:" with
       Download and Dismiss is above the list within a second (Android 12 and up also say that
       dm read the clipboard). Switch away and back without copying anything: the bar is as it
       was, not offered again; Dismiss, switch away and back: not offered. A link copied before
       dm was started is not offered (as on a desktop). With "Take a copied link at once":
       Download details opens instead.
+      Seen 2026-11-22 (Samsung SM-M156B, Android 16): a link copied in Chrome's address bar was
+      offered on coming back to dm; away and back kept the bar as it was; Dismiss, away and back
+      offered nothing. The bar showed the link as "…" at a phone's width: Download and Dismiss
+      now go under the link there (`clipwatch.rs`, a window test at 412 points).
 - [ ] **A magnet and a `.torrent` (N5, N8).** Each opens dm and adds the torrent; the magnet's
       name appears once its metadata comes; it downloads. Switch the emulator's network off and
       on (the status bar's Wi-Fi) mid-way: it carries on.
@@ -162,8 +166,13 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
       Options › Save to Browse…: a prompt offers dm's own folder (on API 26 with storage
       allowed, `Download/dm` first), saying "On a phone dm downloads only into these folders.";
       Cancel leaves the field as it was.
-- [ ] **Secrets (N11).** Save a site's login in dm, close dm, open it again: the login is
+- [x] **Secrets (N11).** Save a site's login in dm, close dm, open it again: the login is
       still there, and `files/dm/secrets/` holds `.sealed` files, not the login in clear.
+      Seen 2026-11-22 (Samsung SM-M156B, Android 16): a login for httpbin.org written in clear
+      into `settings.json` was moved at start into `secrets/…httpbin.org%0Admuser.sealed`
+      (52 bytes, the password not in it; keystore2 made `dm-secrets` in the TEE) and cleared from
+      the file; after a force-stop and a fresh start a share of
+      `https://httpbin.org/basic-auth/dmuser/dmpass123` downloaded `"authenticated": true`.
 - [ ] **Phone's rules (N10).** Options › Downloads has "Wi-Fi only", "Not while roaming" and
       "Pause when Data Saver is on" (on a phone alone). Wi-Fi only on, the emulator's Wi-Fi off
       (mobile data on): a running download waits, its row saying "the phone is not on Wi-Fi",
@@ -299,8 +308,8 @@ or waiting, or the schedule's time went by, a notification says "dm has download
 ## Building the APK
 
 You need Rust's Android targets, the Android SDK with platform 35 and build tools 35, the NDK,
-JDK 17, Gradle 8.14.3 (`gradle/wrapper/gradle-wrapper.properties`; the wrapper's scripts and
-jar are not in git, made once with `gradle wrapper --gradle-version 8.14.3`), and cargo-ndk.
+JDK 17, Gradle 8.14.3 (`./gradlew`, the wrapper made by Gradle 8.14.3 itself, its jar checked
+against the SHA-256 Gradle publishes, 2026-11-22), and cargo-ndk.
 Gradle builds the Rust itself (`app/build.gradle.kts`): `cargoNdkDebug` before `preDebugBuild`
 and `cargoNdkRelease` (with `--release`) before `preReleaseBuild` run `cargo ndk --platform 26
 -t <abi> -o app/build/rustJniLibs/<type> build -p dm-android --lib` from the repository's root, into a
@@ -430,7 +439,8 @@ submitted. What it needs, and where dm stands:
   Apache-2.0), all free. No Google Play Services, Firebase, analytics or AndroidX; the one
   Gradle plugin is the Android Gradle plugin, which F-Droid builds with. `cargo deny`
   (`deny.toml`) already holds every crate's licence to the allowed list. Prebuilt
-  binaries in the source are not allowed: `jniLibs/` is not in git, and dm carries none.
+  binaries in the source are not allowed: `jniLibs/` is not in git, and dm carries none but
+  Gradle's own `gradle-wrapper.jar`, which F-Droid's scanner accepts by its published checksum.
 - **A build recipe** (fdroiddata's `metadata/com.dm.android.yml`, written by whoever submits):
   the repository; the tag `android-v<version>` as the commit; `subdir:
   crates/dm-android/android`; `gradle: [yes]`; the NDK by version (`ndk:`, the one the
@@ -472,9 +482,11 @@ submitted. What it needs, and where dm stands:
   (`awake::watch_phone` telling `PhoneServices::busy`); the notification says the count and the
   speed in the status bar's words, changed at most once a second, and a tap brings dm to the
   front. The foreground service, Stop All and Retry are coded, not compiled or run.
-- **The schedule and the phone's start (N12).** Coded, not compiled or run. Neither starts dm
-  without its window: a notification asks for a tap. The exact-alarm permission is not asked
-  for with its reason yet (without it the alarm is inexact).
+- **The schedule and the phone's start (N12).** Neither starts dm without its window: a
+  notification asks for a tap. Where Android 12 and up allow dm only inexact alarms, dm asks
+  once, in a notification saying why, whose tap opens Android's Alarms & reminders page for dm.
+  Seen on a phone 2026-11-22: the ask, the alarm exact once allowed and going off on the minute.
+  A resume after the phone restarts is still to be seen.
 - **Where files land (N9).** On Android 10 and up dm downloads into its own folder on the
   shared storage (`Android/data/com.dm.android/files/Download/dm`) and puts each finished file
   in `Download/dm` through the media store (`src/storage.rs`, `src/android/storage.rs`); on 8

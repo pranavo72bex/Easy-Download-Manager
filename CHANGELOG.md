@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Android: where the phone lets dm set only an approximate alarm (Android 12 and later), dm asks once, in a notification saying why, for Alarms & reminders, so a scheduled start begins on the minute; the notification opens that setting for dm.
+- For contributors (Android): the Gradle wrapper (`./gradlew`, Gradle 8.14.3) is in the repository.
+- Fixed (Android): the "Link on your clipboard:" bar showed the link as "…" on a phone, its label and buttons taking the width. Download and Dismiss now go under the link where the window is narrow; a desktop's window keeps the bar on one line.
 - Fixed (Android): opening dm from its notification after it was swiped away, while its downloads went on, could leave a crash behind in the old process (4 in 10 times on a phone). dm opened, but Android counted dm as crashed. It now ends that process cleanly.
 - Fixed (Android): file names in Hindi, Bengali, Tamil, Thai, Khmer and other scripts drew as a row of boxes on Android 12 and later, which ship those fonts under new names. dm now finds each script's font under any of its names.
 - Extension: a silent Instagram, Facebook or Threads video (a reel with no sound at all) is offered in the panel and saved whole. Its player fetches only the picture, and the panel had offered such a site's picture only together with its sound, so it listed nothing and dm said to play the video first.
