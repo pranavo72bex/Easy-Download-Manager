@@ -94,14 +94,17 @@ N24, which it closes; then N31.
 storage picker (SAF, L); N16 moved to GPUI's own Android platform when Zed ships one (Periodic);
 Google Play (a fee: BLOCKED, as R1 and R4).
 
-**After the phone, the easiest to ship:**
-- The extension, `v3.5.0`: `firefox-check.py` once, then the tag (the Edge and Firefox stores'
-  secrets are set).
-- The desktop, `desktop-v0.11.0`. Signing is ignored at the maintainer's word: R1 stays set
-  aside, and the release job is made to draft without `DM_UPDATE_SIGNING_KEY` (F6) instead of
-  failing (an unsigned `latest.json`, which dm's own update check then refuses, so a person
-  updates by downloading). Then CI green, `linux-human-qa.sh` in Docker, `human-qa.py` on the
-  Windows laptop, the CHANGELOG tidied and the version raised.
+**Release 0.10.1 (the maintainer, 2026-11-22: "i want to release new one today"):** app
+0.10.1, extension 3.5.0 and the first Android app 0.10.1, each a draft on GitHub as before.
+Done on the Mac: versions raised, CHANGELOG headed; `cargo test --workspace`, clippy with
+`-D warnings` and dm-catcher's tests pass; `human-qa.py` 76 of 76 (the extension's checks in
+Edge, 82 of 82); `firefox-check.py` (3.5.0 accepted, no warnings); the extension's zips built.
+Fixed on the way: the desktop release drafts without `DM_UPDATE_SIGNING_KEY` (an unsigned
+`latest.json`, so dm's update check does not offer it; people download it), and the Arch
+package built from the gone `desktop/` folder. Not run for this release: `linux-human-qa.sh` in
+Docker and `human-qa.py` on the Windows laptop; the release APK on a phone (another key than
+the debug one installed there). After publishing: the package managers' manifests
+(`packaging/managers/`) to the new files' digests.
 - Then the work order below, from its step 1.
 
 ## Waiting for the maintainer
