@@ -79,7 +79,8 @@ has a row for each tag):
 
 src/android/jni.rs:
   android-look: the system bars' insets, told by dm's DmActivity, kept and
-  given to the window as its safe area before a resize lays it out.
+  given to the window as its safe area before a resize lays it out;
+  android-links: `open_url`, an ACTION_VIEW intent started from the activity.
 
 src/android/mod.rs:
   android-release-log: a release build logs warnings and errors alone.
@@ -88,7 +89,8 @@ src/android/platform.rs:
   android-look: each living script's font loaded under whichever name the
   phone ships it (`-Regular` or `-VF`), and the NotoSansSymbols fonts;
   android-flush: the dispatcher taken out of the state's lock before its
-  tasks run; android-look: the appearance from the phone's night mode.
+  tasks run; android-look: the appearance from the phone's night mode;
+  android-links: `open_url` through the activity, not only logged.
 
 src/android/window.rs:
   android-look: the phone's appearance from the first frame, and the safe
@@ -285,7 +287,7 @@ index 9a227a1..38b1062 100644
          // Truncate the u64 id to u32 — on Android the pointer-derived id
          // fits in 32 bits for the lower half, and DisplayId only stores u32.
 diff --git a/src/android/jni.rs b/src/android/jni.rs
-index 3ecfe2e..8fe0aaf 100644
+index 3ecfe2e..4129388 100644
 --- a/src/android/jni.rs
 +++ b/src/android/jni.rs
 @@ -87,6 +87,37 @@ static INIT_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
@@ -508,7 +510,7 @@ index 3ecfe2e..8fe0aaf 100644
  
  /// Show the UI-thread EditText proxy supplied by GpuiInputActivity.
  ///
-@@ -1360,6 +1287,27 @@ pub fn hide_keyboard_android() {
+@@ -1360,6 +1287,72 @@ pub fn hide_keyboard_android() {
      }
  }
  
@@ -533,10 +535,55 @@ index 3ecfe2e..8fe0aaf 100644
 +    }
 +}
 +
++/// dm(android-links): `url` opened by the app the phone has for it (a browser for a web page,
++/// the mail app for `mailto:`): `Intent(ACTION_VIEW, Uri.parse(url))` started from the
++/// activity. Where no app takes it, Android's exception is cleared and the refusal logged.
++pub(super) fn open_url(url: &str) {
++    let opened = with_env(|env| {
++        let activity = activity(env)?;
++        let started = (|| -> jni::errors::Result<()> {
++            let text = env.new_string(url)?;
++            let uri = env
++                .call_static_method(
++                    jni::jni_str!("android/net/Uri"),
++                    jni::jni_str!("parse"),
++                    jni::jni_sig!("(Ljava/lang/String;)Landroid/net/Uri;"),
++                    &[JValue::Object(&text)],
++                )?
++                .l()?;
++            let action = env.new_string("android.intent.action.VIEW")?;
++            let intent = env.new_object(
++                jni::jni_str!("android/content/Intent"),
++                jni::jni_sig!("(Ljava/lang/String;Landroid/net/Uri;)V"),
++                &[JValue::Object(&action), JValue::Object(&uri)],
++            )?;
++            // `Intent.FLAG_ACTIVITY_NEW_TASK`: the browser in a task of its own.
++            env.call_method(
++                &intent,
++                jni::jni_str!("addFlags"),
++                jni::jni_sig!("(I)Landroid/content/Intent;"),
++                &[JValue::Int(0x1000_0000)],
++            )?;
++            env.call_method(
++                &activity,
++                jni::jni_str!("startActivity"),
++                jni::jni_sig!("(Landroid/content/Intent;)V"),
++                &[JValue::Object(&intent)],
++            )?;
++            Ok(())
++        })();
++        env.exception_clear();
++        started.map_err(|e| e.to_string())
++    });
++    if let Err(why) = opened {
++        log::warn!("open_url({url}) failed: {why}");
++    }
++}
++
  pub(super) fn reset_keyboard_composition() {
      let session = super::text_input::new_session();
      let _ = with_env(|env| {
-@@ -1427,91 +1375,6 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
+@@ -1427,91 +1420,6 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
      }
  }
  
@@ -915,7 +962,7 @@ index 1811cc4..bbd8d9a 100644
          );
          log::info!("gpui-android logger initialised");
 diff --git a/src/android/platform.rs b/src/android/platform.rs
-index 0cdea3a..231a029 100644
+index 0cdea3a..f1a1b17 100644
 --- a/src/android/platform.rs
 +++ b/src/android/platform.rs
 @@ -200,6 +200,31 @@ pub struct AndroidPlatform {
@@ -1035,7 +1082,7 @@ index 0cdea3a..231a029 100644
      ) -> anyhow::Result<Box<dyn PlatformWindow>> {
          // On Android the native window is created by the system via
          // MainEvent::InitWindow, not by the application.  If a window
-@@ -1087,13 +1150,21 @@ impl Platform for AndroidPlatform {
+@@ -1087,19 +1150,26 @@ impl Platform for AndroidPlatform {
              .primary()
              .map(|d| Rc::new(d.clone()) as Rc<dyn PlatformDisplay>);
  
@@ -1059,8 +1106,16 @@ index 0cdea3a..231a029 100644
 +        }
      }
  
++    // dm(android-links): the address opened by the phone's app for it.
      fn open_url(&self, url: &str) {
-@@ -1343,6 +1414,13 @@ impl Platform for SharedPlatform {
+-        // A full implementation would call startActivity with an ACTION_VIEW
+-        // Intent via JNI.  For now, log the request.
+-        log::info!("AndroidPlatform::open_url({url}) — Intent launch not yet implemented");
++        super::jni::open_url(url);
+     }
+ 
+     fn on_open_urls(&self, callback: Box<dyn FnMut(Vec<String>)>) {
+@@ -1343,6 +1413,13 @@ impl Platform for SharedPlatform {
      fn gestures(&self) -> Option<Rc<dyn PlatformGestures>> {
          <AndroidPlatform as Platform>::gestures(&self.0)
      }

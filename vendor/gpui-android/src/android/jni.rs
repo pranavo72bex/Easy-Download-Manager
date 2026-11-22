@@ -1308,6 +1308,51 @@ pub(super) fn move_task_to_back() {
     }
 }
 
+/// dm(android-links): `url` opened by the app the phone has for it (a browser for a web page,
+/// the mail app for `mailto:`): `Intent(ACTION_VIEW, Uri.parse(url))` started from the
+/// activity. Where no app takes it, Android's exception is cleared and the refusal logged.
+pub(super) fn open_url(url: &str) {
+    let opened = with_env(|env| {
+        let activity = activity(env)?;
+        let started = (|| -> jni::errors::Result<()> {
+            let text = env.new_string(url)?;
+            let uri = env
+                .call_static_method(
+                    jni::jni_str!("android/net/Uri"),
+                    jni::jni_str!("parse"),
+                    jni::jni_sig!("(Ljava/lang/String;)Landroid/net/Uri;"),
+                    &[JValue::Object(&text)],
+                )?
+                .l()?;
+            let action = env.new_string("android.intent.action.VIEW")?;
+            let intent = env.new_object(
+                jni::jni_str!("android/content/Intent"),
+                jni::jni_sig!("(Ljava/lang/String;Landroid/net/Uri;)V"),
+                &[JValue::Object(&action), JValue::Object(&uri)],
+            )?;
+            // `Intent.FLAG_ACTIVITY_NEW_TASK`: the browser in a task of its own.
+            env.call_method(
+                &intent,
+                jni::jni_str!("addFlags"),
+                jni::jni_sig!("(I)Landroid/content/Intent;"),
+                &[JValue::Int(0x1000_0000)],
+            )?;
+            env.call_method(
+                &activity,
+                jni::jni_str!("startActivity"),
+                jni::jni_sig!("(Landroid/content/Intent;)V"),
+                &[JValue::Object(&intent)],
+            )?;
+            Ok(())
+        })();
+        env.exception_clear();
+        started.map_err(|e| e.to_string())
+    });
+    if let Err(why) = opened {
+        log::warn!("open_url({url}) failed: {why}");
+    }
+}
+
 pub(super) fn reset_keyboard_composition() {
     let session = super::text_input::new_session();
     let _ = with_env(|env| {

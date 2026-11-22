@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed (Android): Help, the Help menu's pages and About's links did nothing on a phone; they open in the phone's browser.
 - Android: dm now needs Android 10 or later (it took Android 8.0 before).
 - Fixed (Android): a list exported or a backup made on the phone was missing from the file picker's Downloads, so it could not be imported or restored from there; the phone's index is now told of each. What dm has just said ("Exported to …", "Imported 5 downloads.") shows under the title, where a phone has no status line.
 - Fixed (Android): a dialog's long explanation (Back up dm's, say) ran off the right edge of a phone's screen; it wraps.

@@ -1167,10 +1167,9 @@ impl Platform for AndroidPlatform {
         }
     }
 
+    // dm(android-links): the address opened by the phone's app for it.
     fn open_url(&self, url: &str) {
-        // A full implementation would call startActivity with an ACTION_VIEW
-        // Intent via JNI.  For now, log the request.
-        log::info!("AndroidPlatform::open_url({url}) — Intent launch not yet implemented");
+        super::jni::open_url(url);
     }
 
     fn on_open_urls(&self, callback: Box<dyn FnMut(Vec<String>)>) {
