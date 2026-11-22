@@ -62,7 +62,8 @@ pid=$(sh_adb pidof "$pkg" || true)
 echo "dm runs as process $pid"
 
 sh_adb dumpsys activity activities > "$out/activity.txt"
-grep -E 'Resumed' "$out/activity.txt" | grep -q "$pkg/$activity" \
+# dumpsys names it short (com.dm.android/.DmActivity) where the class is in the package.
+grep -E 'Resumed' "$out/activity.txt" | grep -qE "$pkg/($activity|\.${activity##*.})\b" \
     || fail "dm's activity is not the resumed one (activity.txt)"
 sh_adb dumpsys gfxinfo "$pkg" > "$out/gfxinfo.txt" || true
 sh_adb dumpsys SurfaceFlinger --list > "$out/surfaces.txt" || true

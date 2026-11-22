@@ -67,6 +67,11 @@ jobs:
       # Android 8.0 (API 26) and up, as decided in N1 (docs/decisions.md, 2026-11-20).
       - name: Check for the phone and the emulator
         run: cargo ndk --platform 26 -t arm64-v8a -t x86_64 check -p dm-android --locked
+      # Clippy for the phone, warnings as errors (row N17). One lint allowed on Android alone:
+      # `missing_const_for_thread_local` flags every `const { }` thread-local there, as std's
+      # Android thread-locals (no `target_thread_local`) wrap the initialiser in a plain fn.
+      - name: Clippy for the phone
+        run: cargo ndk --platform 26 -t arm64-v8a clippy -p dm-android --locked -- -D warnings -A clippy::missing_const_for_thread_local
       - name: dm-android's tests, on the runner
         run: cargo test -p dm-android --locked
       # The APK (row N14). First the library, for the emulator (x86_64), put where Gradle packs
@@ -129,6 +134,10 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          # The trigger is asynchronous: the node's mode changes only once udev has run.
+          sudo udevadm settle --timeout=30 || true
+          ls -l /dev/kvm || { echo "::error::this runner has no /dev/kvm"; grep -cE 'vmx|svm' /proc/cpuinfo || true; exit 1; }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
           test -w /dev/kvm
       - name: The emulator and Android ${{ matrix.api }}'s system image
         run: |
