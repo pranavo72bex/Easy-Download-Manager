@@ -2052,7 +2052,7 @@ dependencies = [
 
 [[package]]
 name = "dm-android"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "android-activity",
  "base64 0.22.1",
@@ -2069,7 +2069,7 @@ dependencies = [
 
 [[package]]
 name = "dm-assets"
-version = "0.10.1"
+version = "0.10.2"
 
 [[package]]
 name = "dm-catcher"
@@ -2090,7 +2090,7 @@ dependencies = [
 
 [[package]]
 name = "dm-core"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "aes 0.9.3",
  "axum",
@@ -2138,7 +2138,7 @@ dependencies = [
 
 [[package]]
 name = "dm-desktop-base"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "async-channel",
  "auto-launch",
@@ -2165,7 +2165,7 @@ dependencies = [
 
 [[package]]
 name = "dm-gpui"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "arboard",
  "async-channel",
@@ -2203,11 +2203,11 @@ dependencies = [
 
 [[package]]
 name = "dm-js"
-version = "0.10.1"
+version = "0.10.2"
 
 [[package]]
 name = "dm-media"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "aes 0.9.3",
  "cbc 0.2.1",
@@ -2225,7 +2225,7 @@ dependencies = [
 
 [[package]]
 name = "dm-net"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2256,7 +2256,7 @@ dependencies = [
 
 [[package]]
 name = "dm-protocol"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "dm-test-support",
  "proptest",
@@ -2267,7 +2267,7 @@ dependencies = [
 
 [[package]]
 name = "dm-safari"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "libc",
  "objc2 0.6.5",
@@ -2275,7 +2275,7 @@ dependencies = [
 
 [[package]]
 name = "dm-shell"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2299,11 +2299,11 @@ dependencies = [
 
 [[package]]
 name = "dm-test-support"
-version = "0.10.1"
+version = "0.10.2"
 
 [[package]]
 name = "dm-torrent"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "bytes",
  "librqbit",
@@ -10897,7 +10897,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "base64 0.22.1",
  "dm-test-support",

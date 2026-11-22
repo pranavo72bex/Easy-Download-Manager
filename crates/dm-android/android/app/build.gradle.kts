@@ -103,8 +103,8 @@ android {
         targetSdk = 35
         // Raised by one at each release (a tag android-v<versionName>): Android and F-Droid
         // take an update only with a higher one. A number, not computed, so F-Droid reads it.
-        versionCode = 1
-        versionName = "0.10.1"
+        versionCode = 2
+        versionName = "0.10.2"
         // The activity's `android.app.lib_name`: libdm_android.so without `lib` and `.so`.
         manifestPlaceholders["nativeLibraryName"] = "dm_android"
     }

@@ -1,6 +1,6 @@
 [package]
 name = "dm-assets"
-version = "0.10.1"
+version = "0.10.2"
 license = "GPL-3.0-or-later"
 edition = "2021"
 # Never published: what it compiles in is this repository's assets/.

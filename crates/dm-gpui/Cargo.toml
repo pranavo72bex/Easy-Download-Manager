@@ -1,6 +1,6 @@
 [package]
 name = "dm-gpui"
-version = "0.10.1"
+version = "0.10.2"
 authors = ["pranavo72bex"]
 license = "GPL-3.0-or-later"
 edition = "2021"

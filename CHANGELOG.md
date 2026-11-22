@@ -5,6 +5,15 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+## App 0.10.2, Android app 0.10.2
+
+Fixes found testing 0.10.1's release on a phone and on Linux. The extension is unchanged (3.5.0). The desktop's installers are not signed: dm's own update check does not offer this version, so download it from the release page.
+
+- Android: the app's version code is 2, so this release installs over 0.10.1 and keeps its downloads (0.10.1 had 1, as the builds before it).
+- Fixed (Android): after dm was force-stopped and opened again, Android 15 and later told dm the phone had restarted, and dm said "dm has downloads to resume" while it was already resuming them; the notification stayed after they had finished. dm now takes that notification down when it starts, and does not post it while it runs.
+- Fixed (Linux): Download details' "Save to folder" drew the folder's whole path and its shortened form on top of each other.
+- For contributors: the browser checks (`chrome-check.py`, and through it `youtube-check.py` and `every-type-check.py`) run on Python 3.11 again (Debian 12's); one line needed 3.12, so on Linux every browser row of `human-qa.py` was "not run". `human-qa.py`'s backup row (B72) chooses the file before Back up dm opens, as on a desktop with no file chooser; `android-emulator-check.sh` takes an earlier run's file away first.
+
 ## App 0.10.1, extension 3.5.0, Android app 0.10.1
 
 The first Android app (a draft APK on the release page, Android 10 and up). The desktop's installers are not signed: dm's own update check does not offer this version, so download it from the release page.
