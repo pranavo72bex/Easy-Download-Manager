@@ -176,6 +176,45 @@ fn the_clipboard_bar_keeps_its_buttons_in_the_window() {
     }
 }
 
+/// At a phone's width the link copied is shown, with Download and Dismiss on a line of their
+/// own under it (on one line it was cut to "…"); at a desktop's width all is on one line.
+#[test]
+fn at_a_phones_width_the_clipboard_bar_shows_the_link_with_its_buttons_under_it() {
+    let world = world();
+    *world.fake.clipboard.lock().unwrap() = Some("old".into());
+    let mut h = world.harness();
+    h.settings_to(|s| s.general.watch_clipboard = true);
+    let link = world.url("fresh.iso");
+    clip(&mut h, &link);
+    h.until_shown("Dismiss");
+    let shown = dm_desktop_base::format::shown_url(&link);
+    let one_line = |h: &mut Harness| {
+        let label = h.bounds_of("Link on your clipboard:");
+        let button = h.bounds_of("Dismiss");
+        (
+            button.origin.y < label.origin.y + label.size.height,
+            label,
+            button,
+        )
+    };
+    let (together, ..) = one_line(&mut h);
+    assert!(
+        together,
+        "a desktop's window put the buttons under the link"
+    );
+    h.resize(412.0, 915.0);
+    h.until("the phone's layout", |h| !one_line(h).0);
+    let (_, label, _) = one_line(&mut h);
+    let link_at = h.bounds_of(&shown);
+    assert!(
+        f32::from(link_at.size.width) >= 100.0,
+        "the link is {:?} wide: {:?}",
+        link_at.size.width,
+        h.texts()
+    );
+    assert!(link_at.origin.y < label.origin.y + label.size.height);
+}
+
 /// A video link copied at a moment (`&t=34`) offers that moment as the part's start in
 /// Download details; one click ticks the part and fills it.
 #[test]

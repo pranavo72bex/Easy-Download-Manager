@@ -124,6 +124,10 @@ impl Downloads {
         Some(
             div()
                 .flex()
+                // Where the link would get less than `LINK_AT_LEAST`, the buttons go under it
+                // (a phone's width: on one line the link was cut to "…"); a desktop's window
+                // keeps all on one line.
+                .flex_wrap()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
                 .px(px(space::L))
@@ -136,7 +140,7 @@ impl Downloads {
                 .child(
                     div()
                         .flex_1()
-                        .min_w_0()
+                        .min_w(px(LINK_AT_LEAST))
                         .overflow_hidden()
                         .whitespace_nowrap()
                         .text_ellipsis()
@@ -144,39 +148,57 @@ impl Downloads {
                         .when(!several, |d| d.child(screen.label(shown))),
                 )
                 .child(
-                    native::button("clipboard-download", download.into(), true, theme, screen)
-                        .on_click(cx.listener(move |view, _, _, cx| {
-                            let links = view.system.clipboard.offered_all.clone();
-                            view.system.clipboard.dismiss_all();
-                            if links.len() > 1 {
-                                // The list that holds them, each to tick.
-                                view.add_from_clipboard(cx);
-                            } else {
-                                crate::dialogs::details::open(
-                                    cx.entity().downgrade(),
-                                    vec![url.clone()],
-                                    cx,
-                                );
-                            }
-                            cx.notify();
-                        })),
-                )
-                .child(
-                    native::button(
-                        "clipboard-dismiss",
-                        t("Dismiss").into(),
-                        false,
-                        theme,
-                        screen,
-                    )
-                    .on_click(cx.listener(|view, _, _, cx| {
-                        view.system.clipboard.dismiss_all();
-                        cx.notify();
-                    })),
+                    div()
+                        .flex()
+                        .flex_none()
+                        .ml_auto()
+                        .gap(px(native::LABEL_GAP))
+                        .child(
+                            native::button(
+                                "clipboard-download",
+                                download.into(),
+                                true,
+                                theme,
+                                screen,
+                            )
+                            .on_click(cx.listener(
+                                move |view, _, _, cx| {
+                                    let links = view.system.clipboard.offered_all.clone();
+                                    view.system.clipboard.dismiss_all();
+                                    if links.len() > 1 {
+                                        // The list that holds them, each to tick.
+                                        view.add_from_clipboard(cx);
+                                    } else {
+                                        crate::dialogs::details::open(
+                                            cx.entity().downgrade(),
+                                            vec![url.clone()],
+                                            cx,
+                                        );
+                                    }
+                                    cx.notify();
+                                },
+                            )),
+                        )
+                        .child(
+                            native::button(
+                                "clipboard-dismiss",
+                                t("Dismiss").into(),
+                                false,
+                                theme,
+                                screen,
+                            )
+                            .on_click(cx.listener(|view, _, _, cx| {
+                                view.system.clipboard.dismiss_all();
+                                cx.notify();
+                            })),
+                        ),
                 ),
         )
     }
 }
+
+/// The least width the offered link is given before Download and Dismiss go under it.
+const LINK_AT_LEAST: f32 = 160.0;
 
 /// Whether the clipboard can be read now: always on a desktop; on a phone
 /// only while dm's window is in front.
