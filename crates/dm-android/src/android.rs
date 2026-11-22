@@ -61,7 +61,7 @@ fn android_main(app: AndroidApp) {
         Ok(home) => home,
         Err(why) => {
             dm_core::note!(error, "dm could not start: {why}");
-            std::process::exit(1);
+            engine::end_process(1);
         }
     };
     // The phone's storage, worked out once (gaps row N9): the first start's download folder,
@@ -85,7 +85,7 @@ fn android_main(app: AndroidApp) {
         if let Err(why) = engine::relaunch() {
             dm_core::note!(warn, "{why}");
         }
-        std::process::exit(0);
+        engine::end_process(0);
     }
     let platform = gpui_jni::init_platform(&app);
     watch(Arc::clone(platform), home.join("torrents"));
@@ -99,7 +99,7 @@ fn android_main(app: AndroidApp) {
         engine::start();
         return;
     }
-    std::process::exit(0);
+    engine::end_process(0);
 }
 
 /// dm's home, the app's own files folder's `dm`, made with the folder it stages files in

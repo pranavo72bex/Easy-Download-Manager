@@ -272,8 +272,13 @@ finished".
 
 Opened again while the headless dm runs, the new `android_main` stops it (all saved, as Exit
 saves it), starts dm's launch activity in a new task and ends the process: GPUI's platform is
-made once a process (gpui-android's `init_platform`, gaps row N19), so the window cannot be made
-twice in one, and Android starts the activity in a fresh process that resumes the queue.
+made once a process (gpui-android's `init_platform`), so the window cannot be made twice in one,
+and Android starts the activity in a fresh process that resumes the queue. The process ends with
+`_exit` (`engine::end_process`), never `std::process::exit`, whose C exit handlers free the Java
+runtime's statics under its running threads: that left a SIGSEGV in 4 of 10 reopens. Seen on a
+phone (Samsung SM-M156B, Android 16, 2026-11-22): dm swiped away while a 1 GB download ran, then
+its notification tapped, ten times running; dm opened each time, with no crash in the log, and
+the download went on to the end.
 
 ### The schedule and the phone's start
 
@@ -341,7 +346,7 @@ out unsigned (`app-release-unsigned.apk`).
 
 | Job | When | Its steps |
 |-----|------|-----------|
-| `android` | each push to main, each pull request touching `crates/` | cargo-ndk check for arm64-v8a and x86_64; dm-android's host tests; the x86_64 library with cargo-ndk; Android 35's platform and build tools from the runner's SDK; Gradle 8.14.3, checked against its SHA-256; `gradle assembleDebug -Pdm.skipCargo=true` (the library built above; the runner's NDK as `dm.ndkVersion`); the APK kept as the artifact `dm-android-x86_64-apk` |
+| `android` | each push to main, each pull request touching `crates/` | cargo-ndk check for arm64-v8a and x86_64; clippy for arm64-v8a with `-D warnings` (`missing_const_for_thread_local` allowed: on Android it flags every `const { }` thread-local); dm-android's host tests; the x86_64 library with cargo-ndk; Android 35's platform and build tools from the runner's SDK; Gradle 8.14.3, checked against its SHA-256; `gradle assembleDebug -Pdm.skipCargo=true` (the library built above; the runner's NDK as `dm.ndkVersion`); the APK kept as the artifact `dm-android-x86_64-apk` |
 | `emulator` | after `android`, for API 26 and API 35 | KVM opened to the runner's user; the emulator, platform-tools and Google's x86_64 system image through `sdkmanager`; an AVD at a phone's size (1080 x 2340, 420 dpi), booted without a window, the GPU in software (SwiftShader); `scripts/android-emulator-check.sh`; what it saw kept as `dm-android-emulator-api<N>` |
 | `release` | a tag `android-v<version>`, after both above pass | the three Rust targets; the tag checked against dm-android's `Cargo.toml` and Gradle's `versionName`; the library for arm64-v8a, armeabi-v7a and x86_64 (paths remapped); platform and build tools; Gradle; dm's key from the secrets, else a notice; `gradle assembleRelease -Pdm.skipCargo=true`; `apksigner verify --print-certs`; `dm-<version>.apk` (or `dm-<version>-unsigned.apk`) and its `.sha256` attached to a draft release, never marked latest |
 

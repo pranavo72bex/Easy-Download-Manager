@@ -74,6 +74,28 @@ src/stack.rs (new):
   1. android-stack: the stack of windows and Back's decision, plain logic
      with its tests.
 
+Later changes, among each file's hunks above, in file order (vendor/README.md
+has a row for each tag):
+
+src/android/jni.rs:
+  android-look: the system bars' insets, told by dm's DmActivity, kept and
+  given to the window as its safe area before a resize lays it out.
+
+src/android/mod.rs:
+  android-release-log: a release build logs warnings and errors alone.
+
+src/android/platform.rs:
+  android-look: each living script's font loaded under whichever name the
+  phone ships it (`-Regular` or `-VF`), and the NotoSansSymbols fonts;
+  android-flush: the dispatcher taken out of the state's lock before its
+  tasks run; android-look: the appearance from the phone's night mode.
+
+src/android/window.rs:
+  android-look: the phone's appearance from the first frame, and the safe
+  area from the content rect and the bars' insets, laid out again when it
+  changes; android-keys: a character key nothing took typed into the
+  focused field.
+
 diff --git a/Cargo.toml b/Cargo.toml
 index f99ddc3..2e755f3 100644
 --- a/Cargo.toml
@@ -263,10 +285,48 @@ index 9a227a1..38b1062 100644
          // Truncate the u64 id to u32 — on Android the pointer-derived id
          // fits in 32 bits for the lower half, and DisplayId only stores u32.
 diff --git a/src/android/jni.rs b/src/android/jni.rs
-index 3ecfe2e..b9d872d 100644
+index 3ecfe2e..8fe0aaf 100644
 --- a/src/android/jni.rs
 +++ b/src/android/jni.rs
-@@ -360,15 +360,7 @@ pub fn android_app() -> Option<AndroidApp> {
+@@ -87,6 +87,37 @@ static INIT_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
+ static WINDOW_RESIZED_PENDING: AtomicBool = AtomicBool::new(false);
+ static CONFIG_CHANGED_PENDING: AtomicBool = AtomicBool::new(false);
+ 
++/// dm(android-look): what the system bars and a cut-out cover on each side (top, bottom,
++/// left, right), in physical pixels, as the activity's view is told them
++/// (`OnApplyWindowInsetsListener`, `DmActivity`). NativeActivity's content rect covers the
++/// whole screen when the window is drawn edge to edge, so it tells no insets of its own.
++static SYSTEM_INSETS: [std::sync::atomic::AtomicI32; 4] = [
++    std::sync::atomic::AtomicI32::new(0),
++    std::sync::atomic::AtomicI32::new(0),
++    std::sync::atomic::AtomicI32::new(0),
++    std::sync::atomic::AtomicI32::new(0),
++];
++
++/// dm(android-look): the system bars' insets, from the activity's UI thread; the window's safe
++/// area takes them on the loop's next turn.
++pub fn set_system_insets(top: i32, bottom: i32, left: i32, right: i32) {
++    for (slot, value) in SYSTEM_INSETS.iter().zip([top, bottom, left, right]) {
++        slot.store(value.max(0), Ordering::Relaxed);
++    }
++    WINDOW_RESIZED_PENDING.store(true, Ordering::Relaxed);
++}
++
++/// dm(android-look): the system bars' insets last told, `(top, bottom, left, right)`.
++pub(crate) fn system_insets() -> (i32, i32, i32, i32) {
++    let [top, bottom, left, right] = &SYSTEM_INSETS;
++    (
++        top.load(Ordering::Relaxed),
++        bottom.load(Ordering::Relaxed),
++        left.load(Ordering::Relaxed),
++        right.load(Ordering::Relaxed),
++    )
++}
++
+ use android_activity::{AndroidApp, MainEvent, PollEvent};
+ 
+ use super::platform::{AndroidPlatform, SharedPlatform};
+@@ -360,15 +391,7 @@ pub fn android_app() -> Option<AndroidApp> {
      ANDROID_APP.get().cloned()
  }
  
@@ -283,7 +343,7 @@ index 3ecfe2e..b9d872d 100644
  
  /// Returns a reference to the global `AndroidPlatform`, if initialised.
  ///
-@@ -457,47 +449,8 @@ fn process_input_events(app: &AndroidApp) {
+@@ -457,47 +480,8 @@ fn process_input_events(app: &AndroidApp) {
                                  pointer_count,
                              );
  
@@ -333,7 +393,7 @@ index 3ecfe2e..b9d872d 100644
                              for i in 0..pointer_count {
                                  let pointer = motion_event.pointer_at_index(i);
  
-@@ -639,7 +592,7 @@ pub fn run_event_loop(app: &AndroidApp) {
+@@ -639,7 +623,7 @@ pub fn run_event_loop(app: &AndroidApp) {
          if let Some(platform) = PLATFORM.get() {
              if platform.should_quit() {
                  log::info!("run_event_loop: platform requested quit");
@@ -342,7 +402,20 @@ index 3ecfe2e..b9d872d 100644
                  break;
              }
              platform.tick();
-@@ -796,8 +749,6 @@ pub fn run_event_loop(app: &AndroidApp) {
+@@ -763,9 +747,11 @@ pub fn run_event_loop(app: &AndroidApp) {
+             log::debug!("deferred: WindowResized");
+             if let Some(platform) = PLATFORM.get() {
+                 if let Some(win) = platform.primary_window() {
+-                    win.handle_resize();
++                    // dm(android-look): the safe area first, so the resize lays the window out
++                    // with it.
+                     let cr = app.content_rect();
+                     win.update_safe_area_from_content_rect(cr.left, cr.top, cr.right, cr.bottom);
++                    win.handle_resize();
+                 }
+             }
+         }
+@@ -796,8 +782,6 @@ pub fn run_event_loop(app: &AndroidApp) {
                      win.set_active(false);
                  }
              }
@@ -351,7 +424,7 @@ index 3ecfe2e..b9d872d 100644
          }
  
          // 6. Resume / foreground
-@@ -809,8 +760,6 @@ pub fn run_event_loop(app: &AndroidApp) {
+@@ -809,8 +793,6 @@ pub fn run_event_loop(app: &AndroidApp) {
                      win.set_active(true);
                  }
              }
@@ -360,7 +433,7 @@ index 3ecfe2e..b9d872d 100644
          }
  
          // Track active/focused state.
-@@ -887,53 +836,8 @@ pub fn run_event_loop(app: &AndroidApp) {
+@@ -887,53 +869,8 @@ pub fn run_event_loop(app: &AndroidApp) {
      log::info!("run_event_loop: exiting main loop");
  }
  
@@ -416,7 +489,7 @@ index 3ecfe2e..b9d872d 100644
  
  /// Handle a single `MainEvent` from `android-activity`.
  fn handle_main_event(_app: &AndroidApp, event: MainEvent<'_>) {
-@@ -1291,17 +1195,7 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
+@@ -1291,17 +1228,7 @@ pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
  /// the IME back; see [`restore_keyboard`].
  static SHOWN_KEYBOARD: std::sync::Mutex<Option<crate::KeyboardType>> = std::sync::Mutex::new(None);
  
@@ -435,7 +508,7 @@ index 3ecfe2e..b9d872d 100644
  
  /// Show the UI-thread EditText proxy supplied by GpuiInputActivity.
  ///
-@@ -1360,6 +1254,27 @@ pub fn hide_keyboard_android() {
+@@ -1360,6 +1287,27 @@ pub fn hide_keyboard_android() {
      }
  }
  
@@ -463,7 +536,7 @@ index 3ecfe2e..b9d872d 100644
  pub(super) fn reset_keyboard_composition() {
      let session = super::text_input::new_session();
      let _ = with_env(|env| {
-@@ -1427,91 +1342,6 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
+@@ -1427,91 +1375,6 @@ pub unsafe extern "C" fn Java_dev_gpui_mobile_GpuiActivity_nativeIsInitialized(
      }
  }
  
@@ -806,7 +879,7 @@ index 0000000..2eb59e1
 +    }
 +}
 diff --git a/src/android/mod.rs b/src/android/mod.rs
-index 1811cc4..202245d 100644
+index 1811cc4..bbd8d9a 100644
 --- a/src/android/mod.rs
 +++ b/src/android/mod.rs
 @@ -153,11 +153,13 @@ pub mod dispatcher;
@@ -825,11 +898,116 @@ index 1811cc4..202245d 100644
  mod text_input;
  pub mod window;
  
+@@ -247,7 +249,14 @@ pub fn init_logger() {
+     INIT.get_or_init(|| {
+         android_logger::init_once(
+             android_logger::Config::default()
+-                .with_max_level(log::LevelFilter::Info)
++                // dm(android-release-log): a release build logs warnings and errors alone;
++                // its info lines (a heartbeat every five seconds, each frame's events) are for a
++                // debug build's Logcat.
++                .with_max_level(if cfg!(debug_assertions) {
++                    log::LevelFilter::Info
++                } else {
++                    log::LevelFilter::Warn
++                })
+                 .with_tag("gpui-android"),
+         );
+         log::info!("gpui-android logger initialised");
 diff --git a/src/android/platform.rs b/src/android/platform.rs
-index 0cdea3a..2441158 100644
+index 0cdea3a..231a029 100644
 --- a/src/android/platform.rs
 +++ b/src/android/platform.rs
-@@ -991,6 +991,18 @@ impl Platform for AndroidPlatform {
+@@ -200,6 +200,31 @@ pub struct AndroidPlatform {
+     should_quit: AtomicBool,
+ }
+ 
++/// dm(android-look): the living scripts whose fonts are loaded from /system/fonts, by the
++/// name before `-Regular` or `-VF` (`AndroidPlatform::new`).
++const SCRIPT_FONTS: &[&str] = &[
++    "NotoSansDevanagari",
++    "NotoSansBengali",
++    "NotoSansGurmukhi",
++    "NotoSansGujarati",
++    "NotoSansOriya",
++    "NotoSansTamil",
++    "NotoSansTelugu",
++    "NotoSansKannada",
++    "NotoSansMalayalam",
++    "NotoSansSinhala",
++    "NotoSansThai",
++    "NotoSansLao",
++    "NotoSansKhmer",
++    "NotoSansMyanmar",
++    "NotoNaskhArabic",
++    "NotoSansArabic",
++    "NotoSansHebrew",
++    "NotoSansArmenian",
++    "NotoSansGeorgian",
++    "NotoSansEthiopic",
++];
++
+ /// Check whether a TrueType/OpenType font file contains CBDT (Color Bitmap
+ /// Data Table) tables — the bitmap emoji format that swash can render.
+ ///
+@@ -303,10 +328,10 @@ impl AndroidPlatform {
+                 "/system/fonts/NotoSans-Italic.ttf",
+                 "/system/fonts/NotoSans-BoldItalic.ttf",
+                 "/system/fonts/NotoSansCJK-Regular.ttc",
+-                "/system/fonts/NotoSansDevanagari-Regular.otf",
+-                "/system/fonts/NotoSansArabic-Regular.ttf",
+-                "/system/fonts/NotoSansHebrew-Regular.ttf",
+-                "/system/fonts/NotoSansThai-Regular.ttf",
++                // dm(android-look): the symbols Roboto lacks (⋮ ✕ ✓ ▸ ▾ ⋯), which dm's
++                // window draws; without them each is a missing glyph's box.
++                "/system/fonts/NotoSansSymbols-Regular-Subsetted.ttf",
++                "/system/fonts/NotoSansSymbols-Regular-Subsetted2.ttf",
+                 // Emoji fonts — loaded so glyphs like 🦀 ✅ ❤️ render.
+                 // NOTE: On Android 13+ (API 33+) the system NotoColorEmoji.ttf
+                 // uses COLR v1 color outlines which swash cannot render.  We
+@@ -318,6 +343,26 @@ impl AndroidPlatform {
+                 "/system/fonts/NotoSerif-Bold.ttf",
+             ];
+             let mut font_data: Vec<std::borrow::Cow<'static, [u8]>> = Vec::new();
++            // dm(android-look): the scripts' own fonts, each under whichever name this
++            // Android ships it (Android 12 and up made most of them variable, `-VF.ttf`);
++            // a fixed `-Regular` name left a Devanagari file name as a row of boxes (gaps
++            // row N20, 2026-11-22). Only the living scripts, the first file found of each:
++            // all 160 of /system/fonts would hold some 70 MB.
++            let mut script_paths: Vec<String> = Vec::new();
++            for script in SCRIPT_FONTS {
++                let found = ["-Regular.ttf", "-Regular.otf", "-VF.ttf"]
++                    .iter()
++                    .map(|suffix| format!("/system/fonts/{script}{suffix}"))
++                    .find(|path| std::path::Path::new(path).exists());
++                match found {
++                    Some(path) => script_paths.push(path),
++                    None => log::debug!("no system font for {script}"),
++                }
++            }
++            let font_paths = font_paths
++                .iter()
++                .copied()
++                .chain(script_paths.iter().map(String::as_str));
+             for path in font_paths {
+                 match std::fs::read(path) {
+                     Ok(bytes) => {
+@@ -949,7 +994,13 @@ impl AndroidPlatform {
+     ///
+     /// Useful in headless tests where there is no real ALooper.
+     pub fn flush_main_thread_tasks(&self) {
+-        self.state.lock().dispatcher.flush_main_thread_tasks();
++        // dm(android-flush): the dispatcher taken out of the state's lock before its tasks run.
++        // A task that opens a window (a download's progress window, opened as a link shared
++        // from another app is added) asks the platform for its primary window, which takes
++        // the same lock: held across the tasks, the main thread waited on itself, the window
++        // stayed black and Android reported dm not responding.
++        let dispatcher = Arc::clone(&self.state.lock().dispatcher);
++        dispatcher.flush_main_thread_tasks();
+     }
+ }
+ 
+@@ -991,6 +1042,18 @@ impl Platform for AndroidPlatform {
          Some(Rc::new(AndroidGestures))
      }
  
@@ -848,7 +1026,7 @@ index 0cdea3a..2441158 100644
      fn background_executor(&self) -> BackgroundExecutor {
          let dispatcher: Arc<dyn gpui::PlatformDispatcher> = self.state.lock().dispatcher.clone();
          BackgroundExecutor::new(dispatcher)
-@@ -1067,7 +1079,7 @@ impl Platform for AndroidPlatform {
+@@ -1067,7 +1130,7 @@ impl Platform for AndroidPlatform {
      fn open_window(
          &self,
          _handle: AnyWindowHandle,
@@ -857,7 +1035,7 @@ index 0cdea3a..2441158 100644
      ) -> anyhow::Result<Box<dyn PlatformWindow>> {
          // On Android the native window is created by the system via
          // MainEvent::InitWindow, not by the application.  If a window
-@@ -1087,8 +1099,12 @@ impl Platform for AndroidPlatform {
+@@ -1087,13 +1150,21 @@ impl Platform for AndroidPlatform {
              .primary()
              .map(|d| Rc::new(d.clone()) as Rc<dyn PlatformDisplay>);
  
@@ -872,7 +1050,17 @@ index 0cdea3a..2441158 100644
          )))
      }
  
-@@ -1343,6 +1359,13 @@ impl Platform for SharedPlatform {
++    // dm(android-look): the phone's night mode, not always Dark.
+     fn window_appearance(&self) -> WindowAppearance {
+-        WindowAppearance::Dark
++        match super::window::system_appearance() {
++            super::window::WindowAppearance::Dark => WindowAppearance::Dark,
++            _ => WindowAppearance::Light,
++        }
+     }
+ 
+     fn open_url(&self, url: &str) {
+@@ -1343,6 +1414,13 @@ impl Platform for SharedPlatform {
      fn gestures(&self) -> Option<Rc<dyn PlatformGestures>> {
          <AndroidPlatform as Platform>::gestures(&self.0)
      }
@@ -887,24 +1075,86 @@ index 0cdea3a..2441158 100644
          <AndroidPlatform as Platform>::background_executor(&self.0)
      }
 diff --git a/src/android/window.rs b/src/android/window.rs
-index efd697a..9aecfdd 100644
+index efd697a..e8e35f1 100644
 --- a/src/android/window.rs
 +++ b/src/android/window.rs
-@@ -1013,6 +1013,13 @@ impl AndroidWindow {
-         state.safe_area_insets = insets;
-     }
+@@ -197,6 +197,15 @@ pub type ResizeCallback = Box<dyn FnMut(Size<DevicePixels>, f32) + Send + 'stati
+ /// Called when the window is destroyed (surface lost).
+ pub type CloseCallback = Box<dyn FnOnce() + Send + 'static>;
  
++/// dm(android-look): the phone's appearance now (its night mode).
++pub(crate) fn system_appearance() -> WindowAppearance {
++    if crate::android::jni::query_night_mode_via_jni() {
++        WindowAppearance::Dark
++    } else {
++        WindowAppearance::Light
++    }
++}
++
+ /// Called when the window appearance (light/dark) changes.
+ pub type AppearanceCallback = Box<dyn FnMut(WindowAppearance) + Send + 'static>;
+ 
+@@ -219,7 +228,7 @@ pub enum WindowAppearance {
+ /// These represent the areas of the screen occupied by system UI elements
+ /// (status bar, navigation bar, camera notch, etc.) that the app content
+ /// should avoid drawing into — or at least pad/account for.
+-#[derive(Debug, Clone, Copy, Default)]
++#[derive(Debug, Clone, Copy, Default, PartialEq)]
+ pub struct SafeAreaInsets {
+     /// Top inset in device pixels (status bar / camera notch).
+     pub top: f32,
+@@ -391,7 +400,9 @@ impl AndroidWindow {
+             height,
+             scale_factor,
+             safe_area_insets: SafeAreaInsets::default(),
+-            appearance: WindowAppearance::Light,
++            // dm(android-look): the phone's own appearance from the first frame, not Light
++            // until the next configuration change.
++            appearance: system_appearance(),
+             is_active: true,
+             transparent,
+             surface_window_addr,
+@@ -997,11 +1008,14 @@ impl AndroidWindow {
+         content_bottom: i32,
+     ) {
+         let mut state = self.state.lock();
++        // dm(android-look): the larger of the content rect's and the system bars' own
++        // (`jni::set_system_insets`): drawn edge to edge, the content rect is the whole screen.
++        let (top, bottom, left, right) = crate::android::jni::system_insets();
+         let insets = SafeAreaInsets {
+-            top: content_top as f32,
+-            bottom: (state.height - content_bottom).max(0) as f32,
+-            left: content_left as f32,
+-            right: (state.width - content_right).max(0) as f32,
++            top: content_top.max(top) as f32,
++            bottom: (state.height - content_bottom).max(bottom).max(0) as f32,
++            left: content_left.max(left) as f32,
++            right: (state.width - content_right).max(right).max(0) as f32,
+         };
+         log::info!(
+             "safe_area_insets updated: top={:.0} bottom={:.0} left={:.0} right={:.0} (physical px)",
+@@ -1010,7 +1024,20 @@ impl AndroidWindow {
+             insets.left,
+             insets.right,
+         );
++        let changed = state.safe_area_insets != insets;
+         state.safe_area_insets = insets;
++        drop(state);
++        // dm(android-look): laid out again with the new safe area, though the size is the same.
++        if changed {
++            self.repaint_in_full();
++        }
++    }
++
 +    /// dm(android-stack): the next frame drawn in full, as after a surface swap: a window
 +    /// uncovered on the stack (`layers.rs`) has another window's last frame on the surface.
 +    pub(crate) fn repaint_in_full(&self) {
 +        self.force_render_once
 +            .store(true, std::sync::atomic::Ordering::Release);
-+    }
-+
-     // ── state queries ─────────────────────────────────────────────────────────
+     }
  
-     /// Whether the window currently has an active wgpu surface.
-@@ -1032,7 +1039,8 @@ impl AndroidWindow {
+     // ── state queries ─────────────────────────────────────────────────────────
+@@ -1032,7 +1059,8 @@ impl AndroidWindow {
      /// Returns GPU specs from the renderer, if available.
      pub fn gpu_specs(&self) -> Option<GpuSpecs> {
          let state = self.state.lock();
@@ -914,7 +1164,7 @@ index efd697a..9aecfdd 100644
      }
  
      /// Whether the window is currently active / visible.
-@@ -1190,17 +1198,37 @@ pub struct AndroidPlatformWindow {
+@@ -1190,17 +1218,37 @@ pub struct AndroidPlatformWindow {
      ime_input_callback:
          Arc<Mutex<Box<dyn FnMut(gpui::PlatformInput) -> DispatchEventResult + Send>>>,
      title: String,
@@ -952,7 +1202,7 @@ index efd697a..9aecfdd 100644
          }
      }
  
-@@ -1210,6 +1238,14 @@ impl AndroidPlatformWindow {
+@@ -1210,6 +1258,14 @@ impl AndroidPlatformWindow {
      }
  }
  
@@ -967,7 +1217,7 @@ index efd697a..9aecfdd 100644
  impl HasWindowHandle for AndroidPlatformWindow {
      fn window_handle(
          &self,
-@@ -1257,7 +1293,8 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1257,7 +1313,8 @@ impl PlatformWindow for AndroidPlatformWindow {
      }
  
      fn visibility(&self) -> WindowVisibility {
@@ -977,7 +1227,7 @@ index efd697a..9aecfdd 100644
              WindowVisibility::Visible
          } else {
              WindowVisibility::Hidden
-@@ -1273,6 +1310,22 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1273,6 +1330,22 @@ impl PlatformWindow for AndroidPlatformWindow {
          self.bounds().size
      }
  
@@ -1000,7 +1250,7 @@ index efd697a..9aecfdd 100644
      fn resize(&mut self, _size: gpui::Size<gpui::Pixels>) {
          // Android windows are resized by the system, not the application.
          // No-op: the system controls window size.
-@@ -1342,12 +1395,14 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1342,12 +1415,14 @@ impl PlatformWindow for AndroidPlatformWindow {
      }
  
      fn activate(&self) {
@@ -1018,7 +1268,7 @@ index efd697a..9aecfdd 100644
      }
  
      fn is_hovered(&self) -> bool {
-@@ -1403,20 +1458,28 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1403,20 +1478,28 @@ impl PlatformWindow for AndroidPlatformWindow {
          let send_callback = Mutex::new(send_callback);
  
          let force_render_once = Arc::clone(&self.window.force_render_once);
@@ -1061,7 +1311,7 @@ index efd697a..9aecfdd 100644
      }
  
      fn on_input(&self, callback: Box<dyn FnMut(gpui::PlatformInput) -> DispatchEventResult>) {
-@@ -1459,99 +1522,108 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1459,99 +1542,134 @@ impl PlatformWindow for AndroidPlatformWindow {
              };
              let mut active_touches = HashMap::new();
              let mut fling_guard = crate::fling_guard::FlingGuard::new();
@@ -1152,6 +1402,7 @@ index efd697a..9aecfdd 100644
 -                use crate::android::keyboard::{
 -                    android_key_to_keystroke, AKEY_EVENT_ACTION_DOWN, AKEY_EVENT_ACTION_UP,
 -                };
++            let typed_into = Rc::clone(&self.input_handler);
 +            // dm(android-stack): the window's own layer, which keys reach while it is on top;
 +            // what GPUI made of the key is handed back, which Back reads.
 +            super::layers::set(
@@ -1243,14 +1494,39 @@ index efd697a..9aecfdd 100644
 -                let mut guard = cb.lock();
 -                let _ = guard(event);
 -            });
-+                    let mut guard = cb.lock();
-+                    guard(event)
++                    // dm(android-keys): a character key nothing took (no binding, no action),
++                    // typed into the field that has the keyboard, as GPUI's Linux and Windows
++                    // platforms type it. A hardware keyboard's keys (and `adb shell input`)
++                    // come here, not through the soft keyboard's InputConnection, and were
++                    // dropped.
++                    let typed = match &event {
++                        gpui::PlatformInput::KeyDown(down) => typed_char(&down.keystroke),
++                        _ => None,
++                    };
++                    let result = {
++                        let mut guard = cb.lock();
++                        guard(event)
++                    };
++                    if let Some(text) = typed {
++                        if result.propagate && !result.default_prevented {
++                            // No RefCell borrow spans the handler's update.
++                            let handler = typed_into.borrow_mut().take();
++                            if let Some(mut handler) = handler {
++                                handler.replace_text_in_range(None, &text);
++                                let mut slot = typed_into.borrow_mut();
++                                if slot.is_none() {
++                                    *slot = Some(handler);
++                                }
++                            }
++                        }
++                    }
++                    result
 +                }),
 +            );
          }
      }
  
-@@ -1562,24 +1634,32 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1562,24 +1680,32 @@ impl PlatformWindow for AndroidPlatformWindow {
          // On Android, this callback is always invoked on the main thread.
          let send_callback: Box<dyn FnMut(bool) + Send> = unsafe { std::mem::transmute(callback) };
          let send_callback = Mutex::new(send_callback);
@@ -1295,7 +1571,7 @@ index efd697a..9aecfdd 100644
      }
  
      fn on_hover_status_change(&self, callback: Box<dyn FnMut(bool)>) {
-@@ -1594,24 +1674,33 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1594,24 +1720,33 @@ impl PlatformWindow for AndroidPlatformWindow {
          let send_callback: Box<dyn FnMut(gpui::Size<gpui::Pixels>, f32) + Send> =
              unsafe { std::mem::transmute(callback) };
          let send_callback = Arc::new(Mutex::new(send_callback));
@@ -1341,7 +1617,7 @@ index efd697a..9aecfdd 100644
      }
  
      fn on_hit_test_window_control(&self, _callback: Box<dyn FnMut() -> Option<WindowControlArea>>) {
-@@ -1619,13 +1708,9 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1619,13 +1754,9 @@ impl PlatformWindow for AndroidPlatformWindow {
      }
  
      fn on_close(&self, callback: Box<dyn FnOnce()>) {
@@ -1358,7 +1634,7 @@ index efd697a..9aecfdd 100644
      }
  
      fn on_appearance_changed(&self, callback: Box<dyn FnMut()>) {
-@@ -1635,10 +1720,14 @@ impl PlatformWindow for AndroidPlatformWindow {
+@@ -1635,10 +1766,14 @@ impl PlatformWindow for AndroidPlatformWindow {
          // On Android, this callback is always invoked on the main thread.
          let send_callback: Box<dyn FnMut() + Send> = unsafe { std::mem::transmute(callback) };
          let send_callback = Mutex::new(send_callback);
@@ -1377,6 +1653,27 @@ index efd697a..9aecfdd 100644
      }
  
      fn frame_waker(&self) -> Option<Rc<dyn Fn()>> {
+@@ -1923,6 +2058,20 @@ impl WindowList {
+ 
+ // ── tests ─────────────────────────────────────────────────────────────────────
+ 
++/// dm(android-keys): the text a key types into a field: its character, where it has one that
++/// is not a control character and no Ctrl, Alt or Meta is held (those are shortcuts).
++fn typed_char(keystroke: &gpui::Keystroke) -> Option<String> {
++    let modifiers = &keystroke.modifiers;
++    if modifiers.control || modifiers.alt || modifiers.platform {
++        return None;
++    }
++    keystroke
++        .key_char
++        .as_ref()
++        .filter(|text| !text.is_empty() && !text.chars().any(char::is_control))
++        .cloned()
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
 diff --git a/src/lib.rs b/src/lib.rs
 index 635285f..7bcd730 100644
 --- a/src/lib.rs

@@ -200,6 +200,31 @@ pub struct AndroidPlatform {
     should_quit: AtomicBool,
 }
 
+/// dm(android-look): the living scripts whose fonts are loaded from /system/fonts, by the
+/// name before `-Regular` or `-VF` (`AndroidPlatform::new`).
+const SCRIPT_FONTS: &[&str] = &[
+    "NotoSansDevanagari",
+    "NotoSansBengali",
+    "NotoSansGurmukhi",
+    "NotoSansGujarati",
+    "NotoSansOriya",
+    "NotoSansTamil",
+    "NotoSansTelugu",
+    "NotoSansKannada",
+    "NotoSansMalayalam",
+    "NotoSansSinhala",
+    "NotoSansThai",
+    "NotoSansLao",
+    "NotoSansKhmer",
+    "NotoSansMyanmar",
+    "NotoNaskhArabic",
+    "NotoSansArabic",
+    "NotoSansHebrew",
+    "NotoSansArmenian",
+    "NotoSansGeorgian",
+    "NotoSansEthiopic",
+];
+
 /// Check whether a TrueType/OpenType font file contains CBDT (Color Bitmap
 /// Data Table) tables — the bitmap emoji format that swash can render.
 ///
@@ -303,10 +328,6 @@ impl AndroidPlatform {
                 "/system/fonts/NotoSans-Italic.ttf",
                 "/system/fonts/NotoSans-BoldItalic.ttf",
                 "/system/fonts/NotoSansCJK-Regular.ttc",
-                "/system/fonts/NotoSansDevanagari-Regular.otf",
-                "/system/fonts/NotoSansArabic-Regular.ttf",
-                "/system/fonts/NotoSansHebrew-Regular.ttf",
-                "/system/fonts/NotoSansThai-Regular.ttf",
                 // dm(android-look): the symbols Roboto lacks (⋮ ✕ ✓ ▸ ▾ ⋯), which dm's
                 // window draws; without them each is a missing glyph's box.
                 "/system/fonts/NotoSansSymbols-Regular-Subsetted.ttf",
@@ -322,6 +343,26 @@ impl AndroidPlatform {
                 "/system/fonts/NotoSerif-Bold.ttf",
             ];
             let mut font_data: Vec<std::borrow::Cow<'static, [u8]>> = Vec::new();
+            // dm(android-look): the scripts' own fonts, each under whichever name this
+            // Android ships it (Android 12 and up made most of them variable, `-VF.ttf`);
+            // a fixed `-Regular` name left a Devanagari file name as a row of boxes (gaps
+            // row N20, 2026-11-22). Only the living scripts, the first file found of each:
+            // all 160 of /system/fonts would hold some 70 MB.
+            let mut script_paths: Vec<String> = Vec::new();
+            for script in SCRIPT_FONTS {
+                let found = ["-Regular.ttf", "-Regular.otf", "-VF.ttf"]
+                    .iter()
+                    .map(|suffix| format!("/system/fonts/{script}{suffix}"))
+                    .find(|path| std::path::Path::new(path).exists());
+                match found {
+                    Some(path) => script_paths.push(path),
+                    None => log::debug!("no system font for {script}"),
+                }
+            }
+            let font_paths = font_paths
+                .iter()
+                .copied()
+                .chain(script_paths.iter().map(String::as_str));
             for path in font_paths {
                 match std::fs::read(path) {
                     Ok(bytes) => {

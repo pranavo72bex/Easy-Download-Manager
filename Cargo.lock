@@ -2063,6 +2063,7 @@ dependencies = [
  "gpui-android",
  "gpui-pre",
  "jni",
+ "libc",
  "tempfile",
 ]
 

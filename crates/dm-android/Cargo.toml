@@ -34,6 +34,8 @@ dm-shell.workspace = true
 gpui.workspace = true
 gpui-android.workspace = true
 jni.workspace = true
+# `_exit`, which ends the process without the C exit handlers (`engine::end_process`, N19).
+libc.workspace = true
 
 # The host's tests of the sealed secrets' files and of where a finished file goes (`sealed.rs`,
 # `storage.rs`) work in folders of their own.

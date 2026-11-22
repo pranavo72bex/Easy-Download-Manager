@@ -28,6 +28,17 @@ use jni::{jni_sig, jni_str, JValue};
 
 use super::jvm;
 
+/// Ends this process at once, as Android's own `Process.killProcess` would. Never
+/// `std::process::exit` here: that runs the C exit handlers, which free the Java runtime's
+/// statics while its own threads (the JIT's, SharedPreferences') still use them, and the
+/// process then dies of a SIGSEGV (seen in 2 of 4 reopens from the notification on a phone,
+/// 2026-11-22, gaps row N19). Everything dm keeps has been saved before this is called.
+pub(crate) fn end_process(code: i32) -> ! {
+    // SAFETY: `_exit` takes any status and does not return; it runs no handlers, so nothing
+    // of this process is used after it.
+    unsafe { libc::_exit(code) }
+}
+
 /// The headless dm's thread, while one runs in this process.
 static ENGINE: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
 
@@ -68,14 +79,14 @@ pub(crate) fn start() {
             // window's start ends the process itself, once this thread has ended.
             if !STOPPING.load(Ordering::SeqCst) {
                 dm_core::note!(info, "dm's downloads are done: its windowless run ends");
-                std::process::exit(0);
+                end_process(0);
             }
         });
     match spawned {
         Ok(thread) => *dm_core::lock(&ENGINE) = Some(thread),
         Err(e) => {
             dm_core::note!(warn, "dm could not go on with no window: {e}");
-            std::process::exit(0);
+            end_process(0);
         }
     }
 }

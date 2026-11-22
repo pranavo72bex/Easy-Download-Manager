@@ -3,6 +3,22 @@
 Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
+## 2026-11-22: The phone's process ends with `_exit`; clippy on Android allows one lint
+
+- dm-android ends its process with `libc::_exit` (`engine::end_process`), never
+  `std::process::exit`. The latter runs the C exit handlers, which tear down the Java runtime's
+  statics while its own threads (the JIT's, SharedPreferences') still run: on a phone 4 reopens in
+  10 from the notification left a SIGSEGV in the old process. Everything dm keeps is saved before
+  the call (the window's quit, or the windowless run's stop), so nothing is lost by skipping the
+  handlers; Android's own `Process.killProcess` is no gentler.
+- CI's clippy for the phone allows `missing_const_for_thread_local` (the recommended option in
+  N17, taken at the maintainer's standing word): on Android std's thread-locals wrap even a
+  `const { }` initialiser in a plain fn, so the lint flags every one, and no code change can
+  satisfy it short of giving up the const path on the desktops too.
+- gpui-android's script fonts are looked for under each of `-Regular.ttf`, `-Regular.otf` and
+  `-VF.ttf`, about twenty living scripts, not every file in /system/fonts (160 files, some 70 MB
+  held in memory).
+
 ## 2026-11-11: After a review: the top bar's drag areas, a window on its own display, one pass of tidying
 
 From a code review and a cleanup pass over the GPUI work of 2026-11-10:
