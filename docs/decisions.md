@@ -8657,7 +8657,7 @@ made. A desktop release therefore goes out with an unsigned `latest.json`, which
 update check refuses by design (F6), so a person updates by downloading the new version; the
 release job is to draft without the key rather than fail.
 
-## 2026-11-22: The phone and the desktop are one app (gaps rows N20 to N31)
+## 2026-11-22: The phone and the desktop are one app (gaps rows N20 to N24, N31)
 
 The maintainer, 2026-11-22: "if phone and desktop shares same code and same UI how can they miss
 features? they should be one", and before it: the phone is to have the downloading and every
@@ -8679,3 +8679,12 @@ other feature the desktop already has. No feature of the phone's own across devi
   tray, When done › Sleep, Hibernate and Shut down, wake from sleep, dial-up and the modem, the
   firewall question, the Mark of the Web, file associations (intent filters instead), and the
   taskbar's progress (the ongoing notification instead).
+- **Done the phone's way, not the desktop's** (the maintainer, 2026-11-22: "do we need all in
+  phone as phone uses by different mechanisim"; the recommendation taken): Check for updates
+  (the store updates the app: F-Droid), Show in folder going to the file's own folder (on a
+  phone a file is opened or shared; Downloads is opened, and a torrent's files are N9's), Save
+  part of a video as a GIF (rare on a phone, and Android's own decoder over JNI is real work),
+  the system's proxy (rare on a phone, and a VPN app covers the whole system; a proxy typed in
+  still works), the Trash (Delete with its confirmation, saying the file goes for good), Sounds (the notification's own sound), and following the system's accent colour (looks alone;
+  dm's own colours stay). Each is hidden on the phone (gaps row N24); none is to
+  be listed again without the maintainer's word.

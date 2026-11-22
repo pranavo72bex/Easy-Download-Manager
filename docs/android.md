@@ -5,10 +5,10 @@
 Open the Gradle project in Android Studio, press Run, and dm comes up on an emulator or a phone.
 Gradle builds dm's Rust library itself before it packs the APK, so there is nothing to build by
 hand first. First run on a Mac (Apple M1) on 2026-11-20: the APK builds, installs and starts,
-and dm picks a renderer; the window is not drawn on the emulator (below, "The emulator on an
-Apple-silicon Mac"). On a phone (Samsung SM-M156B, Android 16, Mali-G57 over Vulkan,
+and dm picks a renderer; the window is not drawn on the Mac's emulator (below, "The emulator on
+an Apple-silicon Mac"). On a phone (Samsung SM-M156B, Android 16, Mali-G57 over Vulkan,
 2026-11-21) the window draws and the checklist's downloads, notifications, Back and a magnet
-work; from a terminal: `gradle installDebug -Pdm.abis=arm64-v8a` with `JAVA_HOME` a JDK 17 and
+work; from a terminal: `./gradlew installDebug -Pdm.abis=arm64-v8a` with `JAVA_HOME` a JDK 17 and
 `ANDROID_HOME` the SDK.
 
 ### Install once
@@ -47,7 +47,7 @@ work; from a terminal: `gradle installDebug -Pdm.abis=arm64-v8a` with `JAVA_HOME
 3. Choose the device in the toolbar and press Run (the green triangle). Gradle runs
    `cargoNdkDebug` first, which runs, from the repository's root:
 
-   `cargo ndk --platform 26 -t arm64-v8a -o …/app/build/rustJniLibs/debug build -p dm-android --lib`
+   `cargo ndk --platform 29 -t arm64-v8a -o …/app/build/rustJniLibs/debug build -p dm-android --lib`
 
    The first build compiles all of dm and takes a long time (many minutes); later ones only
    what changed, and Gradle skips the step when no file under `crates`,
@@ -91,8 +91,8 @@ phone with USB debugging; an x86-64 computer's emulator, with its GPU's own Vulk
       --es android.intent.extra.TEXT https://example.com/file.zip
   ```
 
-  Android asks which app; pick dm. With dm already open the link does not reach it (gaps row
-  N5): close dm first (swipe it away in the recent apps), then share.
+  Android asks which app; pick dm. With dm already open the link reaches it at once
+  (`DmActivity.onNewIntent`).
 - **A magnet:** tap a magnet link on a web page, or
   `adb shell am start -a android.intent.action.VIEW -d 'magnet:?xt=urn:btih:<hash>'`.
 - **A `.torrent`:** download one with the emulator's Chrome, then open it from Files
@@ -165,9 +165,10 @@ Each line is a gaps row; what it says is owed is what this tries for the first t
       29, dm's own folder), the phone's index told so the picker shows it, and the top bar
       says where for twelve seconds (a phone has no status line). Seen 2026-11-22 on a phone:
       a list written before the index was told was missing from the picker's Downloads (found
-      under the phone's own storage); Import's "Imported 5 downloads." under the title. Back up dm and Restore the same way.
-      Options › Save to Browse…: a prompt offers dm's own folder, saying "On a phone dm downloads only into these folders.";
-      Cancel leaves the field as it was.
+      under the phone's own storage); Import's "Imported 5 downloads." under the title. Back
+      up dm and Restore the same way. Options › Save to Browse…: a prompt offers dm's own
+      folder, saying "On a phone dm downloads only into these folders."; Cancel leaves the
+      field as it was.
 - [x] **Secrets (N11).** Save a site's login in dm, close dm, open it again: the login is
       still there, and `files/dm/secrets/` holds `.sealed` files, not the login in clear.
       Seen 2026-11-22 (Samsung SM-M156B, Android 16): a login for httpbin.org written in clear
@@ -197,11 +198,11 @@ gpui-mobile's (below), packed by a minimal Gradle project; there is no Kotlin.
 
 | File | What it does |
 |------|--------------|
-| `src/android.rs` | `android_main`: dm's home (`files/dm`) and the phone's storage (`android/storage.rs`) first; the phone's services handed to `dm_desktop_base::phone::set_phone`; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, the Keystore's store for secrets, `dm_core::folders::set_phone_folders` with the download folder: dm's own folder on the shared storage on Android 10 and up, else `Download/dm` in shared storage where dm may write it, else the app's own folder on it); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed. dm said to run in this process (`receivers::dm_started`) once its folders are set, for a receiver's Retry or Stop All and a new intent |
+| `src/android.rs` | `android_main`: dm's home (`files/dm`) and the phone's storage (`android/storage.rs`) first; the phone's services handed to `dm_desktop_base::phone::set_phone`; dm's folders (`DM_HOME` = `files/dm`, `TMPDIR` = `files/dm/tmp`, the Keystore's store for secrets, `dm_core::folders::set_phone_folders` with the download folder: dm's own folder on the shared storage, else one in dm's home); then `dm_gpui::run_app(&[], …)` with GPUI's application on gpui-android's platform, until the activity is destroyed. dm said to run in this process (`receivers::dm_started`) once its folders are set, for a receiver's Retry or Stop All and a new intent |
 | `src/phone.rs` | `Phone`, dm's `PhoneServices` over the calls into Android (`Java`): a finished file indexed before its notification (a tap opens it), a failure's with Retry, the wake lock and the ongoing notification together while dm is busy (`busy`, its words at most once a second; the foreground service starts and stops with the notification), the schedule's alarm set when its time changes (`next_start`), open, reveal, the clipboard (readable only while dm is in front, `clipboard_readable`), a finished file published to `Download/dm` (`publish`), the folders dm downloads and saves into (`Places`: Browse…'s choices, Export's folder), the connection and battery for the phone's rules (`network`), the Trash refused. Tested on the host |
 | `src/wakeup.rs` | When the schedule's alarm goes off (a minute early, as the desktop's wake timer) and what the phone's start does (tested on the host) |
 | `src/shared.rs` | What a shared intent hands over (tested on the host) |
-| `src/storage.rs`, `src/android/storage.rs` | The phone's storage, worked out once at start (gaps row N9): the shared Download folder looked up once, the folders dm writes by path, each probed with a file (`phone::Places`: the default download folder, what Browse… offers, where Export writes), where downloads land (dm's own folder on Android 10 and up) and each finished file put in `Download/dm` through the media store, or by path on 8 and 9; the decisions tested on the host |
+| `src/storage.rs`, `src/android/storage.rs` | The phone's storage, worked out once at start (gaps row N9): the shared Download folder looked up once, the folders dm writes by path, each probed with a file (`phone::Places`: the default download folder, what Browse… offers, where Export writes), where downloads land (dm's own folder) and each finished file put in `Download/dm` through the media store; the decisions tested on the host |
 | `src/android/java.rs` | `Java` over JNI: notifications, the media index, opening a file (by its media index address, else `file://`), the system's Downloads, the clipboard and whether dm is in front (`in_front`, gpui-android's `is_active`), the ongoing notification (the foreground service's), the wake lock, the schedule's alarm, publishing a finished file (`storage`), the connection and battery (`network`) |
 | `src/android/network.rs` | The connection and the battery for the phone's rules (gaps row N10): `ConnectivityManager`'s active network (metered, roaming, Wi-Fi or a cable), Data Saver, the battery's sticky broadcast; what they mean decided in `dm_desktop_base::phone::network` |
 | `src/android/intent.rs` | The activity's intent, read once dm's window is up (a thread waiting for gpui-android's `is_active` the first time) and for each new one (`DmActivity.onNewIntent`), one read at a time: SEND text and VIEW magnet or web address go to `dm_desktop_base::phone::shared`, a `.torrent` is copied into `files/dm/torrents` and goes to `phone::shared_file`; the window adds both as it adds a dropped link |
@@ -313,7 +314,7 @@ You need Rust's Android targets, the Android SDK with platform 35 and build tool
 JDK 17, Gradle 8.14.3 (`./gradlew`, the wrapper made by Gradle 8.14.3 itself, its jar checked
 against the SHA-256 Gradle publishes, 2026-11-22), and cargo-ndk.
 Gradle builds the Rust itself (`app/build.gradle.kts`): `cargoNdkDebug` before `preDebugBuild`
-and `cargoNdkRelease` (with `--release`) before `preReleaseBuild` run `cargo ndk --platform 26
+and `cargoNdkRelease` (with `--release`) before `preReleaseBuild` run `cargo ndk --platform 29
 -t <abi> -o app/build/rustJniLibs/<type> build -p dm-android --lib` from the repository's root, into a
 folder per build type that the build type's source set packs (so `gradle assemble`, both
 types at once, never packs one type's library in the other's APK). Its Gradle properties:
@@ -339,7 +340,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 Or the library by hand, as CI builds it:
 
 ```sh
-cargo ndk --platform 26 -t arm64-v8a -t x86_64 \
+cargo ndk --platform 29 -t arm64-v8a -t x86_64 \
     -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release
 cd crates/dm-android/android
 gradle assembleDebug -Pdm.skipCargo=true
@@ -378,14 +379,14 @@ still running. dm is stopped before the share, so the share starts it (a share t
 is N5's `onNewIntent`, on the checklist below). The artifact holds `screen.png`, `logcat.txt`, `activity.txt`, `gfxinfo.txt`,
 `surfaces.txt`, `notifications.txt`, `server.log` and the emulator's log.
 
-### Checked by hand on a phone or the emulator (not yet run)
+### Checked by hand on a phone or the emulator
 
 The script does not reach these; each needs a run with its result written in gaps rows N5, N6
 and N12:
 
-- [ ] A link shared while dm is open (`am start -a android.intent.action.SEND -t text/plain
+- [x] A link shared while dm is open (`am start -a android.intent.action.SEND -t text/plain
   --es android.intent.extra.TEXT <url>` with dm in front) reaches the window's Add at once,
-  once; a `.torrent` the same way.
+  once (seen 2026-11-22 on a phone); a `.torrent` the same way, not yet.
 - [ ] A download started, then Home and the screen off for ten minutes: it goes on (`adb shell
   dumpsys activity services com.dm.android` shows `DmService` foreground, type dataSync); the
   ongoing notification is the service's; when nothing runs the service and the notification go.
@@ -396,8 +397,9 @@ and N12:
   through `onTimeout`, with no crash; dm downloads on while the process lives.
 - [ ] Android 12 and up from the background: a refused `startForegroundService` is logged in
   dm's words and the plain ongoing notification stays.
-- [ ] A queue start set in the Scheduler two minutes ahead: `adb shell dumpsys alarm` shows
-  dm's alarm (exact where allowed); with dm in the background the queue starts on time.
+- [x] A queue start set in the Scheduler two minutes ahead: `adb shell dumpsys alarm` shows
+  dm's alarm (exact where allowed); it went off on the minute (2026-11-22, a phone), and was
+  set again for the next day.
 - [ ] `adb reboot` with a download running: after the start, "dm has downloads to resume";
   its tap opens dm and the download goes on; a schedule set before the reboot is in `dumpsys
   alarm` again.
@@ -464,47 +466,35 @@ submitted. What it needs, and where dm stands:
 
 ## Still owed
 
-- **dm's window on a phone (N3, N16, N17, N7).** `android_main` runs dm-gpui's window; it has
-  been checked for `aarch64-linux-android` (with a stand-in C compiler for ring), not linked
-  with the NDK, packed or run. The narrow layout that makes the window a phone's is N7's.
-  dm-gpui's many windows are a stack on the phone's one surface (gpui-android's
-  `dm(android-stack)`): the newest drawn full screen, Back closing it or, on the list, sending
-  dm to the background. Coded 2026-11-20 and not compiled (the Mac builds it). Owed: each
-  window's view keeping its controls out of the status and navigation bars (`Window::insets`,
-  which the platform now fills); dm-gpui's windows do not read it yet.
-- **A link shared while dm is open (N5).** `DmActivity.onNewIntent` hands it to Rust; coded,
-  not compiled or run (the checklist above).
-- **The clipboard offer (N5).** The desktop's own watch (Options › General, "Offer to download
-  links I copy", `dm-gpui/src/platform/clipwatch.rs`), looked at only while dm's window is in
-  front (`PhoneServices::clipboard_readable`, gpui-android's `is_active`): Android 10 and up let
-  only the app in front read the clipboard, so a link copied in another app is offered as dm
-  comes to the front. Coded 2026-11-20, not compiled or run (the checklist above).
+- **dm's window on a phone (N3, N16, N17, N7).** Drawn on a phone since 2026-11-21 (Vulkan);
+  on CI's Android 10 emulator, whose GPU is OpenGL ES 3.0, nothing draws (gaps, Mobile first's
+  step 2). The narrow layout's rows wait for the maintainer's word (N7).
 - **Downloading in the background (N6).** The wake lock and the ongoing notification are in,
   held while a row runs, a queued one is due or a finished torrent is shared
   (`awake::watch_phone` telling `PhoneServices::busy`); the notification says the count and the
   speed in the status bar's words, changed at most once a second, and a tap brings dm to the
-  front. The foreground service, Stop All and Retry are coded, not compiled or run.
+  front. Seen on a phone 2026-11-21 and 2026-11-22: downloads going on in the background under the
+  notification, and dm reopened from it; Retry and Android 15's `onTimeout` are still to be seen.
 - **The schedule and the phone's start (N12).** Neither starts dm without its window: a
   notification asks for a tap. Where Android 12 and up allow dm only inexact alarms, dm asks
   once, in a notification saying why, whose tap opens Android's Alarms & reminders page for dm.
   Seen on a phone 2026-11-22: the ask, the alarm exact once allowed and going off on the minute.
   A resume after the phone restarts is still to be seen.
-- **Where files land (N9).** On Android 10 and up dm downloads into its own folder on the
-  shared storage (`Android/data/com.dm.android/files/Download/dm`) and puts each finished file
-  in `Download/dm` through the media store (`src/storage.rs`, `src/android/storage.rs`); on 8
-  and 9 it writes `Download/dm` by path once storage is granted (the first start, before it is,
-  downloads into dm's own folder, and a file finished there is moved across). A torrent's files
+- **Where files land (N9).** dm downloads into its own folder on the shared storage
+  (`Android/data/com.dm.android/files/Download/dm`) and puts each finished file in
+  `Download/dm` through the media store (`src/storage.rs`, `src/android/storage.rs`); Export and
+  Back up dm write `Download/dm` by path and tell the media index. A torrent's files
   stay in dm's folder, where its seeding reads them. A folder of the person's own through the
   system's storage picker is owed.
-- **The same as the desktop (N20 to N31, `docs/gaps.md`).** Found by reading the code on
-  2026-11-22: web pages (Help, About's links) and Open with… do nothing; Undo after Remove,
-  choosing several downloads and a place's menu cannot be reached by touch; View's columns, the
-  drop target and Sounds are shown and do nothing; no update check, no GIF from a video, no
-  system proxy, no accent colour, no trash; the dialogs not yet seen at a phone's width.
-- **Testing (N13, N14).** None of the Android code has been run yet: the emulator job and the
-  release job are written but have had no run. Also owed: dm's release key in the repository's
-  secrets (the maintainer's), the phone's contract rows (below, waiting for the maintainer's
-  word) and their QA script, an F-Droid submission.
+- **The same as the desktop, the phone's way (N20 to N24, N31, `docs/gaps.md`).** Found by
+  reading the code on 2026-11-22: web pages (Help, About's links) and Open with… do nothing;
+  Undo after Remove, choosing several downloads and a place's menu cannot be reached by touch;
+  lines with no meaning on a phone (View's columns, the drop target, Sounds, Check for updates,
+  the system's proxy, GIF, the Trash) are shown and are to be hidden; the dialogs not yet seen at
+  a phone's width.
+- **Testing (N13, N14).** CI's emulator job is green on API 35 and fails on API 29 (above); the
+  release job has had no run. Also owed: the phone's contract rows (below, waiting for the
+  maintainer's word) and their QA script, an F-Droid submission.
 
 ## Proposed contract rows for the phone, waiting for the maintainer's word
 
@@ -516,7 +506,7 @@ follows. A row that needs what is not built yet says so (N5, N6, N7, N17).
 
 | ID | A person does | What must happen | Reference A |
 |---|---|---|---|
-| P01 | Shares a link from another app (a browser's Share › dm) while dm is not open | dm opens and adds the download at once; it starts, its card shows its progress, and a notification "dm added a download" names it. The file lands in `Download/dm`, which the Files app shows (on Android 8 and 9 once storage is allowed; else in dm's own folder on the phone's storage). With N7's Add sheet, the sheet opens instead, as Download details does (B02) | no phone app; as B02 and B03 |
+| P01 | Shares a link from another app (a browser's Share › dm) while dm is not open | dm opens and adds the download at once; it starts, its card shows its progress, and a notification "dm added a download" names it. The file lands in `Download/dm`, which the Files app shows. With N7's Add sheet, the sheet opens instead, as Download details does (B02) | no phone app; as B02 and B03 |
 | P02 | Shares a link while dm is already open | The same as P01, in the open dm (`DmActivity.onNewIntent`, N5; coded, not run) | no phone app; as P01 |
 | P03 | Shares text with no link in it | Nothing is added; a notification "dm added nothing" (or "dm could not add it") says why | no phone app; as B01 |
 | P04 | Opens a magnet link (taps it in a browser, picks dm) | dm opens and adds the torrent; its name appears once its metadata arrives, and it downloads as the desktop's torrents do | no phone app; dm's own torrent rows |
