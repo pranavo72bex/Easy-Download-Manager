@@ -46,6 +46,11 @@ pub fn style_of(path: &str, text: &str) -> Option<Style> {
         return None;
     }
     let name = path.rsplit('/').next().unwrap_or(&path);
+    // Gradle's own wrapper script (Apache-2.0, made by `gradle wrapper`), kept as Gradle wrote
+    // it: F-Droid and Android Studio check the wrapper against Gradle's.
+    if name == "gradlew" {
+        return None;
+    }
     let extension = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
     match extension.as_deref() {
         Some("rs" | "js" | "mjs") => Some(Style::Slashes),
@@ -155,6 +160,18 @@ pub fn fix(root: &Path) -> Result<usize, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gradles_wrapper_script_is_gradles_and_takes_no_header() {
+        assert_eq!(
+            style_of("crates/dm-android/android/gradlew", "#!/bin/sh\n"),
+            None
+        );
+        assert_eq!(
+            style_of("scripts/pre-commit", "#!/bin/sh\n"),
+            Some(Style::Hash)
+        );
+    }
 
     #[test]
     fn a_rust_file_takes_it_above_its_module_documentation() {

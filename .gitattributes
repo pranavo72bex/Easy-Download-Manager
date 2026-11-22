@@ -11,3 +11,6 @@
 *.7z binary
 *.lzma binary
 *.lzma2 binary
+*.jar binary
+# cmd.exe misreads a batch file's labels with \n alone (the Gradle wrapper's gradlew.bat).
+*.bat text eol=crlf
