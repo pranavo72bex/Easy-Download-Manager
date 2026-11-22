@@ -9,6 +9,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 Fixes found testing 0.10.1's release on a phone and on Linux. The extension is unchanged (3.5.0). The desktop's installers are not signed: dm's own update check does not offer this version, so download it from the release page.
 
+- Security: an address nested in thousands of `blob:` prefixes, from a web page or a redirect, could crash dm (RUSTSEC-2026-0592, in the `url` library). dm uses `url` 2.5.9, which reads such an address without recursing. The certificate authorities dm trusts for HTTPS are `webpki-roots` 1.0.12's.
 - Android: the app's version code is 2, so this release installs over 0.10.1 and keeps its downloads (0.10.1 had 1, as the builds before it).
 - Fixed (Android): after dm was force-stopped and opened again, Android 15 and later told dm the phone had restarted, and dm said "dm has downloads to resume" while it was already resuming them; the notification stayed after they had finished. dm now takes that notification down when it starts, and does not post it while it runs.
 - Fixed (Linux): Download details' "Save to folder" drew the folder's whole path and its shortened form on top of each other.
