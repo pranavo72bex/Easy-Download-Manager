@@ -302,6 +302,7 @@ impl Downloads {
             },
             |view, (path, written), cx| match written {
                 Ok(()) => {
+                    dm_desktop_base::phone::wrote(&path);
                     view.say(tf("Exported to {}.", &[&path.display()]));
                     told(Ok(()), cx);
                 }

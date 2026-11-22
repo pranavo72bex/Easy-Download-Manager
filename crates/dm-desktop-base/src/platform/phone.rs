@@ -46,6 +46,12 @@ pub trait PhoneServices: Send + Sync {
         Err(NOT_YET.into())
     }
 
+    /// dm wrote the file at `path` (Export's list, Back up dm's file): the phone's own index is
+    /// told, so its file picker and Files app show it.
+    fn wrote(&self, path: &Path) {
+        let _ = path;
+    }
+
     /// The clipboard's text, if it holds any.
     fn clipboard(&self) -> Option<String> {
         None
@@ -108,11 +114,10 @@ pub trait PhoneServices: Send + Sync {
         Ok(None)
     }
 
-    /// The folders dm can download into by their path on this phone (gaps row N9): on Android
-    /// 10 and up dm's own folder alone (each finished file is then published to the shared
-    /// `Download/dm`, [`PhoneServices::publish`]); on 8 and 9 also the shared `Download/dm`,
-    /// first, where storage is allowed. A folder of the storage picker's is an address, not a
-    /// path. What Browse… offers on a phone.
+    /// The folders dm can download into by their path on this phone (gaps row N9): dm's own
+    /// folder alone (each finished file is then published to the shared `Download/dm`,
+    /// [`PhoneServices::publish`]). A folder of the storage picker's is an address, not a path.
+    /// What Browse… offers on a phone.
     fn download_folders(&self) -> Result<Vec<PathBuf>, String> {
         Err(NO_FOLDERS.into())
     }
@@ -268,6 +273,13 @@ pub fn open(path: &str) -> Result<(), String> {
 /// Offers `path` to the phone's other apps through its share sheet, or says it cannot.
 pub fn share(path: &str) -> Result<(), String> {
     phone().map_or_else(|| Err(NOT_YET.into()), |phone| phone.share(path))
+}
+
+/// Tells the phone dm wrote the file at `path`; nothing on a desktop.
+pub fn wrote(path: &Path) {
+    if let Some(phone) = phone() {
+        phone.wrote(path);
+    }
 }
 
 /// Shows `path`'s folder through the phone, or says it cannot.

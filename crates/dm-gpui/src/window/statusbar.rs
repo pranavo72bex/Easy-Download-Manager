@@ -26,6 +26,15 @@ pub(crate) const SAID_FOR: std::time::Duration = std::time::Duration::from_secs(
 /// The status bar's height, in points.
 pub const HEIGHT: f32 = 24.0;
 
+/// The sentence dm said a moment ago, while the status bar still shows it.
+pub fn fresh_said(view: &Downloads) -> Option<String> {
+    view.status
+        .said
+        .as_ref()
+        .filter(|(_, at)| at.elapsed() < SAID_FOR)
+        .map(|(said, _)| said.clone())
+}
+
 /// What the status bar says, part by part.
 pub fn parts(view: &Downloads) -> Vec<String> {
     let tally = dm_shell::app::rules::tally(&view.rows);

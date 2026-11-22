@@ -336,7 +336,15 @@ pub fn row(
                     // Under no label (a check box alone), at the start, as the form's words.
                     .when(label.is_some(), |d| d.justify_end())
                     .gap(px(LABEL_GAP))
-                    .child(control),
+                    // With no label it is the whole line's: a note's words wrap at the screen's
+                    // edge (Back up dm's ran off the screen on a phone, 2026-11-22).
+                    .map(|d| {
+                        if label.is_some() {
+                            d.child(control)
+                        } else {
+                            d.child(div().w_full().min_w_0().child(control))
+                        }
+                    }),
             );
     }
     div()

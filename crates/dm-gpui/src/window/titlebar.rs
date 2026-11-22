@@ -252,8 +252,13 @@ pub fn narrow_titlebar(
         // places are the bottom navigation's, and Add URL the button floating over the list.
         // On a phone, under the title, how the downloads go: the status bar's first words,
         // where a computer shows them along the window's foot.
+        // What dm has just said (Exported to …, Backed up dm to …) takes its place for as long
+        // as the status bar would show it: a phone has no status bar, and said nothing.
         let summary = crate::platform::ON_A_PHONE
-            .then(|| crate::window::statusbar::parts(view).into_iter().next())
+            .then(|| {
+                crate::window::statusbar::fresh_said(view)
+                    .or_else(|| crate::window::statusbar::parts(view).into_iter().next())
+            })
             .flatten();
         bar.child(
             drag_space()

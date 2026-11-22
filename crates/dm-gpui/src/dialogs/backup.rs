@@ -573,6 +573,7 @@ impl Downloads {
                 };
                 match outcome {
                     Ok(()) => {
+                        dm_desktop_base::phone::wrote(&path);
                         view.say(if sealed {
                             tf(
                                 "Backed up dm to {}, its sign-ins sealed with the passphrase.",
