@@ -136,6 +136,51 @@ pub(crate) fn post(title: &str, body: &str, open: Option<&str>) -> Result<(), St
     })
 }
 
+/// A message in the shade whose tap opens a page of Android's settings for dm: `action`
+/// (such as `android.settings.REQUEST_SCHEDULE_EXACT_ALARM`) with `package:<dm>` as its data.
+pub(crate) fn post_settings(title: &str, body: &str, action: &str) -> Result<(), String> {
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    jvm::with("show a notification", |env, context| {
+        let package = env
+            .call_method(
+                context,
+                jni_str!("getPackageName"),
+                jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )?
+            .l()?;
+        let package = jvm::string_of(env, package)?.unwrap_or_default();
+        let uri = env.new_string(format!("package:{package}"))?;
+        let uri = env
+            .call_static_method(
+                jni_str!("android/net/Uri"),
+                jni_str!("parse"),
+                jni_sig!("(Ljava/lang/String;)Landroid/net/Uri;"),
+                &[JValue::Object(&uri)],
+            )?
+            .l()?;
+        let tap = jvm::intent(env, action)?;
+        env.call_method(
+            &tap,
+            jni_str!("setData"),
+            jni_sig!("(Landroid/net/Uri;)Landroid/content/Intent;"),
+            &[JValue::Object(&uri)],
+        )?;
+        jvm::add_flags(env, &tap, jvm::FLAG_ACTIVITY_NEW_TASK)?;
+        let builder = builder(
+            env,
+            context,
+            DONE,
+            jni_str!("stat_sys_warning"),
+            title,
+            body,
+        )?;
+        tap_opens(env, context, &builder, &tap, id)?;
+        set_bool(env, &builder, jni_str!("setAutoCancel"), true)?;
+        show(env, context, &builder, id)
+    })
+}
+
 /// A failed download's message, with a Retry button that tries row `row` again as the
 /// window's Retry does (`receivers`); a tap brings dm to the front.
 pub(crate) fn post_failed(title: &str, body: &str, row: u64) -> Result<(), String> {

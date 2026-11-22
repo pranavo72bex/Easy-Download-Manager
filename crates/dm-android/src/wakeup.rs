@@ -100,9 +100,32 @@ pub const SCHEDULE_TITLE: &str = "dm's schedule is starting";
 /// Its second line.
 pub const SCHEDULE_BODY: &str = "Tap to see the downloads";
 
+/// The file in dm's home whose presence says dm has asked for exact alarms once (gaps row N12).
+pub const EXACT_ASKED: &str = "exact-alarm-asked";
+
+/// The notification that asks, once, for Android's "Alarms & reminders" (Android 12 and up),
+/// without which the schedule's alarm is inexact and Android may start it late; a tap opens
+/// that page of dm's settings.
+pub const EXACT_TITLE: &str = "dm's schedule may start late";
+/// Its second line: the reason.
+pub const EXACT_BODY: &str = "Tap to allow dm Alarms & reminders, so it starts on time";
+
+/// Whether to ask for exact alarms now: only where the alarm just set could not be exact and
+/// dm has not asked before (a person who said no is not asked again).
+pub fn asks_for_exact(exact: bool, asked_before: bool) -> bool {
+    !exact && !asked_before
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exact_alarms_are_asked_for_once_and_only_where_refused() {
+        assert!(asks_for_exact(false, false));
+        assert!(!asks_for_exact(false, true), "asked twice");
+        assert!(!asks_for_exact(true, false), "asked though allowed");
+    }
 
     const NOON: i64 = 1_800_000_000_000 - 1_800_000_000_000 % MINUTE;
 

@@ -123,6 +123,9 @@ jobs:
         api: [26, 35]
     env:
       IMAGE: system-images;android-${{ matrix.api }};google_apis;x86_64
+      # Where the emulated phone is kept, for avdmanager and the emulator alike: the runner's
+      # own setting put it outside ~/.android/avd, and the step that tunes it found no file.
+      ANDROID_AVD_HOME: ${{ runner.temp }}/avd
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -148,8 +151,9 @@ jobs:
       # software (SwiftShader: OpenGL ES 3, and Vulkan on the newer images).
       - name: An emulated phone, booted
         run: |
+          mkdir -p "$ANDROID_AVD_HOME"
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n dm -k "$IMAGE" --force
-          printf 'hw.ram=3072\nhw.lcd.density=420\nhw.lcd.width=1080\nhw.lcd.height=2340\n' >> "$HOME/.android/avd/dm.avd/config.ini"
+          printf 'hw.ram=3072\nhw.lcd.density=420\nhw.lcd.width=1080\nhw.lcd.height=2340\n' >> "$ANDROID_AVD_HOME/dm.avd/config.ini"
           nohup emulator -avd dm -no-window -no-audio -no-boot-anim -no-snapshot \
             -gpu swiftshader_indirect -camera-back none -camera-front none \
             > "$RUNNER_TEMP/emulator.log" 2>&1 &

@@ -230,9 +230,11 @@ pub(crate) fn arm(at: Option<i64>) -> Result<(), String> {
     let kept = home()?.join(wakeup::NEXT_START);
     match at {
         Some(at) => {
-            set_alarm(at)?;
+            let exact = set_alarm(at)?;
             std::fs::write(&kept, at.to_string())
-                .map_err(|e| format!("dm could not keep the schedule's time: {e}"))
+                .map_err(|e| format!("dm could not keep the schedule's time: {e}"))?;
+            ask_for_exact(exact);
+            Ok(())
         }
         None => {
             let _ = std::fs::remove_file(&kept);
@@ -241,10 +243,32 @@ pub(crate) fn arm(at: Option<i64>) -> Result<(), String> {
     }
 }
 
+/// Where the alarm could only be inexact, asks once, in a notification with its reason, for
+/// Android's "Alarms & reminders" (gaps row N12). Its refusal costs only the asking.
+fn ask_for_exact(exact: bool) {
+    let Ok(asked) = home().map(|home| home.join(wakeup::EXACT_ASKED)) else {
+        return;
+    };
+    if !wakeup::asks_for_exact(exact, asked.exists()) {
+        return;
+    }
+    let posted = notify::post_settings(
+        wakeup::EXACT_TITLE,
+        wakeup::EXACT_BODY,
+        "android.settings.REQUEST_SCHEDULE_EXACT_ALARM",
+    );
+    match posted {
+        Ok(()) => {
+            let _ = std::fs::write(&asked, b"");
+        }
+        Err(why) => dm_core::note!(warn, "dm could not ask for exact alarms: {why}"),
+    }
+}
+
 /// `AlarmManager.setExactAndAllowWhileIdle` for `at`, waking the phone; where Android 12 and up
 /// do not allow dm exact alarms (the permission not granted), the inexact
-/// `setAndAllowWhileIdle`, which Android may put off a little.
-fn set_alarm(at: i64) -> Result<(), String> {
+/// `setAndAllowWhileIdle`, which Android may put off a little. Says whether it was exact.
+fn set_alarm(at: i64) -> Result<bool, String> {
     jvm::with("set the schedule's alarm", |env, context| {
         let alarms = jvm::service(env, context, "alarm")?;
         let pending = broadcast(env, context, SCHEDULE, -1, ALARM_REQUEST)?;
@@ -272,7 +296,7 @@ fn set_alarm(at: i64) -> Result<(), String> {
                 JValue::Object(&pending),
             ],
         )?;
-        Ok(())
+        Ok(exact)
     })
 }
 
