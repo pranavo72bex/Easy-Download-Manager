@@ -625,15 +625,22 @@ jobs:
       # `latest.json.sig` (gaps row F6; dm-shell's app/update.rs). The private
       # key is the repository secret DM_UPDATE_SIGNING_KEY, made by
       # `cargo xtask update-key` (docs/RELEASING.md); the signer refuses a key
-      # that is not the one dm carries. Without it this step fails and nothing
-      # is drafted: an unsigned release is one every dm since F6 refuses.
+      # that is not the one dm carries. Without the secret the release is still
+      # drafted, unsigned, with a notice (the maintainer, 2026-11-21: desktop
+      # signing is set aside): dm's own update check refuses an unsigned
+      # manifest, so people update by downloading the new version.
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: 1.98.1 # as rust-toolchain.toml
       - name: Sign the update manifest
         env:
           DM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
-        run: cargo xtask sign-manifest installers/latest.json
+        run: |
+          if [ -z "$DM_UPDATE_SIGNING_KEY" ]; then
+            echo "::notice::no DM_UPDATE_SIGNING_KEY: latest.json goes out unsigned, and dm's update check will not offer this version"
+            exit 0
+          fi
+          cargo xtask sign-manifest installers/latest.json
 
       # What the release is built from and that its files are the ones published
       # (gaps row W21): `crates.txt`, every crate and version in the app and the
@@ -648,6 +655,13 @@ jobs:
           DM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
         run: |
           cargo xtask crates-list installers/crates.txt
+          if [ -z "$DM_UPDATE_SIGNING_KEY" ]; then
+            # Unsigned: the digests alone, which anyone checks with `sha256sum -c`.
+            (cd installers && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' \
+              | sort | xargs -d '\n' sha256sum > SHA256SUMS && sha256sum -c SHA256SUMS)
+            echo "::notice::SHA256SUMS goes out unsigned (no DM_UPDATE_SIGNING_KEY)"
+            exit 0
+          fi
           cargo xtask sign-release installers
           cargo xtask verify-release installers
 
