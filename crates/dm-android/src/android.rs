@@ -126,20 +126,22 @@ fn folders(home: &Path, downloads: PathBuf) {
     dm_core::folders::set_phone_folders(home.to_path_buf(), downloads);
 }
 
-/// Waits, on a thread of its own, for the activity's first coming to the front (dm's window is
-/// up): the permissions are asked for, and what the activity's intent hands over goes to dm's
-/// window (`intent`), so a link shared to dm as it starts appears in the window as a browser's
-/// does. A `.torrent` is copied into `torrents` first. A link shared later comes to the running
+/// On a thread of its own: what the activity's intent hands over goes to dm's window at once
+/// (`intent`; the window takes it from `drops` when it is up), so a link shared to dm as it
+/// starts appears in the window as a browser's does, whether or not the activity has the focus
+/// yet (it waited for the focus, and a start behind the lock screen never read its link, CI
+/// 2026-11-22). A `.torrent` is copied into `torrents` first. Then, once the activity first
+/// comes to the front, the permissions are asked for. A link shared later comes to the running
 /// activity as a new intent (`DmActivity.onNewIntent`, `natives`), so the thread then ends.
 fn watch(platform: Arc<AndroidPlatform>, torrents: PathBuf) {
     let watched = std::thread::Builder::new()
         .name("dm-intent".into())
         .spawn(move || {
+            intent::take(&torrents);
             while !platform.is_active() {
                 std::thread::sleep(LOOK);
             }
             let _ = notify::ask_permissions();
-            intent::take(&torrents);
         });
     if let Err(e) = watched {
         dm_core::note!(warn, "dm could not watch for shared links: {e}");
