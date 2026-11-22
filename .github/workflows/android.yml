@@ -267,7 +267,12 @@ jobs:
             exit 0
           fi
           umask 077
-          echo "$DM_ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/dm.keystore"
+          # Whitespace a pasted secret carries (line breaks, a CR, spaces) left out first: GNU
+          # base64 refused it as "invalid input" (android-v0.10.1's first run).
+          if ! printf '%s' "$DM_ANDROID_KEYSTORE" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/dm.keystore"; then
+            echo "::error::DM_ANDROID_KEYSTORE is not base64: set it again with base64 < dm-android-release.keystore | gh secret set DM_ANDROID_KEYSTORE"
+            exit 1
+          fi
           echo "DM_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/dm.keystore" >> "$GITHUB_ENV"
       - name: The release APK
         working-directory: crates/dm-android/android
