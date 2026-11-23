@@ -11,6 +11,55 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## Next session: release 0.10.3 (stopped 2026-11-22, the maintainer: "we will do it tomorrow")
+
+**2026-11-23.** Steps 1 and 2 done: nothing incoming; `cargo test --workspace` 137 of 137 suites
+(after `download_torrent` was split: xtask's 150-line limit); `human-qa.py` on the Mac 75 of 76,
+B25 failing on Add URL and Download details pictured one point wider (521 for 520), the content
+the same. The window was not touched; the 520/521 flip happened before (`dbf92b08`), and a
+second display (1080p) was attached this run. Re-run with it unplugged before pushing; if B25
+still fails, find why macOS widens a 520-point dialog. Committed in two (step 3), **not pushed**.
+
+**Where it is.** 0.10.1 and 0.10.2 were built as drafts and are not to be published; 0.10.3 is
+the release. Its changes (committed 2026-11-23):
+- Torrents (gaps rows N33 and N34 closed, see "Mobile first" below): librqbit's tracker client
+  checks HTTPS against webpki-roots (`vendor/librqbit`, `vendor/patches/librqbit.patch`
+  `dm(roots)`, `vendor/README.md`), which fixed magnets stuck at "Finding peers…" on Android;
+  public torrents also announce to `dm_torrent::PUBLIC_TRACKERS`; a session's DHT starts from
+  `dht-nodes.txt` in dm's home and `DHT_ROUTERS` and keeps its nodes there; a downloading
+  session listens, with UPnP on the public network (`crates/dm-torrent/src/lib.rs`,
+  `crates/dm-core/src/torrent.rs`, `paths.rs`, `dm-shell` `settings/engine.rs`).
+- Versions 0.10.3 everywhere, Android `versionCode` 3, CHANGELOG's 0.10.3 section.
+
+Checked so far: dm-torrent's 4 new tests, clippy on the workspace, `cargo audit`, `cargo
+deny`, fmt; `cargo test --workspace` reached 123 of 137 suites, all passing, when it was stopped;
+on the Mac a DHT-only magnet downloaded within 5 s and a second run started from 114 kept nodes;
+on the emulator (`dmci`) magnets with an https tracker, with dead trackers and with none found
+79 to 107 seeders at 6 to 9 MB/s within 5 to 15 s, `dht-nodes.txt` held 144 nodes, no crash.
+
+**Tomorrow, in order:**
+1. `git fetch` and rebase on `origin/main` (the Windows laptop pushes too); `df -h /` (the build
+   folder was cleared with `cargo clean` on 2026-11-22; a first build takes about 15 minutes).
+2. `cargo test --workspace`, whole, and `python3 scripts/human-qa.py` on the Mac (76 rows; it was
+   76 of 76 before the torrent change). Optionally `sh scripts/linux-human-qa.sh` (76 of 76 on
+   2026-11-22 before the torrent change).
+3. Commit in two: the torrent fixes (naming the maintainer's word for N34, "fix the gaps in this
+   release"), then "dm 0.10.3 and Android app 0.10.3 (versionCode 3)"; push; wait for CI, Desktop,
+   Android, Audit and the Linux contract; start QA (Docker) on main by hand (`gh workflow run
+   qa.yml --ref main`), as it runs only on pull requests.
+4. Tag `desktop-v0.10.3` and `android-v0.10.3` on that commit and push the tags. If Windows'
+   `toasts_give_their_handles_back` fails by one handle again (see "Watch" below), re-run the
+   failed job.
+5. Check the drafts: every file against `SHA256SUMS` and `latest.json`; the APKs' `.sha256`,
+   `apksigner` certificate `f8ad2417…` (the release key), `versionCode` 3; `smoke.py` on the
+   arm64 dmg's app; on the emulator, 0.10.3 installed over 0.10.2 keeps its list.
+6. The phone (Galaxy M15, Android 16): it has a debug build, so uninstall it and install the
+   release APK; the maintainer tries the torrent that was stuck; a shared link, a force stop and
+   resume, the screen off.
+7. Publish `desktop-v0.10.3`, `android-v0.10.3` and the extension's `v3.5.0` (unchanged). Ask the
+   maintainer whether to delete the unpublished drafts `desktop-v0.10.1`, `android-v0.10.1` and
+   `android-v0.10.2` (and their tags).
+
 ## Where it stands (2026-11-21)
 
 `main` is pushed and every crate builds from the repository's root. The test pass (step 8 of

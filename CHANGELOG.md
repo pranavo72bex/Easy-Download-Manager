@@ -5,12 +5,17 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+## App 0.10.3, Android app 0.10.3
+
+Torrents on the phone. The extension is unchanged (3.5.0). 0.10.2 was built but not published; everything in it is in this release.
+
 - Fixed (Android): a torrent or magnet that named an `https://` tracker stayed at "Finding peers…" for ever, however many seeders it had: the tracker's secure connection could not be checked on a phone, and its failure stopped the torrent's other trackers and the DHT from finding peers too. Its connection is now checked as dm's other downloads' are. A magnet of a large public torrent found 86 seeders and downloaded at 8 MB/s within 15 seconds on an emulator, where it had found none in ten minutes.
 - Torrents start faster, on the phone and the computer: each public torrent is also announced to six long-running public trackers, as phone torrent apps do, so a magnet whose own trackers have died (an old film's) finds peers in seconds rather than waiting on the DHT. Never for a private torrent, nor behind a proxy or with the trackers kept to.
 - Torrents find peers sooner: a session starts its DHT search from the nodes the last one knew (kept in `dht-nodes.txt` in dm's home, at most 200, IP addresses alone) and from five routers where it had two, so a magnet with no live tracker finds peers in seconds (a DHT-only magnet: 5 to 6 seconds on the Mac and on an emulator).
 - A torrent being downloaded now takes connections from peers, as phone torrent apps do, and asks the home router to forward its port (UPnP) on the public network; before, only the peers dm reached itself were used. Not behind a proxy, which would show the real address. On Windows and macOS the first torrent may bring up the firewall's question about dm.
+- Android: the app's version code is 3.
 
-## App 0.10.2, Android app 0.10.2
+## App 0.10.2, Android app 0.10.2 (not published)
 
 Fixes found testing 0.10.1's release on a phone and on Linux. The extension is unchanged (3.5.0). The desktop's installers are not signed: dm's own update check does not offer this version, so download it from the release page.
 

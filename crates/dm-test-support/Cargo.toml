@@ -1,6 +1,6 @@
 [package]
 name = "dm-test-support"
-version = "0.10.2"
+version = "0.10.3"
 license = "GPL-3.0-or-later"
 edition = "2021"
 # Never published, never shipped: only ever a dev-dependency (gaps row X10).
