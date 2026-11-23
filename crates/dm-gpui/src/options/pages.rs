@@ -63,6 +63,15 @@ const ON_CLOSE: [&str; 3] = ["ask", "tray", "exit"];
 const DUPLICATE: [&str; 4] = ["", "show", "again", "replace"];
 /// What the same file as one already here does (gaps row W18), by the setting's word.
 const SAME_FILE: [&str; 3] = ["", "show", "again"];
+/// The proxy kinds offered: on a phone not the computer's settings, which Android's
+/// downloads do not follow there (gaps row N24); a proxy typed in still works.
+fn proxy_kinds() -> Vec<dm_core::ProxyKind> {
+    PROXY_KINDS
+        .into_iter()
+        .filter(|k| !(crate::platform::ON_A_PHONE && *k == dm_core::ProxyKind::System))
+        .collect()
+}
+
 /// The keys a click on a link can be held with ("" for none).
 const TAKE_KEYS: [&str; 4] = ["", "alt", "shift", "ctrl"];
 /// A proxy's kinds, in the pop-up's order.
@@ -472,7 +481,7 @@ pub(crate) fn pick(o: &mut Options, pick: &Pick) {
             }
         }
         "proxy-kind" => {
-            if let Some(kind) = PROXY_KINDS.get(i) {
+            if let Some(kind) = proxy_kinds().get(i) {
                 let p = &mut s.advanced.proxy;
                 p.port = options::port_for_kind(p.kind, *kind, p.port);
                 p.kind = *kind;

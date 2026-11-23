@@ -16,7 +16,10 @@ use crate::Error;
 /// is made from the video's AV1 stream, which only YouTube's pages are read
 /// for by dm itself; a stream caught elsewhere is H.264.
 pub fn possible_for(url: &str) -> bool {
-    possible() && (!cfg!(target_os = "linux") || crate::youtube::video_id(url).is_some())
+    // Not on Android, which has no decoder dm can read a video's pictures with (gaps row N24).
+    !cfg!(target_os = "android")
+        && possible()
+        && (!cfg!(target_os = "linux") || crate::youtube::video_id(url).is_some())
 }
 
 /// The part of a video at `mp4` (an H.264 MP4) saved as a GIF at `target`

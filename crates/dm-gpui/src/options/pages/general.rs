@@ -279,15 +279,18 @@ fn starting_rest(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
             "Lets an AI assistant you run on this computer add and manage downloads.",
         ));
     }
-    check(
-        p,
-        cx,
-        "check-updates",
-        t("Check for updates once a week"),
-        s.general.check_updates,
-        true,
-        |s| s.general.check_updates = !s.general.check_updates,
-    );
+    // Not on a phone, whose app its store or its APK updates (gaps row N24).
+    if !crate::platform::ON_A_PHONE {
+        check(
+            p,
+            cx,
+            "check-updates",
+            t("Check for updates once a week"),
+            s.general.check_updates,
+            true,
+            |s| s.general.check_updates = !s.general.check_updates,
+        );
+    }
 }
 
 /// Sounds: when one plays, and a file of one's own for each event.
@@ -401,10 +404,8 @@ fn backdrop(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     }
 }
 
-/// Pop-ups: progress, a finished download, copied links, and the questions
-/// before a download starts.
-fn pop_ups(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
-    p.section(t("Pop-ups"));
+/// The windows a download may open on a computer: its progress as it starts, and Download complete.
+fn pop_up_windows(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     check(
         p,
         cx,
@@ -426,6 +427,17 @@ fn pop_ups(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         true,
         |s| s.general.show_complete = !s.general.show_complete,
     );
+}
+
+/// Pop-ups: progress, a finished download, copied links, and the questions
+/// before a download starts.
+fn pop_ups(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
+    p.section(t("Pop-ups"));
+    // A phone shows a download's progress in its notification, and never opens these two
+    // windows (`list/adding.rs`, `list/complete.rs`; gaps row N24).
+    if !crate::platform::ON_A_PHONE {
+        pop_up_windows(p, cx, s);
+    }
     check(
         p,
         cx,
@@ -459,18 +471,21 @@ fn pop_ups(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     p.hint(t(
         "Shows Download details before a video from a page starts.",
     ));
-    check(
-        p,
-        cx,
-        "ask-caught",
-        t("Ask where to save browser downloads"),
-        s.general.ask_caught_downloads,
-        true,
-        |s| s.general.ask_caught_downloads = !s.general.ask_caught_downloads,
-    );
-    p.hint(t(
-        "Shows Download details before a download from your browser starts.",
-    ));
+    // Not on a phone, where no browser extension hands dm a download (gaps row N24).
+    if !crate::platform::ON_A_PHONE {
+        check(
+            p,
+            cx,
+            "ask-caught",
+            t("Ask where to save browser downloads"),
+            s.general.ask_caught_downloads,
+            true,
+            |s| s.general.ask_caught_downloads = !s.general.ask_caught_downloads,
+        );
+        p.hint(t(
+            "Shows Download details before a download from your browser starts.",
+        ));
+    }
     // Reference A's "start downloading while the dialog is open".
     check(
         p,

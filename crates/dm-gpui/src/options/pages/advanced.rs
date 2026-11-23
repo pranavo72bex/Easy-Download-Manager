@@ -545,8 +545,11 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
         popup::button(
             "proxy-kind",
             kind_words(proxy.kind).into(),
-            PROXY_KINDS.iter().map(|k| kind_words(*k).into()).collect(),
-            PROXY_KINDS.iter().position(|k| *k == proxy.kind),
+            proxy_kinds()
+                .iter()
+                .map(|k| kind_words(*k).into())
+                .collect(),
+            proxy_kinds().iter().position(|k| *k == proxy.kind),
             theme,
             &screen,
         ),
