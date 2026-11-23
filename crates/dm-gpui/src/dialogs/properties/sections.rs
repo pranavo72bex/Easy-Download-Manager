@@ -362,19 +362,20 @@ impl Properties {
         let words = at
             .and_then(|i| times.get(i))
             .map_or(t("Never"), |(w, _)| *w);
-        line(
-            t("Delete file after"),
-            width,
+        let picker = popup::button(
+            "delete-after",
+            words.into(),
+            times.iter().map(|(w, _)| SharedString::from(*w)).collect(),
+            at,
+            theme,
             screen,
-            popup::button(
-                "delete-after",
-                words.into(),
-                times.iter().map(|(w, _)| SharedString::from(*w)).collect(),
-                at,
-                theme,
-                screen,
-            ),
-        )
+        );
+        // A control, so on a phone named as the fields above it are, not as a detail.
+        if crate::platform::ON_A_PHONE {
+            native::row(Some(t("Delete file after")), width, screen, picker)
+        } else {
+            line(t("Delete file after"), width, screen, picker)
+        }
     }
 
     /// Open and Copy details at the leading side; Cancel, and OK rightmost,

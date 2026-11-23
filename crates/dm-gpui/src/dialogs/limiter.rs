@@ -16,6 +16,7 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState};
 
 use crate::widgets::native;
+use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
@@ -138,7 +139,7 @@ impl Render for Limiter {
             }))
             .child(crate::widgets::fit::fitted(
                 native::body(theme)
-                    .child(native::row(
+                    .child(native::row_short(
                         Some(labels[0]),
                         width,
                         &screen,
@@ -146,13 +147,13 @@ impl Render for Limiter {
                     ))
                     // Download limits, for a link with a fair-use allowance:
                     // downloads are held once it is used and go on after.
-                    .child(native::row(
+                    .child(native::row_short(
                         Some(labels[1]),
                         width,
                         &screen,
                         number_field(&self.mb, "Download at most this many MB (0 for no limit)"),
                     ))
-                    .child(native::row(
+                    .child(native::row_short(
                         Some(labels[2]),
                         width,
                         &screen,
@@ -186,26 +187,41 @@ impl Render for Limiter {
                                 .flex()
                                 .flex_col()
                                 .gap(px(native::ROW_GAP))
+                                // Each time with its words; Stop at under Start at where a
+                                // line has no room for both (a phone).
                                 .child(
                                     div()
                                         .flex()
+                                        .flex_wrap()
                                         .items_center()
                                         .gap(px(native::LABEL_GAP))
-                                        .child(screen.label(t("Start at")))
-                                        .child(native::time_picker(
-                                            ("slow-from-hour", "slow-from-minute"),
-                                            &self.slow.from,
-                                            theme,
-                                            &screen,
-                                        ))
-                                        .child(div().w(px(8.0)))
-                                        .child(screen.label(t("Stop at")))
-                                        .child(native::time_picker(
-                                            ("slow-to-hour", "slow-to-minute"),
-                                            &self.slow.to,
-                                            theme,
-                                            &screen,
-                                        )),
+                                        .child(
+                                            div()
+                                                .flex()
+                                                .items_center()
+                                                .gap(px(native::LABEL_GAP))
+                                                .child(screen.label(t("Start at")))
+                                                .child(native::time_picker(
+                                                    ("slow-from-hour", "slow-from-minute"),
+                                                    &self.slow.from,
+                                                    theme,
+                                                    &screen,
+                                                )),
+                                        )
+                                        .child(div().w(px(space::M)))
+                                        .child(
+                                            div()
+                                                .flex()
+                                                .items_center()
+                                                .gap(px(native::LABEL_GAP))
+                                                .child(screen.label(t("Stop at")))
+                                                .child(native::time_picker(
+                                                    ("slow-to-hour", "slow-to-minute"),
+                                                    &self.slow.to,
+                                                    theme,
+                                                    &screen,
+                                                )),
+                                        ),
                                 )
                                 .child(
                                     div()

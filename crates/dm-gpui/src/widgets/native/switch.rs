@@ -48,7 +48,8 @@ pub fn switch(
 }
 
 /// [`switch`] where a dialog's setting sits in a line of its own or a sentence ("Limit this
-/// download to [500] KB/s"): the switch first and its words after it, in a check box's place.
+/// download to [500] KB/s"): the switch first and its words after it, in a check box's place;
+/// on a phone as [`switch`] is drawn.
 pub fn switch_inline(
     id: impl Into<gpui::ElementId>,
     words: SharedString,
@@ -72,13 +73,18 @@ pub fn switch_inline(
         .items_center()
         .gap(px(space::S))
         .cursor_pointer()
-        .child(switch_track(on, theme))
         .map(|row| {
+            // A phone's: its words across the line and the switch at the end, as every setting
+            // there (Options' switches; gaps row N31). A computer's: the switch first.
             if crate::platform::ON_A_PHONE {
                 row.w_full()
+                    .min_h(px(space::TOUCH))
+                    .gap(px(space::M))
                     .child(div().flex_1().min_w_0().child(screen.label(words)))
+                    .child(switch_track(on, theme))
             } else {
-                row.child(screen.label(words))
+                row.child(switch_track(on, theme))
+                    .child(screen.label(words))
             }
         })
 }

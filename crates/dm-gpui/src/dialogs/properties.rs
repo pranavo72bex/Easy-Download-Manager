@@ -250,6 +250,24 @@ const PRIORITIES: [TorrentPriority; 3] = [
 /// One line of the form: `label` right-aligned in its column, at the top
 /// of a value that may wrap.
 fn line(label: &str, width: f32, screen: &Screen, value: impl IntoElement) -> gpui::Div {
+    // A phone's details: each name small and grey over its value at the line's width, as the
+    // phone's own details screens are; a right-aligned column of names beside the values left
+    // both ragged at a phone's width (gaps row N31).
+    if crate::platform::ON_A_PHONE {
+        return div()
+            .flex()
+            .flex_col()
+            .gap(px(space::XXS))
+            .when(!label.is_empty(), |d| {
+                d.child(
+                    div()
+                        .text_size(px(native::SMALL_TEXT))
+                        .opacity(0.7)
+                        .child(screen.label(label.to_string())),
+                )
+            })
+            .child(div().w_full().min_w_0().child(value));
+    }
     div()
         .flex()
         .items_start()
