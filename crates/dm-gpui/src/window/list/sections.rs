@@ -120,6 +120,19 @@ impl Downloads {
                 this.run_on_queue(run.command, &run.queue, cx)
             }),
         )
+        // A place sheet's item (a phone's long press on a place).
+        .on_action(
+            cx.listener(|this, on: &crate::window::placemenu::OnPlace, window, cx| {
+                this.on_place(on, window, cx)
+            }),
+        )
+        // A phone card menu's Select: choosing several starts with the card it was opened on.
+        .on_action(
+            cx.listener(|this, _: &crate::window::rowmenu::ChooseSeveral, _, cx| {
+                this.layout.narrow.choosing = true;
+                cx.notify();
+            }),
+        )
         // A phone card menu's Share.
         .on_action(
             cx.listener(|this, _: &crate::window::rowmenu::ShareFile, _, cx| this.share_chosen(cx)),

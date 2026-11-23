@@ -27,6 +27,35 @@ impl Downloads {
         self.menus.place_menu = Some((place, at));
     }
 
+    /// A place's menu as a phone shows it, a sheet from the bottom, the place chosen (a long
+    /// press on it in the drawer, gaps row N23).
+    pub(crate) fn open_place_sheet(&mut self, place: Place, cx: &mut Context<Self>) {
+        self.choose(place.clone());
+        self.layout.narrow.drawer = None;
+        let items = place_menu(&place)
+            .into_iter()
+            .map(|(words, action)| gpui::MenuItem::action(t(words), OnPlace(place.clone(), action)))
+            .collect();
+        let menu = gpui::Menu {
+            name: t("Place menu").into(),
+            items,
+            disabled: false,
+        };
+        self.layout.narrow.sheet = Some(crate::window::narrow::sheet::Sheet::new(menu.owned()));
+        cx.notify();
+    }
+
+    /// A place sheet's item chosen.
+    pub(crate) fn on_place(
+        &mut self,
+        on: &OnPlace,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.layout.narrow.sheet = None;
+        self.act_on_place(on.0.clone(), on.1, window, cx);
+    }
+
     /// Closes the place menu.
     pub fn close_place_menu(&mut self) {
         self.menus.place_menu = None;
@@ -61,6 +90,11 @@ impl Downloads {
         cx.notify();
     }
 }
+
+/// A place sheet's item: what to do to which place.
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = dm, no_json)]
+pub struct OnPlace(pub Place, pub PlaceAction);
 
 /// The place menu, open at `at`.
 pub fn menu(

@@ -1026,5 +1026,7 @@
  "Wi-Fi only": "Hanya Wi-Fi",
  "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Kata sandi yang dicoba bergantian pada arsip yang berkata sandi; yang berhasil membukanya pindah ke atas.",
  "Add a password": "Tambah kata sandi",
- "An archive none of these passwords opens is left as it is, and its row says so.": "Arsip yang tidak terbuka dengan kata sandi mana pun dibiarkan apa adanya, dan barisnya menyebutkannya."
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Arsip yang tidak terbuka dengan kata sandi mana pun dibiarkan apa adanya, dan barisnya menyebutkannya.",
+ "Select": "Pilih",
+ "{} selected": "{} dipilih"
 }

@@ -1026,5 +1026,7 @@
  "Wi-Fi only": "Wi-Fi のみ",
  "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "パスワード付きのアーカイブに順に試すパスワード。開けたものが先頭に移ります。",
  "Add a password": "パスワードを追加",
- "An archive none of these passwords opens is left as it is, and its row says so.": "どのパスワードでも開けないアーカイブはそのまま残され、その行に表示されます。"
+ "An archive none of these passwords opens is left as it is, and its row says so.": "どのパスワードでも開けないアーカイブはそのまま残され、その行に表示されます。",
+ "Select": "選択",
+ "{} selected": "{} 件選択"
 }

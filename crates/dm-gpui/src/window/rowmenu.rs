@@ -71,6 +71,11 @@ pub struct DeleteAfter {
 #[action(namespace = dm, no_json)]
 pub struct ShareFile;
 
+/// A phone card menu's Select: several cards chosen with taps from this one on (gaps row N23).
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = dm, no_json)]
+pub struct ChooseSeveral;
+
 /// The row menu as a phone's card menu shows it: only what applies to the card (a phone's menus
 /// do not grey what they cannot do), and Share after Open where the card's file is whole.
 pub(crate) fn card_menu(view: &Downloads) -> Menu {
@@ -103,6 +108,10 @@ pub(crate) fn card_menu(view: &Downloads) -> Menu {
     }
     while matches!(items.last(), Some(MenuItem::Separator)) {
         items.pop();
+    }
+    // Choosing several, from this card on, where the cards are a phone's (gaps row N23).
+    if crate::platform::ON_A_PHONE || view.layout.narrow.laid_out {
+        items.push(MenuItem::action(t("Select"), ChooseSeveral));
     }
     // Named after its card's file, which its sheet shows at the top.
     let name: gpui::SharedString = match view.chosen().as_slice() {

@@ -1026,5 +1026,7 @@
  "Wi-Fi only": "Wi-Fi فقط",
  "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "كلمات مرور تُجرَّب بالترتيب على الأرشيف المحمي بكلمة مرور؛ والتي تفتحه تنتقل إلى الأعلى.",
  "Add a password": "إضافة كلمة مرور",
- "An archive none of these passwords opens is left as it is, and its row says so.": "الأرشيف الذي لا تفتحه أيٌّ من كلمات المرور هذه يُترك كما هو، ويذكر سطره ذلك."
+ "An archive none of these passwords opens is left as it is, and its row says so.": "الأرشيف الذي لا تفتحه أيٌّ من كلمات المرور هذه يُترك كما هو، ويذكر سطره ذلك.",
+ "Select": "تحديد",
+ "{} selected": "{} محدد"
 }

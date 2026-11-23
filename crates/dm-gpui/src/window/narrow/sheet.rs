@@ -369,6 +369,12 @@ fn picture_of(action: &dyn gpui::Action) -> Option<&'static str> {
     if action.as_any().is::<crate::window::rowmenu::ShareFile>() {
         return Some("icons/share.svg");
     }
+    if action
+        .as_any()
+        .is::<crate::window::rowmenu::ChooseSeveral>()
+    {
+        return Some("icons/place-finished.svg");
+    }
     let command = action
         .as_any()
         .downcast_ref::<crate::window::menus::Run>()?

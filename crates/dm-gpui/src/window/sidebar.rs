@@ -421,6 +421,15 @@ fn place_row(
                     cx.notify();
                 })
             })
+            // Its menu as a sheet, held on a phone (gaps row N23).
+            .when(view.layout.narrow.laid_out, |row| {
+                let place = place.clone();
+                row.relative()
+                    .child(crate::window::narrow::cards::held_layer(
+                        cx,
+                        move |view, cx| view.open_place_sheet(place.clone(), cx),
+                    ))
+            })
             // Its menu (gaps row U12).
             .on_mouse_down(
                 gpui::MouseButton::Right,

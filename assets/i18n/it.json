@@ -1026,5 +1026,7 @@
  "Wi-Fi only": "Solo Wi-Fi",
  "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Password provate a turno su un archivio protetto; quella che lo apre passa in cima.",
  "Add a password": "Aggiungi una password",
- "An archive none of these passwords opens is left as it is, and its row says so.": "Un archivio che nessuna di queste password apre resta com'è, e la sua riga lo dice."
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Un archivio che nessuna di queste password apre resta com'è, e la sua riga lo dice.",
+ "Select": "Seleziona",
+ "{} selected": "{} selezionati"
 }

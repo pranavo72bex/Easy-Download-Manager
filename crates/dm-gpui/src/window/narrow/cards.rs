@@ -411,11 +411,25 @@ fn quick_button(
 /// card's menu opens while the finger is still down, and the press is claimed, so it is not
 /// also a tap that opens the download.
 fn long_press_layer(id: dm_core::Id, cx: &mut Context<Downloads>) -> gpui::AnyElement {
+    held_layer(cx, move |view, cx| {
+        view.layout.narrow.pressed = None;
+        view.layout.narrow.held_open = Some(id);
+        view.open_card_menu(id, cx);
+    })
+}
+
+/// A layer, over all of what it is put in, that runs `on_hold` when a finger is held still on
+/// it (GPUI's `LongPressEvent`) and claims the press.
+pub(crate) fn held_layer(
+    cx: &mut Context<Downloads>,
+    on_hold: impl Fn(&mut Downloads, &mut Context<Downloads>) + Clone + 'static,
+) -> gpui::AnyElement {
     let view = cx.entity().downgrade();
     gpui::canvas(
         |_, _, _| {},
         move |bounds, _, window, _| {
             let view = view.clone();
+            let on_hold = on_hold.clone();
             window.on_mouse_event(move |event: &gpui::LongPressEvent, phase, window, cx| {
                 if phase != gpui::DispatchPhase::Bubble
                     || event.phase != gpui::TouchPhase::Started
@@ -425,11 +439,7 @@ fn long_press_layer(id: dm_core::Id, cx: &mut Context<Downloads>) -> gpui::AnyEl
                 }
                 window.prevent_default();
                 cx.stop_propagation();
-                let _ = view.update(cx, |view, cx| {
-                    view.layout.narrow.pressed = None;
-                    view.layout.narrow.held_open = Some(id);
-                    view.open_card_menu(id, cx);
-                });
+                let _ = view.update(cx, |view, cx| on_hold(view, cx));
             });
         },
     )
@@ -451,6 +461,19 @@ impl Downloads {
         // The lift after a long press that already opened the menu.
         if self.layout.narrow.held_open.take() == Some(id) {
             self.layout.narrow.pressed = None;
+            return;
+        }
+        // Choosing several: the card ticked or unticked; none left ends the choosing.
+        if self.layout.narrow.choosing {
+            let _ = clicks;
+            if !self.list.selected.remove(&id) {
+                self.list.selected.insert(id);
+            }
+            self.list.cursor = Some(id);
+            if self.list.selected.is_empty() {
+                self.layout.narrow.choosing = false;
+            }
+            cx.notify();
             return;
         }
         let held = self

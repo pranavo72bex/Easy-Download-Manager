@@ -23,8 +23,8 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 mod bottomnav;
-mod cards;
-mod sheet;
+pub(crate) mod cards;
+pub(crate) mod sheet;
 
 pub(crate) use cards::CARD_HEIGHT;
 pub(crate) use sheet::Sheet;
@@ -71,6 +71,9 @@ pub(crate) struct Narrow {
     /// The card whose menu a long press opened while the finger was still down: its lift is
     /// not a tap (gaps row C22).
     pub(crate) held_open: Option<Id>,
+    /// Several cards being chosen (a card menu's Select, gaps row N23): a tap ticks or unticks
+    /// a card, and the top bar acts on those ticked.
+    pub(crate) choosing: bool,
     /// The search box opened across the top bar by its search button (or Find).
     pub(crate) searching: bool,
     /// Whether the last frame was laid out as a phone's: the list's kept place then counts
@@ -153,6 +156,14 @@ impl Downloads {
         let empty = shown.empty;
         let more = self.more_bars_line(shown.more, theme, screen, cx);
         let add = dm_desktop_base::i18n::t(dm_shell::app::commands::Command::AddUrl.label());
+        // Undo after Remove, where a phone's apps offer it: a bar over the list's foot for as
+        // long as the status bar's Undo would show (gaps row N23).
+        let undo = self.status.undo.live().then(|| self.status.undo.count());
+        let lifted = if undo.is_some() {
+            space::XL + space::TOUCH + space::S
+        } else {
+            space::XL
+        };
         div()
             .relative()
             .flex()
@@ -176,7 +187,7 @@ impl Downloads {
                         .role(gpui::Role::Button)
                         .aria_label(add)
                         .absolute()
-                        .bottom(px(space::XL))
+                        .bottom(px(lifted))
                         .right(px(space::XL))
                         .size(px(FLOATING))
                         .rounded_full()
@@ -202,6 +213,7 @@ impl Downloads {
                         ),
                 )
             })
+            .when_some(undo, |list, n| list.child(snackbar(n, theme, screen, cx)))
     }
 
     /// Whether the top bar shows the search box: opened by its button or Find, or words in it
@@ -238,7 +250,11 @@ impl Downloads {
             }
             return true;
         }
-        narrow.drawer.take().is_some()
+        if narrow.drawer.take().is_some() {
+            return true;
+        }
+        // Choosing several ends, the cards as they were ticked left chosen.
+        std::mem::take(&mut narrow.choosing)
     }
 
     /// The top bar's Places: the drawer opened, or closed where open.
@@ -272,7 +288,8 @@ impl Downloads {
         self.list.cursor = Some(id);
         self.layout.narrow.drawer = None;
         let menu = crate::window::rowmenu::card_menu(self).owned();
-        // Its Open, Share, Delete and Pause or Resume as big buttons at its top (gaps row C22).
+        // Its Open, Share, Delete, Pause or Resume and Select as big buttons at its top (gaps
+        // rows C22, N23).
         self.layout.narrow.sheet = Some(Sheet::with_quick(menu, |item| {
             use dm_shell::app::commands::Command as C;
             let gpui::OwnedMenuItem::Action { action, .. } = item else {
@@ -280,6 +297,7 @@ impl Downloads {
             };
             let any = action.as_any();
             any.is::<crate::window::rowmenu::ShareFile>()
+                || any.is::<crate::window::rowmenu::ChooseSeveral>()
                 || any
                     .downcast_ref::<crate::window::menus::Run>()
                     .is_some_and(|run| {
@@ -308,6 +326,61 @@ fn over(cx: &mut Context<Downloads>, close: impl Fn(&mut Downloads) + 'static) -
             close(view);
             cx.notify();
         }))
+}
+
+/// The bar that offers Undo after `n` downloads were taken off the list.
+fn snackbar(n: usize, theme: Theme, screen: &Screen, cx: &mut Context<Downloads>) -> Stateful<Div> {
+    let said = dm_desktop_base::i18n::tn(
+        "Removed {} download from the list.||Removed {} downloads from the list.",
+        n as u64,
+        &[&n],
+    );
+    let undo = dm_desktop_base::i18n::t("Undo");
+    div()
+        .id("snackbar")
+        .absolute()
+        .bottom(px(space::XL))
+        .left(px(space::L))
+        .right(px(space::L))
+        .min_h(px(space::TOUCH))
+        .pl(px(space::L))
+        .flex()
+        .items_center()
+        .gap(px(space::S))
+        .rounded(px(crate::widgets::native::RADIUS))
+        .bg(theme.text)
+        .text_color(theme.background)
+        .shadow_md()
+        .occlude()
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .overflow_hidden()
+                .text_ellipsis()
+                .whitespace_nowrap()
+                .child(screen.label(gpui::SharedString::from(said))),
+        )
+        .child(
+            div()
+                .id("snackbar-undo")
+                .role(gpui::Role::Button)
+                .aria_label(undo)
+                .flex_none()
+                .min_w(px(space::TOUCH))
+                .h(px(space::TOUCH))
+                .px(px(space::L))
+                .flex()
+                .items_center()
+                .justify_center()
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(theme.selection)
+                .on_click(cx.listener(|view, _, _, cx| {
+                    view.undo_remove(cx);
+                    cx.notify();
+                }))
+                .child(screen.label(undo)),
+        )
 }
 
 #[cfg(test)]

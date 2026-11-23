@@ -346,3 +346,109 @@ fn a_card_held_opens_its_menu_with_its_main_actions_at_the_top() {
         "the lift closed the menu"
     );
 }
+
+/// A card menu's Select: from then on a tap ticks or unticks a card, the top bar counts them and
+/// deletes them all; Back, or the last card unticked, ends the choosing (gaps row N23).
+#[test]
+fn select_in_a_cards_menu_chooses_several_with_taps() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    add_later(&mut h, &world, &["one.zip", "two.zip", "three.zip"]);
+    h.until_shown("three.zip");
+    let [one, two, three] = ["one.zip", "two.zip", "three.zip"].map(|name| h.row(name).id);
+    h.update(|view, cx| {
+        view.click_row(one, false, false);
+        view.open_card_menu(one, cx);
+    });
+    h.until("the card's menu", |h| h.shows("Select"));
+    h.person_click(dm_desktop_base::i18n::t("Select"), 1);
+    h.until("choosing", |h| h.view(|view| view.layout.narrow.choosing));
+    // Taps tick, and the bar counts them.
+    h.update(|view, cx| view.card_lifted(two, cx));
+    h.until("two chosen", |h| h.shows("2 selected"));
+    assert!(h.view(|view| view.list.selected == [one, two].into()));
+    // A tap on a ticked card unticks it; none left ends the choosing.
+    h.update(|view, cx| {
+        view.card_lifted(one, cx);
+        view.card_lifted(two, cx);
+    });
+    assert!(h.view(|view| !view.layout.narrow.choosing && view.list.selected.is_empty()));
+    // Back ends it too.
+    h.update(|view, cx| {
+        view.click_row(three, false, false);
+        view.layout.narrow.choosing = true;
+        cx.notify();
+    });
+    assert!(h.update(|view, _| view.narrow_back()));
+    assert!(h.view(|view| !view.layout.narrow.choosing));
+    // The bar's Delete takes every one chosen.
+    h.update(|view, cx| {
+        view.click_row(one, false, false);
+        view.layout.narrow.choosing = true;
+        view.card_lifted(two, cx);
+    });
+    h.until("two chosen", |h| h.shows("2 selected"));
+    h.person_click(dm_desktop_base::i18n::t("Delete"), 1);
+    h.until("asked", |h| h.shows("Yes, remove"));
+    assert!(h.shows("Downloads: 2"), "{:?}", h.texts());
+    h.person_click("Yes, remove", 1);
+    h.until("both deleted", |h| {
+        !h.shows("one.zip") && !h.shows("two.zip") && h.shows("three.zip")
+    });
+}
+
+/// A finished download removed on the phone: a bar over the list's foot says so and offers
+/// Undo, which puts it back, the bar gone (gaps row N23).
+#[test]
+fn removing_on_the_phone_offers_undo_in_a_bar() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.call(
+        "downloads.add",
+        serde_json::json!({ "urls": [world.url("file.zip")] }),
+    )
+    .unwrap();
+    h.until("it to finish", |h| {
+        h.rows()
+            .iter()
+            .any(|r| r.state == dm_core::State::Completed)
+    });
+    h.call(
+        "command.run",
+        serde_json::json!({ "id": dm_shell::app::commands::Command::DeleteCompleted.id() }),
+    )
+    .unwrap();
+    h.until("the row to go", |h| h.rows().is_empty());
+    h.until_shown("Removed 1 download from the list.");
+    h.person_click("Undo", 1);
+    h.until("the row to come back", |h| h.rows().len() == 1);
+    h.until("the bar gone", |h| {
+        !h.shows("Removed 1 download from the list.")
+    });
+}
+
+/// A place held in the drawer: the place is chosen, the drawer closes, and its menu opens as a
+/// sheet whose items do what the right-click menu's do (gaps row N23).
+#[test]
+fn a_place_held_opens_its_menu_as_a_sheet() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.update(|view, cx| {
+        view.layout.narrow.drawer = Some(view.list.place.clone());
+        view.open_place_sheet(Place::Unfinished, cx);
+    });
+    h.until("the place's sheet", |h| h.shows("Resume all"));
+    assert!(h.view(|view| {
+        view.list.place == Place::Unfinished
+            && view.layout.narrow.drawer.is_none()
+            && view.layout.narrow.sheet.is_some()
+    }));
+    assert!(h.shows("Stop All"), "{:?}", h.texts());
+    h.person_click(dm_desktop_base::i18n::t("Stop All"), 1);
+    h.until("the sheet closed", |h| {
+        h.view(|view| view.layout.narrow.sheet.is_none())
+    });
+}

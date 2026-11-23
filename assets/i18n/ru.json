@@ -1026,5 +1026,7 @@
  "Wi-Fi only": "Только Wi-Fi",
  "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Пароли, которые по очереди пробуются на архиве с паролем; подошедший перемещается наверх.",
  "Add a password": "Добавить пароль",
- "An archive none of these passwords opens is left as it is, and its row says so.": "Архив, который не открывает ни один из этих паролей, остаётся как есть, и его строка сообщает об этом."
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Архив, который не открывает ни один из этих паролей, остаётся как есть, и его строка сообщает об этом.",
+ "Select": "Выбрать",
+ "{} selected": "Выбрано: {}"
 }

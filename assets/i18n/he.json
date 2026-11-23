@@ -1026,5 +1026,7 @@
  "Wi-Fi only": "Wi-Fi בלבד",
  "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "סיסמאות שנוסות לפי הסדר על ארכיון מוגן בסיסמה; זו שפותחת אותו עוברת לראש הרשימה.",
  "Add a password": "הוספת סיסמה",
- "An archive none of these passwords opens is left as it is, and its row says so.": "ארכיון שאף אחת מהסיסמאות האלה לא פותחת נשאר כפי שהוא, והשורה שלו אומרת זאת."
+ "An archive none of these passwords opens is left as it is, and its row says so.": "ארכיון שאף אחת מהסיסמאות האלה לא פותחת נשאר כפי שהוא, והשורה שלו אומרת זאת.",
+ "Select": "בחר",
+ "{} selected": "{} נבחרו"
 }

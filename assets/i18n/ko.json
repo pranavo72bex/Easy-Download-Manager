@@ -1026,5 +1026,7 @@
  "Wi-Fi only": "Wi-Fi에서만",
  "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "암호가 있는 압축 파일에 차례로 시도하는 암호입니다. 열린 암호가 맨 위로 옵니다.",
  "Add a password": "암호 추가",
- "An archive none of these passwords opens is left as it is, and its row says so.": "이 암호 중 어느 것으로도 열리지 않는 압축 파일은 그대로 두며, 해당 행에 표시됩니다."
+ "An archive none of these passwords opens is left as it is, and its row says so.": "이 암호 중 어느 것으로도 열리지 않는 압축 파일은 그대로 두며, 해당 행에 표시됩니다.",
+ "Select": "선택",
+ "{} selected": "{}개 선택됨"
 }

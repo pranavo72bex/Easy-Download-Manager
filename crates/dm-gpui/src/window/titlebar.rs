@@ -236,7 +236,9 @@ pub fn narrow_titlebar(
         .border_b_1()
         .border_color(theme.separator)
         .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none());
-    let bar = if view.narrow_searching() {
+    let bar = if view.layout.narrow.choosing {
+        choosing_bar(bar, view, theme, screen, cx)
+    } else if view.narrow_searching() {
         let words = view.list.filter.read(cx).value().to_string();
         let searching = !words.trim().is_empty();
         let shown = view.list.shown.len();
@@ -256,7 +258,10 @@ pub fn narrow_titlebar(
         // as the status bar would show it: a phone has no status bar, and said nothing.
         let summary = crate::platform::ON_A_PHONE
             .then(|| {
-                crate::window::statusbar::fresh_said(view)
+                // Not where the Undo bar over the list says it already (gaps row N23).
+                (!view.status.undo.is_kept())
+                    .then(|| crate::window::statusbar::fresh_said(view))
+                    .flatten()
                     .or_else(|| crate::window::statusbar::parts(view).into_iter().next())
             })
             .flatten();
@@ -302,6 +307,90 @@ pub fn narrow_titlebar(
         )
     };
     bar.children(window_buttons(theme, window.is_maximized()))
+}
+
+/// The top bar while several cards are being chosen (gaps row N23): how many, and what can be
+/// done to them all.
+fn choosing_bar(
+    bar: gpui::Stateful<gpui::Div>,
+    view: &Downloads,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> gpui::Stateful<gpui::Div> {
+    use crate::window::menus::Run;
+    use dm_shell::app::commands::Command;
+    let button = |id: &'static str, words: &'static str| {
+        div()
+            .id(id)
+            .role(Role::Button)
+            .aria_label(words)
+            .flex_none()
+            .min_w(px(space::TOUCH))
+            .h(px(space::TOUCH))
+            .px(px(space::XS))
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded(px(native::RADIUS))
+            .hover(|b| b.bg(theme.control))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+    };
+    let icon =
+        |path: &'static str, colour: gpui::Rgba| svg().path(path).size(px(24.0)).text_color(colour);
+    let close = t("Close");
+    let all = t("Select all");
+    let share = t("Share");
+    let delete = t("Delete");
+    let count = dm_desktop_base::i18n::tf("{} selected", &[&view.list.selected.len()]);
+    // One finished file can go to another app; Android's share of several is not yet dm's.
+    let one_file = view.list.selected.len() == 1
+        && view
+            .chosen()
+            .iter()
+            .any(|r| r.state == dm_core::State::Completed && !r.path.is_empty());
+    bar.child(
+        button("choosing-close", close)
+            .on_click(cx.listener(|view, _, _, cx| {
+                view.layout.narrow.choosing = false;
+                view.list.selected.clear();
+                cx.notify();
+            }))
+            .child(screen.mark(close, div().child("✕"))),
+    )
+    .child(
+        div()
+            .flex_1()
+            .min_w_0()
+            .overflow_hidden()
+            .text_ellipsis()
+            .whitespace_nowrap()
+            .text_size(px(native::TEXT + 5.0))
+            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .child(screen.label(gpui::SharedString::from(count))),
+    )
+    .child(
+        button("choosing-all", all)
+            .on_click(cx.listener(|_, _, window, cx| {
+                window.dispatch_action(Box::new(Run(Command::SelectAll)), cx);
+            }))
+            .child(screen.mark(all, icon("icons/place-finished.svg", theme.text))),
+    )
+    .when(one_file, |bar| {
+        bar.child(
+            button("choosing-share", share)
+                .on_click(cx.listener(|view, _, _, cx| view.share_chosen(cx)))
+                .child(screen.mark(share, icon("icons/share.svg", theme.text))),
+        )
+    })
+    .child(
+        button("choosing-delete", delete)
+            .on_click(cx.listener(|view, _, window, cx| {
+                view.layout.narrow.choosing = false;
+                window.dispatch_action(Box::new(Run(Command::Remove)), cx);
+            }))
+            .child(screen.mark(delete, icon("icons/delete.svg", theme.text))),
+    )
 }
 
 /// Empty space in the bar: where it is the window's title bar, it moves the

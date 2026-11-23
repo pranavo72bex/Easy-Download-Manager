@@ -1026,5 +1026,7 @@
  "Wi-Fi only": "Yalnızca Wi-Fi",
  "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Parolalı bir arşivde sırayla denenen parolalar; açan parola en üste geçer.",
  "Add a password": "Parola ekle",
- "An archive none of these passwords opens is left as it is, and its row says so.": "Bu parolaların hiçbirinin açmadığı arşiv olduğu gibi bırakılır ve satırı bunu söyler."
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Bu parolaların hiçbirinin açmadığı arşiv olduğu gibi bırakılır ve satırı bunu söyler.",
+ "Select": "Seç",
+ "{} selected": "{} seçildi"
 }

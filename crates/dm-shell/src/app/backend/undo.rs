@@ -46,6 +46,11 @@ impl Undo {
         }
     }
 
+    /// How many downloads Undo would put back.
+    pub fn count(&self) -> usize {
+        self.0.as_ref().map_or(0, |(_, rows)| rows.len())
+    }
+
     /// Undo is no longer on offer: another command changed the list.
     pub fn forget(&mut self) {
         self.0 = None;
