@@ -36,7 +36,13 @@
   .steps { margin: 0 14px 10px; padding: 0; list-style: none; font-size: 12px; }
   .steps li { margin: 0 0 6px; }
   .going { margin: 0 14px 10px; padding: 0; list-style: none; font-size: 12px; }
-  .going li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0 0 3px; }
+  .going li { display: flex; align-items: center; gap: 6px; margin: 0 0 3px; }
+  .going .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .heading { display: flex; align-items: center; gap: 6px; margin: 0 14px 4px; color: var(--weak); font-size: 12px; font-weight: 600; }
+  .heading span { flex: 1; }
+  button.small { flex: none; width: auto; padding: 1px 7px; border: 1px solid var(--line); background: transparent;
+                 color: var(--brand); font-size: 11px; font-weight: 600; }
+  button.small:hover { background: var(--line); }
   .advanced { margin: 0 14px 10px; color: var(--weak); font-size: 11px; user-select: all; word-break: break-all; }
   [hidden] { display: none !important; }
 </style>
@@ -46,6 +52,8 @@
 <p id="status" class="status" role="status" data-i18n="popupLooking">Looking for the dm app…</p>
 <ul class="going" id="going" aria-live="polite" hidden></ul>
 <p class="status bad" id="failed" hidden></p>
+<div class="heading" id="recent-head" hidden><span data-i18n="popupRecent">Recent</span><button class="small" id="clear" type="button" data-i18n="popupClearFinished" hidden>Clear finished</button></div>
+<ul class="going" id="recent" hidden></ul>
 <ol class="steps" id="steps" hidden>
   <li data-i18n="popupStepGet">1. No dm app on this computer yet? Get it, install it and open it once.</li>
   <li data-i18n="popupStepOpen">2. Already installed? Open dm (if it's already open, open it again). This popup connects by itself.</li>

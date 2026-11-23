@@ -316,7 +316,7 @@ fn the_popups_words_are_each_in_the_catalog() {
         at = &after[open + 1 + text.len()..];
     }
     rest.push_str(at);
-    assert_eq!(marked, 10);
+    assert_eq!(marked, 12);
     // The text left between tags.
     let left: Vec<&str> = rest
         .split('>')

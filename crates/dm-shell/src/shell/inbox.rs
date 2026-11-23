@@ -182,6 +182,15 @@ pub async fn watch_inbox(
         let waiting: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
             .map(|entries| entries.flatten().map(|e| e.path()).collect())
             .unwrap_or_default();
+        // The browser popup's asks (`app::going::ask_window`) are the window's to carry out,
+        // with its own commands: it is woken to, and takes them at its next tick.
+        if waiting.iter().any(|path| {
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(crate::app::going::ASKED_PREFIX))
+        }) {
+            crate::app::changes::changed();
+        }
         for path in waiting {
             // A notification's Retry (`ask_running_to_retry`), taken once.
             if let Some(id) = path

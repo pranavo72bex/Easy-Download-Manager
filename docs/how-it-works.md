@@ -477,6 +477,18 @@ download fails, and only once a browser's extension has talked to this dm. The h
 the popup asks and says nothing runs where it is over five seconds old or no dm runs. The popup
 asks every two seconds while it is open, which also connects it by itself once dm can be reached.
 
+The same file lists the ten downloads stopped or finished last (gaps row C12): the stopped first,
+then the latest to end. An app whose hello says `acts-on-downloads` gives each its row's id, and
+the popup shows Stop beside a running one, a "Recent" section under them with Open and Open folder
+(finished), Resume (stopped) or Retry (failed), and Clear finished. A button sends
+`downloads.act`; the host leaves it in the inbox as `browser.<does>[.<id>]` and rings the bell, the
+inbox's watcher wakes the window, and the window's tick (`Session::tick`, so dm with no window too)
+carries it out as its own command for that row, only where that command applies now
+(`app::going::command_for`, `commands::applies`): Open and Open folder as the platform's
+`Effect::Open`/`Effect::Reveal`, Resume download, Stop download and Delete Completed through
+`commands::verb`. An older app sends no ids and no recent list, and the popup shows what it showed
+before; an older extension passes the new fields by.
+
 **Never losing a download.** A caught download is paused while the app is
 asked, and cancelled only once the app says it has it. No app, no answer, a
 refusal, or a server that will not serve dm: the browser's download is

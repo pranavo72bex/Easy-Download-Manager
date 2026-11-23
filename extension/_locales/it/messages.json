@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "Ferma"
+  },
+  "popupRecent": {
+    "message": "Recenti"
+  },
+  "popupOpenFile": {
+    "message": "Apri"
+  },
+  "popupOpenFolder": {
+    "message": "Apri cartella"
+  },
+  "popupResume": {
+    "message": "Riprendi"
+  },
+  "popupRetry": {
+    "message": "Riprova"
+  },
+  "popupClearFinished": {
+    "message": "Togli completati"
+  },
   "popupNotAnswering": {
     "message": "dm non ha risposto ($REASON$). Apri dm (se è già aperto, aprilo di nuovo); questa finestra riprova da sola. Se ancora non risponde: $COMMAND$",
     "placeholders": {

@@ -1637,6 +1637,7 @@ fn the_app_serves_the_menu_judges_catches_and_lists_streams() {
         dm_protocol::feature::JUDGES_CATCH,
         dm_protocol::feature::LISTS_STREAMS,
         dm_protocol::feature::LISTS_DOWNLOADS,
+        dm_protocol::feature::ACTS_ON_DOWNLOADS,
         dm_protocol::feature::KEEPS_NO_RECORD,
     ] {
         assert!(first.has(name), "{name}");
@@ -1866,6 +1867,7 @@ fn the_popup_is_told_what_the_window_is_fetching() {
             downloads: Vec::new(),
             running: 0,
             failed: None,
+            recent: Vec::new(),
         })
     );
     let published = crate::app::going::Published {
@@ -1874,12 +1876,18 @@ fn the_popup_is_told_what_the_window_is_fetching() {
             name: "a.iso".into(),
             percent: Some(12),
             speed: 3_000_000,
+            id: Some(4),
         }],
         running: 7,
         failed: Some(dm_protocol::LastFailure {
             name: "b.zip".into(),
             why: "the server refused it".into(),
         }),
+        recent: vec![dm_protocol::Recent {
+            id: 2,
+            name: "c.pdf".into(),
+            state: dm_protocol::recent_state::FINISHED.into(),
+        }],
     };
     std::fs::write(
         crate::app::going::file(dir.path()),
@@ -1891,6 +1899,7 @@ fn the_popup_is_told_what_the_window_is_fetching() {
             downloads,
             running,
             failed,
+            recent,
         }),
         _,
     ) = ask(dir.path(), frame.clone(), true, Ok(()))
@@ -1899,10 +1908,14 @@ fn the_popup_is_told_what_the_window_is_fetching() {
     };
     assert_eq!((downloads, running), (published.downloads.clone(), 7));
     assert_eq!(failed, published.failed);
+    assert_eq!(recent, published.recent);
     // dm is not running: what it wrote no longer runs, and nothing is started to say so.
     let (
         Some(Reply::Downloads {
-            downloads, failed, ..
+            downloads,
+            failed,
+            recent,
+            ..
         }),
         launched,
     ) = ask(dir.path(), frame, false, Ok(()))
@@ -1910,8 +1923,66 @@ fn the_popup_is_told_what_the_window_is_fetching() {
         panic!("no list")
     };
     assert!(downloads.is_empty());
+    // Nothing can be done to them with no dm: no recent downloads.
+    assert!(recent.is_empty());
     assert_eq!(failed, published.failed);
     assert!(!launched, "asking for the list starts no dm");
+}
+
+/// The popup's buttons (gaps row C12): an ask left in the inbox for the window, which a running dm
+/// takes; refused, and nothing left, with no dm running or for an ask it does not know.
+#[test]
+fn the_popups_ask_is_left_for_the_window() {
+    use dm_protocol::{act_does, Act};
+    let dir = tempfile::tempdir().unwrap();
+    let frame = |does: &str, id: Option<u64>| {
+        dm_protocol::Request::Act(Act {
+            does: does.into(),
+            id,
+        })
+        .to_frame()
+    };
+    let (reply, launched) = ask(dir.path(), frame(act_does::OPEN, Some(7)), true, Ok(()));
+    assert_eq!(reply, Some(Reply::Acted { reason: None }));
+    assert!(!launched);
+    let (reply, _) = ask(
+        dir.path(),
+        frame(act_does::CLEAR_FINISHED, None),
+        true,
+        Ok(()),
+    );
+    assert_eq!(reply, Some(Reply::Acted { reason: None }));
+    assert!(crate::app::going::window_asked(dir.path()));
+    let taken = crate::app::going::asked_of_window(dir.path());
+    assert_eq!(taken.len(), 2);
+    assert!(taken.contains(&Act {
+        does: act_does::OPEN.into(),
+        id: Some(7),
+    }));
+    assert!(taken.contains(&Act {
+        does: act_does::CLEAR_FINISHED.into(),
+        id: None,
+    }));
+    // Taken once.
+    assert!(crate::app::going::asked_of_window(dir.path()).is_empty());
+    assert!(!crate::app::going::window_asked(dir.path()));
+
+    // No dm running: not left, and dm is not started for it.
+    let (reply, launched) = ask(dir.path(), frame(act_does::STOP, Some(1)), false, Ok(()));
+    assert!(
+        matches!(reply, Some(Reply::Acted { reason: Some(_) })),
+        "{reply:?}"
+    );
+    assert!(!launched);
+    // An ask this dm does not know, or one missing its row.
+    for (does, id) in [("delete-file", Some(1)), (act_does::RESUME, None)] {
+        let (reply, _) = ask(dir.path(), frame(does, id), true, Ok(()));
+        assert!(
+            matches!(reply, Some(Reply::Acted { reason: Some(_) })),
+            "{does}"
+        );
+    }
+    assert!(!crate::app::going::window_asked(dir.path()));
 }
 
 /// A hand-over from a private window is filed keeping no record, and added so (gaps row W17); one

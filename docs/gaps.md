@@ -65,7 +65,7 @@ where group 1 has made that possible.
 5. **The window's speed** (after group 4: V10 makes the list one code, and a saving made in
    the table or the cards before that is made twice). C0c, 181, S11, S16, S20, the Download
    complete window's 5 MiB (175), 210, 194, 187; then C17's table in the README.
-6. **The extension only catches.** A23, before C12, C14, R4 and any other row that touches the
+6. **The extension only catches.** A23, before C14, R4 and any other row that touches the
    extension.
 7. **What is left of security:** H's steps 3 and 4, and H7, H8, H18, H23 and H26.
 8. **Features, each built once:** rows C; the rows W, Y, F and U that are coded or approved;
@@ -124,7 +124,6 @@ technology-only items (encrypted DNS, themes, crash reports). Decisions: `docs/d
 | C8  | A scheduled queue cannot wake a sleeping Windows PC | OPEN · S | Windows waitable timer (no administrator rights needed) |
 | C9  | No ready-made server install (NAS) | OPEN · M | A Docker image of headless dm for amd64 and arm64, built by CI; pairs with W25's web page |
 | C11 | The progress window does not show where the server is | OPEN · M | Country and distance (by round-trip time) from an offline IP table (DB-IP Lite, CC BY 4.0); nothing sent |
-| C12 | The extension popup shows only active downloads | OPEN · M | Add recent downloads with Open, Show in folder, Pause/Resume, Clear finished |
 | C14 | No Click'n'Load support | OPEN · M · decide | Off by default (it opens a listening port); needs the maintainer's approval before work starts |
 | C21 | Options was hard to use on both phone and desktop | PARTIAL · approved | Done: a list of pages with summaries, side by side when wide and one screen at a time when narrow; switches for on/off settings; Back steps from a page to the list. Left: test on a real phone; apply changes instantly on the phone; move rarely used settings under "More" |
 | C22 | The card's long press was slow and not very useful | PARTIAL · approved | Done: the menu opens while the finger is down, with Open, Share and Delete at the top (verified on the emulator). Left: haptic feedback |

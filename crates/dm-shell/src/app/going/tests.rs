@@ -45,6 +45,7 @@ fn the_running_are_listed_fastest_first_and_the_rest_counted() {
             name: "from-the-address.bin".into(),
             percent: None,
             speed: 9_000,
+            id: Some(3),
         }
     );
     assert_eq!(going[1].name, "half.iso");
@@ -135,4 +136,165 @@ fn the_host_reads_what_was_written_and_nothing_running_once_stale_or_dm_is_gone(
     assert!(read(home.path(), at, false).downloads.is_empty());
     // Nothing left beside it.
     assert!(!file(home.path()).with_extension("json.new").exists());
+}
+
+/// Gaps row C12: the stopped first, the latest added first; then the finished and failed, the
+/// latest to end first; none waiting, running or cancelled; ten at most.
+#[test]
+fn the_recent_are_the_stopped_then_the_latest_to_end() {
+    let ended = |id: Id, state: State, name: &str, at: Option<u64>| {
+        let mut entry = Entry::clone(&row(id, state, name, 1, Some(1), 0.0));
+        entry.finished_at = at;
+        Arc::new(entry)
+    };
+    let mut rows = vec![
+        ended(1, State::Completed, "old.zip", Some(100)),
+        ended(2, State::Paused, "paused-first.bin", None),
+        ended(3, State::Failed("refused".into()), "failed.iso", Some(300)),
+        ended(4, State::Running, "running.bin", None),
+        ended(5, State::Queued, "waiting.bin", None),
+        ended(6, State::Cancelled, "cancelled.bin", Some(400)),
+        ended(7, State::Completed, "new.pdf", Some(500)),
+        ended(8, State::Paused, "paused-later.bin", None),
+    ];
+    let names: Vec<(String, String)> = recent(&rows)
+        .into_iter()
+        .map(|r| (r.name, r.state))
+        .collect();
+    let pair = |n: &str, s: &str| (n.to_string(), s.to_string());
+    assert_eq!(
+        names,
+        [
+            pair("paused-later.bin", recent_state::STOPPED),
+            pair("paused-first.bin", recent_state::STOPPED),
+            pair("new.pdf", recent_state::FINISHED),
+            pair("failed.iso", recent_state::FAILED),
+            pair("old.zip", recent_state::FINISHED),
+        ]
+    );
+    for id in 100..120 {
+        rows.push(ended(id, State::Completed, "many.bin", Some(1_000 + id)));
+    }
+    let listed = recent(&rows);
+    assert_eq!(listed.len(), MOST_RECENT);
+    assert_eq!(listed[0].id, 8);
+    assert_eq!(listed[2].id, 119);
+    assert_eq!(listed[9].id, 112);
+}
+
+/// A download that finishes is written at once for the popup's recent list, though nothing runs.
+#[test]
+fn a_download_that_ends_is_written_for_the_recent_list() {
+    let mut publisher = Publisher::default();
+    let start = Instant::now();
+    let running = vec![row(1, State::Running, "a.bin", 1, Some(2), 5.0)];
+    assert!(publisher.next(&running, &[], start, 1).is_some());
+    let done = vec![row(1, State::Completed, "a.bin", 2, Some(2), 0.0)];
+    let wrote = publisher
+        .next(&done, &[], start, 2)
+        .expect("written as it stops");
+    assert_eq!(wrote.recent.len(), 1);
+    assert_eq!(wrote.recent[0].state, recent_state::FINISHED);
+    // The same again: nothing new to write.
+    assert!(publisher.next(&done, &[], start, 3).is_none());
+    // Cleared from the list: written again, with nothing recent.
+    let wrote = publisher
+        .next(&[], &[], start, 4)
+        .expect("written as it goes");
+    assert!(wrote.recent.is_empty());
+}
+
+/// The popup's ask is the window's own command for the row, done only where it applies now.
+#[test]
+fn the_popups_ask_is_the_windows_own_command_where_it_applies() {
+    use dm_protocol::act_does;
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("done.zip");
+    std::fs::write(&file, b"x").unwrap();
+    let mut finished = Entry::clone(&row(1, State::Completed, "done.zip", 1, Some(1), 0.0));
+    finished.path = file.to_string_lossy().into_owned();
+    let rows = vec![
+        Arc::new(finished),
+        row(2, State::Paused, "paused.bin", 1, Some(2), 0.0),
+        row(3, State::Running, "running.bin", 1, Some(2), 9.0),
+        row(
+            4,
+            State::Failed("refused".into()),
+            "failed.bin",
+            1,
+            Some(2),
+            0.0,
+        ),
+    ];
+    let act = |does: &str, id: Option<u64>| Act {
+        does: does.into(),
+        id,
+    };
+    let command = |does: &str, id: Option<u64>| command_for(&act(does, id), &rows).map(|(c, _)| c);
+    assert_eq!(command(act_does::OPEN, Some(1)), Some(Command::OpenFile));
+    assert_eq!(
+        command(act_does::FOLDER, Some(1)),
+        Some(Command::OpenFolder)
+    );
+    assert_eq!(
+        command(act_does::RESUME, Some(2)),
+        Some(Command::DownloadNow)
+    );
+    assert_eq!(
+        command(act_does::RESUME, Some(4)),
+        Some(Command::DownloadNow)
+    );
+    assert_eq!(
+        command(act_does::STOP, Some(3)),
+        Some(Command::StopDownload)
+    );
+    assert_eq!(
+        command(act_does::CLEAR_FINISHED, None),
+        Some(Command::DeleteCompleted)
+    );
+    // Where the window would grey it out: nothing is done.
+    assert_eq!(command(act_does::OPEN, Some(2)), None);
+    assert_eq!(command(act_does::RESUME, Some(3)), None);
+    assert_eq!(command(act_does::STOP, Some(1)), None);
+    assert_eq!(command(act_does::OPEN, Some(99)), None, "a row gone");
+    assert_eq!(
+        command_for(&act(act_does::CLEAR_FINISHED, None), &rows[1..]).map(|(c, _)| c),
+        None,
+        "nothing finished to clear"
+    );
+    // A finished file no longer on disk is not opened.
+    std::fs::remove_file(&file).unwrap();
+    assert_eq!(command(act_does::OPEN, Some(1)), None);
+    // The row comes with the command.
+    let (_, row) = command_for(&act(act_does::RESUME, Some(2)), &rows).unwrap();
+    assert_eq!(row.map(|r| r.id), Some(2));
+}
+
+#[test]
+fn an_inbox_name_carries_the_ask_it_was_left_under() {
+    use dm_protocol::act_does;
+    assert_eq!(
+        asked_by("browser.open.12"),
+        Some(Act {
+            does: act_does::OPEN.into(),
+            id: Some(12),
+        })
+    );
+    assert_eq!(
+        asked_by("browser.clear-finished"),
+        Some(Act {
+            does: act_does::CLEAR_FINISHED.into(),
+            id: None,
+        })
+    );
+    for other in [
+        "browser.open",
+        "browser.open.x",
+        "browser.erase.1",
+        "show",
+        "a.json",
+        "retry-3",
+    ] {
+        assert_eq!(asked_by(other), None, "{other}");
+    }
 }

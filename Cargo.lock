@@ -2144,6 +2144,7 @@ dependencies = [
  "auto-launch",
  "dm-assets",
  "dm-core",
+ "dm-protocol",
  "dm-shell",
  "getrandom 0.4.3",
  "objc2 0.6.5",

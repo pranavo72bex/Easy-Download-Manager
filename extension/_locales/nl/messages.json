@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "Stoppen"
+  },
+  "popupRecent": {
+    "message": "Recent"
+  },
+  "popupOpenFile": {
+    "message": "Openen"
+  },
+  "popupOpenFolder": {
+    "message": "Map openen"
+  },
+  "popupResume": {
+    "message": "Hervatten"
+  },
+  "popupRetry": {
+    "message": "Opnieuw proberen"
+  },
+  "popupClearFinished": {
+    "message": "Voltooide wissen"
+  },
   "popupNotAnswering": {
     "message": "dm gaf geen antwoord ($REASON$). Open dm (als het al open is, open het opnieuw); dit venster probeert het zelf opnieuw. Als het nog steeds niet antwoordt: $COMMAND$",
     "placeholders": {

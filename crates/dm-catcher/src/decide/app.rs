@@ -402,25 +402,6 @@ impl Released {
     }
 }
 
-/// What the app said it is fetching (`downloads.list`), where `frame` is that answer: the
-/// downloads listed, how many run in all, and the last failure.
-pub fn downloads_listed(
-    frame: &Value,
-) -> Option<(
-    Vec<dm_protocol::Going>,
-    usize,
-    Option<dm_protocol::LastFailure>,
-)> {
-    match Reply::from_frame(frame).ok()? {
-        Reply::Downloads {
-            downloads,
-            running,
-            failed,
-        } => Some((downloads, running, failed)),
-        _ => None,
-    }
-}
-
 /// One download's line in the toolbar popup: its name, how far it is where its size is known,
 /// and its speed (`a.iso · 12% · 3.0 MB/s`).
 pub fn going_line(going: &dm_protocol::Going) -> String {
@@ -432,19 +413,4 @@ pub fn going_line(going: &dm_protocol::Going) -> String {
         line.push_str(&format!(" · {}/s", super::human_size(going.speed)));
     }
     line
-}
-
-/// The popup's list, as lines: one a download, then how many more run past those listed, and
-/// the last failure, each in the browser's language.
-pub fn popup_downloads(
-    downloads: &[dm_protocol::Going],
-    running: usize,
-    failed: Option<&dm_protocol::LastFailure>,
-) -> (Vec<String>, Option<String>) {
-    let mut lines: Vec<String> = downloads.iter().map(going_line).collect();
-    if running > downloads.len() {
-        lines.push(words::POPUP_MORE.with(&[&(running - downloads.len()).to_string()]));
-    }
-    let failure = failed.map(|f| words::POPUP_LAST_FAILED.with(&[&f.name, &f.why]));
-    (lines, failure)
 }

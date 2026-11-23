@@ -527,3 +527,43 @@ fn wifi_only_holds_a_phones_downloads_off_wifi() {
     session.tick(&backend, &[], window());
     assert_eq!(backend.held_by(), None);
 }
+
+/// The browser popup's asks (gaps row C12): Open and Open folder are the effects every driver
+/// carries out; a verb is done here and asks nothing; one that does not apply, or whose row is
+/// gone, is nothing.
+#[test]
+fn the_popups_asks_are_the_windows_own_commands() {
+    use dm_protocol::{act_does, Act};
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let backend = backend(&runtime, dir.path(), dm_shell::Settings::default());
+    let file = dir.path().join("f1.bin");
+    std::fs::write(&file, b"x").unwrap();
+    let path = file.to_string_lossy().into_owned();
+    let mut done = Entry::clone(&row(1, State::Completed));
+    done.path = path.clone();
+    let rows = vec![
+        Arc::new(done),
+        row(2, State::Paused),
+        row(3, State::Running),
+    ];
+    let act = |does: &str, id: Option<u64>| Act {
+        does: does.into(),
+        id,
+    };
+    let carried = |does: &str, id: Option<u64>| asked::carry_asked(&backend, &rows, &act(does, id));
+    assert_eq!(
+        carried(act_does::OPEN, Some(1)),
+        Some(Effect::Open(path.clone()))
+    );
+    assert_eq!(
+        carried(act_does::FOLDER, Some(1)),
+        Some(Effect::Reveal(path))
+    );
+    assert_eq!(carried(act_does::RESUME, Some(2)), None);
+    assert_eq!(carried(act_does::STOP, Some(3)), None);
+    assert_eq!(carried(act_does::CLEAR_FINISHED, None), None);
+    // Not where the window would grey it out, nor for a row gone.
+    assert_eq!(carried(act_does::OPEN, Some(2)), None);
+    assert_eq!(carried(act_does::OPEN, Some(9)), None);
+}

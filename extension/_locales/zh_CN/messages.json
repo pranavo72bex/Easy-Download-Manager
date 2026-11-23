@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "停止"
+  },
+  "popupRecent": {
+    "message": "最近"
+  },
+  "popupOpenFile": {
+    "message": "打开"
+  },
+  "popupOpenFolder": {
+    "message": "打开文件夹"
+  },
+  "popupResume": {
+    "message": "继续"
+  },
+  "popupRetry": {
+    "message": "重试"
+  },
+  "popupClearFinished": {
+    "message": "清除已完成"
+  },
   "popupNotAnswering": {
     "message": "dm 没有应答（$REASON$）。请打开 dm（如果已经打开，请再打开一次）；此窗口会自动重试。如果仍然没有应答：$COMMAND$",
     "placeholders": {

@@ -19,6 +19,8 @@ path = "src/lib.rs"
 [dependencies]
 dm-core.workspace = true
 dm-shell.workspace = true
+# The browser popup's asks (gaps row C12), as the protocol names them.
+dm-protocol.workspace = true
 # Its files that are not code: assets/ (gaps row X9).
 dm-assets.workspace = true
 serde_json.workspace = true

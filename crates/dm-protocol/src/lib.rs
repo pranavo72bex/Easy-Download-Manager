@@ -73,6 +73,7 @@ use serde_json::Value;
 mod catching;
 mod error;
 pub mod media;
+mod popup;
 mod reply;
 mod rules;
 use catching::{base_name, path_of};
@@ -81,6 +82,7 @@ pub use catching::{
     BROWSERS, CATCH_DEFAULTS_VERSION, CLICK_KEYS, DEFAULT_EXTENSIONS, MENU_ITEMS,
 };
 pub use error::Error;
+pub use popup::{act_does, recent_state, Act, Recent, MOST_RECENT};
 pub use reply::{Failure, Hello, Reply, SettingsReply, Unreadable};
 pub use rules::{
     AnswerRule, ExcludeRules, Finder, Rules, SiteProfile, MAX_RULES_BYTES, RULES_FORMAT,
@@ -140,6 +142,10 @@ pub mod kind {
     pub const STREAMS: &str = "media.streams";
     /// [`Request::Downloads`] and its answer, [`Reply::Downloads`].
     pub const DOWNLOADS: &str = "downloads.list";
+    /// [`Request::Act`].
+    pub const ACT: &str = "downloads.act";
+    /// [`Reply::Acted`], the answer to [`Request::Act`].
+    pub const ACTED: &str = "downloads.acted";
 }
 
 /// What the extension asks.
@@ -193,6 +199,12 @@ pub enum Request {
     /// Sent only to an app whose hello says [`feature::LISTS_DOWNLOADS`].
     #[serde(rename = "downloads.list")]
     Downloads,
+    /// A download in the popup opened, shown in its folder, resumed or stopped, or the finished
+    /// ones cleared (gaps row C12). Sent only to an app whose hello says
+    /// [`feature::ACTS_ON_DOWNLOADS`]; an older app does not read it, and its popup has no
+    /// buttons to send it.
+    #[serde(rename = "downloads.act")]
+    Act(Act),
 }
 
 /// A download the browser started, as far as the catch rules judge it ([`Request::Judge`]).
@@ -433,6 +445,9 @@ pub mod feature {
     /// App: answers `downloads.list` with what it is fetching ([`super::Going`]). Extension:
     /// asks while its toolbar popup is open, and lists them there.
     pub const LISTS_DOWNLOADS: &str = "lists-downloads";
+    /// App: lists its recent downloads in `downloads.list` ([`super::Recent`]) and gives each
+    /// running one its row; answers `downloads.act`. Extension: shows them with their buttons.
+    pub const ACTS_ON_DOWNLOADS: &str = "acts-on-downloads";
     /// App: keeps no record of a download handed over from a private window
     /// ([`super::Start::private_window`]) once its file is whole. Extension: hands one over only
     /// to an app that says so.
@@ -450,6 +465,10 @@ pub struct Going {
     pub percent: Option<u8>,
     /// Bytes a second now.
     pub speed: u64,
+    /// Its row in dm's list, which an [`Act`] names; none from an app that does not act on
+    /// downloads ([`feature::ACTS_ON_DOWNLOADS`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<u64>,
 }
 
 /// The app's last download that failed, as the toolbar popup says it ([`Reply::Downloads`]).

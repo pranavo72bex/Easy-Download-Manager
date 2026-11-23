@@ -351,6 +351,48 @@ pub const POPUP_LAST_FAILED: Word = Word {
     en: "Failed: $NAME$ ($WHY$)",
     places: &["name", "why"],
 };
+/// A running download in the popup: stops it.
+pub const POPUP_STOP: Word = Word {
+    key: "popupStop",
+    en: "Stop",
+    places: NONE,
+};
+/// The heading over the popup's downloads stopped or finished last.
+pub const POPUP_RECENT: Word = Word {
+    key: "popupRecent",
+    en: "Recent",
+    places: NONE,
+};
+/// A finished download in the popup: opens its file.
+pub const POPUP_OPEN_FILE: Word = Word {
+    key: "popupOpenFile",
+    en: "Open",
+    places: NONE,
+};
+/// A finished download in the popup: shows its file in its folder.
+pub const POPUP_OPEN_FOLDER: Word = Word {
+    key: "popupOpenFolder",
+    en: "Open folder",
+    places: NONE,
+};
+/// A stopped download in the popup: resumes it.
+pub const POPUP_RESUME: Word = Word {
+    key: "popupResume",
+    en: "Resume",
+    places: NONE,
+};
+/// A failed download in the popup: tries it again.
+pub const POPUP_RETRY: Word = Word {
+    key: "popupRetry",
+    en: "Retry",
+    places: NONE,
+};
+/// The popup: takes the finished downloads off dm's list, their files kept.
+pub const POPUP_CLEAR_FINISHED: Word = Word {
+    key: "popupClearFinished",
+    en: "Clear finished",
+    places: NONE,
+};
 /// The status line when dm is there and did not answer.
 pub const POPUP_NOT_ANSWERING: Word = Word {
     key: "popupNotAnswering",
@@ -605,6 +647,13 @@ pub const ALL: &[Word] = &[
     POPUP_ADVANCED,
     POPUP_MORE,
     POPUP_LAST_FAILED,
+    POPUP_STOP,
+    POPUP_RECENT,
+    POPUP_OPEN_FILE,
+    POPUP_OPEN_FOLDER,
+    POPUP_RESUME,
+    POPUP_RETRY,
+    POPUP_CLEAR_FINISHED,
     POPUP_NOT_ANSWERING,
     PANEL_DOWNLOAD_VIDEO,
     PANEL_DOWNLOAD_AUDIO,

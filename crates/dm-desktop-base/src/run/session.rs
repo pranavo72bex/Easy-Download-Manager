@@ -267,6 +267,7 @@ impl Session {
         self.told(backend, rows, &mut effects);
         self.schedules(backend, rows, &mut effects);
         self.this_done(rows, &mut effects);
+        self.browser_asks(backend, rows, driver, &mut effects);
         self.forget_old(backend);
         self.waits(backend, driver, &mut effects);
         // What the followed ones brought, and those due read again: by every driver, the
@@ -437,6 +438,7 @@ fn chosen_sound(settings: &dm_shell::Settings, event: &str) -> Option<String> {
         .filter(|p| !p.is_empty())
 }
 
+pub(crate) mod asked;
 mod follows;
 mod waits;
 

@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "עצור"
+  },
+  "popupRecent": {
+    "message": "אחרונים"
+  },
+  "popupOpenFile": {
+    "message": "פתח"
+  },
+  "popupOpenFolder": {
+    "message": "פתח תיקייה"
+  },
+  "popupResume": {
+    "message": "המשך"
+  },
+  "popupRetry": {
+    "message": "נסה שוב"
+  },
+  "popupClearFinished": {
+    "message": "ניקוי הושלמו"
+  },
   "popupNotAnswering": {
     "message": "dm לא הגיב ($REASON$). יש לפתוח את dm (אם הוא כבר פתוח, יש לפתוח אותו שוב); החלון הקופץ הזה ינסה שוב מעצמו. אם עדיין אין תגובה: $COMMAND$",
     "placeholders": {

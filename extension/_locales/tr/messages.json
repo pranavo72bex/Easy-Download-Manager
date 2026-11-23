@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "Durdur"
+  },
+  "popupRecent": {
+    "message": "Son kullanılanlar"
+  },
+  "popupOpenFile": {
+    "message": "Aç"
+  },
+  "popupOpenFolder": {
+    "message": "Klasörü aç"
+  },
+  "popupResume": {
+    "message": "Sürdür"
+  },
+  "popupRetry": {
+    "message": "Yeniden dene"
+  },
+  "popupClearFinished": {
+    "message": "Tamamlananları temizle"
+  },
   "popupNotAnswering": {
     "message": "dm yanıt vermedi ($REASON$). dm'yi açın (zaten açıksa yeniden açın); bu pencere kendiliğinden yeniden dener. Hâlâ yanıt vermiyorsa: $COMMAND$",
     "placeholders": {

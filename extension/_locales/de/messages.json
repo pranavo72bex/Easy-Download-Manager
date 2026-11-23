@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "Stopp"
+  },
+  "popupRecent": {
+    "message": "Zuletzt"
+  },
+  "popupOpenFile": {
+    "message": "Öffnen"
+  },
+  "popupOpenFolder": {
+    "message": "Ordner öffnen"
+  },
+  "popupResume": {
+    "message": "Fortsetzen"
+  },
+  "popupRetry": {
+    "message": "Wiederholen"
+  },
+  "popupClearFinished": {
+    "message": "Fertige entfernen"
+  },
   "popupNotAnswering": {
     "message": "dm hat nicht geantwortet ($REASON$). Öffnen Sie dm (ist es schon offen, öffnen Sie es erneut); dieses Fenster versucht es von selbst erneut. Wenn es immer noch nicht antwortet: $COMMAND$",
     "placeholders": {

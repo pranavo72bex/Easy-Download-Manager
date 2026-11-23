@@ -23,6 +23,7 @@ mod headers;
 mod media_panel;
 mod menu;
 mod page_lines;
+mod popup_list;
 /// Whether a playlist or manifest says its media is under DRM.
 pub mod protection;
 mod renewal;
@@ -39,6 +40,7 @@ pub use headers::{RequestHeaders, Sent};
 pub use media_panel::*;
 pub use menu::*;
 pub use page_lines::*;
+pub use popup_list::*;
 pub use renewal::{Handed, Renewal};
 pub use scripts::*;
 pub use sites::*;

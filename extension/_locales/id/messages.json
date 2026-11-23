@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "Hentikan"
+  },
+  "popupRecent": {
+    "message": "Terbaru"
+  },
+  "popupOpenFile": {
+    "message": "Buka"
+  },
+  "popupOpenFolder": {
+    "message": "Buka folder"
+  },
+  "popupResume": {
+    "message": "Lanjutkan"
+  },
+  "popupRetry": {
+    "message": "Coba lagi"
+  },
+  "popupClearFinished": {
+    "message": "Bersihkan yang selesai"
+  },
   "popupNotAnswering": {
     "message": "dm tidak menjawab ($REASON$). Buka dm (jika sudah terbuka, buka lagi); jendela ini mencoba lagi dengan sendirinya. Jika masih tidak menjawab: $COMMAND$",
     "placeholders": {

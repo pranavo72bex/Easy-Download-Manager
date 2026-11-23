@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "إيقاف"
+  },
+  "popupRecent": {
+    "message": "الأخيرة"
+  },
+  "popupOpenFile": {
+    "message": "فتح"
+  },
+  "popupOpenFolder": {
+    "message": "فتح المجلد"
+  },
+  "popupResume": {
+    "message": "استئناف"
+  },
+  "popupRetry": {
+    "message": "إعادة المحاولة"
+  },
+  "popupClearFinished": {
+    "message": "مسح المكتملة"
+  },
   "popupNotAnswering": {
     "message": "لم يستجب dm ($REASON$). افتح dm (وإن كان مفتوحًا بالفعل، فافتحه مرة أخرى)؛ ستعيد هذه النافذة المنبثقة المحاولة تلقائيًا. وإن ظل لا يستجيب: $COMMAND$",
     "placeholders": {

@@ -834,6 +834,13 @@ fn every_new_frame_goes_out_at_the_version_every_app_reads_and_by_its_type() {
         ),
         (Request::Streams(StreamsAsked::default()), kind::STREAMS),
         (Request::Downloads, kind::DOWNLOADS),
+        (
+            Request::Act(Act {
+                does: act_does::OPEN.into(),
+                id: Some(7),
+            }),
+            kind::ACT,
+        ),
     ];
     for (request, name) in requests {
         assert_eq!(request.needs(), OLDEST_PROTOCOL, "{name}");
@@ -862,14 +869,26 @@ fn every_new_frame_goes_out_at_the_version_every_app_reads_and_by_its_type() {
                     name: "a.zip".into(),
                     percent: Some(40),
                     speed: 1_000,
+                    id: Some(4),
                 }],
                 running: 3,
                 failed: Some(LastFailure {
                     name: "b.iso".into(),
                     why: "the server refused it".into(),
                 }),
+                recent: vec![Recent {
+                    id: 9,
+                    name: "c.pdf".into(),
+                    state: recent_state::FINISHED.into(),
+                }],
             },
             kind::DOWNLOADS,
+        ),
+        (
+            Reply::Acted {
+                reason: Some("no such download".into()),
+            },
+            kind::ACTED,
         ),
         (Reply::started("s", true), kind::STARTED),
     ];
@@ -998,6 +1017,7 @@ fn a_downloads_list_of_nothing_reads_back_as_nothing() {
             downloads: Vec::new(),
             running: 0,
             failed: None,
+            recent: Vec::new(),
         })
     );
     let unknown = serde_json::json!({ "name": "c.bin" });
@@ -1007,6 +1027,149 @@ fn a_downloads_list_of_nothing_reads_back_as_nothing() {
             name: "c.bin".into(),
             percent: None,
             speed: 0,
+            id: None,
         }
+    );
+}
+
+/* ------------------------------------------- the popup's recent downloads (C12) */
+
+/// An app from before C12 sends its list without rows or recent downloads: this extension reads
+/// it, with no recent section and no buttons.
+#[test]
+fn an_older_apps_list_reads_with_nothing_recent_and_no_rows() {
+    let frame = json!({
+        "type": kind::DOWNLOADS,
+        "protocolVersion": 1,
+        "downloads": [{ "name": "a.zip", "percent": 10, "speed": 5 }],
+        "running": 1,
+    });
+    let Ok(Reply::Downloads {
+        downloads, recent, ..
+    }) = Reply::from_frame(&frame)
+    else {
+        panic!("not read")
+    };
+    assert!(recent.is_empty());
+    assert_eq!(downloads[0].id, None);
+    // Nothing recent and no row: the frame an older extension always read.
+    let quiet = Reply::Downloads {
+        downloads: vec![Going {
+            name: "a.zip".into(),
+            percent: None,
+            speed: 0,
+            id: None,
+        }],
+        running: 1,
+        failed: None,
+        recent: Vec::new(),
+    }
+    .to_frame();
+    assert!(quiet.get("recent").is_none());
+    assert!(quiet["downloads"][0].get("id").is_none());
+}
+
+/// This app's list, read by an extension from before C12: the fields it knows are as they were,
+/// and what it does not know is passed by.
+#[test]
+fn an_older_extension_reads_this_apps_list_as_before() {
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct OldGoing {
+        name: String,
+        #[serde(default)]
+        percent: Option<u8>,
+        speed: u64,
+    }
+    #[derive(Deserialize, Debug)]
+    #[serde(tag = "type")]
+    enum OldReply {
+        #[serde(rename = "downloads.list")]
+        Downloads {
+            #[serde(default)]
+            downloads: Vec<OldGoing>,
+            #[serde(default)]
+            running: usize,
+        },
+    }
+    let frame = Reply::Downloads {
+        downloads: vec![Going {
+            name: "a.zip".into(),
+            percent: Some(50),
+            speed: 9,
+            id: Some(3),
+        }],
+        running: 1,
+        failed: None,
+        recent: vec![Recent {
+            id: 2,
+            name: "b.iso".into(),
+            state: recent_state::STOPPED.into(),
+        }],
+    }
+    .to_frame();
+    let OldReply::Downloads { downloads, running } = serde_json::from_value(frame).unwrap();
+    assert_eq!(running, 1);
+    assert_eq!(
+        downloads,
+        [OldGoing {
+            name: "a.zip".into(),
+            percent: Some(50),
+            speed: 9,
+        }]
+    );
+    // An older app does not read the new request: it answers nothing, as to any it does not know.
+    #[derive(Deserialize, Debug)]
+    #[serde(tag = "type")]
+    enum OldRequest {
+        #[serde(rename = "downloads.list")]
+        Downloads,
+    }
+    let act = Request::Act(Act {
+        does: act_does::CLEAR_FINISHED.into(),
+        id: None,
+    })
+    .to_frame();
+    assert!(serde_json::from_value::<OldRequest>(act).is_err());
+}
+
+/// A recent download in a state a later app names is read, so the rest of the list stands.
+#[test]
+fn a_recent_state_this_side_does_not_know_is_read_all_the_same() {
+    let frame = json!({
+        "type": kind::DOWNLOADS,
+        "protocolVersion": 1,
+        "recent": [{ "id": 1, "name": "x", "state": "seeding" }, { "id": 2, "name": "y" }],
+    });
+    let Ok(Reply::Downloads { recent, .. }) = Reply::from_frame(&frame) else {
+        panic!("not read")
+    };
+    assert_eq!(recent.len(), 2);
+    assert_eq!(recent[0].state, "seeding");
+    assert_eq!(recent[1].state, "");
+}
+
+#[test]
+fn an_act_is_known_only_with_a_row_where_it_needs_one() {
+    let act = |does: &str, id: Option<u64>| Act {
+        does: does.into(),
+        id,
+    };
+    for does in [
+        act_does::OPEN,
+        act_does::FOLDER,
+        act_does::RESUME,
+        act_does::STOP,
+    ] {
+        assert!(act(does, Some(1)).is_known(), "{does}");
+        assert!(!act(does, None).is_known(), "{does}");
+    }
+    assert!(act(act_does::CLEAR_FINISHED, None).is_known());
+    assert!(!act(act_does::CLEAR_FINISHED, Some(1)).is_known());
+    assert!(!act("delete-file", Some(1)).is_known());
+    // Read from a frame that leaves the row out.
+    let frame = json!({ "type": kind::ACT, "protocolVersion": 1, "does": "clear-finished" });
+    assert_eq!(
+        Request::from_frame(&frame),
+        Ok(Request::Act(act(act_does::CLEAR_FINISHED, None)))
     );
 }

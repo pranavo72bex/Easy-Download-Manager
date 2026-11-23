@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "Стоп"
+  },
+  "popupRecent": {
+    "message": "Недавние"
+  },
+  "popupOpenFile": {
+    "message": "Открыть"
+  },
+  "popupOpenFolder": {
+    "message": "Открыть папку"
+  },
+  "popupResume": {
+    "message": "Возобновить"
+  },
+  "popupRetry": {
+    "message": "Повторить"
+  },
+  "popupClearFinished": {
+    "message": "Убрать завершённые"
+  },
   "popupNotAnswering": {
     "message": "dm не ответил ($REASON$). Откройте dm (если оно уже открыто, откройте его ещё раз); это окно повторит попытку само. Если он всё ещё не отвечает: $COMMAND$",
     "placeholders": {

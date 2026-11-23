@@ -200,6 +200,34 @@
       }
     }
   },
+  "popupStop": {
+    "message": "Stop",
+    "description": "A button beside a download the popup lists as running: stops it, as dm's Stop download does."
+  },
+  "popupRecent": {
+    "message": "Recent",
+    "description": "The heading over the popup's recent downloads, those stopped or finished last."
+  },
+  "popupOpenFile": {
+    "message": "Open",
+    "description": "A button beside a finished download in the popup: opens its file."
+  },
+  "popupOpenFolder": {
+    "message": "Open folder",
+    "description": "A button beside a finished download in the popup: shows its file in its folder."
+  },
+  "popupResume": {
+    "message": "Resume",
+    "description": "A button beside a stopped download in the popup: resumes it."
+  },
+  "popupRetry": {
+    "message": "Retry",
+    "description": "A button beside a failed download in the popup: tries it again."
+  },
+  "popupClearFinished": {
+    "message": "Clear finished",
+    "description": "A button over the popup's recent downloads: takes the finished ones off dm's list, as dm's Delete Completed does; their files stay."
+  },
   "popupNotAnswering": {
     "message": "dm did not answer ($REASON$). Open dm (if it's already open, open it again); this popup tries again by itself. If it still does not answer: $COMMAND$",
     "description": "The status line when dm is there and did not answer.",

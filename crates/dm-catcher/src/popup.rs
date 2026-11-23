@@ -22,6 +22,9 @@
 //! site too, and says so.
 //! - **Open dm**: the app's window to the front, or the app started; not
 //!   shown when the browser has no host for dm, which it would need.
+//! - What the app is fetching, each with Stop, and under "Recent" what it stopped or finished
+//!   last, each with Open and Open folder, Resume or Retry, and Clear finished (gaps row C12):
+//!   the buttons only where the app says it acts on downloads.
 //!
 //! The page is `extension/popup.html`; this wires it. What a site is, and
 //! whether the panel is kept off one, is decided in [`crate::decide`].
@@ -311,40 +314,136 @@ fn show_status(reply: &JsValue) -> bool {
     false
 }
 
-/// Lists what the background said the app is fetching (`decide::popup_downloads`): a line a
-/// download, then the last failure; hidden where there is nothing.
+/// Shows `element` where `on`, hides it where not.
+fn shown_if(element: &Element, on: bool) {
+    let _ = if on {
+        element.remove_attribute("hidden")
+    } else {
+        element.set_attribute("hidden", "")
+    };
+}
+
+/// Asks the background to have the app do `does` to download `id` (none: the whole list's), then
+/// lists again what the app has; says why where it was not done.
+fn act(ext: &JsValue, does: &str, id: Option<u64>) {
+    let (ext, does) = (ext.clone(), does.to_string());
+    wasm_bindgen_futures::spawn_local(async move {
+        let message = Object::new();
+        let _ = Reflect::set(&message, &"type".into(), &decide::ACT_MESSAGE.into());
+        let _ = Reflect::set(&message, &"does".into(), &does.into());
+        if let Some(id) = id {
+            let _ = Reflect::set(&message, &"id".into(), &JsValue::from_f64(id as f64));
+        }
+        let reply = call(&ext, "runtime", "sendMessage", &[message.into()])
+            .await
+            .unwrap_or(JsValue::UNDEFINED);
+        let ok = Reflect::get(&reply, &"ok".into())
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if !ok {
+            let said = text(&reply, "said");
+            let said = if said.is_empty() {
+                words::POPUP_NO_ANSWER.say()
+            } else {
+                said
+            };
+            say(&said, true);
+        }
+        show_downloads(&ask(&ext, decide::DOWNLOADS_MESSAGE).await);
+    });
+}
+
+/// A button that asks the app to do `does` to download `id`: what it does and to which row are
+/// kept on it, for its list's one listener ([`on_list_click`]), so a list drawn again every two
+/// seconds adds no listener.
+fn act_button(document: &Document, label: &str, does: &str, id: Option<u64>) -> Option<Element> {
+    let button = document.create_element("button").ok()?;
+    button.set_class_name("small");
+    let _ = button.set_attribute("type", "button");
+    let _ = button.set_attribute("data-does", does);
+    if let Some(id) = id {
+        let _ = button.set_attribute("data-id", &id.to_string());
+    }
+    button.set_text_content(Some(label));
+    Some(button)
+}
+
+/// The one listener of the list `id`: a click on one of its buttons ([`act_button`]) asks the app.
+fn on_list_click(ext: &JsValue, id: &str) {
+    let Some(list) = by_id(id) else {
+        return;
+    };
+    let ext = ext.clone();
+    let closure = Closure::<dyn Fn(web_sys::Event)>::new(move |event: web_sys::Event| {
+        let Some(button) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
+            return;
+        };
+        let Some(does) = button.get_attribute("data-does") else {
+            return;
+        };
+        let row = button
+            .get_attribute("data-id")
+            .and_then(|id| id.parse().ok());
+        act(&ext, &does, row);
+    });
+    let _ = list.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
+    closure.forget();
+}
+
+/// Fills the list `id` with `rows`, a line each with its buttons; hidden where there are none.
+fn fill(document: &Document, id: &str, rows: &[decide::PopupRow]) {
+    let Some(list) = by_id(id) else {
+        return;
+    };
+    list.set_text_content(None);
+    for row in rows {
+        let Ok(item) = document.create_element("li") else {
+            continue;
+        };
+        if let Ok(name) = document.create_element("span") {
+            name.set_class_name("name");
+            name.set_text_content(Some(&row.line));
+            let _ = name.set_attribute("title", &row.line);
+            let _ = item.append_child(&name);
+        }
+        for button in &row.buttons {
+            if let Some(button) = act_button(document, &button.label, &button.does, row.id) {
+                let _ = item.append_child(&button);
+            }
+        }
+        let _ = list.append_child(&item);
+    }
+    shown_if(&list, !rows.is_empty());
+}
+
+/// Lists what the background said the app is fetching and has fetched (`decide::popup_list`): a
+/// line a download, then the last failure, then the recent downloads under their heading with
+/// Clear finished; each hidden where there is nothing.
 fn show_downloads(reply: &JsValue) {
     let Some(document) = document() else {
         return;
     };
-    let lines: Vec<String> = Reflect::get(reply, &"lines".into())
+    let listed: decide::PopupList = js_sys::JSON::stringify(reply)
         .ok()
-        .and_then(|v| v.dyn_into::<Array>().ok())
-        .map(|a| a.iter().filter_map(|v| v.as_string()).collect())
+        .and_then(|json| json.as_string())
+        .and_then(|json| serde_json::from_str(&json).ok())
         .unwrap_or_default();
-    if let Some(list) = by_id("going") {
-        list.set_text_content(None);
-        for line in &lines {
-            if let Ok(item) = document.create_element("li") {
-                item.set_text_content(Some(line));
-                let _ = item.set_attribute("title", line);
-                let _ = list.append_child(&item);
-            }
-        }
-        let _ = if lines.is_empty() {
-            list.set_attribute("hidden", "")
-        } else {
-            list.remove_attribute("hidden")
-        };
-    }
-    let failed = text(reply, "failed");
+    fill(&document, "going", &listed.going);
     if let Some(line) = by_id("failed") {
+        let failed = listed.failed.unwrap_or_default();
         line.set_text_content(Some(&failed));
-        let _ = if failed.is_empty() {
-            line.set_attribute("hidden", "")
-        } else {
-            line.remove_attribute("hidden")
-        };
+        shown_if(&line, !failed.is_empty());
+    }
+    fill(&document, "recent", &listed.recent);
+    if let Some(head) = by_id("recent-head") {
+        shown_if(&head, !listed.recent.is_empty());
+    }
+    if let Some(clear) = by_id("clear") {
+        if let Some(label) = &listed.clear {
+            clear.set_text_content(Some(label));
+        }
+        shown_if(&clear, listed.clear.is_some());
     }
 }
 
@@ -441,6 +540,20 @@ pub fn popup_start() {
 
     // This site's sign-in with its downloads.
     wasm_bindgen_futures::spawn_local(cookies_switch(ext.clone()));
+
+    // The buttons beside the downloads listed.
+    on_list_click(&ext, "going");
+    on_list_click(&ext, "recent");
+
+    // Clear finished: the finished downloads off dm's list, as its Delete Completed does.
+    if let Some(clear) = by_id("clear") {
+        let ext = ext.clone();
+        let closure = Closure::<dyn Fn()>::new(move || {
+            act(&ext, dm_protocol::act_does::CLEAR_FINISHED, None)
+        });
+        let _ = clear.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref());
+        closure.forget();
+    }
 
     // Open dm: its window to the front, then the popup gets out of the way.
     if let Some(open) = by_id("open") {

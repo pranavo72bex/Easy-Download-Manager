@@ -115,11 +115,19 @@ pub(super) async fn popup_asked(message: &JsValue) -> Option<JsValue> {
                 }),
             }))
         }
-        Some(decide::DOWNLOADS_MESSAGE) => {
-            let (lines, failed) = popup_downloads().await;
-            Some(to_js(
-                &serde_json::json!({ "lines": lines, "failed": failed }),
-            ))
+        Some(decide::DOWNLOADS_MESSAGE) => Some(to_js(
+            &serde_json::to_value(popup_downloads().await).unwrap_or_default(),
+        )),
+        // A button beside a download in the popup (gaps row C12).
+        Some(decide::ACT_MESSAGE) => {
+            let act = dm_protocol::Act {
+                does: get(message, "does").as_string().unwrap_or_default(),
+                id: get(message, "id").as_f64().map(|id| id as u64),
+            };
+            Some(match popup_act(act).await {
+                Ok(()) => answer(true, "done"),
+                Err(why) => answer(false, &why),
+            })
         }
         Some(decide::OPEN_MESSAGE) => Some(match show_app().await {
             Ok(()) => answer(true, "dm is open"),

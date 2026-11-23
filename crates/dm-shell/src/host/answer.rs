@@ -94,8 +94,23 @@ pub fn answer(
                 downloads: published.downloads,
                 running: published.running,
                 failed: published.failed,
+                recent: published.recent,
             }
         }
+
+        // A download in the popup opened, shown, resumed or stopped, or the finished ones
+        // cleared (gaps row C12): left for the window, which does it with its own commands.
+        Ok(Asked::Act(act)) => Reply::Acted {
+            reason: if world.app_running() {
+                let asked = crate::app::going::ask_window(home, &act);
+                if asked.is_ok() {
+                    world.ring();
+                }
+                asked.err()
+            } else {
+                Some("dm is not running".to_string())
+            },
+        },
 
         // Another version, or something this host does not do: pausing and
         // cancelling belong to the window, which is where the download is.

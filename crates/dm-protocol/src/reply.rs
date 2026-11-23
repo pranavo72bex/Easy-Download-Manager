@@ -98,6 +98,17 @@ pub enum Reply {
         /// The last download that failed, while the app remembers it.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         failed: Option<LastFailure>,
+        /// The downloads stopped or finished last, the newest first, [`MOST_RECENT`] at most
+        /// (gaps row C12). Empty from an app that does not list them, and then not sent.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        recent: Vec<Recent>,
+    },
+    /// The answer to [`Request::Act`]: done, or why not.
+    #[serde(rename = "downloads.acted")]
+    Acted {
+        /// Why it could not be done, in words for the popup.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
     },
 }
 

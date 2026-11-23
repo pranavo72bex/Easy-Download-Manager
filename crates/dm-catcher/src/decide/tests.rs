@@ -3006,6 +3006,7 @@ fn the_popup_lists_what_the_app_fetches_and_its_last_failure() {
         name: name.into(),
         percent,
         speed,
+        id: None,
     };
     assert_eq!(
         going_line(&going("a.iso", Some(12), 3 * 1024 * 1024)),
@@ -3017,33 +3018,140 @@ fn the_popup_lists_what_the_app_fetches_and_its_last_failure() {
         name: "c.zip".into(),
         why: "the server refused it".into(),
     };
-    let (lines, failure) = popup_downloads(
-        &[going("a.iso", Some(1), 0), going("b.bin", None, 0)],
-        5,
-        Some(&failed),
-    );
-    assert_eq!(lines, ["a.iso · 1%", "b.bin", "and 3 more"]);
-    assert_eq!(
-        failure.as_deref(),
-        Some("Failed: c.zip (the server refused it)")
-    );
-    assert_eq!(popup_downloads(&[], 0, None), (Vec::new(), None));
+    let listed = Listed {
+        downloads: vec![going("a.iso", Some(1), 0), going("b.bin", None, 0)],
+        running: 5,
+        failed: Some(failed),
+        recent: Vec::new(),
+    };
+    // An app from before C12: lines alone, as before, whatever this extension can do.
+    for acts in [false, true] {
+        let list = popup_list(&listed, acts);
+        let lines: Vec<&str> = list.going.iter().map(|r| r.line.as_str()).collect();
+        assert_eq!(lines, ["a.iso · 1%", "b.bin", "and 3 more"]);
+        assert!(list
+            .going
+            .iter()
+            .all(|r| r.buttons.is_empty() && r.id.is_none()));
+        assert_eq!(
+            list.failed.as_deref(),
+            Some("Failed: c.zip (the server refused it)")
+        );
+        assert!(list.recent.is_empty() && list.clear.is_none());
+    }
+    assert_eq!(popup_list(&Listed::default(), true), PopupList::default());
 
     // The app's answer read back; any other answer is not a list.
     let frame = Reply::Downloads {
         downloads: vec![going("a.iso", Some(50), 10)],
         running: 1,
         failed: None,
+        recent: Vec::new(),
     }
     .to_frame();
     assert_eq!(
         downloads_listed(&frame),
-        Some((vec![going("a.iso", Some(50), 10)], 1, None))
+        Some(Listed {
+            downloads: vec![going("a.iso", Some(50), 10)],
+            running: 1,
+            ..Listed::default()
+        })
     );
     assert_eq!(
         downloads_listed(&Reply::started("s", true).to_frame()),
         None
     );
+}
+
+/// Gaps row C12: an app that acts on downloads gives each its buttons, the recent ones under
+/// their heading, and Clear finished where a finished one is listed.
+#[test]
+fn the_popup_gives_each_download_what_can_be_done_to_it() {
+    use dm_protocol::{act_does, recent_state, Going, Recent};
+    let recent = |id: u64, name: &str, state: &str| Recent {
+        id,
+        name: name.into(),
+        state: state.into(),
+    };
+    let listed = Listed {
+        downloads: vec![Going {
+            name: "a.iso".into(),
+            percent: None,
+            speed: 0,
+            id: Some(1),
+        }],
+        running: 1,
+        failed: None,
+        recent: vec![
+            recent(2, "b.bin", recent_state::STOPPED),
+            recent(3, "c.pdf", recent_state::FINISHED),
+            recent(4, "d.zip", recent_state::FAILED),
+            recent(5, "e.mkv", "seeding"),
+        ],
+    };
+    let list = popup_list(&listed, true);
+    let does = |row: &PopupRow| -> Vec<(String, String)> {
+        row.buttons
+            .iter()
+            .map(|b| (b.does.clone(), b.label.clone()))
+            .collect()
+    };
+    let pair = |a: &str, b: &str| (a.to_string(), b.to_string());
+    assert_eq!(list.going[0].id, Some(1));
+    assert_eq!(does(&list.going[0]), [pair(act_does::STOP, "Stop")]);
+    let lines: Vec<&str> = list.recent.iter().map(|r| r.line.as_str()).collect();
+    assert_eq!(lines, ["b.bin", "c.pdf", "d.zip", "e.mkv"]);
+    assert_eq!(does(&list.recent[0]), [pair(act_does::RESUME, "Resume")]);
+    assert_eq!(
+        does(&list.recent[1]),
+        [
+            pair(act_does::OPEN, "Open"),
+            pair(act_does::FOLDER, "Open folder")
+        ]
+    );
+    assert_eq!(does(&list.recent[2]), [pair(act_does::RESUME, "Retry")]);
+    // A state this extension does not know: listed, nothing to click.
+    assert!(list.recent[3].buttons.is_empty());
+    assert_eq!(list.recent[3].id, Some(5));
+    assert_eq!(list.clear.as_deref(), Some("Clear finished"));
+
+    // Nothing finished: no Clear finished.
+    let unfinished = Listed {
+        recent: vec![recent(2, "b.bin", recent_state::STOPPED)],
+        ..listed.clone()
+    };
+    assert_eq!(popup_list(&unfinished, true).clear, None);
+    // An app that does not act on downloads: no buttons, nothing recent.
+    let plain = popup_list(&listed, false);
+    assert!(plain.going[0].buttons.is_empty() && plain.going[0].id.is_none());
+    assert!(plain.recent.is_empty() && plain.clear.is_none());
+
+    // What the background hands the popup reads back whole.
+    let json = serde_json::to_string(&list).unwrap();
+    assert_eq!(serde_json::from_str::<PopupList>(&json).unwrap(), list);
+    // An empty answer (the background had none) is an empty list.
+    assert_eq!(
+        serde_json::from_str::<PopupList>("{}").unwrap(),
+        PopupList::default()
+    );
+}
+
+#[test]
+fn the_apps_answer_to_an_ask_says_whether_it_was_done() {
+    assert_eq!(
+        acted(&Reply::Acted { reason: None }.to_frame()),
+        Some(Ok(()))
+    );
+    assert_eq!(
+        acted(
+            &Reply::Acted {
+                reason: Some("dm is not running".into())
+            }
+            .to_frame()
+        ),
+        Some(Err("dm is not running".into()))
+    );
+    assert_eq!(acted(&Reply::started("s", true).to_frame()), None);
 }
 
 #[test]

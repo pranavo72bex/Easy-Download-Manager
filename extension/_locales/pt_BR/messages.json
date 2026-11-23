@@ -165,6 +165,27 @@
       }
     }
   },
+  "popupStop": {
+    "message": "Parar"
+  },
+  "popupRecent": {
+    "message": "Recentes"
+  },
+  "popupOpenFile": {
+    "message": "Abrir"
+  },
+  "popupOpenFolder": {
+    "message": "Abrir pasta"
+  },
+  "popupResume": {
+    "message": "Retomar"
+  },
+  "popupRetry": {
+    "message": "Tentar novamente"
+  },
+  "popupClearFinished": {
+    "message": "Limpar concluídos"
+  },
   "popupNotAnswering": {
     "message": "O dm não respondeu ($REASON$). Abra o dm (se já estiver aberto, abra de novo); esta janela tenta de novo sozinha. Se ainda não responder: $COMMAND$",
     "placeholders": {

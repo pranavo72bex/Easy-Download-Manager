@@ -448,29 +448,62 @@ pub(super) async fn page_links(
     }
 }
 
-/// What the app is fetching, as lines for the toolbar popup (gaps row U18): asked of an app that
-/// says it lists them, nothing of one that does not, or that did not answer in time.
-async fn popup_downloads() -> (Vec<String>, Option<String>) {
+/// What the app is fetching and has fetched, as the toolbar popup lists it (gaps rows U18 and
+/// C12): asked of an app that says it lists them, nothing of one that does not, or that did not
+/// answer in time. Its buttons only where the app says it acts on downloads.
+async fn popup_downloads() -> decide::PopupList {
     let (app, port) = app().await;
-    let lists = matches!(&app, App::Present { hello, .. } if hello.has(dm_protocol::feature::LISTS_DOWNLOADS));
+    let (lists, acts) = match &app {
+        App::Present { hello, .. } => (
+            hello.has(dm_protocol::feature::LISTS_DOWNLOADS),
+            hello.has(dm_protocol::feature::ACTS_ON_DOWNLOADS),
+        ),
+        App::Absent { .. } => (false, false),
+    };
     if !lists {
-        return (Vec::new(), None);
+        return decide::PopupList::default();
     }
     let Some(mut port) = port.or_else(|| Port::open().ok()) else {
-        return (Vec::new(), None);
+        return decide::PopupList::default();
     };
     if port.send(&Request::Downloads).is_err() {
-        return (Vec::new(), None);
+        return decide::PopupList::default();
     }
     let deadline = now() + decide::DOWNLOADS_LISTED_WITHIN_MS;
     loop {
         match port.next(deadline).await {
             Heard::Frame(frame) => {
-                if let Some((downloads, running, failed)) = decide::downloads_listed(&frame) {
-                    return decide::popup_downloads(&downloads, running, failed.as_ref());
+                if let Some(listed) = decide::downloads_listed(&frame) {
+                    return decide::popup_list(&listed, acts);
                 }
             }
-            Heard::Gone(_) => return (Vec::new(), None),
+            Heard::Gone(_) => return decide::PopupList::default(),
+        }
+    }
+}
+
+/// Asks the app to do what the popup's button says to a download (gaps row C12): `Err` with why
+/// where it was not done, or the app does not act on downloads or did not answer in time.
+async fn popup_act(act: dm_protocol::Act) -> Result<(), String> {
+    let (app, port) = app().await;
+    let acts = matches!(&app, App::Present { hello, .. } if hello.has(dm_protocol::feature::ACTS_ON_DOWNLOADS));
+    if !acts {
+        return Err(crate::words::POPUP_NO_ANSWER.say());
+    }
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open()?,
+    };
+    port.send(&Request::Act(act))?;
+    let deadline = now() + decide::DOWNLOADS_LISTED_WITHIN_MS;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some(done) = decide::acted(&frame) {
+                    return done;
+                }
+            }
+            Heard::Gone(why) => return Err(why),
         }
     }
 }
