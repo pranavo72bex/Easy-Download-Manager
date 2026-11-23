@@ -266,6 +266,14 @@ fn open<V: 'static + gpui::Render>(
         options.is_minimizable = false;
     }
     let title = options.titlebar.as_ref().and_then(|t| t.title.clone());
+    // Not a window opened hidden, which a question is on macOS before it hangs from dm's window as
+    // a sheet: the system places a sheet itself, and one asked for at a corner of its own was
+    // not shown in turn (B17, B39, B40 and B48 failing in `human-qa.py`, 2026-11-23).
+    if options.show {
+        if let Some(bounds) = options.window_bounds.as_mut() {
+            *bounds = on_whole_points(*bounds);
+        }
+    }
     // GPUI hands it to the system as it makes the window.
     options.app_id.get_or_insert_with(|| APP_ID.to_string());
     // Where a dialog asked to stand, for X11 to be told (`syswindow::place`).
@@ -294,6 +302,20 @@ fn open<V: 'static + gpui::Render>(
     Ok(opened)
 }
 
+/// `bounds` with its corner on a whole point. Centred on a screen whose free part is an odd
+/// number of points wide (a Dock at the side), a window's left edge fell on a half point, and
+/// macOS rounded its two edges apart: a 520-point dialog opened 521 points wide.
+fn on_whole_points(bounds: gpui::WindowBounds) -> gpui::WindowBounds {
+    let whole = |b: Bounds<Pixels>| {
+        Bounds::new(gpui::point(b.origin.x.round(), b.origin.y.round()), b.size)
+    };
+    match bounds {
+        gpui::WindowBounds::Windowed(b) => gpui::WindowBounds::Windowed(whole(b)),
+        gpui::WindowBounds::Maximized(b) => gpui::WindowBounds::Maximized(whole(b)),
+        gpui::WindowBounds::Fullscreen(b) => gpui::WindowBounds::Fullscreen(whole(b)),
+    }
+}
+
 /// Sets `window`'s title, where it changed, and keeps it for the port
 /// (`Screens::title_of`), which cannot ask GPUI's Windows and Linux windows
 /// for it: a progress window's, which starts with how far it is.
@@ -304,4 +326,21 @@ pub fn set_title(window: &mut gpui::Window, title: &str, cx: &mut App) {
     }
     window.set_window_title(title);
     Screens::titled(handle, SharedString::from(title.to_string()), cx);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::{point, px, size, WindowBounds};
+
+    /// A dialog centred beside a Dock at the side stood on a half point and opened a point wider.
+    #[test]
+    fn a_window_is_asked_for_on_whole_points_at_its_own_size() {
+        let asked = Bounds::new(point(px(497.5), px(355.5)), size(px(520.0), px(220.0)));
+        let WindowBounds::Windowed(got) = on_whole_points(WindowBounds::Windowed(asked)) else {
+            panic!("still a window of its own");
+        };
+        assert_eq!(got.origin, point(px(498.0), px(356.0)));
+        assert_eq!(got.size, asked.size);
+    }
 }

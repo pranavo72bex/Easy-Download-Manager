@@ -11,14 +11,62 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## First priority after the release: what reference C does well (rows C, the maintainer, 2026-11-23)
+
+The maintainer, 2026-11-23: take the good things from reference C (another free, GPL, pure-Rust
+download manager) that dm can implement, first priority once 0.10.3 is out, "more focus on
+feature part and readme part rather than UI or technology points". Ideas only, never its code;
+the clean-room rule holds (no helper program). Read from its README and help pages on
+2026-11-23 and checked against dm's code and docs.
+
+Left out: what dm already has (portable mode, speed limits and the hourly cap, Only through, the
+numbered series, FTP, checksums, MCP, the control port, chapters and cover in a YouTube file by
+Y11, "when done" shut down, a download handed back to the browser when dm is not running); what
+was dropped by decision (debrid accounts, control from a phone, hosting finished files, galleries
+through a helper); and its technology and look (encrypted DNS, themes, crash reports), which can
+come back as rows of their own later.
+
+**The features, in order.** Y6 and Y20 (subtitles saved beside a video or inside it, which
+reference C offers) move up beside C1 to C3.
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| C0  | dm is not measured against reference C, which publishes its own times (a 1 GB file, a small file, a shaky connection, the wait before a download starts, a server allowing two connections) and says it wins each. The maintainer, 2026-11-23: "our application should works better than this. we should keep our technoloty gpui" | OPEN · M | `bench/` runs reference C's latest release beside dm, as a black box on the same loopback server and the same files, seven runs a scenario, both at their defaults (dm's 16 connections since 2026-11-23, at the maintainer's word "make default connection from 8 to 16"): the five scenarios above and `bench/`'s own; the times, CPU and memory in `bench/results`. Each scenario dm loses is a row of its own, fixed in dm's engine or GPUI window (no change of toolkit), until dm is at least as fast in every one; then on Windows and Linux too |
+| C1  | A torrent cannot be watched while it downloads: its pieces come in the swarm's order | OPEN · M | A row's "Download in order" (and a torrent added with it): the first and last pieces, then in order, switchable while it runs (librqbit's piece picker, `vendor/patches` if needed); a video's start plays before its end arrives. W13 is the same for plain downloads |
+| C2  | An archive with a password is left as it is (`feature-status.md`: passwords refused): a person unpacks it by hand | OPEN · M | Options › Folders › Archive passwords: a list tried in turn, the one that opens it moved to the top, one asked for where none fits; ZIP (ZipCrypto, AES) and 7z AES in Rust; kept in the sign-ins' store, never in clear in `settings.json`; F10's RAR when it lands |
+| C3  | The links of one file split in parts (`.part1.rar`, `.7z.001`, `.zip.001`) are separate rows: each part is unpacked alone, or not at all | OPEN · M | The Grabber and a page's links group them as one package (its name, its parts, one folder); unpacked once, when the last part is in, then the parts kept or sent to the Trash as Unpack when done says |
+| C4  | The Grabber and a page's links do not say which links are alive: a dead link is found only when it fails | OPEN · S-M | Each link looked up (a HEAD, else a one-byte range) a few at a time: Online with its real name and size, Offline (404, 410), Needs a sign-in (401, 403) or Busy (429, 503); the dead ones unticked; nothing fetched |
+| C5  | A speed limit holds all the time: a person who limits dm to keep the connection for browsing loses the speed at night too | OPEN · S | The limiter's "Only while I'm at the computer": the limit holds while the keyboard or mouse was used in the last few minutes, and lifts when nobody is there (the system's idle time on macOS, Windows and Linux; Android: while the screen is on) |
+| C6  | A torrent's row has no commands of its own beyond recheck and sharing | OPEN · S | On a torrent's row: Copy magnet link, Add trackers… (one per line, kept with the row) and Announce again; Android's sheet too |
+| C7  | A script cannot add a download with its folder and name: the command line lists, pauses, resumes and cancels | OPEN · S | `dm add <address> [--folder F] [--name N] [--queue Q] [--start\|--later]`, and the switches a person moving from reference A already uses in their scripts (address, folder, name, quiet, add to the queue, start the queue), answered by the running dm |
+| C8  | On Windows a queue's start time does not wake a sleeping computer (macOS and Linux dropped by decision: they need an administrator) | OPEN · S | The Scheduler's "Wake the computer" on Windows: a waitable timer, which needs no administrator; said greyed elsewhere |
+| C9  | dm cannot be run on a home server (a NAS) without building it: `--headless` exists, nothing to install | OPEN · M | A container image of the headless dm (Docker, Unraid's template), its downloads folder and settings as volumes, built and published by CI for amd64 and arm64; with W25's web page to add and watch downloads |
+| C10 | A feed of torrents (a tracker's RSS) is not followed: B75 follows a podcast's | OPEN · S | Check now and every N hours add a feed's new `.torrent` and magnet items as for a podcast's, with a filter of words to match; a test feed beside B75's |
+| C11 | The progress window does not say where the server is: a far server, the cause of a slow download, is not seen | OPEN · M | The country (a flag and its name) and near, medium or far by round-trip time, in the progress window and Properties; from an offline IP table shipped with dm (DB-IP Lite, CC BY 4.0, credited in NOTICE), nothing sent anywhere |
+| C12 | The extension's popup lists only what dm is fetching and the last failure | OPEN · M | Its recent downloads too, each with Open, Show in folder, Pause or Resume; Clear finished; through the host as today |
+| C13 | Help has no way to report a problem: a person must find the issues page and say their version and system | OPEN · S | Help › Report a problem opens a new issue in the browser with dm's version, the system and its language filled in (nothing else, nothing sent by dm itself) |
+| C14 | A link site's "Click'n'Load" button sends its links to a program on the computer (port 9666), and dm does not answer it | OPEN · M · decide | Off by default (a listening port): when on, Ask, Allow or Block per site, the links into the Grabber, a rate limit; the maintainer's word before it is built |
+
+**The README and the help pages.**
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| C15 | The README does not say which release file to take: a person reads every installer's name | OPEN · S | Under Install, one table per system: each file and "Choose it when", the one to take when unsure first (installer, portable, `.deb`, `.rpm`, AppImage, the APK) |
+| C16 | The help pages follow the windows (`docs/guide/`, one per window); none walks through a task | OPEN · S | Step-by-step guides, linked from the README: your first download; catch every browser download; download overnight; download a video from a page; resume a broken download; keep some speed for everything else; take dm on a USB stick. Each checked against the window as it is |
+| C17 | The README's "What it does" lists what dm has, not what it does for a person, and says nothing of how fast it is | OPEN · S | "What it does" as a person's outcomes, one line each with its help page; a short "How fast" table from `bench/results` (the files, the conditions, the times; no other program named), and how to run the benchmark again |
+| C18 | dm is installed only by hand from the release page, and updated the same way on Windows | OPEN · S | A WinGet manifest (and a Homebrew cask) for each release, made by the release job; the README gives the one line to install and the one to update |
+| C19 | The maintainer, 2026-11-23: "readme of this project … should be nicer and detailed than" reference C's. Its README opens with a picture of the window, one line of what it is and buttons to download, then a menu of the page, a measured "why switch" table, a table of which file to take, a section per system, the languages, a gallery of six windows, "What it does" with a help page per line, the benchmark in detail, a clean-room statement, status, credits. dm's (636 lines) starts at Quick start, has 6 pictures, no page menu, no measured speed, no gallery and Android "in development" | OPEN · M · after the release | Done with C15 to C18 and step 8: the top as a person meets it (the window in light and dark, what dm is in a line, Download for each system and the APK, the extension's stores); a menu of the page; "What it does" by outcome, each with a picture or its help page; the measured table (C0, C17); the file table (C15); a section per system with Android's install; a gallery of the main window, Add URL, the video panel in the browser, a torrent, Options and the phone, light and dark; the languages; the clean-room and privacy statement (nothing sent, no helper program); status and what is not done yet; credits. Every claim checked against the app and a link that works; nothing names another download manager |
+
 ## Next session: release 0.10.3 (stopped 2026-11-22, the maintainer: "we will do it tomorrow")
 
 **2026-11-23.** Steps 1 and 2 done: nothing incoming; `cargo test --workspace` 137 of 137 suites
 (after `download_torrent` was split: xtask's 150-line limit); `human-qa.py` on the Mac 75 of 76,
-B25 failing on Add URL and Download details pictured one point wider (521 for 520), the content
-the same. The window was not touched; the 520/521 flip happened before (`dbf92b08`), and a
-second display (1080p) was attached this run. Re-run with it unplugged before pushing; if B25
-still fails, find why macOS widens a 520-point dialog. Committed in two (step 3), **not pushed**.
+B25 failing on Add URL and Download details pictured one point wider (521 for 520). Not the
+second display (the same with it unplugged): gpui centres a dialog on the screen's free part,
+which beside a Dock at the side is an odd number of points wide, so its left edge fell on a half
+point and macOS rounded its two edges apart (the 520/521 flip of `dbf92b08` too). Fixed in
+`window/screen.rs` (`on_whole_points`), not for a question, which hangs as a sheet: rounded too,
+B17, B39, B40 and B48 failed. `human-qa.py` then 76 of 76. Committed in three (step 3).
 
 **Where it is.** 0.10.1 and 0.10.2 were built as drafts and are not to be published; 0.10.3 is
 the release. Its changes (committed 2026-11-23):
@@ -59,6 +107,17 @@ on the emulator (`dmci`) magnets with an https tracker, with dead trackers and w
 7. Publish `desktop-v0.10.3`, `android-v0.10.3` and the extension's `v3.5.0` (unchanged). Ask the
    maintainer whether to delete the unpublished drafts `desktop-v0.10.1`, `android-v0.10.1` and
    `android-v0.10.2` (and their tags).
+8. Once published (the maintainer, 2026-11-23: "update the readme for android as well after
+   release"): README's "Android (in development)" says it runs on phones (Android 10 and up),
+   links the release's `dm-0.10.3.apk` with how to install it (allow installs from the browser,
+   check the `.sha256`), and drops "has not been run on a phone yet" and "once CI has run it";
+   `docs/android.md` "A release" names 0.10.3, not 0.10.0.
+9. Issue #56 (the site watch, run 45027670048; the maintainer, 2026-11-23: "address the issue"):
+   the walls (YouTube's "not a bot", Vimeo, TikTok, Instagram, Rumble) are not dm's; two are:
+   Dailymotion's panel listed two lines, both `xbyu73a.m3u8`, and nothing was sent (row 220 made
+   a re-signed playlist one line: what differs here?); Bilibili's panel listed none and a click
+   sent the picture's `.m4s` (100023) alone, no sound. `python3 scripts/sites-check.py
+   dailymotion bilibili` in Edge on the Mac, nothing else running, then fix and run it again.
 
 ## Where it stands (2026-11-21)
 
