@@ -1031,5 +1031,7 @@
  "{} selected": "{} sélectionnés",
  "Archive passwords": "Mots de passe d'archive",
  "Tapping a download": "Toucher un téléchargement",
- "Folders by kind": "Dossiers par type"
+ "Folders by kind": "Dossiers par type",
+ "Kept in dm's settings file on this phone, where only dm can read it.": "Conservé dans le fichier de réglages de dm sur ce téléphone, où seul dm peut le lire.",
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "Les téléchargements attendent tant que la batterie du téléphone est sous ce niveau, et reprennent dès qu'il charge ou le dépasse à nouveau."
 }

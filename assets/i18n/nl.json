@@ -1031,5 +1031,7 @@
  "{} selected": "{} geselecteerd",
  "Archive passwords": "Archiefwachtwoorden",
  "Tapping a download": "Op een download tikken",
- "Folders by kind": "Mappen per soort"
+ "Folders by kind": "Mappen per soort",
+ "Kept in dm's settings file on this phone, where only dm can read it.": "Bewaard in het instellingenbestand van dm op deze telefoon, waar alleen dm het kan lezen.",
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "Downloads wachten zolang de batterij van de telefoon onder dit niveau is, en gaan verder zodra hij oplaadt of er weer boven zit."
 }

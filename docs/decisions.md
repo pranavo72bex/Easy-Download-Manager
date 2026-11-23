@@ -8728,3 +8728,14 @@ it is difficult to go to 3 dots then go to Options. do not remove from there. ju
 navigation bar instead of Finished option". The bar is All, Unfinished, Places and Options;
 Options stays in the overflow menu; Finished is chosen from the Places drawer, which lights
 Places while it is shown (`window/narrow/bottomnav.rs`).
+
+## 2026-11-23: The desktop's design: ranked, and drawn once for phone and desktop (the maintainer's word)
+
+The maintainer: "i am getting feeback the overall desing of desktop application is not good. how
+can we make it better and adoptive for mobile and desktop as well", learning from reference C's
+user experience without looking like it. Gaps rows E. Chosen: rank what each window shows (one
+filled button, a state as a mark and a word, a figure line over a whole-file bar, forms as a
+grid) and build each in rows V's adaptive parts, so the phone and the desktop are one drawing.
+Weighed and set aside: reference C's look, its tabbed Options and tabbed progress window, and a
+choice of many themes (dm already takes each system's own look). Nothing is coded by this entry;
+a row that changes a contract row still waits for the maintainer's word on it.

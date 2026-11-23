@@ -87,7 +87,9 @@ A site that allows fewer connections can be given its own number: see
   it. macOS does not tell dm, so there the downloads go on.
 - **On battery: wait below (%, 0 for never):** "Downloads wait while the
   computer runs on its battery below this level, and go on once it charges
-  or is above it again." Their rows say "Waiting: the battery is low". 0,
+  or is above it again." On the phone: "Downloads wait while the phone's
+  battery is below this level, and go on once it charges or is above it
+  again." Their rows say "Waiting: the battery is low". 0,
   the setting at first, never waits.
 
 On a phone, four more lines follow, each off at first:

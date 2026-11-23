@@ -222,8 +222,8 @@ impl Properties {
             .flex()
             .flex_col()
             .gap(px(native::ROW_GAP))
-            .child(native::row(Some("SHA-256"), width, screen, sha))
-            .child(native::row(
+            .child(native::row_wide(Some("SHA-256"), width, screen, sha))
+            .child(native::row_wide(
                 Some(t("Check against")),
                 width,
                 screen,

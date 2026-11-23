@@ -479,5 +479,9 @@ fn metered_and_battery(
         |o| o.draft.downloads.battery_below.to_string(),
     );
     p.setting(t("On battery: wait below (%, 0 for never)"), true, level);
-    p.note(t("Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again."));
+    p.note(if crate::platform::ON_A_PHONE {
+        t("Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.")
+    } else {
+        t("Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.")
+    });
 }

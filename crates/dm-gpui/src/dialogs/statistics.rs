@@ -225,14 +225,16 @@ impl Render for StatisticsWindow {
                 }
             }))
             .size_full()
-            .bg(theme.window)
-            .child(
-                div()
-                    .id("statistics-body")
-                    .size_full()
-                    .overflow_y_scroll()
-                    .child(body),
-            );
+            .bg(theme.window);
+        let root = native::phone_framed(root, t("Statistics"), theme).child(
+            div()
+                .id("statistics-body")
+                .size_full()
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .child(body),
+        );
         crate::window::safe::kept_clear(root, window)
     }
 }

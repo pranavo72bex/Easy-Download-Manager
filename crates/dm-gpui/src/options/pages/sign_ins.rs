@@ -85,7 +85,10 @@ pub(super) fn sign_ins(
         cx.notify();
     }));
     p.add(div().flex().child(add));
-    p.note(t(
-        "Kept in dm's settings file on this computer, readable by your account.",
-    ));
+    // A phone keeps it in dm's own storage, which no other app reads.
+    p.note(if crate::platform::ON_A_PHONE {
+        t("Kept in dm's settings file on this phone, where only dm can read it.")
+    } else {
+        t("Kept in dm's settings file on this computer, readable by your account.")
+    });
 }

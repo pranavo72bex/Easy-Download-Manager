@@ -62,3 +62,70 @@ pub fn phone_bar(
                 .child(title),
         )
 }
+
+/// A dialog's `root` that closes as its window does, on a phone: a column under its own top
+/// bar, `title` and Back (which closes it), so what follows can fill and scroll the rest. As
+/// it was on a computer (gaps row N31).
+pub fn phone_framed(
+    root: gpui::Stateful<Div>,
+    title: impl Into<SharedString>,
+    theme: Theme,
+) -> gpui::Stateful<Div> {
+    if !crate::platform::ON_A_PHONE {
+        return root;
+    }
+    root.flex()
+        .flex_col()
+        .child(phone_bar(title.into(), theme, |_, window, _| {
+            window.remove_window()
+        }))
+}
+
+/// A form's row whose control is a wide field (an address, a list of words): on a phone its
+/// words above it and the field the line's whole width, so neither is cut; elsewhere
+/// [`super::row`] (gaps row N31).
+pub fn row_wide(
+    label: Option<&str>,
+    label_width: f32,
+    screen: &crate::window::screen::Screen,
+    control: impl IntoElement,
+) -> Div {
+    if !crate::platform::ON_A_PHONE {
+        return super::row(label, label_width, screen, control);
+    }
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(space::XS))
+        .when_some(label.map(str::to_string), |d, label| {
+            d.child(screen.label(label))
+        })
+        .child(div().w_full().min_w_0().child(control))
+}
+
+/// A form's row whose control is small (a number's box, a choice): on a phone its words at
+/// the left, wrapping where long, and the control at the right edge, as a phone's settings
+/// are; elsewhere [`super::row`] (gaps row N31).
+pub fn row_short(
+    label: Option<&str>,
+    label_width: f32,
+    screen: &crate::window::screen::Screen,
+    control: impl IntoElement,
+) -> Div {
+    if !crate::platform::ON_A_PHONE {
+        return super::row(label, label_width, screen, control);
+    }
+    div()
+        .flex()
+        .items_center()
+        .gap(px(space::L))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .when_some(label.map(str::to_string), |d, label| {
+                    d.child(screen.label(label))
+                }),
+        )
+        .child(div().flex_none().child(control))
+}

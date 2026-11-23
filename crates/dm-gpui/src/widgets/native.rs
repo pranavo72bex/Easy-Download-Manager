@@ -314,10 +314,6 @@ pub(super) fn field_drawn(
         )
 }
 
-/// The least room a control keeps beside its label in a phone's form row; with less, it goes
-/// under the label.
-const PHONE_CONTROL_MIN: f32 = 170.0;
-
 /// A form's row: `label` right-aligned in a column `label_width` wide, its
 /// control beside it.
 pub fn row(
@@ -326,41 +322,21 @@ pub fn row(
     screen: &Screen,
     control: impl IntoElement,
 ) -> Div {
-    // A phone's form: the label at the start and its control at the end of one line, as a
-    // phone's own settings are; where the two do not fit across the screen, the control goes
-    // under its label at the whole width. A column of labels beside the controls left the
-    // controls no room and cut long labels.
+    // A phone's form: the label above its control, the control from the same edge on every
+    // line, a field as wide as the line, a small control at its own size (`row_short` puts
+    // one at the right of its words). Beside one another the controls began at as many
+    // places as there were label widths, and a long label left a field a sliver (gaps N31).
     if crate::platform::ON_A_PHONE {
         return div()
             .flex()
-            .flex_wrap()
-            .items_center()
-            .justify_between()
-            .gap_x(px(space::L))
-            .gap_y(px(space::XS))
+            .flex_col()
+            .gap(px(space::XS))
             .when_some(label.map(str::to_string), |d, label| {
-                d.child(div().flex_none().max_w_full().child(screen.label(label)))
+                d.child(screen.label(label))
             })
-            .child(
-                div()
-                    .flex_1()
-                    .min_w(px(PHONE_CONTROL_MIN))
-                    .flex()
-                    .flex_wrap()
-                    .items_center()
-                    // Under no label (a check box alone), at the start, as the form's words.
-                    .when(label.is_some(), |d| d.justify_end())
-                    .gap(px(LABEL_GAP))
-                    // With no label it is the whole line's: a note's words wrap at the screen's
-                    // edge (Back up dm's ran off the screen on a phone, 2026-11-22).
-                    .map(|d| {
-                        if label.is_some() {
-                            d.child(control)
-                        } else {
-                            d.child(div().w_full().min_w_0().child(control))
-                        }
-                    }),
-            );
+            // A block the line's width: a note's words wrap at the screen's edge (as flex
+            // items they kept their one line's width and ran off it).
+            .child(div().w_full().min_w_0().child(control));
     }
     div()
         .flex()
@@ -792,7 +768,7 @@ mod switch;
 pub use switch::{switch, switch_inline};
 mod phone;
 pub use path::path_field;
-pub use phone::phone_bar;
+pub use phone::{phone_bar, phone_framed, row_short, row_wide};
 
 #[cfg(test)]
 mod tests;

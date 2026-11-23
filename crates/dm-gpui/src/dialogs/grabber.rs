@@ -274,8 +274,13 @@ impl Render for Grabber {
             t("Skip paths containing"),
         ];
         let width = native::label_width(&labels);
+        // On a phone a field under its words at the whole width, a number or a choice at the
+        // right of them (gaps row N31); a computer's form as it was.
         let row = |i: usize, control: gpui::AnyElement| {
-            native::row(Some(labels[i]), width, &screen, control)
+            native::row_wide(Some(labels[i]), width, &screen, control)
+        };
+        let short = |i: usize, control: gpui::AnyElement| {
+            native::row_short(Some(labels[i]), width, &screen, control)
         };
         let field = |input: &Entity<InputState>, name: &'static str| {
             div()
@@ -311,7 +316,7 @@ impl Render for Grabber {
                     ),
                 ))
             })
-            .child(row(
+            .child(short(
                 1,
                 popup::button(
                     "template",
@@ -324,20 +329,20 @@ impl Render for Grabber {
                 .into_any_element(),
             ))
             .child(row(2, field(&self.types, "File types")))
-            .child(row(
+            .child(short(
                 3,
                 small(&self.depth, "Page depth (0 for the start page only)"),
             ))
             .child(Self::follow(other, keep, theme, &screen, width, cx))
-            .child(row(
+            .child(short(
                 4,
                 small(&self.minutes, "Stop reading pages after (minutes)"),
             ))
-            .child(row(
+            .child(short(
                 5,
                 small(&self.min_kb, "Files at least (KB, 0 for any)"),
             ))
-            .child(row(6, small(&self.max_kb, "and at most (KB, 0 for any)")))
+            .child(short(6, small(&self.max_kb, "and at most (KB, 0 for any)")))
             .child(row(7, field(&self.include, "Only paths containing")))
             .child(row(8, field(&self.exclude, "Skip paths containing")))
             // The dialog's action straight after what it acts on.
@@ -379,7 +384,8 @@ impl Render for Grabber {
                 }
             }))
             .size_full()
-            .bg(theme.window)
+            .bg(theme.window);
+        let root = native::phone_framed(root, t("Grabber"), theme)
             .child(crate::widgets::fit::fitted(body));
         crate::window::safe::kept_clear(root, window)
     }

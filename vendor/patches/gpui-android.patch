@@ -677,10 +677,10 @@ index 3ecfe2e..4129388 100644
      use super::*;
 diff --git a/src/android/layers.rs b/src/android/layers.rs
 new file mode 100644
-index 0000000..2eb59e1
+index 0000000..5039541
 --- /dev/null
 +++ b/src/android/layers.rs
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,248 @@
 +//! dm(android-stack): GPUI's windows as layers on the phone's one surface.
 +//!
 +//! NativeActivity hands the app one `ANativeWindow` ([`AndroidWindow`]), and upstream gave
@@ -813,6 +813,10 @@ index 0000000..2eb59e1
 +    };
 +    drop(removed);
 +    if was_top {
++        // dm(android-stack): the keyboard its field had up goes with it; a field there only
++        // says it lost the focus while the window lives, so it would have stayed over the
++        // window below, with no field to type into.
++        super::jni::hide_keyboard_android();
 +        uncovered(window);
 +    }
 +}

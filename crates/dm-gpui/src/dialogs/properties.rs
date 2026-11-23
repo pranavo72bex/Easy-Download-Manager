@@ -266,7 +266,8 @@ fn line(label: &str, width: f32, screen: &Screen, value: impl IntoElement) -> gp
         .child(div().flex_1().min_w_0().child(value))
 }
 
-/// A field's line: its label beside the field, as Add URL's are.
+/// A field's line: its label beside the field, as Add URL's are; on a phone the label above
+/// and the field the line's width.
 fn field_line(
     label: &'static str,
     width: f32,
@@ -275,7 +276,7 @@ fn field_line(
     on: bool,
     theme: Theme,
 ) -> gpui::Div {
-    native::row(
+    native::row_wide(
         Some(t(label)),
         width,
         screen,

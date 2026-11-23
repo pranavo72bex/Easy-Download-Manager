@@ -11,6 +11,19 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## First priority: the window's design (rows E, the maintainer, 2026-11-23)
+
+The maintainer, 2026-11-23, of rows E ("A window read at a glance, on desktop and phone", further
+down): "give it first priority". Rows E come before every other row in this file, the security
+rows H included, and ahead of the order below. Take them in their section's order: E1 and E2
+first; then E3 to E12, each with the part of rows V it is built on (V9's Commands, List,
+Navigation, Form and Dialog), those parts brought forward with them, so each window is laid out
+once for both phone and desktop.
+
+What does not change: a row marked "the maintainer's word" or "decide" (E3, E4, E6, E8 to E12)
+still waits for that word before it is coded (`docs/behaviour-contract.md`); while one waits, the
+next row E that can move is taken, and when none can, work goes on to rows H.
+
 ## The order to take everything in (the maintainer, 2026-11-23)
 
 The maintainer, 2026-11-23: most of the time goes on testing; the extension should only catch
@@ -46,7 +59,9 @@ where group 1 has made that possible.
    to V25 as a screen needs them; V13. Then V26 and V15, so layout is checked by a machine and
    not by eye. Then one sitting at a phone for all that must be seen there: N31, V14, V21 and
    the rows N that "Mobile first" still lists. The words (V1 to V7) wait for the maintainer;
-   given in time, a dialog's words change in the same commit as its layout.
+   given in time, a dialog's words change in the same commit as its layout. Rows E (the
+   desktop's design, after rows V) ride on the same parts: E1 and E2 first, then each row as
+   its part is built, so a window is laid out once and not again for its rank.
 5. **The window's speed** (after group 4: V10 makes the list one code, and a saving made in
    the table or the cards before that is made twice). C0c, 181, S11, S16, S20, the Download
    complete window's 5 MiB (175), 210, 194, 187; then C17's table in the README.
@@ -60,14 +75,16 @@ where group 1 has made that possible.
 10. **The whole pass on Windows and Linux, once:** step 8 of "Work order" below, the sites
     (Y26) and the long runs (W3, W4).
 
-Where this departs from what stands below: group 1 comes before the security rows, as a red CI
+Rows E stand ahead of all ten groups (the section above). Where this departs from what stands
+below: group 1 comes before the security rows, as a red CI
 and tests that fail by chance slow those too; nothing else is put ahead of H's steps 1 and 2.
 "Mobile first" keeps its place for what blocks an APK; its layout rows are group 4.
 
-## Highest priority: security (rows H, the maintainer, 2026-11-23)
+## Next priority: security (rows H, the maintainer, 2026-11-23)
 
-The maintainer, 2026-11-23: "give highest priority to security". The security rows H ("Safer
-than any other download manager", further down) come before every other row in this file: before
+The maintainer, 2026-11-23: "give highest priority to security". Later the same day rows E were
+put first ("give it first priority"), so rows H come next: before every other row but rows E,
+before
 the Android rows N, rows C below, and rows V and W. Take them in the order that section gives:
 
 1. A day each, stops real harm: H1, H2, H12, H14, H16, H17, H21, H22.
@@ -758,7 +775,7 @@ The Kotlin app and the Slint shell were removed unbuilt; the shell's JNI modules
 | N20 | The phone and the desktop are one window, but each action is wired into the narrow layout by hand (`window/narrow/sheet.rs`, `rowmenu.rs`, `narrow.rs`), so a feature can land on the desktop with no way in by touch, and nothing notices (the audit of 2026-11-22 found N23 and N24 that way) | OPEN · M | Every action declared once, in one list, with where it shows (menu, row menu, place menu, toolbar) and, if it is desktop-only, why (`docs/decisions.md`, 2026-11-22). Both layouts draw their menus from it. A test walks the list and fails on an action the narrow layout cannot reach, or one it shows that does nothing there |
 | N23 | Desktop actions that touch cannot reach: Undo after Remove lives in the status bar (not drawn on the phone) and Edit › Undo (macOS's menu bar alone) (`window/statusbar.rs:113`, `narrow.rs:116`); a tap always picks one card (`narrow/cards.rs:400-423`), so several downloads are chosen only by Select all; a place's menu (a category's Open folder, Add or edit categories, a queue's Start, Stop and Scheduler) opens on a right click alone (`window/sidebar.rs:425`) | PARTIAL · M · with N20 | Done 2026-11-23: choosing several (a card menu's Select, then taps tick or untick; a top bar with the count, Select all, Delete, ✕, and Share for one finished file; Back ends it; test `select_in_a_cards_menu_chooses_several_with_taps`); Undo after Remove as a bar over the list's foot (test `removing_on_the_phone_offers_undo_in_a_bar`); a place held in the drawer opens its menu as a sheet (test `a_place_held_opens_its_menu_as_a_sheet`). Left: seen on the emulator; Share of several files (Android's SEND_MULTIPLE) |
 | N24 | Lines the phone shows that do nothing there, or that belong to a desktop's way of working: View › Columns, Show categories, Show toolbar (the cards and the narrow bar read none of them, `menus/bar_menus.rs:222-236`); View › Drop target, which would open the floating window as a full screen (`platform/droptarget.rs:196`); Options › General › Sounds (no player on Android, `dm-desktop-base/src/platform/power.rs:190`: the notification's own sound is the phone's way); Options › Pop-ups' "open the progress window" and "Download complete" window, ignored on the phone (`list/adding.rs:353`, `list/complete.rs:56`); Help › Check for updates (it knows only `.dmg`, `-setup.exe` and `.AppImage`, `dm-shell/src/app/update.rs:193-216`: the store updates the phone's app); Options › Advanced's "The computer's proxy settings" (not followed on Android; a proxy typed in still works); Save part of a video as a GIF (no decoder on Android, `dm-media/src/frames/other.rs`); Delete file's "to the Trash" wording (`NO_TRASH`, `dm-android/src/phone.rs:245`: the confirmation says the file is deleted for good) | PARTIAL · S · with N20 | Done 2026-11-23 and seen on the emulator: View's side panel, toolbar, drop target, columns and toolbar's look, Help › Check for updates and Options › General › Sounds are not drawn on the phone; then Pop-ups' progress and Download complete windows, Check for updates once a week, Ask where to save browser downloads, the computer's proxy settings and a video part as a GIF (`gif::possible_for` says no on Android), each seen on the emulator; Delete already says the file goes for good there. Left: "Double-clicking a download" worded for a tap on the phone; then | Each marked desktop-only in N20's list, with its reason, and so not drawn on the phone |
-| N31 | Not yet seen at a phone's size: each dialog opens as a full-screen window clear of the bars (`safe::edges`), but is still laid out at its desktop width (Scheduler, Grabber, Download details and the video's quality list, Properties, batch download, Statistics, Back up, the speed limiter, the progress window); nor whether a long press in a text field offers Cut, Copy and Paste (on the desktop, Edit's menu) | PARTIAL · M | Done 2026-11-23, seen on the emulator (412 wide): a phone's dialog scrolls under its top bar (`widgets/fit.rs`; Properties' buttons had been out of reach below the screen); Properties keeps the keyboard down for a finished download; the Scheduler stacks its queues above the hours, Start at and Stop at wrap, and it leaves out Sleep, Hibernate, Turn off computer and Run this program; Options › Folders' kinds are setting rows with switches, its explanations small and grey, Archive passwords a section of its own. Add URL and Options fit; Options' numbers and choices sit at the right of their words on a phone (`Page::setting`), its text fields the line's width, the after-download command left out there, "Tapping a download" for double-clicking. Left: "this computer" in Sign-ins' and the battery line's notes on a phone; Grabber, Download details and the quality list, batch download, Statistics, Back up, the speed limiter, the progress window; a text field's long press. Plan: each dialog opened on the emulator at 360 wide and screenshotted beside `docs/android.md`'s checklist; one that is cut off or scrolls sideways gets a narrow layout of its own, and a text field's long press gets the menu if it lacks one |
+| N31 | Not yet seen at a phone's size: each dialog opens as a full-screen window clear of the bars (`safe::edges`), but is still laid out at its desktop width (Scheduler, Grabber, Download details and the video's quality list, Properties, batch download, Statistics, Back up, the speed limiter, the progress window); nor whether a long press in a text field offers Cut, Copy and Paste (on the desktop, Edit's menu) | PARTIAL · M | Done 2026-11-23, seen on the emulator (412 wide): a phone's dialog scrolls under its top bar (`widgets/fit.rs`; Properties' buttons had been out of reach below the screen); Properties keeps the keyboard down for a finished download; the Scheduler stacks its queues above the hours, Start at and Stop at wrap, and it leaves out Sleep, Hibernate, Turn off computer and Run this program; Options › Folders' kinds are setting rows with switches, its explanations small and grey, Archive passwords a section of its own. Add URL and Options fit; Options' numbers and choices sit at the right of their words on a phone (`Page::setting`), its text fields the line's width, the after-download command left out there, "Tapping a download" for double-clicking. Then (same day): Grabber, About, Statistics and the progress window framed with the phone's top bar (`native::phone_framed`); every dialog's form row on a phone (`native::row`) a label above its control, a field the line's width (`row_short` for a number at the right of its words), seen in Add URL, Back up, the Grabber and Properties; the keyboard put away when a window closes (`dm(android-stack)`); "phone" in Sign-ins' and the battery notes. Left: Download details and the quality list, batch download, Back up, the speed limiter, seen on the emulator; a text field's long press. Plan: each dialog opened on the emulator at 360 wide and screenshotted beside `docs/android.md`'s checklist; one that is cut off or scrolls sideways gets a narrow layout of its own, and a text field's long press gets the menu if it lacks one |
 | N33 | `dm-core/tests/seam_check.rs` `a_ranges_own_checks_are_asked_at_once` failed once in a full `cargo test --workspace` (2026-11-23: the checks came over more than its 0.5 s limit); alone it passed 5 of 5. Its limit is wall-clock, so a loaded machine can stretch the gap between ranges finishing | OPEN · S | Measure the spread from each range's finish, not from the first check, or let the limit allow for a loaded runner; then 20 full runs without a failure |
 
 ## Safer than any other download manager (rows H, the maintainer, 2026-11-23)
@@ -931,6 +948,77 @@ back.
 
 **Not proposed:** a second UI for the phone, or a different look per system beyond what the
 tokens already hold; both go against "one UI code" (`docs/decisions.md`, 2026-11-20).
+
+## A window read at a glance, on desktop and phone (rows E, the maintainer, 2026-11-23)
+
+The maintainer, 2026-11-23: people who tried dm say the desktop's design is, overall, not good;
+make it better and adaptive for phone and desktop; learn from reference C's user experience,
+without looking like it. Found by putting dm's own pictures (the README's, taken 2026-11-16, and
+`docs/behaviour-baseline/gpui/macos/`) beside reference C's published pictures and help pages of
+the same windows. None of its code was read and nothing was run, so a row begins with a fresh
+picture (`ui-shot.py`): Options (C21) and the dialogs (N31) have changed since. The feedback
+named no window; if those who gave it name one, it becomes a row here.
+
+**What is wrong, in one line:** every part is there, but nothing is ranked. Each toolbar command,
+each row state and each line of a dialog has the same weight, so the eye has nowhere to start;
+text is cut while the room beside it stands empty; and a form's fields start wherever their
+labels end.
+
+**What reference C does well** (how it is used, not how it looks):
+
+- Its progress window is ranked: the status and a whole-file bar first, limits and "when done" a
+  click away, each connection's detail behind a Details button.
+- A row is read without reading its words: a picture for each file type and a mark for where it
+  came from.
+- A form is a grid: labels in one column, fields in the next, the file's picture and size beside.
+- Help is one click from the dialog it explains, pictured in light and dark with numbered steps.
+- Everything can be drawn larger, up to 200%.
+
+**Already held, so not rows:** a look for each system (`window/theme.rs`: Windows, macOS, GNOME,
+each with the system's accent); a question's own choices ("Also delete the file", "Remember my
+choice", "Don't show this window again"); Open with…; Undo in place of a question (B23); one
+search box over name, address and note, where reference C opens a Find dialog.
+
+**Not taken:** its look (a grey classic window, a coloured toolbar, a tree of folders); Options
+as two rows of tabs (C21's list of pages is easier and narrows to a phone); tabs in the progress
+window (a tab hides what is set, and a phone has no room for a strip); a choice of many themes.
+
+Every row is built in V9's parts, so it is drawn once and the phone gets it; "Compact" in a row
+says what a phone then shows. A row that changes a contract row waits for the maintainer's word,
+and changes that row and `docs/behaviour-baseline/` in the same commit. Each row's commit shows
+its window before and after at 360, 700 and 1280 points wide, light and dark.
+
+### E, first part: the rule, and two defects
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| E1  | `docs/ui-design.md` gives colours and sizes but no rule for rank, and is stale: Fluent's colours on every system (the tokens are per system), a "Program" menu, Properties on a double-click (B46 opens the progress window) | OPEN · S | Rewritten as the rules the rows below are checked against: one filled button in a window, its main action; the accent for that, the selection and progress alone; the error colour for a failure and a destructive button alone; three ranks of text (figure, body, hint); a state is a mark and a word, never colour alone; labels in one column; nothing cut while room stands empty. With V1's words |
+| E2  | Text cut by its own window, as pictured on 2026-11-16: the progress window's "When this download is done" starts outside the left edge ("ownload is done"); the Scheduler's "Stop at" minutes run past the right edge | OPEN · S · a defect, no word needed | A fresh picture first (`dialogs/progress.rs` is being changed for N31). The label column is as wide as its longest label in the language shown; the Scheduler's hours wrap to a second line. A window test in English and German at each dialog's least width |
+
+### E, second part: the main window
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| E3  | The toolbar is eleven commands of one weight (Add URL to Grabber), each a picture over its name; none is filled, though the design page asks for one | OPEN · M · the maintainer's word (B25) | Ranked: Add URL filled, at the start; then what acts on the chosen rows (Resume, Stop, Delete); the rest (Stop all, Delete completed, the queues, Scheduler, Grabber, Options) at the end, going under "More" as the window narrows, the last first. B64's arrows stay. It is V9's Commands part. Compact: the floating Add button, the chosen card's actions in the top bar, the rest under "More" (as now) |
+| E4  | A row's state is words alone: a failed, a waiting and a finished row look the same; a running row's bar is a hairline under "5%"; "Waiting for Start qu…" and "Error: this link no lo…" are cut while a third of the row is empty | OPEN · M · the maintainer's word (B25) | The Status cell: a mark told by shape and colour (running, paused, waiting, done, failed, as B45 tells the kinds), V4's short words and, while running, a 4-point bar across the cell. Status takes spare width before any other column (V10). The whole sentence on hover and in E8's detail. Compact: the card as now, less the full bar on a finished card (its tick says it) |
+| E5  | Two bars above the list for one message: "1 download didn't finish." in red with Hide and Retry all, then "+1 more" on a line of its own | OPEN · S | One bar, the design page's InfoBar: a mark, the sentence in the text colour, its actions; several messages fold into it with a count that opens them. Compact: the same bar above the cards |
+| E6  | The side panel is as loud as the list: its chosen place is filled as solidly as the chosen row; every empty place shows "0"; the kinds' pictures are each a sheet of paper with a small mark, alike at a glance | OPEN · S · the maintainer's word (B25) | The chosen place a soft fill with the accent's bar at its edge; no number beside an empty place; the kinds told apart by outline at 16 points (one colour, as the maintainer asked on 2026-11-12). Medium: V9's rail of pictures. Compact: the bottom bar and the Places drawer |
+| E7  | A row's own buttons (pause, details) lie over its name, as pictured on the chosen row; a queued row shows a dot in a column whose heading is a picture, with no word | OPEN · S | The buttons at the row's end, in room kept for them, under the pointer and on the chosen row. The queue column says the queue's name, and is off while only the Main queue holds anything. Compact: the card's own pause button and menu (as now) |
+| E8  | What dm knows about the chosen download (its folder, its address, why it failed and what to do, its speed) needs a double-click and a second window; with few rows most of the window is empty; a phone cannot open a second window at all | OPEN · M to L · decide | One "download detail" part drawn three ways: the progress window (B46, doing what it does now), a bottom sheet on a tap of a card, and for a wide window a pane under the list (View › Details, off at first). E9 is what it holds |
+
+### E, third part: the dialogs
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| E9  | The progress window ranks nothing: "7%", the speed and the time left are the size of "Can resume: Yes"; its only bar is the connections' own, which at 7% is eight dots; Stop download and Cancel download weigh the same | OPEN · M · the maintainer's word (B46, B53 and B74 keep what they say) | First the name, then one figure line ("7% · 380 KB/s · 2 min left") in the larger type over a whole-file bar. Then the facts as a grid. Then Limit, When done and Connections, each a line that opens (not tabs). Pause filled; Cancel download plain, in the error colour (V24). Compact: the same part as a sheet, its buttons full width at the foot |
+| E10 | A form's fields start where each label ends (Options › General as pictured before C21, to be looked at again; Download details; Properties), so no column forms; the Scheduler's hint sits at its foot, far from the hours it explains; Download details' foot mixes a button, the word "to" and a pop-up ("Add for later to Main queue") | OPEN · M, with V11 · the maintainer's word (B02's picture) | V9's Form part with three rules: one label column for a group (as wide as its longest label; a label over 40% of the width goes above its field), a hint directly under its field, a switch's line with its name at the start and the switch at the end. Download details: Queue becomes a line of the form; the foot is Cancel, Add for later, Start now (filled). Compact: label above field (V9) |
+| E11 | Help cannot be reached from the dialog it explains: `docs/guide/` has a page for each (`download-details.md`, `scheduler.md`, `options-*.md`) and no dialog opens one | OPEN · S · the maintainer's word (a new button) | A "?" at the end of each dialog's title row opens that dialog's page, from a copy shipped with dm so it opens offline; V2's "Learn more" opens the same page at its setting. C16's guides pictured in light and dark. Compact: in the top bar's menu |
+| E12 | Nothing is drawn larger than 120% (B66), and the phone's own text scale is not followed (V14) | OPEN · S · decide (B66's four stops were the maintainer's choice) | Stops at 150% and 200% for a person who needs them, held by V15's pictures at 200% |
+
+**Order to take them** (first priority, the top of this file): E1 with V1 (the rules, a day) and
+E2 (two defects) first. Then each with its part, the part built for it: E3 with Commands (V9,
+N20), E4 and E7 with the List (V10), E6 with Navigation, E9 and E10 with Form and Dialog (V11),
+then E8, which needs E9. E5, E11 and E12 fit anywhere after.
 
 ## Periodic
 

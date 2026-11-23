@@ -1031,5 +1031,7 @@
  "{} selected": "{} محدد",
  "Archive passwords": "كلمات مرور الأرشيف",
  "Tapping a download": "النقر على تنزيل",
- "Folders by kind": "المجلدات حسب النوع"
+ "Folders by kind": "المجلدات حسب النوع",
+ "Kept in dm's settings file on this phone, where only dm can read it.": "محفوظة في ملف إعدادات dm على هذا الهاتف، حيث لا يقرؤها إلا dm.",
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "تنتظر التنزيلات ما دامت بطارية الهاتف دون هذا المستوى، وتستأنف بمجرد شحنه أو تجاوزه هذا المستوى مجددًا."
 }

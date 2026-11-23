@@ -95,8 +95,9 @@ impl Render for About {
                 }
             }))
             .size_full()
-            .bg(theme.window)
-            .child(crate::widgets::fit::fitted(
+            .bg(theme.window);
+        let root =
+            native::phone_framed(root, t("About dm"), theme).child(crate::widgets::fit::fitted(
                 native::body(theme)
                     .items_center()
                     .child(

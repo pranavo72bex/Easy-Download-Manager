@@ -202,5 +202,7 @@
  "{} selected",
  "Archive passwords",
  "Tapping a download",
- "Folders by kind"
+ "Folders by kind",
+ "Kept in dm's settings file on this phone, where only dm can read it.",
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again."
 ]

@@ -130,6 +130,10 @@ pub(crate) fn close(window: &AndroidWindow, id: u64) {
     };
     drop(removed);
     if was_top {
+        // dm(android-stack): the keyboard its field had up goes with it; a field there only
+        // says it lost the focus while the window lives, so it would have stayed over the
+        // window below, with no field to type into.
+        super::jni::hide_keyboard_android();
         uncovered(window);
     }
 }

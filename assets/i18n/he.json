@@ -1031,5 +1031,7 @@
  "{} selected": "{} נבחרו",
  "Archive passwords": "סיסמאות לארכיונים",
  "Tapping a download": "הקשה על הורדה",
- "Folders by kind": "תיקיות לפי סוג"
+ "Folders by kind": "תיקיות לפי סוג",
+ "Kept in dm's settings file on this phone, where only dm can read it.": "נשמר בקובץ ההגדרות של dm בטלפון הזה, שבו רק dm יכול לקרוא אותו.",
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "ההורדות ממתינות כל עוד הסוללה של הטלפון מתחת לרמה הזו, וממשיכות כשהוא נטען או שוב מעליה."
 }

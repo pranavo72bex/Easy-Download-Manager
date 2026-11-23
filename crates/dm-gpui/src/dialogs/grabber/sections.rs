@@ -175,6 +175,30 @@ impl Grabber {
             .into_any_element()
     }
 
+    /// A computer's save line: the name, how often, and Save search, side by side.
+    fn saving_line(&self, theme: Theme, screen: &Screen, cx: &mut Context<Self>) -> gpui::Div {
+        div()
+            .flex()
+            .items_center()
+            .gap(px(native::LABEL_GAP))
+            .child(screen.label(t("Save this search as")))
+            .child(div().w(px(180.0)).child(native::field(
+                &self.name,
+                "Save this search as",
+                theme,
+            )))
+            .child(screen.label(t("Run every (hours, 0 for manual)")))
+            .child(div().w(px(60.0)).child(native::field(
+                &self.every,
+                "Run every (hours, 0 for manual)",
+                theme,
+            )))
+            .child(
+                native::button("save", t("Save search").into(), false, theme, screen)
+                    .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
+            )
+    }
+
     /// Saving, and the saved searches, under the rest of the form.
     pub(super) fn saving(
         &self,
@@ -184,29 +208,35 @@ impl Grabber {
         body: gpui::Div,
         cx: &mut Context<Self>,
     ) -> gpui::Div {
-        body.child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(native::LABEL_GAP))
-                .child(screen.label(t("Save this search as")))
-                .child(div().w(px(180.0)).child(native::field(
-                    &self.name,
-                    "Save this search as",
-                    theme,
-                )))
-                .child(screen.label(t("Run every (hours, 0 for manual)")))
-                .child(div().w(px(60.0)).child(native::field(
+        // A phone's: the name under its words, how often at the right of its words, then Save
+        // search; on one line they left the fields slivers and the button off the screen.
+        let body = if crate::platform::ON_A_PHONE {
+            body.child(native::row_wide(
+                Some(t("Save this search as")),
+                0.0,
+                screen,
+                native::field(&self.name, "Save this search as", theme),
+            ))
+            .child(native::row_short(
+                Some(t("Run every (hours, 0 for manual)")),
+                0.0,
+                screen,
+                div().w(px(90.0)).child(native::field(
                     &self.every,
                     "Run every (hours, 0 for manual)",
                     theme,
-                )))
-                .child(
+                )),
+            ))
+            .child(
+                div().flex().justify_end().child(
                     native::button("save", t("Save search").into(), false, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
                 ),
-        )
-        .when(!self.d.says.is_empty(), |d| {
+            )
+        } else {
+            body.child(self.saving_line(theme, screen, cx))
+        };
+        body.when(!self.d.says.is_empty(), |d| {
             d.child(native::note(self.d.says.clone(), theme.warning, screen))
         })
         .when(!saved.is_empty(), |d| {
@@ -297,7 +327,7 @@ impl Grabber {
                 .flex_col()
                 .gap(px(native::ROW_GAP))
                 .child(
-                    native::switch_inline(
+                    phone_switch(
                         "other-sites",
                         t("Also follow links to other sites").into(),
                         other,
@@ -310,7 +340,7 @@ impl Grabber {
                     })),
                 )
                 .child(
-                    native::switch_inline(
+                    phone_switch(
                         "keep-layout",
                         t("Keep the site's folders").into(),
                         keep,
@@ -323,5 +353,21 @@ impl Grabber {
                     })),
                 ),
         )
+    }
+}
+
+/// A switch as a phone's settings have it, its words at the left and the switch at the
+/// row's end; a computer's at the start of its words, as before (gaps row N31).
+fn phone_switch(
+    id: &'static str,
+    words: gpui::SharedString,
+    on: bool,
+    theme: Theme,
+    screen: &Screen,
+) -> gpui::Stateful<gpui::Div> {
+    if crate::platform::ON_A_PHONE {
+        native::switch(id, words, on, theme, screen)
+    } else {
+        native::switch_inline(id, words, on, theme, screen)
     }
 }
