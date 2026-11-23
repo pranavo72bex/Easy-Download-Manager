@@ -39,7 +39,17 @@ Debian has no chooser) and Download details' folder field drawn twice; all three
 checkout 76 of 76 on Linux. On the phone (SM-M156B, Android 16) the release APK installed,
 took a shared link, resumed after a force stop and after the server went away, and ran with the
 screen off, every file byte-exact; Android 16's start broadcast after a force stop put up "dm
-has downloads to resume" beside a running dm, fixed. 0.10.2 carries the fixes.
+has downloads to resume" beside a running dm, fixed. 0.10.2 carries the fixes. Then a magnet
+from a torrent site stuck at "Finding peers…" on the phone (a full swarm, a phone app fetched it):
+on Android an `https://` tracker's TLS was checked by the system's verifier, which needs a JNI
+context, and its failure stopped the DHT and the other trackers too; librqbit's tracker client
+now has webpki-roots (`vendor/patches/librqbit.patch`, `dm(roots)`), and public torrents are
+announced to `dm_torrent::PUBLIC_TRACKERS` as well (a magnet with dead trackers: peers in 5 s
+on the emulator). Then, at the maintainer's word ("fix the gaps in this release"), a
+session starts its DHT from the nodes the last one kept (`dht-nodes.txt`) and five routers,
+and a downloading session listens, with UPnP on the public network (Windows and macOS may
+ask the firewall question): a DHT-only magnet found peers in 5 to 6 s on the Mac and the
+emulator. Released as 0.10.3.
 
 The maintainer, 2026-11-21: "give most priority to mobile. it should be ready", and "signing for
 desktop is ignored intentionally". The Android rows (N) come before every other row. The goal is
@@ -158,6 +168,8 @@ Each passed on its re-run; a second failure makes it a row.
 - `grow.rs` `a_server_that_shares_one_rate_keeps_eight` (macOS CI, 11 connections of 9).
 - `secretstore::credentials`' 32-byte key test (Windows, a whole run).
 - `instance::tests::a_dm_starting_while_the_host_probes_waits_the_probe_out` (Windows, under load).
+- `handles.rs` `toasts_give_their_handles_back` (Windows CI, the release job of desktop-v0.10.2,
+  2026-11-22: 46 handles kept of the 45 allowed after 90 toasts; passed on main the same commit).
 
 These wall-clock checks fail on a loaded runner by a few per cent. Next, if they keep failing:
 one way for them to allow for the runner's speed, as `bench/` scales its floors by the

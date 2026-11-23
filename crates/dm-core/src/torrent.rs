@@ -108,6 +108,9 @@ pub struct TorrentOptions {
     /// discovery, which announce this computer to the public network. Set by
     /// the tests, which run their swarms on loopback.
     pub no_public_discovery: bool,
+    /// Where the DHT nodes a session knew are kept for the next one ([`crate::paths::DHT_NODES`]
+    /// in dm's home); `None` keeps none.
+    pub dht_nodes: Option<PathBuf>,
 }
 
 impl TorrentOptions {
@@ -303,22 +306,8 @@ fn strip_query(url: &str) -> &str {
     url.split(['?', '#']).next().unwrap_or(url)
 }
 
-/// How often the row is redrawn while a torrent transfers.
-const TICK: Duration = Duration::from_millis(500);
-
-/// Runs one torrent to completion, reporting as it goes.
-///
-/// `client` is dm's own, so a `.torrent` fetched over HTTP goes through
-/// whatever proxy the file downloads use. The swarm is librqbit's to reach,
-/// and it is told the proxy too where it can use one — SOCKS5 — and refused
-/// where it cannot, rather than announcing to trackers and peers directly on
-/// a machine configured to make no direct connection.
-pub async fn download_torrent(
-    client: &reqwest::Client,
-    url: &str,
-    options: &Options,
-    report: Option<Sender<Update>>,
-) -> Result<Finished, Error> {
+/// Why a torrent is not started in this run or on this network, before any socket is opened.
+fn refused_here(url: &str, options: &Options) -> Result<(), Error> {
     // A check that makes torrents (`scripts/chrome-check.py`) holds them off the network: a
     // program at a new path listening for peers raises Windows' firewall question each run.
     if crate::env::get_os("DM_NO_SWARM").is_some_and(|v| !v.is_empty()) {
@@ -337,6 +326,26 @@ pub async fn download_torrent(
             &name,
         )));
     }
+    Ok(())
+}
+
+/// How often the row is redrawn while a torrent transfers.
+const TICK: Duration = Duration::from_millis(500);
+
+/// Runs one torrent to completion, reporting as it goes.
+///
+/// `client` is dm's own, so a `.torrent` fetched over HTTP goes through
+/// whatever proxy the file downloads use. The swarm is librqbit's to reach,
+/// and it is told the proxy too where it can use one — SOCKS5 — and refused
+/// where it cannot, rather than announcing to trackers and peers directly on
+/// a machine configured to make no direct connection.
+pub async fn download_torrent(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<Sender<Update>>,
+) -> Result<Finished, Error> {
+    refused_here(url, options)?;
     let connect = swarm_proxy(options.proxy_for(url).as_deref())?;
     let proxied = connect.is_some();
     // Behind a proxy, or asked to keep to the trackers: no DHT, no local discovery.
@@ -377,7 +386,15 @@ pub async fn download_torrent(
     let session = Session::start(Setup {
         output: output.clone(),
         private,
-        listen: false,
+        // Reachable by peers while it downloads, as phone torrent apps are: only the peers dm
+        // dialled were used, and seeders behind a router of their own never reached it (gaps
+        // row N34). Not behind a proxy, which would show the real address.
+        listen: !proxied,
+        // The router asked to forward that port (UPnP), on the public network alone.
+        upnp: !private,
+        dht_nodes: (!private)
+            .then(|| options.torrent.dht_nodes.clone())
+            .flatten(),
         blocklist_url,
         cancel: token.clone(),
         download_bps: download_cap(options).await,
@@ -543,6 +560,8 @@ async fn share_until(
         // Reachable by peers: sharing is what the person turned on. Not behind a proxy, which
         // would show the real address.
         listen: !proxied,
+        upnp: !private,
+        dht_nodes: None,
         blocklist_url: None,
         cancel: token.clone(),
         // Nothing is fetched: the files are whole, or the sharing ends.

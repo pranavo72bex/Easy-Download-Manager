@@ -64,6 +64,7 @@ prometheus = ["metrics-exporter-prometheus"]
 rust-tls = [
     "reqwest/rustls-no-provider",
     "rustls",
+    "webpki-roots",
     "sha1w/sha1-ring",
     "librqbit-core/sha1-ring",
 ]
@@ -265,6 +266,14 @@ features = [
     "std",
     "tls12",
 ]
+
+# dm(roots): the public roots the trackers' HTTPS is checked against, as dm's
+# own client's are, rather than the system's verifier (Android's needs a JNI
+# context reqwest is never given, and an https tracker stopped a torrent's
+# every source of peers).
+[dependencies.webpki-roots]
+version = "1"
+optional = true
 
 [dependencies.rlimit]
 version = "0.11"

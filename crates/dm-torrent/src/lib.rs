@@ -32,6 +32,90 @@ use tokio_util::sync::CancellationToken;
 mod error;
 pub use error::Error;
 
+/// Public trackers every public torrent is announced to beside its own, as phone torrent
+/// apps do: a magnet's trackers are often dead years on (an old film's), and the DHT alone can
+/// take a minute to find the first peer. UDP, long-running and open to all; never for a private
+/// torrent (librqbit leaves them out of one) nor a private session (behind a proxy, or kept to
+/// the trackers), whose UDP would leave without the proxy.
+pub const PUBLIC_TRACKERS: [&str; 6] = [
+    "udp://tracker.opentrackr.org:1337/announce",
+    "udp://open.stealth.si:80/announce",
+    "udp://tracker.torrent.eu.org:451/announce",
+    "udp://exodus.desync.com:6969/announce",
+    "udp://open.demonii.com:1337/announce",
+    "udp://explodie.org:6969/announce",
+];
+
+/// The trackers a session adds to each of its public torrents: [`PUBLIC_TRACKERS`], or none
+/// for a private session or one behind a proxy.
+fn session_trackers(setup: &Setup) -> std::collections::HashSet<url::Url> {
+    if setup.private || setup.socks5.is_some() {
+        return std::collections::HashSet::new();
+    }
+    PUBLIC_TRACKERS
+        .iter()
+        .filter_map(|t| url::Url::parse(t).ok())
+        .collect()
+}
+
+/// The DHT's routers, which any search can start from: more than librqbit's two
+/// (`dht.transmissionbt.com`, `dht.libtorrent.org`), as torrent apps use, so one slow or
+/// blocked on a network does not leave a magnet with dead trackers waiting.
+pub const DHT_ROUTERS: [&str; 5] = [
+    "router.bittorrent.com:6881",
+    "router.utorrent.com:6881",
+    "dht.transmissionbt.com:6881",
+    "dht.libtorrent.org:25401",
+    "dht.aelitis.com:6881",
+];
+
+/// The most nodes kept between sessions, and the most a session starts from beside the
+/// routers: enough to reach the network at once, few enough to ask in a moment.
+const KEPT_NODES: usize = 200;
+
+/// How often a running session writes the nodes it knows ([`Setup::dht_nodes`]), beside
+/// once when it ends.
+const KEEP_NODES_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// The addresses to start a DHT search from: the nodes kept in `text` (one `address:port` a
+/// line; anything else is passed over), at most [`KEPT_NODES`], then the routers.
+fn bootstrap_from(text: &str) -> Vec<String> {
+    let mut addrs: Vec<String> = text
+        .lines()
+        .filter_map(|line| line.trim().parse::<SocketAddr>().ok())
+        .take(KEPT_NODES)
+        .map(|addr| addr.to_string())
+        .collect();
+    addrs.extend(DHT_ROUTERS.iter().map(|r| (*r).to_string()));
+    addrs
+}
+
+/// The nodes `nodes` names, one a line, at most [`KEPT_NODES`], written to `file` by way of a
+/// file of this process's and this call's own, so two sessions writing at once leave one whole
+/// list rather than a mix.
+fn keep_nodes(file: &Path, nodes: &[SocketAddr]) -> std::io::Result<()> {
+    static EACH: AtomicU64 = AtomicU64::new(0);
+    if nodes.is_empty() {
+        return Ok(());
+    }
+    let text: String = nodes
+        .iter()
+        .take(KEPT_NODES)
+        .map(|n| format!("{n}\n"))
+        .collect();
+    let mut temp = file.as_os_str().to_owned();
+    temp.push(format!(
+        ".{}.{}",
+        std::process::id(),
+        EACH.fetch_add(1, Ordering::Relaxed)
+    ));
+    let temp = PathBuf::from(temp);
+    std::fs::write(&temp, text)?;
+    std::fs::rename(&temp, file).inspect_err(|_| {
+        let _ = std::fs::remove_file(&temp);
+    })
+}
+
 /// How a session is set up.
 #[derive(Debug, Clone, Default)]
 pub struct Setup {
@@ -40,8 +124,13 @@ pub struct Setup {
     /// No DHT and no local discovery: behind a proxy (both are UDP, which SOCKS5 cannot carry)
     /// or where a person asked to keep to the trackers.
     pub private: bool,
-    /// Reachable by peers on a port of the system's choosing (no UPnP), for sharing.
+    /// Reachable by peers on a port of the system's choosing.
     pub listen: bool,
+    /// The router asked to forward the listening port (UPnP), where it listens.
+    pub upnp: bool,
+    /// The file of DHT nodes a session starts from and leaves for the next ([`DHT_ROUTERS`]
+    /// beside them); `None` starts from the routers alone and keeps nothing.
+    pub dht_nodes: Option<PathBuf>,
     /// The peers never to connect to: a list's address as the library reads it (`file:`).
     pub blocklist_url: Option<String>,
     /// Shuts the whole session down when cancelled.
@@ -70,22 +159,34 @@ pub struct Session(Arc<librqbit::Session>);
 pub type Id = usize;
 
 impl Session {
-    /// A session as `setup` asks. Neither the session's state nor the DHT's is kept in a file:
-    /// dm's queue is the record of what to resume, and the DHT's file is one per user, so a
+    /// A session as `setup` asks. The session's state is not kept in a file (dm's queue is the
+    /// record of what to resume), nor is librqbit's own DHT file used: it is one per user, and a
     /// second session (two torrents at once, or a resume while the paused one is still closing)
-    /// failed to start with it ("error initializing persistent DHT"). Each session finds peers
-    /// afresh on a port of its own.
+    /// failed to start with it ("error initializing persistent DHT"). Each session's DHT has a
+    /// port of its own and starts from the nodes [`Setup::dht_nodes`] keeps and the routers.
     pub async fn start(setup: Setup) -> Result<Session, Error> {
+        let trackers = session_trackers(&setup);
+        let kept = setup
+            .dht_nodes
+            .as_deref()
+            .and_then(|f| std::fs::read_to_string(f).ok())
+            .unwrap_or_default();
+        let cancel = setup.cancel.clone();
         let session = librqbit::Session::new_with_opts(
             setup.output,
             librqbit::SessionOptions {
                 persistence: None,
                 dht: (!setup.private).then(|| librqbit::DhtSessionConfig {
                     persistence: None,
+                    bootstrap_addrs: Some(bootstrap_from(&kept)),
                     ..Default::default()
                 }),
                 disable_local_service_discovery: setup.private,
-                listen: setup.listen.then(librqbit::ListenerOptions::default),
+                trackers,
+                listen: setup.listen.then(|| librqbit::ListenerOptions {
+                    enable_upnp_port_forwarding: setup.upnp,
+                    ..Default::default()
+                }),
                 blocklist_url: setup.blocklist_url,
                 cancellation_token: Some(setup.cancel),
                 ratelimits: librqbit::limits::LimitsConfig {
@@ -101,6 +202,26 @@ impl Session {
         )
         .await
         .map_err(|e| e.to_string())?;
+        if let (Some(file), Some(dht)) = (setup.dht_nodes, session.get_dht().cloned()) {
+            // The nodes it knows written now and then, and once more as it ends, for the next
+            // session to start from (gaps row N33).
+            tokio::spawn(async move {
+                loop {
+                    let ended = tokio::select! {
+                        () = tokio::time::sleep(KEEP_NODES_EVERY) => false,
+                        () = cancel.cancelled() => true,
+                    };
+                    let nodes: Vec<SocketAddr> = dht.with_routing_tables(|v4, v6| {
+                        v4.iter().chain(v6.iter()).map(|n| n.addr()).collect()
+                    });
+                    let file = file.clone();
+                    let _ = tokio::task::spawn_blocking(move || keep_nodes(&file, &nodes)).await;
+                    if ended {
+                        break;
+                    }
+                }
+            });
+        }
         Ok(Session(session))
     }
 
@@ -350,4 +471,64 @@ pub fn metainfo(bytes: &[u8]) -> Result<Metainfo, Error> {
             .collect(),
         info: parsed.info.raw_bytes.as_ref().to_vec(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_public_session_announces_to_every_public_tracker() {
+        let trackers = session_trackers(&Setup::default());
+        assert_eq!(trackers.len(), PUBLIC_TRACKERS.len());
+        assert!(trackers.iter().all(|t| t.scheme() == "udp"));
+    }
+
+    #[test]
+    fn a_private_session_or_one_behind_a_proxy_adds_none() {
+        let private = Setup {
+            private: true,
+            ..Setup::default()
+        };
+        assert!(session_trackers(&private).is_empty());
+        let proxied = Setup {
+            socks5: Some("socks5://127.0.0.1:1080".into()),
+            ..Setup::default()
+        };
+        assert!(session_trackers(&proxied).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod kept_nodes_tests {
+    use super::*;
+
+    #[test]
+    fn a_search_starts_from_the_kept_nodes_then_the_routers() {
+        let from = bootstrap_from("1.2.3.4:6881\nnot a node\n[2001:db8::1]:51413\n");
+        assert_eq!(from[0], "1.2.3.4:6881");
+        assert_eq!(from[1], "[2001:db8::1]:51413");
+        assert_eq!(&from[2..], DHT_ROUTERS.map(String::from).as_slice());
+        assert_eq!(bootstrap_from("").len(), DHT_ROUTERS.len());
+    }
+
+    #[test]
+    fn the_nodes_kept_are_read_back_and_no_more_than_the_most() {
+        let dir = std::env::temp_dir().join(format!("dm-torrent-nodes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("dht-nodes.txt");
+        let many: Vec<SocketAddr> = (0..KEPT_NODES as u16 + 50)
+            .map(|p| SocketAddr::from(([10, 0, 0, 1], 1000 + p)))
+            .collect();
+        keep_nodes(&file, &many).unwrap();
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert_eq!(text.lines().count(), KEPT_NODES);
+        assert_eq!(bootstrap_from(&text).len(), KEPT_NODES + DHT_ROUTERS.len());
+        // Nothing known leaves the last list as it was.
+        keep_nodes(&file, &[]).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), text);
+        let left: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
+        assert_eq!(left.len(), 1, "a temporary file was left beside the list");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

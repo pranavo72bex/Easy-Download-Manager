@@ -2307,7 +2307,9 @@ version = "0.10.2"
 dependencies = [
  "bytes",
  "librqbit",
+ "tokio",
  "tokio-util",
+ "url",
 ]
 
 [[package]]
@@ -4839,6 +4841,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "walkdir",
+ "webpki-roots",
  "windows 0.62.2",
 ]
 

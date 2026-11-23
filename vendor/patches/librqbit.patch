@@ -19,9 +19,11 @@ Cargo.toml:
   6. num-bigint, rc4 and sha1 for encrypted peer connections (src/mse.rs,
      gaps row 150).
   7. rustls with ring, optional, for rust-tls (with 2).
+  dm(roots): rust-tls also brings webpki-roots, the public roots the
+     trackers' HTTPS is checked against (session.rs, `tracker_tls`).
 
 diff --git a/Cargo.toml b/Cargo.toml
-index 804cce9..c472976 100644
+index 804cce9..11a659e 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -41,9 +41,14 @@ default-tls = [
@@ -39,7 +41,7 @@ index 804cce9..c472976 100644
  ]
  http-api-client = []
  miri = []
-@@ -52,8 +57,13 @@ postgres = [
+@@ -52,8 +57,14 @@ postgres = [
      "home",
  ]
  prometheus = ["metrics-exporter-prometheus"]
@@ -51,10 +53,11 @@ index 804cce9..c472976 100644
 -    "reqwest/rustls",
 +    "reqwest/rustls-no-provider",
 +    "rustls",
++    "webpki-roots",
      "sha1w/sha1-ring",
      "librqbit-core/sha1-ring",
  ]
-@@ -73,23 +83,8 @@ webui = []
+@@ -73,23 +84,8 @@ webui = []
  name = "librqbit"
  path = "src/lib.rs"
  
@@ -80,7 +83,7 @@ index 804cce9..c472976 100644
  
  [dependencies.anyhow]
  version = "1"
-@@ -121,6 +116,7 @@ optional = true
+@@ -121,6 +117,7 @@ optional = true
  [dependencies.axum-extra]
  version = "0.12"
  features = ["query"]
@@ -88,7 +91,7 @@ index 804cce9..c472976 100644
  
  [dependencies.backon]
  version = "1.5"
-@@ -190,7 +186,6 @@ default-features = false
+@@ -190,7 +187,6 @@ default-features = false
  
  [dependencies.librqbit-dualstack-sockets]
  version = "0.7"
@@ -96,7 +99,7 @@ index 804cce9..c472976 100644
  
  [dependencies.librqbit-lsd]
  version = "9.1.0"
-@@ -235,6 +230,16 @@ version = "9.1.0"
+@@ -235,6 +231,16 @@ version = "9.1.0"
  default-features = false
  package = "librqbit-peer-protocol"
  
@@ -113,7 +116,7 @@ index 804cce9..c472976 100644
  [dependencies.rand]
  version = "0.10"
  
-@@ -250,6 +255,17 @@ features = [
+@@ -250,6 +256,25 @@ features = [
  ]
  default-features = false
  
@@ -127,6 +130,14 @@ index 804cce9..c472976 100644
 +    "std",
 +    "tls12",
 +]
++
++# dm(roots): the public roots the trackers' HTTPS is checked against, as dm's
++# own client's are, rather than the system's verifier (Android's needs a JNI
++# context reqwest is never given, and an https tracker stopped a torrent's
++# every source of peers).
++[dependencies.webpki-roots]
++version = "1"
++optional = true
 +
  [dependencies.rlimit]
  version = "0.11"
@@ -970,9 +981,15 @@ src/session.rs:
   7, 8. Upstream's test_torrent_file_from_info_and_bytes is left out, with
      the imports only it used: it reads a .torrent from resources/, which is
      not vendored.
+  dm(roots): the trackers' HTTPS client is given a TLS of its own
+     (`tracker_tls`: webpki-roots, ring) instead of reqwest's default, the
+     system's verifier, which on Android needs a JNI context it is never
+     given: there the first https tracker failed and the torrent's DHT and
+     other trackers found no peers either (2026-11-22, an emulator and a
+     phone).
 
 diff --git a/src/session.rs b/src/session.rs
-index 5e02415..221b588 100644
+index 5e02415..2e2f806 100644
 --- a/src/session.rs
 +++ b/src/session.rs
 @@ -710,6 +710,16 @@ impl Session {
@@ -992,7 +1009,21 @@ index 5e02415..221b588 100644
              let reqwest_client = {
                  let builder = if let Some(proxy_url) = proxy_url {
                      let proxy = reqwest::Proxy::all(proxy_url)
-@@ -912,7 +922,7 @@ impl Session {
+@@ -725,6 +735,13 @@ impl Session {
+                     b
+                 };
+ 
++                // dm(roots): the trackers' HTTPS checked against the public roots, ring as
++                // its provider, not reqwest's default of the system's verifier: on Android
++                // that verifier needs a JNI context it is never given, and its failure on
++                // the first https tracker stopped the torrent's DHT and other trackers too.
++                #[cfg(feature = "rust-tls")]
++                let builder = builder.tls_backend_preconfigured(tracker_tls());
++
+                 builder
+                     .user_agent(&client_name_and_version)
+                     .build()
+@@ -912,7 +929,7 @@ impl Session {
          self: Arc<Self>,
          addr: SocketAddr,
          kind: ConnectionKind,
@@ -1001,7 +1032,7 @@ index 5e02415..221b588 100644
          writer: BoxAsyncWrite,
      ) -> anyhow::Result<(Arc<TorrentStateLive>, CheckedIncomingConnection)> {
          let rwtimeout = self
-@@ -936,6 +946,29 @@ impl Session {
+@@ -936,6 +953,29 @@ impl Session {
              bail!("Incoming ip {incoming_ip} is not in allowlist");
          }
  
@@ -1031,7 +1062,7 @@ index 5e02415..221b588 100644
          let mut read_buf = ReadBuf::new();
          let h = read_buf
              .read_handshake(&mut reader, rwtimeout)
-@@ -1009,7 +1042,14 @@ impl Session {
+@@ -1009,7 +1049,14 @@ impl Session {
                          }
                      }
                  },
@@ -1047,7 +1078,7 @@ index 5e02415..221b588 100644
                      let (addr, kind) = (checked.addr, checked.kind);
                      if let Err(e) = live.add_incoming_peer(checked) {
                          warn!(?addr, ?kind, "error handing over incoming connection: {e:#}");
-@@ -1048,6 +1088,7 @@ impl Session {
+@@ -1048,6 +1095,7 @@ impl Session {
              max_request_window: other
                  .max_request_window
                  .or(self.peer_opts.max_request_window),
@@ -1055,7 +1086,7 @@ index 5e02415..221b588 100644
          }
      }
  
-@@ -1364,6 +1405,7 @@ impl Session {
+@@ -1364,6 +1412,7 @@ impl Session {
                      peer_connect_timeout: peer_opts.connect_timeout,
                      peer_read_write_timeout: peer_opts.read_write_timeout,
                      peer_max_request_window: peer_opts.max_request_window,
@@ -1063,8 +1094,26 @@ index 5e02415..221b588 100644
                      allow_overwrite: opts.overwrite,
                      output_folder,
                      ratelimits: opts.ratelimits,
-@@ -1820,11 +1862,7 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
+@@ -1818,13 +1867,25 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
+     }
+ }
  
++
++/// dm(roots): the TLS the trackers' HTTPS client uses: the public roots (`webpki-roots`),
++/// ring as the provider, the safe protocol versions.
++#[cfg(feature = "rust-tls")]
++fn tracker_tls() -> rustls::ClientConfig {
++    let mut roots = rustls::RootCertStore::empty();
++    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
++    rustls::ClientConfig::builder_with_provider(Arc::new(
++        rustls::crypto::ring::default_provider(),
++    ))
++    .with_safe_default_protocol_versions()
++    .expect("ring supports the safe default protocol versions")
++    .with_root_certificates(roots)
++    .with_no_client_auth()
++}
++
  #[cfg(test)]
  mod tests {
 -    use buffers::ByteBuf;
@@ -1076,7 +1125,7 @@ index 5e02415..221b588 100644
  
      #[test]
      fn test_is_bare_info_hash() {
-@@ -1843,25 +1881,7 @@ mod tests {
+@@ -1843,25 +1904,7 @@ mod tests {
          ));
      }
  

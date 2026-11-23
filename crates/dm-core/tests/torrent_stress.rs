@@ -191,6 +191,7 @@ fn options(out: &Path) -> Options {
         // this computer to the public network from a test.
         torrent: dm_core::TorrentOptions {
             no_public_discovery: true,
+            dht_nodes: None,
             ..Default::default()
         },
         system_proxy: false,

@@ -204,6 +204,7 @@ async fn a_torrent_is_fetched_from_a_real_swarm() {
         // this computer to the public network from a test.
         torrent: dm_core::TorrentOptions {
             no_public_discovery: true,
+            dht_nodes: None,
             ..Default::default()
         },
         system_proxy: false,

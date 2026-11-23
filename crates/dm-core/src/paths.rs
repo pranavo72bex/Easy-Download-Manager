@@ -55,6 +55,10 @@ pub const GOING: &str = "going.json";
 /// A newer document of site rules than the one dm ships, from the update check.
 pub const RULES: &str = "rules.json";
 
+/// The DHT nodes a torrent session last knew, one `address:port` a line: the next session
+/// starts its search from them as well as the routers, rather than from nothing (gaps row N33).
+pub const DHT_NODES: &str = "dht-nodes.txt";
+
 /// A page's video formats, kept a while so a second look asks the site nothing.
 pub const FORMATS_CACHE: &str = "formats.cache.json";
 

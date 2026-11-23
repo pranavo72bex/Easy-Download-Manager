@@ -41,6 +41,7 @@ impl Settings {
                 }),
                 // Peers through the DHT and local discovery as well as trackers.
                 no_public_discovery: false,
+                dht_nodes: Some(home().join(dm_core::paths::DHT_NODES)),
             },
             quality: self.quality(),
             sound: None,

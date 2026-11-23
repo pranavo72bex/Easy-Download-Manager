@@ -19,6 +19,10 @@ librqbit.workspace = true
 bytes.workspace = true
 # The token that shuts a session down, which dm-core also keeps for a shared torrent.
 tokio-util.workspace = true
+url.workspace = true
+# The task that keeps the DHT's nodes for the next session (a timer, and the file written off
+# the runtime's threads).
+tokio = { workspace = true, features = ["rt", "time", "macros"] }
 
 [lints]
 workspace = true

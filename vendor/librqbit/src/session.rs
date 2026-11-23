@@ -735,6 +735,13 @@ impl Session {
                     b
                 };
 
+                // dm(roots): the trackers' HTTPS checked against the public roots, ring as
+                // its provider, not reqwest's default of the system's verifier: on Android
+                // that verifier needs a JNI context it is never given, and its failure on
+                // the first https tracker stopped the torrent's DHT and other trackers too.
+                #[cfg(feature = "rust-tls")]
+                let builder = builder.tls_backend_preconfigured(tracker_tls());
+
                 builder
                     .user_agent(&client_name_and_version)
                     .build()
@@ -1858,6 +1865,22 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
             },
         }
     }
+}
+
+
+/// dm(roots): the TLS the trackers' HTTPS client uses: the public roots (`webpki-roots`),
+/// ring as the provider, the safe protocol versions.
+#[cfg(feature = "rust-tls")]
+fn tracker_tls() -> rustls::ClientConfig {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .expect("ring supports the safe default protocol versions")
+    .with_root_certificates(roots)
+    .with_no_client_auth()
 }
 
 #[cfg(test)]
