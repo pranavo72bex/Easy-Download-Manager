@@ -24,7 +24,9 @@ everything below, the work list included:
   after any change to `crates/`, `assets/` or `extension/`. It fails when a
   row fails or was not checked; report every row it prints.
 * Name no other download manager in code, comments or docs: the reference
-  apps are "reference A" and "reference B".
+  apps are "reference A", "reference B" and "reference C". One exception
+  (the maintainer, 2026-11-23): README.md's benchmark comparison table may
+  name them, with the version, machine and date of each measurement.
 
 # Autonomous Development Rules
 

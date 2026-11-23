@@ -8688,3 +8688,14 @@ other feature the desktop already has. No feature of the phone's own across devi
   still works), the Trash (Delete with its confirmation, saying the file goes for good), Sounds (the notification's own sound), and following the system's accent colour (looks alone;
   dm's own colours stay). Each is hidden on the phone (gaps row N24); none is to
   be listed again without the maintainer's word.
+
+## 2026-11-23: The README's benchmark table names the programs it compares (the maintainer's choice)
+
+The maintainer wants the README to show dm measured ahead of the other download managers, "so
+that it looks better for end users and analysis that our applicaiton is best in market". Asked
+how the comparison names them, the maintainer chose to name them in README.md's benchmark table
+alone, with each one's version, the machine and the date of the measurement. Everywhere else
+(code, comments, other docs) they stay "reference A", "reference B" and "reference C".
+Dropped: an unnamed comparison ("another download manager"), which readers cannot check, and dm's
+own numbers alone, which show nothing against the market. Only measured results go in the table,
+each with how to run it again (`bench/`, gaps rows C0 and C17).
