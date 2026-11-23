@@ -269,7 +269,9 @@ PACK = make_zip()
 
 # name: (size, bytes a second per connection or 0, kind)
 FILES = {
-    "big.bin": (96 * MiB, 1 * MiB, "plain"),
+    # Stopped part way (B04) and resumed (B05): about 12 s on the 16 connections a new dm uses
+    # (2026-11-23; at 1 MiB/s a connection the release build had it whole before Stop).
+    "big.bin": (96 * MiB, 512 * 1024, "plain"),
     "fast.bin": (32 * MiB, 0, "plain"),
     "slowconn.bin": (32 * MiB, 2 * MiB, "plain"),
     "limited.bin": (32 * MiB, 0, "limited"),      # two at once; more get 503

@@ -16,6 +16,13 @@ on:
   schedule:
     - cron: '23 5 * * *'
   workflow_dispatch:
+    inputs:
+      probe:
+        # Each site's media requests and what the extension saw, in its SITE line (sites-check.py
+        # SITES_PROBE): for a site that fails only on the runner (issue #56's Bilibili).
+        description: Record each site's media requests (SITES_PROBE)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -86,6 +93,7 @@ jobs:
         env:
           DM_SKIP_LOCAL: "1"
           PYTHONUNBUFFERED: "1"
+          SITES_PROBE: ${{ inputs.probe && '1' || '' }}
         run: |
           set +e
           mkdir -p "$WATCH"

@@ -8699,3 +8699,13 @@ alone, with each one's version, the machine and the date of the measurement. Eve
 Dropped: an unnamed comparison ("another download manager"), which readers cannot check, and dm's
 own numbers alone, which show nothing against the market. Only measured results go in the table,
 each with how to run it again (`bench/`, gaps rows C0 and C17).
+
+## 2026-11-23: Switches, not check boxes, for on/off settings (the maintainer's choice)
+
+Asked whether check boxes or switches suit dm on the phone and the desktop, the maintainer chose
+switches for both: "toggle button is better than checkbox and better to layout on phones and
+desktop as well". Each on/off setting becomes a switch drawn in each system's own look (gaps row
+C20). Kept as check boxes: ticking items in a list (links, a torrent's files, a playlist's
+videos), which chooses items rather than turning a setting on. Weighed and set aside: check boxes
+on the desktop because Options applies only on OK (a switch can read as already applied); the
+desktop keeps OK and Cancel, and the phone's Options applies each change at once.
