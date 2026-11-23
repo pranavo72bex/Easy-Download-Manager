@@ -54,7 +54,8 @@ pub(super) fn folders(
         ));
     }
     // Each kind's folder: the kind in the window's language, the folder a
-    // name on disk, as it is.
+    // name on disk, as it is; under a heading that says the boxes hold folders' names.
+    p.section(t("Folders by kind"));
     let kinds = dm_core::Category::ALL;
     for pair in kinds.chunks(2) {
         // Two kinds a line on a computer; one a line on a phone, which has room for one.
@@ -80,18 +81,23 @@ pub(super) fn folders(
                 false,
                 move |o| kind_folder(o, i),
             );
+            // On a phone a setting's row: the kind at the left, its folder at the right edge,
+            // as every other setting there; a computer keeps its column of names.
+            let label = if crate::platform::ON_A_PHONE {
+                div().flex_1().min_w_0().child(screen.label(name))
+            } else {
+                div()
+                    .w(px(90.0))
+                    .flex()
+                    .justify_end()
+                    .child(screen.label(name))
+            };
             row = row.child(
                 div()
                     .flex()
                     .items_center()
                     .gap(px(native::LABEL_GAP))
-                    .child(
-                        div()
-                            .w(px(90.0))
-                            .flex()
-                            .justify_end()
-                            .child(screen.label(name)),
-                    )
+                    .child(label)
                     .child(field),
             );
         }

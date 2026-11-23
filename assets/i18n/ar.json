@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "الأرشيف الذي لا تفتحه أيٌّ من كلمات المرور هذه يُترك كما هو، ويذكر سطره ذلك.",
  "Select": "تحديد",
  "{} selected": "{} محدد",
- "Archive passwords": "كلمات مرور الأرشيف"
+ "Archive passwords": "كلمات مرور الأرشيف",
+ "Tapping a download": "النقر على تنزيل",
+ "Folders by kind": "المجلدات حسب النوع"
 }

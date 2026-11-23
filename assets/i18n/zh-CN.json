@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "这些密码都打不开的压缩包会保持原样，其所在行会说明。",
  "Select": "选择",
  "{} selected": "已选择 {} 项",
- "Archive passwords": "压缩包密码"
+ "Archive passwords": "压缩包密码",
+ "Tapping a download": "点按下载项时",
+ "Folders by kind": "按类型分的文件夹"
 }

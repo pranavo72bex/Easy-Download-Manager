@@ -1017,5 +1017,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.",
  "Select",
  "{} selected",
- "Archive passwords"
+ "Archive passwords",
+ "Tapping a download",
+ "Folders by kind"
 ]

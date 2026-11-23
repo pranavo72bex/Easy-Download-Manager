@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Архив, который не открывает ни один из этих паролей, остаётся как есть, и его строка сообщает об этом.",
  "Select": "Выбрать",
  "{} selected": "Выбрано: {}",
- "Archive passwords": "Пароли архивов"
+ "Archive passwords": "Пароли архивов",
+ "Tapping a download": "Нажатие на загрузку",
+ "Folders by kind": "Папки по видам"
 }

@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Un archivio che nessuna di queste password apre resta com'è, e la sua riga lo dice.",
  "Select": "Seleziona",
  "{} selected": "{} selezionati",
- "Archive passwords": "Password degli archivi"
+ "Archive passwords": "Password degli archivi",
+ "Tapping a download": "Toccare un download",
+ "Folders by kind": "Cartelle per tipo"
 }

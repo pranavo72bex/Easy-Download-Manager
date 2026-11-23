@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Un archivo comprimido que ninguna de estas contraseñas abre se deja como está, y su fila lo indica.",
  "Select": "Seleccionar",
  "{} selected": "{} seleccionados",
- "Archive passwords": "Contraseñas de archivos comprimidos"
+ "Archive passwords": "Contraseñas de archivos comprimidos",
+ "Tapping a download": "Tocar una descarga",
+ "Folders by kind": "Carpetas por tipo"
 }

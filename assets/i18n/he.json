@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "ארכיון שאף אחת מהסיסמאות האלה לא פותחת נשאר כפי שהוא, והשורה שלו אומרת זאת.",
  "Select": "בחר",
  "{} selected": "{} נבחרו",
- "Archive passwords": "סיסמאות לארכיונים"
+ "Archive passwords": "סיסמאות לארכיונים",
+ "Tapping a download": "הקשה על הורדה",
+ "Folders by kind": "תיקיות לפי סוג"
 }

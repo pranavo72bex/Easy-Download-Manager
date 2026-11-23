@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Um arquivo compactado que nenhuma destas senhas abre fica como está, e sua linha diz isso.",
  "Select": "Selecionar",
  "{} selected": "{} selecionados",
- "Archive passwords": "Senhas de arquivos compactados"
+ "Archive passwords": "Senhas de arquivos compactados",
+ "Tapping a download": "Tocar em um download",
+ "Folders by kind": "Pastas por tipo"
 }

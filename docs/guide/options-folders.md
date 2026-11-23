@@ -10,7 +10,7 @@ works.
   already begun keeps the folder it began in."
 - **Sort finished files into folders by kind:** each finished file goes into
   a folder for its kind inside the download folder: Videos, Audio,
-  Documents, Apps, Archives, Pictures and Other. Beside each kind is its
+  Documents, Apps, Archives, Pictures and Other. Under **Folders by kind**, beside each kind is its
   folder's name, which you can change; an empty name leaves that kind
   unsorted, in the download folder itself. While sorting is off, these are
   greyed and the page says "Turn on sorting to set the kinds' folders and

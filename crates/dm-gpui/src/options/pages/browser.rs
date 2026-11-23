@@ -170,7 +170,7 @@ fn catching(
         false,
         |o| o.draft.browser.catch.min_size_kb.to_string(),
     );
-    p.labelled(t("Ignore files smaller than (KB)"), on, min);
+    p.setting(t("Ignore files smaller than (KB)"), on, min);
     // The browsers it takes downloads from, each ticked or not; an
     // unticked one keeps its downloads.
     p.add(native::enabled(

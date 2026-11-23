@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Archiwum, którego nie otwiera żadne z tych haseł, zostaje bez zmian, a jego wiersz o tym mówi.",
  "Select": "Zaznacz",
  "{} selected": "Zaznaczono: {}",
- "Archive passwords": "Hasła archiwów"
+ "Archive passwords": "Hasła archiwów",
+ "Tapping a download": "Dotknięcie pobierania",
+ "Folders by kind": "Foldery według rodzaju"
 }

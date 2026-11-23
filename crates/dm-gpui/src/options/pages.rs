@@ -181,6 +181,31 @@ impl Page {
     }
 }
 
+impl Page {
+    /// Words, then a small control (a number's box, a drop-down): on a phone in one row, the
+    /// words at the left and the control at the right edge, as its switches are; elsewhere as
+    /// [`Self::labelled`]. A wide control (a folder, a list of sites) stays `labelled`, on a
+    /// line of its own under its words.
+    fn setting(&mut self, words: &str, on: bool, control: impl IntoElement) {
+        if !crate::platform::ON_A_PHONE {
+            return self.labelled(words, on, control);
+        }
+        self.says(words);
+        let row = div()
+            .flex()
+            .items_center()
+            .gap(px(space::L))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .child(self.screen.label(words.to_string())),
+            )
+            .child(div().flex_none().child(control));
+        self.add(native::enabled(on, row));
+    }
+}
+
 /// A switch for one of the draft's on/off settings: `flip` turns it (gaps row C20).
 fn check(
     p: &mut Page,
@@ -225,6 +250,11 @@ fn input(
         // stands beside it (a folder's Browse…).
         .when(crate::platform::ON_A_PHONE, |d| {
             d.flex_shrink(1.0).min_w_0().max_w_full()
+        })
+        // A phone's text field (a host, a name, a list of sites) the line's whole width; a
+        // number's box stays small, beside its words.
+        .when(crate::platform::ON_A_PHONE && width >= 200.0, |d| {
+            d.flex_1().w_full()
         })
         .child(native::field_if(&field, name, on, theme))
         .when(not_a_number, |d| {

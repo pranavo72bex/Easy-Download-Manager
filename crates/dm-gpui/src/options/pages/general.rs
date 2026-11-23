@@ -41,7 +41,7 @@ fn language(p: &mut Page, s: &Settings) {
     let at = dm_desktop_base::i18n::LANGUAGES
         .iter()
         .position(|(code, _)| *code == now);
-    p.labelled(
+    p.setting(
         t("Language"),
         true,
         popup::button(
@@ -80,7 +80,7 @@ fn appearance(
             theme_words(word)
         }
     };
-    p.labelled(
+    p.setting(
         t("Theme"),
         true,
         popup::button(
@@ -189,7 +189,7 @@ fn desktop_starting(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         .iter()
         .position(|w| *w == s.general.on_close)
         .unwrap_or(0);
-    p.labelled(
+    p.setting(
         t("When I close the window"),
         true,
         popup::button(
@@ -218,7 +218,7 @@ fn starting_rest(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         .iter()
         .position(|w| *w == s.duplicate_choice)
         .unwrap_or(0);
-    p.labelled(
+    p.setting(
         t("When an address is already in the list"),
         true,
         popup::button(
@@ -240,7 +240,7 @@ fn starting_rest(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         .iter()
         .position(|w| *w == s.same_file_choice)
         .unwrap_or(0);
-    p.labelled(
+    p.setting(
         t("When the same file is already here"),
         true,
         popup::button(
@@ -534,7 +534,12 @@ fn keeping(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
 fn the_list(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     let (theme, screen) = (p.theme, p.screen.clone());
     p.section(t("The list"));
-    p.words(t("Double-clicking a download"));
+    // A phone's card is tapped, not double-clicked: what it does there is the same setting.
+    p.words(if crate::platform::ON_A_PHONE {
+        t("Tapping a download")
+    } else {
+        t("Double-clicking a download")
+    });
     for (word, words) in [
         ("properties", t("shows its properties")),
         ("open", t("opens the file")),

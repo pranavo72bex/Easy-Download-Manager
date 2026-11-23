@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Een archief dat geen van deze wachtwoorden opent, blijft zoals het is, en de rij zegt dat.",
  "Select": "Selecteren",
  "{} selected": "{} geselecteerd",
- "Archive passwords": "Archiefwachtwoorden"
+ "Archive passwords": "Archiefwachtwoorden",
+ "Tapping a download": "Op een download tikken",
+ "Folders by kind": "Mappen per soort"
 }

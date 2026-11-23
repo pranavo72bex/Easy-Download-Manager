@@ -81,7 +81,7 @@ fn network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
                 _ => o.draft.advanced.read_timeout.to_string(),
             },
         );
-        p.labelled(t(words), true, field);
+        p.setting(t(words), true, field);
         p.note(t(hint));
     }
 }
@@ -112,7 +112,7 @@ fn second_network(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
             .map(|i| i + 1)
     };
     // Not beside the one network downloads are held to: greyed while one is (gaps row W12).
-    p.labelled(
+    p.setting(
         t("Second network"),
         o.draft.advanced.only_through.is_empty(),
         popup::button(
@@ -189,7 +189,7 @@ fn only_through(o: &mut Options, p: &mut Page) {
     } else {
         only
     };
-    p.labelled(
+    p.setting(
         t("Only through"),
         true,
         popup::button("only-through", shown.into(), words, at, theme, &screen),
@@ -514,9 +514,12 @@ fn bittorrent(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
                 _ => o.draft.torrent_upload_limit.to_string(),
             },
         );
-        p.labelled(t(words), share, field);
+        p.setting(t(words), share, field);
     }
-    p.note(t("The first torrent makes Windows ask whether dm may use public and private networks. Allowed, other peers can reach dm and torrents go faster; refused, dm still downloads, reaching peers itself. Change it later in Windows Security, Firewall, Allow an app through firewall."));
+    // Windows' firewall question alone: no other system asks it.
+    if cfg!(windows) {
+        p.note(t("The first torrent makes Windows ask whether dm may use public and private networks. Allowed, other peers can reach dm and torrents go faster; refused, dm still downloads, reaching peers itself. Change it later in Windows Security, Firewall, Allow an app through firewall."));
+    }
 }
 
 /// The proxy's settings, under Advanced's "Proxy".
@@ -539,7 +542,7 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
         Kind::System => t("The computer's proxy settings").to_string(),
         other => format!("{other:?}").to_uppercase(),
     };
-    p.labelled(
+    p.setting(
         t("Proxy type"),
         on,
         popup::button(

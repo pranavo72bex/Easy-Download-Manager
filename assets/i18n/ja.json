@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "どのパスワードでも開けないアーカイブはそのまま残され、その行に表示されます。",
  "Select": "選択",
  "{} selected": "{} 件選択",
- "Archive passwords": "アーカイブのパスワード"
+ "Archive passwords": "アーカイブのパスワード",
+ "Tapping a download": "ダウンロードをタップすると",
+ "Folders by kind": "種類ごとのフォルダー"
 }

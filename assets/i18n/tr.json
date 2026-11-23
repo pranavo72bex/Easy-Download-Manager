@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Bu parolaların hiçbirinin açmadığı arşiv olduğu gibi bırakılır ve satırı bunu söyler.",
  "Select": "Seç",
  "{} selected": "{} seçildi",
- "Archive passwords": "Arşiv parolaları"
+ "Archive passwords": "Arşiv parolaları",
+ "Tapping a download": "Bir indirmeye dokunmak",
+ "Folders by kind": "Türe göre klasörler"
 }

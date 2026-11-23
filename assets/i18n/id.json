@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Arsip yang tidak terbuka dengan kata sandi mana pun dibiarkan apa adanya, dan barisnya menyebutkannya.",
  "Select": "Pilih",
  "{} selected": "{} dipilih",
- "Archive passwords": "Kata sandi arsip"
+ "Archive passwords": "Kata sandi arsip",
+ "Tapping a download": "Mengetuk unduhan",
+ "Folders by kind": "Folder menurut jenis"
 }

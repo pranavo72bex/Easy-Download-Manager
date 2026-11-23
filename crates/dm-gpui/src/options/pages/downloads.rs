@@ -43,7 +43,7 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
         false,
         |o| o.draft.downloads.connections.to_string(),
     );
-    p.labelled(t("Connections per file"), true, connections);
+    p.setting(t("Connections per file"), true, connections);
     p.note(t("How many parts of a file dm fetches at once. More is faster on most sites, but some limit it."));
     // The presets (B56): one sets the box; the one matching it is chosen.
     let now = o.draft.downloads.connections;
@@ -104,7 +104,7 @@ fn files_and_quality(
         false,
         |o| o.draft.downloads.concurrency.to_string(),
     );
-    p.labelled(t("Files at once"), true, files);
+    p.setting(t("Files at once"), true, files);
     p.note(t("How many files download at the same time."));
     let qualities = dm_desktop_base::file_info::QUALITIES;
     let quality_at = qualities
@@ -113,7 +113,7 @@ fn files_and_quality(
     let quality_words = quality_at
         .map(|i| t(qualities[i].1))
         .unwrap_or_else(|| t("Best available"));
-    p.labelled(
+    p.setting(
         t("Video quality"),
         true,
         popup::button(
@@ -152,7 +152,7 @@ fn sound_language(o: &Options, p: &mut Page) {
                 .map(|(_, name)| SharedString::from(*name)),
         )
         .collect();
-    p.labelled(
+    p.setting(
         t("Sound language"),
         true,
         popup::button("sound-language", words, choices, at, theme, &screen),
@@ -383,7 +383,7 @@ fn watching_and_after(
         false,
         |o| o.draft.downloads.record_minutes.to_string(),
     );
-    p.labelled(
+    p.setting(
         t("Stop recording after (minutes, 0 for no limit)"),
         true,
         record,
@@ -399,7 +399,11 @@ fn watching_and_after(
         false,
         |o| o.draft.downloads.recheck_hours.to_string(),
     );
-    p.labelled(t("Recheck every (hours, 0 for manual)"), true, recheck);
+    p.setting(t("Recheck every (hours, 0 for manual)"), true, recheck);
+    // A phone runs no command of its own after a download.
+    if crate::platform::ON_A_PHONE {
+        return;
+    }
     p.words(t("When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:"));
     let command = input(
         o,
@@ -428,7 +432,7 @@ fn forgetting(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
         false,
         |o| o.draft.downloads.forget_after_days.to_string(),
     );
-    p.labelled(
+    p.setting(
         t("Forget finished downloads after (days, 0 for never)"),
         true,
         days,
@@ -450,7 +454,7 @@ fn metered_and_battery(
         .iter()
         .map(|w| SharedString::from(t(w)))
         .collect();
-    p.labelled(
+    p.setting(
         t("On a metered connection"),
         true,
         popup::button(
@@ -474,6 +478,6 @@ fn metered_and_battery(
         false,
         |o| o.draft.downloads.battery_below.to_string(),
     );
-    p.labelled(t("On battery: wait below (%, 0 for never)"), true, level);
+    p.setting(t("On battery: wait below (%, 0 for never)"), true, level);
     p.note(t("Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again."));
 }

@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "이 암호 중 어느 것으로도 열리지 않는 압축 파일은 그대로 두며, 해당 행에 표시됩니다.",
  "Select": "선택",
  "{} selected": "{}개 선택됨",
- "Archive passwords": "압축 파일 비밀번호"
+ "Archive passwords": "압축 파일 비밀번호",
+ "Tapping a download": "다운로드를 탭하면",
+ "Folders by kind": "종류별 폴더"
 }

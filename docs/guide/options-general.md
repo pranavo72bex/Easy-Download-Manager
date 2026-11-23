@@ -84,7 +84,7 @@ the window works.
 
 ## The list
 
-**Double-clicking a download** in the list: **shows its properties**,
+**Double-clicking a download** in the list (on the phone, **Tapping a download**): **shows its properties**,
 **opens the file**, or **opens its folder**.
 
 ## Settings file

@@ -1029,5 +1029,7 @@
  "An archive none of these passwords opens is left as it is, and its row says so.": "Ein Archiv, das keines dieser Passwörter öffnet, bleibt, wie es ist, und seine Zeile sagt es.",
  "Select": "Auswählen",
  "{} selected": "{} ausgewählt",
- "Archive passwords": "Archiv-Passwörter"
+ "Archive passwords": "Archiv-Passwörter",
+ "Tapping a download": "Tippen auf einen Download",
+ "Folders by kind": "Ordner nach Art"
 }
