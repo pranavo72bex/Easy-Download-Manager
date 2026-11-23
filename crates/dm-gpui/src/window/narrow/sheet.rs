@@ -200,6 +200,7 @@ fn quick_row(
         .w_full()
         .flex()
         .gap(px(space::S))
+        .px(px(space::L))
         .pb(px(space::S))
         .children(quick.iter().filter_map(|&i| {
             let OwnedMenuItem::Action { name, action, .. } = menu.items.get(i)? else {

@@ -18,7 +18,11 @@ pub(super) fn general(
     language(p, &s);
     appearance(o, p, window, cx, &s);
     starting(p, cx, &s);
-    sounds(o, p, window, cx, &s);
+    // Not on a phone, whose notifications play its own sound and where dm has no player of its
+    // own for one (gaps row N24).
+    if !crate::platform::ON_A_PHONE {
+        sounds(o, p, window, cx, &s);
+    }
     backdrop(p, cx, &s);
     pop_ups(p, cx, &s);
     keeping(p, cx, &s);

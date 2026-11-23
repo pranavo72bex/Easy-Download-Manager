@@ -219,20 +219,30 @@ pub(super) fn view_menu(ticks: &Ticks) -> Menu {
         .into_iter()
         .map(|c| item(c).checked(ticks.sorted_by == Some(c))),
     );
-    Menu::new(t("View")).items([
-        item(C::ToggleCategories).checked(ticks.sidebar),
-        item(C::ToggleToolbar).checked(ticks.toolbar),
-        item(C::ToggleDropTarget).checked(ticks.drop_target),
-        MenuItem::separator(),
-        MenuItem::submenu(columns),
-        MenuItem::submenu(customize),
+    // On a phone, none of what draws a computer's window: its side panel, toolbar, floating drop
+    // target and the table's columns, which the cards and the narrow bar read nothing of (gaps
+    // row N24).
+    let desktop = !crate::platform::ON_A_PHONE;
+    let mut items = Vec::new();
+    if desktop {
+        items.extend([
+            item(C::ToggleCategories).checked(ticks.sidebar),
+            item(C::ToggleToolbar).checked(ticks.toolbar),
+            item(C::ToggleDropTarget).checked(ticks.drop_target),
+            MenuItem::separator(),
+            MenuItem::submenu(columns),
+            MenuItem::submenu(customize),
+        ]);
+    }
+    items.extend([
         MenuItem::submenu(text_size),
         MenuItem::submenu(language),
         MenuItem::submenu(sort),
         // What dm has done, in figures (gaps row W15).
         MenuItem::separator(),
         MenuItem::action(t("Statistics…"), crate::dialogs::statistics::ShowStatistics),
-    ])
+    ]);
+    Menu::new(t("View")).items(items)
 }
 
 /// Help, without About.
@@ -262,8 +272,12 @@ pub(super) fn help_menu() -> Menu {
             t("Tell a friend"),
             dm_desktop_base::project::tell_a_friend(),
         ),
-        MenuItem::separator(),
-        item(C::CheckForUpdates),
     ]);
+    // The phone's app is updated by its store or by its APK, which the check knows nothing of
+    // (it offers a `.dmg`, a `-setup.exe` or an `.AppImage`; gaps row N24).
+    if !crate::platform::ON_A_PHONE {
+        help.items
+            .extend([MenuItem::separator(), item(C::CheckForUpdates)]);
+    }
     help
 }

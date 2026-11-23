@@ -646,11 +646,26 @@ fn a_narrow_options_is_a_list_of_pages_then_a_page() {
     h.until("Downloads over the list", |h| {
         h.shows("Connections per file")
     });
-    let back = format!("‹ {}", dm_desktop_base::i18n::t("Options"));
-    assert!(h.shows(&back), "{:?}", h.texts());
     assert!(!h.shows("Sign-ins"), "the list stayed under the page");
-    h.click(&back);
+    assert!(
+        h.shows("Restore defaults"),
+        "a page has its Restore defaults"
+    );
+    // Back (Escape, the title bar's arrow, a phone's Back): the list again, Options still open.
+    h.dialog(|o: &mut Options, window, cx| {
+        crate::widgets::native::CloseButton::close_button(o, window, cx)
+    });
     h.until("the list again", |h| {
         h.shows("Sign-ins") && !h.shows("Connections per file")
     });
+    assert!(h.dialog_open("Options"), "Back closed Options from a page");
+    assert!(
+        !h.shows("Restore defaults"),
+        "the list has no page to restore"
+    );
+    // Back again, on the list: Options closes.
+    h.dialog(|o: &mut Options, window, cx| {
+        crate::widgets::native::CloseButton::close_button(o, window, cx)
+    });
+    h.until("Options to close", |h| !h.dialog_open("Options"));
 }

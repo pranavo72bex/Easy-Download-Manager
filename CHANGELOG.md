@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Android: holding a download's card opens its menu at once (it acted as a tap before); Back in Options goes from a page to the list, then closes Options; the phone no longer shows desktop-only items (View's side panel, toolbar, drop target and columns, Check for updates, Sounds).
 - Help › Contact support starts a new issue with dm's version, system and language already written in it.
 - The command line takes reference A's switches too (`/d LINK /p FOLDER /f NAME /n /a /s`), so scripts written for it work with dm.
 - Android: Options is in the bottom bar, a tap away, where Finished was (it stays in the ⋮ menu too); Finished is under Places with the categories and queues.

@@ -98,6 +98,9 @@ pub struct Options {
     /// At a narrow width (a phone's, or a window narrowed to one), whether the list of pages
     /// is shown, not a page: a page opens over it, with a bar back to it (gaps row C21).
     pub(crate) pages_shown: bool,
+    /// Whether the last frame showed the list of pages alone (narrow, no page over it): its
+    /// footer then has no Restore defaults, which is a page's.
+    list_only: bool,
     /// The passwords tried on an archive that has one, as edited (gaps row C2): kept sealed in
     /// dm's home, apart from the settings, and written by OK where they changed.
     pub(crate) archive_passwords: Vec<String>,
@@ -388,6 +391,7 @@ impl Render for Options {
         // narrow, the list of pages and a page are screens of their own; wide, side by side.
         let narrow = crate::window::narrow::narrow_at(f32::from(window.viewport_size().width));
         let list_only = narrow && self.pages_shown && !searching;
+        self.list_only = list_only;
         let page = if searching {
             crate::options::pages::search(self, &wanted, theme, window, cx)
         } else if list_only {
@@ -431,7 +435,8 @@ impl Render for Options {
             .pt(px(native::MARGIN - 6.0))
             .pb(px(native::ROW_GAP))
             .child(native::field(&self.search, "Find a setting", theme));
-        // Narrow, over a page: its name, and a way back to the list.
+        // Narrow, over a page: its name over it; the title bar's arrow and Back take it back to
+        // the list (`close_button`).
         let back = (narrow && !self.pages_shown && !searching).then(|| {
             let name = tabs
                 .iter()
@@ -439,29 +444,10 @@ impl Render for Options {
                 .map(|(_, words)| t(words))
                 .unwrap_or_default();
             div()
-                .id("pages-back")
-                .role(Role::Button)
-                .aria_label(SharedString::from(t("Options")))
-                .tab_index(0)
                 .mx(px(native::MARGIN))
                 .mb(px(space::S))
-                .min_h(px(native::CONTROL))
-                .flex()
-                .items_center()
-                .gap(px(space::M))
-                .cursor_pointer()
-                .text_color(theme.accent)
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.pages_shown = true;
-                    cx.notify();
-                }))
-                .child(screen.label(format!("‹ {}", t("Options"))))
-                .child(
-                    div()
-                        .text_color(theme.text)
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .child(screen.label(name.to_string())),
-                )
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .child(screen.label(name.to_string()))
         });
         let page_view = (!list_only).then(|| {
             div()
@@ -525,7 +511,7 @@ impl Options {
     /// Under the page: what went wrong, and the buttons, Restore defaults where the page has
     /// settings of its own.
     fn footer(&self, theme: Theme, screen: &Screen, cx: &Context<Self>) -> gpui::Div {
-        let restore = !options::tab_settings(self.tab).is_empty();
+        let restore = !self.list_only && !options::tab_settings(self.tab).is_empty();
         div()
             .px(px(native::MARGIN))
             .pb(px(native::MARGIN))
@@ -718,6 +704,7 @@ fn open_window(
                 heard: dm_shell::host::browsers_heard(&dm_shell::settings::home()),
                 search: search.clone(),
                 pages_shown: true,
+                list_only: false,
                 archive_passwords: archive_passwords.clone(),
                 archive_passwords_opened: archive_passwords,
             });
@@ -745,7 +732,16 @@ fn open_window(
 }
 
 impl crate::widgets::native::CloseButton for Options {
-    fn close_button(&mut self, window: &mut Window, _: &mut Context<Self>) {
+    /// Back, Escape, the title bar's arrow or the window's close: at a narrow width over a page,
+    /// back to the list of pages, as a phone's settings step back (gaps row C21); else Cancel.
+    fn close_button(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let narrow = crate::window::narrow::narrow_at(f32::from(window.viewport_size().width));
+        let searching = !self.search.read(cx).value().trim().is_empty();
+        if narrow && !self.pages_shown && !searching {
+            self.pages_shown = true;
+            cx.notify();
+            return;
+        }
         self.cancel(window);
     }
 }

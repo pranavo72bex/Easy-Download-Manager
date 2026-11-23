@@ -274,6 +274,9 @@ fn card(
             }
             view.card_tapped(id, event.click_count(), cx);
         }))
+        .relative()
+        // A finger held on it: GPUI's own long press, claimed so it is no tap (gaps row C22).
+        .child(long_press_layer(id, cx))
         .child(tile(kind, chosen, card_theme))
         // Its name and time left, its bar, and a line of its state and figures.
         .child(
@@ -401,6 +404,40 @@ fn quick_button(
                     }),
             ),
         )
+}
+
+/// A layer over card `id` that takes GPUI's long press on it (a phone's touch held still, which
+/// the platform's gesture recogniser reports as `LongPressEvent`, not as a held button): the
+/// card's menu opens while the finger is still down, and the press is claimed, so it is not
+/// also a tap that opens the download.
+fn long_press_layer(id: dm_core::Id, cx: &mut Context<Downloads>) -> gpui::AnyElement {
+    let view = cx.entity().downgrade();
+    gpui::canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let view = view.clone();
+            window.on_mouse_event(move |event: &gpui::LongPressEvent, phase, window, cx| {
+                if phase != gpui::DispatchPhase::Bubble
+                    || event.phase != gpui::TouchPhase::Started
+                    || !bounds.contains(&event.start_position)
+                {
+                    return;
+                }
+                window.prevent_default();
+                cx.stop_propagation();
+                let _ = view.update(cx, |view, cx| {
+                    view.layout.narrow.pressed = None;
+                    view.layout.narrow.held_open = Some(id);
+                    view.open_card_menu(id, cx);
+                });
+            });
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full()
+    .into_any_element()
 }
 
 /// How far, in points, a finger may move from where it pressed a card and still be holding it:
