@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A torrent being downloaded can be watched: Preview opens its largest file (a film's video) while it downloads, from its start, as its pieces come in order.
 - On/off settings are switches now, on the computer and the phone: in Options at the end of each setting's row, and in the dialogs (Remember my choice, Needs a sign-in, Keep no record, Limit this download to, the Scheduler's hours, and others). Ticking items in a list (links, a torrent's files, a playlist's videos, the Scheduler's days) stays a check box.
 - Options lists its pages at its left, each with a line of what it holds, beside the page; narrowed to a phone's width (and on the phone) the list fills the window and a page opens over it with "‹ Options" to go back. The same window and code at every width.
 - A long press on a download's card (the phone, or a window narrowed to one) opens its menu while the finger is still down, with Open, Share, Delete and Pause or Resume as big buttons at its top; scrolling the list no longer counts as a press.

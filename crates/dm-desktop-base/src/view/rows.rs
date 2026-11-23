@@ -574,6 +574,9 @@ impl dm_shell::app::commands::Looks for Looks {
             kind_of(row),
             Some(dm_core::Category::Videos | dm_core::Category::Audio)
         )
+            // A torrent's row is named after it, not its files: its largest file is
+            // previewed while it downloads, in order (gaps row C1).
+            || dm_core::is_torrent(&row.url)
     }
 }
 

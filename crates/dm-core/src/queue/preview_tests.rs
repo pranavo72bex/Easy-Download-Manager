@@ -51,3 +51,23 @@ async fn a_range_file_is_counted_by_its_ledger_alone() {
     std::fs::write(parts.join("plan.json"), b"{}").unwrap();
     assert_eq!(staged_bytes(parts).await, Some(4096));
 }
+
+/// A torrent's files are under its own names in its folder: the largest is previewed, under its
+/// own ending, while it downloads (gaps row C1); dm's own files beside it are not.
+#[test]
+fn the_preview_of_a_torrent_is_its_largest_file_under_its_own_ending() {
+    let dir = tempfile::tempdir().unwrap();
+    let parts = dir.path();
+    std::fs::write(parts.join(crate::paths::PLAN), b"{}").unwrap();
+    let film = parts.join("Sintel");
+    std::fs::create_dir_all(&film).unwrap();
+    std::fs::write(film.join("Sintel.srt"), b"1\n00:00").unwrap();
+    std::fs::write(film.join("Sintel.mkv"), b"the film's first pieces").unwrap();
+    // The row is named after the torrent, which has no ending.
+    let preview = preview_of(parts, "Sintel").unwrap();
+    assert_eq!(preview, parts.join("preview.mkv"));
+    assert_eq!(std::fs::read(&preview).unwrap(), b"the film's first pieces");
+    // Asked again, it is made afresh, and the earlier preview is not taken for the film.
+    let again = preview_of(parts, "Sintel").unwrap();
+    assert_eq!(std::fs::read(again).unwrap(), b"the film's first pieces");
+}

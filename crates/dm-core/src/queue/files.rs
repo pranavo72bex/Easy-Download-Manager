@@ -193,6 +193,47 @@ pub(super) async fn staged_bytes(dir: &std::path::Path) -> Option<u64> {
     (parts > 0 || others == 0).then_some(total)
 }
 
+/// The largest file a torrent being fetched has under `parts`, in its own folders: none of
+/// dm's own (its plan, ledgers, range files, staged file, a recording or a preview made before).
+fn torrent_file_in(parts: &std::path::Path) -> Option<PathBuf> {
+    fn ours(name: &str) -> bool {
+        name == crate::paths::PLAN
+            || name == crate::download::STAGED
+            || name == "live.recording"
+            || name.starts_with(crate::download::RANGE)
+            || name.starts_with("done-")
+            || name.starts_with("part-")
+            || name.starts_with(PREVIEW)
+            || name.starts_with('.')
+    }
+    fn walk(dir: &std::path::Path, depth: usize, best: &mut Option<(u64, PathBuf)>) {
+        let Ok(listing) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in listing.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if ours(&name) {
+                continue;
+            }
+            let path = entry.path();
+            let Ok(meta) = entry.metadata() else {
+                continue;
+            };
+            if meta.is_dir() && depth < 8 {
+                walk(&path, depth + 1, best);
+            } else if meta.is_file()
+                && meta.len() > 0
+                && best.as_ref().is_none_or(|(len, _)| meta.len() > *len)
+            {
+                *best = Some((meta.len(), path));
+            }
+        }
+    }
+    let mut best = None;
+    walk(parts, 0, &mut best);
+    best.map(|(_, path)| path)
+}
+
 /// The file a player is given for [`DownloadList::preview`]: what is fetched of
 /// `filename` under `parts`, under a name that ends as `filename` does.
 pub(super) fn preview_of(parts: &std::path::Path, filename: &str) -> Result<PathBuf, String> {
@@ -208,9 +249,16 @@ pub(super) fn preview_of(parts: &std::path::Path, filename: &str) -> Result<Path
     ]
     .into_iter()
     .find(|p| std::fs::metadata(p).is_ok_and(|m| m.len() > 0))
+    // A torrent's files are under its own names: the largest, which its pieces fetched first
+    // and last then in order make playable from its start as it comes (gaps row C1).
+    .or_else(|| torrent_file_in(parts))
     .ok_or("nothing of it is on disk to preview yet")?;
-    let extension = std::path::Path::new(filename)
+    // The file's own ending where it has one (a torrent's), else the row's.
+    let extension = source
         .extension()
+        .filter(|_| !source.starts_with(parts.join(crate::download::STAGED)))
+        .filter(|e| !e.is_empty())
+        .or_else(|| std::path::Path::new(filename).extension())
         .map(|e| e.to_string_lossy().into_owned())
         .unwrap_or_default();
     let to = parts.join(if extension.is_empty() {
