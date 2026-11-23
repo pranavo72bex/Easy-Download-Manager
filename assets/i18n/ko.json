@@ -935,7 +935,6 @@
  "Once it is unpacked:": "압축을 푼 뒤:",
  "Keep the archive": "압축 파일 유지",
  "Send the archive to the Trash": "압축 파일을 휴지통으로 보내기",
- "An archive with a password is left as it is, and its row says so.": "암호가 있는 압축 파일은 그대로 두며, 해당 행에 표시됩니다.",
  "unpacked into a folder of its name": "같은 이름의 폴더에 압축 풀림",
  "unpacked into a folder of its name, and the archive sent to the Trash": "같은 이름의 폴더에 압축 풀림, 압축 파일은 휴지통으로 보냄",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "같은 이름의 폴더에 압축 풀림, 하지만 압축 파일을 휴지통으로 보내지 못함",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "파일을 선택할 수 없습니다: {}",
  "the phone is not on Wi-Fi": "휴대전화가 Wi-Fi에 연결되어 있지 않습니다",
  "the phone is roaming": "휴대전화가 로밍 중입니다",
- "Wi-Fi only": "Wi-Fi에서만"
+ "Wi-Fi only": "Wi-Fi에서만",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "암호가 있는 압축 파일에 차례로 시도하는 암호입니다. 열린 암호가 맨 위로 옵니다.",
+ "Add a password": "암호 추가",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "이 암호 중 어느 것으로도 열리지 않는 압축 파일은 그대로 두며, 해당 행에 표시됩니다."
 }

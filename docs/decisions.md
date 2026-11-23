@@ -8720,3 +8720,11 @@ setting rows, the rare ones under More; at a phone's width the list and a page a
 their own) and C22 (the card's menu opening while the finger is down, Open, Share and Delete at
 its top, and a long press starting a choice of several cards). Approved changes to the
 behaviour contract's Options and card rows, to be named in their commits.
+
+## 2026-11-23: Options in the phone's bottom bar, in Finished's place (the maintainer's word)
+
+The maintainer: "I think it is better to add Options in the bottom navigation bar in mobile app
+it is difficult to go to 3 dots then go to Options. do not remove from there. just add Options in
+navigation bar instead of Finished option". The bar is All, Unfinished, Places and Options;
+Options stays in the overflow menu; Finished is chosen from the Places drawer, which lights
+Places while it is shown (`window/narrow/bottomnav.rs`).

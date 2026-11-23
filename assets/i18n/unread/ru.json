@@ -106,7 +106,6 @@
  "Once it is unpacked:",
  "Keep the archive",
  "Send the archive to the Trash",
- "An archive with a password is left as it is, and its row says so.",
  "unpacked into a folder of its name",
  "unpacked into a folder of its name, and the archive sent to the Trash",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash",
@@ -195,5 +194,8 @@
  "The file could not be chosen: {}",
  "the phone is not on Wi-Fi",
  "the phone is roaming",
- "Wi-Fi only"
+ "Wi-Fi only",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.",
+ "Add a password",
+ "An archive none of these passwords opens is left as it is, and its row says so."
 ]

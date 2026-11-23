@@ -935,7 +935,6 @@
  "Once it is unpacked:": "Una vez descomprimido:",
  "Keep the archive": "Conservar el archivo comprimido",
  "Send the archive to the Trash": "Enviar el archivo comprimido a la papelera",
- "An archive with a password is left as it is, and its row says so.": "Un archivo comprimido con contraseña se deja como está, y su fila lo indica.",
  "unpacked into a folder of its name": "descomprimido en una carpeta con su nombre",
  "unpacked into a folder of its name, and the archive sent to the Trash": "descomprimido en una carpeta con su nombre, y el archivo comprimido enviado a la papelera",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "descomprimido en una carpeta con su nombre, pero el archivo comprimido no se pudo enviar a la papelera",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "No se pudo elegir el archivo: {}",
  "the phone is not on Wi-Fi": "el teléfono no está conectado a Wi-Fi",
  "the phone is roaming": "el teléfono está en itinerancia",
- "Wi-Fi only": "Solo Wi-Fi"
+ "Wi-Fi only": "Solo Wi-Fi",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Contraseñas que se prueban por turno en un archivo comprimido con contraseña; la que lo abre pasa a la primera.",
+ "Add a password": "Añadir una contraseña",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Un archivo comprimido que ninguna de estas contraseñas abre se deja como está, y su fila lo indica."
 }

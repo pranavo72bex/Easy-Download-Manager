@@ -99,6 +99,7 @@ pub(super) fn folders(
     }
     custom_categories(o, p, window, cx, on, &screen);
     unpacking(o, p, cx);
+    archive_passwords(o, p, window, cx);
     let _ = theme;
 }
 
@@ -147,8 +148,79 @@ fn unpacking(o: &Options, p: &mut Page, cx: &mut Context<Options>) {
         p.says(words);
         p.add(radio);
     }
+}
+
+/// The passwords tried on a finished archive that has one (gaps row C2): each shown as dots
+/// with Delete, and a field to add one. Kept apart from the settings, sealed, by OK.
+fn archive_passwords(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+) {
+    let (theme, screen) = (p.theme, p.screen.clone());
+    p.words(t(
+        "Passwords tried on an archive that has one, in turn; the one that opens it goes first.",
+    ));
+    for i in 0..o.archive_passwords.len() {
+        let delete = native::button(
+            SharedString::from(format!("archive-password-delete-{i}")),
+            t("Delete").into(),
+            false,
+            theme,
+            &screen,
+        )
+        .on_click(cx.listener(move |o, _, _, cx| {
+            if i < o.archive_passwords.len() {
+                o.archive_passwords.remove(i);
+            }
+            cx.notify();
+        }));
+        p.add(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(space::M))
+                // Never the password, nor how long it is.
+                .child(div().flex_1().child(screen.label("••••••••".to_string())))
+                .child(delete),
+        );
+    }
+    let field = o.field("archive-password", |_| String::new(), true, window, cx);
+    let add = native::button(
+        "archive-password-add",
+        t("Add").into(),
+        false,
+        theme,
+        &screen,
+    )
+    .on_click(cx.listener(move |o, _, window, cx| {
+        let Some(field) = o.fields.get("archive-password").cloned() else {
+            return;
+        };
+        let typed = field.read(cx).value().to_string();
+        if !typed.is_empty() && !o.archive_passwords.contains(&typed) {
+            o.archive_passwords.push(typed);
+        }
+        field.update(cx, |f, cx| f.set_value("", window, cx));
+        cx.notify();
+    }));
+    p.says(t("Add a password"));
+    p.add(
+        div()
+            .flex()
+            .items_center()
+            .gap(px(native::LABEL_GAP))
+            .child(screen.label(t("Add a password")))
+            .child(
+                div()
+                    .w(px(220.0))
+                    .child(native::field(&field, "Add a password", theme)),
+            )
+            .child(add),
+    );
     p.note(t(
-        "An archive with a password is left as it is, and its row says so.",
+        "An archive none of these passwords opens is left as it is, and its row says so.",
     ));
 }
 

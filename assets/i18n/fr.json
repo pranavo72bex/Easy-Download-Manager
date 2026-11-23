@@ -935,7 +935,6 @@
  "Once it is unpacked:": "Une fois décompressée :",
  "Keep the archive": "Garder l'archive",
  "Send the archive to the Trash": "Envoyer l'archive à la corbeille",
- "An archive with a password is left as it is, and its row says so.": "Une archive protégée par un mot de passe est laissée telle quelle, et sa ligne l'indique.",
  "unpacked into a folder of its name": "décompressée dans un dossier à son nom",
  "unpacked into a folder of its name, and the archive sent to the Trash": "décompressée dans un dossier à son nom, et l'archive envoyée à la corbeille",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "décompressée dans un dossier à son nom, mais l'archive n'a pas pu être envoyée à la corbeille",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "Le fichier n'a pas pu être choisi : {}",
  "the phone is not on Wi-Fi": "le téléphone n'est pas en Wi-Fi",
  "the phone is roaming": "le téléphone est en itinérance",
- "Wi-Fi only": "Wi-Fi uniquement"
+ "Wi-Fi only": "Wi-Fi uniquement",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Mots de passe essayés tour à tour sur une archive qui en a un ; celui qui l'ouvre passe en premier.",
+ "Add a password": "Ajouter un mot de passe",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Une archive qu'aucun de ces mots de passe n'ouvre est laissée telle quelle, et sa ligne l'indique."
 }

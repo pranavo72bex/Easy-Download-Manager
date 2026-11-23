@@ -935,7 +935,6 @@
  "Once it is unpacked:": "Açıldıktan sonra:",
  "Keep the archive": "Arşivi sakla",
  "Send the archive to the Trash": "Arşivi çöp kutusuna gönder",
- "An archive with a password is left as it is, and its row says so.": "Parolalı bir arşiv olduğu gibi bırakılır ve satırı bunu söyler.",
  "unpacked into a folder of its name": "kendi adını taşıyan bir klasöre açıldı",
  "unpacked into a folder of its name, and the archive sent to the Trash": "kendi adını taşıyan bir klasöre açıldı ve arşiv çöp kutusuna gönderildi",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "kendi adını taşıyan bir klasöre açıldı, ancak arşiv çöp kutusuna gönderilemedi",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "Dosya seçilemedi: {}",
  "the phone is not on Wi-Fi": "telefon Wi-Fi'ye bağlı değil",
  "the phone is roaming": "telefon dolaşımda",
- "Wi-Fi only": "Yalnızca Wi-Fi"
+ "Wi-Fi only": "Yalnızca Wi-Fi",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Parolalı bir arşivde sırayla denenen parolalar; açan parola en üste geçer.",
+ "Add a password": "Parola ekle",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Bu parolaların hiçbirinin açmadığı arşiv olduğu gibi bırakılır ve satırı bunu söyler."
 }

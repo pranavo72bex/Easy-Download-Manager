@@ -145,6 +145,7 @@ pub fn is_zip(name: &str) -> bool {
 }
 
 mod crypt;
+pub mod passwords;
 mod rar;
 mod sevenz;
 mod tar;

@@ -278,19 +278,16 @@ fn the_card_at_the_top_holds_its_place_across_a_refresh() {
     assert_eq!(h.view(top), Some(was), "the list moved");
 }
 
-/// The bottom navigation shows All, Unfinished and Finished in a tap, each the side panel's own
-/// place, and its Places opens the drawer of the rest.
+/// The bottom navigation shows All and Unfinished in a tap, each the side panel's own place,
+/// its Places opens the drawer of the rest (Finished among them), and its Options opens
+/// Options (the maintainer, 2026-11-23: Options in the bar, in Finished's place).
 #[test]
-fn the_bottom_navigation_chooses_the_places() {
+fn the_bottom_navigation_chooses_the_places_and_opens_options() {
     let _file = settings_file();
     let world = world();
     let mut h = phone(&world);
     h.until_shown("Places");
-    for (words, place) in [
-        ("Unfinished", Place::Unfinished),
-        ("Finished", Place::Finished),
-        ("All", Place::All),
-    ] {
+    for (words, place) in [("Unfinished", Place::Unfinished), ("All", Place::All)] {
         h.person_click(dm_desktop_base::i18n::t(words), 1);
         h.until(words, |h| h.view(|view| view.list.place == place));
     }
@@ -298,6 +295,12 @@ fn the_bottom_navigation_chooses_the_places() {
     h.until("the drawer open", |h| {
         h.view(|view| view.layout.narrow.drawer.is_some())
     });
+    h.person_click(dm_desktop_base::i18n::t("Finished"), 1);
+    h.until("Finished, from the drawer", |h| {
+        h.view(|view| view.list.place == Place::Finished)
+    });
+    h.person_click(dm_desktop_base::i18n::t("Options"), 1);
+    h.until("Options open", |h| h.dialog_open("Options"));
 }
 
 /// A card held: its menu opens while the finger is still down, Delete and Resume as big buttons

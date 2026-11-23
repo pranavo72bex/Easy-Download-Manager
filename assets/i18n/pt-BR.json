@@ -935,7 +935,6 @@
  "Once it is unpacked:": "Depois de descompactado:",
  "Keep the archive": "Manter o arquivo compactado",
  "Send the archive to the Trash": "Enviar o arquivo compactado para a lixeira",
- "An archive with a password is left as it is, and its row says so.": "Um arquivo compactado com senha fica como está, e a linha dele diz isso.",
  "unpacked into a folder of its name": "descompactado em uma pasta com o nome dele",
  "unpacked into a folder of its name, and the archive sent to the Trash": "descompactado em uma pasta com o nome dele, e o arquivo compactado enviado para a lixeira",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "descompactado em uma pasta com o nome dele, mas o arquivo compactado não pôde ir para a lixeira",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "Não foi possível escolher o arquivo: {}",
  "the phone is not on Wi-Fi": "o telefone não está no Wi-Fi",
  "the phone is roaming": "o telefone está em roaming",
- "Wi-Fi only": "Somente Wi-Fi"
+ "Wi-Fi only": "Somente Wi-Fi",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Senhas testadas uma a uma em um arquivo compactado com senha; a que o abre passa para o topo.",
+ "Add a password": "Adicionar uma senha",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Um arquivo compactado que nenhuma destas senhas abre fica como está, e sua linha diz isso."
 }

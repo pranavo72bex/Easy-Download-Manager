@@ -98,6 +98,11 @@ pub struct Options {
     /// At a narrow width (a phone's, or a window narrowed to one), whether the list of pages
     /// is shown, not a page: a page opens over it, with a bar back to it (gaps row C21).
     pub(crate) pages_shown: bool,
+    /// The passwords tried on an archive that has one, as edited (gaps row C2): kept sealed in
+    /// dm's home, apart from the settings, and written by OK where they changed.
+    pub(crate) archive_passwords: Vec<String>,
+    /// They, as Options opened with them.
+    archive_passwords_opened: Vec<String>,
 }
 
 /// Whether `text` is a number as a number box holds one.
@@ -321,6 +326,16 @@ impl Options {
             }
             Ok(wanted) => match view.update(cx, |view, cx| view.apply_settings(wanted, cx)) {
                 Ok(()) => {
+                    if self.archive_passwords != self.archive_passwords_opened {
+                        let home = dm_shell::settings::home();
+                        if let Err(e) =
+                            dm_core::extract::passwords::save(&home, &self.archive_passwords)
+                        {
+                            self.says = Some(e.to_string().into());
+                            cx.notify();
+                            return;
+                        }
+                    }
                     self.done = true;
                     window.remove_window();
                 }
@@ -676,6 +691,7 @@ fn open_window(
             let focus = cx.focus_handle();
             window.focus(&focus, cx);
             let search = cx.new(|cx| InputState::new(window, cx).placeholder(t("Find a setting")));
+            let archive_passwords = dm_core::extract::passwords::load(&dm_shell::settings::home());
             let options = cx.new(|_| Options {
                 view,
                 tab,
@@ -702,6 +718,8 @@ fn open_window(
                 heard: dm_shell::host::browsers_heard(&dm_shell::settings::home()),
                 search: search.clone(),
                 pages_shown: true,
+                archive_passwords: archive_passwords.clone(),
+                archive_passwords_opened: archive_passwords,
             });
             // Each letter typed into the search draws the settings it finds.
             cx.subscribe(&search, {

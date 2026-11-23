@@ -935,7 +935,6 @@
  "Once it is unpacked:": "Una volta estratto:",
  "Keep the archive": "Conserva l'archivio",
  "Send the archive to the Trash": "Sposta l'archivio nel cestino",
- "An archive with a password is left as it is, and its row says so.": "Un archivio con password viene lasciato com'è, e la sua riga lo dice.",
  "unpacked into a folder of its name": "estratto in una cartella con il suo nome",
  "unpacked into a folder of its name, and the archive sent to the Trash": "estratto in una cartella con il suo nome, e l'archivio spostato nel cestino",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "estratto in una cartella con il suo nome, ma l'archivio non è stato spostato nel cestino",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "Non è stato possibile scegliere il file: {}",
  "the phone is not on Wi-Fi": "il telefono non è connesso al Wi-Fi",
  "the phone is roaming": "il telefono è in roaming",
- "Wi-Fi only": "Solo Wi-Fi"
+ "Wi-Fi only": "Solo Wi-Fi",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Password provate a turno su un archivio protetto; quella che lo apre passa in cima.",
+ "Add a password": "Aggiungi una password",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Un archivio che nessuna di queste password apre resta com'è, e la sua riga lo dice."
 }

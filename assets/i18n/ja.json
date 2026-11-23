@@ -935,7 +935,6 @@
  "Once it is unpacked:": "展開したあと:",
  "Keep the archive": "アーカイブを残す",
  "Send the archive to the Trash": "アーカイブをゴミ箱へ移動",
- "An archive with a password is left as it is, and its row says so.": "パスワード付きのアーカイブはそのまま残され、その行に表示されます。",
  "unpacked into a folder of its name": "同じ名前のフォルダーに展開済み",
  "unpacked into a folder of its name, and the archive sent to the Trash": "同じ名前のフォルダーに展開済み、アーカイブはゴミ箱へ移動",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "同じ名前のフォルダーに展開済み、ただしアーカイブをゴミ箱へ移動できませんでした",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "ファイルを選択できませんでした：{}",
  "the phone is not on Wi-Fi": "スマートフォンが Wi-Fi に接続されていません",
  "the phone is roaming": "スマートフォンがローミング中です",
- "Wi-Fi only": "Wi-Fi のみ"
+ "Wi-Fi only": "Wi-Fi のみ",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "パスワード付きのアーカイブに順に試すパスワード。開けたものが先頭に移ります。",
+ "Add a password": "パスワードを追加",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "どのパスワードでも開けないアーカイブはそのまま残され、その行に表示されます。"
 }

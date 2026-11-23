@@ -935,7 +935,6 @@
  "Once it is unpacked:": "بعد فك ضغطه:",
  "Keep the archive": "الاحتفاظ بالأرشيف",
  "Send the archive to the Trash": "إرسال الأرشيف إلى سلة المحذوفات",
- "An archive with a password is left as it is, and its row says so.": "يُترك الأرشيف المحمي بكلمة مرور كما هو، ويذكر صفّه ذلك.",
  "unpacked into a folder of its name": "تم فك ضغطه إلى مجلد باسمه",
  "unpacked into a folder of its name, and the archive sent to the Trash": "تم فك ضغطه إلى مجلد باسمه، وأُرسل الأرشيف إلى سلة المحذوفات",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "تم فك ضغطه إلى مجلد باسمه، لكن تعذر إرسال الأرشيف إلى سلة المحذوفات",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "تعذّر اختيار الملف: {}",
  "the phone is not on Wi-Fi": "الهاتف غير متصل بشبكة Wi-Fi",
  "the phone is roaming": "الهاتف في وضع التجوال",
- "Wi-Fi only": "Wi-Fi فقط"
+ "Wi-Fi only": "Wi-Fi فقط",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "كلمات مرور تُجرَّب بالترتيب على الأرشيف المحمي بكلمة مرور؛ والتي تفتحه تنتقل إلى الأعلى.",
+ "Add a password": "إضافة كلمة مرور",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "الأرشيف الذي لا تفتحه أيٌّ من كلمات المرور هذه يُترك كما هو، ويذكر سطره ذلك."
 }

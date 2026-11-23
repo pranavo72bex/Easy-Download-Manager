@@ -935,7 +935,6 @@
  "Once it is unpacked:": "Na het uitpakken:",
  "Keep the archive": "Archief bewaren",
  "Send the archive to the Trash": "Archief naar de prullenbak verplaatsen",
- "An archive with a password is left as it is, and its row says so.": "Een archief met een wachtwoord blijft zoals het is, en zijn rij zegt dat.",
  "unpacked into a folder of its name": "uitgepakt in een map met zijn naam",
  "unpacked into a folder of its name, and the archive sent to the Trash": "uitgepakt in een map met zijn naam, en het archief naar de prullenbak verplaatst",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "uitgepakt in een map met zijn naam, maar het archief kon niet naar de prullenbak",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "Het bestand kon niet worden gekozen: {}",
  "the phone is not on Wi-Fi": "de telefoon is niet met wifi verbonden",
  "the phone is roaming": "de telefoon roamt",
- "Wi-Fi only": "Alleen wifi"
+ "Wi-Fi only": "Alleen wifi",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Wachtwoorden die om beurten worden geprobeerd op een archief met een wachtwoord; het wachtwoord dat het opent komt bovenaan.",
+ "Add a password": "Wachtwoord toevoegen",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Een archief dat geen van deze wachtwoorden opent, blijft zoals het is, en de rij zegt dat."
 }

@@ -10,8 +10,8 @@
 //! folder is `name`, else `name (1)`…), nothing is written outside that folder, nothing in it is
 //! opened or run, and an archive any of whose entries breaks a rule is not unpacked at all.
 //! Then the archive is kept, or sent to the Trash, as Options › Folders says, and its row says
-//! what became of it (`dm_core::NOTES`). An archive with a password is left packed: no window
-//! asks for one yet (gaps row F10).
+//! what became of it (`dm_core::NOTES`). An archive with a password is opened with the passwords
+//! kept in Options › Folders, tried in turn (gaps row C2); one none of them opens is left packed.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -95,12 +95,25 @@ fn start(backend: &Backend, row: &Entry, trash: bool) -> Result<(), crate::Error
     let archive = PathBuf::from(&row.path);
     let kept = archive.clone();
     let (id, backend) = (row.id, backend.clone());
-    super::files::extract_later_with(archive, row.url.clone(), None, None, move |answer| {
-        let platform = Arc::clone(&backend.platform);
-        let send = |path: &Path| platform.trash(&path.to_string_lossy());
-        let outcome = settle(answer, &kept, trash, &send);
-        backend.set_said(id, outcome.note());
-    })
+    // The passwords a person keeps for archives, tried in turn on one that has a password, the
+    // one that opens it moved to the top (gaps row C2).
+    let home = crate::settings::home();
+    let passwords = dm_core::extract::passwords::load(&home);
+    super::files::extract_later_trying(
+        archive,
+        row.url.clone(),
+        None,
+        passwords,
+        move |answer, opened_with| {
+            if let Some(password) = opened_with {
+                dm_core::extract::passwords::used(&home, &password);
+            }
+            let platform = Arc::clone(&backend.platform);
+            let send = |path: &Path| platform.trash(&path.to_string_lossy());
+            let outcome = settle(answer, &kept, trash, &send);
+            backend.set_said(id, outcome.note());
+        },
+    )
 }
 
 /// What an extraction's `answer` comes to for `archive`: kept, or sent away by `send` where

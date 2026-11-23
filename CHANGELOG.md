@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Android: Options is in the bottom bar, a tap away, where Finished was (it stays in the ⋮ menu too); Finished is under Places with the categories and queues.
+- Archive passwords: Options › Folders keeps the passwords you use for archives (shown only as dots, kept sealed like your sign-ins). Unpack when done tries them in turn on a ZIP or 7z that has one, and the one that opens it moves to the top.
 - A torrent being downloaded can be watched: Preview opens its largest file (a film's video) while it downloads, from its start, as its pieces come in order.
 - On/off settings are switches now, on the computer and the phone: in Options at the end of each setting's row, and in the dialogs (Remember my choice, Needs a sign-in, Keep no record, Limit this download to, the Scheduler's hours, and others). Ticking items in a list (links, a torrent's files, a playlist's videos, the Scheduler's days) stays a check box.
 - Options lists its pages at its left, each with a line of what it holds, beside the page; narrowed to a phone's width (and on the phone) the list fills the window and a page opens over it with "‹ Options" to go back. The same window and code at every width.

@@ -935,7 +935,6 @@
  "Once it is unpacked:": "解压之后：",
  "Keep the archive": "保留压缩包",
  "Send the archive to the Trash": "将压缩包移到废纸篓",
- "An archive with a password is left as it is, and its row says so.": "带密码的压缩包保持原样，其所在行会说明。",
  "unpacked into a folder of its name": "已解压到同名文件夹",
  "unpacked into a folder of its name, and the archive sent to the Trash": "已解压到同名文件夹，压缩包已移到废纸篓",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "已解压到同名文件夹，但压缩包未能移到废纸篓",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "无法选择该文件：{}",
  "the phone is not on Wi-Fi": "手机未连接 Wi-Fi",
  "the phone is roaming": "手机正在漫游",
- "Wi-Fi only": "仅限 Wi-Fi"
+ "Wi-Fi only": "仅限 Wi-Fi",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "对有密码的压缩包依次尝试的密码；能打开的那个会移到最前面。",
+ "Add a password": "添加密码",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "这些密码都打不开的压缩包会保持原样，其所在行会说明。"
 }

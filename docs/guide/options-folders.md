@@ -51,7 +51,12 @@ written outside that folder."
   install) leaves it where it was; **Send the archive to the Trash** moves
   it to the Recycle Bin (the Trash on macOS) once its files are out, so it
   can be got back. An archive that was not unpacked is always kept.
-- "An archive with a password is left as it is, and its row says so." dm
-  does not ask for a password yet.
+- **Archive passwords:** "Passwords tried on an archive that has one, in
+  turn; the one that opens it goes first." Type one in **Add a password**
+  and click **Add**; each kept is listed as dots (never the password, nor
+  how long it is), with **Delete**. They are kept when you click **OK**,
+  sealed apart from the settings as the sign-ins are, and never shown,
+  logged or put in a backup. "An archive none of these passwords opens is
+  left as it is, and its row says so."
 - What became of it is said on the download's row, after "Complete": see
   [Notes beside a download's state](failures.md#notes-beside-a-downloads-state).

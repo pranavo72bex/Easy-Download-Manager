@@ -4,9 +4,11 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The bottom navigation at a phone's width, as a phone's download and torrent apps have one
-//! (the maintainer, 2026-11-21): All, Unfinished and Finished a thumb's tap away, and Places,
-//! which opens the drawer of categories and queues. Each is the side panel's own place, chosen
-//! as the side panel chooses it (`Downloads::choose`).
+//! (the maintainer, 2026-11-21): All and Unfinished a thumb's tap away, Places, which opens the
+//! drawer of every place (Finished, the categories and queues), and Options (the maintainer,
+//! 2026-11-23: "add Options in navigation bar instead of Finished option"; it stays in the
+//! menu too). A place is the side panel's own, chosen as the side panel chooses it
+//! (`Downloads::choose`).
 
 use dm_desktop_base::i18n::t;
 use dm_shell::app::places::Place;
@@ -32,6 +34,8 @@ enum Tab {
     Place(Place),
     /// Opens the drawer of every place.
     Drawer,
+    /// Opens Options, as the menu's Options does.
+    Options,
 }
 
 /// The bottom navigation.
@@ -43,9 +47,9 @@ pub(super) fn bottom_nav(
 ) -> Stateful<Div> {
     let place = &view.list.place;
     let drawer_open = view.layout.narrow.drawer.is_some();
-    // Places is lit for a place no other tab is (a category, a queue) and while its drawer is
-    // open.
-    let elsewhere = !matches!(place, Place::All | Place::Unfinished | Place::Finished);
+    // Places is lit for a place no other tab is (Finished, a category, a queue) and while its
+    // drawer is open.
+    let elsewhere = !matches!(place, Place::All | Place::Unfinished);
     let tabs = [
         (
             Tab::Place(Place::All),
@@ -60,17 +64,12 @@ pub(super) fn bottom_nav(
             *place == Place::Unfinished && !drawer_open,
         ),
         (
-            Tab::Place(Place::Finished),
-            "icons/place-finished.svg",
-            t("Finished"),
-            *place == Place::Finished && !drawer_open,
-        ),
-        (
             Tab::Drawer,
             "icons/sidebar.svg",
             t("Places"),
             elsewhere || drawer_open,
         ),
+        (Tab::Options, "icons/options.svg", t("Options"), false),
     ];
     div()
         .id("bottom-nav")
@@ -125,6 +124,11 @@ fn tab_drawn(
                 }
                 Tab::Drawer => {
                     view.toggle_drawer(cx);
+                }
+                Tab::Options => {
+                    view.layout.narrow.drawer = None;
+                    view.layout.narrow.sheet = None;
+                    view.open_options(cx);
                 }
             }
             cx.notify();

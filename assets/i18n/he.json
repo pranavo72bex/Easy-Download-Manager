@@ -935,7 +935,6 @@
  "Once it is unpacked:": "לאחר הפריסה:",
  "Keep the archive": "שמירת הארכיון",
  "Send the archive to the Trash": "העברת הארכיון לפח",
- "An archive with a password is left as it is, and its row says so.": "ארכיון עם סיסמה נשאר כפי שהוא, והשורה שלו מציינת זאת.",
  "unpacked into a folder of its name": "נפרס לתיקייה בשמו",
  "unpacked into a folder of its name, and the archive sent to the Trash": "נפרס לתיקייה בשמו, והארכיון הועבר לפח",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "נפרס לתיקייה בשמו, אבל לא ניתן היה להעביר את הארכיון לפח",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "לא ניתן היה לבחור את הקובץ: {}",
  "the phone is not on Wi-Fi": "הטלפון אינו מחובר ל-Wi-Fi",
  "the phone is roaming": "הטלפון בנדידה",
- "Wi-Fi only": "Wi-Fi בלבד"
+ "Wi-Fi only": "Wi-Fi בלבד",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "סיסמאות שנוסות לפי הסדר על ארכיון מוגן בסיסמה; זו שפותחת אותו עוברת לראש הרשימה.",
+ "Add a password": "הוספת סיסמה",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "ארכיון שאף אחת מהסיסמאות האלה לא פותחת נשאר כפי שהוא, והשורה שלו אומרת זאת."
 }

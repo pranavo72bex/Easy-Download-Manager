@@ -193,6 +193,58 @@ pub fn extract_later_with(
         .map_err(|e| crate::Error::from(e.to_string()))
 }
 
+/// [`extract_later_with`] for an archive whose password is not known: first with none, then,
+/// where it has one, with each of `passwords` in turn until one opens it (gaps row C2). `done`
+/// is given the answer and the password that opened it, if one did; an archive none of them
+/// opens is the last answer, a password's (`Error::WrongPassword`) or none's (`Encrypted`).
+pub fn extract_later_trying(
+    path: PathBuf,
+    url: String,
+    into: Option<PathBuf>,
+    passwords: Vec<String>,
+    done: impl FnOnce(Result<dm_core::extract::Extracted, dm_core::extract::Error>, Option<String>)
+        + Send
+        + 'static,
+) -> Result<(), crate::Error> {
+    std::thread::Builder::new()
+        .name("dm-extract".into())
+        .spawn(move || {
+            let _turn = dm_core::heavy::turn();
+            let cancel = std::sync::atomic::AtomicBool::new(false);
+            let origin = (!url.is_empty()).then_some(url.as_str());
+            let limits = dm_core::extract::Limits::default();
+            let attempt = |password: Option<&str>| {
+                dm_core::extract::extract_in_with(
+                    &path,
+                    into.as_deref(),
+                    password,
+                    &limits,
+                    &cancel,
+                    origin,
+                    &|_, _| {},
+                )
+            };
+            let mut answer = attempt(None);
+            for password in &passwords {
+                if !matches!(
+                    answer,
+                    Err(dm_core::extract::Error::Encrypted(_)
+                        | dm_core::extract::Error::WrongPassword(_))
+                ) {
+                    break;
+                }
+                answer = attempt(Some(password));
+                if answer.is_ok() {
+                    done(answer, Some(password.clone()));
+                    return;
+                }
+            }
+            done(answer, None);
+        })
+        .map(|_| ())
+        .map_err(|e| crate::Error::from(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,5 +287,45 @@ mod tests {
         let done = ask(Some("dm secret")).unwrap();
         let hello = std::fs::read(done.folder.join("docs/a.txt")).unwrap();
         assert_eq!(hello, b"hello, zip\n");
+    }
+
+    /// An archive with a password is opened by the one of those kept that is its own, tried in
+    /// turn after none, and which one is said (gaps row C2); one none opens stays packed.
+    #[test]
+    fn a_zip_with_a_password_is_opened_by_the_one_kept_that_fits() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("locked.zip");
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../dm-core/tests/fixtures/archives/zip/aes256.zip");
+        std::fs::copy(fixtures, &path).unwrap();
+        let tried = |passwords: &[&str]| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let kept = passwords.iter().map(|p| p.to_string()).collect();
+            extract_later_trying(
+                path.clone(),
+                String::new(),
+                None,
+                kept,
+                move |answer, used| {
+                    tx.send((answer, used)).unwrap();
+                },
+            )
+            .unwrap();
+            rx.recv_timeout(std::time::Duration::from_secs(60)).unwrap()
+        };
+        let (answer, used) = tried(&["no", "nor this"]);
+        assert!(answer.is_err() && used.is_none());
+        assert_eq!(
+            std::fs::read_dir(dir.path()).unwrap().count(),
+            1,
+            "nothing made"
+        );
+        let (answer, used) = tried(&["no", "dm secret", "after it"]);
+        assert_eq!(used.as_deref(), Some("dm secret"));
+        let done = answer.unwrap();
+        assert_eq!(
+            std::fs::read(done.folder.join("docs/a.txt")).unwrap(),
+            b"hello, zip\n"
+        );
     }
 }

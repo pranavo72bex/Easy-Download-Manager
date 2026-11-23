@@ -59,6 +59,10 @@ pub const RULES: &str = "rules.json";
 /// starts its search from them as well as the routers, rather than from nothing (gaps row N33).
 pub const DHT_NODES: &str = "dht-nodes.txt";
 
+/// The passwords tried on a finished archive that has one, sealed as the sign-ins are (gaps row
+/// C2): one a line, the one that last opened an archive first.
+pub const ARCHIVE_PASSWORDS: &str = "archive-passwords";
+
 /// A page's video formats, kept a while so a second look asks the site nothing.
 pub const FORMATS_CACHE: &str = "formats.cache.json";
 

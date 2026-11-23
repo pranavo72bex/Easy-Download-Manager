@@ -935,7 +935,6 @@
  "Once it is unpacked:": "Nach dem Entpacken:",
  "Keep the archive": "Archiv behalten",
  "Send the archive to the Trash": "Archiv in den Papierkorb verschieben",
- "An archive with a password is left as it is, and its row says so.": "Ein Archiv mit Passwort bleibt, wie es ist, und seine Zeile sagt es.",
  "unpacked into a folder of its name": "in einen Ordner mit seinem Namen entpackt",
  "unpacked into a folder of its name, and the archive sent to the Trash": "in einen Ordner mit seinem Namen entpackt, das Archiv in den Papierkorb verschoben",
  "unpacked into a folder of its name, but the archive could not be sent to the Trash": "in einen Ordner mit seinem Namen entpackt, aber das Archiv konnte nicht in den Papierkorb verschoben werden",
@@ -1024,5 +1023,8 @@
  "The file could not be chosen: {}": "Die Datei konnte nicht gewählt werden: {}",
  "the phone is not on Wi-Fi": "das Telefon ist nicht im WLAN",
  "the phone is roaming": "das Telefon ist im Roaming",
- "Wi-Fi only": "Nur WLAN"
+ "Wi-Fi only": "Nur WLAN",
+ "Passwords tried on an archive that has one, in turn; the one that opens it goes first.": "Passwörter, die nacheinander bei einem Archiv mit Passwort versucht werden; das passende rückt nach oben.",
+ "Add a password": "Passwort hinzufügen",
+ "An archive none of these passwords opens is left as it is, and its row says so.": "Ein Archiv, das keines dieser Passwörter öffnet, bleibt, wie es ist, und seine Zeile sagt es."
 }

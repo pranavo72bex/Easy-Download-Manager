@@ -309,3 +309,36 @@ fn unpack_when_done_is_chosen_for_a_kind_in_options_and_kept() {
     assert!(settings.folders.unpack_kinds.is_empty());
     assert!(!settings.folders.unpack_trash);
 }
+
+/// Options › Folders keeps the passwords tried on an archive that has one (gaps row C2): one
+/// added, shown only as dots, is kept sealed by OK, not in the settings; deleted, it goes.
+#[test]
+fn an_archive_password_added_in_options_is_kept_apart_and_shown_as_dots() {
+    let _file = settings_file();
+    let world = world();
+    let home = dm_shell::settings::home();
+    let _ = std::fs::remove_file(home.join(dm_core::paths::ARCHIVE_PASSWORDS));
+    let mut h = world.harness();
+    open_options(&mut h);
+    tab(&mut h, "Folders");
+    h.reveal("Add a password");
+    h.fill("Add a password", "dm secret");
+    h.click("Add");
+    h.until("the password listed as dots", |h| h.shows("••••••••"));
+    assert!(!h.shows("dm secret"), "the password was shown");
+    ok(&mut h);
+    assert_eq!(dm_core::extract::passwords::load(&home), ["dm secret"]);
+    let settings = std::fs::read_to_string(dm_shell::Settings::path()).unwrap_or_default();
+    assert!(
+        !settings.contains("dm secret"),
+        "the password is in the settings"
+    );
+    // Deleted, and OK: it goes.
+    open_options(&mut h);
+    tab(&mut h, "Folders");
+    h.reveal("••••••••");
+    h.click("Delete");
+    h.until("the password gone", |h| !h.shows("••••••••"));
+    ok(&mut h);
+    assert!(dm_core::extract::passwords::load(&home).is_empty());
+}
