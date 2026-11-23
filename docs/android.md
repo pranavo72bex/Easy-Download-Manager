@@ -414,7 +414,7 @@ and N12:
 ## A release
 
 Raise `versionCode` by one, then tag the commit `android-v<version>`, where the version is
-dm-android's `Cargo.toml` and Gradle's `versionName` (both 0.10.0 now). Not `v*` (the
+dm-android's `Cargo.toml` and Gradle's `versionName` (both 0.10.3 now). Not `v*` (the
 extension's releases, `release.yml`) or `desktop-v*` (the desktop's). The release job drafts a
 GitHub release holding one APK for the three processors and its SHA-256.
 
