@@ -20,40 +20,30 @@ use gpui::{Action, Context, Menu, MenuItem, Pixels, Point};
 use crate::window::list::Downloads;
 use crate::window::menus::Run;
 
-/// The menu's items, in groups, each with the words it shows (the row
-/// menu's own, where it says them differently from the command's title):
-/// Resume as `resume` says it for the rows chosen (Retry, Start now).
+/// The menu's items, in groups (`reach::ROW`), each with the words it shows (the row menu's
+/// own, where it says them differently from the command's title): Resume as `resume` says it
+/// for the rows chosen (Retry, Start now).
 fn groups(resume: &'static str) -> Vec<Vec<(Command, &'static str)>> {
+    crate::window::reach::ROW
+        .iter()
+        .map(|group| group.iter().map(|&c| (c, words(c, resume))).collect())
+        .collect()
+}
+
+/// A row menu item's words.
+fn words(command: Command, resume: &'static str) -> &'static str {
     use Command as C;
-    let title = |c: Command| t(c.label());
-    vec![
-        vec![
-            (C::OpenFile, title(C::OpenFile)),
-            (C::OpenWith, title(C::OpenWith)),
-            (C::Preview, title(C::Preview)),
-            (C::OpenFolder, title(C::OpenFolder)),
-            (C::ExtractHere, title(C::ExtractHere)),
-            (C::ExtractTo, title(C::ExtractTo)),
-            (C::MoveRename, title(C::MoveRename)),
-            (C::Redownload, title(C::Redownload)),
-        ],
-        vec![
-            (C::DownloadNow, t(resume)),
-            (C::StopDownload, t("Stop download")),
-            (C::UpdateLink, t("Update download link")),
-            (C::CopyLink, t("Copy link")),
-            (C::CopyDetails, t("Copy details")),
-            (C::Remove, t("Delete")),
-            (C::DeleteFile, title(C::DeleteFile)),
-        ],
-        vec![
-            (C::MoveToQueue, t("Move to queue")),
-            (C::RemoveFromQueue, title(C::RemoveFromQueue)),
-            (C::MoveUp, title(C::MoveUp)),
-            (C::MoveDown, title(C::MoveDown)),
-        ],
-        vec![(C::Properties, t("Properties"))],
-    ]
+    match command {
+        C::DownloadNow => t(resume),
+        C::StopDownload => t("Stop download"),
+        C::UpdateLink => t("Update download link"),
+        C::CopyLink => t("Copy link"),
+        C::CopyDetails => t("Copy details"),
+        C::Remove => t("Delete"),
+        C::MoveToQueue => t("Move to queue"),
+        C::Properties => t("Properties"),
+        _ => t(command.label()),
+    }
 }
 
 /// "Delete file after" this many seconds (`None`: Never), chosen in the row menu: set on the
@@ -79,6 +69,12 @@ pub struct ChooseSeveral;
 /// The row menu as a phone's card menu shows it: only what applies to the card (a phone's menus
 /// do not grey what they cannot do), and Share after Open where the card's file is whole.
 pub(crate) fn card_menu(view: &Downloads) -> Menu {
+    card_menu_on(view, crate::platform::ON_A_PHONE)
+}
+
+/// [`card_menu`] as a phone (`phone`) or a computer's narrowed window draws it.
+pub(crate) fn card_menu_on(view: &Downloads, phone: bool) -> Menu {
+    use crate::window::reach::{drawn, Act};
     let full = row_menu(view, false);
     let finished = view
         .chosen()
@@ -102,7 +98,7 @@ pub(crate) fn card_menu(view: &Downloads) -> Menu {
                 if action.as_any().downcast_ref::<Run>().map(|r| r.0) == Some(Command::OpenFile)
         );
         items.push(item);
-        if opens && finished && crate::platform::ON_A_PHONE {
+        if opens && finished && drawn(Act::Share, phone) {
             items.push(MenuItem::action(t("Share"), ShareFile));
         }
     }
@@ -110,7 +106,7 @@ pub(crate) fn card_menu(view: &Downloads) -> Menu {
         items.pop();
     }
     // Choosing several, from this card on, where the cards are a phone's (gaps row N23).
-    if crate::platform::ON_A_PHONE || view.layout.narrow.laid_out {
+    if phone || view.layout.narrow.laid_out {
         items.push(MenuItem::action(t("Select"), ChooseSeveral));
     }
     // Named after its card's file, which its sheet shows at the top.

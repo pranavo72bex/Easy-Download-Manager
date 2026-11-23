@@ -596,14 +596,12 @@ pub fn set(cx: &mut App, ticks: &Ticks) {
 /// The Dock icon's menu: add a download, resume or stop them all, open the
 /// download folder.
 fn dock_menu() -> Vec<MenuItem> {
-    use Command as C;
-    vec![
-        item(C::AddUrl),
-        item(C::ResumeAll),
-        item(C::StopAll),
+    let mut items = items(&crate::window::reach::DOCK);
+    items.extend([
         MenuItem::separator(),
         MenuItem::action(t("Open download folder"), OpenDownloadFolder),
-    ]
+    ]);
+    items
 }
 
 /// The window's menus' titles, in English, in their order: what the top bar
@@ -629,6 +627,12 @@ struct Bar {
 /// the menu bar's items and ticks. On macOS the system's menu bar holds
 /// them too, beside dm's own app menu, Edit and Window.
 pub fn window_menus(ticks: &Ticks) -> Vec<Menu> {
+    window_menus_on(ticks, crate::platform::ON_A_PHONE)
+}
+
+/// [`window_menus`] as a phone (`phone`) or a computer draws them: a phone's leave out what
+/// `reach::on_phone` says it has not.
+pub(crate) fn window_menus_on(ticks: &Ticks, phone: bool) -> Vec<Menu> {
     use Command as C;
     let Bar {
         mut tasks,
@@ -637,13 +641,29 @@ pub fn window_menus(ticks: &Ticks) -> Vec<Menu> {
         view,
         mut help,
         ..
-    } = bar(ticks);
+    } = bar(ticks, phone);
     tasks.items.extend([MenuItem::separator(), item(C::Quit)]);
     downloads
         .items
         .extend([MenuItem::separator(), item(C::Options)]);
     help.items.push(item(C::About));
     vec![tasks, file, downloads, view, help]
+}
+
+/// The menu bar's menus as a computer has them, then the Dock's menu, on any system: what the
+/// list of actions is checked against (`window_tests/reach.rs`).
+#[cfg(test)]
+pub(crate) fn bar_and_dock(ticks: &Ticks) -> Vec<Menu> {
+    let mut menus = window_menus_on(ticks, false);
+    let Bar {
+        mut app,
+        edit,
+        window,
+        ..
+    } = bar(ticks, false);
+    app.items.extend(dock_menu());
+    menus.extend([app, edit, window]);
+    menus
 }
 
 /// The menu bar's menus, in their order.
@@ -657,12 +677,12 @@ fn build(ticks: &Ticks) -> Vec<Menu> {
         view,
         window,
         help,
-    } = bar(ticks);
+    } = bar(ticks, crate::platform::ON_A_PHONE);
     vec![app, tasks, file, edit, downloads, view, window, help]
 }
 
 /// Each of the menu bar's menus.
-fn bar(ticks: &Ticks) -> Bar {
+fn bar(ticks: &Ticks, phone: bool) -> Bar {
     OFF.with(|off| off.borrow_mut().clone_from(&ticks.off));
     use Command as C;
     let app = Menu::new("dm").items([
@@ -678,18 +698,11 @@ fn bar(ticks: &Ticks) -> Bar {
         MenuItem::separator(),
         item(C::Quit),
     ]);
-    let tasks = menu(
-        "Tasks",
-        &[
-            &[C::AddUrl, C::AddSeries, C::AddFromClipboard],
-            &[C::Export, C::Import],
-            &[C::SiteFiles],
-        ],
-    );
+    let tasks = menu("Tasks", crate::window::reach::TASKS);
     let file = file_menu(ticks);
     let downloads = downloads_menu(ticks);
-    let view = view_menu(ticks);
-    let help = help_menu();
+    let view = view_menu(ticks, phone);
+    let help = help_menu(phone);
     // Edit, as every macOS program has it: the text fields' own Undo, Redo,
     // Cut, Copy and Paste (the system's actions, so its services and
     // dictation work too). The list's Select all stays in File.

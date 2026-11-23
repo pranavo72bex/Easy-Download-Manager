@@ -7,42 +7,12 @@
 //! Help.
 
 use super::*;
+use crate::window::reach;
 
 /// File: Resume first, in the words it has for the rows chosen, and Close last.
 pub(super) fn file_menu(ticks: &Ticks) -> Menu {
     use Command as C;
-    let file = menu(
-        "File",
-        &[
-            &[C::StopDownload, C::ShowProgress],
-            &[
-                C::Remove,
-                C::DeleteFile,
-                C::Redownload,
-                C::UpdateLink,
-                C::CopyLink,
-                C::CopyDetails,
-                C::MoveRename,
-            ],
-            &[
-                C::OpenFile,
-                C::OpenWith,
-                C::Preview,
-                C::OpenFolder,
-                C::ExtractHere,
-                C::ExtractTo,
-                C::Properties,
-            ],
-            &[
-                C::MoveToQueue,
-                C::RemoveFromQueue,
-                C::MoveUp,
-                C::MoveDown,
-                C::SelectAll,
-            ],
-        ],
-    );
-    let mut file = file;
+    let mut file = menu("File", reach::FILE);
     // Resume first, in the words it has for the rows chosen (Retry, Start
     // now).
     let resume = if ticks.resume.is_empty() {
@@ -56,8 +26,8 @@ pub(super) fn file_menu(ticks: &Ticks) -> Menu {
             .disabled(!carried_out(C::DownloadNow) || ticks.off.contains(&C::DownloadNow)),
     );
     // Back up dm… and Restore… (gaps row W16), before Close.
-    file.items
-        .extend([MenuItem::separator(), item(C::BackUp), item(C::Restore)]);
+    file.items.push(MenuItem::separator());
+    file.items.extend(items(reach::FILE_LAST));
     file.items.extend([
         MenuItem::separator(),
         MenuItem::action(t("Close"), CloseWindow),
@@ -69,7 +39,6 @@ pub(super) fn file_menu(ticks: &Ticks) -> Menu {
 /// downloads are done.
 pub(super) fn downloads_menu(ticks: &Ticks) -> Menu {
     let queues = &ticks.queues;
-    use Command as C;
     // Start Queue and Stop Queue list the queues; the one clicked is started
     // or stopped, whatever the list shows (B64).
     let on_queues = |command: Command| {
@@ -85,17 +54,9 @@ pub(super) fn downloads_menu(ticks: &Ticks) -> Menu {
             })),
         )
     };
-    let mut downloads = menu(
-        "Downloads",
-        &[
-            &[C::ResumeAll, C::StopAll, C::DeleteCompleted],
-            &[C::Find, C::FindNext, C::FindPrevious],
-            &[C::Scheduler],
-        ],
-    );
+    let mut downloads = menu("Downloads", reach::DOWNLOADS);
+    downloads.items.extend(reach::QUEUES.map(on_queues));
     downloads.items.extend([
-        on_queues(C::StartQueue),
-        on_queues(C::StopQueue),
         MenuItem::separator(),
         MenuItem::submenu(
             // Limit speed ticked while a limit is in force, and the preset
@@ -111,29 +72,18 @@ pub(super) fn downloads_menu(ticks: &Ticks) -> Menu {
         // do it (macOS does not hibernate), rather than failing when the
         // queue runs dry.
         MenuItem::submenu(
-            Menu::new(t("When done")).items(
-                [
-                    (C::WhenDoneNothing, WhenDone::Nothing),
-                    (C::WhenDoneQuit, WhenDone::Quit),
-                    (C::WhenDoneSleep, WhenDone::Sleep),
-                    (C::WhenDoneHibernate, WhenDone::Hibernate),
-                    (C::WhenDoneShutDown, WhenDone::ShutDown),
-                ]
-                .into_iter()
-                .map(|(c, w)| {
-                    item(c)
-                        .checked(ticks.when_done == w)
-                        .disabled(!w.possible(dm_desktop_base::power::available))
-                }),
-            ),
+            Menu::new(t("When done")).items(reach::WHEN_DONE.into_iter().map(|(c, w)| {
+                item(c)
+                    .checked(ticks.when_done == w)
+                    .disabled(!w.possible(dm_desktop_base::power::available))
+            })),
         ),
     ]);
     downloads
 }
 
-/// View, each item ticked as it stands.
-pub(super) fn view_menu(ticks: &Ticks) -> Menu {
-    use Command as C;
+/// View, each item ticked as it stands; on a phone (`phone`), what it has.
+pub(super) fn view_menu(ticks: &Ticks, phone: bool) -> Menu {
     // View: Categories, Toolbar and Drop target
     // ticked while shown; then Columns, Customize toolbar, Text size,
     // Language and Sort by, each ticked as it stands.
@@ -207,32 +157,30 @@ pub(super) fn view_menu(ticks: &Ticks) -> Menu {
         },
     ));
     let sort = Menu::new(t("Sort by")).items(
-        [
-            C::SortByName,
-            C::SortBySize,
-            C::SortByStatus,
-            C::SortByTimeLeft,
-            C::SortByRate,
-            C::SortByDate,
-            C::SortByDescription,
-        ]
-        .into_iter()
-        .map(|c| item(c).checked(ticks.sorted_by == Some(c))),
+        reach::SORT
+            .into_iter()
+            .map(|c| item(c).checked(ticks.sorted_by == Some(c))),
     );
     // On a phone, none of what draws a computer's window: its side panel, toolbar, floating drop
     // target and the table's columns, which the cards and the narrow bar read nothing of (gaps
-    // row N24).
-    let desktop = !crate::platform::ON_A_PHONE;
-    let mut items = Vec::new();
-    if desktop {
-        items.extend([
-            item(C::ToggleCategories).checked(ticks.sidebar),
-            item(C::ToggleToolbar).checked(ticks.toolbar),
-            item(C::ToggleDropTarget).checked(ticks.drop_target),
-            MenuItem::separator(),
-            MenuItem::submenu(columns),
-            MenuItem::submenu(customize),
-        ]);
+    // row N24, `reach::on_phone`).
+    let mut items: Vec<MenuItem> = reach::VIEW_SHOWN
+        .into_iter()
+        .zip([ticks.sidebar, ticks.toolbar, ticks.drop_target])
+        .filter(|(c, _)| reach::drawn(reach::Act::Run(*c), phone))
+        .map(|(c, ticked)| item(c).checked(ticked))
+        .collect();
+    let own = [
+        (reach::Act::Columns, columns),
+        (reach::Act::CustomizeToolbar, customize),
+    ]
+    .into_iter()
+    .filter(|(act, _)| reach::drawn(*act, phone));
+    for (n, (_, submenu)) in own.enumerate() {
+        if n == 0 && !items.is_empty() {
+            items.push(MenuItem::separator());
+        }
+        items.push(MenuItem::submenu(submenu));
     }
     items.extend([
         MenuItem::submenu(text_size),
@@ -245,8 +193,8 @@ pub(super) fn view_menu(ticks: &Ticks) -> Menu {
     Menu::new(t("View")).items(items)
 }
 
-/// Help, without About.
-pub(super) fn help_menu() -> Menu {
+/// Help, without About; on a phone (`phone`), what it has.
+pub(super) fn help_menu(phone: bool) -> Menu {
     use Command as C;
     // Help: dm's guide and its topics, Tip of the day, the project's home
     // page, support and telling a friend (gaps row 91).
@@ -275,7 +223,7 @@ pub(super) fn help_menu() -> Menu {
     ]);
     // The phone's app is updated by its store or by its APK, which the check knows nothing of
     // (it offers a `.dmg`, a `-setup.exe` or an `.AppImage`; gaps row N24).
-    if !crate::platform::ON_A_PHONE {
+    if reach::drawn(reach::Act::Run(C::CheckForUpdates), phone) {
         help.items
             .extend([MenuItem::separator(), item(C::CheckForUpdates)]);
     }

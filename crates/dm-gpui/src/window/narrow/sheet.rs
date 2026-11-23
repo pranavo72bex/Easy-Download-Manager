@@ -90,6 +90,11 @@ impl Sheet {
 /// toolbar says them, greyed where the toolbar's are), then the window's menus, each a
 /// submenu, with the menu bar's items and ticks.
 pub(super) fn overflow(view: &Downloads) -> OwnedMenu {
+    overflow_on(view, crate::platform::ON_A_PHONE)
+}
+
+/// [`overflow`] as a phone (`phone`) or a computer's narrowed window draws it.
+pub(crate) fn overflow_on(view: &Downloads, phone: bool) -> OwnedMenu {
     use crate::window::menus::Run;
     use dm_shell::app::commands::Command;
     let resume = dm_desktop_base::rows::resume_word(&view.chosen());
@@ -108,7 +113,7 @@ pub(super) fn overflow(view: &Downloads) -> OwnedMenu {
     let ticks = view.menus.menu_ticks.clone().unwrap_or_default();
     items.push(gpui::MenuItem::separator());
     items.extend(
-        crate::window::menus::window_menus(&ticks)
+        crate::window::menus::window_menus_on(&ticks, phone)
             .into_iter()
             .map(gpui::MenuItem::submenu),
     );

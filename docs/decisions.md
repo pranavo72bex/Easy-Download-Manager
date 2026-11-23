@@ -8739,3 +8739,28 @@ grid) and build each in rows V's adaptive parts, so the phone and the desktop ar
 Weighed and set aside: reference C's look, its tabbed Options and tabbed progress window, and a
 choice of many themes (dm already takes each system's own look). Nothing is coded by this entry;
 a row that changes a contract row still waits for the maintainer's word on it.
+
+## 2026-11-23: One list of actions, its phone column checked by a test (gaps row N20)
+
+`crates/dm-gpui/src/window/reach.rs` holds the list. Each surface's commands are declared there
+once, in order (Tasks, File, Downloads, its queues and When done, View's switches and Sort by,
+the row menu, the Dock menu); the toolbar keeps `commands::TOOLBAR` and a place's menu keeps
+`places::place_menu`, each a list already. The menu bar, the window's menus, the row menu and a
+card's menu are built from them, and the phone's sheets are those same menus. `reach::on_phone`
+matches every action by name (the registry's `Command`s and the window's own: Close, Columns,
+Customize toolbar, Text size, Language, Statistics, Help's pages, Tip of the day, Copy a report,
+Delete file after, Share, Select, a place's Open folder and Add or edit categories, macOS's Edit,
+Window and app menus, the Dock's folder) with no catch-all, so a new action does not build until
+it says whether a phone has it: Shown, Greyed (why), Left (why) or PhoneOnly (why). The builders
+take `phone: bool` (`window_menus_on`, `overflow_on`, `card_menu_on`) rather than reading
+`ON_A_PHONE` themselves, so a test on a computer builds the phone's sheets. The test
+`window_tests/reach.rs` `every_action_is_reached_by_touch` walks what is really drawn (the ⋮
+sheet, a card's sheet for a finished and a waiting download, each kind of place's sheet; and on
+a computer the menu bar, the Dock menu, the row menu and the narrowed window's sheets) and fails
+on an item the list does not know, an action a phone has that touch cannot reach, one left off
+that is drawn there, a command shown that the window does not carry out, or an action drawn
+nowhere on a computer. Weighed and set aside: one table with a row per action and its menus as
+fields, which keeps each menu's order in a second place; and declaring the narrow layout's own
+buttons (Add, search, the choosing bar), which the sheets reach anyway. Options' settings are
+not actions and stay with N24 and N31. Nothing was added to the phone: the audit's misses
+(N23) were already closed, and the test found none left.

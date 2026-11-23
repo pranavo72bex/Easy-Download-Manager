@@ -32,10 +32,7 @@ impl Downloads {
     pub(crate) fn open_place_sheet(&mut self, place: Place, cx: &mut Context<Self>) {
         self.choose(place.clone());
         self.layout.narrow.drawer = None;
-        let items = place_menu(&place)
-            .into_iter()
-            .map(|(words, action)| gpui::MenuItem::action(t(words), OnPlace(place.clone(), action)))
-            .collect();
+        let items = place_items(&place);
         let menu = gpui::Menu {
             // Headed by the place's name, as a card's sheet by the download's.
             name: crate::window::sidebar::place_name(self)
@@ -92,6 +89,14 @@ impl Downloads {
         }
         cx.notify();
     }
+}
+
+/// A place sheet's items: its place menu's (`places::place_menu`), each run on `place`.
+pub(crate) fn place_items(place: &Place) -> Vec<gpui::MenuItem> {
+    place_menu(place)
+        .into_iter()
+        .map(|(words, action)| gpui::MenuItem::action(t(words), OnPlace(place.clone(), action)))
+        .collect()
 }
 
 /// A place sheet's item: what to do to which place.

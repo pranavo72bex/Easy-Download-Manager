@@ -26,6 +26,7 @@ mod options_tabs;
 mod playlist;
 mod port;
 mod properties;
+mod reach;
 mod second_network;
 mod sidebar;
 mod speed_schedule;
