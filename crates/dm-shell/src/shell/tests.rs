@@ -695,3 +695,47 @@ fn a_notifications_retry_is_asked_through_the_inbox() {
     assert_eq!(retry_asked("retry-x"), None);
     assert_eq!(retry_asked("show"), None);
 }
+
+/// Reference A's switches, which a person's scripts already use (gaps row C7): each `/d LINK`
+/// a download with the `/p`, `/f`, `/n` and `/a` said around it, nothing of one carried to the
+/// next, and `/s` the main queue started.
+#[test]
+fn reference_as_switches_add_each_link_with_its_own_folder_and_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().to_str().unwrap();
+    let got = orders(&argv(&[
+        "/d",
+        "https://example.com/a.iso",
+        "/p",
+        folder,
+        "/f",
+        "first.iso",
+        "/n",
+        "/a",
+        "/d",
+        "https://example.com/b.zip",
+        "/s",
+    ]));
+    assert_eq!(got.downloads.len(), 2);
+    let (a, b) = (&got.downloads[0], &got.downloads[1]);
+    assert_eq!(a.url, "https://example.com/a.iso");
+    assert_eq!(
+        a.save_dir.as_deref(),
+        Some(dir.path().display().to_string().as_str())
+    );
+    assert_eq!(a.save_name.as_deref(), Some("first.iso"));
+    assert!(a.quiet && a.later);
+    assert_eq!(b.url, "https://example.com/b.zip");
+    assert!(b.save_dir.is_none() && b.save_name.is_none() && !b.quiet && !b.later);
+    assert!(got.start_queue);
+    // Said before `/d`, for it.
+    let before = orders(&argv(&[
+        "/f",
+        "named.bin",
+        "/d",
+        "https://example.com/c.bin",
+    ]));
+    assert_eq!(before.downloads[0].save_name.as_deref(), Some("named.bin"));
+    // A path that starts with a slash is no switch.
+    assert!(unrecognised(&argv(&["/data"])).is_empty() || !orders(&argv(&["/data"])).start_queue);
+}

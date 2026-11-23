@@ -253,9 +253,10 @@ pub(super) fn help_menu() -> Menu {
         MenuItem::separator(),
         page(t("Home page"), dm_desktop_base::project::SOURCE.to_string()),
         MenuItem::action(t("Copy a report"), CopyReport),
+        // A new issue saying this dm's version, system and language (gaps row C13).
         page(
             t("Contact support"),
-            dm_desktop_base::project::SUPPORT.to_string(),
+            dm_desktop_base::project::report_a_problem(),
         ),
         page(
             t("Tell a friend"),

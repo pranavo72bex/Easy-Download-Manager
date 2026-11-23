@@ -176,6 +176,11 @@ fn local_torrent(arg: &str) -> Option<String> {
 /// `--start-queue` starts the main queue. A bare link (a `.desktop` entry's
 /// `%u`, a shell) is a download with no options. Anything else is left to
 /// the flags read elsewhere (`--hidden`, `--control`) or ignored.
+///
+/// Reference A's switches, which a person's scripts already use, are read too (gaps row C7):
+/// `/d LINK` a download, `/p FOLDER` and `/f NAME` where and as what (said before `/d` or after
+/// it, for that download), `/n` nothing asked, `/a` added for later, `/s` the main queue
+/// started. Only these words exactly: `/data` is a path.
 pub fn orders(args: &[String]) -> Orders {
     let mut orders = Orders::default();
     let mut next = host::Request::default();
@@ -184,6 +189,34 @@ pub fn orders(args: &[String]) -> Orders {
     while let Some(arg) = args.get(i) {
         next.quiet = quiet;
         match arg.as_str() {
+            // Reference A's `/d LINK`, with what `/p`, `/f`, `/n` and `/a` said around it.
+            "/d" => {
+                if let Some(link) = args.get(i + 1).filter(|l| is_link(l)) {
+                    let (dir, name, quiet_too, later_too, until) = switches_after(args, i + 2);
+                    let mut request = std::mem::take(&mut next);
+                    request.url = link.clone();
+                    request.save_dir = full_folder(dir.as_deref()).or(request.save_dir);
+                    request.save_name = name.or(request.save_name);
+                    request.quiet = request.quiet || quiet_too;
+                    request.later = request.later || later_too;
+                    orders.downloads.push(request);
+                    // What was said for it is not said again for the next.
+                    i = until;
+                    continue;
+                }
+                i += 1;
+            }
+            "/p" => {
+                next.save_dir = full_folder(args.get(i + 1).map(String::as_str));
+                i += 1;
+            }
+            "/f" => {
+                next.save_name = args.get(i + 1).cloned();
+                i += 1;
+            }
+            "/n" => quiet = true,
+            "/a" => next.later = true,
+            "/s" => orders.start_queue = true,
             "--save-to" => {
                 // Made full here, against this command's own folder: the
                 // dm it is handed to runs elsewhere, and a row keeps it.
@@ -239,6 +272,44 @@ pub fn orders(args: &[String]) -> Orders {
     orders
 }
 
+/// What reference A's `/p`, `/f`, `/n` and `/a` say after its `/d LINK`, from `from` to the next
+/// `/d` or `/s`: a folder, a name, nothing asked, added for later; and where that ends.
+type After = (Option<String>, Option<String>, bool, bool, usize);
+fn switches_after(args: &[String], from: usize) -> After {
+    let (mut dir, mut name, mut quiet, mut later) = (None, None, false, false);
+    let mut i = from;
+    while let Some(arg) = args.get(i) {
+        match arg.as_str() {
+            "/d" | "/s" => break,
+            "/p" => {
+                dir = args.get(i + 1).cloned();
+                i += 1;
+            }
+            "/f" => {
+                name = args.get(i + 1).cloned();
+                i += 1;
+            }
+            "/n" => quiet = true,
+            "/a" => later = true,
+            _ => {}
+        }
+        i += 1;
+    }
+    (dir, name, quiet, later, i)
+}
+
+/// `typed` as a full folder, against this command's own folder, or none (said) where dm cannot
+/// use it.
+fn full_folder(typed: Option<&str>) -> Option<String> {
+    let typed = typed?;
+    let here = std::env::current_dir().ok();
+    let full = settings::full_folder(typed, here.as_deref());
+    if full.is_none() {
+        eprintln!("dm: {typed} is not a folder dm can use; saving to the usual one");
+    }
+    full.map(|p| p.display().to_string())
+}
+
 /// Bare words on the command line that are no link, no file on this
 /// computer and no option's value: a mistyped command (`dm lst`), which
 /// `orders` ignores and which would otherwise just open the window.
@@ -247,7 +318,7 @@ pub fn unrecognised(args: &[String]) -> Vec<String> {
     let mut i = 0;
     while let Some(arg) = args.get(i) {
         match arg.as_str() {
-            "--save-to" | "--name" | "--when-done" | "--control" => i += 1,
+            "--save-to" | "--name" | "--when-done" | "--control" | "/d" | "/p" | "/f" => i += 1,
             a if a.starts_with('-') || a.contains(':') || is_link(a) || Path::new(a).exists() => {}
             a => words.push(a.to_string()),
         }

@@ -499,6 +499,8 @@ dm-desktop status 3            # one download, by the number `list` gives
 dm-desktop pause 3 4           # or: resume, cancel
 dm-desktop --later https://example.com/a.iso     # add a link (starts dm if needed)
 dm-desktop --quiet https://example.com/a.iso     # start it with nothing asked
+dm-desktop --save-to ~/ISOs --name ubuntu.iso https://example.com/a.iso   # where and as what
+dm-desktop /d https://example.com/a.iso /p ~/ISOs /f ubuntu.iso /n        # reference A's switches, as your scripts may already use them
 ```
 
 It exits 0 when done, 1 when dm refused or a number was not acted on, 2 for

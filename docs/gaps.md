@@ -39,13 +39,12 @@ reference C offers) move up beside C1 to C3.
 | C4  | The Grabber and a page's links do not say which links are alive: a dead link is found only when it fails | OPEN · S-M | Each link looked up (a HEAD, else a one-byte range) a few at a time: Online with its real name and size, Offline (404, 410), Needs a sign-in (401, 403) or Busy (429, 503); the dead ones unticked; nothing fetched |
 | C5  | A speed limit holds all the time: a person who limits dm to keep the connection for browsing loses the speed at night too | OPEN · S | The limiter's "Only while I'm at the computer": the limit holds while the keyboard or mouse was used in the last few minutes, and lifts when nobody is there (the system's idle time on macOS, Windows and Linux; Android: while the screen is on) |
 | C6  | A torrent's row has no commands of its own beyond recheck and sharing | OPEN · S | On a torrent's row: Copy magnet link, Add trackers… (one per line, kept with the row) and Announce again; Android's sheet too |
-| C7  | A script cannot add a download with its folder and name: the command line lists, pauses, resumes and cancels | OPEN · S | `dm add <address> [--folder F] [--name N] [--queue Q] [--start\|--later]`, and the switches a person moving from reference A already uses in their scripts (address, folder, name, quiet, add to the queue, start the queue), answered by the running dm |
+| C7  | A script could add a download only with dm's own options | PARTIAL | Found 2026-11-23: `--save-to FOLDER`, `--name NAME`, `--later`, `--quiet`, `--start-queue` were there. Done the same day: reference A's switches (`/d LINK`, `/p`, `/f`, `/n`, `/a`, `/s`) read by `shell::args::orders`, each `/d`'s own carried to it alone (`reference_as_switches_add_each_link…`); README. Left: `--queue NAME` (a hand-over request carries no queue yet) |
 | C8  | On Windows a queue's start time does not wake a sleeping computer (macOS and Linux dropped by decision: they need an administrator) | OPEN · S | The Scheduler's "Wake the computer" on Windows: a waitable timer, which needs no administrator; said greyed elsewhere |
 | C9  | dm cannot be run on a home server (a NAS) without building it: `--headless` exists, nothing to install | OPEN · M | A container image of the headless dm (Docker, Unraid's template), its downloads folder and settings as volumes, built and published by CI for amd64 and arm64; with W25's web page to add and watch downloads |
 | C10 | A feed of torrents (a tracker's RSS) is not followed: B75 follows a podcast's | OPEN · S | Check now and every N hours add a feed's new `.torrent` and magnet items as for a podcast's, with a filter of words to match; a test feed beside B75's |
 | C11 | The progress window does not say where the server is: a far server, the cause of a slow download, is not seen | OPEN · M | The country (a flag and its name) and near, medium or far by round-trip time, in the progress window and Properties; from an offline IP table shipped with dm (DB-IP Lite, CC BY 4.0, credited in NOTICE), nothing sent anywhere |
 | C12 | The extension's popup lists only what dm is fetching and the last failure | OPEN · M | Its recent downloads too, each with Open, Show in folder, Pause or Resume; Clear finished; through the host as today |
-| C13 | Help has no way to report a problem: a person must find the issues page and say their version and system | OPEN · S | Help › Report a problem opens a new issue in the browser with dm's version, the system and its language filled in (nothing else, nothing sent by dm itself) |
 | C14 | A link site's "Click'n'Load" button sends its links to a program on the computer (port 9666), and dm does not answer it | OPEN · M · decide | Off by default (a listening port): when on, Ask, Allow or Block per site, the links into the Grabber, a rate limit; the maintainer's word before it is built |
 | C21 | Options was hard to use on the phone and the desktop alike. The maintainer, 2026-11-23: "in phone and desktop settings pannel looks complex to use. also make it better to use both on android and desktop. make sure it have same code and UI but when decrease become mobile view" | PARTIAL · approved | Done 2026-11-23: one Options by the window's width (`window::narrow::narrow_at`): the pages listed at the left each with a line of what it holds (its first sections' headings, else its first settings), the page beside them; narrower than 600 points the list fills the window and a page opens over it with "‹ Options" back (`window_tests::options::a_narrow_options_is_a_list_of_pages_then_a_page`); each on/off setting a switch at its row's end with its line under it (C20); contract B43 says so. Left: seen on the phone (the emulator, then a phone); on the phone each change applied at once with no OK or Cancel; each page's rare settings under "More" |
 | C22 | A long press on a download's card opened its menu only once the finger was lifted, Share and Delete far down it. The maintainer, 2026-11-23: "long press should give options to delete and share in download card. make it more productive" | PARTIAL · approved | Done 2026-11-23: held 500 ms the card's menu opens with the finger still down, a finger that moves first is scrolling and opens nothing, the lift after is no tap; Open, Share, Delete and Pause or Resume as big buttons at the menu's top (`window_tests::narrow::a_card_held_opens_its_menu_with_its_main_actions_at_the_top`). Left: seen on the phone; a light vibration where the phone has one; a long press starting a choice of several cards, with Share, Delete and Select all in the top bar |
@@ -60,80 +59,21 @@ reference C offers) move up beside C1 to C3.
 | C18 | dm is installed only by hand from the release page, and updated the same way on Windows | OPEN · S | A WinGet manifest (and a Homebrew cask) for each release, made by the release job; the README gives the one line to install and the one to update |
 | C19 | The maintainer, 2026-11-23: "readme of this project … should be nicer and detailed than" reference C's. Its README opens with a picture of the window, one line of what it is and buttons to download, then a menu of the page, a measured "why switch" table, a table of which file to take, a section per system, the languages, a gallery of six windows, "What it does" with a help page per line, the benchmark in detail, a clean-room statement, status, credits. dm's (636 lines) starts at Quick start, has 6 pictures, no page menu, no measured speed, no gallery and Android "in development" | OPEN · M · after the release | Done with C15 to C18 and step 8: the top as a person meets it (the window in light and dark, what dm is in a line, Download for each system and the APK, the extension's stores); a menu of the page; "What it does" by outcome, each with a picture or its help page; the measured table (C0, C17); the file table (C15); a section per system with Android's install; a gallery of the main window, Add URL, the video panel in the browser, a torrent, Options and the phone, light and dark; the languages; the clean-room and privacy statement (nothing sent, no helper program); status and what is not done yet; credits. Every claim checked against the app and a link that works; nothing names another download manager |
 
-## Next session: release 0.10.3 (stopped 2026-11-22, the maintainer: "we will do it tomorrow")
+## Release 0.10.3 (published 2026-11-23)
 
-**2026-11-23.** Steps 1 and 2 done: nothing incoming; `cargo test --workspace` 137 of 137 suites
-(after `download_torrent` was split: xtask's 150-line limit); `human-qa.py` on the Mac 75 of 76,
-B25 failing on Add URL and Download details pictured one point wider (521 for 520). Not the
-second display (the same with it unplugged): gpui centres a dialog on the screen's free part,
-which beside a Dock at the side is an odd number of points wide, so its left edge fell on a half
-point and macOS rounded its two edges apart (the 520/521 flip of `dbf92b08` too). Fixed in
-`window/screen.rs` (`on_whole_points`), not for a question, which hangs as a sheet: rounded too,
-B17, B39, B40 and B48 failed. `human-qa.py` then 76 of 76. Then a new dm's default connections 8 to 16 (the maintainer's word), human-qa.py 76 of 76. Steps
-3 to 5 done the same day: pushed (`3c7ac098`), CI, Desktop, Android, Audit, the Linux contract
-and QA (Docker) green; tagged `desktop-v0.10.3` and `android-v0.10.3`, both release builds green
-(Windows' handle test passed); the drafts: 17 files match `SHA256SUMS`, `latest.json` 0.10.3 with
-its 15 installers and their SHA-256, the four APKs match their `.sha256`, certificate `f8ad2417…`,
-versionCode 3; `smoke.py` on the arm64 dmg's app passed; on the emulator (`dmci`, Android 15) the
-0.10.3 APK installed over 0.10.2 kept its finished download. **Next: step 6, the phone.**
-
-**Where it is.** 0.10.1 and 0.10.2 were built as drafts and are not to be published; 0.10.3 is
-the release. Its changes (committed 2026-11-23):
-- Torrents (gaps rows N33 and N34 closed, see "Mobile first" below): librqbit's tracker client
-  checks HTTPS against webpki-roots (`vendor/librqbit`, `vendor/patches/librqbit.patch`
-  `dm(roots)`, `vendor/README.md`), which fixed magnets stuck at "Finding peers…" on Android;
-  public torrents also announce to `dm_torrent::PUBLIC_TRACKERS`; a session's DHT starts from
-  `dht-nodes.txt` in dm's home and `DHT_ROUTERS` and keeps its nodes there; a downloading
-  session listens, with UPnP on the public network (`crates/dm-torrent/src/lib.rs`,
-  `crates/dm-core/src/torrent.rs`, `paths.rs`, `dm-shell` `settings/engine.rs`).
-- Versions 0.10.3 everywhere, Android `versionCode` 3, CHANGELOG's 0.10.3 section.
-
-Checked so far: dm-torrent's 4 new tests, clippy on the workspace, `cargo audit`, `cargo
-deny`, fmt; `cargo test --workspace` reached 123 of 137 suites, all passing, when it was stopped;
-on the Mac a DHT-only magnet downloaded within 5 s and a second run started from 114 kept nodes;
-on the emulator (`dmci`) magnets with an https tracker, with dead trackers and with none found
-79 to 107 seeders at 6 to 9 MB/s within 5 to 15 s, `dht-nodes.txt` held 144 nodes, no crash.
-
-**Tomorrow, in order:**
-1. `git fetch` and rebase on `origin/main` (the Windows laptop pushes too); `df -h /` (the build
-   folder was cleared with `cargo clean` on 2026-11-22; a first build takes about 15 minutes).
-2. `cargo test --workspace`, whole, and `python3 scripts/human-qa.py` on the Mac (76 rows; it was
-   76 of 76 before the torrent change). Optionally `sh scripts/linux-human-qa.sh` (76 of 76 on
-   2026-11-22 before the torrent change).
-3. Commit in two: the torrent fixes (naming the maintainer's word for N34, "fix the gaps in this
-   release"), then "dm 0.10.3 and Android app 0.10.3 (versionCode 3)"; push; wait for CI, Desktop,
-   Android, Audit and the Linux contract; start QA (Docker) on main by hand (`gh workflow run
-   qa.yml --ref main`), as it runs only on pull requests.
-4. Tag `desktop-v0.10.3` and `android-v0.10.3` on that commit and push the tags. If Windows'
-   `toasts_give_their_handles_back` fails by one handle again (see "Watch" below), re-run the
-   failed job.
-5. Check the drafts: every file against `SHA256SUMS` and `latest.json`; the APKs' `.sha256`,
-   `apksigner` certificate `f8ad2417…` (the release key), `versionCode` 3; `smoke.py` on the
-   arm64 dmg's app; on the emulator, 0.10.3 installed over 0.10.2 keeps its list.
-6. The phone (Galaxy M15, Android 16): it has a debug build, so uninstall it and install the
-   release APK; the maintainer tries the torrent that was stuck; a shared link, a force stop and
-   resume, the screen off.
-7. Publish `desktop-v0.10.3`, `android-v0.10.3` and the extension's `v3.5.0` (unchanged). Ask the
-   maintainer whether to delete the unpublished drafts `desktop-v0.10.1`, `android-v0.10.1` and
-   `android-v0.10.2` (and their tags).
-8. Once published (the maintainer, 2026-11-23: "update the readme for android as well after
-   release"): README's "Android (in development)" says it runs on phones (Android 10 and up),
-   links the release's `dm-0.10.3.apk` with how to install it (allow installs from the browser,
-   check the `.sha256`), and drops "has not been run on a phone yet" and "once CI has run it";
-   `docs/android.md` "A release" names 0.10.3, not 0.10.0.
-9. Issue #56 (the site watch, run 45027670048; the maintainer, 2026-11-23: "address the issue"):
-   the walls (YouTube's "not a bot", Vimeo, TikTok, Instagram, Rumble) are not dm's; two are:
-   Dailymotion's panel listed two lines, both `xbyu73a.m3u8`, and nothing was sent (row 220 made
-   a re-signed playlist one line: what differs here?); Bilibili's panel listed none and a click
-   sent the picture's `.m4s` (100023) alone, no sound. `python3 scripts/sites-check.py
-   dailymotion bilibili` in Edge on the Mac, nothing else running, then fix and run it again.
-   2026-11-23: on the Mac (Kathmandu) Bilibili passes (a whole `video.mp4`, picture and sound,
-   812 s) and Dailymotion shows its sign-up wall (row 170); the site watch on main the same day
-   (run 45120409267, a US runner): Dailymotion passes, Bilibili fails again (the page read by the
-   dm app gave the picture's `.m4s`, 100023, alone: no sound row), and x2's `pscp.tv` stream stayed
-   at 0 bytes "running" until the check gave up (it passed the day before). Next: log what
-   Bilibili's `playurl` answer holds under `dash.audio` (and `dolby`, `flac`) in the watch's run,
-   and read the sound from wherever a signed-out US visitor is given it.
+`desktop-v0.10.3` (Latest), `android-v0.10.3` and the extension's `v3.5.0` were published on
+2026-11-23 after 18:00 at the maintainer's word, with the README of rows C15 to C19's first pass.
+Checked first: the drafts' files against `SHA256SUMS` and `latest.json`, the APKs' certificate
+`f8ad2417…` and versionCode 3, `smoke.py` and `human-qa.py` (75 of 76, B76 needs a debug build)
+on the arm64 dmg's app, a public magnet on it (first bytes in 8 s, 2 s with the kept DHT
+nodes), and 0.10.3 installed over 0.10.2 on the emulator keeping its list. Left:
+- The phone (Galaxy M15): the release APK installed over the debug build, the magnet that was
+  stuck, a shared link, a force stop and resume, the screen off (the maintainer).
+- The unpublished tags `desktop-v0.10.1`, `desktop-v0.10.2`, `android-v0.10.1` and
+  `android-v0.10.2` (their drafts are gone): deleting them was refused to this session; the
+  maintainer runs `git push origin --delete …` if they should go.
+- Issue #56: the site watch with its probe, for Bilibili's sound read from the page (`78ab6f15`);
+  Dailymotion already passes on the runner.
 
 ## Where it stands (2026-11-21)
 

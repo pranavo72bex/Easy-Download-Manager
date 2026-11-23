@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Help › Contact support starts a new issue with dm's version, system and language already written in it.
+- The command line takes reference A's switches too (`/d LINK /p FOLDER /f NAME /n /a /s`), so scripts written for it work with dm.
 - Android: Options is in the bottom bar, a tap away, where Finished was (it stays in the ⋮ menu too); Finished is under Places with the categories and queues.
 - Archive passwords: Options › Folders keeps the passwords you use for archives (shown only as dots, kept sealed like your sign-ins). Unpack when done tries them in turn on a ZIP or 7z that has one, and the one that opens it moves to the top.
 - A torrent being downloaded can be watched: Preview opens its largest file (a film's video) while it downloads, from its start, as its pieces come in order.

@@ -115,6 +115,29 @@ pub fn tips() -> [&'static str; 8] {
     ]
 }
 
+/// Where Help › Contact support goes: a new issue on the project's page, its text already
+/// saying this dm's version, system and language, for the person to finish and send or not
+/// (gaps row C13). Nothing leaves the computer unless they send it.
+pub fn report_a_problem() -> String {
+    report_link(
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        crate::i18n::code(),
+    )
+}
+
+/// [`report_a_problem`]'s link for dm `version` on `os` and `arch`, in language `language`:
+/// a new issue whose text says those and leaves room for what happened (gaps row C13). Only
+/// those: no path, address, sign-in or download of the person's.
+fn report_link(version: &str, os: &str, arch: &str, language: &str) -> String {
+    let body = format!(
+        "dm {version} on {os} ({arch}), in {language}\n\nWhat happened:\n\n\nWhat I expected:\n\n"
+    );
+    let encode = |s: &str| url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
+    format!("{SUPPORT}/new?body={}", encode(&body))
+}
+
 /// An email that tells someone about dm, written in the person's own mail
 /// program for them to send or not: nothing leaves the computer unless they
 /// send it.
@@ -188,5 +211,25 @@ mod tests {
         assert!(mail.starts_with("mailto:?subject="));
         assert!(!mail.contains('+'));
         assert!(mail.contains("Easy-Download-Manager"));
+    }
+}
+
+#[cfg(test)]
+mod report_tests {
+    use super::*;
+
+    #[test]
+    fn a_problems_report_starts_a_new_issue_saying_the_version_system_and_language() {
+        let link = report_link("0.10.4", "macos", "aarch64", "fr");
+        assert!(link.starts_with(&format!("{SUPPORT}/new?body=")), "{link}");
+        let body: String = url::form_urlencoded::parse(link.split_once('?').unwrap().1.as_bytes())
+            .find(|(k, _)| k == "body")
+            .map(|(_, v)| v.into_owned())
+            .unwrap();
+        assert!(
+            body.starts_with("dm 0.10.4 on macos (aarch64), in fr\n"),
+            "{body}"
+        );
+        assert!(body.contains("What happened:"));
     }
 }
