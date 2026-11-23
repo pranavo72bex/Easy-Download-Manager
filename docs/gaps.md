@@ -276,6 +276,10 @@ Each passed on its re-run; a second failure makes it a row.
 - `grow.rs` `a_server_that_shares_one_rate_keeps_eight` (macOS CI, 11 connections of 9).
 - `secretstore::credentials`' 32-byte key test (Windows, a whole run).
 - `instance::tests::a_dm_starting_while_the_host_probes_waits_the_probe_out` (Windows, under load).
+- `human-qa.py` on macOS, late in the walk, 2026-11-23 with 16 connections: B73's "The same file is
+  already here" not shown in 40 s (the engine had stopped the row as the same file), and in the
+  next run B75's "Followed" window not opened from the side panel; each passed alone three times
+  and in the other runs, and the run after was 76 of 76.
 - `handles.rs` `toasts_give_their_handles_back` (Windows CI, the release job of desktop-v0.10.2,
   2026-11-22: 46 handles kept of the 45 allowed after 90 toasts; passed on main the same commit).
 

@@ -8,7 +8,8 @@ How dm fetches, and what happens around a download. See
 - **Connections per file:** "How many parts of a file dm fetches at once.
   More is faster on most sites, but some limit it."
 - **Presets:** **Slow (2)**, **Normal (8)**, **Fast (16)** and **Maximum
-  (32)** each set the number above; the one that matches it is marked.
+  (32)** each set the number above; the one that matches it is marked. A new dm
+  uses 16.
 - **Files at once:** "How many files download at the same time."
 
 A site that allows fewer connections can be given its own number: see

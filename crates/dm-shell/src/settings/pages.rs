@@ -285,7 +285,7 @@ pub const METERED_WAIT: &str = "wait";
 impl Default for DownloadSettings {
     fn default() -> Self {
         DownloadSettings {
-            connections: 8,
+            connections: 16,
             concurrency: 3,
             stream_quality: default_quality(),
             watch_folder: String::new(),

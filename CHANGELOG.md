@@ -13,6 +13,8 @@ Torrents on the phone. The extension is unchanged (3.5.0). 0.10.2 was built but 
 - Torrents start faster, on the phone and the computer: each public torrent is also announced to six long-running public trackers, as phone torrent apps do, so a magnet whose own trackers have died (an old film's) finds peers in seconds rather than waiting on the DHT. Never for a private torrent, nor behind a proxy or with the trackers kept to.
 - Torrents find peers sooner: a session starts its DHT search from the nodes the last one knew (kept in `dht-nodes.txt` in dm's home, at most 200, IP addresses alone) and from five routers where it had two, so a magnet with no live tracker finds peers in seconds (a DHT-only magnet: 5 to 6 seconds on the Mac and on an emulator).
 - A torrent being downloaded now takes connections from peers, as phone torrent apps do, and asks the home router to forward its port (UPnP) on the public network; before, only the peers dm reached itself were used. Not behind a proxy, which would show the real address. On Windows and macOS the first torrent may bring up the firewall's question about dm.
+- A new dm fetches a file on up to 16 connections at once, where it was 8 (Options › Downloads › Connections per file; Fast (16) is the preset shown chosen). A number you set yourself is kept, and a server that allows fewer is still kept to them.
+- Fixed (macOS): with the Dock at the side of the screen, Add URL and Download details could open one point wider than they are drawn for.
 - Android: the app's version code is 3.
 
 ## App 0.10.2, Android app 0.10.2 (not published)
