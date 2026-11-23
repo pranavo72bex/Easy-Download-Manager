@@ -299,3 +299,47 @@ fn the_bottom_navigation_chooses_the_places() {
         h.view(|view| view.layout.narrow.drawer.is_some())
     });
 }
+
+/// A card held: its menu opens while the finger is still down, Delete and Resume as big buttons
+/// at its top, and the lift that follows neither opens the download nor closes the menu (gaps
+/// row C22). A finger that moves first is scrolling, and opens nothing.
+#[test]
+fn a_card_held_opens_its_menu_with_its_main_actions_at_the_top() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    add_later(&mut h, &world, &["file.zip", "page.html"]);
+    h.until_shown("file.zip");
+    let id = h.row("file.zip").id;
+    // Moved past a few points while held: a scroll, no menu.
+    h.update(|view, cx| view.card_pressed(id, gpui::point(gpui::px(40.0), gpui::px(200.0)), cx));
+    h.update(|view, _| view.card_moved(id, gpui::point(gpui::px(40.0), gpui::px(260.0))));
+    std::thread::sleep(std::time::Duration::from_millis(700));
+    h.until("a step", |_| true);
+    assert!(
+        h.view(|view| view.layout.narrow.sheet.is_none()),
+        "a moved finger opened the menu"
+    );
+    // Held still: the menu, before any lift.
+    h.update(|view, cx| view.card_pressed(id, gpui::point(gpui::px(40.0), gpui::px(200.0)), cx));
+    h.until("the card's menu, the finger still down", |h| {
+        h.view(|view| view.layout.narrow.sheet.is_some())
+    });
+    assert!(h.view(|view| view.list.selected == [id].into()));
+    let quick = h.view(|view| {
+        view.layout
+            .narrow
+            .sheet
+            .as_ref()
+            .map(|s| s.quick_count())
+            .unwrap_or(0)
+    });
+    assert!(quick >= 2, "{quick} big buttons");
+    assert!(h.shows("Delete"), "{:?}", h.texts());
+    // The lift: not a tap.
+    h.update(|view, cx| view.card_lifted(id, cx));
+    assert!(
+        h.view(|view| view.layout.narrow.sheet.is_some()),
+        "the lift closed the menu"
+    );
+}

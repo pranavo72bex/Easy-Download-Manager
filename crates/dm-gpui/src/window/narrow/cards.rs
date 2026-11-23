@@ -251,10 +251,19 @@ fn card(
         })
         .on_mouse_down(
             gpui::MouseButton::Left,
-            cx.listener(move |view, _, _, _| {
-                view.layout.narrow.pressed = Some((id, std::time::Instant::now()));
+            cx.listener(move |view, event: &gpui::MouseDownEvent, _, cx| {
+                view.card_pressed(id, event.position, cx);
             }),
         )
+        // A finger that moves is scrolling the list: no long press.
+        .on_mouse_move(
+            cx.listener(move |view, event: &gpui::MouseMoveEvent, _, _| {
+                view.card_moved(id, event.position);
+            }),
+        )
+        .on_scroll(cx.listener(|view, _, _, _| {
+            view.layout.narrow.pressed = None;
+        }))
         .on_mouse_down(
             gpui::MouseButton::Right,
             cx.listener(move |view, _, _, cx| view.open_card_menu(id, cx)),
@@ -394,10 +403,19 @@ fn quick_button(
         )
 }
 
+/// How far, in points, a finger may move from where it pressed a card and still be holding it:
+/// past it, it is scrolling the list.
+const MOVED_FROM_PRESS: f32 = 10.0;
+
 impl Downloads {
     /// A tap on card `id`: held long, its menu; on the card already chosen alone, or twice,
     /// what a double-click on its row does (Options › General); else the card chosen alone.
     fn card_tapped(&mut self, id: dm_core::Id, clicks: usize, cx: &mut Context<Self>) {
+        // The lift after a long press that already opened the menu.
+        if self.layout.narrow.held_open.take() == Some(id) {
+            self.layout.narrow.pressed = None;
+            return;
+        }
         let held = self
             .layout
             .narrow
@@ -415,6 +433,56 @@ impl Downloads {
         self.choose_card(id);
         self.double_click(id, cx);
         cx.notify();
+    }
+
+    /// A finger down on card `id` at `from`: held there for `LONG_PRESS`, the card's menu opens
+    /// while it is still down, as a phone's long press does (gaps row C22).
+    pub(crate) fn card_pressed(
+        &mut self,
+        id: dm_core::Id,
+        from: gpui::Point<gpui::Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        let at = std::time::Instant::now();
+        self.layout.narrow.pressed = Some((id, at));
+        self.layout.narrow.pressed_from = Some(from);
+        self.layout.narrow.held_open = None;
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(super::LONG_PRESS).await;
+            let _ = this.update(cx, |view, cx| {
+                // Still the same press, not lifted, moved or scrolled since.
+                if view.layout.narrow.pressed != Some((id, at)) {
+                    return;
+                }
+                view.layout.narrow.pressed = None;
+                view.layout.narrow.held_open = Some(id);
+                view.open_card_menu(id, cx);
+            });
+        })
+        .detach();
+    }
+
+    /// The finger moved over card `id` to `to`: past a few points from where it went down, the
+    /// press is a scroll, not a long press.
+    pub(crate) fn card_moved(&mut self, id: dm_core::Id, to: gpui::Point<gpui::Pixels>) {
+        let Some(((pressed, _), from)) = self
+            .layout
+            .narrow
+            .pressed
+            .zip(self.layout.narrow.pressed_from)
+        else {
+            return;
+        };
+        let (dx, dy) = (f32::from(to.x - from.x), f32::from(to.y - from.y));
+        if pressed != id || dx * dx + dy * dy > MOVED_FROM_PRESS * MOVED_FROM_PRESS {
+            self.layout.narrow.pressed = None;
+        }
+    }
+
+    /// The finger lifted from card `id`, as a tap ends: what [`Self::card_tapped`] makes of it.
+    #[cfg(test)]
+    pub(crate) fn card_lifted(&mut self, id: dm_core::Id, cx: &mut Context<Self>) {
+        self.card_tapped(id, 1, cx);
     }
 
     /// Card `id` chosen alone, as a click chooses a row.

@@ -103,8 +103,18 @@ impl Harness {
                     }
                     continue;
                 }
-                // Over the middle of what the dialog shows: its page, not its buttons.
-                let mut ys: Vec<_> = drawn.iter().map(|d| d.bounds.center()).collect();
+                // Over the middle of what the dialog shows: its page, not its buttons, nor the
+                // list of pages at its left (Options, gaps row C21), which scrolls apart.
+                let width = self.cx.update(|cx| {
+                    window
+                        .update(cx, |_, window, _| window.viewport_size().width)
+                        .unwrap()
+                });
+                let mut ys: Vec<_> = drawn
+                    .iter()
+                    .map(|d| d.bounds.center())
+                    .filter(|c| c.x > width * 0.3)
+                    .collect();
                 ys.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
                 let Some(&at) = ys.get(ys.len() / 2) else {
                     break;
@@ -176,8 +186,15 @@ impl Harness {
         let (window, drawn) = self.front_dialog();
         // The field beside its words; else under them, or at the start of the line under them
         // where a row of fields wrapped.
+        // The page's own left edge, not that of the list of pages beside it (gaps row C21).
+        let width = self.cx.update(|cx| {
+            window
+                .update(cx, |_, window, _| window.viewport_size().width)
+                .unwrap()
+        });
         let page_left = drawn
             .iter()
+            .filter(|d| d.bounds.center().x > width * 0.3)
             .map(|d| d.bounds.left())
             .fold(named.left(), |a, b| if b < a { b } else { a });
         let below = named.bottom() + gpui::px(14.0);

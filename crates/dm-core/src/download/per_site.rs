@@ -75,20 +75,23 @@ impl Options {
     /// The connections a download of `url` opens: the setting, or the
     /// site's own limit where it has one.
     pub fn connections_for(&self, url: &str) -> usize {
-        let host = category::host_of(url);
         let capped = self
-            .host_limits
-            .iter()
-            .filter(|limit| {
-                let want = limit
-                    .host
-                    .trim()
-                    .trim_start_matches('.')
-                    .to_ascii_lowercase();
-                !want.is_empty() && (host == want || host.ends_with(&format!(".{want}")))
-            })
+            .site_limits(url)
             .map(|limit| limit.connections.max(1))
             .min();
         capped.map_or(self.connections, |cap| cap.min(self.connections))
+    }
+
+    /// The limits of `host_limits` that `url`'s site falls under: its host, or a domain it is in.
+    fn site_limits<'a>(&'a self, url: &str) -> impl Iterator<Item = &'a HostLimit> + 'a {
+        let host = category::host_of(url);
+        self.host_limits.iter().filter(move |limit| {
+            let want = limit
+                .host
+                .trim()
+                .trim_start_matches('.')
+                .to_ascii_lowercase();
+            !want.is_empty() && (host == want || host.ends_with(&format!(".{want}")))
+        })
     }
 }

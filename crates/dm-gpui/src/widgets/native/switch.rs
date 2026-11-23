@@ -1,0 +1,107 @@
+// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! A switch for an on/off setting, as the systems draw one now (gaps row C20).
+
+use gpui::{div, prelude::*, Div, Role, SharedString, Stateful};
+
+use super::{on_a_phone, CONTROL};
+use crate::widgets::space;
+use crate::window::a11y::Told as _;
+use crate::window::screen::Screen;
+use crate::window::theme::Theme;
+use crate::window::zoom::px;
+
+/// An on/off setting as the systems draw one now: its words across the row and a switch at the
+/// row's end, its knob at the right and its track in the accent colour when on (gaps row C20,
+/// the maintainer, 2026-11-23: "toggle button is better than checkbox"). Reached by Tab and
+/// flipped by Space or a click, as a check box is; a screen reader hears a switch, on or off.
+pub fn switch(
+    id: impl Into<gpui::ElementId>,
+    words: SharedString,
+    on: bool,
+    theme: Theme,
+    screen: &Screen,
+) -> Stateful<Div> {
+    div()
+        .id(id)
+        .role(Role::Switch)
+        .aria_label(words.clone())
+        .off_where_greyed()
+        .tab_index(0)
+        .focus(move |s| s.bg(theme.stripe))
+        .aria_toggled(if on {
+            gpui::Toggled::True
+        } else {
+            gpui::Toggled::False
+        })
+        .w_full()
+        .min_h(px(on_a_phone(space::TOUCH, CONTROL)))
+        .flex()
+        .items_center()
+        .gap(px(space::M))
+        .cursor_pointer()
+        .child(div().flex_1().min_w_0().child(screen.label(words)))
+        .child(switch_track(on, theme))
+}
+
+/// [`switch`] where a dialog's setting sits in a line of its own or a sentence ("Limit this
+/// download to [500] KB/s"): the switch first and its words after it, in a check box's place.
+pub fn switch_inline(
+    id: impl Into<gpui::ElementId>,
+    words: SharedString,
+    on: bool,
+    theme: Theme,
+    screen: &Screen,
+) -> Stateful<Div> {
+    div()
+        .id(id)
+        .role(Role::Switch)
+        .aria_label(words.clone())
+        .off_where_greyed()
+        .tab_index(0)
+        .focus(move |s| s.bg(theme.stripe))
+        .aria_toggled(if on {
+            gpui::Toggled::True
+        } else {
+            gpui::Toggled::False
+        })
+        .flex()
+        .items_center()
+        .gap(px(space::S))
+        .cursor_pointer()
+        .child(switch_track(on, theme))
+        .map(|row| {
+            if crate::platform::ON_A_PHONE {
+                row.w_full()
+                    .child(div().flex_1().min_w_0().child(screen.label(words)))
+            } else {
+                row.child(screen.label(words))
+            }
+        })
+}
+
+/// The track and knob of a switch.
+pub fn switch_track(on: bool, theme: Theme) -> Div {
+    let (width, height) = (on_a_phone(44.0, 32.0), on_a_phone(26.0, 18.0));
+    let knob = height - 2.0 * space::XXS;
+    div()
+        .flex_none()
+        .w(px(width))
+        .h(px(height))
+        .rounded(px(height / 2.0))
+        .p(px(space::XXS))
+        .flex()
+        .items_center()
+        .when(on, |t| t.justify_end().bg(theme.accent))
+        .when(!on, |t| t.justify_start().bg(theme.separator))
+        .child(
+            div()
+                .size(px(knob))
+                .rounded(px(knob / 2.0))
+                .bg(gpui::white())
+                .shadow_sm(),
+        )
+}

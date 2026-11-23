@@ -220,7 +220,7 @@ impl Render for Complete {
                             })),
                     )
                     .child(native::buttons(
-                        vec![native::checkbox(
+                        vec![native::switch_inline(
                             "never",
                             t("Don't show this window again").into(),
                             never,

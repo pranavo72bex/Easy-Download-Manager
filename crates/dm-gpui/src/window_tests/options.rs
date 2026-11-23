@@ -617,3 +617,40 @@ fn waiting_on_a_metered_connection_or_a_low_battery_is_set_in_options() {
     assert_eq!(saved_settings()["on_metered"], "wait");
     assert_eq!(saved_settings()["battery_below"], 25);
 }
+
+/// At a phone's width Options is a list of pages, each with what it holds; a page opens over it
+/// with a way back, and back is the list again (gaps row C21). The same window and code as at a
+/// computer's width, where the list stands beside the page.
+#[test]
+fn a_narrow_options_is_a_list_of_pages_then_a_page() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    open_options(&mut h);
+    // At a computer's width: the list beside the page, General's settings shown.
+    assert!(h.shows("Language"), "{:?}", h.texts());
+    let main = h.window;
+    h.cx.update(|cx| {
+        for window in cx.windows() {
+            if window != main {
+                let _ = window.update(cx, |_, window, _| {
+                    window.resize(gpui::size(gpui::px(380.0), gpui::px(800.0)))
+                });
+            }
+        }
+    });
+    h.until("the list of pages alone", |h| {
+        h.shows("Downloads") && !h.shows("Language")
+    });
+    h.click("Downloads");
+    h.until("Downloads over the list", |h| {
+        h.shows("Connections per file")
+    });
+    let back = format!("‹ {}", dm_desktop_base::i18n::t("Options"));
+    assert!(h.shows(&back), "{:?}", h.texts());
+    assert!(!h.shows("Sign-ins"), "the list stayed under the page");
+    h.click(&back);
+    h.until("the list again", |h| {
+        h.shows("Sign-ins") && !h.shows("Connections per file")
+    });
+}

@@ -18,9 +18,9 @@ fn window_sizes_are_as_they_were() {
         ),
         (
             WindowSize::Options,
-            (680.0, 600.0),
-            (620.0, 520.0),
-            (680.0, 600.0),
+            (880.0, 600.0),
+            (820.0, 520.0),
+            (880.0, 600.0),
         ),
         (
             WindowSize::Grabber,

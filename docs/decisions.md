@@ -8709,3 +8709,14 @@ C20). Kept as check boxes: ticking items in a list (links, a torrent's files, a 
 videos), which chooses items rather than turning a setting on. Weighed and set aside: check boxes
 on the desktop because Options applies only on OK (a switch can read as already applied); the
 desktop keeps OK and Cancel, and the phone's Options applies each change at once.
+
+## 2026-11-23: Options simpler on both, one layout that narrows to a phone's; a card's long press made productive (the maintainer's word)
+
+The maintainer, 2026-11-23: "in phone and desktop settings pannel looks complex to use. also make
+it better to use both on android and desktop. make sure it have same code and UI but when
+decrease become mobile view", and "long press should give options to delete and share in download
+card. make it more productive". Gaps rows C21 (Options as a list of pages, each a list of
+setting rows, the rare ones under More; at a phone's width the list and a page are screens of
+their own) and C22 (the card's menu opening while the finger is down, Open, Share and Delete at
+its top, and a long press starting a choice of several cards). Approved changes to the
+behaviour contract's Options and card rows, to be named in their commits.

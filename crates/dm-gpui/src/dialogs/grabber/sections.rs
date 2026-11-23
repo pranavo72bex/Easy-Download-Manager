@@ -297,7 +297,7 @@ impl Grabber {
                 .flex_col()
                 .gap(px(native::ROW_GAP))
                 .child(
-                    native::checkbox(
+                    native::switch_inline(
                         "other-sites",
                         t("Also follow links to other sites").into(),
                         other,
@@ -310,7 +310,7 @@ impl Grabber {
                     })),
                 )
                 .child(
-                    native::checkbox(
+                    native::switch_inline(
                         "keep-layout",
                         t("Keep the site's folders").into(),
                         keep,

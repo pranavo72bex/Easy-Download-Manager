@@ -292,7 +292,7 @@ impl Details {
                     .items_center()
                     .gap(px(native::LABEL_GAP))
                     .child(
-                        native::checkbox(
+                        native::switch_inline(
                             "part",
                             t("Only a part of the video").into(),
                             part,
@@ -537,7 +537,7 @@ impl Details {
             let on = self.always_here;
             d.child(
                 look.under(
-                    native::checkbox(
+                    native::switch_inline(
                         "always-here",
                         t("Always save here without asking").into(),
                         on,
@@ -770,7 +770,7 @@ impl Details {
         }
         let (theme, screen) = (look.theme, &look.screen);
         let words: SharedString = t("Unpack when done").into();
-        let check = native::checkbox("unpack", words, self.unpack, theme, screen).on_click(
+        let check = native::switch_inline("unpack", words, self.unpack, theme, screen).on_click(
             cx.listener(|this, _, _, cx| {
                 this.unpack = !this.unpack;
                 cx.notify();

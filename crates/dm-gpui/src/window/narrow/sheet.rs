@@ -27,6 +27,9 @@ pub(crate) struct Sheet {
     pages: Vec<OwnedMenu>,
     /// Where a finger has dragged it.
     drag: bottomsheet::Drag,
+    /// Items of the first menu drawn as big buttons in a row above the others, and left out of
+    /// the list (a card's Open, Share, Delete and Pause or Resume, gaps row C22).
+    quick: Vec<usize>,
 }
 
 impl Sheet {
@@ -35,7 +38,37 @@ impl Sheet {
         Sheet {
             pages: vec![menu],
             drag: bottomsheet::Drag::default(),
+            quick: Vec::new(),
         }
+    }
+
+    /// A sheet showing `menu`, the items picked by `quick` drawn as big buttons above the rest.
+    pub(crate) fn with_quick(menu: OwnedMenu, quick: impl Fn(&OwnedMenuItem) -> bool) -> Sheet {
+        let picked = menu
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| {
+                matches!(
+                    item,
+                    OwnedMenuItem::Action {
+                        disabled: false,
+                        ..
+                    }
+                ) && quick(item)
+            })
+            .map(|(i, _)| i)
+            .collect();
+        Sheet {
+            quick: picked,
+            ..Sheet::new(menu)
+        }
+    }
+
+    /// How many of its items are big buttons above the list.
+    #[cfg(test)]
+    pub(crate) fn quick_count(&self) -> usize {
+        self.quick.len()
     }
 
     /// The menu shown.
@@ -126,12 +159,19 @@ pub(super) fn drawn(
             .text_ellipsis()
             .child(screen.label(menu.name.clone()))
     };
-    let items = menu
-        .items
-        .iter()
-        .enumerate()
-        .map(|(i, item)| item_drawn(i, item, theme, screen, cx))
-        .collect();
+    let quick: &[usize] = if walked { &[] } else { &sheet.quick };
+    let mut items: Vec<gpui::AnyElement> = Vec::new();
+    if !quick.is_empty() {
+        items.push(quick_row(menu, quick, theme, screen, cx));
+    }
+    items.extend(
+        menu.items
+            .iter()
+            .enumerate()
+            // What the row above holds is not listed again; nor a separator it leaves first.
+            .filter(|(i, _)| !quick.contains(i))
+            .map(|(i, item)| item_drawn(i, item, theme, screen, cx)),
+    );
     bottomsheet::sheet(
         "sheet",
         menu.name.clone(),
@@ -144,6 +184,66 @@ pub(super) fn drawn(
         screen,
         window,
     )
+}
+
+/// The big buttons above a card's menu: each item of `quick` as its picture over its words,
+/// side by side across the sheet, picked as its line in the list would be.
+fn quick_row(
+    menu: &OwnedMenu,
+    quick: &[usize],
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> gpui::AnyElement {
+    div()
+        .id("sheet-quick")
+        .w_full()
+        .flex()
+        .gap(px(space::S))
+        .pb(px(space::S))
+        .children(quick.iter().filter_map(|&i| {
+            let OwnedMenuItem::Action { name, action, .. } = menu.items.get(i)? else {
+                return None;
+            };
+            let words = name.split('\t').next().unwrap_or(name).to_string();
+            let picture = picture_of(action.as_ref());
+            Some(
+                div()
+                    .id(("sheet-quick", i))
+                    .role(Role::Button)
+                    .aria_label(gpui::SharedString::from(words.clone()))
+                    .flex_1()
+                    .min_w_0()
+                    .py(px(space::M))
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(space::XS))
+                    .rounded(px(space::M))
+                    .bg(theme.stripe)
+                    .cursor_pointer()
+                    .on_click(cx.listener(move |view, _, window, cx| {
+                        view.sheet_action(i, window, cx);
+                    }))
+                    .when_some(picture, |d, picture| {
+                        d.child(
+                            gpui::svg()
+                                .path(picture)
+                                .size(px(ICON + 4.0))
+                                .text_color(theme.text),
+                        )
+                    })
+                    .child(
+                        div()
+                            .max_w_full()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis()
+                            .child(screen.label(gpui::SharedString::from(words))),
+                    ),
+            )
+        }))
+        .into_any_element()
 }
 
 /// What the shared sheet asks of the list's view: the sheet it keeps.

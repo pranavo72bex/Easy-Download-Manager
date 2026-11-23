@@ -66,6 +66,11 @@ pub(crate) struct Narrow {
     pub(crate) drawer: Option<Place>,
     /// The card pressed and when, for a long press.
     pub(crate) pressed: Option<(Id, std::time::Instant)>,
+    /// Where the press began: a finger that moves from it is scrolling, not holding.
+    pub(crate) pressed_from: Option<gpui::Point<gpui::Pixels>>,
+    /// The card whose menu a long press opened while the finger was still down: its lift is
+    /// not a tap (gaps row C22).
+    pub(crate) held_open: Option<Id>,
     /// The search box opened across the top bar by its search button (or Find).
     pub(crate) searching: bool,
     /// Whether the last frame was laid out as a phone's: the list's kept place then counts
@@ -267,7 +272,23 @@ impl Downloads {
         self.list.cursor = Some(id);
         self.layout.narrow.drawer = None;
         let menu = crate::window::rowmenu::card_menu(self).owned();
-        self.layout.narrow.sheet = Some(Sheet::new(menu));
+        // Its Open, Share, Delete and Pause or Resume as big buttons at its top (gaps row C22).
+        self.layout.narrow.sheet = Some(Sheet::with_quick(menu, |item| {
+            use dm_shell::app::commands::Command as C;
+            let gpui::OwnedMenuItem::Action { action, .. } = item else {
+                return false;
+            };
+            let any = action.as_any();
+            any.is::<crate::window::rowmenu::ShareFile>()
+                || any
+                    .downcast_ref::<crate::window::menus::Run>()
+                    .is_some_and(|run| {
+                        matches!(
+                            run.0,
+                            C::OpenFile | C::Remove | C::DownloadNow | C::StopDownload
+                        )
+                    })
+        }));
         cx.notify();
     }
 }

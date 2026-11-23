@@ -163,7 +163,7 @@ impl Render for Limiter {
                         None,
                         width,
                         &screen,
-                        native::checkbox(
+                        native::switch_inline(
                             "slow",
                             t("Slower between set hours").into(),
                             slow_on,

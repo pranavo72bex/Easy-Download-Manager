@@ -167,7 +167,7 @@ impl Render for AddUrl {
                         None,
                         width,
                         &screen,
-                        native::checkbox(
+                        native::switch_inline(
                             "authorize",
                             t("Needs a sign-in").into(),
                             authorize,

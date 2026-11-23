@@ -120,10 +120,11 @@ impl WindowSize {
                 windows: (840.0, 520.0),
                 gnome: (900.0, 600.0),
             },
+            // The list of pages beside the page (gaps row C21): 200 wider than the page was.
             Self::Options => Each {
-                macos: (680.0, 600.0),
-                windows: (620.0, 520.0),
-                gnome: (680.0, 600.0),
+                macos: (880.0, 600.0),
+                windows: (820.0, 520.0),
+                gnome: (880.0, 600.0),
             },
             Self::Grabber => Each {
                 macos: (640.0, 560.0),
@@ -786,6 +787,8 @@ pub fn time_picked(time: &mut String, hour: bool, to: usize) {
 }
 
 mod path;
+mod switch;
+pub use switch::{switch, switch_inline};
 mod phone;
 pub use path::path_field;
 pub use phone::phone_bar;

@@ -17,7 +17,7 @@ impl Details {
         cx: &mut Context<Self>,
     ) -> gpui::Div {
         look.under(
-            native::checkbox(
+            native::switch_inline(
                 "keep-no-record",
                 t("Keep no record").into(),
                 self.keep_no_record,

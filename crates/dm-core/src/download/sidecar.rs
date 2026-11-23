@@ -34,6 +34,7 @@ pub(super) async fn published_beside(
     landed: &str,
     saved_as: &str,
     options: &Options,
+    at_once: usize,
 ) -> Option<Checksum> {
     let base = url::Url::parse(asked).ok()?;
     if !matches!(base.scheme(), "http" | "https") || base.query().is_some() {
@@ -69,16 +70,25 @@ pub(super) async fn published_beside(
         .filter(|(address, _, _)| !crate::redirects::named_inside(asked, address.as_str()))
         .collect();
 
-    /* One after another, stopping at the first that names the file: never more than one
-     * request of the look open at once, so a server's connection limit, or one a person set
-     * for it, is not overrun for a file already fetched. */
+    /* In order, `at_once` at a time, the first in order that names the file kept: one after
+     * another, each a round trip after the file's last byte, the look cost 0.9 s over a 150 ms
+     * line (`bench` latency, gaps row C0b). Never more at once than the connections the
+     * download itself used, now idle (`at_once`), so a server's connection limit, or one a
+     * person set for it, is not overrun for a file already fetched. */
     let looked = tokio::time::timeout(WAIT, async {
-        for (address, algorithm, alone) in &candidates {
-            let Some(text) = fetch_small(client, address.as_str(), *alone, &servers, options).await
-            else {
-                continue;
-            };
-            if let Some(found) = checksum::listed_for(&text, *algorithm, &names, *alone) {
+        for group in candidates.chunks(at_once.max(1)) {
+            let asked = group.iter().map(|(address, algorithm, alone)| {
+                ask_one(
+                    client, address, *algorithm, *alone, &servers, options, &names,
+                )
+            });
+            // The first in order that names the file, of the group asked together.
+            if let Some(found) = futures_util::future::join_all(asked)
+                .await
+                .into_iter()
+                .flatten()
+                .next()
+            {
                 return Some(found);
             }
         }
@@ -86,6 +96,20 @@ pub(super) async fn published_beside(
     })
     .await;
     looked.ok().flatten()
+}
+
+/// The digest one checksum file at `address` gives for the file, if it is one and names it.
+async fn ask_one(
+    client: &reqwest::Client,
+    address: &url::Url,
+    algorithm: Algorithm,
+    alone: bool,
+    servers: &[(Option<String>, Option<u16>)],
+    options: &Options,
+    names: &[&str],
+) -> Option<Checksum> {
+    let text = fetch_small(client, address.as_str(), alone, servers, options).await?;
+    checksum::listed_for(&text, algorithm, names, alone)
 }
 
 /// A server as a redirect judges one: its host and its port.
@@ -165,6 +189,7 @@ pub(super) async fn checksum_beside(
     options: &Options,
     mut checksum: Option<Checksum>,
     listed_mirrors: bool,
+    at_once: usize,
 ) -> (Option<Checksum>, bool) {
     /* Nothing typed and no Metalink's: a checksum file the server publishes beside the file
      * (`dm.zip.sha256`, `SHA256SUMS`) is the digest, checked as a typed one is (gaps row F5).
@@ -185,7 +210,15 @@ pub(super) async fn checksum_beside(
     } else if beside {
         // A pause or a cancel meanwhile ends the look with nothing found; the assembly below
         // honours it as it does any other.
-        checksum = published_beside(client, url, &info.final_url, &info.filename, options).await;
+        checksum = published_beside(
+            client,
+            url,
+            &info.final_url,
+            &info.filename,
+            options,
+            at_once,
+        )
+        .await;
     }
     let from_beside = beside && !from_header && checksum.is_some();
     (checksum, from_beside)

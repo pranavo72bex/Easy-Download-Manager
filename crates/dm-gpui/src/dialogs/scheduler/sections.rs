@@ -86,7 +86,7 @@ impl Scheduler {
             })
             .when(!main, |d| {
                 d.child(
-                    native::checkbox(
+                    native::switch_inline(
                         "own",
                         t("Hours of its own for this queue").into(),
                         own,
@@ -113,7 +113,7 @@ impl Scheduler {
                     .flex_col()
                     .gap(px(native::ROW_GAP))
                     .child(
-                        native::checkbox(
+                        native::switch_inline(
                             "enabled",
                             t("Only download between set hours").into(),
                             on,
@@ -159,7 +159,7 @@ impl Scheduler {
             // Where the system lets dm wake the computer.
             .when(dm_desktop_base::wake::possible(), |d| {
                 d.child(
-                    native::checkbox(
+                    native::switch_inline(
                         "wake",
                         t("Wake the computer from sleep to start").into(),
                         wake,
@@ -311,7 +311,7 @@ impl Scheduler {
             .when(cfg!(windows), |d| {
                 let hang = self.draft.schedule.hang_up;
                 d.child(
-                    native::checkbox(
+                    native::switch_inline(
                         "hang-up",
                         t("Hang up modem when done").into(),
                         hang,

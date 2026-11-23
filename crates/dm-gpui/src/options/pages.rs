@@ -82,6 +82,10 @@ struct Page {
     words: Vec<String>,
     /// The words of the item about to be added.
     saying: String,
+    /// Its sections' headings, in order: the page's summary in the list of pages (gaps row C21).
+    headings: Vec<String>,
+    /// What each item says first, as written: the summary of a page with no headings.
+    labels: Vec<String>,
     theme: Theme,
     screen: Screen,
 }
@@ -89,6 +93,9 @@ struct Page {
 impl Page {
     fn add(&mut self, element: impl IntoElement) {
         self.items.push(element.into_any_element());
+        if !self.saying.is_empty() {
+            self.labels.push(self.saying.clone());
+        }
         self.words
             .push(std::mem::take(&mut self.saying).to_lowercase());
     }
@@ -103,6 +110,7 @@ impl Page {
 
     /// A section's heading, a little apart from what is above it.
     fn section(&mut self, words: &str) {
+        self.headings.push(words.to_string());
         self.says(words);
         let heading = div()
             .mt(px(space::M_L))
@@ -118,17 +126,14 @@ impl Page {
         self.add(heading);
     }
 
-    /// What a check box does, under its words.
+    /// What a switch does, close under its row (gaps row C20: a switch's words start the row).
     fn hint(&mut self, words: &str) {
         self.says(words);
-        let hint = div()
-            .pl(px(UNDER_CHECK))
-            .when(crate::platform::ON_A_PHONE, |hint| hint.mt(px(-HINT_PULL)))
-            .child(native::note(
-                words.to_string(),
-                self.theme.muted,
-                &self.screen,
-            ));
+        let hint = div().mt(px(-HINT_PULL)).child(native::note(
+            words.to_string(),
+            self.theme.muted,
+            &self.screen,
+        ));
         self.add(hint);
     }
 
@@ -167,7 +172,7 @@ impl Page {
     }
 }
 
-/// A check box for one of the draft's switches: `flip` turns it.
+/// A switch for one of the draft's on/off settings: `flip` turns it (gaps row C20).
 fn check(
     p: &mut Page,
     cx: &mut Context<Options>,
@@ -177,7 +182,7 @@ fn check(
     enabled: bool,
     flip: fn(&mut Settings),
 ) {
-    let check = native::checkbox(id, words.to_string().into(), on, p.theme, &p.screen).on_click(
+    let check = native::switch(id, words.to_string().into(), on, p.theme, &p.screen).on_click(
         cx.listener(move |o, _, _, cx| {
             flip(&mut o.draft);
             cx.notify();
@@ -262,6 +267,8 @@ fn built(
         items: Vec::new(),
         words: Vec::new(),
         saying: String::new(),
+        headings: Vec::new(),
+        labels: Vec::new(),
         theme,
         screen: o.screen.clone(),
     };
@@ -278,6 +285,40 @@ fn built(
 
 /// What Options' search finds (gaps row U24): every setting whose words hold `wanted`, on
 /// whatever page, under its page's name, which a click opens.
+/// What page `tab` holds, in a line for the list of pages: its first sections' headings, in the
+/// words the page itself uses (gaps row C21).
+pub(crate) fn summary(
+    o: &mut Options,
+    tab: Tab,
+    theme: Theme,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+) -> String {
+    let page = built(o, tab, theme, window, cx);
+    // A page with no sections is summed up by its first settings' names.
+    let named = if page.headings.is_empty() {
+        page.labels
+    } else {
+        page.headings
+    };
+    named
+        .into_iter()
+        // A setting's name, without the explanation said with it.
+        .map(|words| {
+            words
+                .split(". ")
+                .next()
+                .unwrap_or(&words)
+                .trim()
+                .trim_end_matches(':')
+                .to_string()
+        })
+        .filter(|words| !words.is_empty() && words.len() <= 40)
+        .take(3)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 pub(crate) fn search(
     o: &mut Options,
     wanted: &str,

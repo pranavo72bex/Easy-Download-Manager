@@ -310,7 +310,7 @@ impl Progress {
                     .items_center()
                     .gap(px(native::LABEL_GAP))
                     .child(
-                        native::checkbox(
+                        native::switch_inline(
                             "own-limit",
                             t("Limit this download to").into(),
                             own_on,

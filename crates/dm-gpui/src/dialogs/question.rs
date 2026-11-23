@@ -252,15 +252,14 @@ impl Render for Question {
                     )
                     .when_some(self.asked.toggle.clone(), |d, toggle| {
                         d.child(
-                            native::checkbox("toggle", toggle, ticked, theme, &screen).on_click(
-                                cx.listener(|this, _, _, cx| {
+                            native::switch_inline("toggle", toggle, ticked, theme, &screen)
+                                .on_click(cx.listener(|this, _, _, cx| {
                                     this.ticked = !this.ticked;
                                     if let Some(reword) = &this.reword {
                                         this.asked = reword(this.ticked);
                                     }
                                     cx.notify();
-                                }),
-                            ),
+                                })),
                         )
                     })
                     .child(native::buttons(leading, trailing)),

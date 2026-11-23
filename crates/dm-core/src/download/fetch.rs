@@ -507,14 +507,9 @@ async fn fetch_found(
      * one: the file again on a single connection, from the start. The parts
      * go first, or the recorded plan of many ranges would be resumed. */
     if matches!(outcome, Err(Error::RangesIgnored)) && options.connections > 1 {
-        clear_parts(&options.parts_dir).await?;
-        let one = Options {
-            connections: 1,
-            ..options.clone()
-        };
         // Its own claim is made again by the run on one connection.
         drop(claimed);
-        return once_more(client, url, &one, again).await;
+        return on_one_connection(client, url, options, again).await;
     }
     outcome?;
 
@@ -525,18 +520,25 @@ async fn fetch_found(
         && options.connections > 1
         && workers > 1
     {
-        clear_parts(&options.parts_dir).await?;
         say_fetched_again(&again).await;
-        let one = Options {
-            connections: 1,
-            ..options.clone()
-        };
         drop(claimed);
-        return once_more(client, url, &one, again).await;
+        return on_one_connection(client, url, options, again).await;
     }
 
-    let (checksum, from_beside) =
-        sidecar::checksum_beside(client, url, &info, options, checksum, listed_mirrors).await;
+    // Asked as many at once as the download's connections were, no more than its server takes.
+    let at_once = workers
+        .min(options.connections_for(&info.final_url))
+        .min(crate::agents::ceiling_for(&info.final_url).unwrap_or(usize::MAX));
+    let (checksum, from_beside) = sidecar::checksum_beside(
+        client,
+        url,
+        &info,
+        options,
+        checksum,
+        listed_mirrors,
+        at_once,
+    )
+    .await;
     /* A Metalink supplies its own digest where the caller gave none, so the
      * options handed to assembly carry whichever applies — one place decides
      * whether a file is the file. */
@@ -727,6 +729,22 @@ async fn run_watched(
         let _ = handle.await;
     }
     (outcome, workers)
+}
+
+/// The file fetched again from its start on one connection: its parts removed first, or the
+/// recorded plan of many ranges would be resumed.
+async fn on_one_connection(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    again: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    clear_parts(&options.parts_dir).await?;
+    let one = Options {
+        connections: 1,
+        ..options.clone()
+    };
+    once_more(client, url, &one, again).await
 }
 
 /// Removes every staged part, for the file to be fetched again from the start.

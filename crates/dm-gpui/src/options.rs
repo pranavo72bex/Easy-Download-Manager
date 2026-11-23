@@ -13,6 +13,7 @@
 
 /// What is typed in its fields put into the draft.
 mod draft;
+mod pagelist;
 /// Its six pages (B43).
 pub(crate) mod pages;
 
@@ -42,6 +43,8 @@ use crate::window::zoom::px;
 /// scrolls. Smaller on Windows, where 600 points stood nearly the height of
 /// a laptop's screen.
 const WIDTH: f32 = crate::widgets::native::WindowSize::Options.here().0;
+/// The list of pages beside a page at a computer's width (gaps row C21).
+const PAGES_WIDTH: f32 = 200.0;
 const HEIGHT: f32 = crate::widgets::native::WindowSize::Options.here().1;
 
 /// Options' view.
@@ -92,6 +95,9 @@ pub struct Options {
     /// What Options' search field holds: the settings of every page that say it are shown in
     /// place of the page (gaps row U24).
     pub(crate) search: Entity<InputState>,
+    /// At a narrow width (a phone's, or a window narrowed to one), whether the list of pages
+    /// is shown, not a page: a page opens over it, with a bar back to it (gaps row C21).
+    pub(crate) pages_shown: bool,
 }
 
 /// Whether `text` is a number as a number box holds one.
@@ -347,6 +353,7 @@ impl Options {
 
     /// Another page shown, from its top.
     pub(crate) fn show(&mut self, tab: Tab, cx: &mut Context<Self>) {
+        self.pages_shown = false;
         if self.tab != tab {
             self.tab = tab;
             self.scroll.set_offset(gpui::point(px(0.0), px(0.0)));
@@ -361,67 +368,111 @@ impl Render for Options {
         self.screen.begin();
         let screen = self.screen.clone();
         let wanted = self.search.read(cx).value().to_string();
-        let page = if wanted.trim().is_empty() {
-            crate::options::pages::page(self, theme, window, cx)
-        } else {
+        let searching = !wanted.trim().is_empty();
+        // One layout for the phone and the computer, by the window's width (gaps row C21):
+        // narrow, the list of pages and a page are screens of their own; wide, side by side.
+        let narrow = crate::window::narrow::narrow_at(f32::from(window.viewport_size().width));
+        let list_only = narrow && self.pages_shown && !searching;
+        let page = if searching {
             crate::options::pages::search(self, &wanted, theme, window, cx)
+        } else if list_only {
+            Vec::new()
+        } else {
+            crate::options::pages::page(self, theme, window, cx)
         };
-        // The pages as a tab view's segments, as macOS draws them.
-        let phone = crate::platform::ON_A_PHONE;
         // A phone's Options has no Browser page: no browser extension reaches dm there.
-        let tabs = options::TABS
+        let phone = crate::platform::ON_A_PHONE;
+        let tabs: Vec<(options::Tab, &'static str)> = options::TABS
             .iter()
             .filter(|(tab, _)| !(phone && *tab == options::Tab::FileTypes))
-            .map(|(tab, words)| self.page_tab(*tab, words, theme, &screen, cx));
-        let mut header = Some(
+            .copied()
+            .collect();
+        let list = (!narrow || list_only).then(|| {
+            let entries: Vec<_> = tabs
+                .iter()
+                .map(|(tab, words)| {
+                    let summary = crate::options::pages::summary(self, *tab, theme, window, cx);
+                    self.page_tab(*tab, words, summary, narrow, theme, &screen, cx)
+                })
+                .collect();
             div()
-                .pt(px(native::MARGIN - 6.0))
-                .pb(px(native::ROW_GAP))
+                .id("pages")
+                .role(Role::TabList)
+                .flex()
+                .flex_col()
+                .gap(px(space::XS))
+                .overflow_y_scroll()
+                .when(narrow, |l| {
+                    l.flex_1().min_h_0().w_full().px(px(native::MARGIN))
+                })
+                .when(!narrow, |l| {
+                    l.flex_none().w(px(PAGES_WIDTH)).pr(px(space::M))
+                })
+                .children(entries)
+        });
+        // Search, for a setting whose page is not known (gaps row U24), across the top.
+        let header = div()
+            .px(px(native::MARGIN))
+            .pt(px(native::MARGIN - 6.0))
+            .pb(px(native::ROW_GAP))
+            .child(native::field(&self.search, "Find a setting", theme));
+        // Narrow, over a page: its name, and a way back to the list.
+        let back = (narrow && !self.pages_shown && !searching).then(|| {
+            let name = tabs
+                .iter()
+                .find(|(tab, _)| *tab == self.tab)
+                .map(|(_, words)| t(words))
+                .unwrap_or_default();
+            div()
+                .id("pages-back")
+                .role(Role::Button)
+                .aria_label(SharedString::from(t("Options")))
+                .tab_index(0)
+                .mx(px(native::MARGIN))
+                .mb(px(space::S))
+                .min_h(px(native::CONTROL))
                 .flex()
                 .items_center()
-                .justify_center()
-                // A phone's: search across the top, the pages' strip under it from the
-                // screen's start, scrolled sideways where it is wider (centred, it cut
-                // the first page's name).
-                .when(phone, |bar| {
-                    bar.flex_col()
-                        .items_stretch()
-                        .gap(px(space::M))
-                        .px(px(native::MARGIN))
-                })
-                // Search, for a setting whose page is not known (gaps row U24).
-                .child(div().when(!phone, |d| d.w(px(170.0))).child(native::field(
-                    &self.search,
-                    "Find a setting",
-                    theme,
-                )))
+                .gap(px(space::M))
+                .cursor_pointer()
+                .text_color(theme.accent)
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.pages_shown = true;
+                    cx.notify();
+                }))
+                .child(screen.label(format!("‹ {}", t("Options"))))
                 .child(
                     div()
-                        .id("pages")
-                        .role(Role::TabList)
-                        // A phone's: every page's name whole, on a second line where the
-                        // screen has no room for them on one.
-                        .when(phone, |strip| strip.flex_wrap())
-                        .p(px(1.0))
-                        .flex()
-                        .gap(px(space::LINE))
-                        .rounded(px(native::RADIUS))
-                        .border_1()
-                        .border_color(theme.control_border)
-                        .bg(theme.control)
-                        // A phone's: each page a chip of its own, apart, from the start.
-                        .when(phone, |strip| {
-                            strip
-                                .justify_start()
-                                .gap(px(space::S))
-                                .p_0()
-                                .border_0()
-                                .bg(gpui::transparent_black())
-                        })
-                        .children(tabs),
+                        .text_color(theme.text)
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .child(screen.label(name.to_string())),
                 )
-                .into_any_element(),
-        );
+        });
+        let page_view = (!list_only).then(|| {
+            div()
+                .id("page")
+                .flex_1()
+                .min_h_0()
+                // Its long lines wrap within it rather than widening it past the window.
+                .min_w_0()
+                .when(!narrow, |page| {
+                    page.rounded(px(native::RADIUS))
+                        .border_1()
+                        .border_color(theme.separator)
+                })
+                .when(narrow, |page| {
+                    page.border_t_1().border_color(theme.separator)
+                })
+                .overflow_y_scroll()
+                .track_scroll(&self.scroll)
+                // The settings its own children, so the page scrolls to one by its place
+                // (Advanced to its proxy section, where a proxy was refused).
+                .p(px(space::XL))
+                .flex()
+                .flex_col()
+                .gap(px(native::ROW_GAP))
+                .children(page)
+        });
         let root = crate::widgets::native::dialog("options", t("Options"), theme, cx)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
@@ -439,44 +490,16 @@ impl Render for Options {
             .text_color(theme.text)
             .flex()
             .flex_col()
-            // A computer's search and pages stay above the page; a phone's scroll away with
-            // it, so the settings have the screen (fixed, they took a third of it).
-            .when(!phone, |root| {
-                root.child(header.take().unwrap_or_else(|| div().into_any_element()))
-            })
+            .child(header)
+            .children(back)
             .child(
                 div()
-                    .id("page")
                     .flex_1()
                     .min_h_0()
-                    // A phone's page runs edge to edge, as a phone's settings do.
-                    .when(!phone, |page| {
-                        page.mx(px(native::MARGIN))
-                            .rounded(px(native::RADIUS))
-                            .border_1()
-                            .border_color(theme.separator)
-                    })
-                    .when(phone, |page| {
-                        page.border_t_1().border_color(theme.separator)
-                    })
-                    .overflow_y_scroll()
-                    .track_scroll(&self.scroll)
-                    // The settings its own children, so the page scrolls to one by its
-                    // place (Advanced to its proxy section, where a proxy was refused): a
-                    // column inside it was its one child, and that scroll went nowhere.
-                    .p(px(space::XL))
                     .flex()
-                    .flex_col()
-                    .gap(px(native::ROW_GAP))
-                    .when(phone, |page| {
-                        page.child(
-                            div()
-                                .mx(px(-space::XL))
-                                .mt(px(-space::XL))
-                                .child(header.take().unwrap_or_else(|| div().into_any_element())),
-                        )
-                    })
-                    .children(page),
+                    .when(!narrow, |body| body.px(px(native::MARGIN)))
+                    .children(list)
+                    .children(page_view),
             )
             .child(self.footer(theme, &screen, cx));
         crate::window::safe::kept_clear(root, window)
@@ -484,78 +507,6 @@ impl Render for Options {
 }
 
 impl Options {
-    /// A page's segment on the pages' strip, as a tab view's, as macOS draws them.
-    fn page_tab(
-        &self,
-        tab: Tab,
-        words: &'static str,
-        theme: Theme,
-        screen: &Screen,
-        cx: &Context<Self>,
-    ) -> gpui::Stateful<gpui::Div> {
-        let on = self.tab == tab;
-        div()
-            .id(SharedString::from(words))
-            .role(Role::Tab)
-            // Reached by Tab, chosen by Space or Return (gaps row U2).
-            .tab_index(0)
-            // A phone's chip chosen by a tap keeps its colour: the focus a tap leaves it was
-            // drawn over it, and no page looked chosen.
-            .focus(move |s| {
-                if on && crate::platform::ON_A_PHONE {
-                    s.bg(theme.accent)
-                } else {
-                    s.bg(theme.stripe)
-                }
-            })
-            .aria_label(SharedString::from(t(words)))
-            .aria_selected(on)
-            .px(px(space::L))
-            .h(px(native::CONTROL - 2.0))
-            .flex()
-            .items_center()
-            .rounded(px(native::RADIUS - 1.0))
-            .when(crate::platform::ON_A_PHONE, |chip| {
-                chip.rounded_full()
-                    .border_1()
-                    .border_color(theme.control_border)
-                    .bg(theme.control)
-            })
-            .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
-            .child(screen.label(t(words)))
-            .on_click(cx.listener(move |this, _, _, cx| this.show(tab, cx)))
-            // On the pages' strip, the arrows move from page to page, the keyboard's
-            // place with them, as a tab view's do (gaps row U2).
-            .on_key_down(
-                cx.listener(move |this, event: &gpui::KeyDownEvent, window, cx| {
-                    let by = match event.keystroke.key.as_str() {
-                        "left" | "up" => -1,
-                        "right" | "down" => 1,
-                        _ => return,
-                    };
-                    if event.keystroke.modifiers.modified() {
-                        return;
-                    }
-                    cx.stop_propagation();
-                    let at = options::TABS
-                        .iter()
-                        .position(|(t, _)| *t == tab)
-                        .unwrap_or(0);
-                    let last = options::TABS.len() - 1;
-                    // Not round the end, where the next place to go is another control.
-                    if (by < 0 && at == 0) || (by > 0 && at == last) {
-                        return;
-                    }
-                    this.step_page(by, cx);
-                    if by > 0 {
-                        window.focus_next(cx);
-                    } else {
-                        window.focus_prev(cx);
-                    }
-                }),
-            )
-    }
-
     /// Under the page: what went wrong, and the buttons, Restore defaults where the page has
     /// settings of its own.
     fn footer(&self, theme: Theme, screen: &Screen, cx: &Context<Self>) -> gpui::Div {
@@ -750,6 +701,7 @@ fn open_window(
                 screen,
                 heard: dm_shell::host::browsers_heard(&dm_shell::settings::home()),
                 search: search.clone(),
+                pages_shown: true,
             });
             // Each letter typed into the search draws the settings it finds.
             cx.subscribe(&search, {

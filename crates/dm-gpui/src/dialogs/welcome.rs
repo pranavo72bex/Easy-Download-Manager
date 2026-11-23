@@ -169,7 +169,7 @@ impl Render for Welcome {
                     // undone: it starts with the computer, in the tray, so a
                     // download clicked in the browser always has dm to go to.
                     .child(
-                        native::checkbox(
+                        native::switch_inline(
                             "at-login",
                             t("Start dm with the computer, in the tray").into(),
                             self.at_login,

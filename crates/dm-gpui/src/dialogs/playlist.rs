@@ -357,7 +357,7 @@ impl PlaylistWindow {
             .items_center()
             .gap(px(native::LABEL_GAP))
             .child(
-                native::checkbox(
+                native::switch_inline(
                     "follow",
                     t("Check again every").into(),
                     follow,
