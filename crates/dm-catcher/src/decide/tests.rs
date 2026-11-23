@@ -46,6 +46,7 @@ fn the_plain_page_script_answers_by_the_names_the_background_uses() {
     assert!(script.contains(&format!("'{SKIP_MESSAGE}'")));
     assert!(script.contains(&format!("'{TAKE_MESSAGE}'")));
     assert!(script.contains(&format!("'{LINKS_MESSAGE}'")));
+    assert!(script.contains(&format!("'{TRACK_MESSAGE}'")));
     // The keys are read from the rules as the protocol names them.
     let rules = serde_json::to_value(dm_protocol::CatchRules::default()).unwrap();
     for field in ["keepKey", "takeKey"] {

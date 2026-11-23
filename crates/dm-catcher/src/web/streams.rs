@@ -79,13 +79,18 @@ async fn read_track(tab: i64, url: &str, requester: &str) {
     let page = PAGES.with(|p| p.borrow().now(tab));
     let bytes = match fetch_start(url, requester, decide::TRACK_READ_CAP, 4000.0).await {
         Ok(bytes) => bytes,
-        Err(why) => {
-            log(
-                "debug",
-                &format!("a file's first bytes were not read: {why}"),
-            );
-            return;
-        }
+        // Refused to the background, which no page of the server's sent: asked of the page,
+        // whose own requests its server answers (issue #56).
+        Err(first) => match track_from_page(tab, url, requester).await {
+            Ok(bytes) => bytes,
+            Err(why) => {
+                log(
+                    "debug",
+                    &format!("a file's first bytes were not read: {first}; from its page: {why}"),
+                );
+                return;
+            }
+        },
     };
     if !PAGES.with(|p| p.borrow().still(tab, page)) {
         return;
@@ -97,6 +102,35 @@ async fn read_track(tab: i64, url: &str, requester: &str) {
         return;
     }
     keep_streams(tab).await;
+}
+
+/// The first [`decide::TRACK_READ_CAP`] bytes of `url`, read by the page script of tab `tab`'s
+/// top frame (`decide::TRACK_MESSAGE`): sent from the page, with its referrer, as its player's
+/// requests are. Only an address the background itself may read (`decide::may_reread`).
+async fn track_from_page(tab: i64, url: &str, requester: &str) -> Result<Vec<u8>, String> {
+    if !decide::may_reread(url, requester) {
+        return Err("not an address to read for this page".into());
+    }
+    let asked = to_js(&serde_json::json!({
+        "type": decide::TRACK_MESSAGE,
+        "url": url,
+        "cap": decide::TRACK_READ_CAP,
+    }));
+    let frame = to_js(&serde_json::json!({ "frameId": 0 }));
+    let answer = call(
+        "tabs",
+        "sendMessage",
+        &[JsValue::from_f64(tab as f64), asked, frame],
+    )
+    .await?;
+    if get(&answer, "ok").as_bool() != Some(true) {
+        return Err(get(&answer, "why")
+            .as_string()
+            .unwrap_or_else(|| "the page did not answer".into()));
+    }
+    let bytes: Vec<u8> = serde_json::from_value(from_js(&get(&answer, "bytes")))
+        .map_err(|e| format!("the page's answer was not bytes: {e}"))?;
+    Ok(bytes.into_iter().take(decide::TRACK_READ_CAP).collect())
 }
 
 /// A request a page's frame is sending (`webRequest.onBeforeRequest`, handed on whole): a form

@@ -34,6 +34,11 @@ pub const MENU_SELECTED_LINKS: &str = "dm-selected-links";
 /// those in the selection.
 pub const LINKS_MESSAGE: &str = "dm.links";
 
+/// What the background asks the page script for when a file's server refused the background's
+/// own read of its first bytes: the same bytes, read from the page, with the page as referrer
+/// (issue #56: Bilibili's `bilivideo.com` mirrors answer 403 to a request no page of theirs sent).
+pub const TRACK_MESSAGE: &str = "dm.track";
+
 /// How many links one page hands over at most: a page of ten thousand is a
 /// listing nobody meant to download whole, and the dialog has to draw them.
 pub const MOST_LINKS: usize = 2000;

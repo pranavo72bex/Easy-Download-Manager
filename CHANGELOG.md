@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed (browser extension): a Bilibili video could reach dm as its picture alone, with no sound, where Bilibili served its sound from a `bilivideo.com` mirror: that server refused the extension's own look at the file's first bytes (403), so the sound was never recognised. The look is now made from the page when the server refuses it otherwise (issue #56).
+
 ## App 0.10.3, Android app 0.10.3
 
 Torrents on the phone. The extension is unchanged (3.5.0). 0.10.2 was built but not published; everything in it is in this release.

@@ -241,6 +241,29 @@
     }
   }, true);
 
+  // The background's 'dm.track': the first bytes of a file the page's player fetched, read from the
+  // page, whose referrer its server checks (issue #56: Bilibili's bilivideo.com mirrors refuse the
+  // background's own read with 403). Only https, only the range asked for, no redirect followed,
+  // the bytes kept to what was asked; the background reads from them whether it is picture or sound.
+  ext.runtime.onMessage.addListener((message, _sender, reply) => {
+    if (!message || message.type !== 'dm.track') return false;
+    const cap = Math.min(Number(message.cap) || 0, 65536);
+    let url;
+    try { url = new URL(String(message.url)); } catch { url = null; }
+    if (!url || url.protocol !== 'https:' || cap <= 0) {
+      reply({ ok: false, why: 'not a file to read' });
+      return false;
+    }
+    fetch(url.href, { headers: { Range: `bytes=0-${cap - 1}` }, credentials: 'include', cache: 'no-store', redirect: 'error' })
+      .then((answer) => {
+        if (!answer.ok) throw new Error(`its server answered ${answer.status}`);
+        return answer.arrayBuffer();
+      })
+      .then((body) => reply({ ok: true, bytes: Array.from(new Uint8Array(body, 0, Math.min(body.byteLength, cap))) }))
+      .catch((why) => reply({ ok: false, why: String(why && why.message || why) }));
+    return true;
+  });
+
   // The background's 'dm.links': the addresses a page holds, or the selection holds, in the order a
   // person would look for them: links (`a`, then `area`), images, then for "all links" the frames
   // and every address written in an inline script, and for "selected links" the plain-text

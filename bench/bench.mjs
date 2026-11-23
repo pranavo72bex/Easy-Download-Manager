@@ -14,6 +14,8 @@
 //                reference A baseline yet)
 //                slowname (the file under a name whose every lookup takes 300 ms: asked by name,
 //                no baseline yet, dm alone unless the computer's DNS is pointed at the harness)
+//                fast1g capped latency slowconn maxconns drops small256k, or all seven as refc
+//                (reference C's own scenarios, gaps row C0: asked by name, seven runs each)
 //                inet (public internet, never a floor)   selftest (the server alone)
 //
 // The server, the bytes it serves and the scenarios below are the standard the baseline was
@@ -31,6 +33,7 @@
 //   BENCH_REFA_DIR        where reference A saves (default: <work>/refa)
 //   BENCH_CEILING_DIR     where `ceiling` writes (default: dm's download folder)
 //   BENCH_REPS            repetitions for fast, per_conn and flaky
+//   BENCH_REFC_REPS       repetitions for reference C's seven (default 7)
 //   BENCH_TAG             suffix for the result files' names
 //   BENCH_CURL            curl for `selftest` (default: Windows' own on Windows)
 //   BENCH_WAN_TLS         0 serves `wan` over plain HTTP (dm trusts the harness's certificate
@@ -131,7 +134,7 @@ function newRun(key, sc, files) {
   const run = {
     key, sc, files, // files: name -> { data, sha }
     requests: [], conns: new Set(), sockets: new Set(), served: 0, firstReq: null, lastByte: null,
-    active: 0, maxActive: 0, activeFiles: new Map(), maxFiles: 0,
+    active: 0, maxActive: 0, activeFiles: new Map(), maxFiles: 0, answers: 0,
     bucket: { budget: 0, last: Date.now() }, cuts: prng(0xC0FFEE), outage: null, firstAfterOutage: null,
     losses: prng(0x1055), stalls: 0, // `lossy` alone
     timeline: [], // [ms since firstReq, bytes] every 250 ms
@@ -163,15 +166,28 @@ const handle = (req, res) => {
     status = 206; heads['content-range'] = `bytes ${a}-${b}/${size}`;
   }
   heads['content-length'] = String(b - a + 1);
+  // `maxconns`: past `sc.maxConns` answers being sent at once, a request is refused with 503, as a
+  // server that allows so many connections a client does.
+  if (sc.maxConns && req.method !== 'HEAD' && run.active >= sc.maxConns) {
+    run.requests.push({ t: now, method: req.method, range: req.headers.range || null, file: m[2], sent: 0, refused: true });
+    res.writeHead(503, { 'content-length': '0' });
+    return res.end();
+  }
   const entry = { t: now, method: req.method, range: req.headers.range || null, file: m[2], sent: 0 };
   run.requests.push(entry);
   res.writeHead(status, heads);
   if (req.method === 'HEAD') return res.end();
   run.sockets.add(sock);
   run.active++; run.maxActive = Math.max(run.maxActive, run.active);
+  const nth = ++run.answers;
   run.activeFiles.set(m[2], (run.activeFiles.get(m[2]) || 0) + 1);
   run.maxFiles = Math.max(run.maxFiles, run.activeFiles.size);
-  const cutAfter = sc.cut ? Math.floor(sc.cut[0] + run.cuts() * (sc.cut[1] - sc.cut[0])) : Infinity;
+  // `drops`: every `sc.cutEvery[0]`-th answer is cut after `sc.cutEvery[1]` bytes.
+  const cutAfter = sc.cut ? Math.floor(sc.cut[0] + run.cuts() * (sc.cut[1] - sc.cut[0]))
+    : sc.cutEvery && nth % sc.cutEvery[0] === 0 ? sc.cutEvery[1] : Infinity;
+  // `slowconn`: every `sc.crawl[0]`-th answer crawls at `sc.crawl[1]` bytes a second, the others
+  // at the scenario's own rate (none: as fast as they go).
+  const rate = sc.crawl && nth % sc.crawl[0] === 0 ? sc.crawl[1] : sc.perConn;
   const conn = { budget: 0, last: Date.now(), pieceLeft: 0 };
   let at = a, gone = false, done = false;
   const finish = () => {
@@ -184,8 +200,8 @@ const handle = (req, res) => {
   const take = (n) => {
     const t = Date.now();
     let k = n;
-    if (sc.perConn) {
-      conn.budget = Math.min(conn.budget + sc.perConn * (t - conn.last) / 1000, 128 * 1024); conn.last = t;
+    if (rate) {
+      conn.budget = Math.min(conn.budget + rate * (t - conn.last) / 1000, 128 * 1024); conn.last = t;
       k = Math.min(k, Math.floor(conn.budget));
     }
     if (sc.total) {
@@ -196,7 +212,7 @@ const handle = (req, res) => {
     // Send in pieces of at least 16 KiB (or what is left): a write of a few bytes each turn of the
     // loop makes the server, not the cap, the limit.
     if (k < Math.min(16384, n)) return 0;
-    if (sc.perConn) conn.budget -= k;
+    if (rate) conn.budget -= k;
     if (sc.total) run.bucket.budget -= k;
     return k;
   };
@@ -204,7 +220,7 @@ const handle = (req, res) => {
     if (gone) return;
     if (at > b) return res.end();
     if (run.outage && Date.now() < run.outage.end) return sock.destroy();
-    let want = Math.min(sc.perConn || sc.total ? 65536 : MiB, b - at + 1, cutAfter - entry.sent);
+    let want = Math.min(rate || sc.total ? 65536 : MiB, b - at + 1, cutAfter - entry.sent);
     if (want <= 0) return sock.destroy(); // this connection's cut
     if (sc.loss) {
       // `lossy`: the bytes go in pieces of `sc.loss.piece`, and a lost piece is what TCP does
@@ -276,6 +292,7 @@ async function lineFor(sc) {
 // names under .test alone. Reference A takes the system's resolver, which only a person can point
 // here (BENCH_SLOWNAME_SYSTEM=1): until then the case runs for dm alone.
 const NAME_MS = Number(process.env.BENCH_SLOWNAME_MS || 300);
+const REFC_REPS = Number(process.env.BENCH_REFC_REPS || 7);
 const NAME_SYSTEM = process.env.BENCH_SLOWNAME_SYSTEM === '1';
 let nameServer = null;
 async function namesUp() {
@@ -493,7 +510,9 @@ async function runDm(urls, names, size, timeoutMs, gate) {
   while (Date.now() - t0 < timeoutMs) {
     mine = (await d.rows()).filter((r) => !before.has(r.id));
     if (mine.length === urls.length && mine.every((r) => ['completed', 'failed', 'cancelled'].includes(r.state?.kind))) break;
-    await sleep(100);
+    // As often as a finished file is looked for (DONE_POLL_MS): reference C's medians were timed
+    // by a look every millisecond, so its seven are run with BENCH_DONE_POLL_MS=5.
+    await sleep(DONE_POLL_MS);
   }
   const t1 = mine.length === urls.length && mine.every((r) => r.state?.kind === 'completed') ? Date.now() : null;
   closerOff(); await sleep(1500); await closeRefa();
@@ -629,11 +648,26 @@ const SC = {
   slowname: { size: 64 * MiB, perConn: 1 * MiB, cut: [1 * MiB, 4 * MiB], nameMs: NAME_MS,
               label: `64 MiB under a name that takes ${NAME_MS} ms to resolve each time, each connection 1 MiB/s and cut after 1-4 MiB`,
               reps: Number(process.env.BENCH_REPS || 2), timeoutMs: 240000 },
+  // Reference C's own seven (its docs/bench/run5/REPORT.md, gaps row C0), seven runs each as it
+  // runs them, asked by name or all at once as `refc`. Its "MB/s" are taken as 1,000,000 bytes a
+  // second and its "150 ms latency" as the round trip; no reference A baseline.
+  fast1g:    { size: 1024 * MiB, label: '1 GiB over a fast local link', reps: REFC_REPS, timeoutMs: 300000 },
+  capped:    { size: 100 * MiB, perConn: 2000000, label: '100 MiB, 2 MB/s per connection', reps: REFC_REPS, timeoutMs: 300000 },
+  latency:   { size: 100 * MiB, perConn: 4000000, rttMs: 150, label: '100 MiB, 150 ms latency, 4 MB/s per connection', reps: REFC_REPS, timeoutMs: 300000 },
+  slowconn:  { size: 32 * MiB, crawl: [3, 128000], label: '32 MiB, one connection in three crawls at 128 KB/s', reps: REFC_REPS, timeoutMs: 300000 },
+  maxconns:  { size: 50 * MiB, perConn: 2000000, maxConns: 2, label: '50 MiB, the server allows 2 connections (503 past them), 2 MB/s each', reps: REFC_REPS, timeoutMs: 300000 },
+  drops:     { size: 50 * MiB, perConn: 4000000, cutEvery: [2, 2 * MiB], label: '50 MiB, every 2nd connection cut after 2 MiB, 4 MB/s each', reps: REFC_REPS, timeoutMs: 300000 },
+  small256k: { size: 256 * 1024, label: '256 KiB file over a fast local link', reps: REFC_REPS, timeoutMs: 60000 },
 };
+const REFC = ['fast1g', 'capped', 'latency', 'slowconn', 'maxconns', 'drops', 'small256k'];
 const DATA = {}, SHAS = {};
 
 async function scenario(name) {
   const sc = SC[name];
+  // Reference C's seven each with a dm of its own, as its own were each run in a process of their
+  // own: one server serves them all, and what dm learnt of it in one (maxconns' two at once, kept
+  // for the rest of a run by `agents::remember_ceiling`) is not carried into the next.
+  if (REFC.includes(name) && dm) { dm.stop(); dm = null; await sleep(1500); }
   if (WITH_REFA && !runsCase('refa', sc)) console.log(`# ${name}: dm alone; reference A looks names up through the system, which is not pointed at the slow name (BENCH_SLOWNAME_SYSTEM, bench/README.md)`);
   DATA[name] = []; SHAS[name] = [];
   for (let i = 0; i < (sc.files || 1); i++) { const d = makeData(sc.size, 1000 + i * 7 + name.length); DATA[name].push(d); SHAS[name].push(sha(d)); }
@@ -775,7 +809,7 @@ async function selftest() {
   closerOff();
 }
 
-const asked = process.argv.slice(2);
+const asked = process.argv.slice(2).flatMap((s) => (s === 'refc' ? REFC : [s]));
 const todo = asked.length ? asked : ['idle', 'fast', 'per_conn', 'flaky', 'outage', 'batch', 'big40', 'ceiling'];
 for (const s of todo) if (!(s in SC) && !['inet', 'idle', 'selftest', 'ceiling'].includes(s)) { console.error(`unknown scenario ${s}`); process.exit(2); }
 console.log(`# apps ${APPS.join(', ')}; dm ${DM || '-'}; results in ${OUT}`);

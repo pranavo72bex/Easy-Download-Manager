@@ -1,0 +1,12 @@
+{
+  "what": "Reference C's own published benchmark (its docs/bench/run5/REPORT.md, 2026-10-29), its program not run here: the maintainer, 2026-11-23, 'use only ref value'. Its machine: Windows 11, an i5-13400F, 63.8 GB, its loopback test server, its program at its defaults (8 connections). Medians of seven runs; ms. gaps row C0.",
+  "scenarios": {
+    "fast1g":    { "medianMs": 1009,  "startupMs": 14, "finishMs": 556, "connections": 17, "requests": 31, "cpuMs": 1765.6, "peakMemoryMB": 106.2 },
+    "capped":    { "medianMs": 6319,  "startupMs": 14, "finishMs": 14,  "connections": 12, "requests": 17, "cpuMs": 281.2,  "peakMemoryMB": 100.4 },
+    "latency":   { "medianMs": 3844,  "startupMs": 14, "finishMs": 32,  "connections": 17, "requests": 24, "cpuMs": 265.6,  "peakMemoryMB": 101.9 },
+    "slowconn":  { "medianMs": 3432,  "startupMs": 13, "finishMs": 8,   "connections": 15, "requests": 32, "cpuMs": 250.0,  "peakMemoryMB": 100.5 },
+    "maxconns":  { "medianMs": 12568, "startupMs": 14, "finishMs": 9,   "connections": 2,  "requests": 2,  "cpuMs": 390.6,  "peakMemoryMB": 96.4 },
+    "drops":     { "medianMs": 1647,  "startupMs": 14, "finishMs": 27,  "connections": 19, "requests": 26, "cpuMs": 203.1,  "peakMemoryMB": 102.1 },
+    "small256k": { "medianMs": 30,    "startupMs": 14, "finishMs": 8,   "connections": 4,  "requests": 6,  "cpuMs": 93.8,   "peakMemoryMB": 98.2 }
+  }
+}
