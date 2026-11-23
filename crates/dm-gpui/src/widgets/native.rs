@@ -621,8 +621,9 @@ pub fn dialog<V: CloseButton>(
         .bg(theme.window)
         // A phone's dialog fills the screen with no title bar of the system's: its own top
         // bar names it, and its Back does what the close button does, as the phone's Back.
+        // A column there, so what is under the bar takes the rest of the screen and scrolls.
         .when(crate::platform::ON_A_PHONE, |root| {
-            root.child(phone_bar(
+            root.flex().flex_col().child(phone_bar(
                 label,
                 theme,
                 cx.listener(|this, _: &gpui::ClickEvent, window, cx| this.close_button(window, cx)),

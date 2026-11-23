@@ -11,10 +11,81 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
-## First priority: improvements from reference C (rows C)
+## The order to take everything in (the maintainer, 2026-11-23)
+
+The maintainer, 2026-11-23: most of the time goes on testing; the extension should only catch
+links and the app do the rest; the phone and the desktop should share one window and one engine,
+so a thing is built once; and dm should be faster. So the groups below are in the order that
+makes the next one cheaper, not by section. A row stays in its own table, where its detail is.
+Found by reading this file and counting lines, not by running anything.
+
+**How a row is tested (the work order of 2026-11-17, kept):** while a group is coded, a row runs
+`cargo check`, clippy on its crates and its own tests only. `cargo test --workspace`,
+`human-qa.py`, the benchmark and the site checks run once, at the end of the group, and by CI
+where group 1 has made that possible.
+
+1. **Tests stop costing time.** A few days, and every later row is cheaper for it.
+   - 216: CI on main is red, so no machine can do the testing for a person.
+   - 221 and "Watch" below: the wall-clock tests allow for the runner's speed in one way, as
+     `bench/` does, so a run is not repeated for a few per cent.
+   - 213 (the window's tests abort on Windows) and X8 (clippy for Android).
+   - R5: the contract's rows and the benchmark run in CI after a push.
+   - 189: a build with symbols, so a profiler names dm's functions (groups 3 and 5 need it).
+   - This file (no row): 320 KB, read at the start of every session. The rows are shortened
+     as section C's were; a row "Coded, waits for step 8" that the Mac's pass of 2026-11-21
+     passed says only what Windows or Linux still owe.
+2. **Security that stops real harm, then its proof.** H's steps 1 and 2, in that section's
+   order. A row of H that adds a line to the window (H1, H3 to H6, H19, H20, H25, H27, H28) is
+   coded when its word is given; if group 4 is not done by then, it is built for both layouts.
+3. **The engine's speed** (dm-core alone, so nothing here is redone by group 4). The bench on
+   Windows with the GPUI build first (176, 175); then S6 on Windows; 175's two leftovers in the
+   engine (the small blocks kept after the start, tokio's second copy of a write); 177 with S5;
+   171; S4, 185 and 186 measured; 172; C0's latency.
+4. **One window code for phone and desktop.** Before any row that adds or changes a window, so
+   each is built once: V8, V9, V10, V11, V12 and V17; N20 with N23 and N24; the components V18
+   to V25 as a screen needs them; V13. Then V26 and V15, so layout is checked by a machine and
+   not by eye. Then one sitting at a phone for all that must be seen there: N31, V14, V21 and
+   the rows N that "Mobile first" still lists. The words (V1 to V7) wait for the maintainer;
+   given in time, a dialog's words change in the same commit as its layout.
+5. **The window's speed** (after group 4: V10 makes the list one code, and a saving made in
+   the table or the cards before that is made twice). C0c, 181, S11, S16, S20, the Download
+   complete window's 5 MiB (175), 210, 194, 187; then C17's table in the README.
+6. **The extension only catches.** A23, before C12, C14, R4 and any other row that touches the
+   extension.
+7. **What is left of security:** H's steps 3 and 4, and H7, H8, H18, H23 and H26.
+8. **Features, each built once:** rows C; the rows W, Y, F and U that are coded or approved;
+   then those still waiting, as each answer comes.
+9. **Structure and docs:** rows A, X, P and D, a row that shortens later work first (A16, A14,
+   A7, A8).
+10. **The whole pass on Windows and Linux, once:** step 8 of "Work order" below, the sites
+    (Y26) and the long runs (W3, W4).
+
+Where this departs from what stands below: group 1 comes before the security rows, as a red CI
+and tests that fail by chance slow those too; nothing else is put ahead of H's steps 1 and 2.
+"Mobile first" keeps its place for what blocks an APK; its layout rows are group 4.
+
+## Highest priority: security (rows H, the maintainer, 2026-11-23)
+
+The maintainer, 2026-11-23: "give highest priority to security". The security rows H ("Safer
+than any other download manager", further down) come before every other row in this file: before
+the Android rows N, rows C below, and rows V and W. Take them in the order that section gives:
+
+1. A day each, stops real harm: H1, H2, H12, H14, H16, H17, H21, H22.
+2. The proof: H10, H11, H13, H15, H24, H29, H30.
+3. What no other manager has together: H3 to H6, H19, H20, H23, H25, H27.
+4. The sandboxes: H9, H31.
+
+What does not change: a row marked "the maintainer's word" or "decide" still waits for that
+word before it is coded (`docs/behaviour-contract.md`); while one waits, the next H row is
+taken, and only when no H row can move does work go on to rows N, then C. A security defect
+found by running something (a failing check, a reproduced bug) becomes an H row and goes to the
+top of step 1.
+
+## Second priority: improvements from reference C (rows C)
 
 Features from another free, GPL, pure-Rust download manager (reference C) that dm should match
-or beat, set as first priority by the maintainer on 2026-11-23. Ideas only, never its code; the
+or beat, set as first priority by the maintainer on 2026-11-23 and placed after security (rows
+H) the same day; among themselves, the Android rows N still come before rows C. Ideas only, never its code; the
 clean-room rule applies. Out of scope: what dm already has, what earlier decisions dropped
 (debrid accounts, phone remote control, hosting files, galleries through a helper program), and
 technology-only items (encrypted DNS, themes, crash reports). Decisions: `docs/decisions.md`,
@@ -109,7 +180,7 @@ ask the firewall question): a DHT-only magnet found peers in 5 to 6 s on the Mac
 emulator. Released as 0.10.3.
 
 The maintainer, 2026-11-21: "give most priority to mobile. it should be ready", and "signing for
-desktop is ignored intentionally". The Android rows (N) come before every other row. The goal is
+desktop is ignored intentionally". The Android rows (N) come before every other row except the security rows H (the maintainer, 2026-11-23: security highest). The goal is
 an APK a person installs from the release page, which does what `docs/android.md`'s checklist
 says on a real phone. Today it has run on one phone (Samsung SM-M156B, Android 16): downloads,
 Stop and Resume, magnets, a shared link, a YouTube share and the background service all worked.
@@ -299,8 +370,9 @@ churn and the package's size); G8 (the release workflow's packages from a draft 
 **2. Small, nothing to ask:** X4, X2, S4, Y6, Y10, U41, U27, Y14, 172 (the harness's batch case),
 190 (criterion benches), R3 (Windows on Arm in the release matrix), W23, P8.
 
-**3. Speed, memory and CPU** (each change judged by its one `bench` or `ui-bench.py` case): 175,
-176, 177, 171, S5, S6, S16, 181, S11, 185, 186.
+**3. Speed, memory and CPU** (each change judged by its one `bench` or `ui-bench.py` case; the order
+within it is in section S, "The order"): C0c, 175, 176, 177, 171, S5, S6, S20, S16, 181, S11,
+185, 186.
 
 **4. Videos:** Y9, Y8, Y13, Y16, Y20, Y21, Y25, Y4, Y5, Y2.
 
@@ -437,6 +509,25 @@ the GPUI release build. Tried and dropped already, not to be proposed again (`do
 another allocator, HTTP/2 for speed, 256 KiB write buffers, full preallocation, `panic = "abort"`,
 staging on the download drive, copying to it during the download.
 
+**The order (2026-11-23, from the rows' own figures; nothing run that day).** Where dm stands:
+download time leads or ties reference C in six of its seven scenarios, latency left (C0); CPU is
+under reference A's floor in every scenario on macOS and over it on Windows in `idle`,
+`per_conn`, `flaky` and `big40` (176); CPU on a slow server is 3 to 6 times reference C's (C0c);
+memory on macOS is 107 MiB at rest and 117 to 133 downloading against floors near 21 (175); the
+first frame comes at 370 to 410 ms with 10,000 rows (S16). So, after rows H and N:
+
+1. C0c: the window redraws only when what it shows changes. The largest gap; measure the
+   window's share against `--headless` on `capped` first.
+2. `node bench/bench.mjs` and `compare.mjs` on Windows with the GPUI release build: 175's
+   Windows memory is still the egui window's, and 176's CPU there is from 2026-11-13.
+3. S6 on Windows only, kept if `cpuMs` falls by a tenth.
+4. Memory that is dm's own: 175's three leftovers on macOS (the 5.7 MB of small blocks the start
+   frees and the heap keeps, tokio's second copy of each write, the Download complete window's
+   5 MiB), then S20.
+5. S16: compile and measure the first screenful's naming, then the window's own 190 ms and the
+   shaders compiled at each launch.
+6. 189 before S11: a release build with symbols, so `sample` names dm's functions at 10,000 rows.
+
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
 | S4  | Each seam is now asked for once, as soon as both its ranges are whole, and nothing after the last byte (2026-11-11, with S2 and S3: `assemble::check_seams`); what is left is that the range whole second asks for its seams on its own connection before that connection takes more work, a round trip or two (about 1 ms on macOS's loopback; Windows unmeasured) | Coded, waits for step 8 (2026-11-18): a range whole hands its claimed spans on (`assemble::hand_on`) and its connection takes its next work at once; one task of the download (`assemble::ask_handed`) asks them on the places of the connections done with ranges, as many at once as such places (`Handed::freed`), so the server is never asked more at once than the download's connections asked of it; a server seen to limit keeps its checks for after the ranges, one at a time (`ask_left`, `take_due`). `tests/seam_check.rs` `a_range_whole_takes_its_next_work_without_waiting_for_its_checks` (the next range 3.1 s after, before; at once now) and `checks_beside_the_ranges_never_ask_more_than_a_sites_limit_of_connections` (4 at once to a site limited to 3 in 2 runs of 3, before; at most 3 now) pass on Windows (the seam tests 5 runs of 5), with the grow, halving and download tests; `limits.rs`'s two timed tests failed on the busy laptop with and without the change alike (5 pairs, alternated). Owed, on the Mac: `cargo clippy -p dm-core --all-targets`, `cargo test -p dm-core --test seam_check --test limits`, `cargo xtask privacy` and `layers` after the last edits (the test server's count of requests at once taken from its log, two statements of `assemble.rs` reflowed); `transferSeconds` in `flaky` and `outage` (row 171) · S | Each seam asked for on a connection of its own from the pool, not holding the range's, without asking more of a server that limits connections than it takes (`docs/decisions.md` 2026-11-09); `transferSeconds` in `flaky` and `outage` on Windows (row 171) |
@@ -444,6 +535,7 @@ staging on the download drive, copying to it during the download.
 | S6  | Every chunk is copied once more into the file handle's buffer and written through the blocking pool. Tried and measured (2026-11-16, macOS, M1): one positional writer per range, the ledger in the same trip, one write in flight; against the build before it, alternated, 8 runs each, no gain (`per_conn` CPU 1,075 against 980 ms, `flaky` 1,185 against 1,205, `fast` 500 against 490, memory equal), so dropped (`docs/decisions.md`, 2026-11-16). Open only for Windows, where the blocking pool cost more | OPEN · M · measure on Windows first | `cpuMs` in `per_conn` and `flaky` on Windows falls by a tenth or more with such a writer; otherwise closed as not worth it |
 | S11 | A wake of the window rebuilds for every row. Mostly done by row 181 (a read works out names, places and sorting again only where a row was added, removed or changed). Measured 2026-11-16 (`ui-bench.py`, release, M1, 3 runs): a scroll 0.027 s at 100 rows and 0.028 s at 10,000, so scrolling holds; 20 downloads queued cost 10.8 to 13.2% of a core at 100 rows and 9.9 to 18.5% at 10,000 over five runs (medians 13.0 and 17.7), too spread to say it grows; `sample` during the 10,000-row runs found the threads nearly all waiting and could not name dm's own functions, the release build keeping no symbols (row 189). Found and fixed on the way: a click on a heading saved and applied every setting on the window's thread (0.069 s at 100 rows, 0.017 s at the baseline), now `keep_look` (0.017 s; 0.033 s at 10,000, 0.263 s at the baseline) | PARTIAL · M | `ui-bench.py --only busy` at 10,000 rows within a tenth of its figure at 100 |
 | S16 | The start waits on the main thread for the settings, the client and the whole queue before any window exists (`boot.rs:105-109`, `shell.rs:416-489`), then for the login item; macOS compiles its shaders at each launch (`runtime_shaders`) | PARTIAL · M: done (2026-11-12, 74afdf06): the login item is put in step after the window is made, on a thread of its own. Left: the settings, the client and the queue before any window; measured 2026-11-16 (`ui-bench.py --only start`, release, M1): first drawn frame 0.40 s at 100 rows, 0.63 s at 10,000. Traced the same day (`DM_FINISH_TRACE`, `start: …` marks, release, M1, 10,000 rows): settings, client and list 165 to 197 ms (72 with an empty list), the window made 190 ms whatever the list, its first read 75 ms (none empty). Done then: the list's save at start is no longer waited for (45 ms) and the parts folder is listed once, not looked at row by row (30 ms): 110 to 150 ms, the first frame at 370 to 410 ms where it was 428 to 518. Tried and dropped: each folder listed once to name the rows, 5 ms of the read's 40. Left: the read's 75 ms (the names of every row, 35 ms; names used twice, 22 ms; the places, 11 ms) and the window's own 190 ms. Coded 2026-11-20, not compiled (the laptop codes only): before the first frame only the rows it can show are named (the first 200 as shown, those chosen and those running: `window/list/placing.rs` `name_first_screenful`), the rest once it is drawn (`on_next_frame`, `name_the_rest`) or before a port's answer can read them; GPUI's application (its platform and text system) is made on the main thread while dm boots on a `dm-boot` thread (`lib.rs` `boot_and_run`), the window still made once the queue is read; and `runtime-shaders`, a dm-gpui feature on by default, so that a Mac with the Metal compiler builds with `--no-default-features` and has the shaders compiled ahead. Not coded: the window drawn before the queue is read, which shows an empty list in its first frame (a change a person sees: the maintainer's word first). The Mac: build, test and clippy; then `DM_FINISH_TRACE=1` (`start: …` marks), `ui-bench.py --only start` and `launch-latency.py` at 100 and 10,000 rows, before and after, and once more built with `--no-default-features` where `xcrun -f metal` answers; if the shaders ahead help, the macOS package's build passes it (the packager's `beforePackagingCommand`) | The window drawn while the queue loads; the login item later; shaders built ahead. `launch-latency.py`: 0.32 s at 100 rows and 0.43 s at 10,000 both fall |
+| S20 | A hidden dm that is only downloading keeps its whole window in memory. A bare Metal window of dm's size is 81 to 83 MiB resident (row 175), most of dm's 107 MiB at rest, so no saving inside dm's own share reaches reference A's floor on macOS. An idea from the figures, not a defect seen: whether dm already lets go of the renderer when its window is closed to the menu bar or tray has not been read in the code, nor measured | OPEN · M · read and measure first | First the working set with the window closed and downloads running, against the window open and against `--headless`, on each system. If the window's share is still held: let go of the renderer and its buffers while no window is shown and make them again when one opens, the open no slower than a tenth of a second more (`ui-bench.py --only start` as the measure) and nothing a person sees changed (`docs/behaviour-contract.md`). If it is already let go, or the open grows slower than that, closed as not worth it |
 
 ### U. The window and the browser: fewer steps, no dead ends
 
@@ -502,6 +594,7 @@ why; every file sampled opens with what it is for.
 | A19 | Numbers and notes with no home: durations inline (`ranged.rs:52`, `runner.rs:49`); 53 `eprintln!` beside `backend.note`, no one way to log | PARTIAL · M: done (2026-11-18): the window's spacing, lines and corners in dm-gpui's `widgets/space.rs` (99 places; `cargo xtask layers` refuses a gap, padding or margin written as a literal on the scale), the kinds' colours and Windows' close red in `window/theme.rs`. The rest coded 2026-11-19, not compiled (the Windows laptop codes only): one `note!(error | warn | info, …)` in `dm_net::log` (re-exported as `dm_core::note!`), writing `<level>: <words>` on stderr, in place of 31 product `eprintln!` (their words unchanged; a command line's own answers to the person kept as `eprintln!`); 78 durations named as documented consts where they are tunables, values unchanged (`SAMPLE_EVERY`, `dm_net::control::STOP_LOOK` shared by the stream protocols, …). Waits for step 8: clippy and the tests on every system (some consts sit in Linux- or macOS-only modules). Found by reading and fixed the same day (coded, not compiled): in `rtsp.rs` and `rtmp/session.rs` the 30 s silence timeout was made again on each 250 ms pass of the stop check, so a silent server was waited on for ever (MMS ended by the client's own read timeout, in its words rather than the sentence in `docs/guide/failures.md`), and RTMP's reader, not safe to drop, was dropped at each pass; each now keeps one pinned wait across the stop checks (`record_within`, tests `a_server_that_goes_silent_is_said_to_have` in `mms/tests.rs`, `rtsp/tests.rs`, `rtmp/tests.rs`) | Timing named once; one `note!` path with levels; B25's pictures unchanged |
 | A20 | Comments tell history, not the code: outside the egui crate, 98 mentions of egui ("as the egui window does"), 105 of gaps rows, 70 dates, 107 "used to" or "without this"; some point at things long gone (`category.rs` cites a `naming.js`; `dm-core/Cargo.toml:111` "into a webview"; `dm-shell/Cargo.toml` names an earlier window toolkit) | PARTIAL · M: the toolkit's part done 2026-11-19, not compiled (comments only, but for one test's name): every comment in the crates and the extension that named egui, eframe, Tauri or a migration phase says what the code does now (about 190 lines in 100 files; `window/menus/tests.rs`'s `the_window_has_five_menus_with_exit_options_and_about` renamed from its egui name), and the three pointers the row names are rewritten (`category.rs`, `dm-core/Cargo.toml`, `dm-shell/Cargo.toml`). `cargo xtask layers` now refuses `egui`, `eframe` and "Phase A" to "E" in the crates' sources and manifests (`migration_words`, test `the_windows_migration_is_not_told_in_the_crates`); the installer's `dmReplaceEguiWindow` step is one word and passes. History done too (2026-11-19, about 330 comment lines in 100 files): "used to", "until …", "without this X happened" and dates that only said when a comment was written now say what the code does or keep the reason as "would" or "otherwise"; pointers to things gone (`background.js`, `qa/baseline.md`, the `dm-desktop` crate) rewritten. Kept on purpose: the gaps-row and behaviour-contract references (they name why), the maintainer's approval notes (their dates only dropped), dates that find an entry in `docs/decisions.md` or say when a site or a measurement was seen, and about 100 such lines in all. Coded, waits for step 8: xtask's tests (`the_crates_are_layered_as_they_should_be` reads every crate) | A comment says what and why now; history is in `docs/decisions.md` and git; xtask refuses "egui" and "Phase A to E" in product source once G9 is done |
 | A21 | One thing, several names in the code: the type is `Entry`, the code says "row" 3,252 times and "download" 2,055; `Queue` is the whole list and also a named queue; "host" is the browser's host, the JavaScript host and an address's host; `Job`, `Segment`, range, part, piece | PARTIAL · L: the glossary written (2026-11-13; completed and moved into `AGENTS.md` › Glossary on 2026-11-14: each word, what it is, and the name to use). The clash renamed too (coded 2026-11-19, not compiled): the type is `dm_core::DownloadList` (121 sites in 44 files; the glossary and the docs that describe today's code say so); "queue" in the code is now a named queue alone (`Place::Queue`, `Column::Queue`, a row's `queue`). Waits for step 8: `cargo check` on every crate | The glossary (`AGENTS.md`) first; then the queue against queues clash renamed |
+| A23 | The extension decides, where it should only catch. `dm-catcher` is 18,178 lines of Rust: `decide/` 10,388 (4,809 of them tests), `web/` 3,058, `content/` 2,516, `words/` 1,163, the popup 470, the panel 461, beside 1,115 lines of JavaScript (row 169). In `decide/` are the catch rules, the excluded sites, the site rules, a page's streams and their manifests (1,448 lines), the panel's lines (660) and choices (492), headers, renewal and protection. So a site's fix is written and tested in the extension, waits for a store's review, and the phone, which has no extension, cannot use it. Counted, not read file by file: which of it is already shared through `dm-protocol` is the first thing to find out | OPEN · L · read first | The extension keeps what only a browser can do: a download's start (held, handed over, cancelled once taken), the menus, what the page and its player asked for, the panel drawn in the page, the popup's switches. It sends what it saw; the app answers what to do. Every rule and every site's name is in the app (`dm-protocol`, `dm-shell`), tested there once, and used for a link the phone is given too. Kept: a download is never lost (no answer in time and the browser keeps it); a new app works with an old extension and the other way round (the protocol's version); nothing a person sees changes (`docs/behaviour-contract.md`). Measured before and after: from the browser's download starting to dm's row, no slower than a tenth of a second more. `chrome-check.py` (Edge) and `firefox-check.py` pass as they are |
 
 ### X. One codebase, three systems (the maintainer, 2026-11-17)
 
@@ -665,8 +758,179 @@ The Kotlin app and the Slint shell were removed unbuilt; the shell's JNI modules
 | N20 | The phone and the desktop are one window, but each action is wired into the narrow layout by hand (`window/narrow/sheet.rs`, `rowmenu.rs`, `narrow.rs`), so a feature can land on the desktop with no way in by touch, and nothing notices (the audit of 2026-11-22 found N23 and N24 that way) | OPEN · M | Every action declared once, in one list, with where it shows (menu, row menu, place menu, toolbar) and, if it is desktop-only, why (`docs/decisions.md`, 2026-11-22). Both layouts draw their menus from it. A test walks the list and fails on an action the narrow layout cannot reach, or one it shows that does nothing there |
 | N23 | Desktop actions that touch cannot reach: Undo after Remove lives in the status bar (not drawn on the phone) and Edit › Undo (macOS's menu bar alone) (`window/statusbar.rs:113`, `narrow.rs:116`); a tap always picks one card (`narrow/cards.rs:400-423`), so several downloads are chosen only by Select all; a place's menu (a category's Open folder, Add or edit categories, a queue's Start, Stop and Scheduler) opens on a right click alone (`window/sidebar.rs:425`) | PARTIAL · M · with N20 | Done 2026-11-23: choosing several (a card menu's Select, then taps tick or untick; a top bar with the count, Select all, Delete, ✕, and Share for one finished file; Back ends it; test `select_in_a_cards_menu_chooses_several_with_taps`); Undo after Remove as a bar over the list's foot (test `removing_on_the_phone_offers_undo_in_a_bar`); a place held in the drawer opens its menu as a sheet (test `a_place_held_opens_its_menu_as_a_sheet`). Left: seen on the emulator; Share of several files (Android's SEND_MULTIPLE) |
 | N24 | Lines the phone shows that do nothing there, or that belong to a desktop's way of working: View › Columns, Show categories, Show toolbar (the cards and the narrow bar read none of them, `menus/bar_menus.rs:222-236`); View › Drop target, which would open the floating window as a full screen (`platform/droptarget.rs:196`); Options › General › Sounds (no player on Android, `dm-desktop-base/src/platform/power.rs:190`: the notification's own sound is the phone's way); Options › Pop-ups' "open the progress window" and "Download complete" window, ignored on the phone (`list/adding.rs:353`, `list/complete.rs:56`); Help › Check for updates (it knows only `.dmg`, `-setup.exe` and `.AppImage`, `dm-shell/src/app/update.rs:193-216`: the store updates the phone's app); Options › Advanced's "The computer's proxy settings" (not followed on Android; a proxy typed in still works); Save part of a video as a GIF (no decoder on Android, `dm-media/src/frames/other.rs`); Delete file's "to the Trash" wording (`NO_TRASH`, `dm-android/src/phone.rs:245`: the confirmation says the file is deleted for good) | PARTIAL · S · with N20 | Done 2026-11-23 and seen on the emulator: View's side panel, toolbar, drop target, columns and toolbar's look, Help › Check for updates and Options › General › Sounds are not drawn on the phone; then Pop-ups' progress and Download complete windows, Check for updates once a week, Ask where to save browser downloads, the computer's proxy settings and a video part as a GIF (`gif::possible_for` says no on Android), each seen on the emulator; Delete already says the file goes for good there. Left: "Double-clicking a download" worded for a tap on the phone; then | Each marked desktop-only in N20's list, with its reason, and so not drawn on the phone |
-| N31 | Not yet seen at a phone's size: each dialog opens as a full-screen window clear of the bars (`safe::edges`), but is still laid out at its desktop width (Scheduler, Grabber, Download details and the video's quality list, Properties, batch download, Statistics, Back up, the speed limiter, the progress window); nor whether a long press in a text field offers Cut, Copy and Paste (on the desktop, Edit's menu) | OPEN · M · a run first | Each dialog opened on the emulator at 360 wide and screenshotted beside `docs/android.md`'s checklist; one that is cut off or scrolls sideways gets a narrow layout of its own, and a text field's long press gets the menu if it lacks one |
-| N32 | The APK's `versionCode` is written by hand in `crates/dm-android/android/app/build.gradle.kts`; 0.10.1 shipped with 1, and Android installs a release over an older one only where the number rose | OPEN · S: 0.10.2 sets 2 (2026-11-22). Next: derive it from the version (major·10000 + minor·100 + patch), or a check in `android.yml` that fails a tag whose `versionCode` is not above the last release's | Each release's `versionCode` above the last, by rule, not by hand |
+| N31 | Not yet seen at a phone's size: each dialog opens as a full-screen window clear of the bars (`safe::edges`), but is still laid out at its desktop width (Scheduler, Grabber, Download details and the video's quality list, Properties, batch download, Statistics, Back up, the speed limiter, the progress window); nor whether a long press in a text field offers Cut, Copy and Paste (on the desktop, Edit's menu) | PARTIAL · M | Done 2026-11-23, seen on the emulator (412 wide): a phone's dialog scrolls under its top bar (`widgets/fit.rs`; Properties' buttons had been out of reach below the screen); Properties keeps the keyboard down for a finished download; the Scheduler stacks its queues above the hours, Start at and Stop at wrap, and it leaves out Sleep, Hibernate, Turn off computer and Run this program; Options › Folders' kinds are setting rows with switches, its explanations small and grey, Archive passwords a section of its own. Add URL and Options fit. Left: Grabber, Download details and the quality list, batch download, Statistics, Back up, the speed limiter, the progress window; a text field's long press. Plan: each dialog opened on the emulator at 360 wide and screenshotted beside `docs/android.md`'s checklist; one that is cut off or scrolls sideways gets a narrow layout of its own, and a text field's long press gets the menu if it lacks one |
+| N33 | `dm-core/tests/seam_check.rs` `a_ranges_own_checks_are_asked_at_once` failed once in a full `cargo test --workspace` (2026-11-23: the checks came over more than its 0.5 s limit); alone it passed 5 of 5. Its limit is wall-clock, so a loaded machine can stretch the gap between ranges finishing | OPEN · S | Measure the spread from each range's finish, not from the first check, or let the limit allow for a loaded runner; then 20 full runs without a failure |
+
+## Safer than any other download manager (rows H, the maintainer, 2026-11-23)
+
+Asked for by the maintainer on 2026-11-23: what can be done on Android and the desktop to make
+dm "much better secure" and better than the others in its market. Ideas only, nothing coded.
+Found by reading the source, the manifest, the workflows and both security reports, not by
+running anything, so each row's first step is to confirm the gap. A row marked "the maintainer's
+word" adds a line, a dialog or wording to the window and waits for approval; "decide" is as in
+the audit of 2026-11-11.
+
+**Already there, not to be redone:** secrets sealed in the system's store (the phone's TEE key);
+the update manifest and `SHA256SUMS` signed (F6, W21); the mark of the web and macOS's
+quarantine on finished files; checksum files read by themselves; redirects, playlists and
+Metalink held off inside addresses, DNS rebinding caught at the connection; unpack limits
+(size ratio, nothing outside the folder); a peer blocklist and peer encryption for torrents;
+`cargo audit` and `cargo deny` in CI; workflow actions pinned by commit; `allowBackup="false"`
+and only the needed components exported on the phone; `SECURITY.md`.
+
+### H, first part: the file a person is about to open (both systems)
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| H1  | A finished program (`.exe`, `.msi`, `.scr`, `.lnk`, `.apk`, `.dmg`, `.pkg`, `.jar`, a script) opens from the list like any file; a name such as `invoice.pdf.exe`, or one with right-to-left marks that hide its ending, is shown as the server wrote it | OPEN · S · the maintainer's word | The row shows the file's real kind; Open asks once for a file the system would run; marks that reorder a name are taken out (`naming.rs` removes control characters only) |
+| H2  | A file whose contents are not what its name or the server's type says (named a picture or a PDF, begins as a program) is not noticed | OPEN · S | Read the first bytes of the finished file (Windows, Linux, macOS and Android program headers, script lines); on a mismatch the row says so and H1's question is asked. Nothing sent |
+| H3  | Nothing shows who made a downloaded program | OPEN · M to L · decide | Properties › "Signed by": the signer read from a Windows program, a macOS app or an APK (read only, dm's own Rust); "not signed" said plainly. Decide which of the three formats comes first (APK is the smallest) |
+| H4  | Only checksum files are checked; a signature published beside a download (`.minisig`, `.sig`, `.asc`) is ignored | OPEN · M · decide | Start with minisign and signify (Ed25519, already in the tree); the person pastes or keeps the publisher's key per site; the row says "signed by the key you keep for …". OpenPGP is large: decide separately |
+| H5  | A finished file is checked once; years later nothing can say whether it changed | OPEN · S · the maintainer's word | Keep the SHA-256 of each finished file; "Check file again" on a row compares; Properties shows the digest with Copy |
+| H6  | A download over plain `http://` looks the same as one over HTTPS, and a checksum fetched over plain HTTP beside it is believed as much | OPEN · S to M · the maintainer's word | Try `https://` first for a typed or pasted `http://` address and fall back only when it fails; the row says "not encrypted"; a checksum that came unencrypted is called "matches, but could have been changed on the way" |
+| H7  | A lookalike address (letters of another alphabet in a host name) is shown as it was written | OPEN · S | Add URL, Download details and the hand-off show such a host in its `xn--` form with a line saying why |
+| H8  | A certificate failure is one sentence for every cause | OPEN · S | Say which it is (expired, wrong name, unknown issuer, the computer's clock wrong) with what to do next in `docs/guide/failures.md`; never a "continue anyway" button |
+
+### H, second part: keeping an attack inside a box
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| H9  | The code that reads hostile input (the JavaScript interpreter, media muxers, archive readers, the torrent, RTMP, RTSP and MMS parsers) runs with all of dm's rights (the audit of 2026-11-12, "Still owed") | OPEN · L · decide | A worker process with no network, no home folder and only the file it was handed: seatbelt on macOS, seccomp and Landlock on Linux, AppContainer on Windows, `isolatedProcess` on Android. Decide which readers go first (archives and the muxers: they need no network) |
+| H10 | Parts the last audit did not cover: the torrent peer and tracker code, RTMP, RTSP and MMS, the decompressors and muxers in depth, the Windows script path, Firefox-only paths, and every line of the Android app (JNI, intents, receivers, storage), written after it | OPEN · M | A second audit in the same way, one hunter per boundary, the phone as a boundary of its own; each finding a row with a test |
+| H11 | The fuzz tests are property tests with made-up input; none is guided by coverage, and several readers have none | OPEN · M | A coverage-guided target per reader of outside input (torrent files, peer messages, HLS and DASH, ZIP, 7z, RAR, tar, MP4, the JavaScript parser), run nightly in `fuzz.yml`; each crash kept as a test |
+| H12 | Release builds turn off the check for number overflow, where a wrong length from a server does its harm | OPEN · S | `overflow-checks = true` for the crates that read outside input; `bench` shows no loss, else only for the parsers |
+| H13 | Nothing checks that a built release has the system's protections | OPEN · S | `cargo xtask hardening-check` on each release file: position-independent, read-only relocations, no writable-and-runnable memory, Control Flow Guard and safe DLL search on Windows, the hardened runtime on macOS, a release APK not debuggable; the release job fails otherwise |
+| H14 | Replies with no stated length are limited by time only (`zipinfo::range`, the seam checks, an MMS description), and `videopage/fetch.rs` judges a path with `starts_with`, which lets `..` through (the audit's hardening notes) | OPEN · S | A byte limit on each such read; the path made whole before it is judged; a test each |
+| H15 | Passwords, cookies and the control token stay in memory after use, and no test proves none reaches a log, the journal or Help › Contact support's text | OPEN · M | Wipe them when dropped; a test plants known secrets, runs a session with failures, then searches dm's home and the support text for them |
+
+### H, third part: the phone
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| H16 | Any app can hand dm a link, a magnet or a `.torrent` through the open activity; nothing limits how many, how large, or what a `content://` or `file://` address may point at | OPEN · S to M | Review the door as its own boundary: a size limit on a `.torrent` read from another app, a burst of shares held to one question, never read from dm's own private folder, the `file://` filters dropped (Android 10 and up do not hand files that way); host tests in `intent.rs` |
+| H17 | The manifest's safety is kept by hand: a new permission or an opened component would ship unnoticed | OPEN · S | A test compares the release APK's merged manifest with a kept list (permissions, exported components, `allowBackup`, not debuggable) and fails on any difference |
+| H18 | Which certificate roots the phone's dm trusts is not written down or tested (trackers use built-in roots, row N8's fix); a root a person or another app added may be trusted unseen | OPEN · S | One rule for every connection, written in `docs/android.md` and tested: the public roots only, a person's own roots only when they say so in Options |
+| H19 | Anyone holding the unlocked phone sees every download; the list also shows in the recent-apps picture | OPEN · M · the maintainer's word | Options › "Lock dm": the phone's fingerprint, face or PIN asked on opening; the recent-apps picture blanked while on; off by default |
+| H20 | Every file lands in the shared Download folder, where the gallery and every app with media access see it | OPEN · M · the maintainer's word | "Keep inside dm" for a download (with Keep no record, W17): saved in dm's private storage, opened from dm, moved out by Share or Save to; with H19 a private vault no other manager offers without advertising |
+| H21 | The notification shows file names on the lock screen | OPEN · S | Names hidden on a locked screen ("1 download running"); always for Keep no record downloads |
+| H22 | Nobody can check that an APK is dm's own before installing it | OPEN · S | The signing certificate's SHA-256 in the README and on each release, with the one command that checks it; F-Droid's build compared with dm's own (reproducible, with W21) |
+
+### H, fourth part: the network
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| H23 | "Only through" (a VPN's adapter, W12) refuses torrents and leaves name lookups on the system's route, so a torrent cannot be held to a VPN and a lookup leaks around it | OPEN · M | Bind peers, trackers, the DHT and name lookups to the adapter; on Android bind to the VPN network the system reports; when it drops everything waits. The switch people ask torrent apps for most |
+| H24 | No test proves that with a proxy or "Only through" set, nothing leaves another way | OPEN · M | A leak test: two local addresses and a proxy, every kind of download plus the update check; any packet on the wrong path fails |
+| H25 | dm says it contacts nobody but the sites a person downloads from; a person cannot see that for themselves | OPEN · M · the maintainer's word | View › "What dm connected to": the hosts of this session and why (download, tracker, update check), kept in memory only; nothing written |
+| H26 | A torrent tells peers and trackers the client's name and version, and opens a port on the router by itself | OPEN · S · decide | Options › BitTorrent: "Tell peers as little as possible" (a plain peer id, no version) and the router port asked before it is opened; decide the defaults |
+
+### H, fifth part: who may drive dm, and proof for outsiders
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| H27 | One token gives a script or an AI assistant every right; "assistants only" is a label, not a control (the audit's note) | OPEN · M · decide | A token per client with stated rights (read only; add downloads; change settings), listed in Options with Revoke and when each was last used; an assistant's default is read and add |
+| H28 | What a script or assistant did through the control port leaves no trace a person can read | OPEN · S · the maintainer's word | View › "Activity from scripts": the last commands, which client, when; in memory only |
+| H29 | A release has checksums and a signature, but no proof of which commit and workflow built it | OPEN · S | Build attestations made by the release job (free on GitHub) for every file, APK included, and a bill of materials made from `crates.txt`; `docs/RELEASING.md` says how to check both |
+| H30 | No page tells a person what dm protects against and what it does not | OPEN · S | `docs/guide/security.md`: the threats covered (a hostile server, page, other app or peer), the ones not (a computer already taken over), each line pointing at its test; linked from the README and `SECURITY.md` |
+| H31 | Linux and macOS installs run with the person's full rights; no sandboxed package exists | OPEN · M to L · decide | A Flatpak with file access through portals and the download folder alone; then the same question for a sandboxed macOS build. Decide whether the browser hand-off can work from inside |
+
+**Order to take them:** what costs a day and stops real harm first (H1, H2, H12, H14, H16, H17,
+H21, H22), then the proof (H10, H11, H13, H15, H24, H29, H30), then the features no other
+manager has together (H3 to H6, H19, H20, H23, H25, H27), then the boxes (H9, H31). These rows
+come before every other row in this file, the Android rows N included (the maintainer,
+2026-11-23: "give highest priority to security"; the top of this file).
+
+**Not listed:** encrypted DNS (left out with rows C, 2026-11-23); looking a file up at an online
+scanner (it would send what a person downloads to someone else; Options' "run on each finished
+file" already takes a scanner of the person's own); desktop signing (R1, set aside).
+
+## Shorter words, and one window that fits phone and desktop (rows V, the maintainer, 2026-11-23)
+
+Asked for by the maintainer on 2026-11-23: text that is short and professional, a better
+layout, and one UI code in GPUI that adapts to phone and desktop. Ideas only, nothing coded.
+Found by reading `dm-gpui`, `assets/i18n/template/catalog.json` and `docs/ui-design.md`, not by
+running anything. Every row here changes wording or layout that `docs/behaviour-contract.md`
+fixes, so each waits for the maintainer's word, changes its contract rows and
+`docs/behaviour-baseline/` in the same commit, and ends with `human-qa.py`.
+
+**Where it stands:** the window is already one code for both (`dm-gpui`), with a second layout
+below 600 points (`window/narrow.rs`). Three things hold it back:
+
+- The choice between the two layouts is made by hand: `is_narrow` is asked about 70 times in
+  20 files outside `window/narrow/`, which is itself 1,562 lines. A screen is in effect written
+  twice.
+- There is one breakpoint, so a tablet, a phone on its side and a half-width desktop window
+  get a stretched phone or a squeezed desktop.
+- The words were written for a wide dialog: of 1,030 strings, 150 are over 60 characters and
+  24 over 120 (the longest is 283); capitals are mixed ("Stop All", "Delete Completed" beside
+  sentence case).
+
+### V, first part: the words
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| V1  | No written rule for wording: `docs/ui-design.md` covers colours and sizes only | OPEN · S | A "Words" section: sentence case; a button is a verb of one or two words; a label under 40 characters; a help line under 90, one idea; no "please", no "!"; say "you", not "the user"; numbers with their unit. With U20's list of one word per thing |
+| V2  | 150 strings over 60 characters, 24 over 120; on a phone a setting's explanation fills the screen | OPEN · M | Each long string cut to one short line under its setting; the rest moves to that setting's page in `docs/guide/`, opened by a "Learn more" link. Longest first (the dial-up, firewall, "Only through", backup and seeding texts) |
+| V3  | Capitals are mixed: "Stop All", "Start Queue", "Delete Completed", "File Name", "Last Try Date" beside sentence-case lines | OPEN · S | Sentence case everywhere ("Stop all", "File name"); menu words that follow reference A are changed in `docs/parity.md` in the same commit |
+| V4  | A failure is told in several shapes ("could not" 16 times, "failed" 6, "cannot" 5), often in one long sentence | OPEN · M | One shape: what happened in a few words on the row ("Server refused the sign-in"), what to do in the details ("Check the user name and password in Properties"). `docs/guide/failures.md` follows |
+| V5  | The row's status, sizes and dates have one form; a card on a phone needs a shorter one | OPEN · S | One formatter with a full and a short form ("45% · 2.1 MB/s · 3 min", "Yesterday"), picked by the room the text has, never by the system |
+| V6  | Nothing keeps the words short once they are fixed, and a translation can be far longer than its English | OPEN · S to M | `cargo xtask words` (beside `i18n`): fails on a string over its kind's limit, on Title Case, on a word outside U20's list, and on a translation over 1.4 times its English. V15's pictures catch what still does not fit |
+| V7  | All fourteen languages carry the old long strings | OPEN · M, after V2 to V4 | Translate the new short strings; the changed ones go to each language's unread list (W23) |
+
+### V, second part: one layout code that adapts
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| V8  | One breakpoint at 600 points: narrow or wide, nothing between | OPEN · M | Three widths, from the window's width alone: compact (under 600: a phone), medium (600 to 840: a tablet, a phone on its side, a small desktop window), expanded (over 840). One function gives the class; nothing asks which system it runs on |
+| V9  | Screens pick their layout by hand (`is_narrow` in 20 files), so each screen is built twice and the two drift apart (how N23 and N24 happened) | OPEN · L | Five adaptive parts in `widgets/`, each drawing itself for the width class; screens say what they hold, not how it is laid out. See the list under this table. Closes when `is_narrow` is used only inside `widgets/`, held by a test |
+| V10 | The list is a table when wide and a card when narrow, two codes | OPEN · M, with V9 | One row description with a priority per field (Name, Status, Size, Speed, Time left, Date, Queue, Note). As the window narrows, the lowest-priority columns go first; at compact what is left stacks into a card. No sideways scrolling at any width |
+| V11 | 29 dialogs open at fixed sizes, and 40 widths are written as bare numbers in `dialogs/` and `options/`; on a phone they open full screen but keep the desktop's layout (N31) | OPEN · M, with V9 | Every dialog built from the Form and Dialog parts: a least and a best width instead of a fixed one, fields under their labels when compact. Closes N31 |
+| V12 | Size and touch are treated as one thing: narrow means big touch targets, wide means mouse | OPEN · M | Two separate questions. Width picks the layout; the pointer in use (finger or mouse) picks the row height (48 against 32), hover, tooltips and long press against right click. A narrow desktop window stays dense; a tablet with a wide window gets touch sizes |
+| V13 | Bare sizes remain beside the spacing tokens (`widgets/space.rs`): text sizes of 10, 12, 16 and 20 and gaps of 3, 5, 7, 9 and 14 written in place | OPEN · S | A type ramp as tokens (Caption, Body, Body strong, Subtitle) beside the spacing ones; a test fails on a bare `px(…)` size outside `widgets/` and `theme/` |
+| V14 | Not checked: large text (the phone's font scale up to 200%), a phone on its side, split screen, a folding phone, the keyboard over a dialog's field | OPEN · M · a run first | Each seen on the emulator; text wraps rather than clips, the focused field scrolls above the keyboard, the layout follows the width class while the window changes |
+| V15 | Layout is checked by eye, one size at a time (`ui-shot.py`) | OPEN · M | One command takes the main window and every dialog at 360, 600, 840 and 1280 wide, light and dark, normal and 200% text, left-to-right and right-to-left. The harness reports any text cut off or any part outside its parent, so a broken layout fails without a person looking |
+| V16 | An empty list and a first start show little guidance, and what there is was sized for the desktop | OPEN · S · a look first | One short line and one button ("No downloads yet" · "Add link"), the same part at every width |
+
+**V9's five parts** (each one code, three drawings):
+
+| Part | Compact | Medium | Expanded |
+|------|---------|--------|----------|
+| Navigation (the places) | bottom bar | narrow rail of icons | side panel with names and counts |
+| Commands (from N20's one list of actions) | top bar, a floating Add button, the rest under "More" | top bar with the main actions named | menu bar and toolbar |
+| List (V10) | cards | rows of two lines | table with columns |
+| Form (label and field) | label above field, full width | label beside field | label beside field, two columns where it helps |
+| Dialog | full screen or a bottom sheet | centred sheet | its own window |
+
+### V, third part: the components (text field, button, picker and the rest)
+
+Added at the maintainer's word the same day: "also textfield and other components adaptive for
+both mobile and desktop". The shared controls are in `widgets/native.rs`, `popup.rs` and
+`bottomsheet.rs`. They already have a phone form, but it is chosen when dm is built
+(`ON_A_PHONE`, 63 uses in 26 files), not while it runs: a narrow desktop window keeps desktop
+controls inside a phone layout, and a tablet or a phone with a mouse keeps finger sizes.
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| V17 | A control's size is fixed at build time (`on_a_phone(44, 24…)` for height, text, margin, corner) | OPEN · M, with V12 | The sizes become one table read while running, keyed by pointer (finger or mouse) and width class; controls read it and nothing else. Closes when `ON_A_PHONE` is left only for what the system itself differs in (files, notifications, the keyboard), held by a test |
+| V18 | The text field is one box for every use (`native::field`): no label of its own, no hint, no error line, no clear button | OPEN · M | One field with its parts: label (beside it with a mouse, above it with a finger), hint text, a short error line under it, a clear button when it holds text, Paste beside an empty address field. Height 32 with a mouse, 48 with a finger; the same code |
+| V19 | The field does not say what it holds, so the phone shows a letter keyboard for a number, an address or a password | OPEN · S · a look first (the Java side already knows six keyboard kinds) | Each field states its kind (text, address, number, password, search); the phone shows the matching keyboard and its Next or Done key, the desktop uses the same kind to check what is typed |
+| V20 | A password field has no show or hide button; a number field has no steppers sized for a finger | OPEN · S | An eye button in password fields; number fields get minus and plus buttons with a finger and keep arrows and the wheel with a mouse |
+| V21 | Selecting text by touch: not seen whether a long press gives handles and Cut, Copy, Paste (N31 asks the same) | OPEN · M · a run first | Handles and a small bar over the selection with a finger; the right-click menu and the keys with a mouse; one field code |
+| V22 | A pop-up button opens a small menu at the pointer on every device (`popup.rs`); a long list is hard to reach with a thumb | OPEN · S to M | One picker: a menu with a mouse, a bottom sheet with a finger, and a searchable list when it has more than about ten choices |
+| V23 | Date and time pickers, sliders (the speed limiter) and the folder field (`path_field`) are built for a mouse | OPEN · M | Time as a wheel or large steppers with a finger; a slider with a larger handle and its value shown above the thumb; the folder field opens the system's picker and shows a short path with its end kept |
+| V24 | Dialog buttons: at the right in a row on desktop, wrapped on a phone, by a build-time switch (`native::buttons`) | OPEN · S | One button bar: a row at the end when wide, full-width stacked buttons with the main action lowest when compact; a destructive action always in the error colour |
+| V25 | Feedback differs by control: some show hover, press and focus, some none (U2); on touch nothing shows a press | OPEN · S to M | Every control has the same five states (rest, hover, pressed, focused, disabled) from the tokens; with a finger, pressed shows at once and hover never |
+| V26 | No single place shows every control in every form | OPEN · M | A gallery window in the debug build (`dm --gallery`): each control at both pointer kinds, three widths, both themes, 200% text, right-to-left. V15 takes its pictures there, so a control is checked once, not once per dialog |
+
+**Order to take them:** V1 first (the rule, a day). Then V8 and V9 with N20, since the Android
+rows come first and these three are one job: one list of actions, one width class, five parts.
+V12 and V17 next (pointer and sizes read while running), then the controls V18 to V25, with
+V26's gallery built first so each is seen as it is made. V10 and V11 follow from V9 and close
+N31. V2 to V4 can run beside them, then V7. V6, V13 and V15 last: they keep it from slipping
+back.
+
+**Not proposed:** a second UI for the phone, or a different look per system beyond what the
+tokens already hold; both go against "one UI code" (`docs/decisions.md`, 2026-11-20).
 
 ## Periodic
 

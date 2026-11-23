@@ -11,7 +11,7 @@
 
 use super::*;
 
-/// The phone's three check boxes, each with what it does under it.
+/// The phone's own switches, each with what it does under it.
 pub(super) fn phone_rules(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     check(
         p,

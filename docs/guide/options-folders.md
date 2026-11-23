@@ -34,13 +34,13 @@ speed and headers:** in [Options › Advanced](options-advanced.md).
 
 ## Unpack when done
 
-"A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a
+"A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a
 new folder of its name beside it. No file is replaced, and nothing is
 written outside that folder."
 
 - Under the heading **Unpack when done**, each kind (Videos, Audio,
-  Documents, Apps, Archives, Pictures, Other) has a box. A ZIP, 7z or tar
-  file is sorted as **Archives**, so that is the box to tick. None is ticked
+  Documents, Apps, Archives, Pictures, Other) has a switch. A ZIP, 7z or tar
+  file is sorted as **Archives**, so that is the one to turn on. All are off
   in a new install. A single download can be unpacked without its kind:
   tick **Unpack when done** in [Download details](download-details.md).
 - The archive is unpacked as **Extract here** unpacks it: dm checks every

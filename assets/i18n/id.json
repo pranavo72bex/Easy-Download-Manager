@@ -931,7 +931,7 @@
  "Forget finished downloads after (days, 0 for never)": "Lupakan unduhan selesai setelah (hari, 0 tidak pernah)",
  "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "Unduhan yang selesai keluar dari daftar setelah berumur sebanyak hari itu. Berkasnya tetap di tempat ia disimpan.",
  "Unpack when done": "Ekstrak setelah selesai",
- "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Arsip ZIP, 7z, atau tar yang selesai dari jenis yang dicentang di sini diekstrak ke folder baru bernama sama di sebelahnya. Tidak ada file yang diganti, dan tidak ada yang ditulis di luar folder itu.",
+ "A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Arsip ZIP, 7z, atau tar yang selesai dari jenis yang diaktifkan di sini diekstrak ke folder baru bernama sama di sebelahnya. Tidak ada file yang diganti, dan tidak ada yang ditulis di luar folder itu.",
  "Once it is unpacked:": "Setelah diekstrak:",
  "Keep the archive": "Simpan arsipnya",
  "Send the archive to the Trash": "Pindahkan arsip ke Tempat Sampah",
@@ -1028,5 +1028,6 @@
  "Add a password": "Tambah kata sandi",
  "An archive none of these passwords opens is left as it is, and its row says so.": "Arsip yang tidak terbuka dengan kata sandi mana pun dibiarkan apa adanya, dan barisnya menyebutkannya.",
  "Select": "Pilih",
- "{} selected": "{} dipilih"
+ "{} selected": "{} dipilih",
+ "Archive passwords": "Kata sandi arsip"
 }

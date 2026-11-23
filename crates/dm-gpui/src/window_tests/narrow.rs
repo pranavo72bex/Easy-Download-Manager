@@ -364,9 +364,18 @@ fn select_in_a_cards_menu_chooses_several_with_taps() {
     h.until("the card's menu", |h| h.shows("Select"));
     h.person_click(dm_desktop_base::i18n::t("Select"), 1);
     h.until("choosing", |h| h.view(|view| view.layout.narrow.choosing));
-    // Taps tick, and the bar counts them.
-    h.update(|view, cx| view.card_lifted(two, cx));
+    // Taps tick, and the bar counts them; a tap's press opens no menu once lifted.
+    h.update(|view, cx| {
+        view.card_pressed(two, gpui::point(gpui::px(40.0), gpui::px(200.0)), cx);
+        view.card_lifted(two, cx);
+    });
     h.until("two chosen", |h| h.shows("2 selected"));
+    std::thread::sleep(std::time::Duration::from_millis(700));
+    h.until("a step", |_| true);
+    assert!(
+        h.view(|view| view.layout.narrow.sheet.is_none()),
+        "a tap while choosing opened the card's menu"
+    );
     assert!(h.view(|view| view.list.selected == [one, two].into()));
     // A tap on a ticked card unticks it; none left ends the choosing.
     h.update(|view, cx| {

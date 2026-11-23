@@ -18,7 +18,13 @@ impl Scheduler {
         cx: &mut Context<Self>,
     ) -> gpui::Div {
         div()
-            .w(px(2.0 * native::BUTTON_MIN + native::LABEL_GAP + 4.0))
+            .map(|list| {
+                if crate::platform::ON_A_PHONE {
+                    list.w_full()
+                } else {
+                    list.w(px(2.0 * native::BUTTON_MIN + native::LABEL_GAP + 4.0))
+                }
+            })
             .flex_none()
             .flex()
             .flex_col()
@@ -134,25 +140,40 @@ impl Scheduler {
     pub(super) fn timed(&self, theme: Theme, screen: &Screen, cx: &mut Context<Self>) -> gpui::Div {
         let wake = self.draft.schedule.wake;
         let d = div().flex().flex_col().gap(px(native::ROW_GAP)).child(
+            // Each time with its words, Stop at under Start at where a line has no room for
+            // both (a phone, gaps row N31).
             div()
                 .flex()
+                .flex_wrap()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
-                .child(screen.label(t("Start at")))
-                .child(native::time_picker(
-                    ("from-hour", "from-minute"),
-                    &self.draft.schedule.from,
-                    theme,
-                    screen,
-                ))
-                .child(div().w(px(8.0)))
-                .child(screen.label(t("Stop at")))
-                .child(native::time_picker(
-                    ("to-hour", "to-minute"),
-                    &self.draft.schedule.to,
-                    theme,
-                    screen,
-                )),
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(native::LABEL_GAP))
+                        .child(screen.label(t("Start at")))
+                        .child(native::time_picker(
+                            ("from-hour", "from-minute"),
+                            &self.draft.schedule.from,
+                            theme,
+                            screen,
+                        )),
+                )
+                .child(div().w(px(space::M)))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(native::LABEL_GAP))
+                        .child(screen.label(t("Stop at")))
+                        .child(native::time_picker(
+                            ("to-hour", "to-minute"),
+                            &self.draft.schedule.to,
+                            theme,
+                            screen,
+                        )),
+                ),
         );
         let d = self
             .repeat(theme, screen, d, cx)
@@ -225,6 +246,7 @@ impl Scheduler {
         .child(
             div()
                 .flex()
+                .flex_wrap()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
                 .child(
@@ -263,6 +285,11 @@ impl Scheduler {
                         (WhenDone::ShutDown, Command::WhenDoneShutDown),
                     ]
                     .into_iter()
+                    // A phone cannot sleep, hibernate or turn off for dm: not shown there.
+                    .filter(|(w, _)| {
+                        !crate::platform::ON_A_PHONE
+                            || w.possible(dm_desktop_base::power::available)
+                    })
                     .map(|(w, command)| {
                         // As the Downloads menu greys them:
                         // only what this computer can do.
@@ -289,6 +316,7 @@ impl Scheduler {
             .child(
                 div()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .gap(px(native::LABEL_GAP))
                     .child(screen.label(t(
@@ -301,13 +329,15 @@ impl Scheduler {
                     )),
             )
             // A program run once when they are done, as
-            // Options' command is after each file: no shell.
-            .child(screen.label(t("Run this program when they are done (optional)")))
-            .child(native::field(
-                &self.run,
-                "Run this program when they are done (optional)",
-                theme,
-            ))
+            // Options' command is after each file: no shell. A phone runs no programs.
+            .when(!crate::platform::ON_A_PHONE, |d| {
+                d.child(screen.label(t("Run this program when they are done (optional)")))
+                    .child(native::field(
+                        &self.run,
+                        "Run this program when they are done (optional)",
+                        theme,
+                    ))
+            })
             .when(cfg!(windows), |d| {
                 let hang = self.draft.schedule.hang_up;
                 d.child(

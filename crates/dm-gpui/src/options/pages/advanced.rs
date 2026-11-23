@@ -605,7 +605,7 @@ fn per_scheme(
         ("https", t("A proxy of its own for HTTPS downloads")),
     ] {
         let has = proxy.per_scheme.contains_key(scheme);
-        let toggle = native::checkbox(
+        let toggle = native::switch(
             SharedString::from(format!("per-scheme-{scheme}")),
             words.into(),
             has,

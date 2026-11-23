@@ -931,7 +931,7 @@
  "Forget finished downloads after (days, 0 for never)": "完了したダウンロードを一覧から消すまで（日、0 で消さない）",
  "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "完了したダウンロードは、その日数が経つと一覧から消えます。ファイルは保存した場所に残ります。",
  "Unpack when done": "完了後に展開",
- "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "ここでチェックした種類の ZIP、7z、tar アーカイブは、完了すると隣にその名前の新しいフォルダーを作って展開されます。既存のファイルは置き換えられず、そのフォルダーの外には何も書き込まれません。",
+ "A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "ここでオンにした種類の ZIP、7z、tar アーカイブは、完了すると隣にその名前の新しいフォルダーを作って展開されます。既存のファイルは置き換えられず、そのフォルダーの外には何も書き込まれません。",
  "Once it is unpacked:": "展開したあと:",
  "Keep the archive": "アーカイブを残す",
  "Send the archive to the Trash": "アーカイブをゴミ箱へ移動",
@@ -1028,5 +1028,6 @@
  "Add a password": "パスワードを追加",
  "An archive none of these passwords opens is left as it is, and its row says so.": "どのパスワードでも開けないアーカイブはそのまま残され、その行に表示されます。",
  "Select": "選択",
- "{} selected": "{} 件選択"
+ "{} selected": "{} 件選択",
+ "Archive passwords": "アーカイブのパスワード"
 }

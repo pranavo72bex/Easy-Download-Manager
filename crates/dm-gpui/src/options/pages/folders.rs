@@ -109,8 +109,9 @@ fn unpacking(o: &Options, p: &mut Page, cx: &mut Context<Options>) {
     let (theme, screen) = (p.theme, p.screen.clone());
     let folders = &o.draft.folders;
     p.section(t("Unpack when done"));
-    p.words(t("A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder."));
-    let mut kinds = div().flex().flex_wrap().gap(px(space::L));
+    p.note(t("A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder."));
+    // A row for each kind, its name then its switch, as every other setting (the maintainer,
+    // 2026-11-23: switches, not check boxes, on the phone and the computer alike).
     for (i, kind) in dm_core::Category::ALL.into_iter().enumerate() {
         let name = dm_desktop_base::i18n::name(&dm_desktop_base::format::titled(
             &dm_shell::app::names::category_word(kind),
@@ -118,8 +119,8 @@ fn unpacking(o: &Options, p: &mut Page, cx: &mut Context<Options>) {
         p.says(&name);
         let ticked = folders.unpack_kinds.contains(&kind);
         let id = SharedString::from(format!("unpack-{i}"));
-        let check = native::checkbox(id, name.into(), ticked, theme, &screen).on_click(
-            cx.listener(move |o, _, _, cx| {
+        let check = native::switch(id, name.into(), ticked, theme, &screen).on_click(cx.listener(
+            move |o, _, _, cx| {
                 let chosen = &mut o.draft.folders.unpack_kinds;
                 if chosen.contains(&kind) {
                     chosen.retain(|k| *k != kind);
@@ -127,11 +128,10 @@ fn unpacking(o: &Options, p: &mut Page, cx: &mut Context<Options>) {
                     chosen.push(kind);
                 }
                 cx.notify();
-            }),
-        );
-        kinds = kinds.child(check);
+            },
+        ));
+        p.add(check);
     }
-    p.add(kinds);
     p.words(t("Once it is unpacked:"));
     for (trash, words) in [
         (false, t("Keep the archive")),
@@ -159,7 +159,8 @@ fn archive_passwords(
     cx: &mut Context<Options>,
 ) {
     let (theme, screen) = (p.theme, p.screen.clone());
-    p.words(t(
+    p.section(t("Archive passwords"));
+    p.note(t(
         "Passwords tried on an archive that has one, in turn; the one that opens it goes first.",
     ));
     for i in 0..o.archive_passwords.len() {
@@ -206,15 +207,18 @@ fn archive_passwords(
         cx.notify();
     }));
     p.says(t("Add a password"));
+    // The words above, the field and Add on one line under them: room for it on a phone.
+    p.add(div().child(screen.label(t("Add a password"))));
     p.add(
         div()
             .flex()
             .items_center()
-            .gap(px(native::LABEL_GAP))
-            .child(screen.label(t("Add a password")))
+            .gap(px(space::M))
             .child(
                 div()
-                    .w(px(220.0))
+                    .flex_1()
+                    .min_w_0()
+                    .max_w(px(320.0))
                     .child(native::field(&field, "Add a password", theme)),
             )
             .child(add),
@@ -236,7 +240,12 @@ fn custom_categories(
 ) {
     p.add(native::enabled(
         on,
-        div().child(screen.label(t("Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category."))),
+        // What the list below does, in the small grey words of an explanation.
+        native::note(
+            t("Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category."),
+            p.theme.muted,
+            screen,
+        ),
     ));
     for i in 0..o.typed.custom.len() {
         let name = input(

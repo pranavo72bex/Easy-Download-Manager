@@ -931,7 +931,7 @@
  "Forget finished downloads after (days, 0 for never)": "已完成的下载在多少天后从列表中移除（天，0 为永不）",
  "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "已完成的下载到达该天数后会从列表中移除。其文件仍保留在保存的位置。",
  "Unpack when done": "完成后解压",
- "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "在此勾选的类型的 ZIP、7z 或 tar 压缩包下载完成后，会解压到旁边一个以它命名的新文件夹中。不会替换任何文件，也不会在该文件夹之外写入任何内容。",
+ "A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "在此开启的类型的 ZIP、7z 或 tar 压缩包下载完成后，会解压到旁边一个以它命名的新文件夹中。不会替换任何文件，也不会在该文件夹之外写入任何内容。",
  "Once it is unpacked:": "解压之后：",
  "Keep the archive": "保留压缩包",
  "Send the archive to the Trash": "将压缩包移到废纸篓",
@@ -1028,5 +1028,6 @@
  "Add a password": "添加密码",
  "An archive none of these passwords opens is left as it is, and its row says so.": "这些密码都打不开的压缩包会保持原样，其所在行会说明。",
  "Select": "选择",
- "{} selected": "已选择 {} 项"
+ "{} selected": "已选择 {} 项",
+ "Archive passwords": "压缩包密码"
 }

@@ -102,7 +102,7 @@
  "Forget finished downloads after (days, 0 for never)",
  "A finished download leaves the list once it is that many days old. Its file stays where it was saved.",
  "Unpack when done",
- "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.",
+ "A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.",
  "Once it is unpacked:",
  "Keep the archive",
  "Send the archive to the Trash",
@@ -199,5 +199,6 @@
  "Add a password",
  "An archive none of these passwords opens is left as it is, and its row says so.",
  "Select",
- "{} selected"
+ "{} selected",
+ "Archive passwords"
 ]

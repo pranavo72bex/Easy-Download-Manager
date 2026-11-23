@@ -30,7 +30,7 @@ it asks Windows.
 
 ## The right-click menu
 
-**Items dm adds to the browser's right-click menu:** untick an item to take
+**Items dm adds to the browser's right-click menu:** turn an item off to take
 it out of the browser's right-click menu:
 
 - **Download link with dm:** the link you right-clicked.
@@ -49,9 +49,9 @@ it out of the browser's right-click menu:
   all." For example `zip exe mp4`.
 - **Ignore files smaller than (KB):** a smaller download stays with the
   browser.
-- **Take downloads from these browsers:** a tick for Microsoft Edge, Google
+- **Take downloads from these browsers:** a switch for Microsoft Edge, Google
   Chrome, Firefox, Brave, Opera, Vivaldi and **Other Chromium browsers**
-  (Chromium and its other relatives). An unticked browser keeps its
+  (Chromium and its other relatives). A browser switched off keeps its
   downloads.
 - **Never take downloads from these sites:** "Separate sites with spaces.
   example.com covers its subdomains."

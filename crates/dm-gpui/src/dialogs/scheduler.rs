@@ -228,14 +228,24 @@ impl Render for Scheduler {
             }))
             .child(crate::widgets::fit::fitted(
                 native::body(theme)
-                    .child(
+                    // On a phone the queues above the hours, each the screen's width: side by
+                    // side the hours ran off its edge (gaps row N31).
+                    .child(if crate::platform::ON_A_PHONE {
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(space::L))
+                            .child(queues)
+                            .child(div().h(px(space::LINE)).bg(theme.separator))
+                            .child(hours)
+                    } else {
                         div()
                             .flex()
                             .gap(px(space::XL))
                             .child(queues)
                             .child(div().w(px(space::LINE)).flex_none().bg(theme.separator))
-                            .child(hours),
-                    )
+                            .child(hours)
+                    })
                     .when(!self.draft.says.is_empty(), |d| {
                         d.child(native::note(
                             SharedString::from(self.draft.says.clone()),

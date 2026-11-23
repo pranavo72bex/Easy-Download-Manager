@@ -931,7 +931,7 @@
  "Forget finished downloads after (days, 0 for never)": "완료된 다운로드를 목록에서 지우는 기간(일, 0은 지우지 않음)",
  "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "완료된 다운로드는 그 일수가 지나면 목록에서 사라집니다. 파일은 저장된 곳에 그대로 남습니다.",
  "Unpack when done": "완료되면 압축 풀기",
- "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "여기서 선택한 종류의 ZIP, 7z, tar 압축 파일은 완료되면 옆에 같은 이름의 새 폴더를 만들어 압축이 풀립니다. 파일을 덮어쓰지 않으며, 그 폴더 밖에는 아무것도 쓰지 않습니다.",
+ "A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "여기서 켠 종류의 ZIP, 7z, tar 압축 파일은 완료되면 옆에 같은 이름의 새 폴더를 만들어 압축이 풀립니다. 파일을 덮어쓰지 않으며, 그 폴더 밖에는 아무것도 쓰지 않습니다.",
  "Once it is unpacked:": "압축을 푼 뒤:",
  "Keep the archive": "압축 파일 유지",
  "Send the archive to the Trash": "압축 파일을 휴지통으로 보내기",
@@ -1028,5 +1028,6 @@
  "Add a password": "암호 추가",
  "An archive none of these passwords opens is left as it is, and its row says so.": "이 암호 중 어느 것으로도 열리지 않는 압축 파일은 그대로 두며, 해당 행에 표시됩니다.",
  "Select": "선택",
- "{} selected": "{}개 선택됨"
+ "{} selected": "{}개 선택됨",
+ "Archive passwords": "압축 파일 비밀번호"
 }

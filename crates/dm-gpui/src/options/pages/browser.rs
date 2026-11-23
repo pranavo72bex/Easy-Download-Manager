@@ -97,7 +97,7 @@ fn menu_items(p: &mut Page, cx: &mut Context<Options>, c: &dm_protocol::CatchRul
             "dm-all-links" => t("Download all links with dm"),
             _ => t("Download selected links with dm"),
         };
-        let item = native::checkbox(
+        let item = native::switch(
             SharedString::from(format!("menu-{id}")),
             words.into(),
             c.shows_menu(id),
@@ -183,7 +183,7 @@ fn catching(
         } else {
             browser
         };
-        let item = native::checkbox(
+        let item = native::switch(
             SharedString::from(format!("browser-{browser}")),
             words.into(),
             c.takes_from(browser),

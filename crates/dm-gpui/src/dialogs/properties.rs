@@ -491,7 +491,11 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
                 (true, false) => &address,
                 _ => &note,
             };
-            first.update(cx, |f, cx| f.focus(window, cx));
+            // On a phone, focus brings up the keyboard over half the dialog: given only to a
+            // field to be filled in, not to the note of a finished download (gaps row N31).
+            if editable || !crate::platform::ON_A_PHONE {
+                first.update(cx, |f, cx| f.focus(window, cx));
+            }
             let properties = cx.new(|cx| {
                 // Drawn again as the download moves on.
                 cx.observe(&watched, |_, _, cx| cx.notify()).detach();

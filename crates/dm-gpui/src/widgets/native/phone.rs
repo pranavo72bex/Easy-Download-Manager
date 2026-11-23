@@ -20,6 +20,7 @@ pub fn phone_bar(
 ) -> Div {
     let back_words = dm_desktop_base::i18n::t("Back");
     div()
+        .flex_none()
         .w_full()
         .h(px(space::TOUCH + space::XS))
         .flex()

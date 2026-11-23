@@ -236,6 +236,21 @@ jobs:
             exit 1
           fi
           echo "VERSION=$tag" >> "$GITHUB_ENV"
+      # A phone takes an update only with a higher versionCode (0.10.1 once shipped with the
+      # last one's, row N32): above the previous android-v tag's, or the release stops here.
+      - name: Check versionCode is above the last release's
+        run: |
+          git fetch --quiet --depth=1 origin '+refs/tags/android-v*:refs/tags/android-v*'
+          code() { sed -n 's/^ *versionCode = \([0-9]*\).*/\1/p' | head -1; }
+          now=$(code < crates/dm-android/android/app/build.gradle.kts)
+          last=$(git tag --list 'android-v*' --sort=-version:refname | grep -vx "$GITHUB_REF_NAME" | head -1)
+          if [ -z "$last" ]; then echo "no earlier release"; exit 0; fi
+          before=$(git show "${last}:crates/dm-android/android/app/build.gradle.kts" | code)
+          echo "versionCode $now; $last had $before"
+          if [ -z "$now" ] || [ -z "$before" ] || [ "$now" -le "$before" ]; then
+            echo "::error::versionCode $now is not above $last's ($before): raise it in app/build.gradle.kts"
+            exit 1
+          fi
       # The checkout's and cargo's folders named alike on every computer, so the library does
       # not depend on where it was built (docs/android.md, "F-Droid").
       - name: libdm_android.so, for the three processors

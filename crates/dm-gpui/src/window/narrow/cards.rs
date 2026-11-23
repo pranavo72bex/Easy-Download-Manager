@@ -465,7 +465,8 @@ impl Downloads {
         }
         // Choosing several: the card ticked or unticked; none left ends the choosing.
         if self.layout.narrow.choosing {
-            let _ = clicks;
+            // The press is over: its timer must not open the menu as well.
+            self.layout.narrow.pressed = None;
             if !self.list.selected.remove(&id) {
                 self.list.selected.insert(id);
             }

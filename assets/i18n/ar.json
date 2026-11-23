@@ -931,7 +931,7 @@
  "Forget finished downloads after (days, 0 for never)": "نسيان التنزيلات المكتملة بعد (بالأيام، 0 لعدم النسيان)",
  "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "يغادر التنزيل المكتمل القائمة عندما يبلغ عمره هذا العدد من الأيام. ويبقى ملفه حيث حُفظ.",
  "Unpack when done": "فك الضغط عند الانتهاء",
- "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "يُفك ضغط أرشيف ZIP أو 7z أو tar المكتمل من نوع محدد هنا إلى مجلد جديد باسمه بجانبه. لا يُستبدل أي ملف، ولا يُكتب شيء خارج ذلك المجلد.",
+ "A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "يُفك ضغط أرشيف ZIP أو 7z أو tar المكتمل من نوع مفعّل هنا إلى مجلد جديد باسمه بجانبه. لا يُستبدل أي ملف، ولا يُكتب شيء خارج ذلك المجلد.",
  "Once it is unpacked:": "بعد فك ضغطه:",
  "Keep the archive": "الاحتفاظ بالأرشيف",
  "Send the archive to the Trash": "إرسال الأرشيف إلى سلة المحذوفات",
@@ -1028,5 +1028,6 @@
  "Add a password": "إضافة كلمة مرور",
  "An archive none of these passwords opens is left as it is, and its row says so.": "الأرشيف الذي لا تفتحه أيٌّ من كلمات المرور هذه يُترك كما هو، ويذكر سطره ذلك.",
  "Select": "تحديد",
- "{} selected": "{} محدد"
+ "{} selected": "{} محدد",
+ "Archive passwords": "كلمات مرور الأرشيف"
 }

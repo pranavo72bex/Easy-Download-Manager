@@ -931,7 +931,7 @@
  "Forget finished downloads after (days, 0 for never)": "Olvidar las descargas terminadas tras (días, 0 nunca)",
  "A finished download leaves the list once it is that many days old. Its file stays where it was saved.": "Una descarga terminada sale de la lista cuando tiene esa cantidad de días. Su archivo se queda donde se guardó.",
  "Unpack when done": "Descomprimir al terminar",
- "A finished ZIP, 7z or tar archive of a kind ticked here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Un archivo ZIP, 7z o tar terminado de un tipo marcado aquí se descomprime en una carpeta nueva con su nombre, a su lado. No se reemplaza ningún archivo y no se escribe nada fuera de esa carpeta.",
+ "A finished ZIP, 7z or tar archive of a kind turned on here is unpacked into a new folder of its name beside it. No file is replaced, and nothing is written outside that folder.": "Un archivo ZIP, 7z o tar terminado de un tipo activado aquí se descomprime en una carpeta nueva con su nombre, a su lado. No se reemplaza ningún archivo y no se escribe nada fuera de esa carpeta.",
  "Once it is unpacked:": "Una vez descomprimido:",
  "Keep the archive": "Conservar el archivo comprimido",
  "Send the archive to the Trash": "Enviar el archivo comprimido a la papelera",
@@ -1028,5 +1028,6 @@
  "Add a password": "Añadir una contraseña",
  "An archive none of these passwords opens is left as it is, and its row says so.": "Un archivo comprimido que ninguna de estas contraseñas abre se deja como está, y su fila lo indica.",
  "Select": "Seleccionar",
- "{} selected": "{} seleccionados"
+ "{} selected": "{} seleccionados",
+ "Archive passwords": "Contraseñas de archivos comprimidos"
 }
