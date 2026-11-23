@@ -37,6 +37,7 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
 - [x] Grabber: size filters, templates, the saved sign-in said, a Grabber projects node (`Search::min_kb`/`max_kb`, `lists::within_sizes`, `Dialogs::open_site_files_with`)
 - [x] Caption files as list lines: YouTube's tracks fetched as TTML, a page's own caption files (`page_data::caption_lines`, `youtube::caption_reading`, `Quality::caption_of`, `decide::page_lines` `add_captions`)
 - [x] A YouTube channel's address or tab, and a YouTube Music playlist, open the Playlist dialog with the channel's uploads or the list's videos (`youtube::channel_of`, `youtube::is_list`; `youtube_cover.rs` `a_channels_uploads_and_a_music_playlist_are_read_as_playlists`; contract row B02)
+- [x] Torrent feeds followed: a feed's `.torrent` items and magnet links (in the link, the enclosure, `torrent:magnetURI` or `torrent:infoHash`) added as torrents, with a word filter per feed (`feed::parse`, `follow::Follow::wants`, `has_torrents`; `feed/tests.rs` `a_torrent_feed_is_its_torrents_and_magnets`, `follow/tests.rs` `a_followed_torrent_feed_adds_only_the_new_items_its_words_want`; gaps row C10)
 - [x] The video bar below a fixed header and compact on narrow videos (`decide::visible_box`, `panel_size`, `show::bar_over_top`)
 - [x] Help menu with reference A's items and a Tip of the day dialog; a user guide (`docs/user-guide.md`)
 - [x] Start downloading while Download details is open (`Settings::start_while_asking`, `DownloadList::settle_early`)

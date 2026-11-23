@@ -112,3 +112,61 @@ fn a_feed_is_known_by_its_address() {
         assert!(!looks_like_feed(url), "{url}");
     }
 }
+
+/// A torrent feed (gaps row C10): a `.torrent` enclosure, a magnet in the
+/// link (its `&amp;` undone, kept as written), a `torrent:magnetURI` before
+/// a page link, an info hash made a magnet, and a bad hash left out.
+#[test]
+fn a_torrent_feed_is_its_torrents_and_magnets() {
+    let hash = "0123456789abcdef0123456789abcdef01234567";
+    let xml = format!(
+        r#"<rss version="2.0" xmlns:torrent="http://xmlns.ezrss.it/0.1/">
+  <channel>
+    <title>Releases</title>
+    <item>
+      <title>Distro 1.0 ISO</title>
+      <link>https://t.example/page/1</link>
+      <enclosure url="/get/distro-1.0.torrent" type="application/x-bittorrent"/>
+    </item>
+    <item>
+      <title>Distro 1.1 ISO</title>
+      <link>magnet:?xt=urn:btih:{hash}&amp;dn=Distro%201.1</link>
+    </item>
+    <item>
+      <title>Distro 1.2 ISO</title>
+      <link>https://t.example/page/3</link>
+      <torrent:magnetURI><![CDATA[MAGNET:?xt=urn:btih:{hash}&tr=udp://t.example:1]]></torrent:magnetURI>
+    </item>
+    <item>
+      <title>Distro 1.3 ISO</title>
+      <torrent:infoHash>{hash}</torrent:infoHash>
+    </item>
+    <item><title>Bad</title><torrent:infoHash>nothex</torrent:infoHash></item>
+  </channel>
+</rss>"#
+    );
+    let feed = parse(&xml, "https://t.example/rss").unwrap();
+    let urls: Vec<String> = feed.entries.iter().map(|e| e.url()).collect();
+    assert_eq!(
+        urls,
+        [
+            "https://t.example/get/distro-1.0.torrent".to_string(),
+            format!("magnet:?xt=urn:btih:{hash}&dn=Distro%201.1"),
+            format!("MAGNET:?xt=urn:btih:{hash}&tr=udp://t.example:1"),
+            format!("magnet:?xt=urn:btih:{hash}"),
+        ]
+    );
+    assert!(urls.iter().all(|u| crate::is_torrent(u)), "{urls:?}");
+    assert_eq!(feed.entries[1].title, "Distro 1.1 ISO");
+}
+
+/// A base-32 info hash is a magnet too; any other length is not.
+#[test]
+fn an_info_hash_is_a_magnet_only_at_its_length() {
+    assert_eq!(
+        magnet_of_hash(" ABCDEFGHIJKLMNOPQRSTUVWXYZ234567 ").as_deref(),
+        Some("magnet:?xt=urn:btih:ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
+    );
+    assert!(magnet_of_hash("abc").is_none());
+    assert!(magnet_of_hash(&"z".repeat(40)).is_none());
+}

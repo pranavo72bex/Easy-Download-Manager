@@ -985,6 +985,8 @@
  "hours, adding what is new to": "小时再次检查，新内容添加到",
  "Followed": "已关注",
  "Checked again every {} hours; what is new goes to {}.": "每 {} 小时再次检查；新内容进入 {}。",
+ "Only add new items whose titles have the words": "只添加标题中含有这些词的新项目",
+ "Only items whose titles have the words {} are added.": "只添加标题中含有词语 {} 的项目。",
  "Stop following": "取消关注",
  "{} has nothing new.": "{} 没有新内容。",
  "the followed {} could not be read: {}": "无法读取关注的 {}：{}",

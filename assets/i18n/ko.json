@@ -985,6 +985,8 @@
  "hours, adding what is new to": "시간마다, 새 항목 추가 대상:",
  "Followed": "팔로우 중",
  "Checked again every {} hours; what is new goes to {}.": "{}시간마다 다시 확인하며, 새 항목은 {}에 추가됩니다.",
+ "Only add new items whose titles have the words": "제목에 다음 단어가 있는 새 항목만 추가",
+ "Only items whose titles have the words {} are added.": "제목에 단어 {}이(가) 있는 항목만 추가됩니다.",
  "Stop following": "팔로우 중지",
  "{} has nothing new.": "{}에 새 항목이 없습니다.",
  "the followed {} could not be read: {}": "팔로우 중인 {}을(를) 읽을 수 없습니다: {}",

@@ -165,3 +165,136 @@ fn a_followed_feed_that_gains_an_item_adds_only_that_one_to_its_queue() {
     assert_eq!(saved.follows[0].seen.len(), 2);
     assert!(new_items(&saved.follows[0], &again, &[]).is_empty());
 }
+
+/// A word filter (gaps row C10): every word, in any case, anywhere in the
+/// title; empty passes everything.
+#[test]
+fn a_word_filter_wants_every_word_in_any_case() {
+    let mut follow = Follow::default();
+    assert!(follow.wants("Anything at all"));
+    follow.words = "  show  1080P ".into();
+    assert!(follow.wants("The Show S01E02 1080p WEB"));
+    assert!(follow.wants("SHOW.s01e03.1080p"));
+    assert!(!follow.wants("The Show S01E02 720p"));
+    assert!(!follow.wants("Another 1080p"));
+    let list = Playlist {
+        entries: vec![
+            PlaylistEntry {
+                title: "The Show 720p".into(),
+                ..video("a")
+            },
+            PlaylistEntry {
+                title: "The Show 1080p".into(),
+                ..video("b")
+            },
+        ],
+        ..playlist(&[])
+    };
+    let added: Vec<String> = new_items(&follow, &list, &[])
+        .into_iter()
+        .map(|(url, _)| url)
+        .collect();
+    assert_eq!(added, ["https://www.youtube.com/watch?v=b"]);
+    assert!(!has_torrents(&list));
+}
+
+/// A torrent feed's text: each item a magnet, or a `.torrent` on `origin`.
+fn torrent_feed(origin: &str, items: &[&str]) -> String {
+    let items: String = items
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            let link = if i % 2 == 0 {
+                format!(
+                    "<enclosure url=\"{origin}/get/{i}.torrent\" \
+                     type=\"application/x-bittorrent\"/>"
+                )
+            } else {
+                format!(
+                    "<torrent:magnetURI>magnet:?xt=urn:btih:{i:040}&amp;dn=x</torrent:magnetURI>"
+                )
+            };
+            format!("<item><title>{name}</title><guid>{name}</guid>{link}</item>")
+        })
+        .collect();
+    format!(
+        "<rss version=\"2.0\" xmlns:torrent=\"http://xmlns.ezrss.it/0.1/\">\
+         <channel><title>Releases</title>{items}</channel></rss>"
+    )
+}
+
+/// A stand-in torrent feed, served, followed with "1080P" for its words,
+/// gains a magnet and a `.torrent` in 1080p and one in 720p: read again, only
+/// the two 1080p items are added, as torrents, to the queue chosen; the 720p
+/// one is left, and not counted seen.
+#[test]
+fn a_followed_torrent_feed_adds_only_the_new_items_its_words_want() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let backend = crate::app::backend::testing::backend(&runtime, dir.path());
+    let listed: Arc<Mutex<Vec<&'static str>>> = Arc::new(Mutex::new(vec!["Show 1 1080p"]));
+    let served = Arc::clone(&listed);
+    let origin = runtime.block_on(async {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let at = origin.clone();
+        let app = axum::Router::new().route(
+            "/releases.rss",
+            axum::routing::get(move || {
+                let items = served.lock().unwrap().clone();
+                let text = torrent_feed(&at, &items);
+                async move { text }
+            }),
+        );
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        origin
+    });
+    let address = format!("{origin}/releases.rss");
+    let read = |address: &str| {
+        let (tell, heard) = std::sync::mpsc::channel();
+        read_later(&backend, address.to_string(), move |got| {
+            let _ = tell.send(got);
+        });
+        heard
+            .recv_timeout(Duration::from_secs(25))
+            .unwrap()
+            .unwrap()
+    };
+
+    let first = read(&address);
+    assert!(has_torrents(&first), "{first:?}");
+    let follow = Follow {
+        words: "1080P".into(),
+        ..following(&first, &address, 24, "Shows", "", 0)
+    };
+    let settings = followed(&backend.settings(), follow);
+
+    listed
+        .lock()
+        .unwrap()
+        .extend(["Show 2 1080p", "Show 3 1080p", "Show 3 720p"]);
+    let again = read(&address);
+    assert_eq!(again.entries.len(), 4);
+    let kept = &settings.follows[0];
+    let new = new_items(kept, &again, &backend.list_shared());
+    let urls: Vec<&str> = new.iter().map(|(u, _)| u.as_str()).collect();
+    assert_eq!(
+        urls,
+        [
+            format!("magnet:?xt=urn:btih:{:040}&dn=x", 1),
+            format!("{origin}/get/2.torrent"),
+        ],
+        "{new:?}"
+    );
+    let added = backend.add_each(new);
+    assert!(added.iter().all(Result::is_ok), "{added:?}");
+    let rows = backend.list_shared();
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert!(rows.iter().all(|r| r.queue == "Shows"));
+    assert!(rows.iter().all(|r| dm_core::is_torrent(&r.url)), "{rows:?}");
+
+    let saved = seen_saved(&settings, &kept.address, &again, &rows).unwrap();
+    assert_eq!(saved.follows[0].seen.len(), 3, "the 720p one is not seen");
+    assert_eq!(saved.follows[0].words, "1080P");
+    assert!(new_items(&saved.follows[0], &again, &rows).is_empty());
+}

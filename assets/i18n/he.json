@@ -985,6 +985,8 @@
  "hours, adding what is new to": "שעות, והוספת החדש אל",
  "Followed": "במעקב",
  "Checked again every {} hours; what is new goes to {}.": "נבדק שוב כל {} שעות; החדש עובר אל {}.",
+ "Only add new items whose titles have the words": "להוסיף רק פריטים חדשים שבכותרתם יש את המילים",
+ "Only items whose titles have the words {} are added.": "נוספים רק פריטים שבכותרתם יש את המילים {}.",
  "Stop following": "הפסקת המעקב",
  "{} has nothing new.": "אין שום דבר חדש ב-{}.",
  "the followed {} could not be read: {}": "לא ניתן היה לקרוא את {} שבמעקב: {}",

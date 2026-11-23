@@ -111,16 +111,28 @@ impl Downloads {
     /// Check now, Stop following or Close.
     pub fn follow_asked(&mut self, follow: Follow, cx: &mut Context<Self>) {
         let queue = dm_desktop_base::i18n::name(follow.queue_or_main());
-        let asked = crate::dialogs::question::Asked {
-            title: t("Followed").into(),
-            lines: vec![
-                follow.address.clone().into(),
+        let mut lines: Vec<gpui::SharedString> = vec![
+            follow.address.clone().into(),
+            tf(
+                "Checked again every {} hours; what is new goes to {}.",
+                &[&follow.every_hours, &queue],
+            )
+            .into(),
+        ];
+        // A torrent feed's word filter, where it has one (gaps row C10).
+        let words = follow.words.trim();
+        if !words.is_empty() {
+            lines.push(
                 tf(
-                    "Checked again every {} hours; what is new goes to {}.",
-                    &[&follow.every_hours, &queue],
+                    "Only items whose titles have the words {} are added.",
+                    &[&words],
                 )
                 .into(),
-            ],
+            );
+        }
+        let asked = crate::dialogs::question::Asked {
+            title: t("Followed").into(),
+            lines,
             named: Some(follow.name().to_string().into()),
             detail: None,
             toggle: None,

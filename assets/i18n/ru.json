@@ -985,6 +985,8 @@
  "hours, adding what is new to": "ч, добавляя новое в",
  "Followed": "Отслеживается",
  "Checked again every {} hours; what is new goes to {}.": "Проверяется снова каждые {} ч; новое попадает в {}.",
+ "Only add new items whose titles have the words": "Добавлять только новые элементы, в названиях которых есть слова",
+ "Only items whose titles have the words {} are added.": "Добавляются только элементы, в названиях которых есть слова {}.",
  "Stop following": "Перестать отслеживать",
  "{} has nothing new.": "В {} нет ничего нового.",
  "the followed {} could not be read: {}": "не удалось прочитать отслеживаемый {}: {}",

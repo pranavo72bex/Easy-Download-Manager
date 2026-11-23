@@ -7,7 +7,10 @@
 //! site's new files, read as a playlist is (gaps row W10). Each item is a
 //! download: its enclosure (the episode's file) where it has one, else its
 //! link. The Playlist dialog lists them, and a feed followed is read again
-//! every so many hours for the items it did not list before.
+//! every so many hours for the items it did not list before. A torrent feed's
+//! items are kept too (gaps row C10): a `.torrent` file's address, a magnet
+//! link in the item's link or enclosure, or its `torrent:magnetURI` (else
+//! `torrent:infoHash`), each added as any torrent is.
 
 // Reads outside input: an index out of range here is a crash a server could
 // cause, so every access is checked.
@@ -56,26 +59,52 @@ struct Item {
     id: String,
     link: String,
     enclosure: String,
+    /// A torrent feed's `<torrent:magnetURI>`, or one made of its
+    /// `<torrent:infoHash>`.
+    magnet: String,
+}
+
+/// Whether `address` is a magnet link (its scheme in any case).
+fn is_magnet(address: &str) -> bool {
+    address
+        .get(..7)
+        .is_some_and(|s| s.eq_ignore_ascii_case("magnet:"))
+}
+
+/// The magnet link of a torrent's info hash (40 hex digits, or 32 in base
+/// 32); `None` for anything else.
+fn magnet_of_hash(hash: &str) -> Option<String> {
+    let hash = hash.trim();
+    let fits = match hash.len() {
+        40 => hash.bytes().all(|b| b.is_ascii_hexdigit()),
+        32 => hash.bytes().all(|b| b.is_ascii_alphanumeric()),
+        _ => false,
+    };
+    fits.then(|| format!("magnet:?xt=urn:btih:{hash}"))
 }
 
 impl Item {
     /// The item as a playlist's entry: its file's address, made whole
     /// against the feed's, where it has a web one.
+    /// The enclosure first, then a torrent feed's magnet, then the link; a
+    /// magnet link is kept as the feed says it.
     fn entry(self, base: Option<&url::Url>) -> Option<PlaylistEntry> {
-        let wanted = if self.enclosure.is_empty() {
-            self.link
+        let wanted = [&self.enclosure, &self.magnet, &self.link]
+            .into_iter()
+            .map(|a| a.trim())
+            .find(|a| !a.is_empty())?;
+        let address = if is_magnet(wanted) {
+            wanted.to_string()
         } else {
-            self.enclosure
+            let address = match base {
+                Some(base) => base.join(wanted).ok()?,
+                None => url::Url::parse(wanted).ok()?,
+            };
+            if !matches!(address.scheme(), "http" | "https") {
+                return None;
+            }
+            address.to_string()
         };
-        let wanted = wanted.trim();
-        let address = match base {
-            Some(base) => base.join(wanted).ok()?,
-            None => url::Url::parse(wanted).ok()?,
-        };
-        if !matches!(address.scheme(), "http" | "https") {
-            return None;
-        }
-        let address = address.to_string();
         let title = self.title.trim().to_string();
         Some(PlaylistEntry {
             id: Some(self.id.trim().to_string())
@@ -160,8 +189,11 @@ pub fn parse(xml: &str, address: &str) -> Option<Playlist> {
                 if let Some(item) = item.as_mut() {
                     take_tag(&name, &tag, item);
                 }
-                collecting =
-                    matches!(name.as_str(), "title" | "guid" | "id" | "link").then_some(name);
+                collecting = matches!(
+                    name.as_str(),
+                    "title" | "guid" | "id" | "link" | "magneturi" | "infohash"
+                )
+                .then_some(name);
                 text.clear();
             }
             Ok(Event::Empty(tag)) => {
@@ -197,6 +229,12 @@ pub fn parse(xml: &str, address: &str) -> Option<Playlist> {
                         (Some(item), "title") => item.title = said,
                         (Some(item), "guid" | "id") => item.id = said,
                         (Some(item), "link") if item.link.is_empty() => item.link = said,
+                        (Some(item), "magneturi") if is_magnet(said.trim()) => {
+                            item.magnet = said.trim().to_string();
+                        }
+                        (Some(item), "infohash") if item.magnet.is_empty() => {
+                            item.magnet = magnet_of_hash(&said).unwrap_or_default();
+                        }
                         (None, "title") if title.is_empty() => title = said.trim().to_string(),
                         _ => {}
                     }

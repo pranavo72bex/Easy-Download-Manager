@@ -41,6 +41,10 @@ pub struct Follow {
     /// The items it has listed before, by their bare address: not added
     /// again after the list is cleared.
     pub seen: Vec<String>,
+    /// A torrent feed's word filter (gaps row C10): only new items whose
+    /// titles have every one of these words, in any case, are added; empty
+    /// adds every new item.
+    pub words: String,
 }
 
 impl Follow {
@@ -65,6 +69,15 @@ impl Follow {
         }
     }
 
+    /// Whether an item called `title` passes its word filter: every word,
+    /// in any case, somewhere in the title.
+    pub fn wants(&self, title: &str) -> bool {
+        let title = title.to_lowercase();
+        self.words
+            .split_whitespace()
+            .all(|word| title.contains(&word.to_lowercase()))
+    }
+
     /// The queue its items go to.
     pub fn queue_or_main(&self) -> &str {
         if self.queue.is_empty() {
@@ -73,6 +86,12 @@ impl Follow {
             &self.queue
         }
     }
+}
+
+/// Whether `list` holds a torrent: a `.torrent` file's address or a magnet
+/// link, as a torrent feed's items are (gaps row C10).
+pub fn has_torrents(list: &Playlist) -> bool {
+    list.entries.iter().any(|e| dm_core::is_torrent(&e.url()))
 }
 
 /// Every item's address in `list`, in its order.
@@ -99,6 +118,7 @@ pub fn following(
         quality: quality.to_string(),
         last_run: now,
         seen: remembered(&[], items(list).iter().map(|u| bare(u))),
+        words: String::new(),
     }
 }
 
@@ -146,8 +166,9 @@ pub fn due_now(settings: &crate::Settings, epoch: u64) -> Option<(Vec<Follow>, c
 }
 
 /// What a reading of `follow` brings in: each item it did not list before
-/// (in neither the `rows`, cancelled ones too, nor what it has seen), with
-/// the options it is added with: for later, to its queue, at its quality.
+/// (in neither the `rows`, cancelled ones too, nor what it has seen) whose
+/// title passes its word filter, with the options it is added with: for
+/// later, to its queue, at its quality.
 pub fn new_items(
     follow: &Follow,
     list: &Playlist,
@@ -160,7 +181,13 @@ pub fn new_items(
         referrer: follow.address.clone(),
         ..Default::default()
     };
-    sort_finds(&items(list), rows, &follow.seen)
+    let wanted: Vec<String> = list
+        .entries
+        .iter()
+        .filter(|e| follow.wants(&e.title))
+        .map(|e| e.url())
+        .collect();
+    sort_finds(&wanted, rows, &follow.seen)
         .new
         .into_iter()
         .map(|url| (url, with.clone()))

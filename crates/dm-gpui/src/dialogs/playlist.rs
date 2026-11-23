@@ -11,7 +11,9 @@
 //! podcast) is listed the same way, its items for videos; and "Check again
 //! every … hours" follows the playlist or feed once its videos are added,
 //! what it gains added to the queue chosen (gaps row W10,
-//! `dm_shell::app::follow`).
+//! `dm_shell::app::follow`). A torrent feed's (`.torrent` files, magnet
+//! links) also asks for words: only new items whose titles have them are
+//! added (gaps row C10).
 
 use dm_core::youtube::Playlist;
 use dm_desktop_base::file_info;
@@ -55,6 +57,8 @@ pub struct PlaylistWindow {
     follow: bool,
     /// The hours between its checks, as typed.
     every: Entity<InputState>,
+    /// A torrent feed's word filter, as typed (gaps row C10).
+    words: Entity<InputState>,
     /// The queues what it gains can go to, and the one chosen.
     queues: Vec<String>,
     queue: String,
@@ -136,14 +140,22 @@ impl PlaylistWindow {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        let follow = dm_shell::app::follow::following(
-            list,
-            &self.url,
-            hours,
-            &self.queue,
-            &self.quality,
-            now,
-        );
+        let follow = dm_shell::app::follow::Follow {
+            // Only a torrent feed's row is shown, so only its words are kept.
+            words: if dm_shell::app::follow::has_torrents(list) {
+                self.words.read(cx).value().trim().to_string()
+            } else {
+                String::new()
+            },
+            ..dm_shell::app::follow::following(
+                list,
+                &self.url,
+                hours,
+                &self.queue,
+                &self.quality,
+                now,
+            )
+        };
         let _ = self.view.update(cx, |view, cx| view.follow(follow, cx));
     }
 
@@ -339,6 +351,9 @@ impl PlaylistWindow {
                     ),
             )
             .child(self.follow_row(theme, screen, cx))
+            .when(dm_shell::app::follow::has_torrents(list), |d| {
+                d.child(self.words_row(theme, screen))
+            })
             .into_any_element()
     }
 
@@ -385,6 +400,22 @@ impl PlaylistWindow {
                 screen,
             ))
     }
+
+    /// A torrent feed's "Only add new items whose titles have the words [ ]", taken while it
+    /// is followed (gaps row C10).
+    fn words_row(&self, theme: Theme, screen: &Screen) -> gpui::Div {
+        div()
+            .flex()
+            .items_center()
+            .gap(px(native::LABEL_GAP))
+            .child(screen.label(t("Only add new items whose titles have the words")))
+            .child(div().flex_1().child(native::field_if(
+                &self.words,
+                "Only add new items whose titles have the words",
+                self.follow,
+                theme,
+            )))
+    }
 }
 
 /// Opens "Playlist" for `url`, read by dm as it opens, or already read
@@ -423,6 +454,7 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
                 s.set_value(DEFAULT_HOURS.to_string(), window, cx);
                 s
             });
+            let words = cx.new(|cx| InputState::new(window, cx));
             let playlist = cx.new(|cx| {
                 let focus = cx.focus_handle();
                 let mut this = PlaylistWindow {
@@ -435,6 +467,7 @@ fn open_now(view: WeakEntity<Downloads>, url: String, read: Option<Playlist>, cx
                     done: false,
                     follow: false,
                     every,
+                    words,
                     queues,
                     queue: dm_core::MAIN_QUEUE.to_string(),
                     focus,

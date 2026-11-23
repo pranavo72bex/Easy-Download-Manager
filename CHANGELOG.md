@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Torrent feeds can be followed: a feed's `.torrent` files and magnet links are added as torrents, and "Only add new items whose titles have the words" keeps only the ones you want.
 - Android: holding a download's card opens its menu at once (it acted as a tap before); Back in Options goes from a page to the list, then closes Options; the phone no longer shows desktop-only items (View's side panel, toolbar, drop target and columns, Check for updates, Sounds).
 - Help › Contact support starts a new issue with dm's version, system and language already written in it.
 - The command line takes reference A's switches too (`/d LINK /p FOLDER /f NAME /n /a /s`), so scripts written for it work with dm.

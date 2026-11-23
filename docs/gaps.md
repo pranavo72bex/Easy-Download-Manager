@@ -123,7 +123,6 @@ technology-only items (encrypted DNS, themes, crash reports). Decisions: `docs/d
 | C7  | Scripting with familiar command-line switches | PARTIAL | Reference A's `/d /p /f /n /a /s` switches work alongside dm's own. Left: `--queue NAME` |
 | C8  | A scheduled queue cannot wake a sleeping Windows PC | OPEN · S | Windows waitable timer (no administrator rights needed) |
 | C9  | No ready-made server install (NAS) | OPEN · M | A Docker image of headless dm for amd64 and arm64, built by CI; pairs with W25's web page |
-| C10 | Torrent RSS feeds are not followed | OPEN · S | Extend the podcast feed follower to `.torrent` and magnet items, with a word filter |
 | C11 | The progress window does not show where the server is | OPEN · M | Country and distance (by round-trip time) from an offline IP table (DB-IP Lite, CC BY 4.0); nothing sent |
 | C12 | The extension popup shows only active downloads | OPEN · M | Add recent downloads with Open, Show in folder, Pause/Resume, Clear finished |
 | C14 | No Click'n'Load support | OPEN · M · decide | Off by default (it opens a listening port); needs the maintainer's approval before work starts |

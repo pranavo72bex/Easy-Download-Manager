@@ -985,6 +985,8 @@
  "hours, adding what is new to": "jam, menambahkan yang baru ke",
  "Followed": "Diikuti",
  "Checked again every {} hours; what is new goes to {}.": "Diperiksa lagi setiap {} jam; yang baru masuk ke {}.",
+ "Only add new items whose titles have the words": "Hanya tambahkan item baru yang judulnya memuat kata",
+ "Only items whose titles have the words {} are added.": "Hanya item yang judulnya memuat kata {} yang ditambahkan.",
  "Stop following": "Berhenti mengikuti",
  "{} has nothing new.": "{} tidak punya yang baru.",
  "the followed {} could not be read: {}": "{} yang diikuti tidak dapat dibaca: {}",

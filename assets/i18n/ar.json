@@ -985,6 +985,8 @@
  "hours, adding what is new to": "ساعة، مع إضافة الجديد إلى",
  "Followed": "مُتابَع",
  "Checked again every {} hours; what is new goes to {}.": "يُتحقق منه مرة أخرى كل {} ساعة؛ ويذهب الجديد إلى {}.",
+ "Only add new items whose titles have the words": "أضف فقط العناصر الجديدة التي تحتوي عناوينها على الكلمات",
+ "Only items whose titles have the words {} are added.": "تُضاف فقط العناصر التي تحتوي عناوينها على الكلمات {}.",
  "Stop following": "إيقاف المتابعة",
  "{} has nothing new.": "لا جديد في {}.",
  "the followed {} could not be read: {}": "تعذرت قراءة {} المُتابَع: {}",

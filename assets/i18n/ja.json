@@ -985,6 +985,8 @@
  "hours, adding what is new to": "時間ごと、新しいものの追加先:",
  "Followed": "フォロー中",
  "Checked again every {} hours; what is new goes to {}.": "{} 時間ごとに再確認し、新しいものは {} に追加します。",
+ "Only add new items whose titles have the words": "タイトルに次の語を含む新しい項目だけを追加",
+ "Only items whose titles have the words {} are added.": "タイトルに語 {} を含む項目だけが追加されます。",
  "Stop following": "フォローをやめる",
  "{} has nothing new.": "{} に新しいものはありません。",
  "the followed {} could not be read: {}": "フォロー中の {} を読み込めませんでした: {}",

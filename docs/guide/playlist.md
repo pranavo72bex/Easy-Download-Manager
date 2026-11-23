@@ -41,6 +41,11 @@ downloads."
   from the list, is not added again. The status bar says "Following …,
   checked again every … hours.", then after each reading "Added …
   downloads to …" or "… has nothing new."
+- **Only add new items whose titles have the words:** shown for a torrent
+  feed (one whose items are `.torrent` files or magnet links, which dm adds
+  as torrents). While the feed is followed, only new items whose titles
+  have every one of these words, in any case, are added; left empty, every
+  new item is. An item left out is not counted as seen.
 
 Each followed playlist or feed is listed under **Grabber projects** in the
 side panel, by its title. Clicking it opens **Followed**, which says
@@ -49,6 +54,9 @@ side panel, by its title. Clicking it opens **Followed**, which says
 - **Check now:** reads it at once.
 - **Stop following:** forgets it; nothing already added is removed.
 - **Close:** leaves it as it is.
+
+A torrent feed followed with words also says "Only items whose titles have
+the words … are added."
 
 If a reading fails, the status bar's problems say "the followed … could
 not be read:" and why (see [What dm's messages mean](failures.md)); it is

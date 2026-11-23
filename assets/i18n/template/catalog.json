@@ -985,6 +985,8 @@
  "hours, adding what is new to": "",
  "Followed": "",
  "Checked again every {} hours; what is new goes to {}.": "",
+ "Only add new items whose titles have the words": "",
+ "Only items whose titles have the words {} are added.": "",
  "Stop following": "",
  "{} has nothing new.": "",
  "the followed {} could not be read: {}": "",

@@ -985,6 +985,8 @@
  "hours, adding what is new to": "saatte bir, yenileri şuraya ekle:",
  "Followed": "Takip ediliyor",
  "Checked again every {} hours; what is new goes to {}.": "{} saatte bir yeniden denetlenir; yeniler {} kuyruğuna gider.",
+ "Only add new items whose titles have the words": "Yalnızca başlığında şu sözcükler geçen yeni öğeleri ekle",
+ "Only items whose titles have the words {} are added.": "Yalnızca başlığında {} sözcükleri geçen öğeler eklenir.",
  "Stop following": "Takibi bırak",
  "{} has nothing new.": "{} içinde yeni bir şey yok.",
  "the followed {} could not be read: {}": "takip edilen {} okunamadı: {}",

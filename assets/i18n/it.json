@@ -985,6 +985,8 @@
  "hours, adding what is new to": "ore, aggiungendo le novità a",
  "Followed": "Seguito",
  "Checked again every {} hours; what is new goes to {}.": "Controllato di nuovo ogni {} ore; le novità vanno in {}.",
+ "Only add new items whose titles have the words": "Aggiungi solo i nuovi elementi il cui titolo contiene le parole",
+ "Only items whose titles have the words {} are added.": "Vengono aggiunti solo gli elementi il cui titolo contiene le parole {}.",
  "Stop following": "Smetti di seguire",
  "{} has nothing new.": "{} non ha nulla di nuovo.",
  "the followed {} could not be read: {}": "impossibile leggere {} (seguito): {}",

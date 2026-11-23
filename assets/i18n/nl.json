@@ -985,6 +985,8 @@
  "hours, adding what is new to": "uur, nieuwe items toevoegen aan",
  "Followed": "Gevolgd",
  "Checked again every {} hours; what is new goes to {}.": "Elke {} uur opnieuw gecontroleerd; nieuwe items gaan naar {}.",
+ "Only add new items whose titles have the words": "Alleen nieuwe items toevoegen waarvan de titel deze woorden bevat",
+ "Only items whose titles have the words {} are added.": "Alleen items waarvan de titel de woorden {} bevat, worden toegevoegd.",
  "Stop following": "Niet meer volgen",
  "{} has nothing new.": "{} heeft niets nieuws.",
  "the followed {} could not be read: {}": "{} (gevolgd) kon niet worden gelezen: {}",
