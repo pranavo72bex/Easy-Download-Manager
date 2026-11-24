@@ -977,7 +977,7 @@ def human_session(home, env, app):
         time.sleep(2)
         check("and it waits", state_of(home, later) == "paused", str(state_of(home, later)))
         check("Start queue, clicked, downloads it",
-              click("push button", "Start Queue") and finished(home, later, 60), str(state_of(home, later)))
+              click("push button", "Start queue") and finished(home, later, 60), str(state_of(home, later)))
 
         print("\na download that fails, and Retry")
         broken = files.url("broken.bin")
@@ -1057,8 +1057,8 @@ def human_session(home, env, app):
         check("All shows them all again", click("*", "All")
               and wait_for(lambda: where("*", "by-hand.bin", True), 5))
         finished_before = len([r for r in queue_rows(home) if (r.get("state") or {}).get("kind") == "completed"])
-        check("Delete Completed, clicked, removes the finished rows",
-              finished_before > 0 and click("push button", "Delete Completed")
+        check("Delete completed, clicked, removes the finished rows",
+              finished_before > 0 and click("push button", "Delete completed")
               and wait_for(lambda: not [r for r in queue_rows(home) if (r.get("state") or {}).get("kind") == "completed"], 10),
               f"{finished_before} finished before")
         check("and leaves the files on disk", path.exists())
@@ -1234,7 +1234,7 @@ def table_as_read():
         check("a row for each download under the headings' row", now.get("rows") == len(rows) + 1,
               f"{now.get('rows')} rows for {len(rows)} downloads")
         check("the headings named as the columns are",
-              all(h in now.get("headers", []) for h in ("File Name", "Size", "Status")), str(now.get("headers")))
+              all(h in now.get("headers", []) for h in ("File name", "Size", "Status")), str(now.get("headers")))
         check("each download's name a cell of its row",
               all(n in cells for n in ("slow-told.bin", "small-told.bin", "missing-told.bin")), str(cells[:24]))
         buttons = now.get("buttons", [])

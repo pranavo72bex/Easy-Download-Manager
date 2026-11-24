@@ -231,5 +231,7 @@
  "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect",
  "The site must renew it. If many sites say this, check the computer's date and time",
  "Check the address. On a public network someone may be in between: try another network",
- "A network that inspects traffic (at work or school) may be in between: try another network"
+ "A network that inspects traffic (at work or school) may be in between: try another network",
+ "The disk is full in {}",
+ "This link no longer works"
 ]

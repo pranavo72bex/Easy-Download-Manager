@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Words in sentence case everywhere: Stop all, Delete completed, Start queue, Stop queue, File name, Last try date, All downloads. A side panel group you had shut stays shut.
+- A failed download says what happened as a plain sentence ("This link no longer works") without "Error:" in front; its mark and colour already say it failed.
+- When a link stops working, its window says so in the same words as the row, says what to do, and offers Update download link as its main button, with Close beside it.
+
 - One filled button per window: the empty list's button is a plain "Add URL", named as the toolbar's, and a stalled download's "Choose another folder…" is plain too. After using that button, the menus and keys work on the list again.
 - Each kind of file has its colour for light and for dark looks, easy to see on both; under High Contrast every kind takes the system's text colour.
 - On a phone, a card's round button and its menu are full finger-sized targets, and a screen reader names the download a card's menu belongs to.

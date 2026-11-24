@@ -42,7 +42,7 @@ choose another.
   and choose **Move to queue**.
 - **Make a queue:** in **Move to queue**, type its name under **Or a new
   queue**.
-- **Start or stop a queue:** **Start Queue** and **Stop Queue** on the
+- **Start or stop a queue:** **Start queue** and **Stop queue** on the
   toolbar act on the queue the list shows; the small arrow beside each lists
   every queue, and the one you click is started or stopped.
 - **How many at once:** **Options › Downloads** sets how many downloads run

@@ -182,7 +182,7 @@ fn the_view_menu_ticks_the_columns_the_toolbar_the_language_and_the_sort() {
     );
     assert!(state(&menus, "Small buttons").0);
     assert!(!state(&menus, "Icons and text").0);
-    assert!(!state(&menus, "Stop All").0, "a hidden button unticked");
+    assert!(!state(&menus, "Stop all").0, "a hidden button unticked");
     assert!(state(&menus, "English").0);
     assert!(!state(&menus, "Deutsch").0);
     assert!(state(&menus, Command::SortBySize.label()).0);

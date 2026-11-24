@@ -519,12 +519,12 @@
     "notes": {
      "page": "8 scrolls, the end reached",
      "sort": {
-      "File Name": 0.047,
+      "File name": 0.047,
       "Size": 0.029,
       "Status": 0.019,
       "Time left": 0.018,
       "Transfer rate": 0.017,
-      "Last Try Date": 0.025
+      "Last try date": 0.025
      },
      "many_done": 60
     },
@@ -558,12 +558,12 @@
     "notes": {
      "page": "8 scrolls, the end reached",
      "sort": {
-      "File Name": 0.035,
+      "File name": 0.035,
       "Size": 0.027,
       "Status": 0.019,
       "Time left": 0.036,
       "Transfer rate": 0.04,
-      "Last Try Date": 0.038
+      "Last try date": 0.038
      },
      "many_done": 60
     },
@@ -597,12 +597,12 @@
     "notes": {
      "page": "8 scrolls, the end reached",
      "sort": {
-      "File Name": 0.017,
+      "File name": 0.017,
       "Size": 0.017,
       "Status": 0.017,
       "Time left": 0.016,
       "Transfer rate": 0.021,
-      "Last Try Date": 0.021
+      "Last try date": 0.021
      },
      "many_done": 60
     },
@@ -638,12 +638,12 @@
     "notes": {
      "page": "50 scrolls, the end reached",
      "sort": {
-      "File Name": 0.099,
+      "File name": 0.099,
       "Size": 0.084,
       "Status": 0.094,
       "Time left": 0.103,
       "Transfer rate": 0.096,
-      "Last Try Date": 0.127
+      "Last try date": 0.127
      },
      "many_done": 60
     },
@@ -677,12 +677,12 @@
     "notes": {
      "page": "50 scrolls, the end reached",
      "sort": {
-      "File Name": 0.121,
+      "File name": 0.121,
       "Size": 0.08,
       "Status": 0.109,
       "Time left": 0.08,
       "Transfer rate": 0.104,
-      "Last Try Date": 0.08
+      "Last try date": 0.08
      },
      "many_done": 69
     },
@@ -714,12 +714,12 @@
     "notes": {
      "page": "50 scrolls, the end reached",
      "sort": {
-      "File Name": 0.125,
+      "File name": 0.125,
       "Size": 0.106,
       "Status": 0.108,
       "Time left": 0.105,
       "Transfer rate": 0.099,
-      "Last Try Date": 0.097
+      "Last try date": 0.097
      },
      "many_done": 60
     },

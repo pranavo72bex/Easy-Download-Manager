@@ -2739,7 +2739,7 @@ def p_soak(ctx):
             dm.call("downloads.cancel", ids=drop)
 
     def clear():
-        """Delete Completed, as a person does now and then: every finished file checked whole and
+        """Delete completed, as a person does now and then: every finished file checked whole and
         taken off the disk first, then the finished and cancelled rows taken off the list. A row
         that finished between the two is checked where it was being saved."""
         for r in dm.rows():
@@ -2750,7 +2750,7 @@ def p_soak(ctx):
                 rec["checked"] = True
         ran = dm.call("command.run", id="downloads.clear_finished")
         if not ran.get("ok"):
-            finding("high", "soak", f"Delete Completed was refused: {ran.get('error')}")
+            finding("high", "soak", f"Delete completed was refused: {ran.get('error')}")
         # The command runs off the window's thread: its rows go a moment later.
         time.sleep(1)
         listed = {name_of(r) for r in dm.rows()}

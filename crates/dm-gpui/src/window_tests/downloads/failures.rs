@@ -125,7 +125,7 @@ fn a_cut_connection_is_said_plainly() {
     let row = h.rows()[0].clone();
     let status = dm_desktop_base::rows::status_of(&row);
     assert_eq!(
-        status, "Error: the connection dropped before the file was complete. Try again",
+        status, "The connection dropped before the file was complete. Try again",
         "{:?}",
         row.state
     );

@@ -717,7 +717,7 @@ def main():
         # edit categories… opens Options at Folders.
         human("ui.click", text="Main queue", button="right")
         check("a queue's right-click menu offers Start Queue, Stop Queue and Scheduler…",
-              soon(lambda: all(w in on_screen() for w in ("Start Queue", "Stop Queue", "Scheduler…"))))
+              soon(lambda: all(w in on_screen() for w in ("Start queue", "Stop queue", "Scheduler…"))))
         # Closed by a press outside it (the port's keys go to a dialog in front where one is open).
         human("ui.click", text="All")
         check("and a click outside closes it", soon(lambda: "Scheduler…" not in on_screen()))

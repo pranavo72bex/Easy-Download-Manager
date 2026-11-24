@@ -331,7 +331,7 @@ def page_through(dm, rows):
 
 def sort_each(dm):
     """A click on each heading on screen, timed until it shows its arrow."""
-    headings = ["File Name", "Size", "Status", "Time left", "Transfer rate", "Last Try Date",
+    headings = ["File name", "Size", "Status", "Time left", "Transfer rate", "Last try date",
                 "Description", "Referrer", "Folder"]
     took = {}
     shown = texts(dm)

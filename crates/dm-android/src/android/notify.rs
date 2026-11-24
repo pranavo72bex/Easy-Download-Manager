@@ -228,7 +228,7 @@ pub(crate) fn ongoing_builder<'local>(
     title: &str,
     body: &str,
 ) -> jni::errors::Result<JObject<'local>> {
-    let stop_all = dm_desktop_base::i18n::t("Stop All");
+    let stop_all = dm_desktop_base::i18n::t("Stop all");
     let tap = launch(env, context)?;
     let builder = builder(
         env,

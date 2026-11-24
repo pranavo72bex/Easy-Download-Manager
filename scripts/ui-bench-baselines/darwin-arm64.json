@@ -561,12 +561,12 @@
      "cold": "binary evicted",
      "page": "5 scrolls, the end reached",
      "sort": {
-      "File Name": 0.024,
+      "File name": 0.024,
       "Size": 0.017,
       "Status": 0.021,
       "Time left": 0.017,
       "Transfer rate": 0.017,
-      "Last Try Date": 0.017
+      "Last try date": 0.017
      },
      "many_done": 60
     },
@@ -601,12 +601,12 @@
      "cold": "binary evicted",
      "page": "5 scrolls, the end reached",
      "sort": {
-      "File Name": 0.032,
+      "File name": 0.032,
       "Size": 0.017,
       "Status": 0.014,
       "Time left": 0.02,
       "Transfer rate": 0.013,
-      "Last Try Date": 0.016
+      "Last try date": 0.016
      },
      "many_done": 60
     },
@@ -641,12 +641,12 @@
      "cold": "binary evicted",
      "page": "5 scrolls, the end reached",
      "sort": {
-      "File Name": 0.026,
+      "File name": 0.026,
       "Size": 0.015,
       "Status": 0.021,
       "Time left": 0.012,
       "Transfer rate": 0.017,
-      "Last Try Date": 0.021
+      "Last try date": 0.021
      },
      "many_done": 60
     },
@@ -683,12 +683,12 @@
      "cold": "binary evicted",
      "page": "50 scrolls, the end reached",
      "sort": {
-      "File Name": 0.4,
+      "File name": 0.4,
       "Size": 0.303,
       "Status": 0.253,
       "Time left": 0.257,
       "Transfer rate": 0.258,
-      "Last Try Date": 0.258
+      "Last try date": 0.258
      },
      "many_done": 60
     },
@@ -723,12 +723,12 @@
      "cold": "binary evicted",
      "page": "50 scrolls, the end reached",
      "sort": {
-      "File Name": 0.448,
+      "File name": 0.448,
       "Size": 0.357,
       "Status": 0.313,
       "Time left": 0.317,
       "Transfer rate": 0.337,
-      "Last Try Date": 0.323
+      "Last try date": 0.323
      },
      "many_done": 60
     },
@@ -763,12 +763,12 @@
      "cold": "binary evicted",
      "page": "50 scrolls, the end reached",
      "sort": {
-      "File Name": 0.369,
+      "File name": 0.369,
       "Size": 0.31,
       "Status": 0.269,
       "Time left": 0.257,
       "Transfer rate": 0.247,
-      "Last Try Date": 0.244
+      "Last try date": 0.244
      },
      "many_done": 60
     },

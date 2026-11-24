@@ -54,8 +54,8 @@ fn the_main_window_keeps_its_words_at_every_width_and_size() {
             h.resize(width, 720.0);
             // The list scrolls sideways where its columns are wider than the window: a column
             // its right edge cuts is scrolled to, not lost.
-            let list_top = (width >= 600.0 && h.shows(dm_desktop_base::i18n::t("File Name")))
-                .then(|| f32::from(h.bounds_of(dm_desktop_base::i18n::t("File Name")).top()));
+            let list_top = (width >= 600.0 && h.shows(dm_desktop_base::i18n::t("File name")))
+                .then(|| f32::from(h.bounds_of(dm_desktop_base::i18n::t("File name")).top()));
             for (text, laid, seen) in h.words_cut() {
                 let scrolled = list_top.is_some_and(|top| f32::from(laid.top()) >= top - 1.0)
                     && f32::from(seen.right()) >= width - 1.0;
@@ -146,7 +146,7 @@ fn the_main_window_keeps_its_words_in_german_and_hebrew() {
         });
         for width in WIDTHS {
             h.resize(width, 720.0);
-            let heading = t("File Name");
+            let heading = t("File name");
             let list_top =
                 (width >= 600.0 && h.shows(heading)).then(|| f32::from(h.bounds_of(heading).top()));
             for (text, laid, seen) in h.words_cut() {

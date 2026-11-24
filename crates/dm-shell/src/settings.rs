@@ -179,7 +179,7 @@ pub struct Settings {
     /// here so it holds across launches; `SIDEBAR_WIDTH.default` for a file from before it.
     #[serde(default = "default_sidebar_width")]
     pub sidebar_width: f32,
-    /// The side panel's groups shut from their heading ("All Downloads", "Queues", "Grabber
+    /// The side panel's groups shut from their heading ("All downloads", "Queues", "Grabber
     /// projects"), by their English heading, kept for the next launch (gaps row U42).
     #[serde(default)]
     pub shut_groups: Vec<String>,

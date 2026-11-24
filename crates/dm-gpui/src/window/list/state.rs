@@ -112,7 +112,7 @@ pub(crate) struct Known {
     /// The name each row is shown by: the one its file will get, a waiting
     /// second copy's "name (1)", worked out at each read.
     pub(crate) shown_names: HashMap<dm_core::Id, String>,
-    /// The queues, as the last read found them: Start Queue's and Stop
+    /// The queues, as the last read found them: Start queue's and Stop
     /// Queue's arrows list them, and asking the engine as each frame was
     /// drawn held the window up behind the queue's lock.
     pub(crate) queue_list: Vec<String>,

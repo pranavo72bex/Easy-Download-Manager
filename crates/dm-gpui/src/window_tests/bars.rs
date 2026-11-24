@@ -159,7 +159,7 @@ fn start_queue_under_a_shut_schedule_and_stop_queue() {
     });
     h.run(Command::StopQueue);
     // Stop Queue runs off the window's thread too (gaps row 183) and speaks once done.
-    h.until("Stop Queue's words", |h| {
+    h.until("Stop queue's words", |h| {
         h.said().starts_with("Stopped 1 download in ")
     });
     h.settings_to(|s| s.schedule = dm_core::Schedule::default());

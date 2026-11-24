@@ -839,7 +839,7 @@ def walk(dm, origin):
     # The questions a server's answer raises (B39, B41) are answered as a person does,
     # as they come: each blocks the window until it is.
     questions = {}
-    asked = {"Name sent by the server": starting("Use "), "The file doesn't exist": "OK"}
+    asked = {"Name sent by the server": starting("Use "), "This link no longer works": "Close"}
     for url in (f"{origin}/go/target", f"{files}/report", f"{files}/missing.bin"):
         dm.add(url)
         drain(dm, 4, asked, questions)
@@ -969,12 +969,13 @@ def walk(dm, origin):
           said is not None and bool(second) and second["state"]["kind"] == "completed"
           and pathlib.Path(second["path"]).name == "second",
           pathlib.Path(second["path"]).name if second and second.get("path") else str(second and second["state"]))
-    gone = questions.get("The file doesn't exist", [])
-    check("B41", "a 404 is told once in a window: the file doesn't exist, HTTP/1.1 404 Not Found, OK",
-          len(gone) == 1 and "The requested file doesn't exist." in " ".join(gone[0])
-          and "HTTP/1.1 404 Not Found" in " ".join(gone[0]) and "OK" in gone[0], f"{len(gone)} window(s)")
+    gone = questions.get("This link no longer works", [])
+    check("B41", "a 404 is told once in a window: this link no longer works, what to do, HTTP/1.1 404 Not Found, Update download link and Close",
+          len(gone) == 1 and "Open the page it came from in your browser" in " ".join(gone[0])
+          and "HTTP/1.1 404 Not Found" in " ".join(gone[0]) and "Close" in gone[0]
+          and "Update download link" in gone[0], f"{len(gone)} window(s)")
     pause(3)
-    check("B41", "it does not come back for the same row", "The file doesn't exist" not in dm.dialogs(), "")
+    check("B41", "it does not come back for the same row", "This link no longer works" not in dm.dialogs(), "")
     dm.add(f"{files}/pageyes.zip")
     said = answer(dm, "Web page instead of the file", "Save as HTML")
     page = dm.wait("pageyes.zip", {"completed", "failed"}, 60)
@@ -1007,7 +1008,7 @@ def walk(dm, origin):
     pause(2)
     waiting = dm.row("later.bin")
     still = waiting and waiting["state"]["kind"] not in ("running", "completed")
-    dm.click("Start Queue")
+    dm.click("Start queue")
     r = dm.wait("later.bin", {"completed", "failed"}, 60)
     check("B19", "Add for later waits until Start queue, then completes",
           still and r["state"]["kind"] == "completed", f"before: {waiting['state']['kind'] if waiting else None}")
@@ -1028,11 +1029,11 @@ def walk(dm, origin):
     held = dm.row("night.bin")
     dm.click("Downloads")
     pause(0.5)
-    dm.click("Start Queue")
+    dm.click("Start queue")
     pause(0.8)
     dm.click("Night")
     r = dm.wait("night.bin", {"completed", "failed"}, 60)
-    check("B64", "Downloads > Start Queue > Night starts the Night queue while the list shows All Downloads",
+    check("B64", "Downloads > Start Queue > Night starts the Night queue while the list shows All downloads",
           held and held.get("queue") == "Night" and held["state"]["kind"] not in ("running", "completed")
           and r["state"]["kind"] == "completed",
           f"queue {held.get('queue') if held else None}, then {r['state']['kind']}")
@@ -1258,7 +1259,7 @@ def walk(dm, origin):
           and dm.row("stopme.bin") is None,
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
     paths = [pathlib.Path(x["path"]) for x in dm.rows() if x["state"]["kind"] == "completed"]
-    dm.click("Delete Completed")
+    dm.click("Delete completed")
     # Its own line, not the one before it ("Put back 1 download." from the
     # Undo above), which a fixed pause sometimes read (gaps row 56).
     said = ""
@@ -1526,7 +1527,7 @@ def walk(dm, origin):
     held = ["cmd" if sys.platform == "darwin" else "ctrl"]
     def sizes():
         names = [t["rect"] for t in dm.call("ui.texts").get("result", {}).get("texts", [])
-                 if t.get("window") == "main" and t["text"] in ("File Name", "Name")]
+                 if t.get("window") == "main" and t["text"] in ("File name", "Name")]
         return names[0][3] - names[0][1] if names else 0
     medium = sizes()
     dm.call("ui.key", key="=", modifiers=held)
@@ -2603,7 +2604,7 @@ def told_list(dm, origin):
     check("U23", "a row for each download under the headings' row", len(of("AXRow")) == len(rows) + 1,
           f"{len(of('AXRow'))} rows for {len(rows)} downloads")
     check("U23", "the headings named as the columns are",
-          all(h in cells for h in ("File Name", "Size", "Status")), f"cells {cells[:24]}")
+          all(h in cells for h in ("File name", "Size", "Status")), f"cells {cells[:24]}")
     check("U23", "each download's name a cell of its row",
           all(n in cells for n in ("told.bin", "told-done.bin", "told-missing.bin")), f"cells {cells[:24]}")
     on = [e for e in of("AXButton") if named(e) == "Add URL" and e.get("enabled") is not False]

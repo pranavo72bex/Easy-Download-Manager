@@ -47,7 +47,7 @@ fn at_a_phones_width_the_rows_are_cards() {
     // The top bar: no menus' titles, no toolbar; search and the menu's button; the bottom
     // navigation's Places; Add URL floating over the cards.
     assert!(!h.shows("Tasks"), "{:?}", h.texts());
-    assert!(!h.shows("Stop All"), "{:?}", h.texts());
+    assert!(!h.shows("Stop all"), "{:?}", h.texts());
     for button in ["Places", "Add URL", "Menu", "Filter"] {
         assert!(h.shows(button), "{button}: {:?}", h.texts());
     }
@@ -92,7 +92,7 @@ fn the_overflow_menu_runs_the_toolbars_and_the_menus_commands() {
     h.until("the row to start", |h| {
         h.rows().iter().any(|r| r.state == State::Running)
     });
-    h.until("Stop All to be offered", |h| {
+    h.until("Stop all to be offered", |h| {
         h.enabled(dm_shell::app::commands::Command::StopAll)
     });
     h.person_click("Menu", 1);
@@ -100,8 +100,8 @@ fn the_overflow_menu_runs_the_toolbars_and_the_menus_commands() {
     for menu in ["Tasks", "File", "View", "Help"] {
         assert!(h.shows(menu), "{menu}: {:?}", h.texts());
     }
-    h.person_click("Stop All", 1);
-    h.until("Stop All", |h| {
+    h.person_click("Stop all", 1);
+    h.until("Stop all", |h| {
         h.rows().iter().all(|r| r.state == State::Paused)
     });
     assert!(
@@ -181,7 +181,7 @@ fn at_the_desktops_least_width_the_layout_is_the_desktops() {
     for width in [640.0, crate::window::narrow::NARROW_BELOW] {
         h.resize(width, 400.0);
         h.until_shown("Tasks");
-        assert!(h.shows("Stop All"), "{width}: {:?}", h.texts());
+        assert!(h.shows("Stop all"), "{width}: {:?}", h.texts());
         assert!(!h.shows("Places"), "{width}: {:?}", h.texts());
         assert!(!h.shows("Menu"), "{width}: {:?}", h.texts());
     }
@@ -455,8 +455,8 @@ fn a_place_held_opens_its_menu_as_a_sheet() {
             && view.layout.narrow.drawer.is_none()
             && view.layout.narrow.sheet.is_some()
     }));
-    assert!(h.shows("Stop All"), "{:?}", h.texts());
-    h.person_click(dm_desktop_base::i18n::t("Stop All"), 1);
+    assert!(h.shows("Stop all"), "{:?}", h.texts());
+    h.person_click(dm_desktop_base::i18n::t("Stop all"), 1);
     h.until("the sheet closed", |h| {
         h.view(|view| view.layout.narrow.sheet.is_none())
     });

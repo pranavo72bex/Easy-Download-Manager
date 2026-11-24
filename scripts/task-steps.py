@@ -272,15 +272,15 @@ class Dm:
 
 def close_dialogs(dm):
     """Closes every window dm has open besides its own, not counted: what setting a task
-    up left open (a progress window, "The file doesn't exist"). Escape closes a dialog
+    up left open (a progress window, "This link no longer works"). Escape closes a dialog
     as its close button does; Close or OK where it does not. Never Cancel: in a progress
     window that would be Cancel download's neighbour."""
     for _ in range(12):
         open_now = dm.dialogs()
         if not open_now:
             return True
-        if "The file doesn't exist" in open_now:
-            dm.press("OK")
+        if "This link no longer works" in open_now:
+            dm.press("Close")
         else:
             dm.call("ui.key", key="Escape")
         pause(0.5)
@@ -495,7 +495,7 @@ def t08_run(dm, s, files, work):
     pause(2)
     waiting = dm.row("later.bin")
     held = bool(waiting) and waiting["state"]["kind"] not in ("running", "completed")
-    s.click("Start Queue")
+    s.click("Start queue")
     (r,) = s.finished(["later.bin"])
     ok, detail = whole(r, "later.bin")
     return held and ok, f"waited first: {held}; {detail}"
@@ -656,7 +656,7 @@ def t17_run(dm, s, files, work):
     rows = [dm.row(n) for n in ("done-a.bin", "done-b.bin")]
     if not all(r and r["state"]["kind"] == "completed" for r in rows):
         return False, "nothing finished to clear"
-    s.click("Delete Completed")
+    s.click("Delete completed")
     gone = s.until(lambda: not any(x["state"]["kind"] == "completed" for x in dm.rows()), 6)
     stays = all(pathlib.Path(r["path"]).is_file() for r in rows)
     return bool(gone) and stays, f"off the list: {bool(gone)}; files kept: {stays}"

@@ -296,7 +296,7 @@ def the_list(call, dialogs, read, failures):
               f"tables {as_list(told.get('tables'))} in {told.get('title')!r}")
         check("a row for each download under the headings' row", len(listed) == len(rows()) + 1,
               f"{len(listed)} rows for {len(rows())} downloads")
-        check("the headings named as the columns are", all(h in headings for h in ("File Name", "Size", "Status")),
+        check("the headings named as the columns are", all(h in headings for h in ("File name", "Size", "Status")),
               str(headings))
         check("each download's name a cell of its row", all(n in cells for n in (SLOW, DONE, GONE)), str(cells[:24]))
         check("a greyed button is told off: Delete with nothing chosen, Add URL not",

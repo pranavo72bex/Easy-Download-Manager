@@ -186,18 +186,20 @@ pub fn page_for_file() -> DownloadAsk {
     }
 }
 
-/// B41: the server said the file is not there; told once, OK, or Update download link.
+/// B41: the server said the file is not there; told once. Its title as the row says it, the
+/// step that mends it as its body and its filled button (a fresh link for the file, gaps row
+/// U10), the server's own answer beneath; Close leaves it (gaps row E14: the title said again
+/// in the body, and OK filled while the mend was plain).
 pub fn not_found() -> DownloadAsk {
     DownloadAsk {
-        title_english: "The file doesn't exist",
-        title: t("The file doesn't exist"),
-        lines: vec![
-            t("The requested file doesn't exist.").to_string(),
-            t("Details:").to_string(),
-        ],
+        title_english: "This link no longer works",
+        title: t("This link no longer works"),
+        lines: vec![format!(
+            "{}.",
+            t("Open the page it came from in your browser and download from there, which gives dm a new link")
+        )],
         detail: Some("HTTP/1.1 404 Not Found"),
-        // OK, and the step to take: a fresh link for the file (gaps row U10).
-        buttons: vec![t("OK").into(), t("Update download link").into()],
+        buttons: vec![t("Update download link").into(), t("Close").into()],
     }
 }
 
@@ -402,9 +404,9 @@ mod tests {
         assert_eq!(page.title_english, "Web page instead of the file");
         assert_eq!(page.buttons, vec!["Save as HTML", "Don't download"]);
         let gone = not_found();
-        assert_eq!(gone.title_english, "The file doesn't exist");
+        assert_eq!(gone.title_english, "This link no longer works");
         assert_eq!(gone.detail, Some("HTTP/1.1 404 Not Found"));
-        assert_eq!(gone.buttons, vec!["OK", "Update download link"]);
+        assert_eq!(gone.buttons, vec!["Update download link", "Close"]);
     }
 
     #[test]

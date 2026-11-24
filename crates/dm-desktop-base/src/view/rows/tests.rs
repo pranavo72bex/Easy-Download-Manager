@@ -293,13 +293,13 @@ fn a_video_page_that_failed_says_why_after_the_sentence() {
     row.state = State::Failed("no stream at that quality".into());
     assert_eq!(
         status_in_english(&row),
-        "Error: dm couldn't get the video from this page (no stream at that quality)"
+        "Dm couldn't get the video from this page (no stream at that quality)"
     );
     // A failure with its own plain words is not given a second one.
     row.state = State::Failed("YouTube says: Video unavailable".into());
     assert_eq!(
         status_in_english(&row),
-        "Error: this video isn't available. It may be private, removed, or not shown in your country"
+        "This video isn't available. It may be private, removed, or not shown in your country"
     );
 }
 
@@ -311,16 +311,13 @@ fn a_full_disk_says_which_folder() {
     row.began_in = "/media/usb/Downloads".into();
     assert_eq!(
         status_in_english(&row),
-        "Error: the disk is full in /media/usb/Downloads"
+        "The disk is full in /media/usb/Downloads"
     );
     row.save_dir = Some("/mnt/big".into());
-    assert_eq!(
-        status_in_english(&row),
-        "Error: the disk is full in /mnt/big"
-    );
+    assert_eq!(status_in_english(&row), "The disk is full in /mnt/big");
     row.save_dir = None;
     row.began_in.clear();
-    assert_eq!(status_in_english(&row), "Error: the disk is full");
+    assert_eq!(status_in_english(&row), "The disk is full");
 }
 
 /// A row held for the computer's state says why (gaps row W11), before the schedule's words;

@@ -32,7 +32,7 @@ impl Downloads {
     /// every one held the first frame back 35 ms (gaps row S16).
     pub(super) fn place_every_row(&mut self, settings: &dm_shell::Settings) {
         self.known.named_at = Some(Instant::now());
-        // The queues the rows name, for Start Queue's and Stop Queue's
+        // The queues the rows name, for Start queue's and Stop queue's
         // arrows, the menu bar and the side panel: worked out from the
         // rows where they changed, not asked of the engine at each read
         // and each tick, a pass over every row under the queue's lock

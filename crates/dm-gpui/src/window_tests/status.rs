@@ -80,8 +80,8 @@ fn a_failures_next_step_is_a_button_beside_retry() {
     let mut h = world.harness();
     h.add_url(&world.url("missing.bin"), "Start now");
     // The 404's window first, told once (B41).
-    h.until_shown("The file doesn't exist");
-    h.click("OK");
+    h.until_shown("HTTP/1.1 404 Not Found");
+    h.click("Close");
     h.until("the row to fail", |h| {
         matches!(
             h.rows().first().map(|r| r.state.clone()),
@@ -99,14 +99,14 @@ fn a_failures_next_step_is_a_button_beside_retry() {
     });
 }
 
-/// "The file doesn't exist" offers Update download link beside OK, which opens that dialog for
+/// "This link no longer works" offers Update download link beside Close, which opens that dialog for
 /// its row (gaps row U10, B41).
 #[test]
 fn the_file_doesnt_exist_offers_a_fresh_link() {
     let world = world();
     let mut h = world.harness();
     h.add_url(&world.url("missing.bin"), "Start now");
-    h.until_shown("The file doesn't exist");
+    h.until_shown("HTTP/1.1 404 Not Found");
     h.click("Update download link");
     h.until("Update download link's dialog", |h| {
         h.dialogs()

@@ -290,8 +290,8 @@ fn long_status_text_wraps_and_stays_on_screen() {
         h.rows().iter().any(|r| matches!(r.state, State::Failed(_)))
     });
     // The server's answer, a question of its own in front, put away.
-    h.until("the question", |h| h.shows("The file doesn't exist"));
-    h.click("OK");
+    h.until("the question", |h| h.shows("HTTP/1.1 404 Not Found"));
+    h.click("Close");
     h.until("the progress window's Retry", |h| {
         h.dialog_words("Retry").is_some()
     });
@@ -364,7 +364,7 @@ fn the_columns_follow_the_window_until_one_is_dragged() {
     h.resize(720.0, 460.0);
     add_later(&mut h, &world, &["file.zip"]);
     let name_width = |h: &mut Harness| {
-        let name = in_main(h, "File Name").expect("File Name").left();
+        let name = in_main(h, "File name").expect("File name").left();
         let status = in_main(h, "Status").expect("Status").left();
         status - name
     };

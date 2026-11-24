@@ -95,7 +95,7 @@ fn what_a_row_says_of_retries_stalls_sign_ins_and_a_file_due_to_go() {
     refused.fail_kind = Some(dm_core::FailKind::Refused(401));
     assert_eq!(
         status_in_english(&refused),
-        "Error: the ftp server said 401 not logged in — it needs a sign-in: Properties › Login"
+        "The ftp server said 401 not logged in — it needs a sign-in: Properties › Login"
     );
 
     // Finished, its time to go come: "Complete" until it has gone.

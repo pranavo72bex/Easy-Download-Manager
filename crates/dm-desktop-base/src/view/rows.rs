@@ -435,8 +435,9 @@ fn completed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String 
     }
 }
 
-/// A failed download in words, plainly where dm knows them; empty for one that has not
-/// failed.
+/// A failed download in words, plainly where dm knows them, as a sentence ("This link no
+/// longer works"); empty for one that has not failed. No "Error:" before it: the row's mark and
+/// colour say it failed, and the word took a third of the cell (gaps row E13).
 fn failed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     match &row.state {
         // A server that wants a sign-in says where to give one: the plain
@@ -446,7 +447,7 @@ fn failed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
         State::Failed(reason) if needs_sign_in(row) && format::reason(reason).is_none() => {
             format!(
                 "{} — {}",
-                crate::i18n::fill(words("Error: {}"), &[reason]),
+                sentence(reason),
                 words("it needs a sign-in: Properties › Login")
             )
         }
@@ -457,7 +458,7 @@ fn failed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             if format::reason(reason) == Some("the disk is full")
                 && !going_into(row).is_empty() =>
         {
-            crate::i18n::fill(words("Error: the disk is full in {}"), &[&going_into(row)])
+            crate::i18n::fill(words("The disk is full in {}"), &[&going_into(row)])
         }
         // A video page that failed, with nothing more specific known: the
         // reader's own words follow the sentence.
@@ -466,16 +467,19 @@ fn failed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
                 && format::video_said(reason).is_some() =>
         {
             let said = format::video_said(reason).unwrap_or_default();
-            crate::i18n::fill(
-                words("Error: {}"),
-                &[&format!("{} ({said})", words(format::VIDEO_NOT_GOT))],
-            )
+            sentence(&format!("{} ({said})", words(format::VIDEO_NOT_GOT)))
         }
-        State::Failed(reason) => crate::i18n::fill(
-            words("Error: {}"),
-            &[&format::reason(reason).map_or(reason.as_str(), words)],
-        ),
+        State::Failed(reason) => sentence(format::reason(reason).map_or(reason.as_str(), words)),
         _ => String::new(),
+    }
+}
+
+/// `words` as a sentence begins: its first letter a capital, where its script has capitals.
+pub fn sentence(words: &str) -> String {
+    let mut letters = words.chars();
+    match letters.next() {
+        Some(first) => first.to_uppercase().chain(letters).collect(),
+        None => String::new(),
     }
 }
 

@@ -982,7 +982,6 @@ below 600 points (`window/narrow.rs`). Three things hold it back:
 |-----|-----|--------|------|
 | V1  | The wording rule lacks its list of one word per thing | PARTIAL | `docs/ui-design.md` has its "Words" section (2026-11-24). Left: U20's list of one word per thing, once U20 is decided |
 | V2  | 150 strings over 60 characters, 24 over 120; on a phone a setting's explanation fills the screen | OPEN · M | Each long string cut to one short line under its setting; the rest moves to that setting's page in `docs/guide/`, opened by a "Learn more" link. Longest first (the dial-up, firewall, "Only through", backup and seeding texts) |
-| V3  | Capitals are mixed: "Stop All", "Start Queue", "Delete Completed", "File Name", "Last Try Date" beside sentence-case lines | OPEN · S | Sentence case everywhere ("Stop all", "File name"); menu words that follow reference A are changed in `docs/parity.md` in the same commit |
 | V4  | A failure is told in several shapes ("could not" 16 times, "failed" 6, "cannot" 5), often in one long sentence | OPEN · M | One shape: what happened in a few words on the row ("Server refused the sign-in"), what to do in the details ("Check the user name and password in Properties"). `docs/guide/failures.md` follows |
 | V5  | The row's status, sizes and dates have one form; a card on a phone needs a shorter one | OPEN · S | One formatter with a full and a short form ("45% · 2.1 MB/s · 3 min", "Yesterday"), picked by the room the text has, never by the system |
 | V6  | Nothing keeps the words short once they are fixed, and a translation can be far longer than its English | OPEN · S to M | `cargo xtask words` (beside `i18n`): fails on a string over its kind's limit, on Title Case, on a word outside U20's list, and on a translation over 1.4 times its English. V15's pictures catch what still does not fit |
@@ -1114,15 +1113,16 @@ named button reached by Tab, the side panel's places reached by Tab, the search 
 it has the keys, the keyboard's row said to a screen reader, Remove animations read on Android
 and less motion asked again as the window comes in front, columns as wide as their heading and
 figures, the sideways bar and the side panel's bar shown where there is more, cut words offered
-whole on hover by measure, and the card's figures cut before its name. The rest:
+whole on hover by measure, and the card's figures cut before its name. The rest, rows E13
+to E23, were done the same day at the maintainer's word ("now fix the MEDIUM rows E13 to E23;
+keep UI consistent in all part of application"; E17 took its recommendation: the side panel's
+monocolor pictures written into rule 2), and their rows deleted.
 
-| #   | Gap | Status | Next |
-|-----|-----|--------|------|
-| E13 | Words: Title Case where the rule is sentence case ("Stop All", "Delete Completed", "Start Queue", "Stop Queue", "File Name", "Last Try Date", "All Downloads"; `dm-shell/src/app/commands.rs`, `places.rs`, `dm-desktop-base/src/view/columns.rs`), and the row's "Error: this link no…", whose "Error:" repeats its mark and takes a third of the cell (`view/rows.rs`; contract B14 already says "This link no longer works") | OPEN · S, with V3 and V4 | The catalog's keys and all 14 languages; contract rows B14, B19, B24, B25, B64 (the maintainer's word) |
-| E14 | The failure dialog repeats its title in its body ("The file doesn't exist" / "The requested file doesn't exist."), shows "Details:" over a raw "HTTP/1.1 404 Not Found", and fills OK while "Update download link", the step that mends it, is plain (`view/asks.rs:190`) | OPEN · S | Title as the row says it, the next step as its body, the server's answer as a hint; "Update download link" filled, "Close" plain (rule 1); contract B41 |
 
 Owed for the fixes above: the pictures of contract B25 taken again at the next `human-qa.py`
-(the accent's shade changed on macOS and GNOME); a walk with VoiceOver over the list's arrow
+(the accent's shade changed on macOS and GNOME, the empty list's button, the kinds' colours, the
+words in sentence case); a reader for the new and derived translations in `assets/i18n/unread/`
+("This link no longer works", "The disk is full in {}"); a walk with VoiceOver over the list's arrow
 keys and the side panel; the window at 360 and 700 points wide (`ui-shot.py` pictures one size
 only); the phone on the emulator with Remove animations on.
 

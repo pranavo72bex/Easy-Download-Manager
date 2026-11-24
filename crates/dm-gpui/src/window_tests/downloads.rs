@@ -233,7 +233,7 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
         h.view(|view| view.list.place.clone())
             == dm_shell::app::places::Place::Queue(dm_core::MAIN_QUEUE.into())
     });
-    h.click("Start Queue");
+    h.click("Start queue");
     h.until("the queue's download to complete", |h| completed(h) == 1);
 }
 

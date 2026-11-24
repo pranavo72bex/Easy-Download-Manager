@@ -296,15 +296,15 @@ pub fn place_menu(place: &Place) -> Vec<(&'static str, PlaceAction)> {
         ],
         Place::Unfinished => vec![
             ("Resume all", PlaceAction::Run(Command::ResumeAll)),
-            ("Stop All", PlaceAction::Run(Command::StopAll)),
+            ("Stop all", PlaceAction::Run(Command::StopAll)),
         ],
         Place::Finished => vec![(
-            "Delete Completed",
+            "Delete completed",
             PlaceAction::Run(Command::DeleteCompleted),
         )],
         Place::Queue(_) => vec![
-            ("Start Queue", PlaceAction::Run(Command::StartQueue)),
-            ("Stop Queue", PlaceAction::Run(Command::StopQueue)),
+            ("Start queue", PlaceAction::Run(Command::StartQueue)),
+            ("Stop queue", PlaceAction::Run(Command::StopQueue)),
             ("Scheduler…", PlaceAction::Run(Command::Scheduler)),
         ],
     }

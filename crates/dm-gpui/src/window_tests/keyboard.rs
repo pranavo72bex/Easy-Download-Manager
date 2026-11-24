@@ -81,7 +81,7 @@ fn the_category_tree_has_right_click_menus() {
     h.until("the place menu", |h| {
         h.view(|view| view.menus.place_menu.is_some())
     });
-    h.click("Start Queue");
+    h.click("Start queue");
     assert_eq!(
         h.view(|view| view.list.place.clone()),
         Place::Queue(dm_core::RECHECK_QUEUE.into()),
@@ -94,7 +94,7 @@ fn the_category_tree_has_right_click_menus() {
     h.until("the place menu", |h| {
         h.view(|view| view.menus.place_menu.is_some())
     });
-    h.click("Delete Completed");
+    h.click("Delete completed");
     h.until("the finished row gone", |h| h.rows().is_empty());
 
     // A kind: categories are edited in Options › Save to.

@@ -24,7 +24,7 @@ use bar_menus::{downloads_menu, file_menu, help_menu, view_menu};
 /// when any of it changes (`Downloads::refresh_menus`).
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Ticks {
-    /// The queues, for Start Queue's and Stop Queue's submenus.
+    /// The queues, for Start queue's and Stop queue's submenus.
     pub queues: Vec<String>,
     /// Downloads › When done's choice.
     pub when_done: WhenDone,
@@ -75,7 +75,7 @@ thread_local! {
 pub struct Run(pub Command);
 
 /// Start Queue or Stop Queue for the queue named, whatever the list shows
-/// (B64): Downloads › Start Queue's and Stop Queue's submenus, and the
+/// (B64): Downloads › Start queue's and Stop queue's submenus, and the
 /// toolbar's arrows beside them.
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = dm, no_json)]

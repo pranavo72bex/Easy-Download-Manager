@@ -440,7 +440,7 @@ fn everything_and_all_are_two_words_in_every_language() {
     for (code, text) in CATALOGS {
         let have = catalog(text);
         assert_ne!(
-            have.get("All Downloads"),
+            have.get("All downloads"),
             have.get("All"),
             "{code} names the tree and its first place alike"
         );

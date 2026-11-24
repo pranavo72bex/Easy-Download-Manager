@@ -102,7 +102,7 @@ impl Column {
     /// Its heading in English, which the catalogs are keyed by.
     pub fn english(self) -> &'static str {
         match self {
-            Column::Name => "File Name",
+            Column::Name => "File name",
             // Its heading draws the queue's mark; this is its name in the
             // columns menu and for a screen reader.
             Column::Queue => "Queue",
@@ -110,7 +110,7 @@ impl Column {
             Column::Status => "Status",
             Column::TimeLeft => "Time left",
             Column::Rate => "Transfer rate",
-            Column::LastTry => "Last Try Date",
+            Column::LastTry => "Last try date",
             Column::Description => "Description",
             Column::Referrer => "Referrer",
             Column::Folder => "Folder",

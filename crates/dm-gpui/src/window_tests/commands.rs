@@ -382,8 +382,8 @@ fn file_items(h: &mut Harness, done: &dm_core::Entry) {
 /// Downloads' items.
 fn downloads_items(h: &mut Harness, done: &dm_core::Entry) {
     // Downloads
-    press(h, &["Downloads", "Stop All"]);
-    h.until("Stop All", |h| {
+    press(h, &["Downloads", "Stop all"]);
+    h.until("Stop all", |h| {
         h.rows().iter().all(|r| r.state != State::Running)
     });
     press(h, &["Downloads", "Resume all"]);
@@ -467,13 +467,13 @@ fn downloads_items(h: &mut Harness, done: &dm_core::Entry) {
     // Each a list of the queues, as reference A's menu has.
     // Each says so once the queue has answered, which a loaded computer takes a moment over
     // (a whole run read the item before's "Speed limiter off.", 2026-11-21).
-    press(h, &["Downloads", "Start Queue", "Main queue"]);
-    h.until("Start Queue to say what it did", |h| {
+    press(h, &["Downloads", "Start queue", "Main queue"]);
+    h.until("Start queue to say what it did", |h| {
         let said = h.said();
         said.starts_with("Started") || said.starts_with("Nothing in")
     });
-    press(h, &["Downloads", "Stop Queue", "Main queue"]);
-    h.until("Stop Queue to say what it did", |h| {
+    press(h, &["Downloads", "Stop queue", "Main queue"]);
+    h.until("Stop queue to say what it did", |h| {
         h.said().starts_with("Stopped")
     });
 }
@@ -495,8 +495,8 @@ fn last_items(h: &mut Harness, done: &dm_core::Entry, list: &std::path::Path) {
         std::path::Path::new(&done.path).exists(),
         "the first copy is kept"
     );
-    press(h, &["Downloads", "Delete Completed"]);
-    h.until("Downloads › Delete Completed", |h| {
+    press(h, &["Downloads", "Delete completed"]);
+    h.until("Downloads › Delete completed", |h| {
         h.rows().iter().all(|r| r.state != State::Completed)
     });
 
@@ -569,8 +569,8 @@ fn every_toolbar_button_clicked_does_what_it_says() {
     h.until("Stop", |h| is(h, "stalled.bin", State::Paused));
     h.click("Resume");
     h.until("Resume", |h| !is(h, "stalled.bin", State::Paused));
-    h.click("Stop All");
-    h.until("Stop All", |h| {
+    h.click("Stop all");
+    h.until("Stop all", |h| {
         h.rows().iter().all(|r| r.state != State::Running)
     });
 
@@ -579,20 +579,20 @@ fn every_toolbar_button_clicked_does_what_it_says() {
         serde_json::json!({ "place": "queue:Main queue" }),
     )
     .unwrap();
-    h.click("Start Queue");
+    h.click("Start queue");
     let said = h.said();
     assert!(
         said.starts_with("Started") || said.starts_with("Nothing in"),
-        "Start Queue: {said:?}"
+        "Start queue: {said:?}"
     );
-    h.click("Stop Queue");
+    h.click("Stop queue");
     let said = h.said();
-    assert!(said.starts_with("Stopped"), "Stop Queue: {said:?}");
+    assert!(said.starts_with("Stopped"), "Stop queue: {said:?}");
     h.call("ui.place", serde_json::json!({ "place": "all" }))
         .unwrap();
 
-    h.click("Delete Completed");
-    h.until("Delete Completed", |h| {
+    h.click("Delete completed");
+    h.until("Delete completed", |h| {
         h.rows().iter().all(|r| r.state != State::Completed)
     });
     h.select_by_port("stalled.bin");
@@ -731,20 +731,20 @@ fn the_queue_arrows_start_and_stop_the_queue_chosen() {
         .unwrap();
     // Each line waited for, not read at once: a slow runner (Windows') says it a moment after
     // the click, and read at once it is empty.
-    press(&mut h, &["Downloads", "Start Queue", "Night"]);
+    press(&mut h, &["Downloads", "Start queue", "Night"]);
     h.until("the list to start the queue chosen", |h| {
         h.said() == "Started 1 download in Night."
     });
     h.until("the Night queue's download to complete", |h| {
         h.rows().iter().all(|r| r.state == State::Completed)
     });
-    // Stop Queue's list on Night: nothing is left there to stop.
-    press(&mut h, &["Downloads", "Stop Queue", "Night"]);
-    h.until("Stop Queue on Night", |h| {
+    // Stop queue's list on Night: nothing is left there to stop.
+    press(&mut h, &["Downloads", "Stop queue", "Night"]);
+    h.until("Stop queue on Night", |h| {
         h.said() == "Stopped 0 downloads in Night."
     });
     // The choice was for that one command: the button itself acts on the list's queue again.
-    h.click("Start Queue");
+    h.click("Start queue");
     h.until("the button on the Main queue", |h| {
         h.said() == "Nothing in Main queue was waiting to start."
     });
@@ -781,7 +781,7 @@ fn every_column_is_reached_at_the_default_window_size() {
         "the premise: Folder starts past the edge, at {first:?}"
     );
     // A wheel's sideways turn over the headings, as far as the list goes.
-    let over = serde_json::json!({ "text": "File Name", "sideways": 40.0 });
+    let over = serde_json::json!({ "text": "File name", "sideways": 40.0 });
     if let Err(why) = h.call("ui.scroll", over) {
         panic!("the list did not scroll: {why}");
     }

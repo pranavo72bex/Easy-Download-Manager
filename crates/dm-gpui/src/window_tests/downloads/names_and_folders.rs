@@ -79,7 +79,7 @@ fn a_file_added_again_is_listed_under_the_name_it_will_get() {
         .collect();
     assert!(names.contains(&"file (1).zip"), "{names:?}");
     // And it is placed there once fetched.
-    h.click("Start Queue");
+    h.click("Start queue");
     h.until("the second copy to finish", |h| completed(h) == 2);
     assert!(h.rows().iter().any(|r| r.path.ends_with("file (1).zip")));
 }

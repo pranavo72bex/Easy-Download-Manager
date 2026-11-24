@@ -165,8 +165,8 @@ fn the_toolbar_acts_on_the_selected_row() {
     h.until("Resume", |h| {
         matches!(state(h), State::Queued | State::Running)
     });
-    h.click("Stop All");
-    h.until("Stop All", |h| state(h) == State::Paused);
+    h.click("Stop all");
+    h.until("Stop all", |h| state(h) == State::Paused);
     // Unfinished, so Delete asks first, in a window named for what it asks.
     h.click("Delete");
     h.until("the question", |h| {
@@ -234,12 +234,12 @@ fn clicking_a_heading_sorts_and_clicking_again_reverses() {
         add_later(&mut h, &world, name);
     }
     h.until("three rows", |h| h.rows().len() == 3);
-    h.click("File Name");
+    h.click("File name");
     h.until("the sort", |h| {
         h.view(|view| view.list.sort) == Some((Column::Name, true))
     });
     assert_eq!(shown(&mut h), ["a.bin", "b.bin", "c.bin"]);
-    h.click("File Name");
+    h.click("File name");
     h.until("the sort reversed", |h| {
         h.view(|view| view.list.sort) == Some((Column::Name, false))
     });
@@ -453,12 +453,12 @@ fn clear_finished_is_greyed_with_only_failed_rows() {
     h.until("the missing file to fail", |h| {
         h.rows().iter().any(|r| matches!(r.state, State::Failed(_)))
     });
-    if h.shows("The file doesn't exist") {
-        h.click("OK");
+    if h.shows("HTTP/1.1 404 Not Found") {
+        h.click("Close");
     }
     assert!(
-        h.menu_item(&["Downloads", "Delete Completed"]).1,
-        "Delete Completed is offered for a failed row"
+        h.menu_item(&["Downloads", "Delete completed"]).1,
+        "Delete completed is offered for a failed row"
     );
     assert!(h
         .call(
