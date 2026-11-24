@@ -77,7 +77,7 @@ fn common_failures_have_plain_reasons() {
     let cut = "network: error decoding response body: error reading a body from connection";
     assert_eq!(
         reason(cut),
-        Some("the connection dropped before the file was complete. Try again")
+        Some("the connection dropped before the file was complete")
     );
     assert_eq!(
         reason("network: connection reset by peer (os error 54)"),
@@ -134,41 +134,39 @@ fn common_failures_have_plain_reasons() {
     );
     assert_eq!(
             reason("could not read the torrent file /home/a/x.torrent: No such file or directory (os error 2)"),
-            Some("the .torrent file couldn't be read. It may be damaged")
+            Some("the .torrent file couldn't be read")
         );
     assert_eq!(
             reason("network: error sending request for url (http://h/x) — SOCKS error: failed to create underlying connection"),
-            Some("the server couldn't be reached. Check that you're online"),
+            Some("the server couldn't be reached"),
             "only the words before the dash decide"
         );
     assert_eq!(
-            reason("the server answered 401 Unauthorized for http://h/x"),
-            Some("the server wants you to sign in. Add the login in Properties › Login, or in Options › Sign-ins for the whole site")
-        );
+        reason("the server answered 401 Unauthorized for http://h/x"),
+        Some("the server wants you to sign in")
+    );
     assert_eq!(
         reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
-        Some("the server had a problem on its end. Try again later"),
+        Some("the server had a problem on its end"),
         "the server's status decides, not the page's \"timed out\""
     );
     assert_eq!(
         reason(
             "the server answered 500 Internal Server Error for http://127.0.0.1:1/broken-link.zip"
         ),
-        Some("the server had a problem on its end. Try again later")
+        Some("the server had a problem on its end")
     );
     assert_eq!(
             reason("the server answered 429 Too Many Requests for https://www.google.com/sorry/index — In order to continue"),
-            Some("the site is busy and turning downloads away. Try again in a few minutes")
+            Some("the site is busy and turning downloads away")
         );
     assert_eq!(
-            reason("YouTube says: Sign in to confirm you're not a bot"),
-            Some("the site wants to check you're not a bot. Play the video in your browser, then use the Download video button on it")
-        );
+        reason("YouTube says: Sign in to confirm you're not a bot"),
+        Some("the site wants to check you're not a bot")
+    );
     assert_eq!(
         reason("YouTube says: Video unavailable"),
-        Some(
-            "this video isn't available. It may be private, removed, or not shown in your country"
-        )
+        Some("this video isn't available")
     );
     assert_eq!(
         reason("no stream at that quality"),
@@ -176,7 +174,7 @@ fn common_failures_have_plain_reasons() {
     );
     assert_eq!(
             reason("dm's video helper could not be got ready (network: error sending request for url (https://github.com/x))"),
-            Some("dm couldn't get ready for videos. Check that you're online, then click Retry")
+            Some("dm couldn't get ready for videos")
         );
     assert_eq!(
         reason("could not write C:\\Users\\me\\no space left\\a.zip"),
@@ -424,7 +422,7 @@ fn a_failure_that_only_says_what_went_wrong_says_what_to_do() {
 fn a_connection_that_did_not_come_up_is_said_as_reference_a_says_it() {
     let failed = "the connection Office VPN did not come up after 2 tries: No connection could be \
                   made because the target machine actively refused it. (os error 10061)";
-    let plain = "cannot connect to the Internet. The dial-up or VPN connection did not come up";
+    let plain = "the dial-up or VPN connection didn't come up";
     assert_eq!(reason(failed), Some(plain));
     assert!(next_step(failed).is_some_and(|step| step.contains("Dial Up / VPN")));
     let redialling = "the connection Office VPN did not come up: Undefined RAS Dial Error.";
@@ -432,10 +430,10 @@ fn a_connection_that_did_not_come_up_is_said_as_reference_a_says_it() {
 }
 
 /// Every next step dm can take has its button, and a step that is the person's alone has none
-/// (gaps row U10).
+/// (gaps row U10); every failure with a button has a step that says what it does (V4).
 #[test]
 fn a_failures_next_step_is_a_button_where_dm_can_take_it() {
-    for (said, _) in NEXT_STEPS {
+    for (said, step) in NEXT_STEPS {
         let raw = REASONS
             .iter()
             .find(|(_, plain)| *plain == said)
@@ -443,10 +441,39 @@ fn a_failures_next_step_is_a_button_where_dm_can_take_it() {
             .copied()
             .unwrap_or(said);
         let button = step_button(raw);
-        let theirs = said.contains("refused") || said.contains("certificate");
+        // A step that moves the file elsewhere, fetches a new link, opens the page, renames or
+        // opens Options is one dm can take; anything else (try again, a firewall, the clock) is
+        // the person's.
+        let dms = step.contains("folder")
+            || said == "this link no longer works"
+            || said.contains("redirecting")
+            || said.contains("already there")
+            || said.contains("dial-up");
+        let theirs = said.contains("refused")
+            || said.contains("certificate")
+            || step.starts_with("Try again")
+            || !dms;
         assert_eq!(button.is_none(), theirs, "{said}: {button:?}");
     }
     assert_eq!(step_button("nothing dm knows"), None);
+}
+
+/// Every failure dm knows says what happened in one short sentence, without what to do in it:
+/// that is the next step's (gaps row V4).
+#[test]
+fn a_failure_on_the_row_says_what_happened_in_one_sentence() {
+    for (_, plain) in REASONS {
+        assert!(!plain.contains(". "), "two sentences on the row: {plain}");
+        for told in [
+            "Try again",
+            "Check ",
+            "Choose ",
+            "Add the login",
+            "click Retry",
+        ] {
+            assert!(!plain.contains(told), "what to do on the row: {plain}");
+        }
+    }
 }
 
 #[test]

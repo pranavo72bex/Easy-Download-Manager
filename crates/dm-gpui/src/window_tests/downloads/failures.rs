@@ -32,9 +32,15 @@ fn a_refused_sign_in_says_where_to_give_one() {
     h.until("the refusal", failed);
     let row = h.rows()[0].clone();
     let said = dm_desktop_base::rows::status_of(&row);
-    // In plain words, saying where a sign-in goes, without the address or the server's page.
-    assert!(said.contains("Properties › Login"), "{said}");
+    // In plain words, without the address or the server's page; where a sign-in goes is its
+    // next step, in the details (gaps row V4).
+    assert!(said.contains("sign in"), "{said}");
     assert!(!said.contains("http"), "{said}");
+    let dm_core::State::Failed(raw) = &row.state else {
+        panic!("not failed: {:?}", row.state)
+    };
+    let step = dm_desktop_base::format::next_step(raw).unwrap_or_default();
+    assert!(step.contains("Properties › Login"), "{step}");
     h.select("secret.zip");
     // Retry, not Resume, on the toolbar.
     h.until_shown("Retry");
@@ -125,7 +131,7 @@ fn a_cut_connection_is_said_plainly() {
     let row = h.rows()[0].clone();
     let status = dm_desktop_base::rows::status_of(&row);
     assert_eq!(
-        status, "The connection dropped before the file was complete. Try again",
+        status, "The connection dropped before the file was complete",
         "{:?}",
         row.state
     );

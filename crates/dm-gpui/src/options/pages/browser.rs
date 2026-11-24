@@ -435,5 +435,5 @@ fn handlers(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
     }
     p.note(t("dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps."));
     // Windows' own chooser at a first magnet click is its question, not dm's.
-    p.note(t("The first magnet link you click may make Windows ask which app opens it: choose dm there. dm cannot answer for you."));
+    p.note(t("The first magnet link you click may make Windows ask which app opens it: choose dm there. dm can't answer for you."));
 }

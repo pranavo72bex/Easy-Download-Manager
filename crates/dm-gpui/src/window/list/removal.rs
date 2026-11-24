@@ -157,7 +157,7 @@ impl Downloads {
                 this.list.cursor = next;
                 if !failed.is_empty() {
                     this.say(dm_desktop_base::i18n::tf(
-                        "Could not delete {}",
+                        "Couldn't delete {}",
                         &[&failed.join("; ")],
                     ));
                 }

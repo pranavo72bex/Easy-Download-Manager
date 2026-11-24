@@ -75,7 +75,7 @@ the list?", or "Its file is kept." / "Its file is deleted too.".
   off the list. It reads **Yes, delete** while files are to be deleted too.
 
 Return and Escape: **Keep it** (or **Keep them**). A file that cannot be
-deleted is said in the status bar: "Could not delete …".
+deleted is said in the status bar: "Couldn't delete …".
 
 ## Start outside the schedule?
 

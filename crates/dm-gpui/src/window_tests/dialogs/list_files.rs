@@ -135,7 +135,7 @@ fn a_list_that_cannot_be_written_keeps_its_dialog_open() {
     h.choose_ahead(&path);
     h.command("program.export");
     h.until("Export to say", |h| {
-        h.said().contains("could not be written")
+        h.said().contains("couldn't be written")
     });
     assert!(
         h.said().contains(&path.display().to_string()),
@@ -162,9 +162,7 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     let nowhere = world.dir.path().join("no such folder").join("list.dmlist");
     h.type_into("File's path", &nowhere.display().to_string());
     h.click("OK");
-    h.until("the write refused", |h| {
-        h.shows_part("could not be written")
-    });
+    h.until("the write refused", |h| h.shows_part("couldn't be written"));
     assert!(
         h.dialog_open("Export the list"),
         "closed with the path lost"
@@ -188,7 +186,7 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     let missing = other.dir.path().join("missing.dmlist");
     other_h.type_into("File's path", &missing.display().to_string());
     other_h.click("OK");
-    other_h.until("the read refused", |h| h.shows_part("could not be read"));
+    other_h.until("the read refused", |h| h.shows_part("couldn't be read"));
     assert!(
         other_h.dialog_open("Import a list"),
         "closed with the path lost"

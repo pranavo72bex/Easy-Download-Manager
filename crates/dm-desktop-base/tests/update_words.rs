@@ -40,20 +40,20 @@ fn what_about_says_for_each_answer_of_the_check() {
     // A reason dm knows no plainer words for is said as it came.
     assert_eq!(
         shown(Update::Failed("the release names no version".into())),
-        "Could not reach the update server: the release names no version"
+        "Couldn't reach the update server: the release names no version"
     );
     assert_eq!(
         shown(Update::Failed(
             "the server answered 500 Internal Server Error".into()
         )),
-        "Could not reach the update server: the server had a problem on its end. Try again later"
+        "Couldn't reach the update server: the server had a problem on its end"
     );
     let offline = shown(Update::Failed(
         "error sending request for url (https://github.com/): dns error: failed to lookup address"
             .into(),
     ));
     assert!(
-        offline.starts_with("Could not reach the update server: ") && !offline.contains("url ("),
+        offline.starts_with("Couldn't reach the update server: ") && !offline.contains("url ("),
         "{offline}"
     );
 }

@@ -264,7 +264,7 @@ fn with_no_window_a_followed_ones_reading_is_taken_in() {
     assert!(dm.rows.is_empty());
     assert_eq!(
         dm.problems,
-        vec!["the followed Weekly could not be read: refused".to_string()]
+        vec!["the followed Weekly couldn't be read: refused".to_string()]
     );
 }
 

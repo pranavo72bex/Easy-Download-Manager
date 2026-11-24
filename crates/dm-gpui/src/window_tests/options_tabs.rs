@@ -43,7 +43,7 @@ fn a_settings_file_that_cannot_be_written_or_read_is_said() {
     crate::platform::services::choose_ahead(world.dir.path().to_path_buf());
     h.click("Save settings to a file…");
     h.until("the refusal to write", |h| {
-        h.shows_part("could not be written")
+        h.shows_part("couldn't be written")
     });
 
     let junk = world.dir.path().join("junk.json");
@@ -51,7 +51,7 @@ fn a_settings_file_that_cannot_be_written_or_read_is_said() {
     crate::platform::services::choose_ahead(junk.clone());
     h.scroll_to("Load settings from a file…");
     h.click("Load settings from a file…");
-    let unread = format!("{} could not be read", junk.display());
+    let unread = format!("{} couldn't be read", junk.display());
     h.until("the refusal to read", |h| h.shows_part(&unread));
 
     let file = world.dir.path().join("carried.json");

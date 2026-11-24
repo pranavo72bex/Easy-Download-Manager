@@ -82,7 +82,7 @@ pub fn update_words(update: &Update, running: &str) -> String {
         // In plain words where dm knows them (the raw
         // "error sending request for url (…)" offline).
         Update::Failed(why) => tf(
-            "Could not reach the update server: {}",
+            "Couldn't reach the update server: {}",
             &[&crate::format::reason(why).map(t).unwrap_or(why.as_str())],
         ),
     }

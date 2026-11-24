@@ -6,10 +6,14 @@ what you can do next.
 
 ## Where a failure shows
 
-- **The Status column** says **Error:** and the reason. The common reasons
-  are put in plainer words there ("this link no longer works"). Hold the
-  mouse over the Status to read the whole of it, with dm's own sentence
-  under the plainer words. dm's own sentence is the one this page lists.
+- **The Status column** says what happened, in a few words beside a mark
+  of a ring with "!" ("This link no longer works"). Hold the mouse over the
+  Status to read the whole of it, with dm's own sentence under the plainer
+  words. dm's own sentence is the one this page lists.
+- **What to do** is in the download's details (View › Details, the
+  download's window, and on a phone the card's page): one sentence, such as
+  "Open the page it came from in your browser and download from there, which
+  gives dm a new link".
 - **Properties** (on the row's right-click menu) shows the same failure,
   with dm's own sentence.
 - **The download's window** shows the Status, a next step where dm knows
@@ -30,7 +34,7 @@ already has. The Status says so while it waits, for example "Connection
 dropped (retry 2 of 15) · next try in 15s" or "Retrying (attempt 3)".
 **Options › Advanced › Network** sets how often: **Attempts per connection
 (0 to keep trying)** and **Wait between attempts (seconds, 0 for
-automatic)**. A row shows **Error:** only once those attempts have run out,
+automatic)**. A row shows the failure only once those attempts have run out,
 or when the failure is an answer that trying again would not change.
 
 **To try again yourself**, right-click the row and choose **Retry**, or
@@ -90,7 +94,7 @@ it made of a finished archive:
   As above, and the archive is in the Recycle Bin (the Trash on macOS), as
   **Send the archive to the Trash** asks. The row stays, saying this rather
   than "File missing".
-- `unpacked into a folder of its name, but the archive could not be sent to the Trash`
+- `unpacked into a folder of its name, but the archive couldn't be sent to the Trash`
   Its files are out, but the system would not take the archive (on a drive
   with no Recycle Bin, for one). It is still where it was: delete it
   yourself if you no longer want it.
@@ -347,8 +351,8 @@ Torrents and proxies are under "Torrents" below.
 - `Type the file's full path, such as ….`
   The path typed is not a full one (from the drive or `/`, or `~` for your
   home folder). Type it whole, as the example shows.
-- `… could not be read: …`
-- `… could not be written: …`
+- `… couldn't be read: …`
+- `… couldn't be written: …`
   Import could not read the list, or Export could not write it; the file's
   error follows in plain words. Check the path, or choose a folder dm may
   write to, and click **OK** again: the window stays open with the path.
@@ -375,19 +379,19 @@ Torrents and proxies are under "Torrents" below.
   changed since). The window stays open and nothing is restored: type it
   again, with its capital letters, or leave it empty to restore everything
   but the sign-ins.
-- `This backup's sign-ins were sealed by a newer dm, which this one cannot open.`
+- `This backup's sign-ins were sealed by a newer dm, which this one can't open.`
   Update dm, or leave the passphrase empty to restore everything else.
-- `… could not be read: …`
-- `… could not be written: …`
+- `… couldn't be read: …`
+- `… couldn't be written: …`
   The backup's file could not be opened, or written where you chose; the
   file's error follows in plain words.
 - `The programs dm runs (after a download, at the end of the scheduled hours, the proxy script) were not restored: set them in Options.`
   A file never sets a program for dm to run. Set them again in Options if
   you want them.
-- `Some of its settings could not be read, so their defaults are in use: ….`
+- `Some of its settings couldn't be read, so their defaults are in use: ….`
   The backup was made by a newer dm, or was changed; the settings named
   keep their defaults, and the rest were restored.
-- `Downloads it holds that this dm cannot read, left out: ….`
+- `Downloads it holds that this dm can't read, left out: ….`
   A newer dm's downloads this one does not know how to read; the rest were
   added.
 

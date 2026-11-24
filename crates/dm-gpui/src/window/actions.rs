@@ -188,7 +188,7 @@ impl Downloads {
                 }
                 Err(e) => {
                     let why = tf(
-                        "{} could not be read: {}",
+                        "{} couldn't be read: {}",
                         &[&path.display(), &dm_desktop_base::format::file_error(&e)],
                     );
                     view.say(why.clone());
@@ -308,7 +308,7 @@ impl Downloads {
                 }
                 Err(e) => {
                     let why = tf(
-                        "{} could not be written: {}",
+                        "{} couldn't be written: {}",
                         &[&path.display(), &dm_desktop_base::format::file_error(&e)],
                     );
                     view.say(why.clone());

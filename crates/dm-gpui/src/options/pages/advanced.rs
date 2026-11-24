@@ -525,7 +525,7 @@ fn bittorrent(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
         true,
         blocklist,
     );
-    p.note(t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list cannot be read."));
+    p.note(t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list can't be read."));
     // Off unless turned on: sharing sends from the person's connection.
     let share = o.draft.torrent_share;
     check(

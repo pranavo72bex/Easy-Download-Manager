@@ -127,7 +127,7 @@ fn a_file_due_for_deletion_that_cannot_be_moved_stays_and_is_said() {
     }
     h.view(|view| view.backend.set_delete_after(row.id, Some(1)));
     h.until("the failure to be said", |h| {
-        h.said().starts_with("Could not delete")
+        h.said().starts_with("Couldn't delete")
     });
     let kept = h.view(|view| view.backend.row(row.id));
     std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).unwrap();

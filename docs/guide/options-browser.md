@@ -26,7 +26,7 @@ it asks Windows.
   Default apps has a choice, that choice decides: change it in Settings,
   Apps, Default apps."
 - "The first magnet link you click may make Windows ask which app opens it:
-  choose dm there. dm cannot answer for you."
+  choose dm there. dm can't answer for you."
 
 ## The right-click menu
 

@@ -106,7 +106,7 @@ downloads are done.
 - **Block the peers listed at this address (optional):** "A list in the P2P
   format, plain or gzipped, on the web or on this computer. One on the web
   is fetched through the proxy and read again once a day; a torrent stops,
-  saying why, if the list cannot be read."
+  saying why, if the list can't be read."
 - **Keep sharing a finished torrent:** "Its files stay where they are, and
   other peers are sent them until it has sent the times its size below, or
   for the minutes below, whichever comes first. Off, a torrent stops once

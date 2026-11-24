@@ -571,7 +571,7 @@ fn settings_file(p: &mut Page, cx: &mut Context<Options>) {
                 o.says = Some(
                     match std::fs::write(&path, o.draft.exported()) {
                         Ok(()) => tf("Saved to {}, without any password.", &[&path.display()]),
-                        Err(e) => tf("{} could not be written: {}", &[&path.display(), &e]),
+                        Err(e) => tf("{} couldn't be written: {}", &[&path.display(), &e]),
                     }
                     .into(),
                 );
@@ -592,7 +592,7 @@ fn settings_file(p: &mut Page, cx: &mut Context<Options>) {
                             o.retype();
                             t("Loaded. Look them over, then OK to use them.").to_string()
                         }
-                        Err(e) => tf("{} could not be read: {}", &[&path.display(), &e]),
+                        Err(e) => tf("{} couldn't be read: {}", &[&path.display(), &e]),
                     }
                     .into(),
                 );

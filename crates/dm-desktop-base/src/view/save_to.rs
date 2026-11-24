@@ -115,7 +115,7 @@ impl SaveChoice {
         if path.is_absolute() {
             made(&path).map_err(|e| {
                 tf(
-                    "{} could not be written: {}",
+                    "{} couldn't be written: {}",
                     &[&path.display(), &crate::format::file_error(&e)],
                 )
             })?;

@@ -23,7 +23,7 @@ once. Asked for again while it is open, it comes to the front.
   - "dm … is available (you have …). Download its installer here."
   - "dm … is out (this is …). It is on the project's releases page."
   - "No newer release yet (you have …)."
-  - "Could not reach the update server: …"
+  - "Couldn't reach the update server: …"
 - **What's new:** opens the notes of the newer version, where there are
   some.
 - **Download the update:** shown when a newer version has an installer for

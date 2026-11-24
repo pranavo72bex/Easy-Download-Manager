@@ -297,10 +297,7 @@ fn a_video_page_that_failed_says_why_after_the_sentence() {
     );
     // A failure with its own plain words is not given a second one.
     row.state = State::Failed("YouTube says: Video unavailable".into());
-    assert_eq!(
-        status_in_english(&row),
-        "This video isn't available. It may be private, removed, or not shown in your country"
-    );
+    assert_eq!(status_in_english(&row), "This video isn't available");
 }
 
 /// A full disk says whose, the folder the file was going to.

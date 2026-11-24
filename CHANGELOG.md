@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Every failure is told the same way: a few words on the row say what happened ("The server took too long to answer"), and the download's details and window say what to do ("Try again in a moment"). A drive that isn't connected, a file too big for the drive and a folder dm may not save in now offer Choose another folder… beside Retry.
+- Messages say "couldn't" and "can't" throughout, instead of a mix with "could not" and "cannot".
+
 - Words in sentence case everywhere: Stop all, Delete completed, Start queue, Stop queue, File name, Last try date, All downloads. A side panel group you had shut stays shut.
 - A failed download says what happened as a plain sentence ("This link no longer works") without "Error:" in front; its mark and colour already say it failed.
 - When a link stops working, its window says so in the same words as the row, says what to do, and offers Update download link as its main button, with Close beside it.

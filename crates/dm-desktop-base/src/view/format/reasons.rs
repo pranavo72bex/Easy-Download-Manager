@@ -20,20 +20,20 @@ pub const REASONS: [(&[&str], &str); 38] = [
     // the refusal that expired it (`dm_core::LINK_EXPIRED`).
     (
         &["dm is waiting for the browser to hand over a new one"],
-        "this link has expired. dm is waiting for the browser to hand over a new one for the same file",
+        "this link has expired",
     ),
     // Second: the dial-up or VPN connection a download waited for (dm-shell's `dialup.rs`),
     // whose failure ends in Windows' own reason, which can read as any of those below.
     // Reference A's row says "Cannot connect to the Internet." (2026-11-08).
     (
         &["did not come up"],
-        "cannot connect to the Internet. The dial-up or VPN connection did not come up",
+        "the dial-up or VPN connection didn't come up",
     ),
     // Third: a download waiting for the one network downloads are held to (dm-net's
     // `only_through`, gaps row W12), before any of the words below its adapter's name may hold.
     (
         &["that downloads go only through"],
-        "the network downloads go only through is not connected. dm goes on when it is back",
+        "the network downloads go only through is not connected",
     ),
     (
         &[
@@ -47,11 +47,11 @@ pub const REASONS: [(&[&str], &str); 38] = [
             "the connection ended after",
             "incomplete message",
         ],
-        "the connection dropped before the file was complete. Try again",
+        "the connection dropped before the file was complete",
     ),
     (
         &["the server sent ", "bytes of a file it said was"],
-        "the server sent only part of the file. Try again",
+        "the server sent only part of the file",
     ),
     (
         &["too many redirects"],
@@ -59,15 +59,15 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["the server's name could not be found"],
-        "the site couldn't be found. Check the address, and that you're online",
+        "the site couldn't be found",
     ),
     (
         &["the server refused the connection"],
-        "the server refused the connection. Check the address, or try again later",
+        "the server refused the connection",
     ),
     (
         &["the server did not answer in time", "timed out"],
-        "the server took too long to answer. Try again in a moment",
+        "the server took too long to answer",
     ),
     // A certificate failure by its cause, as the TLS library names it (gaps row H8); any
     // other cause is said as one that could not be checked, the next line.
@@ -93,7 +93,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["cannot be reached (was its drive"],
-        "its folder's drive isn't connected. Plug it back in, or choose another folder",
+        "its folder's drive isn't connected",
     ),
     (
         &["insecure (http)"],
@@ -109,11 +109,11 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["too large for this drive"],
-        "the file is too big for this drive, which can't hold files over 4 GB (FAT32). Choose a folder on another drive",
+        "the file is too big for this drive, which can't hold files over 4 GB (FAT32)",
     ),
     (
         &["disk: permission denied", "os error 13"],
-        "dm isn't allowed to save in that folder. Choose another one",
+        "dm isn't allowed to save in that folder",
     ),
     (
         &["the server answered 404"],
@@ -125,12 +125,12 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["could not read the torrent file"],
-        "the .torrent file couldn't be read. It may be damaged",
+        "the .torrent file couldn't be read",
     ),
     // Raw engine text shown for these.
     (
         &["the server answered 401"],
-        "the server wants you to sign in. Add the login in Properties › Login, or in Options › Sign-ins for the whole site",
+        "the server wants you to sign in",
     ),
     (
         &[
@@ -139,7 +139,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
             "error connecting to proxy",
             "proxy server",
         ],
-        "the proxy couldn't be reached. Check its address in Options › Advanced",
+        "the proxy couldn't be reached",
     ),
     // A file's own errors, as `dm_core::file_error` words them.
     (&["it is not there"], "it is not there"),
@@ -160,19 +160,19 @@ pub const REASONS: [(&[&str], &str); 38] = [
             "the server answered 503",
             "the server answered 504",
         ],
-        "the server had a problem on its end. Try again later",
+        "the server had a problem on its end",
     ),
     (
         &["the server answered 429"],
-        "the site is busy and turning downloads away. Try again in a few minutes",
+        "the site is busy and turning downloads away",
     ),
     (
         &["the server answered 403"],
-        "the site wouldn't give dm the file. It may need you to sign in (Properties › Login)",
+        "the site wouldn't give dm the file",
     ),
     (
         &["video helper", "video tools"],
-        "dm couldn't get ready for videos. Check that you're online, then click Retry",
+        "dm couldn't get ready for videos",
     ),
     (
         &[
@@ -183,7 +183,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["confirm you're not a bot", "sign in to confirm"],
-        "the site wants to check you're not a bot. Play the video in your browser, then use the Download video button on it",
+        "the site wants to check you're not a bot",
     ),
     (
         &[
@@ -193,7 +193,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
             "has been removed",
             "not available in your country",
         ],
-        "this video isn't available. It may be private, removed, or not shown in your country",
+        "this video isn't available",
     ),
     (
         &[
@@ -216,7 +216,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
     // Last: the specific failures above say more.
     (
         &["error sending request"],
-        "the server couldn't be reached. Check that you're online",
+        "the server couldn't be reached",
     ),
 ];
 
@@ -261,23 +261,13 @@ pub fn retry_cause(raw: &str) -> Option<&'static str> {
         return Some("Too many requests");
     }
     match reason(raw)? {
-        "the connection dropped before the file was complete. Try again" => {
-            Some("Connection dropped")
-        }
-        "the site couldn't be found. Check the address, and that you're online" => {
-            Some("Server not found")
-        }
-        "the server refused the connection. Check the address, or try again later" => {
-            Some("Connection refused")
-        }
-        "the server took too long to answer. Try again in a moment" => Some("No answer"),
-        "the server couldn't be reached. Check that you're online" => Some("Server unreachable"),
-        "cannot connect to the Internet. The dial-up or VPN connection did not come up" => {
-            Some("Redialling")
-        }
-        "the network downloads go only through is not connected. dm goes on when it is back" => {
-            Some("Waiting for the network")
-        }
+        "the connection dropped before the file was complete" => Some("Connection dropped"),
+        "the site couldn't be found" => Some("Server not found"),
+        "the server refused the connection" => Some("Connection refused"),
+        "the server took too long to answer" => Some("No answer"),
+        "the server couldn't be reached" => Some("Server unreachable"),
+        "the dial-up or VPN connection didn't come up" => Some("Redialling"),
+        "the network downloads go only through is not connected" => Some("Waiting for the network"),
         _ => None,
     }
 }
@@ -316,11 +306,12 @@ pub fn reason(raw: &str) -> Option<&'static str> {
         .map(|(_, plain)| *plain)
 }
 
-/// What a person can do about a failure whose plain words (`REASONS`) stop at
-/// what went wrong: one sentence each, keyed by those words. The failures
-/// whose sentence already says what to do (try again, check the address, add
-/// the login) have none here.
-pub const NEXT_STEPS: [(&str, &str); 11] = [
+/// What a person can do about a failure, keyed by its plain words (`REASONS`): the row says
+/// what happened in a few words, the details what to do, in one sentence or two (gaps row V4:
+/// a failure was told in several shapes, what to do often in the row's own sentence). A
+/// failure with nothing to do but wait or look elsewhere (the disk's own words, a video's
+/// copy protection) has none here.
+pub const NEXT_STEPS: [(&str, &str); 30] = [
     (
         "the disk is full",
         "Free some space, or choose a folder on another drive (Options › Folders), then click Retry",
@@ -330,8 +321,8 @@ pub const NEXT_STEPS: [(&str, &str); 11] = [
         "Open the page it came from in your browser and download from there, which gives dm a new link",
     ),
     (
-        "the server refused the connection. Check the address, or try again later",
-        "If a firewall or security program asks about dm, allow it, then click Retry",
+        "the server refused the connection",
+        "Check the address, or try again later. If a firewall or security program asks about dm, allow it, then click Retry",
     ),
     (
         "the site keeps redirecting in a loop, so the file can't be reached",
@@ -362,8 +353,84 @@ pub const NEXT_STEPS: [(&str, &str); 11] = [
         "A network that inspects traffic (at work or school) may be in between: try another network",
     ),
     (
-        "cannot connect to the Internet. The dial-up or VPN connection did not come up",
+        "the dial-up or VPN connection didn't come up",
         "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry",
+    ),
+    (
+        "this link has expired",
+        "dm is waiting for the browser to hand over a new one for the same file",
+    ),
+    (
+        "the network downloads go only through is not connected",
+        "dm goes on when it is back",
+    ),
+    (
+        "the connection dropped before the file was complete",
+        "Try again",
+    ),
+    (
+        "the server sent only part of the file",
+        "Try again",
+    ),
+    (
+        "the site couldn't be found",
+        "Check the address, and that you're online",
+    ),
+    (
+        "the server took too long to answer",
+        "Try again in a moment",
+    ),
+    (
+        "its folder's drive isn't connected",
+        "Plug it back in, or choose another folder",
+    ),
+    (
+        "the file is too big for this drive, which can't hold files over 4 GB (FAT32)",
+        "Choose a folder on another drive",
+    ),
+    (
+        "dm isn't allowed to save in that folder",
+        "Choose another folder",
+    ),
+    (
+        "the .torrent file couldn't be read",
+        "It may be damaged",
+    ),
+    (
+        "the server wants you to sign in",
+        "Add the login in Properties › Login, or in Options › Sign-ins for the whole site",
+    ),
+    (
+        "the proxy couldn't be reached",
+        "Check its address in Options › Advanced",
+    ),
+    (
+        "the server had a problem on its end",
+        "Try again later",
+    ),
+    (
+        "the site is busy and turning downloads away",
+        "Try again in a few minutes",
+    ),
+    (
+        "the site wouldn't give dm the file",
+        "It may need you to sign in (Properties › Login)",
+    ),
+    (
+        "dm couldn't get ready for videos",
+        "Check that you're online, then click Retry",
+    ),
+    (
+        "the site wants to check you're not a bot",
+        "Play the video in your browser, then use the Download video button on it",
+    ),
+    (
+        "this video isn't available",
+        "It may be private, removed, or not shown in your country",
+    ),
+    (
+        "the server couldn't be reached",
+        "Check that you're online",
     ),
 ];
 
@@ -409,15 +476,17 @@ impl StepButton {
 /// one dm can take; `None` where it is the person's alone (a firewall, the computer's clock).
 pub fn step_button(raw: &str) -> Option<StepButton> {
     Some(match reason(raw)? {
-        "the disk is full" => StepButton::ChooseFolder,
+        // Each failure whose step is another folder has the button that moves it there.
+        "the disk is full"
+        | "its folder's drive isn't connected"
+        | "the file is too big for this drive, which can't hold files over 4 GB (FAT32)"
+        | "dm isn't allowed to save in that folder" => StepButton::ChooseFolder,
         "this link no longer works" => StepButton::UpdateLink,
         "the site keeps redirecting in a loop, so the file can't be reached" => {
             StepButton::OpenPage
         }
         "something of that name is already there" => StepButton::MoveRename,
-        "cannot connect to the Internet. The dial-up or VPN connection did not come up" => {
-            StepButton::Options
-        }
+        "the dial-up or VPN connection didn't come up" => StepButton::Options,
         _ => return None,
     })
 }

@@ -274,7 +274,7 @@ most at once" are the server's count.
 | 410 | "Cannot download this file. … HTTP/1.1 410 Gone" | failed at once with the 410 |
 | 401 | asks for a user name and password on the spot ("Type your user name and password … Save this password in … password list"), then "Authorization is required for this site/path. You can set login information for this download …" | failed at once: "the server wants you to sign in. Add the login in Properties › Login, or in Options › Sign-ins" |
 | 403 | "Cannot download this file" | failed at once with the 403 |
-| A host that does not exist | at once: "Error connecting. No such host is known …" | "Server not found (retry N of 15)" for about 170 s, then failed: "the site couldn't be found. Check the address, and that you're online" |
+| A host that does not exist | at once: "Error connecting. No such host is known …" | "Server not found (retry N of 15)" for about 170 s, then failed: "the site couldn't be found", and in the details "Check the address, and that you're online" |
 | 64 TiB announced | refused: "The size of … is 70368744177664 bytes. There is no disk space left on drive 'C' to store downloaded file parts" (its temporary folder's drive) | held at once: "not enough room: the file needs 64.0 TB, and … has 119.0 GB free" (the download folder's drive) |
 | 4.5 GiB, ranges | whole in 91 s; 9 / 8 / 8 | whole in 187 s (debug build); 48 / 48 / 8 |
 | Internet Archive MP4, Wikimedia Commons original, a NASA library MP4, a Test-Videos WebM | each whole and named as the server names it | the same bytes (SHA-256 equal to reference A's) and the same names; the Internet Archive MD5 and Wikimedia SHA-1 match |

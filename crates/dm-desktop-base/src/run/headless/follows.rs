@@ -26,7 +26,7 @@ impl Headless {
             Ok(list) => list,
             Err(e) => {
                 self.problems
-                    .push(format!("the followed {name} could not be read: {e}"));
+                    .push(format!("the followed {name} couldn't be read: {e}"));
                 return;
             }
         };

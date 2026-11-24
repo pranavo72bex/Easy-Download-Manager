@@ -117,7 +117,7 @@ impl std::fmt::Display for Refused {
             Refused::NotABackup => "That file is not a backup of dm.",
             Refused::WrongPassphrase => "That passphrase does not open this backup's sign-ins.",
             Refused::SealedByNewer => {
-                "This backup's sign-ins were sealed by a newer dm, which this one cannot open."
+                "This backup's sign-ins were sealed by a newer dm, which this one can't open."
             }
         })
     }

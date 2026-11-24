@@ -498,7 +498,7 @@ impl Headless {
             self.selected.remove(id);
         }
         if !done.failed.is_empty() {
-            self.said = format!("Could not delete {}", done.failed.join("; "));
+            self.said = format!("Couldn't delete {}", done.failed.join("; "));
         }
         self.read();
     }

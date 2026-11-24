@@ -450,7 +450,7 @@ fn read_backup(path: &Path, passphrase: &str) -> Result<Backup, Failed> {
 fn worded(failed: &Failed, path: &Path) -> String {
     match failed {
         Failed::Io(e) => tf(
-            "{} could not be read: {}",
+            "{} couldn't be read: {}",
             &[&path.display(), &dm_desktop_base::format::file_error(e)],
         ),
         Failed::Refused(Refused::NotABackup) => t("That file is not a backup of dm.").to_string(),
@@ -458,7 +458,7 @@ fn worded(failed: &Failed, path: &Path) -> String {
             t("That passphrase does not open this backup's sign-ins.").to_string()
         }
         Failed::Refused(Refused::SealedByNewer) => {
-            t("This backup's sign-ins were sealed by a newer dm, which this one cannot open.")
+            t("This backup's sign-ins were sealed by a newer dm, which this one can't open.")
                 .to_string()
         }
     }
@@ -489,13 +489,13 @@ fn restored_words(
     }
     if !said.is_empty() {
         words.push(tf(
-            "Some of its settings could not be read, so their defaults are in use: {}.",
+            "Some of its settings couldn't be read, so their defaults are in use: {}.",
             &[&said.join("; ")],
         ));
     }
     if unread > 0 {
         words.push(tf(
-            "Downloads it holds that this dm cannot read, left out: {}.",
+            "Downloads it holds that this dm can't read, left out: {}.",
             &[&unread],
         ));
     }
@@ -566,7 +566,7 @@ impl Downloads {
                 let outcome = match written {
                     Ok(Ok(())) => Ok(()),
                     Ok(Err(e)) => Err(tf(
-                        "{} could not be written: {}",
+                        "{} couldn't be written: {}",
                         &[&path.display(), &dm_desktop_base::format::file_error(&e)],
                     )),
                     Err(why) => Err(why.into_string()),

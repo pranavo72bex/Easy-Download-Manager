@@ -98,4 +98,4 @@ the window works.
   says "Loaded. Look them over, then OK to use them.": nothing is used until
   you click OK.
 - If the file cannot be written or read, dm says "… could not be written:
-  …" or "… could not be read: …" with the reason.
+  …" or "… couldn't be read: …" with the reason.
