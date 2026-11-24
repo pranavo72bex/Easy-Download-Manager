@@ -175,6 +175,12 @@ impl Scheduler {
                         )),
                 ),
         );
+        // The hint directly under the hours it explains (gaps row E10), not at the foot.
+        let d = d.child(native::note(
+            t("HH:MM, local time. A window ending before it starts runs overnight."),
+            theme.muted,
+            screen,
+        ));
         let d = self
             .repeat(theme, screen, d, cx)
             // Where the system lets dm wake the computer.
@@ -356,10 +362,5 @@ impl Scheduler {
                     })),
                 )
             })
-            .child(native::note(
-                t("HH:MM, local time. A window ending before it starts runs overnight."),
-                theme.muted,
-                screen,
-            ))
     }
 }

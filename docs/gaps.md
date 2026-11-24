@@ -23,7 +23,8 @@ passed, 0 failed.
 
 **Start with, in this order:**
 1. Rows E, first priority (section below): E1 and E2 are done (2026-11-24); every other E row
-   waits for the maintainer's word (E5 done, E7's buttons done, 2026-11-24), so rows H next.
+   waits for the maintainer's word (E5 done, E7's buttons done, 2026-11-24), so rows K next
+   (speed and motion from reference D, added 2026-11-24: K1, K2, K6 first), then rows H.
 2. Phone leftovers: Download details and the video's quality list seen on the emulator, and a
    text field's long press (N31); Share of several files (N23); haptic feedback (C22);
    changes applied at once and a "More" section in Options on the phone (C21); the rest of N24.
@@ -105,11 +106,32 @@ below: group 1 comes before the security rows, as a red CI
 and tests that fail by chance slow those too; nothing else is put ahead of H's steps 1 and 2.
 "Mobile first" keeps its place for what blocks an APK; its layout rows are group 4.
 
+## High priority: speed and motion from reference D (rows K, the maintainer, 2026-11-24)
+
+The maintainer, 2026-11-24: take the good things from reference D (a free, MIT-licensed download
+manager that combines every network a computer has), "like speedup download speed and
+animation", at high priority. Rows K come after rows E and before rows H. Only ideas, taken from
+its README and from running it, never from its code (the clean-room rule). Already in dm, so not
+listed: a connection with nothing left halves the largest range (`ranged/halving.rs`), a second
+network (`dm-net/second_path.rs`, row 47), one network only (W12), the download allowance
+(`quota.rs`), an expired address replaced (`fresh_link.rs`), and the speed limiter's On/Off.
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| K1  | The end of a download waits on its slowest connection: once nothing is left to halve, the other connections sit idle while one slow range finishes | OPEN · M | When a range is too small to halve and its connection is far slower than the rest, an idle connection asks for the same bytes; the first to finish is written and the other is cancelled. Measure `lastByteToDoneMs` on `flaky` and `per_conn` (`bench/`) before and after; kept only if it falls |
+| K2  | The number of connections is fixed by the setting: it does not rise when the server and line have room, nor fall when the disk cannot keep up (a USB hard disk) | OPEN · M | An "Auto" connections setting, the default: add a connection while total speed still grows, drop one when writes back up or speed does not grow; the setting is the ceiling. Bench a slow disk and `capped`; contract row for the setting (the maintainer's word on its wording) |
+| K3  | Only two networks: the system's route and one second path. A third (Wi-Fi, wired and a phone) is not used, and a path cannot be switched off mid-download | OPEN · L | `second_path` becomes a list of chosen networks, each with its own client; ranges taken from one shared queue, so a faster network takes more by itself; a network turned off stops taking ranges and its open ones go on elsewhere. Torrents: a new peer connects through the network with the fewest peers |
+| K4  | The progress window shows one speed: not how much each network brings, so nobody can tell whether the second one helps | OPEN · M · the maintainer's word | Per network: its name (renamable), speed, share of the file and round-trip time, in Download details; a network that adds nothing is said so ("shares one line with Wi-Fi"). Needs the window's layout approved |
+| K5  | A speed limit is for all of dm or one site, not for one network (a phone's metered data) | OPEN · S | A limit per chosen network, shared by its connections, beside the global one; the allowance (`quota.rs`) counted per network too |
+| K6  | After the computer sleeps, a download's connections are dead and are found dead only by their time-outs | OPEN · S | On the system's wake notice (macOS `NSWorkspaceDidWakeNotification`, Windows `PBT_APMRESUMEAUTOMATIC`, Linux logind `PrepareForSleep`) reconnect every running download at once and resume from its ledger; a test that drops every connection together |
+| K7  | The window has no motion: a progress bar jumps at each tick, a row appears and goes in one frame, the speed changes in steps | OPEN · M · the maintainer's word | GPUI's own animation (no new crate): progress eased between ticks, a row added or removed faded and slid in about 150 ms, a finished row's bar settling; off when the system asks for reduced motion. Each one shown to the maintainer, then `docs/behaviour-baseline/` and the contract rows changed. Must not cost CPU when nothing moves (C0c): frames only while an animation runs |
+| K8  | A page's guide to a second network does not exist: which setups add speed (a phone over USB beside home Wi-Fi) and which cannot (Wi-Fi and wired on one router) | OPEN · S | `docs/guide/` page with the iPhone and Android over USB steps for macOS, Windows and Linux, linked from Options › Advanced › Network |
+
 ## Next priority: security (rows H, the maintainer, 2026-11-23)
 
 The maintainer, 2026-11-23: "give highest priority to security". Later the same day rows E were
-put first ("give it first priority"), so rows H come next: before every other row but rows E,
-before
+put first ("give it first priority"), so rows H come next: before every other row but rows E
+and, since 2026-11-24, rows K, before
 the Android rows N, rows C below, and rows V and W. Take them in the order that section gives:
 
 1. A day each, stops real harm: H1, H2, H12, H14, H16, H17, H21, H22.
@@ -1029,7 +1051,7 @@ English and German (`window_tests/layout/language.rs`).
 | #   | Gap | Status | Next |
 |-----|-----|--------|------|
 | E9  | The progress window's Limit, When done and Connections are still lines of their own, not lines that open; the facts still repeat the speed and time left | PARTIAL · M | Done 2026-11-24 at the maintainer's word (2026-11-24): first a figure line in larger type ("7% · 380 KB/s · 2 min left", the status where it does not run) over the whole file's bar, then the facts (B46, B53, B74 keep what they say); the main action filled (Stop download, Retry, Resume or Start now, Open); Cancel download plain in the error colour. Left: the settings as lines that open; seen in a picture of the window itself |
-| E10 | A form's hint does not yet sit directly under its field everywhere, and the Scheduler's hint sits at its foot | PARTIAL · M, with V11 | Done 2026-11-24 at the maintainer's word (2026-11-24): one measured label column for a form's group (E2); Download details' queue a Queue line of its form and its foot Cancel, Add for later, Start now (filled), where it mixed a button, the word "to" and a pop-up. Left: each hint under its field (the Scheduler's first); a label over 40% of the width above its field; B02's and B25's pictures of Download details taken again |
+| E10 | A form's hint does not yet sit directly under its field everywhere,  | PARTIAL · M, with V11 | Done 2026-11-24 at the maintainer's word (2026-11-24): one measured label column for a form's group (E2); Download details' queue a Queue line of its form and its foot Cancel, Add for later, Start now (filled), where it mixed a button, the word "to" and a pop-up. Then the same day: the Scheduler's hint directly under its hours. Left: the other hints under their fields; a label over 40% of the width above its field; B02's and B25's pictures of Download details taken again |
 | E11 | The progress window, V2's "Learn more" and the guides' pictures are owed | PARTIAL · S | Done 2026-11-24 at the maintainer's word (2026-11-24): a "?" at the leading end of the foot opens that dialog's page of `docs/guide/` (Options: the page shown), built into dm and written into its home as a plain web page by dm's own reader of the guide's Markdown, so it opens offline (`dm_desktop_base::help`, `the_schedulers_help_opens_its_page_of_the_guide`). On desktop a dialog's title row is the system's, so the foot holds it. Then the same day: Properties, the Grabber, the speed limiter and Add URL. Left: the progress window; "Learn more"; C16's pictures |
 
 **Order to take them** (first priority, the top of this file): E1 with V1 (the rules, a day) and
