@@ -193,3 +193,40 @@ fn a_mirrored_lists_sideways_move_is_kept() {
     assert_eq!(h.bounds_of(heading).left(), moved, "the move was not kept");
     dm_desktop_base::i18n::set("en");
 }
+
+/// The dialogs of a download, Properties and its progress window, keep their words inside at
+/// 100% and 200% text and in German and Hebrew (gaps row V15).
+#[test]
+fn a_downloads_dialogs_keep_their_words_inside() {
+    use dm_desktop_base::i18n::t;
+    // The language and the text size are the process's.
+    let _file = settings_file();
+    let mut found = Vec::new();
+    for (language, size) in [("en", 1.0), ("en", 2.0), ("de", 1.0), ("he", 1.0)] {
+        for (command, shown) in [
+            ("file.properties", "Address"),
+            ("file.show_progress", "Downloaded"),
+        ] {
+            let world = world();
+            let mut settings = world.settings();
+            settings.general.language = language.into();
+            settings.text_size = size;
+            let mut h = world.harness_with(settings);
+            dm_desktop_base::i18n::set(language);
+            h.act(|_, cx| crate::window::zoom::start(size, cx));
+            h.view(|view| view.backend.add(&world.url("stalled.bin")).unwrap());
+            h.until("the row", |h| h.rows().len() == 1);
+            let id = h.rows()[0].id;
+            h.call("ui.select", serde_json::json!({ "ids": [id] }))
+                .unwrap();
+            h.command(command);
+            h.until_shown(t(shown));
+            for past in h.words_past_the_edges() {
+                found.push(format!("{command} in {language} at {size}: {past}"));
+            }
+            h.act(|_, cx| crate::window::zoom::start(1.0, cx));
+        }
+    }
+    dm_desktop_base::i18n::set("en");
+    assert!(found.is_empty(), "{found:#?}");
+}
