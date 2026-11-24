@@ -14,3 +14,4 @@ are added by `scripts/ai-triage.py`. These are notes, and may be wrong: they nev
 - 2026-11-24: `cargo llvm-cov` runs the tests too: a test that fails only under coverage's slower, instrumented build (the zoo's chunked case, an overflow) is a real bug, not a flaky test.
 - 2026-11-24: dm-js (the JavaScript interpreter) refuses generator functions and `eval` on purpose; test that they are refused, never that they work.
 - 2026-11-24: A range of no stated length ends at `u64::MAX`; measure ranges with saturating arithmetic (`end.saturating_sub(start).saturating_add(1)`).
+- 2026-11-24: In dm-gpui, the test harness method step() in crates/dm-gpui/src/harness.rs is private.
