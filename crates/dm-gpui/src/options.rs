@@ -70,6 +70,12 @@ pub struct Options {
     pub(crate) networks: Vec<dm_core::Interface>,
     /// "How to use your phone" is open.
     pub(crate) phone: bool,
+    /// Each change in force as it is made, as a phone's own settings are, with Done in place
+    /// of OK and Cancel (gaps row C21): on a phone.
+    pub(crate) instant: bool,
+    /// The settings last put in force by an instant change, as text, so a frame with nothing
+    /// changed puts nothing in force again.
+    pub(crate) applied: Option<String>,
     /// Who opens magnet links and `.torrent` files (Windows), once read
     /// beside the window; read again after a change.
     #[cfg(windows)]
@@ -350,6 +356,37 @@ impl Options {
         }
     }
 
+    /// On a phone, what the draft says put in force now, where it passes OK's checks and
+    /// differs from what was last put in force; a change that does not pass yet (a number half
+    /// typed, a proxy with no address) waits, and Done says why (gaps row C21).
+    pub(crate) fn apply_now(&mut self, cx: &mut Context<Self>) {
+        if !self.instant || self.done {
+            return;
+        }
+        let Some(view) = self.view.upgrade() else {
+            return;
+        };
+        let now = view.read(cx).backend.settings();
+        let Ok(wanted) = options::ok(&self.opened, &self.draft, &self.typed, &now) else {
+            return;
+        };
+        let text = serde_json::to_string(&wanted).ok();
+        // The first look is of the settings as Options opened, in force already: kept as
+        // what is in force, nothing put in force again.
+        let first = self.applied.is_none();
+        if text == self.applied {
+            return;
+        }
+        self.applied = text;
+        if first {
+            return;
+        }
+        match view.update(cx, |view, cx| view.apply_settings(wanted, cx)) {
+            Ok(()) => self.says = None,
+            Err(e) => self.says = Some(e.into()),
+        }
+    }
+
     fn cancel(&mut self, window: &mut Window) {
         self.done = true;
         window.remove_window();
@@ -382,6 +419,8 @@ impl Options {
 
 impl Render for Options {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // On a phone, the last change put in force before the frame is drawn (gaps row C21).
+        self.apply_now(cx);
         let theme = Theme::of(window.appearance());
         self.screen.begin();
         let screen = self.screen.clone();
@@ -545,14 +584,22 @@ impl Options {
                     })
                     .into_iter()
                     .collect(),
-                vec![
-                    native::button("cancel", t("Cancel").into(), false, theme, screen)
-                        .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
-                        .into_any_element(),
-                    native::button("ok", t("OK").into(), true, theme, screen)
+                if self.instant {
+                    // Each change in force already: Done closes, saying first what does not
+                    // pass (gaps row C21).
+                    vec![native::button("ok", t("Done").into(), true, theme, screen)
                         .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
-                        .into_any_element(),
-                ],
+                        .into_any_element()]
+                } else {
+                    vec![
+                        native::button("cancel", t("Cancel").into(), false, theme, screen)
+                            .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
+                            .into_any_element(),
+                        native::button("ok", t("OK").into(), true, theme, screen)
+                            .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
+                            .into_any_element(),
+                    ]
+                },
             ))
     }
 }
@@ -689,6 +736,8 @@ fn open_window(
                 queues,
                 networks: Vec::new(),
                 phone: false,
+                instant: crate::platform::ON_A_PHONE,
+                applied: None,
                 #[cfg(windows)]
                 handlers: None,
                 #[cfg(windows)]

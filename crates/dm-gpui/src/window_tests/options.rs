@@ -75,6 +75,31 @@ fn options_are_put_into_force_on_ok_and_written_down() {
     assert_eq!(saved_settings()["categorize"], true);
 }
 
+/// On a phone each change is in force as it is made, as a phone's own settings are, and Done
+/// stands where OK and Cancel were (gaps row C21). Here as a phone's Options is made.
+#[test]
+fn on_a_phone_a_change_is_in_force_at_once_and_done_closes() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    open_options(&mut h);
+    h.dialog(|o: &mut Options, _, cx| {
+        o.instant = true;
+        cx.notify();
+    });
+    h.until_shown("Done");
+    assert!(!h.shows("Cancel"), "{:?}", h.texts());
+    tab(&mut h, "Folders");
+    let before = kept(&mut h).folders.categorize;
+    h.click_as_person("Sort finished files into folders by kind", 0);
+    h.until("the change in force with no OK", |h| {
+        kept(h).folders.categorize != before
+    });
+    assert_eq!(saved_settings()["categorize"], !before);
+    h.click_as_person("Done", 0);
+    h.until("Options to close", |h| !h.dialog_open("Options"));
+}
+
 #[test]
 fn the_file_types_the_browser_hands_over_are_set_in_options() {
     let _file = settings_file();
