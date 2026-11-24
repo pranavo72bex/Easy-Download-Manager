@@ -176,6 +176,7 @@ pub fn sidebar(
                 .aria_label(t("Places"))
                 .size_full()
                 .overflow_y_scroll()
+                .track_scroll(&view.list.panel_scroll)
                 .py_2()
                 .flex()
                 .flex_col()
@@ -211,6 +212,32 @@ pub fn sidebar(
                     rows
                 })
                 .children(projects(view, theme, screen, cx)),
+        )
+        // Its bar where places lie past its foot, inside its resizing edge: a place under the
+        // status bar was found only where a row happened to show half (`docs/ui-design.md`
+        // rule 7). Shown as the list's is, and always while there is more to scroll to.
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .map(|bar| {
+                    if crate::window::mirror::rtl() {
+                        bar.left(px(EDGE))
+                    } else {
+                        bar.right(px(EDGE))
+                    }
+                })
+                .w(gpui_base::Scrollbar::width())
+                .child(
+                    gpui_base::Scrollbar::vertical(&view.list.panel_scroll)
+                        .viewport_from_layout()
+                        .mode(if view.list.panel_scroll.max_offset().y > gpui::px(0.0) {
+                            gpui_base::ScrollbarMode::Always
+                        } else {
+                            crate::window::list::scrollbar_mode()
+                        }),
+                ),
         )
         .child(
             div()
@@ -260,6 +287,8 @@ fn group_heading(
         .when(!heading.is_empty(), |d| {
             d.role(Role::Button)
                 .aria_label(t(heading))
+                .aria_expanded(!shut)
+                .map(|d| reachable(d, theme))
                 .cursor_pointer()
                 .child(screen.label(t(heading)))
                 // An arrow drawn as the panel's other icons are, not a character of the font
@@ -311,6 +340,7 @@ fn projects(
                     .id(("project", i))
                     .role(Role::ListItem)
                     .aria_label(name.clone())
+                    .map(|d| reachable(d, theme))
                     .mx_2()
                     .px_2()
                     .h(px(26.0))
@@ -391,6 +421,8 @@ fn place_row(
             .id(("place", i))
             .role(Role::ListItem)
             .aria_label(label.clone())
+            .aria_selected(chosen)
+            .map(|d| reachable(d, theme))
             .mx_2()
             .px_2()
             .h(px(26.0))
@@ -577,6 +609,13 @@ impl Downloads {
         });
         self.read();
     }
+}
+
+/// A place, a group's heading or a saved search reached by Tab and pressed by Space or Return,
+/// its place ringed, as `native::button` is: choosing a place was the pointer's alone.
+pub(crate) fn reachable(row: gpui::Stateful<gpui::Div>, theme: Theme) -> gpui::Stateful<gpui::Div> {
+    row.tab_index(0)
+        .focus(move |s| s.border_2().border_color(theme.ring(false)))
 }
 
 #[cfg(test)]

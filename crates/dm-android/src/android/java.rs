@@ -53,6 +53,33 @@ impl Java for Jni {
         });
     }
 
+    fn reduced_motion(&self) -> bool {
+        // Settings.Global.ANIMATOR_DURATION_SCALE, 0 where Remove animations is on.
+        jvm::with("read the animation setting", |env, context| {
+            let resolver = env
+                .call_method(
+                    context,
+                    jni_str!("getContentResolver"),
+                    jni_sig!("()Landroid/content/ContentResolver;"),
+                    &[],
+                )?
+                .l()?;
+            let name = env.new_string("animator_duration_scale")?;
+            env.call_static_method(
+                jni_str!("android/provider/Settings$Global"),
+                jni_str!("getFloat"),
+                jni_sig!("(Landroid/content/ContentResolver;Ljava/lang/String;F)F"),
+                &[
+                    JValue::Object(&resolver),
+                    JValue::Object(&name),
+                    JValue::Float(1.0),
+                ],
+            )?
+            .f()
+        })
+        .is_ok_and(|scale| scale == 0.0)
+    }
+
     fn in_front(&self) -> bool {
         // gpui-android's own: set as the activity resumes or gains the focus, cleared as it
         // pauses or loses it.

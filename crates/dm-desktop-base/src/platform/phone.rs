@@ -55,6 +55,12 @@ pub trait PhoneServices: Send + Sync {
     /// The phone's feel of a long press, as its own apps give one (gaps row C22).
     fn felt(&self) {}
 
+    /// Whether the phone asks for no animations (Settings › Accessibility › Remove animations,
+    /// which sets the animator's duration scale to 0).
+    fn reduced_motion(&self) -> bool {
+        false
+    }
+
     /// The clipboard's text, if it holds any.
     fn clipboard(&self) -> Option<String> {
         None

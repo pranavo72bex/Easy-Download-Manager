@@ -5,7 +5,9 @@
 
 //! Whether the person asked their system for less motion (gaps row K7): macOS's Reduce motion
 //! (Accessibility › Display), Windows' "Show animations in Windows" turned off, GNOME's
-//! animations turned off. dm's window then moves nothing that is not needed.
+//! animations turned off, Android's Remove animations. dm's window then moves nothing that is
+//! not needed, asked again each time the window comes in front, as the setting can change while
+//! dm runs.
 
 /// Whether the system asks for reduced motion now.
 pub fn reduced() -> bool {
@@ -53,7 +55,9 @@ fn ask() -> bool {
         .is_ok_and(|out| String::from_utf8_lossy(&out.stdout).trim() == "false")
 }
 
+/// The phone's Remove animations, asked of its Java side (`phone::PhoneServices`); none before
+/// the phone's services are set.
 #[cfg(target_os = "android")]
 fn ask() -> bool {
-    false
+    crate::platform::phone::phone().is_some_and(|phone| phone.reduced_motion())
 }

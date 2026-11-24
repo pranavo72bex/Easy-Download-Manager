@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Easier to read: words drawn in the accent colour (a running download's state, "+1 more", links) and the words on blue buttons and chosen rows now read clearly on macOS and Linux, in light and dark.
+- The keyboard reaches more of the window: the side panel's places and group headings, "+1 more" in the message bar, and the search box shows a ring while you type in it. A screen reader now says the row the arrow keys move to.
+- On Android, "Remove animations" is followed; on every system, turning "reduce motion" on or off while dm runs is followed when you come back to dm.
+- The list's columns are as wide as their headings and figures in the language shown, an empty Queue column gives its room to the file name, and anything still cut shows in full on hover. Where columns or places run past the edge, a scroll bar says so.
+- On a phone, a card's time left and figures give way before its file name does.
+
 - A site whose security certificate fails says why (expired, not valid yet, for another site, from an untrusted issuer) and what to do.
 - Fixed: a download begun while Download details asked could stay "Queued" after Start now, with nothing downloading.
 - An address that imitates a real site with letters from another alphabet is shown in its true `xn--` form, and Add URL and Download details warn about it.

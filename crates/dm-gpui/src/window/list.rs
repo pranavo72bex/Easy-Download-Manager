@@ -79,7 +79,7 @@ fn clock(running: bool, ticking: bool) -> Duration {
 
 /// When the list's bars show, as each system's own lists show theirs: always on Windows and
 /// Linux, under the pointer on macOS (gaps row U43).
-fn scrollbar_mode() -> gpui_base::ScrollbarMode {
+pub(crate) fn scrollbar_mode() -> gpui_base::ScrollbarMode {
     if cfg!(target_os = "macos") {
         gpui_base::ScrollbarMode::Hover
     } else {

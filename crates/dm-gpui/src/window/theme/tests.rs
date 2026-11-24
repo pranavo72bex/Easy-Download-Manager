@@ -250,8 +250,10 @@ fn every_systems_palette_keeps_its_words_readable() {
     for dark in [false, true] {
         for own in [windows(dark), gnome(dark), macos(dark)] {
             let taken = own.with_accent(&purple, dark);
-            if contrast(own.on_accent, taken.accent) >= 4.5 {
-                assert_ne!(taken.accent, own.accent, "dark {dark}");
+            let [r, g, b] = if dark { purple.light1 } else { purple.dark1 };
+            let shade = rgb(u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b));
+            if contrast(own.on_accent, shade) >= 4.5 && contrast(own.on_selection, shade) >= 4.5 {
+                assert_eq!(taken.accent, shade, "dark {dark}");
             }
             let kept = own.with_accent(&yellow, false);
             assert!(kept.accent == own.accent || contrast(own.on_accent, kept.accent) >= 4.5);

@@ -262,7 +262,13 @@ impl WindowProbe for Probe<'_, '_> {
         };
         self.view.port.scripted.acted();
         self.in_front(move |window, cx| {
-            window.dispatch_keystroke(keystroke, cx);
+            window.dispatch_keystroke(keystroke.clone(), cx);
+            // And let go, as a key is: a focused control is pressed by Space or Return on
+            // their release (GPUI's keyboard click), which a key held down forever never gave.
+            window.dispatch_event(
+                gpui::PlatformInput::KeyUp(gpui::KeyUpEvent { keystroke }),
+                cx,
+            );
         });
         Ok(())
     }

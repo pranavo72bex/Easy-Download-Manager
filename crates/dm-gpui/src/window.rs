@@ -27,3 +27,12 @@ pub(crate) mod titlebar;
 pub(crate) mod toolbar;
 pub(crate) mod viewmenu;
 pub(crate) mod zoom;
+
+/// Moves nothing that is not needed where the system asks for less motion (gaps row K7): asked
+/// at start and again whenever the window comes in front or the look changes, so a change made
+/// while dm runs is followed (it was read once, at start).
+pub(crate) fn follow_motion(cx: &mut gpui::App) {
+    let still = dm_desktop_base::motion::reduced();
+    cx.set_reduce_motion(still);
+    table::set_still(still);
+}

@@ -34,6 +34,7 @@ pub(super) fn rows(
                 .id(("followed", i))
                 .role(Role::ListItem)
                 .aria_label(name.clone())
+                .map(|d| super::reachable(d, theme))
                 .mx_2()
                 .px_2()
                 .h(px(26.0))

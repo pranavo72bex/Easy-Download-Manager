@@ -185,6 +185,9 @@ fn figures(row: &Entry, status: &str, speed: String) -> (String, String) {
     (left, right)
 }
 
+/// The least a card's name is drawn, in points: its first letters beside any figures.
+const NAME_LEAST: f32 = 64.0;
+
 /// A card's small words, cut with "…" where they do not fit.
 fn small(words: String, colour: gpui::Rgba, screen: &Screen) -> gpui::Div {
     div()
@@ -243,6 +246,8 @@ fn card(
         .role(Role::ListItem)
         .aria_label(SharedString::from(format!("{name}, {status}")))
         .aria_selected(chosen)
+        // Where the keys stand, said as the keyboard's place (as the table's row).
+        .when(view.list.cursor == Some(id), |r| r.aria_active_descendant())
         .aria_row_index(i + 1)
         .w_full()
         .h(px(CARD_HEIGHT))
@@ -301,7 +306,9 @@ fn card(
                         .child(
                             div()
                                 .flex_1()
-                                .min_w_0()
+                                // A few letters of the name stay, whatever the figures beside
+                                // it: they give up their room first.
+                                .min_w(px(NAME_LEAST))
                                 .overflow_hidden()
                                 .whitespace_nowrap()
                                 .text_ellipsis()
@@ -310,11 +317,9 @@ fn card(
                                 .child(screen.label(name)),
                         )
                         .when(!left.trim().is_empty(), |line| {
-                            line.child(div().flex_none().child(small(
-                                left,
-                                card_theme.muted,
-                                screen,
-                            )))
+                            // Able to be cut, as `small` is: at 360 points and a larger
+                            // text size a fixed "Calculating…" left the name a few letters.
+                            line.child(small(left, card_theme.muted, screen))
                         }),
                 )
                 // No bar on a finished card: its tick says it (gaps row E4).
@@ -343,11 +348,8 @@ fn card(
                                 .children(crate::window::table::state_mark(&row.state, card_theme))
                                 .child(small(left_words, state_colour(row, chosen, theme), screen)),
                         )
-                        .child(div().flex_none().child(small(
-                            right_words,
-                            card_theme.muted,
-                            screen,
-                        ))),
+                        // Cut with "…" where the card is narrow, not run under its buttons.
+                        .child(small(right_words, card_theme.muted, screen)),
                 ),
         )
         .when_some(quick_of(row), |card, quick| {

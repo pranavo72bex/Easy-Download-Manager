@@ -56,6 +56,10 @@ pub trait Java: Send + Sync + 'static {
     fn in_front(&self) -> bool;
     /// The activity's own haptic feedback for a long press (gaps row C22).
     fn feel(&self) {}
+    /// Whether Remove animations is on (the animator's duration scale is 0).
+    fn reduced_motion(&self) -> bool {
+        false
+    }
     /// The clipboard's text, where there is any.
     fn clipboard(&self) -> Option<String>;
     /// Puts `text` on the clipboard.
@@ -321,6 +325,10 @@ impl<J: Java> PhoneServices for Phone<J> {
 
     fn felt(&self) {
         self.java.feel();
+    }
+
+    fn reduced_motion(&self) -> bool {
+        self.java.reduced_motion()
     }
 
     fn wrote(&self, path: &Path) {

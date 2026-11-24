@@ -64,6 +64,36 @@ fn width(column: Column) -> Option<f32> {
     }
 }
 
+/// A column's own width where a person gave it none: its default, widened to its heading and a
+/// long figure in the language shown, so neither is cut while the window has room for them
+/// (`docs/ui-design.md` rule 7: an Arabic size, "2.1 ميغ…", and a cut heading had no way to be
+/// read whole). Queue, where no row shown waits in one, as wide as its heading alone: its room
+/// stood empty while the file's name beside it was cut. Status grows on its own (`cell`).
+fn own_width(column: Column, any_queue: bool) -> Option<f32> {
+    use crate::widgets::native::{small_width, text_width};
+    let default = width(column)?;
+    // The cell's margins (`px_2` each side), and the sort arrow's room beside a heading.
+    let margins = 16.0;
+    let heading = small_width(&format!("{} ▼", column.title())) + margins;
+    // A figure as long as the column says: a size and a rate just under a thousand of their
+    // unit, the time left in its two largest units.
+    let large = 1_073_217_536;
+    let figure = match column {
+        Column::Size => text_width(&format::bytes(large)) + margins,
+        Column::Rate => text_width(&format::rate(large as f64)) + margins,
+        Column::TimeLeft => {
+            text_width(&format::span(std::time::Duration::from_secs(59 * 60 + 59))) + margins
+        }
+        _ => 0.0,
+    };
+    let own = match column {
+        Column::Status => default,
+        Column::Queue if !any_queue => heading,
+        _ => default.max(heading).max(figure),
+    };
+    Some(own.ceil())
+}
+
 /// Whether a column's figures stand against its right edge.
 fn numeric(column: Column) -> bool {
     matches!(column, Column::Size | Column::TimeLeft | Column::Rate)
@@ -77,10 +107,6 @@ pub fn columns(view: &Downloads) -> Vec<Column> {
         .filter(|c| !settings.columns_hidden.iter().any(|h| h == c.key()))
         .collect()
 }
-
-/// About how many letters Status shows at its least width: longer words are offered whole on
-/// hover.
-const STATUS_FITS: usize = 22;
 
 /// The widths a person gave columns, by key (`Settings::column_widths`).
 pub(crate) type Widths = std::collections::BTreeMap<String, f32>;
@@ -143,6 +169,45 @@ pub(crate) fn fitted(words: impl IntoElement) -> gpui::Div {
         .child(words)
 }
 
+/// Whether `words` are cut in a cell whose words have `room` points (at 100%), as the system
+/// sets them: then they are offered whole on hover (`docs/ui-design.md` rule 7). Counting
+/// letters against a guess said nothing of wide letters, other scripts or a column narrowed by
+/// hand.
+fn cut(words: &str, room: f32) -> bool {
+    !words.is_empty() && crate::widgets::native::text_width(words) > room
+}
+
+/// The room a cell of `column` leaves its words, in points at 100%: its width less its margins
+/// (`px_2` each side), the name's the room the other columns leave it (`name_room`).
+fn words_room(column: Column, widths: &Widths, name_room: f32) -> f32 {
+    width_of(column, widths).unwrap_or(name_room) - 16.0
+}
+
+/// `cell` with `whole` on hover where its words are `cut`, told to a screen reader as
+/// `maybe_told` does.
+fn whole_where_cut(
+    cell: gpui::Div,
+    told: bool,
+    id: impl Into<gpui::ElementId>,
+    place: usize,
+    whole: SharedString,
+    cut: bool,
+) -> AnyElement {
+    if !cut {
+        return maybe_told(cell, told, id, place, whole);
+    }
+    let cell = cell.id(id);
+    let cell = if told {
+        told_cell(cell, place, whole.clone())
+    } else {
+        cell
+    };
+    cell.tooltip(move |window, cx| {
+        gpui_component::tooltip::Tooltip::new(whole.clone()).build(window, cx)
+    })
+    .into_any_element()
+}
+
 /// A cell of `column` sized as its column is: one line, cut short with an
 /// ellipsis where its words are longer.
 fn cell(column: Column, widths: &Widths) -> gpui::Div {
@@ -202,11 +267,41 @@ pub(crate) fn words(column: Column, row: &Entry, whens: &format::Whens) -> Strin
 }
 
 impl Downloads {
-    /// The columns' widths as drawn: the ones kept, and the one being dragged.
+    /// The file name's width, in points at 100%: the list's width as last laid out (or the
+    /// columns' least, where they run past it), less every other column's.
+    fn name_room(&self, columns: &[Column], widths: &Widths) -> f32 {
+        let seen =
+            f32::from(self.list.sideways.bounds().size.width) / crate::window::zoom::factor();
+        let others: f32 = columns
+            .iter()
+            .filter_map(|&column| width_of(column, widths))
+            .sum();
+        // The row's own margins (`px_1` each side), as `least_width` counts them.
+        (seen.max(least_width(self)) - others - 8.0).max(NAME_AT_LEAST)
+    }
+
+    /// The columns' widths as drawn: the ones kept, the one being dragged, and the rest their
+    /// own (`own_width`).
     pub(crate) fn widths(&self) -> Widths {
         let mut widths = self.known.drawn.column_widths.clone();
         if let Some((column, wide)) = self.layout.resizing {
             widths.insert(column.key().to_string(), wide);
+        }
+        // Each column a person left alone as wide as its heading and figures (`own_width`);
+        // Status, which grows on its own where it is not given a width, is left out.
+        let any_queue = self
+            .list
+            .shown
+            .iter()
+            .filter_map(|&r| self.rows.get(r))
+            .any(|row| !row.queue.is_empty());
+        for column in columns(self) {
+            if column == Column::Status || widths.contains_key(column.key()) {
+                continue;
+            }
+            if let Some(own) = own_width(column, any_queue) {
+                widths.insert(column.key().to_string(), own);
+            }
         }
         widths
     }
@@ -313,10 +408,13 @@ fn spoken(
 /// The columns shown, in order, and the widths a person gave them; and
 /// whether a screen reader is reading the window, so each cell is told as
 /// one (`maybe_told`).
+#[derive(Clone, Copy)]
 struct Layout<'a> {
     columns: &'a [Column],
     widths: &'a Widths,
     told: bool,
+    /// The file name's width, in points at 100%: what the other columns leave it.
+    name_room: f32,
 }
 
 /// One row's cells, its own `buttons` at the name's right end.
@@ -333,6 +431,7 @@ fn row_cells(
         columns,
         widths,
         told,
+        name_room,
     } = layout;
     let (names, whens) = (&view.known.shown_names, &view.known.whens);
     let mut buttons = Some(buttons);
@@ -377,7 +476,10 @@ fn row_cells(
                             .text_color(colour),
                     )
                     .child(cells::name_drawn(&name, screen));
-                maybe_told(named, told, ("name", id), place, name)
+                // Its picture and the gap after it, and the row's buttons where they show.
+                let room = words_room(column, widths, name_room) - 24.0 - kept;
+                let cut = cut(&name, room);
+                whole_where_cut(named, told, ("name", id), place, name, cut)
             }
             // The queue a download waits in, by its name (gaps row E7): it was a dot under a
             // heading with no word.
@@ -390,61 +492,10 @@ fn row_cells(
                 let named = cell(column, widths)
                     .when(!theme.is_chosen(), |c| c.text_color(theme.muted))
                     .child(fitted(screen.label(queue.clone())));
-                maybe_told(named, told, ("queue", id), place, queue)
+                let cut = cut(&queue, words_room(column, widths, name_room));
+                whole_where_cut(named, told, ("queue", id), place, queue.into(), cut)
             }
-            Column::Status => {
-                let said = words(column, row, whens);
-                let fraction = (row.state == State::Running)
-                    .then(|| row.progress.fraction())
-                    .flatten();
-                // The whole words on hover, and the engine's own where the row says them in
-                // plainer ones: a cut failure could not be read (gaps row U3).
-                let whole = match dm_desktop_base::rows::failure_as_said(row) {
-                    Some(raw) => format!("{said}\n{raw}"),
-                    None => said.clone(),
-                };
-                cell(column, widths)
-                    .id(("status", row.id))
-                    .when(told, |c| told_cell(c, place, said.clone()))
-                    .flex_col()
-                    .items_start()
-                    // Against the right where the window is mirrored (gaps row U35).
-                    .when(crate::window::mirror::rtl(), |c| c.items_end())
-                    .justify_center()
-                    .when(whole.chars().count() > STATUS_FITS, |c| {
-                        c.tooltip(move |window, cx| {
-                            gpui_component::tooltip::Tooltip::new(SharedString::from(whole.clone()))
-                                .build(window, cx)
-                        })
-                    })
-                    // Its state in its colour, as the phone's cards say it: a failure in the
-                    // warning's, a finished download in the success colour, one going in the
-                    // accent; on a chosen row, the choice's own text colour.
-                    .when(!theme.is_chosen(), |c| match row.state {
-                        State::Failed(_) => c.text_color(theme.warning),
-                        State::Completed => c.text_color(theme.success),
-                        State::Running => c.text_color(theme.accent_text),
-                        _ => c,
-                    })
-                    // A mark told by its shape, then the words (gaps row E4): a state is
-                    // never told by colour alone (`docs/ui-design.md`, rule 5).
-                    .child(
-                        div()
-                            .flex()
-                            .map(crate::window::mirror::row)
-                            .items_center()
-                            .gap(px(space::XS))
-                            .max_w_full()
-                            .children(cells::state_mark(&row.state, theme))
-                            .child(fitted(screen.label(said))),
-                    )
-                    .when_some(fraction, |c, f| {
-                        c.child(cells::progress_track(row.id, f, told, theme))
-                    })
-                    // A bar just finished fills and fades rather than vanishing (gaps row K7).
-                    .children(cells::finishing_bar(row, theme))
-                    .into_any_element()
-            }
+            Column::Status => status_cell(row, place, layout, whens, theme, screen),
             _ => {
                 let mut said = words(column, row, whens);
                 // A row not saved yet shows the folder it will go to, without that guess
@@ -463,10 +514,85 @@ fn row_cells(
                 let worded = cell(column, widths)
                     .when(!numeric, |c| c.text_color(theme.muted))
                     .child(fitted(screen.label(said.clone())));
-                maybe_told(worded, told, (column.key(), id), place, said)
+                let cut = cut(&said, words_room(column, widths, name_room));
+                whole_where_cut(worded, told, (column.key(), id), place, said, cut)
             }
         })
         .collect()
+}
+
+/// A row's Status cell: its mark and words in its state's colour, the bar of a running one,
+/// and its whole words on hover where they are cut or the engine said more.
+fn status_cell(
+    row: &Entry,
+    place: usize,
+    layout: Layout<'_>,
+    whens: &format::Whens,
+    theme: Theme,
+    screen: &Screen,
+) -> AnyElement {
+    let Layout {
+        widths,
+        told,
+        name_room,
+        ..
+    } = layout;
+    let column = Column::Status;
+    let said = words(column, row, whens);
+    let fraction = (row.state == State::Running)
+        .then(|| row.progress.fraction())
+        .flatten();
+    // The whole words on hover, and the engine's own where the row says them in
+    // plainer ones: a cut failure could not be read (gaps row U3).
+    let whole = match dm_desktop_base::rows::failure_as_said(row) {
+        Some(raw) => format!("{said}\n{raw}"),
+        None => said.clone(),
+    };
+    cell(column, widths)
+        .id(("status", row.id))
+        .when(told, |c| told_cell(c, place, said.clone()))
+        .flex_col()
+        .items_start()
+        // Against the right where the window is mirrored (gaps row U35).
+        .when(crate::window::mirror::rtl(), |c| c.items_end())
+        .justify_center()
+        // Its mark and the gap after it beside the words.
+        .when(
+            whole != said || cut(&said, words_room(column, widths, name_room) - 18.0),
+            |c| {
+                c.tooltip(move |window, cx| {
+                    gpui_component::tooltip::Tooltip::new(SharedString::from(whole.clone()))
+                        .build(window, cx)
+                })
+            },
+        )
+        // Its state in its colour, as the phone's cards say it: a failure in the
+        // warning's, a finished download in the success colour, one going in the
+        // accent; on a chosen row, the choice's own text colour.
+        .when(!theme.is_chosen(), |c| match row.state {
+            State::Failed(_) => c.text_color(theme.warning),
+            State::Completed => c.text_color(theme.success),
+            State::Running => c.text_color(theme.accent_text),
+            _ => c,
+        })
+        // A mark told by its shape, then the words (gaps row E4): a state is
+        // never told by colour alone (`docs/ui-design.md`, rule 5).
+        .child(
+            div()
+                .flex()
+                .map(crate::window::mirror::row)
+                .items_center()
+                .gap(px(space::XS))
+                .max_w_full()
+                .children(cells::state_mark(&row.state, theme))
+                .child(fitted(screen.label(said))),
+        )
+        .when_some(fraction, |c, f| {
+            c.child(cells::progress_track(row.id, f, told, theme))
+        })
+        // A bar just finished fills and fades rather than vanishing (gaps row K7).
+        .children(cells::finishing_bar(row, theme))
+        .into_any_element()
 }
 
 /// What stands under the headings where the place chosen shows no row: as
@@ -557,6 +683,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
             let categories = this.known.drawn.categories();
             let columns = columns(this);
             let widths = this.widths();
+            let name_room = this.name_room(&columns, &widths);
             let list = cx.entity().downgrade();
             // Whether a chosen row is finished, asked once, the first time a
             // chosen row that is not needs to know: it carries the others.
@@ -606,6 +733,9 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         // it stands, as the row shows them (it said nothing).
                         .aria_label(spoken(row, &this.known.shown_names))
                         .aria_selected(chosen)
+                        // Where the arrow keys stand, said as the keyboard's place while the
+                        // list keeps the focus: moving the choice was silent to a screen reader.
+                        .when(this.list.cursor == Some(id), |r| r.aria_active_descendant())
                         // Its place in the table, under the header's row.
                         .aria_row_index(i + 1)
                         .w_full()
@@ -627,6 +757,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                                 columns: &columns,
                                 widths: &widths,
                                 told,
+                                name_room,
                             },
                             kind,
                             theme,
@@ -660,81 +791,4 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_list_is_told_as_a_table_of_headings_and_cells() {
-        use crate::window::a11y::node_of;
-        // The header's row and three of downloads, in four columns.
-        let table = node_of(&as_table(div().id("table"), 3, 4));
-        assert_eq!(table.role(), Role::Table);
-        assert_eq!(table.label(), Some("Downloads"));
-        assert_eq!(table.row_count(), Some(4));
-        assert_eq!(table.column_count(), Some(4));
-
-        let heading = node_of(&told_heading(div().id("size"), Column::Size, 2, Some(true)));
-        assert_eq!(heading.role(), Role::ColumnHeader);
-        assert_eq!(heading.label(), Some(Column::Size.title()));
-        assert_eq!(heading.column_index(), Some(2));
-
-        let cell = node_of(&told_cell(div().id(("size", 7usize)), 2, "1.5 MB"));
-        assert_eq!(cell.role(), Role::Cell);
-        assert_eq!(cell.label(), Some("1.5 MB"));
-        assert_eq!(cell.column_index(), Some(2));
-    }
-
-    /// A row's own buttons by how it stands, on the row under the pointer:
-    /// Details on one not finished, Delete on one that is not writing its file.
-    #[test]
-    fn a_rows_buttons_follow_its_state() {
-        let of = |state: State| -> Vec<Command> {
-            let mut row: Entry = serde_json::from_value(serde_json::json!({
-                "id": 1,
-                "url": "http://example.com/f.bin",
-                "state": {"kind": "queued"},
-                "progress": {"downloaded": 0, "total": null, "speed": 0.0, "eta": null},
-                "filename": "f.bin",
-            }))
-            .unwrap();
-            row.state = state;
-            row_actions(&row).into_iter().map(|(c, _, _)| c).collect()
-        };
-        use Command::*;
-        assert_eq!(of(State::Running), [StopDownload, ShowProgress]);
-        assert_eq!(of(State::Queued), [StopDownload, ShowProgress]);
-        assert_eq!(of(State::Paused), [DownloadNow, ShowProgress, Remove]);
-        assert_eq!(
-            of(State::Failed("gone".into())),
-            [DownloadNow, ShowProgress, Remove]
-        );
-        assert_eq!(of(State::Completed), [OpenFile, OpenFolder, Remove]);
-        assert_eq!(of(State::Cancelled), [Remove]);
-    }
-
-    #[test]
-    fn a_names_extension_is_kept_apart_to_stay_whole() {
-        assert_eq!(name_parts("A long film.mp4"), ("A long film", ".mp4"));
-        assert_eq!(name_parts("archive.tar.gz"), ("archive.tar", ".gz"));
-        assert_eq!(name_parts(".bashrc"), (".bashrc", ""));
-        assert_eq!(name_parts("no extension"), ("no extension", ""));
-        assert_eq!(name_parts("v1.2 of the talk"), ("v1.2 of the talk", ""));
-    }
-
-    #[test]
-    fn a_heading_dropped_on_another_takes_its_place() {
-        use Column::{Name, Queue, Size, Status};
-        let order = vec![Name, Queue, Size, Status];
-        // From the left: after the one dropped on.
-        assert_eq!(
-            moved_onto(order.clone(), Queue, Status),
-            Some(vec![Name, Size, Status, Queue])
-        );
-        // From the right: before it.
-        assert_eq!(
-            moved_onto(order.clone(), Status, Queue),
-            Some(vec![Name, Status, Queue, Size])
-        );
-        assert_eq!(moved_onto(order, Column::Rate, Queue), None);
-    }
-}
+mod tests;

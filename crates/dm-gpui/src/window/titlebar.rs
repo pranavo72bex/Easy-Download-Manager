@@ -104,9 +104,6 @@ pub fn titlebar(
     window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let words = view.list.filter.read(cx).value().to_string();
-    let searching = !words.trim().is_empty();
-    let shown = view.list.shown.len();
     // As wide as two fifths of the window, between a field's least and the
     // widest a title bar's box goes, centred on the window whatever stands
     // at its sides.
@@ -177,8 +174,7 @@ pub fn titlebar(
         .child(search_box(
             view,
             Some(width),
-            searching,
-            shown,
+            search_focused(view, window, cx),
             theme,
             screen,
             cx,
@@ -239,15 +235,19 @@ pub fn narrow_titlebar(
     let bar = if view.layout.narrow.choosing {
         choosing_bar(bar, view, theme, screen, cx)
     } else if view.narrow_searching() {
-        let words = view.list.filter.read(cx).value().to_string();
-        let searching = !words.trim().is_empty();
-        let shown = view.list.shown.len();
-        bar.child(search_box(view, None, searching, shown, theme, screen, cx))
-            .child(
-                button("search-close", close)
-                    .on_click(cx.listener(|view, _, window, cx| view.close_search(window, cx)))
-                    .child(screen.mark(close, div().child("✕"))),
-            )
+        bar.child(search_box(
+            view,
+            None,
+            search_focused(view, window, cx),
+            theme,
+            screen,
+            cx,
+        ))
+        .child(
+            button("search-close", close)
+                .on_click(cx.listener(|view, _, window, cx| view.close_search(window, cx)))
+                .child(screen.mark(close, div().child("✕"))),
+        )
     } else {
         let title = crate::window::sidebar::place_name(view).unwrap_or_else(|| "dm".into());
         // The place's name as the bar's title, as a phone's apps name the screen shown; the
@@ -410,15 +410,21 @@ fn drag_space() -> gpui::Div {
 }
 
 /// The search box, `width` points on screen wide, or the room it is given where none.
+/// Whether the search box has the keyboard.
+fn search_focused(view: &Downloads, window: &Window, cx: &Context<Downloads>) -> bool {
+    gpui::Focusable::focus_handle(view.list.filter.read(cx), cx).contains_focused(window, cx)
+}
+
 fn search_box(
     view: &Downloads,
     width: Option<f32>,
-    searching: bool,
-    shown: usize,
+    focused: bool,
     theme: Theme,
     screen: &Screen,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
+    let searching = !view.list.filter.read(cx).value().trim().is_empty();
+    let shown = view.list.shown.len();
     div()
         .id("search")
         // Escape in the box clears it and gives the keyboard back to
@@ -443,7 +449,13 @@ fn search_box(
         .px(px(space::M))
         .rounded(px(native::RADIUS + 1.0))
         .border_1()
-        .border_color(theme.separator)
+        // Ringed while it has the keyboard, as a button is (the field draws no ring of its own
+        // without its frame): a caret alone did not say where the keys go.
+        .border_color(if focused {
+            theme.ring(false)
+        } else {
+            theme.separator
+        })
         .bg(theme.stripe)
         // The magnifier at the left, as the system's search fields
         // and the editor's command centre draw it.

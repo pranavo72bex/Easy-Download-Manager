@@ -117,9 +117,17 @@ pub(crate) fn framed(
         .child(mark(tone, theme))
         .child(div().flex_1().min_w_0().child(body))
         .when(more > 0, |d| {
+            let words = tn("+{} more||+{} more", more as u64, &[&more]);
             d.child(
                 div()
                     .id("more-bars")
+                    // A button as native::button is: named, reached by Tab, pressed by Space or
+                    // Return, its place ringed.
+                    .role(gpui::Role::Button)
+                    .aria_label(gpui::SharedString::from(words.clone()))
+                    .tab_index(0)
+                    .rounded(px(native::RADIUS))
+                    .focus(move |s| s.border_2().border_color(theme.ring(false)))
                     .flex_none()
                     .text_size(px(native::SMALL_TEXT))
                     .text_color(theme.accent_text)
@@ -128,7 +136,7 @@ pub(crate) fn framed(
                         this.layout.bars.all = true;
                         cx.notify();
                     }))
-                    .child(screen.label(tn("+{} more||+{} more", more as u64, &[&more]))),
+                    .child(screen.label(words)),
             )
         })
         .into_any_element()

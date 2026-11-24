@@ -92,6 +92,8 @@ pub(super) fn listen(
     // front again.
     cx.observe_window_activation(window, |this, window, cx| {
         if window.is_window_active() {
+            // The system's less-motion setting, changed while dm was behind.
+            crate::window::follow_motion(cx);
             this.show_sheets(cx);
             // Back from a file manager, a file deleted there is said.
             this.known.files_looked = None;
@@ -140,6 +142,7 @@ pub(super) fn listen(
     cx.observe_window_appearance(window, |_, window, cx| {
         // The text fields and menus (gpui-component's) follow too.
         gpui_component::Theme::sync_system_appearance(Some(window), cx);
+        crate::window::follow_motion(cx);
         cx.notify();
     })
     .detach();

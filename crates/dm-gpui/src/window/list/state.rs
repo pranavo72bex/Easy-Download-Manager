@@ -29,6 +29,8 @@ pub(crate) struct ListView {
     pub(crate) scroll: UniformListScrollHandle,
     /// Where the list stands sideways, for its sideways bar (gaps row U43).
     pub(crate) sideways: gpui::ScrollHandle,
+    /// Where the side panel is scrolled, for its bar.
+    pub(crate) panel_scroll: gpui::ScrollHandle,
     /// Where the window is mirrored, how far the list could be moved sideways when last laid
     /// out: it stands that far from its left, at its right end, the file name's (gaps row U35).
     pub(crate) sideways_room: Option<Pixels>,
@@ -74,6 +76,7 @@ impl ListView {
         ListView {
             scroll: UniformListScrollHandle::new(),
             sideways: gpui::ScrollHandle::new(),
+            panel_scroll: gpui::ScrollHandle::new(),
             sideways_room: None,
             drawn_width: Default::default(),
             sideways_from_right: Default::default(),

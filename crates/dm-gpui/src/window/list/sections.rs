@@ -414,6 +414,14 @@ impl Downloads {
         if crate::window::mirror::rtl() {
             self.keep_sideways_from_right(cx);
         }
+        // Where the columns run past the list's edge, the sideways bar stays in sight on every
+        // system: at a larger text size whole columns lay past the edge with nothing to say so,
+        // macOS showing its bar only under the pointer (`docs/ui-design.md` rule 7).
+        let sideways_mode = if self.list.sideways.max_offset().x > gpui::px(0.0) {
+            gpui_base::ScrollbarMode::Always
+        } else {
+            scrollbar_mode()
+        };
         div()
             .relative()
             .flex()
@@ -439,7 +447,7 @@ impl Downloads {
                             // hid the last row's foot and took a click
                             // on it (Linux, gaps row Q1).
                             .when(
-                                !empty && scrollbar_mode() == gpui_base::ScrollbarMode::Always,
+                                !empty && sideways_mode == gpui_base::ScrollbarMode::Always,
                                 |list| list.pb(gpui_base::Scrollbar::width()),
                             )
                             .w_full()
@@ -487,7 +495,7 @@ impl Downloads {
                             .child(
                                 gpui_base::Scrollbar::horizontal(&self.list.sideways)
                                     .viewport_from_layout()
-                                    .mode(scrollbar_mode()),
+                                    .mode(sideways_mode),
                             ),
                     )
             })

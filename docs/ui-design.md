@@ -21,7 +21,8 @@ The eye must have somewhere to start. Every window is checked against these, at 
    button is plain. A window with no main action (a list of facts) has no filled button.
    *(The toolbar has none yet: gaps E3. The progress window's: E9.)*
 2. **The accent marks three things only:** the filled button, what is chosen (a row, a
-   place, a picked item), and progress (a bar). Links take the accent's text shade. Nothing
+   place, a picked item), and progress (a bar). Links take the accent's text shade
+   (`accent_text`). Nothing
    else is drawn in it: not a heading, not a count, not a picture.
 3. **The error colour marks two things only:** a failure (a row, a field, a message) and a
    button that destroys (Delete, Cancel download), which is plain with its words in that
@@ -109,7 +110,8 @@ Linux, and under High Contrast the system's own. A widget reads the role, never 
 | `text` / `muted` | Body and figure text / hints and secondary text |
 | `separator` | Lines between parts |
 | `control` / `control_border` / `field` | A button's face and edge, a text field's inside |
-| `accent` / `on_accent` | The filled button, progress; the words on them |
+| `accent` / `on_accent` | A fill: the default button, a switch on, a ticked box; the words on it |
+| `accent_text` | The accent drawn on a surface: a running download's state, a link, "+N more", a bar, a focus ring; at 4.5 to 1 on the list, a stripe, a dialog, the side panel and a menu |
 | `selection` / `on_selection` | What is chosen; the words on it |
 | `warning` | A failure and a destructive button's words |
 | `success` | What is in order (an extension that has spoken to dm) |

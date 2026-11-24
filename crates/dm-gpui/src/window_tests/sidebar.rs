@@ -3,7 +3,7 @@
 // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! The side panel: its groups and the Grabber's projects.
+//! The side panel: its groups, the Grabber's projects, and its places reached by the keyboard.
 
 use crate::harness::world::world;
 
@@ -50,4 +50,29 @@ fn a_group_of_places_shuts_and_opens_from_its_row() {
     h.click("Queues");
     h.until_shown("Main queue");
     assert!(h.view(|view| view.backend.settings().shut_groups.is_empty()));
+}
+
+/// The side panel's places are reached by Tab and chosen by Space, as a person without a mouse
+/// chooses one: they were the pointer's alone.
+#[test]
+fn a_place_is_reached_by_tab_and_chosen_by_space() {
+    let world = world();
+    let mut h = world.harness();
+    let first = h.view(|view| view.list.place.clone());
+    let mut chosen = None;
+    // A heading pressed shuts or opens its group; the walk goes on to a place all the same.
+    for _ in 0..60 {
+        h.key("tab", &[]);
+        h.key("space", &[]);
+        assert!(h.dialogs().is_empty(), "Space opened a dialog");
+        let now = h.view(|view| view.list.place.clone());
+        if now != first {
+            chosen = Some(now);
+            break;
+        }
+    }
+    assert!(
+        chosen.is_some(),
+        "no place was reached by Tab and chosen by Space"
+    );
 }

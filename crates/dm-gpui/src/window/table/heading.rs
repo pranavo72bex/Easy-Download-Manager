@@ -140,6 +140,20 @@ pub fn header(
                             }))
                     })
                     .child(super::fitted(screen.label(format!("{heading}{arrow}"))))
+                    // Its words whole on hover where a column narrowed by hand cuts them.
+                    .when_some(
+                        super::width_of(column, &widths).filter(|&wide| {
+                            crate::widgets::native::small_width(&format!("{heading}{arrow}"))
+                                > wide - 16.0
+                        }),
+                        |cell, _| {
+                            let heading = SharedString::from(heading.clone());
+                            cell.tooltip(move |window, cx| {
+                                gpui_component::tooltip::Tooltip::new(heading.clone())
+                                    .build(window, cx)
+                            })
+                        },
+                    )
                     // Its right edge dragged makes it wider or narrower, and a double-click there
                     // fits it to what it shows (gaps row U4). Not the name's, which takes the rest.
                     .when(width(column).is_some(), |heading| {
