@@ -419,6 +419,36 @@ extension, updater, secrets, packaging or a manifest, or changes over 1,500 line
 labelled `bot:needs-maintainer` and waits. Releases are not the bots': a release needs the
 maintainer's signing key (`docs/RELEASING.md`).
 
+**Security first.** The bots run unattended on what strangers write, so each layer
+assumes the one before it failed:
+
+- *A model's code never runs where a token can write.* `ai-fix.yml` and `ai-tests.yml`
+  are split: the `work` job (read-only token, no token at all in the models' step) runs
+  the models and every check as the user `dmbot`, which cannot read the runner's processes
+  or use sudo, and whose every process is killed before the next step; the change leaves
+  it only as a patch. The `publish` job, which holds the write token, never builds or runs
+  the patch: it applies it with git, holds it again to `ai_guard` (no guardrail, contract
+  row, removed test or symbolic link), and commits with hooks off. Builds and tests run
+  with no secret in their environment (`ai_clean`).
+- *Nothing a stranger writes is an instruction.* Issue text goes to a model only as data;
+  the triage script chooses what is done from a fixed list. Only the reporter and the
+  maintainer reach a model with a comment, four bot replies a day at most per issue.
+  Only the maintainer's words and the machine's own output become notes. A feature needs
+  three thumbs-up from accounts at least 90 days old, the reporter's not counted.
+- *A merge is the last gate* (`scripts/ai-merge.sh`): the bot's own branch, every commit
+  the bot's; CI and Desktop green on Linux, Windows and macOS; never a change to a
+  guardrail; and a second model's review that puts security first. From an issue anyone
+  could open, a change waits for a person (`bot:needs-maintainer`) when it touches the
+  network, protocol, extension, downloads, archives, video sites, the system, the
+  updater, secrets, packaging, assets or a manifest, adds `unsafe`, a process, the
+  network, the environment, a URL or deleted files anywhere, or changes over 600 lines.
+- *A merge that turns main red is reverted* by `bug-report.yml`.
+
+What is left: the free model key (`GEMINI_API_KEY`) is in reach of the code a model
+writes, since the agent that holds it runs that code; it is a free key, worth a day's
+quota. The agents' npm packages are pinned, their own dependencies are not; they run only
+in the `work` job. Releases are never the bots'.
+
 Labels say where each issue stands: `bot:queue` with `bot-task:ci|bug|feature|revise`,
 `bot:working`, `bot:pr`, `bot:merged`, `bot:no-fix`, `bot:green-since`,
 `bot:not-reproduced`, `bot:needs-votes`, `bot:needs-info`, `bot:needs-maintainer`,

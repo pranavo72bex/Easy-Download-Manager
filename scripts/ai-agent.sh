@@ -76,14 +76,16 @@ ai_run() {
     esac
 }
 
-# Echoes one word: pass, none (nothing changed), forbidden, removes-a-test or fail. What
-# the checks printed is in .bot/check.log; the coverage summary in .bot/coverage.txt.
-ai_check() {
+# The rules a change is held to without building or running any of it, so the trusted job
+# that commits it (which never runs the model's code) can hold it to them again: echoes ok,
+# none (nothing changed), forbidden (a guardrail, a contract row, a symlink) or
+# removes-a-test. Says why in .bot/check.log.
+ai_guard() {
     local changed guarded
-    : >.bot/check.log
+    git add -N . 2>/dev/null
     changed=$(git status --porcelain)
     if [ -z "$changed" ]; then echo none; return; fi
-    guarded='\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|docs/behaviour-baseline/|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md'
+    guarded='\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/behaviour-baseline/|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml'
     if [ "$AI_CONTRACT_ADD" != 1 ]; then guarded+='|docs/behaviour-contract\.md'; fi
     guarded=" ($guarded)"
     if grep -qE "$guarded" <<<"$changed"; then
@@ -92,25 +94,46 @@ ai_check() {
         echo forbidden
         return
     fi
+    # A link could point a later step at anything on the runner.
+    if git diff HEAD --summary | grep -E 'mode 120000' >>.bot/check.log; then
+        echo "Added a symbolic link (above): no change may." >>.bot/check.log
+        echo forbidden
+        return
+    fi
     # The contract: rows added, none changed or taken away.
-    if git diff -U0 -- docs/behaviour-contract.md | grep -E '^-[^-]' >>.bot/check.log; then
+    if git diff -U0 HEAD -- docs/behaviour-contract.md | grep -E '^-[^-]' >>.bot/check.log; then
         echo "Changed or removed a row of docs/behaviour-contract.md (lines above): only new rows may be added." >>.bot/check.log
         echo forbidden
         return
     fi
     # A test may be added or changed, never taken away or switched off.
-    git add -N . 2>/dev/null
-    if git diff -U0 -- '*.rs' | grep -E '^-[[:space:]]*#\[(tokio::)?test\]|^\+[[:space:]]*#\[ignore' >>.bot/check.log; then
+    if git diff -U0 HEAD -- '*.rs' | grep -E '^-[[:space:]]*#\[(tokio::)?test\]|^\+[[:space:]]*#\[ignore' >>.bot/check.log; then
         echo "Removed a #[test] or added #[ignore] (lines above)." >>.bot/check.log
         echo removes-a-test
         return
     fi
-    cargo fmt --all >>.bot/check.log 2>&1
-    if cargo clippy --workspace --all-targets --locked -- -D warnings >>.bot/check.log 2>&1 &&
-        cargo xtask layers >>.bot/check.log 2>&1 && cargo xtask headers >>.bot/check.log 2>&1 &&
-        cargo xtask privacy >>.bot/check.log 2>&1 &&
-        cargo xtask test --profile ci >>.bot/check.log 2>&1 &&
-        cargo llvm-cov --workspace --locked --summary-only \
+    echo ok
+}
+
+# The model's code is built and run with no secret in reach: no GitHub token, no model key.
+ai_clean() {
+    env -u GH_TOKEN -u GITHUB_TOKEN -u GEMINI_API_KEY -u ACTIONS_RUNTIME_TOKEN \
+        -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL "$@"
+}
+
+# Echoes one word: pass, none (nothing changed), forbidden, removes-a-test or fail. What
+# the checks printed is in .bot/check.log; the coverage summary in .bot/coverage.txt.
+ai_check() {
+    local guard
+    : >.bot/check.log
+    guard=$(ai_guard)
+    if [ "$guard" != ok ]; then echo "$guard"; return; fi
+    ai_clean cargo fmt --all >>.bot/check.log 2>&1
+    if ai_clean cargo clippy --workspace --all-targets --locked -- -D warnings >>.bot/check.log 2>&1 &&
+        ai_clean cargo xtask layers >>.bot/check.log 2>&1 && ai_clean cargo xtask headers >>.bot/check.log 2>&1 &&
+        ai_clean cargo xtask privacy >>.bot/check.log 2>&1 &&
+        ai_clean cargo xtask test --profile ci >>.bot/check.log 2>&1 &&
+        ai_clean cargo llvm-cov --workspace --locked --summary-only \
             --fail-under-lines "$(cat docs/coverage-floor.txt)" >.bot/coverage.txt 2>>.bot/check.log; then
         if declare -F ai_extra_check >/dev/null; then
             ai_extra_check
@@ -121,6 +144,12 @@ ai_check() {
         tail -n 40 .bot/coverage.txt >>.bot/check.log 2>/dev/null
         echo fail
     fi
+}
+
+# The change, as a patch the trusted job applies (git apply runs nothing): every file but
+# .bot/, binary-safe.
+ai_patch() {
+    git add -A -- . && git diff --cached --binary HEAD >"$1" && git reset -q
 }
 
 # `ai_try PROMPT_FILE`: each provider, from a clean tree, until a change passes.

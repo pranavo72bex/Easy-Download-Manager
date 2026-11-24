@@ -48,7 +48,12 @@ ai_fails_before() {
         grep -qE "$AI_TEST_FILES" <<<"$f" && continue
         if git cat-file -e "HEAD:$f" 2>/dev/null; then git checkout -q HEAD -- "$f"; else rm -f "$f"; fi
     done <<<"$changed"
-    cargo nextest run --workspace --profile ci --no-fail-fast -E "$filter" >>.bot/check.log 2>&1
+    # With no secret in reach (ai_clean, scripts/ai-agent.sh), when sourced beside it.
+    if declare -F ai_clean >/dev/null; then
+        ai_clean cargo nextest run --workspace --profile ci --no-fail-fast -E "$filter" >>.bot/check.log 2>&1
+    else
+        cargo nextest run --workspace --profile ci --no-fail-fast -E "$filter" >>.bot/check.log 2>&1
+    fi
     rc=$?
     # Back to the change as the model made it.
     git reset -q && git checkout -q -- . && git clean -qfd

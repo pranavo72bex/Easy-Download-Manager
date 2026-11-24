@@ -40,6 +40,9 @@ coverage floor, the privacy check and a second model's review, in place of the v
 QA run; a merge that turns main red is reverted by `bug-report.yml`. What the bots have
 learned is in `docs/ai-notes.md`. A bot never edits the workflows, `scripts/`,
 `tooling/xtask/`, the floors, this file or `AGENTS.md`: those are its guardrails.
+Security is the first priority (the maintainer, 2026-11-24): a model's code never runs
+where a token can write, and a change to the automation keeps that split
+(`docs/testing.md`, "Security first").
 
 # Autonomous Development Rules
 

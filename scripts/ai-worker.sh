@@ -58,8 +58,16 @@ for n in $(gh issue list --state open --label site-watch --json number,labels \
 done
 
 # Features with their thumbs-up now.
+# Votes from different people, the author's not counted, nor an account under 90 days old.
+ninety_days_ago=$(date -u -d '90 days ago' +%FT%TZ 2>/dev/null || date -u -v-90d +%FT%TZ)
 for n in $(gh issue list --state open --label bot:needs-votes --json number --jq '.[].number'); do
-    votes=$(gh api "repos/$GH_REPO/issues/$n/reactions" --paginate --jq '.[] | select(.content == "+1") | .user.login' | sort -u | wc -l)
+    author=$(gh issue view "$n" --json author --jq .author.login)
+    votes=0
+    for login in $(gh api "repos/$GH_REPO/issues/$n/reactions" --paginate --jq '.[] | select(.content == "+1") | .user.login' | sort -u); do
+        [ "$login" = "$author" ] && continue
+        made=$(gh api "users/$login" --jq .created_at 2>/dev/null || echo 9999)
+        [[ "$made" < "$ninety_days_ago" ]] && votes=$((votes + 1))
+    done
     if [ "$votes" -ge "$VOTES" ]; then
         run gh issue edit "$n" --remove-label bot:needs-votes --add-label bot:queue,bot-task:feature
     fi

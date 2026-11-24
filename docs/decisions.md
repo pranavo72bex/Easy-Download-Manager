@@ -8955,3 +8955,21 @@ maintainer's words and the machine's own output become notes every later prompt 
 one crafted issue cannot steer all future runs. Releases stay the maintainer's: they need
 the signing key. Kept alive past GitHub's 60-day rule for quiet repositories by a commit
 the worker writes after 45 quiet days.
+
+## A model's code never runs where a token can write, 2026-11-24
+
+The maintainer: keep security the first priority. The first version of the bots ran the
+models, and the tests their code became, in the same job as a write token in the
+environment: a crafted issue could have steered a model into a `build.rs` that pushed to
+main past every check, or a process left running to read a later step's token. Now each
+AI job is split (GitHub's pattern for untrusted code): a read-only `work` job, the models
+and their code run as a user of their own and killed before the next step, the change out
+only as a patch; and a `publish` job that holds the token and only applies, re-checks and
+commits that patch, never building it. With it: no secret in the builds' environment, no
+symbolic links, no forks' branches and no commits but the bot's at merge, the guardrails
+refused at merge whoever asked, a wider list of what a stranger's issue never merges
+without a person (and of code kinds: `unsafe`, processes, network, environment, URLs,
+deletions), 600 lines at most for those, third parties' comments kept from the models,
+four replies a day per issue, votes only from accounts 90 days old. The free model key
+stays in reach of model-written code (the agent holding it runs that code): worth a day's
+free quota, and said so in `docs/testing.md`.

@@ -85,10 +85,21 @@ def is_maintainer(login):
     return perm in ("admin", "maintain", "write")
 
 
-def thumbs_up(number):
+def thumbs_up(number, author):
+    """Thumbs-up from different people, the author's not counted, nor an account under 90
+    days old: a request is not built because someone made a few accounts."""
     out = gh("api", f"repos/{REPO}/issues/{number}/reactions", "--paginate",
              "--jq", '.[] | select(.content == "+1") | .user.login', check=False)
-    return len(set(out.split()))
+    count = 0
+    for login in set(out.split()) - {author}:
+        made = gh("api", f"users/{login}", "--jq", ".created_at", check=False).strip()
+        try:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(made.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if age.days >= 90:
+            count += 1
+    return count
 
 
 def add_note(lesson, who):
@@ -205,6 +216,18 @@ def main():
 
     author = issue.get("author", {}).get("login", "")
     maintainer_spoke = is_maintainer(commenter)
+    # A comment from someone neither the reporter nor the maintainer reaches no model: it
+    # cannot steer the bot or spend its quota.
+    if commenter and commenter != author and not maintainer_spoke and not on_pr:
+        print("A third person's comment: not sent to a model.")
+        return
+    # At most four of the bot's replies on one issue a day.
+    day_ago = datetime.now(timezone.utc).timestamp() - 86400
+    recent = [c for c in issue.get("comments", []) if MARK in c.get("body", "")
+              and datetime.fromisoformat(c.get("createdAt", "1970-01-01T00:00:00Z").replace("Z", "+00:00")).timestamp() > day_ago]
+    if len(recent) >= 4:
+        print("The bot has answered here four times today: waiting.")
+        return
     if on_pr:
         m = re.search(r"^issue: #?(\d+)", pr.get("body", ""), re.M)
         linked_author = ""
@@ -265,14 +288,14 @@ def main():
     if kind == "bug" and a.get("ready") and not queued:
         add += ["bot:queue", "bot-task:bug"]
     if kind == "feature" and a.get("ready") and not queued:
-        votes = thumbs_up(number)
+        votes = thumbs_up(number, author)
         need = int(os.environ.get("BOT_FEATURE_VOTES") or 3)
         if is_maintainer(author) or votes >= need:
             add += ["bot:queue", "bot-task:feature"]
         else:
             add.append("bot:needs-votes")
             if reply and "👍" not in reply:
-                reply += f"\n\nThe bot builds a requested feature once {need} people have given this issue a 👍 (it has {votes})."
+                reply += f"\n\nThe bot builds a requested feature once {need} people (with accounts older than 90 days) have given this issue a 👍 (it has {votes})."
     if add:
         ensure_labels(add)
         act(f"label {','.join(add)}", "issue", "edit", str(number), "--add-label", ",".join(sorted(set(add))))
