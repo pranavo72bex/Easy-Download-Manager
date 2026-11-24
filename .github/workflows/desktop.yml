@@ -109,8 +109,9 @@ jobs:
 
   coverage:
     # Line coverage of the desktop workspace, held to a floor that is only ever raised (the
-    # maintainer, 2026-11-08: over 90%). The run fails below it, so tests that are taken away
-    # or code added untested shows here rather than in a later bug.
+    # maintainer, 2026-11-08: over 90%; Linux measures 89.23%, so the floor is 89 until tests
+    # raise it, docs/decisions.md 2026-11-24). The run fails below it, so tests that are taken
+    # away or code added untested shows here rather than in a later bug.
     name: Coverage (Linux)
     runs-on: ubuntu-latest
     steps:
@@ -128,7 +129,10 @@ jobs:
       - name: Install a CJK font
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
       - name: Measure, and hold to the floor
+        # pipefail: without it the step took tee's status, and a run under the floor
+        # passed (89.23% against 91% on 2026-11-24).
         run: |
+          set -o pipefail
           floor=$(cat docs/coverage-floor.txt)
           cargo llvm-cov --workspace --locked --summary-only --fail-under-lines "$floor" | tee coverage.txt
       - name: Say the total in the run's summary
@@ -363,7 +367,9 @@ jobs:
           binary="$OUT/${{ matrix.crate }}"
           if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
           py=python3; command -v python3 >/dev/null || py=python
-          # A cross build is held to its own system's size, not the runner's.
+          # A cross build is held to its own system's size, not the runner's. pipefail: the
+          # check's own failure, not tee's success, is the step's.
+          set -o pipefail
           "$py" scripts/binary-size.py "$binary" ${{ matrix.size-key && format('--as={0}', matrix.size-key) || '' }} | tee -a "$GITHUB_STEP_SUMMARY"
 
       # The system's protections, read from the binary's own headers (gaps row H13):

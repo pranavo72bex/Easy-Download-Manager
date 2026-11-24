@@ -72,6 +72,7 @@ jobs:
           BENCH_REPS: "3"
           DM_BINARY: ${{ github.workspace }}/target/release/dm-gpui
         run: |
+          set -o pipefail # bench.mjs's failure, not tee's success, is the step's
           mkdir -p "$BENCH"
           export BENCH_OUT="$BENCH/results" BENCH_WORK="$RUNNER_TEMP/bench-work"
           xvfb-run -a -s '-screen 0 1280x800x24' node bench/bench.mjs 2>&1 | tee "$BENCH/bench.log"
