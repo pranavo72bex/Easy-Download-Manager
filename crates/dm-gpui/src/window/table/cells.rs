@@ -32,8 +32,12 @@ pub(super) fn name_drawn(name: &SharedString, screen: &Screen) -> impl IntoEleme
                 .whitespace_nowrap()
                 .child(SharedString::from(extension.to_string())),
         );
-    // Read as the whole name, as it was one label.
-    screen.mark(name.clone(), drawn)
+    // Read as the whole name, as it was one label; in a box that can be narrower than the name,
+    // so the name ends in "…" where its cell is narrow, recorded or not (gaps row E7).
+    div()
+        .min_w_0()
+        .overflow_hidden()
+        .child(screen.mark(name.clone(), drawn))
 }
 
 /// The bar under a running row's status, `f` of the way along.

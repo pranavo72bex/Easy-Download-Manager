@@ -719,3 +719,39 @@ fn the_rows_a_command_acts_on_are_the_selected_ones_in_table_order() {
         }
     }
 }
+
+/// A chosen row's own buttons stand in room kept for them at the name's end: a long name ends
+/// before them, not under them (gaps row E7).
+#[test]
+fn a_chosen_rows_name_ends_before_its_own_buttons() {
+    // What is measured here grows with the text size another test may set.
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    let long = format!("{}.zip", "a-rather-long-name-".repeat(12));
+    let url = world.url("file.zip");
+    h.view(|view| {
+        view.backend.add_with(
+            &url,
+            dm_core::AddOptions {
+                save_name: Some(long.clone()),
+                later: true,
+                ..Default::default()
+            },
+        )
+    })
+    .unwrap();
+    h.until_shown(&long);
+    let before = h.bounds_of(&long);
+    h.select(&long);
+    h.until("the name to make room", |h| {
+        h.bounds_of(&long).right() < before.right()
+    });
+    let after = h.bounds_of(&long);
+    // Resume, Details and Delete: three buttons of 18 points.
+    assert!(
+        f32::from(before.right() - after.right()) >= 3.0 * 18.0,
+        "the name gave {:?} of room",
+        before.right() - after.right()
+    );
+}

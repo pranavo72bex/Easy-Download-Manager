@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A download's own buttons (Resume, Details, Delete…) no longer cover its name: on the chosen row and under the pointer the name ends in "…" before them.
 - The message above the list is one bar: a mark says whether something failed (!) or is a note (i), the sentence is in plain text colour, and "+1 more" sits at the bar's end instead of on a line of its own.
 - Fixed: a label longer than its dialog guessed (the progress window's "When this download is done", and others in a longer language) began outside the window's left edge; labels are now measured as they are drawn. A column's heading or value longer than its column (German's "Übertragungsrate") ends in "…" inside it instead of starting outside it.
 - Torrent feeds can be followed: a feed's `.torrent` files and magnet links are added as torrents, and "Only add new items whose titles have the words" keeps only the ones you want.

@@ -16,6 +16,7 @@ use dm_core::{Entry, State};
 use dm_desktop_base::columns::Column;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
+#[cfg(test)]
 use dm_shell::app::commands::Command;
 use gpui::{
     div, prelude::*, uniform_list, AnyElement, Context, Div, Role, SharedString, Stateful, Window,
@@ -30,6 +31,8 @@ use crate::window::zoom::px;
 mod cells;
 mod heading;
 mod pointer;
+mod rowbuttons;
+use rowbuttons::{buttons_width, row_actions, row_buttons, ROW_GROUP};
 
 pub(crate) use cells::progress_track;
 pub(crate) use heading::moved_onto;
@@ -346,9 +349,23 @@ fn row_cells(
                     colour
                 };
                 let name = shown_name(row, names);
+                // Room kept for the row's own buttons where they show, so the name ends
+                // before them and not under them (gaps row E7).
+                let kept = buttons_width(row_actions(row).len());
                 let named = cell(column, widths)
                     .gap_2()
                     .relative()
+                    // At the left where the window is mirrored, as the buttons are (U35).
+                    .map(|c| {
+                        let shown = theme.is_chosen();
+                        if crate::window::mirror::rtl() {
+                            c.when(shown, |c| c.pl(px(kept)))
+                                .group_hover(ROW_GROUP, move |s| s.pl(px(kept)))
+                        } else {
+                            c.when(shown, |c| c.pr(px(kept)))
+                                .group_hover(ROW_GROUP, move |s| s.pr(px(kept)))
+                        }
+                    })
                     .children(buttons.take())
                     .child(
                         gpui::svg()
@@ -622,101 +639,6 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
         list.style().restrict_scroll_to_axis = Some(true);
         list
     })
-}
-
-/// The group a row's buttons show with when the pointer is over it.
-const ROW_GROUP: &str = "row";
-
-/// What a row's own buttons do, by how it stands, shown on the row
-/// under the pointer: Stop on one under way, Resume on one paused, Retry on one failed, Open and
-/// Open folder on one finished; Details (its progress window) on one not finished; Delete where
-/// it can act, on one stopped or finished, never one still writing its file. Each with its
-/// picture and the command's words for a screen reader and a script.
-fn row_actions(row: &Entry) -> Vec<(Command, &'static str, &'static str)> {
-    let mut actions = match row.state {
-        State::Running | State::Queued => {
-            vec![(Command::StopDownload, "icons/stop.svg", t("Stop download"))]
-        }
-        State::Paused => vec![(Command::DownloadNow, "icons/resume.svg", t("Resume"))],
-        State::Failed(_) => vec![(Command::DownloadNow, "icons/resume.svg", t("Retry"))],
-        State::Completed => vec![
-            (Command::OpenFile, "icons/open.svg", t("Open")),
-            (
-                Command::OpenFolder,
-                "icons/place-folder.svg",
-                t("Open folder"),
-            ),
-        ],
-        State::Cancelled => Vec::new(),
-    };
-    if !matches!(row.state, State::Completed | State::Cancelled) {
-        actions.push((Command::ShowProgress, "icons/details.svg", t("Details")));
-    }
-    if !matches!(row.state, State::Running | State::Queued) {
-        actions.push((Command::Remove, "icons/delete.svg", t("Delete")));
-    }
-    actions
-}
-
-/// A row's buttons, over its right end on `backdrop`: hidden until the pointer is over the row,
-/// shown on a chosen one. A press on one acts on that row alone and is the row's no more.
-fn row_buttons(
-    row: &Entry,
-    chosen: bool,
-    backdrop: gpui::Rgba,
-    theme: Theme,
-    cx: &mut Context<Downloads>,
-) -> impl IntoElement {
-    let id = row.id;
-    div()
-        .absolute()
-        .top_0()
-        // Over the name's left end where the window is mirrored (gaps row U35).
-        .map(|d| {
-            if crate::window::mirror::rtl() {
-                d.left(px(4.0))
-            } else {
-                d.right(px(4.0))
-            }
-        })
-        .h_full()
-        .flex()
-        .map(crate::window::mirror::row)
-        .items_center()
-        .gap_1()
-        .px_1()
-        .bg(backdrop)
-        .when(!chosen, |d| {
-            d.invisible().group_hover(ROW_GROUP, |s| s.visible())
-        })
-        .children(row_actions(row).into_iter().map(|(command, icon, words)| {
-            div()
-                .id((command.id(), id as usize))
-                .role(Role::Button)
-                .aria_label(words)
-                .size(px(18.0))
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded(px(space::CORNER_S))
-                .bg(theme.control)
-                .hover(|s| s.bg(theme.stripe))
-                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_click(cx.listener(move |view, _, window, cx| {
-                    cx.stop_propagation();
-                    // Delete on one of several chosen rows deletes them all; every other
-                    // button acts on its own row.
-                    if !(command == Command::Remove
-                        && view.list.selected.len() > 1
-                        && view.list.selected.contains(&id))
-                    {
-                        view.click_row(id, false, false);
-                    }
-                    window.dispatch_action(Box::new(crate::window::menus::Run(command)), cx);
-                    cx.notify();
-                }))
-                .child(gpui::svg().path(icon).size(px(12.0)).text_color(theme.text))
-        }))
 }
 
 #[cfg(test)]
