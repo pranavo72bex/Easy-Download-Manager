@@ -78,7 +78,9 @@ pub fn run_program(command: &str) -> Result<(), crate::Error> {
 
 /// The characters Windows' command interpreters run as commands or variables when they read
 /// their line again: `cmd /c` and PowerShell take the file's path as text of their own.
-const INTERPRETED: &[char] = &['&', '|', '^', '%', '!', ';', '$', '(', ')', '<', '>', '`', '\'', '"'];
+const INTERPRETED: &[char] = &[
+    '&', '|', '^', '%', '!', ';', '$', '(', ')', '<', '>', '`', '\'', '"',
+];
 
 /// Whether `program` is a command interpreter that would read `file`'s name as commands: `cmd`,
 /// `powershell` or `pwsh`, given a name a server chose with `&`, `;` and the rest in it (gaps
@@ -146,7 +148,12 @@ mod tests {
     fn a_name_an_interpreter_would_run_is_kept_from_its_line() {
         let bad = Path::new("downloads/a&calc.txt");
         let plain = Path::new("downloads/report 2026.pdf");
-        for interpreter in ["cmd", "C:\\Windows\\System32\\cmd.exe", "powershell.exe", "PWSH"] {
+        for interpreter in [
+            "cmd",
+            "C:\\Windows\\System32\\cmd.exe",
+            "powershell.exe",
+            "PWSH",
+        ] {
             assert!(interpreter_would_run(interpreter, bad), "{interpreter}");
             assert!(!interpreter_would_run(interpreter, plain), "{interpreter}");
         }

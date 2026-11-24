@@ -163,7 +163,11 @@ fn a_command_line_is_split_as_a_shell_splits_it() {
     #[cfg(windows)]
     assert_eq!(
         super::words(r#""C:\Program Files\Scanner\scan.exe" /quiet C:\Tools\x"#),
-        ["C:\\Program Files\\Scanner\\scan.exe", "/quiet", "C:\\Tools\\x"]
+        [
+            "C:\\Program Files\\Scanner\\scan.exe",
+            "/quiet",
+            "C:\\Tools\\x"
+        ]
     );
     assert!(super::words("   ").is_empty());
     assert_eq!(super::words(r#"x """#), ["x", ""]);
