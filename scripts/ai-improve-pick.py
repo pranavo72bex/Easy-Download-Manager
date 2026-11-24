@@ -17,6 +17,9 @@ and that needs nothing only a person can give:
 - not one that needs a measurement on the bench, or a change to CI, a workflow or the release
   job (the bots may not edit those);
 - not one marked `· person` in its state; one marked `· bot` is taken before the rest;
+- not one marked `· split`: its steps, the rows under it (K5a, K5b, …), are taken instead;
+- not one marked `· after X` while row X is still open (a done row is deleted from the list);
+- not one in a section whose introduction says its rows wait for the maintainer's word;
 - not one in SKIP (tried in the last fortnight, or with its issue still open).
 
 Prints `ID<TAB>the row's problem<TAB>its state<TAB>what is done and left`, the smallest of the
@@ -31,9 +34,11 @@ NEEDS = re.compile(
     r"real phone|on a phone \(|the mac\b|on the mac|windows laptop|usb (hard )?disk|on the bench|bench first|"
     r"store account|developer id|certificate|signing|signed by|notari[sz]|buy|paid|hardware|a person|by hand|"
     r"real torrent|real site|in sight|visible window|benchmark|bench/|cpu use|built by ci|release job|workflow|"
-    r"the readme table|comparison table|picture of|screenshot|not compiled|written on the mac",
+    r"the readme table|comparison table|picture of|screenshot|not compiled|written on the mac|"
+    r"a run first|a look first",
     re.I,
 )
+SECTION_WAITS = re.compile(r"(each|every row here)[^.]*waits? for the maintainer'?s? word", re.I)
 SIZE = {"S": 0, "S–M": 1, "S-M": 1, "M": 2, "M–L": 3, "M-L": 3, "L": 4}
 
 
@@ -42,14 +47,29 @@ def main(skip):
         text = open("docs/gaps.md", encoding="utf-8").read()
     except OSError:
         return
-    section, waiting, rank = "", False, 0
+    section, waiting, rank, intro, level, parent_waits = "", False, 0, True, 2, False
     best = None
+    # The rows still open, for "· after X".
+    still_open = set(re.findall(r"^\|\s*([A-Z]+[0-9]+[a-z]?)\s*\|[^|]*\|\s*(?:OPEN|PARTIAL)\b", text, re.M))
     for line in text.splitlines():
         if line.startswith("#"):
+            level = len(line) - len(line.lstrip("#"))
             section = line.lstrip("#").strip()
-            waiting = "waiting for the maintainer" in section.lower() or section.lower().startswith("watch")
+            own = "waiting for the maintainer" in section.lower() or section.lower().startswith("watch")
+            # A sub-heading keeps its section's rule; a new section starts afresh.
+            if level <= 2:
+                parent_waits = own
+            waiting = own or parent_waits
             rank += 1
+            intro = True
             continue
+        # A section's introduction, before its first table, may say all its rows wait.
+        if intro and not line.startswith("|"):
+            if SECTION_WAITS.search(line):
+                waiting = True
+                parent_waits = parent_waits or level <= 2
+            continue
+        intro = False
         m = re.match(r"^\|\s*([A-Z]+[0-9]+[a-z]?)\s*\|(.*)\|\s*$", line)
         if not m or waiting:
             continue
@@ -60,9 +80,12 @@ def main(skip):
         detail = cells[2] if len(cells) > 2 else ""
         if not re.match(r"(OPEN|PARTIAL)\b", state):
             continue
-        if WAITS.search(state) or WAITS.search(problem) or re.search(r"·\s*person\b", state):
+        if WAITS.search(state) or WAITS.search(problem) or re.search(r"·\s*(person|split)\b", state):
             continue
         # What is left is what the bot would do: it must need nothing a runner lacks.
+        waits_for = re.findall(r"[A-Z]+[0-9]+[a-z]?", " ".join(re.findall(r"·\s*after ([^·|]+)", state)))
+        if any(w in still_open for w in waits_for):
+            continue
         left = detail.split("Left:", 1)[1] if "Left:" in detail else detail
         if NEEDS.search(left) or NEEDS.search(problem) or NEEDS.search(state):
             continue

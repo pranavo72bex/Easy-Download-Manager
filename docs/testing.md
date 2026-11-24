@@ -427,8 +427,11 @@ maintainer's word or approval still to come, no real phone, Mac, Windows laptop,
 bench, store, certificate or signing), opens an issue for it (`bot:improve`) and gives it
 to the fixer as `improve`: the next complete step, its tests, the row updated. Three in
 flight at most, one new every six hours at most, no row again within a fortnight. A row's
-state can steer it: `· person` keeps it from the bots, `· bot` hands it to them first; the
-section "Taken by the free-model bots" in `docs/gaps.md` lists the order they take. A bot
+state can steer it: `· person` keeps it from the bots, `· bot` hands it to them first,
+`· split` hands its steps (K3a, K3b, …, each one small change with its files, test and "Done
+when") to them instead, and `· after K3a` waits until K3a's row is deleted; a section whose
+introduction says its rows wait for the maintainer's word is left whole. The section "Taken
+by the free-model bots" in `docs/gaps.md` lists the order they take. A bot
 branch that changes code also runs "Android, the engine built", and ai-merge waits for it.
 
 **Main being red stops nothing.** The tests main already fails are read from its last

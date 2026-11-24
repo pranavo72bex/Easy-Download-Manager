@@ -22,10 +22,16 @@ nearest problem (`.bot/context.md` names the files) and copy that:
 
 ## The smallest complete step
 
-Do the next part of what the row leaves, complete on its own: code, tests, the row in
-`docs/gaps.md` brought up to date (what is now done, with the test's name; what is left), and a
-`CHANGELOG.md` line in a user's words when a user would notice. Not the whole row if it is
-large.
+Most rows a bot takes are steps already: an id ending in a letter (K3a) under a row marked
+`· split`, each saying what to do, where, the test to write and when it is done. Do exactly
+that step. When it is done, delete its row from `docs/gaps.md` (a closed row is deleted; git
+keeps it): the steps marked `· after` it become free to take. If it was the last step of its
+row, bring that row up to date too.
+
+A row that is not split: do the next part of what it leaves, complete on its own, with its
+tests, and bring the row up to date (what is now done, with the test's name; what is left).
+Not the whole row if it is large. Either way, a `CHANGELOG.md` line in a user's words when a
+user would notice.
 
 ## Try to reject it
 

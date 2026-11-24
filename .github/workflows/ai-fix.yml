@@ -214,7 +214,8 @@ jobs:
           - Do the next part of what the row leaves to do: the smallest step that is complete on its own, with its tests. Not the whole row if it is large.
           - Follow the skill pages .bot/context.md names: for the window, docs/ui-design.md and .claude/skills/dm-design/SKILL.md; its words go in assets/i18n (English).
           - Never change or remove a row of docs/behaviour-contract.md; a new behaviour adds a row at its end. If the step needs an existing row changed, a person's decision, a real phone or other hardware, change nothing and write why to .bot/summary.md.
-          - Update the row in docs/gaps.md (what is now done, with the test's name; what is left), and add a line to CHANGELOG.md under "Unreleased" in a user's words when a user would notice it.
+          - A step row (an id ending in a letter, like K3a) says exactly what to do: its "Do", "Where", "Test" and "Done when". Do that and only that.
+          - When the step is done, delete its row from docs/gaps.md (a closed row is deleted; git keeps it), so the steps marked "after" it can be taken. If it was the last step under a row marked "split", update that row too. A whole row that is not split: update it (what is now done, with the test's name; what is left), or delete it when nothing is left. Add a line to CHANGELOG.md under "Unreleased" in a user's words when a user would notice it.
           EOF
                 ;;
               revise) cat <<EOF
