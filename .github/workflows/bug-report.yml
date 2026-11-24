@@ -1,0 +1,62 @@
+name: Bug report
+
+# Turns a red run on main into an issue, so no failure goes unread: one open
+# issue per workflow (a later failure of the same workflow is a comment on it,
+# not a second issue). A new issue is labelled `bot-fix` and handed to the
+# AI fixer (ai-fix.yml, Gemini on its free tier), which opens a draft pull
+# request for the maintainer to QA and merge. GitHub's free runners and a free
+# model only; nothing to pay for.
+on:
+  workflow_run:
+    workflows: [CI, Desktop, Deep fuzz, Audit]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'A failed run to report (its number in the run URL)'
+        required: true
+
+permissions:
+  actions: write # to start the fixer (workflow_dispatch)
+  issues: write
+
+jobs:
+  report:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create bot-fix --color 5319e7 \
+            --description 'A failure the AI fixer is asked to fix' 2>/dev/null || true
+
+          run_json=$(gh run view "$RUN_ID" --json workflowName,headSha,url,displayTitle,jobs)
+          workflow=$(jq -r .workflowName <<<"$run_json")
+          url=$(jq -r .url <<<"$run_json")
+          sha=$(jq -r .headSha <<<"$run_json")
+          failed_jobs=$(jq -r '.jobs[] | select(.conclusion == "failure") | "- " + .name' <<<"$run_json")
+          title="CI failure on main: $workflow"
+
+          body=$(printf '%s\n\n%s\n\n%s\n%s\n' \
+            "[$workflow]($url) failed on main at $sha." \
+            "run_id: $RUN_ID" \
+            "Failed jobs:" "$failed_jobs")
+
+          existing=$(gh issue list --state open --label bot-fix --search "\"$title\" in:title" \
+            --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n1)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+            echo "Commented on #$existing"
+          else
+            issue_url=$(gh issue create --title "$title" --label bot-fix --body "$body")
+            number=${issue_url##*/}
+            echo "Opened #$number"
+            # A label added with this token starts no workflow, so the fixer is started directly.
+            gh workflow run ai-fix.yml -f issue="$number"
+          fi
