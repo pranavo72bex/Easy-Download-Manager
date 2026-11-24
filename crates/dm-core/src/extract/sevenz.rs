@@ -73,7 +73,7 @@ fn open_folder(path: &Path, folder: &Folder, keys: &Keys) -> Result<Box<dyn Read
     let unreadable = |e: std::io::Error| Error::Unreadable(e.to_string());
     if let (Some(aes), Some(coder)) = (aes_of(folder)?, folder.aes.as_ref()) {
         let key = keys
-            .key(&aes)
+            .key(&aes)?
             .ok_or_else(|| Error::Encrypted("the archive".into()))?;
         packed = Box::new(CbcReader::new(packed, &key, aes.iv, coder.size).map_err(unreadable)?);
     }

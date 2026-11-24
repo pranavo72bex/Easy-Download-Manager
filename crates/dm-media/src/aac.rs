@@ -130,6 +130,9 @@ fn audio_track(path: &Path) -> Result<(Track, Config, Vec<u8>), Error> {
     Ok((track, config, info))
 }
 
+/// The largest AAC frame read: far above the 6,144 bits a channel of one may hold.
+const MOST_FRAME: u32 = 1 << 20;
+
 /// `path`'s sound (an M4A, or an MP4's sound track) as 16-bit samples.
 pub fn read(path: &Path) -> Result<Pcm, Error> {
     let (track, config, info) = audio_track(path)?;
@@ -145,6 +148,14 @@ pub fn read(path: &Path) -> Result<Pcm, Error> {
     let mut frame: Vec<i16> = Vec::new();
     let mut data = Vec::new();
     for (n, sample) in track.samples.iter().enumerate() {
+        // An AAC frame is a few kilobytes at most; a size the file says of 4 GiB was reserved
+        // before its read failed (gaps rows H10, H35).
+        if sample.size > MOST_FRAME {
+            return Err(Error::from(format!(
+                "the AAC sound's frame {n} says it is {} bytes",
+                sample.size
+            )));
+        }
         data.resize(sample.size as usize, 0);
         file.seek(SeekFrom::Start(sample.offset))
             .and_then(|_| file.read_exact(&mut data))
@@ -160,11 +171,18 @@ pub fn read(path: &Path) -> Result<Pcm, Error> {
     // The edit list drops the encoder's priming samples and any padding at the end.
     let per_frame = config.channels;
     if let Some(edit) = track.edits.first() {
-        let skip = usize::try_from(edit.media_time.max(0)).unwrap_or(0) * per_frame;
+        // Sizes the file's edit list gives, held to the line's end rather than overflowing
+        // (gaps rows H10, H35): past the samples there are, they cut nothing more.
+        let skip = usize::try_from(edit.media_time.max(0))
+            .unwrap_or(usize::MAX)
+            .saturating_mul(per_frame);
         let keep = if edit.duration > 0 && track.edits_timescale > 0 {
-            (edit.duration.saturating_mul(u64::from(config.rate))
-                / u64::from(track.edits_timescale)) as usize
-                * per_frame
+            usize::try_from(
+                edit.duration.saturating_mul(u64::from(config.rate))
+                    / u64::from(track.edits_timescale),
+            )
+            .unwrap_or(usize::MAX)
+            .saturating_mul(per_frame)
         } else {
             usize::MAX
         };

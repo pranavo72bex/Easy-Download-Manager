@@ -176,8 +176,10 @@ fn read_cluster(
                 blocks.push(Block {
                     input,
                     track,
-                    ticks: cluster_time + offset,
-                    decode: cluster_time + offset,
+                    // A timecode near `i64::MAX` from the file overflowed (gaps rows H10,
+                    // H35): held at the end of the line, a block past it is as late as any.
+                    ticks: cluster_time.saturating_add(offset),
+                    decode: cluster_time.saturating_add(offset),
                     key: flags & 0x80 != 0,
                     flags,
                     data_at: body + header as u64,
@@ -217,8 +219,8 @@ fn read_cluster(
                     blocks.push(Block {
                         input,
                         track,
-                        ticks: cluster_time + offset,
-                        decode: cluster_time + offset,
+                        ticks: cluster_time.saturating_add(offset),
+                        decode: cluster_time.saturating_add(offset),
                         key: !referenced,
                         flags,
                         data_at,

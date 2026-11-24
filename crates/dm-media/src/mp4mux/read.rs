@@ -459,8 +459,12 @@ pub(super) fn read_fragment(
             if count.saturating_mul(width) > trun.len().saturating_sub(at) {
                 return Err(short());
             }
-            // With no per-sample fields nothing in the box bounds the count.
-            if width == 0 && count > MOST_SAMPLES {
+            // With no per-sample fields nothing in the box bounds the count; and a track's
+            // runs together are bounded as one box is: many runs of 16M samples each asked
+            // for tens of GB from a few KB of file (gaps rows H10, H35).
+            if (width == 0 && count > MOST_SAMPLES)
+                || track.samples.len().saturating_add(count) > MOST_SAMPLES
+            {
                 return Err(short());
             }
             track.samples.reserve(count);
@@ -535,5 +539,32 @@ mod tests {
         stsz.extend_from_slice(&u32::MAX.to_be_bytes());
         let said = plain_samples(&stsz).unwrap_err().to_string();
         assert!(said.contains("too many samples"), "{said}");
+    }
+
+    /// Runs of samples with no per-sample fields, each within the cap alone, are bounded
+    /// together: a hundred of them asked for some 38 GB from a few KB (gaps rows H10, H35).
+    #[test]
+    fn a_tracks_runs_together_cannot_claim_billions_of_samples() {
+        fn boxed(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+            let mut out = ((body.len() + 8) as u32).to_be_bytes().to_vec();
+            out.extend_from_slice(kind);
+            out.extend_from_slice(body);
+            out
+        }
+        let mut tfhd = 0u32.to_be_bytes().to_vec();
+        tfhd.extend_from_slice(&1u32.to_be_bytes());
+        let mut trun = 0u32.to_be_bytes().to_vec();
+        trun.extend_from_slice(&(10_000_000u32).to_be_bytes());
+        let mut traf = boxed(b"tfhd", &tfhd);
+        for _ in 0..3 {
+            traf.extend(boxed(b"trun", &trun));
+        }
+        let moof = boxed(b"traf", &traf);
+        let mut tracks = vec![crate::mp4mux::Track {
+            id: 1,
+            ..Default::default()
+        }];
+        assert!(read_fragment(0, &moof, &[], &mut tracks).is_err());
+        assert!(tracks[0].samples.len() <= MOST_SAMPLES);
     }
 }

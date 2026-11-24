@@ -422,7 +422,9 @@ impl CbcReader {
 
     /// Decrypts the next run of whole blocks into `ready`.
     fn fill(&mut self) -> io::Result<()> {
-        let want = (self.left.div_ceil(16) * 16).min(64 * 1024) as usize;
+        // Whole blocks, at most 64 KiB: a size the header gave near `u64::MAX` overflowed the
+        // rounding up and panicked (gaps rows H10, H35).
+        let want = self.left.min(64 * 1024).div_ceil(16).saturating_mul(16) as usize;
         self.ready.resize(want, 0);
         let mut got = 0;
         while got < want {
