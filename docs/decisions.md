@@ -8832,3 +8832,12 @@ not actions and stay with N24 and N31. Nothing was added to the phone: the audit
   build is made from.
 - **The security page** (H30): `docs/guide/security.md`, every guard beside the test that
   holds it, and what dm does not guard against.
+- **Coverage-guided fuzzing with libFuzzer** (H11): `fuzz/`, outside the workspace and never
+  shipped, built with `cargo-fuzz` on nightly in CI alone; libfuzzer-sys is a test's tool as
+  cargo-audit and cargo-deny are, not a feature crate (the clean-room rule is about what dm
+  ships). Linking libFuzzer is a default feature so the targets are checked without a C++
+  compiler (`--no-default-features`).
+- **Leak tests** (H15, H24): planted secrets searched for in every file dm wrote (only
+  `secrets.json` may hold them, sealed where the system has a store); a counting site behind a
+  proxy that answers everything sees no connection. Wiping secrets from memory is left until
+  each secret has one owner: the engine clones them into every request.

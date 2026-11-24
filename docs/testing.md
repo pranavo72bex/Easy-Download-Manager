@@ -33,6 +33,13 @@ cd crates/dm-catcher && cargo test                     # the extension's decisio
 - Every reader of outside input (names, headers, playlists, archives, the
   control protocol) has a property test in `tests/fuzz.rs`; `PROPTEST_CASES=200000
   cargo test --release -p dm-core --test fuzz` hunts deeper.
+- Coverage-guided fuzzing (gaps row H11): `fuzz/` holds a libFuzzer target per reader
+  (torrent files, HLS, DASH, Metalink, archives, a ZIP's list, MP4, YouTube's framed stream,
+  the JavaScript interpreter). `cd fuzz && cargo +nightly fuzz run archives` runs one;
+  `.github/workflows/fuzz.yml` runs each for ten minutes every night, its corpus kept from
+  night to night. A crash's input is uploaded; once fixed it becomes a test in the reader's
+  own tests. Without a C++ compiler, `cargo check --no-default-features` in `fuzz/` checks the
+  targets build.
 - `cargo test -p dm-core --test zoo -- --nocapture` runs the server zoo
   ([zoo.md](zoo.md)); `DM_RAISE_FLOOR=1` raises its floor after a fix.
 - `cargo xtask scorecard` rewrites [scorecard.md](scorecard.md) from

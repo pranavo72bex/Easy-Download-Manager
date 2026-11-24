@@ -1,0 +1,99 @@
+# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+# Coverage-guided fuzzing of every reader of outside input (gaps row H11): `cargo fuzz run
+# <target>` on nightly, from this folder, as `.github/workflows/fuzz.yml` runs each nightly.
+# Not a member of the workspace and never shipped: libFuzzer is a test's tool, as cargo-audit
+# is (docs/decisions.md, 2026-11-24).
+[package]
+name = "dm-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "GPL-3.0-or-later"
+
+[package.metadata]
+cargo-fuzz = true
+
+# libFuzzer itself (C++) linked by default, as `cargo fuzz` builds it; `cargo check
+# --no-default-features` checks the targets where no C++ compiler is at hand.
+[features]
+default = ["libfuzzer-sys/link_libfuzzer"]
+
+[dependencies]
+libfuzzer-sys = { version = "=0.4.10", default-features = false }
+dm-core = { path = "../crates/dm-core" }
+dm-torrent = { path = "../crates/dm-torrent" }
+dm-media = { path = "../crates/dm-media" }
+dm-js = { path = "../crates/dm-js" }
+tempfile = "3"
+
+[workspace]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "torrent_metainfo"
+path = "fuzz_targets/torrent_metainfo.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hls_playlist"
+path = "fuzz_targets/hls_playlist.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dash_manifest"
+path = "fuzz_targets/dash_manifest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "metalink"
+path = "fuzz_targets/metalink.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "archives"
+path = "fuzz_targets/archives.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zip_listing"
+path = "fuzz_targets/zip_listing.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mp4"
+path = "fuzz_targets/mp4.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "youtube_frames"
+path = "fuzz_targets/youtube_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "javascript"
+path = "fuzz_targets/javascript.rs"
+test = false
+doc = false
+bench = false

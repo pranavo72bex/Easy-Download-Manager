@@ -52,3 +52,9 @@ bench/results/
 # file of its own there; dm's build uses Cargo.lock.
 vendor/librqbit/Cargo.lock
 vendor/librqbit-sha1-wrapper/Cargo.lock
+
+# cargo fuzz's working folders (gaps row H11): the corpus it grows and what it found; a crash
+# found is kept as a test where it is fixed.
+fuzz/corpus/
+fuzz/artifacts/
+fuzz/coverage/

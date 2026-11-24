@@ -3,10 +3,12 @@ name: Deep fuzz
 # The fuzz tests run a few hundred cases in every ordinary test run; this is
 # the deep hunt: hundreds of thousands of
 # random and hostile inputs to every reader of outside data, weekly and on
-# request. Stable Rust and GitHub's free runners only — nothing to pay for.
+# request; and each night, libFuzzer guided by coverage over each reader (gaps
+# row H11, `fuzz/`). GitHub's free runners only — nothing to pay for.
 on:
   schedule:
-    - cron: '17 3 * * 1'
+    # Each night: the coverage-guided targets; on Mondays the property hunts too.
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -26,6 +28,8 @@ jobs:
         env:
           PROPTEST_CASES: '100000'
         run: |
+          # Weekly: the nightly schedule runs this hunt on Mondays alone.
+          if [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$(date -u +%u)" != 1 ]; then exit 0; fi
           cargo test --release -p dm-core --test fuzz
           cargo test --release -p dm-shell --test fuzz
           cargo test --release -p dm-protocol --test fuzz
@@ -44,4 +48,42 @@ jobs:
         working-directory: crates/dm-catcher
         env:
           PROPTEST_CASES: '100000'
-        run: cargo test --release --test fuzz
+        run: |
+          # Weekly: the nightly schedule runs this hunt on Mondays alone.
+          if [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$(date -u +%u)" != 1 ]; then exit 0; fi
+          cargo test --release --test fuzz
+
+  coverage-guided:
+    name: libFuzzer, each reader of outside input
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [torrent_metainfo, hls_playlist, dash_manifest, metalink, archives, zip_listing, mp4, youtube_frames, javascript]
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      # libFuzzer's coverage needs nightly's sanitizer flags; dm itself is built on stable.
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: fuzz
+      - name: cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+      # The corpus grown on earlier nights, kept by the cache, so each night goes further.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: fuzz-corpus-${{ matrix.target }}-
+      - name: Hunt, 10 minutes
+        working-directory: fuzz
+        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=600 -rss_limit_mb=2048
+      # A crash found: its input, to be kept as a test where it is fixed.
+      - name: What it found
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
