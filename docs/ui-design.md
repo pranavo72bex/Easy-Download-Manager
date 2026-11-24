@@ -45,8 +45,9 @@ The eye must have somewhere to start. Every window is checked against these, at 
    chosen rows, the rest at the end, going under "More" as the window narrows, the last
    first. In a dialog: the name or question first, the figure, then the facts, then what can
    be changed, each behind a line that opens; the buttons last. *(E3, E9.)*
-9. **One message bar at a time.** Several messages fold into one bar with a count that opens
-   them. *(E5.)*
+9. **One message bar at a time.** Its mark first (a ring with "!" in the error colour for a
+   failure, "i" in the hint colour for a note), the sentence in the text colour, its buttons;
+   where more wait, "+N more" at its end opens them (`bars::framed`).
 10. **Colours and sizes come from the tokens.** Read colours from `Theme`; read sizes from
     `native` and `space`, through `zoom::px` so the text size setting reaches them. Never a
     hard-coded colour in a widget.
@@ -140,7 +141,7 @@ Pictures are dm's own SVGs (`assets/icons/`).
   the list (Name, Queue, Size, Status, Time left, Speed, Date, Note).
 - **Search:** one box in the top row over name, address and note; where the row has no room
   for it, the filter keeps its place above the list.
-- **Messages** are bars above the list (`bars.rs`).
+- **Messages** are one bar above the list at a time (`bars.rs`, rule 9).
 
 ## Interaction
 

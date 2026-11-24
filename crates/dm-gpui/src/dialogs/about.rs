@@ -430,10 +430,6 @@ impl Downloads {
                 .flex()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
-                .px(px(space::L))
-                .py(px(space::S))
-                .border_b_1()
-                .border_color(theme.separator)
                 .child(
                     div()
                         .flex_1()

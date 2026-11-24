@@ -23,7 +23,6 @@ use dm_shell::app::links::Looked;
 use gpui::{div, prelude::*, Context};
 
 use crate::widgets::native;
-use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
@@ -130,10 +129,6 @@ impl Downloads {
                 .flex_wrap()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
-                .px(px(space::L))
-                .py(px(space::S))
-                .border_b_1()
-                .border_color(theme.separator)
                 .child(div().flex_none().child(screen.label(words)))
                 // The link in what is left, cut short: a long one pushed
                 // Download and Dismiss past the window's edge.
@@ -197,8 +192,10 @@ impl Downloads {
     }
 }
 
-/// The least width the offered link is given before Download and Dismiss go under it.
-const LINK_AT_LEAST: f32 = 160.0;
+/// The least width the offered link is given before Download and Dismiss go under it: 160
+/// points less the room the bar's mark and "+N more" now take in the bar (gaps row E5), so a
+/// phone's 412 points still keep the link on its words' line.
+const LINK_AT_LEAST: f32 = 112.0;
 
 /// Whether the clipboard can be read now: always on a desktop; on a phone
 /// only while dm's window is in front.

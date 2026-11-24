@@ -40,17 +40,95 @@ const BAR_BUTTON_MIN: f32 = if crate::platform::ON_A_PHONE {
     80.0
 };
 
-/// A bar's frame: a line above the list, its words first, its buttons after.
-fn bar(theme: Theme) -> gpui::Div {
+/// A bar's body: its words first, its buttons after, wrapping where the window is narrow.
+/// `framed` draws it as a bar: its mark, its edges.
+pub(crate) fn body() -> gpui::Div {
     div()
         .flex()
         .flex_wrap()
+        .items_center()
+        .gap(px(native::LABEL_GAP))
+}
+
+/// What a bar says, as its mark tells it at a glance: something went wrong, or something to
+/// know or do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Tone {
+    /// A failure: a download that did not finish, one stalled, a problem from outside.
+    Failure,
+    /// An offer or a step to take: a link on the clipboard, an update, the browser's extension.
+    Note,
+}
+
+impl Tone {
+    /// The mark's letter, told by its shape and not its colour alone (`docs/ui-design.md`).
+    fn letter(self) -> &'static str {
+        match self {
+            Tone::Failure => "!",
+            Tone::Note => "i",
+        }
+    }
+}
+
+/// The bar's mark: a ring with "!" in the error colour for a failure, with "i" in the hint
+/// colour for a note.
+fn mark(tone: Tone, theme: Theme) -> gpui::Div {
+    let colour = match tone {
+        Tone::Failure => theme.warning,
+        Tone::Note => theme.muted,
+    };
+    div()
+        .flex_none()
+        .size(px(16.0))
+        .rounded_full()
+        .border(px(1.5))
+        .border_color(colour)
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_size(px(11.0))
+        .font_weight(gpui::FontWeight::BOLD)
+        .text_color(colour)
+        .child(tone.letter())
+}
+
+/// A bar above the list (gaps row E5): its mark, its body (the sentence in the text colour and
+/// its buttons), and where `more` bars wait behind it, "+N more" at its end, which shows them
+/// all. One bar where a message and its count were two.
+pub(crate) fn framed(
+    tone: Tone,
+    body: gpui::Div,
+    more: usize,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> gpui::AnyElement {
+    div()
+        .flex()
         .items_center()
         .gap(px(native::LABEL_GAP))
         .px(px(space::L))
         .py(px(space::S))
         .border_b_1()
         .border_color(theme.separator)
+        .child(mark(tone, theme))
+        .child(div().flex_1().min_w_0().child(body))
+        .when(more > 0, |d| {
+            d.child(
+                div()
+                    .id("more-bars")
+                    .flex_none()
+                    .text_size(px(native::SMALL_TEXT))
+                    .text_color(theme.accent)
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.layout.bars.all = true;
+                        cx.notify();
+                    }))
+                    .child(screen.label(tn("+{} more||+{} more", more as u64, &[&more]))),
+            )
+        })
+        .into_any_element()
 }
 
 /// What the bars remember: which failures were hidden, and whether the
@@ -91,13 +169,8 @@ impl Downloads {
             ],
         );
         Some(
-            bar(theme)
-                .child(
-                    div()
-                        .flex_1()
-                        .text_color(theme.warning)
-                        .child(screen.label(words)),
-                )
+            body()
+                .child(div().flex_1().child(screen.label(words)))
                 .child(
                     native::button("stalled-resume", t("Resume").into(), false, theme, screen)
                         .on_click(cx.listener(move |view, _, _, cx| {
@@ -145,17 +218,12 @@ impl Downloads {
         let count = failed.len();
         let retried = failed.clone();
         Some(
-            bar(theme)
-                .child(
-                    div()
-                        .flex_1()
-                        .text_color(theme.warning)
-                        .child(screen.label(tn(
-                            "{} download didn't finish.||{} downloads didn't finish.",
-                            count as u64,
-                            &[&count],
-                        ))),
-                )
+            body()
+                .child(div().flex_1().child(screen.label(tn(
+                    "{} download didn't finish.||{} downloads didn't finish.",
+                    count as u64,
+                    &[&count],
+                ))))
                 .child(
                     native::button("failed-hide", t("Hide").into(), false, theme, screen).on_click(
                         cx.listener(move |view, _, _, cx| {
@@ -241,7 +309,7 @@ impl Downloads {
             });
         Some(
             // On one line (gaps row U26): its "Not now" went to a second.
-            bar(theme)
+            body()
                 .flex_nowrap()
                 .overflow_hidden()
                 .child(

@@ -647,10 +647,6 @@ impl Downloads {
                 .flex()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
-                .px(px(space::L))
-                .py(px(space::S))
-                .border_b_1()
-                .border_color(theme.separator)
                 .child(div().flex_1().child(screen.label(dm_desktop_base::i18n::tf(
                     "Click the download again on its page in your browser, and dm uses that as the new link for {}.",
                     &[&name],

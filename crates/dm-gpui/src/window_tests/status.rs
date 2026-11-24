@@ -49,8 +49,8 @@ fn download_details_says_the_size_beside_the_room_left() {
     });
 }
 
-/// The bars above the list stand one at a time, with how many more wait; "+N more" shows them
-/// all (gaps row U26).
+/// The bars above the list stand one at a time, with how many more wait at the bar's end;
+/// "+N more" shows them all (gaps rows U26, E5).
 #[test]
 fn the_bars_above_the_list_stand_one_at_a_time() {
     let world = world();
@@ -60,6 +60,12 @@ fn the_bars_above_the_list_stand_one_at_a_time() {
     h.until_shown("The disk said no");
     assert!(!h.shows("Add dm to your browser:"), "two bars stacked");
     assert!(h.shows("+1 more"));
+    // One bar, the count at its end, not a line of its own under it (gaps row E5).
+    let (said, more) = (h.bounds_of("The disk said no"), h.bounds_of("+1 more"));
+    assert!(
+        more.top() < said.bottom() && said.top() < more.bottom() && more.left() > said.right(),
+        "the count is not on the bar's line: {said:?}, {more:?}"
+    );
     h.click("+1 more");
     h.until_shown("Add dm to your browser:");
     assert!(h.shows("The disk said no"));

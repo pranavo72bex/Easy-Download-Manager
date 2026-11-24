@@ -10,17 +10,14 @@
 use gpui::{div, prelude::*, AnyElement, Context, Div, Stateful, Window};
 
 use super::{scrollbar_mode, Downloads};
-use crate::widgets::space;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 
 /// What the list's column shows: the bars, how many more wait, and whether
 /// the list has no row.
 pub(crate) struct Shown {
-    /// The bars shown: the first, or all of them once asked for.
+    /// The bars shown: the first (with how many more wait), or all of them once asked for.
     pub(crate) bars: Vec<AnyElement>,
-    /// How many bars wait behind the one shown.
-    pub(crate) more: usize,
     /// No row is shown.
     pub(crate) empty: bool,
 }
@@ -39,34 +36,27 @@ impl Downloads {
         // In the order they matter: what the person just did (a link awaited from the
         // browser, one copied), dm's update, a download stalled for room, problems, failures,
         // and the way to add dm to a browser last (gaps row U26).
-        let mut bars: Vec<gpui::AnyElement> = Vec::new();
+        use crate::window::bars::Tone;
+        let mut bars: Vec<(Tone, gpui::Div)> = Vec::new();
         bars.extend(
             self.awaiting_bar(theme, screen, cx)
-                .map(IntoElement::into_any_element),
+                .map(|b| (Tone::Note, b)),
         );
         bars.extend(
             self.clipboard_bar(theme, screen, cx)
-                .map(IntoElement::into_any_element),
+                .map(|b| (Tone::Note, b)),
         );
-        bars.extend(update_bar.map(IntoElement::into_any_element));
+        bars.extend(update_bar.map(|b| (Tone::Note, b)));
         bars.extend(
             self.stalled_bar(theme, screen, cx)
-                .map(IntoElement::into_any_element),
+                .map(|b| (Tone::Failure, b)),
         );
         // Problems from outside the list, each until dismissed.
         bars.extend(self.status.problems.iter().enumerate().map(|(i, problem)| {
-            gpui::div()
-                .flex()
-                .items_center()
-                .gap(crate::window::zoom::px(crate::widgets::native::LABEL_GAP))
-                .px(crate::window::zoom::px(space::L))
-                .py(crate::window::zoom::px(space::S))
-                .border_b_1()
-                .border_color(theme.separator)
+            let body = crate::window::bars::body()
                 .child(
                     gpui::div()
                         .flex_1()
-                        .text_color(theme.warning)
                         .child(screen.label(dm_desktop_base::format::as_shown(problem))),
                 )
                 .child(
@@ -83,32 +73,37 @@ impl Downloads {
                         }
                         cx.notify();
                     })),
-                )
-                .into_any_element()
+                );
+            (Tone::Failure, body)
         }));
         bars.extend(
             self.failed_bar(theme, screen, cx)
-                .map(IntoElement::into_any_element),
+                .map(|b| (Tone::Failure, b)),
         );
-        bars.extend(browser_bar.map(IntoElement::into_any_element));
+        bars.extend(browser_bar.map(|b| (Tone::Note, b)));
         if bars.len() <= 1 {
             // Asked for all, they stand together until one or none is left.
             self.layout.bars.all = false;
         }
-        let more_bars = if self.layout.bars.all {
+        // One bar at a time, "+N more" at its end (gaps rows U26, E5); all once asked for.
+        let more = if self.layout.bars.all {
             0
         } else {
             bars.len().saturating_sub(1)
         };
-        let shown_bars: Vec<gpui::AnyElement> = if self.layout.bars.all {
-            bars
-        } else {
-            bars.into_iter().take(1).collect()
-        };
+        let kept = if self.layout.bars.all { bars.len() } else { 1 };
+        let shown_bars: Vec<gpui::AnyElement> = bars
+            .into_iter()
+            .take(kept)
+            .enumerate()
+            .map(|(n, (tone, body))| {
+                let more = if n == 0 { more } else { 0 };
+                crate::window::bars::framed(tone, body, more, theme, screen, cx)
+            })
+            .collect();
         let empty = self.list.shown.is_empty();
         Shown {
             bars: shown_bars,
-            more: more_bars,
             empty,
         }
     }
@@ -378,7 +373,6 @@ impl Downloads {
     ) -> Div {
         let Shown {
             bars: shown_bars,
-            more: more_bars,
             empty,
         } = shown;
         div()
@@ -391,7 +385,6 @@ impl Downloads {
             // wait (gaps row U26): stacked, a failure, the browser's bar and a
             // problem or two took 135 points of a 500-point window.
             .children(shown_bars)
-            .children(self.more_bars_line(more_bars, theme, screen, cx))
             // The headings and the rows scroll sideways
             // together where the window is narrower than
             // the columns, as a macOS list does: at 120% in
@@ -405,36 +398,6 @@ impl Downloads {
             .when(empty, |list| {
                 list.child(crate::window::table::empty(self, theme, cx))
             })
-    }
-
-    /// "+2 more" under the bar shown, where `more` bars wait behind it: a click shows them all.
-    pub(crate) fn more_bars_line(
-        &self,
-        more: usize,
-        theme: Theme,
-        screen: &Screen,
-        cx: &mut Context<Self>,
-    ) -> Option<gpui::Stateful<Div>> {
-        (more > 0).then(|| {
-            div()
-                .id("more-bars")
-                .px(crate::window::zoom::px(space::L))
-                .py(crate::window::zoom::px(space::XXS))
-                .border_b_1()
-                .border_color(theme.separator)
-                .text_size(crate::window::zoom::px(crate::widgets::native::SMALL_TEXT))
-                .text_color(theme.selection)
-                .cursor_pointer()
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.layout.bars.all = true;
-                    cx.notify();
-                }))
-                .child(screen.label(dm_desktop_base::i18n::tn(
-                    "+{} more||+{} more",
-                    more as u64,
-                    &[&more],
-                )))
-        })
     }
 
     /// The headings and the rows, which scroll sideways together, and the

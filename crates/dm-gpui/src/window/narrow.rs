@@ -154,7 +154,6 @@ impl Downloads {
         cx: &mut Context<Self>,
     ) -> Div {
         let empty = shown.empty;
-        let more = self.more_bars_line(shown.more, theme, screen, cx);
         let add = dm_desktop_base::i18n::t(dm_shell::app::commands::Command::AddUrl.label());
         // Undo after Remove, where a phone's apps offer it: a bar over the list's foot for as
         // long as the status bar's Undo would show (gaps row N23).
@@ -173,7 +172,6 @@ impl Downloads {
             .min_w_0()
             .bg(theme.background)
             .children(shown.bars)
-            .children(more)
             .when(!empty, |list| list.child(cards::cards(self, theme, cx)))
             .when(empty, |list| {
                 list.child(crate::window::table::empty(self, theme, cx))
