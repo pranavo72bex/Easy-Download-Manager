@@ -41,6 +41,32 @@ pub fn icon(command: Command) -> &'static str {
 }
 
 /// The toolbar.
+/// A button's face under the pointer: the main action's accent a shade toward the text, any
+/// other the stripe.
+fn hovered(main: bool, theme: Theme) -> gpui::Rgba {
+    if main {
+        theme.answering(theme.accent, crate::window::theme::HOVERED)
+    } else {
+        theme.stripe
+    }
+}
+
+/// Where the room before the rest of the toolbar goes (gaps row E3): after the leading run of
+/// Add URL and what acts on the chosen rows, then the rest stand at the end. Where a person
+/// moved the buttons, the run ends where they put another command.
+fn rest_after(buttons: &[(Command, &'static str)]) -> Option<usize> {
+    let leading = buttons
+        .iter()
+        .take_while(|(c, _)| {
+            matches!(
+                c,
+                Command::AddUrl | Command::DownloadNow | Command::StopDownload | Command::Remove
+            )
+        })
+        .count();
+    (leading > 0 && leading < buttons.len()).then_some(leading)
+}
+
 pub fn toolbar(
     view: &Downloads,
     theme: Theme,
@@ -58,19 +84,7 @@ pub fn toolbar(
     // Resume says what it will do for the rows chosen (Retry, Start now), as
     // the menus do.
     let resume = dm_desktop_base::rows::resume_word(&view.chosen());
-    // Ranked (gaps row E3): the leading run of Add URL and what acts on the chosen rows, then
-    // room, then the rest at the end. Where a person moved them, the run ends where they put
-    // another command.
-    let leading = buttons
-        .iter()
-        .take_while(|(c, _)| {
-            matches!(
-                c,
-                Command::AddUrl | Command::DownloadNow | Command::StopDownload | Command::Remove
-            )
-        })
-        .count();
-    let rest_after = (leading > 0 && leading < buttons.len()).then_some(leading);
+    let rest_after = rest_after(&buttons);
     div()
         .id("toolbar")
         .role(Role::Toolbar)
@@ -146,19 +160,10 @@ pub fn toolbar(
                         .when(main, |b| b.bg(theme.accent).text_color(theme.on_accent))
                         .when(!enabled, |b| b.opacity(0.4))
                         .when(enabled, |b| {
-                            b.hover(move |s| {
-                                if main {
-                                    s.bg(theme
-                                        .answering(theme.accent, crate::window::theme::HOVERED))
-                                } else {
-                                    s.bg(theme.stripe)
-                                }
-                            })
-                            .on_click(cx.listener(
-                                move |_, _, window, cx| {
+                            b.hover(move |s| s.bg(hovered(main, theme)))
+                                .on_click(cx.listener(move |_, _, window, cx| {
                                     window.dispatch_action(Box::new(Run(command)), cx);
-                                },
-                            ))
+                                }))
                         })
                         .when(picture, |b| {
                             b.child(

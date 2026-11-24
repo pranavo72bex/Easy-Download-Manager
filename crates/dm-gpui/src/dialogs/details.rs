@@ -645,7 +645,9 @@ impl Render for Details {
             .child(self.no_record_row(&look, cx));
         let body = self.unpack_box(&look, cx, body);
         let body = self.warnings(&look, clash, problem, cx, body);
-        let body = body.child(self.buttons(&look, cx));
+        let body = body
+            .child(self.queue_row(&look))
+            .child(self.buttons(&look, cx));
 
         let root =
             crate::widgets::native::dialog("download-details", t("Download details"), theme, cx)

@@ -21,8 +21,8 @@ fn a_part_can_be_made_vertical_or_square() {
     assert!(!h.shows("Vertical 9:16"));
     h.click("From 0:04");
     h.until_shown("Vertical 9:16");
-    // The part's "to", behind Add for later's "to" its queue.
-    h.type_into_nth("to", 1, "0:09");
+    // The part's "to" (the foot's "to" its queue is a Queue line of the form since gaps E10).
+    h.type_into_nth("to", 0, "0:09");
     h.click("Vertical 9:16");
     h.click("Add for later");
     h.until("the row", |h| !h.rows().is_empty());
@@ -46,8 +46,8 @@ fn a_part_can_be_saved_as_a_gif() {
     assert!(!h.shows("GIF"));
     h.click("From 0:04");
     h.until_shown("GIF");
-    // The part's "to", behind Add for later's "to" its queue.
-    h.type_into_nth("to", 1, "0:09");
+    // The part's "to" (the foot's "to" its queue is a Queue line of the form since gaps E10).
+    h.type_into_nth("to", 0, "0:09");
     h.click("GIF");
     h.click("Add for later");
     h.until("the row", |h| !h.rows().is_empty());

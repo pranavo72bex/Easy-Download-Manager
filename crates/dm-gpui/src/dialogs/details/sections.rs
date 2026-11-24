@@ -33,6 +33,7 @@ impl Look {
             t("Size"),
             t("Note"),
             t("Delete file after"),
+            t("Queue"),
         ]);
         Self {
             theme,
@@ -711,9 +712,9 @@ impl Details {
         })
     }
 
-    /// As on a Mac: Add for later, to a queue, at the leading
-    /// side; Cancel, then Start now (the default) at the end.
-    pub(super) fn buttons(&self, look: &Look, cx: &mut Context<Self>) -> gpui::Div {
+    /// The queue Add for later puts it in, a line of the form (gaps row E10): it was a word
+    /// "to" and a pop-up among the buttons.
+    pub(super) fn queue_row(&self, look: &Look) -> gpui::Div {
         let (theme, screen) = (look.theme, &look.screen);
         let queues: Vec<SharedString> = self
             .queues
@@ -722,22 +723,23 @@ impl Details {
             .collect();
         let queue_at = self.queues.iter().position(|q| *q == self.queue);
         let queue_words = SharedString::from(dm_desktop_base::i18n::name(&self.queue));
+        look.row(
+            "Queue",
+            popup::button("queue", queue_words, queues, queue_at, theme, screen).into_any_element(),
+        )
+    }
+
+    /// The foot (gaps row E10): Cancel, Add for later, then Start now, the one filled.
+    pub(super) fn buttons(&self, look: &Look, cx: &mut Context<Self>) -> gpui::Div {
+        let (theme, screen) = (look.theme, &look.screen);
         native::buttons(
-            vec![
-                native::button("later", t("Add for later").into(), false, theme, screen)
-                    .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
-                    .into_any_element(),
-                // "to" by itself is many words in other
-                // languages: the key says which one.
-                screen
-                    .label(t("queue:to").trim_start_matches("queue:").to_string())
-                    .into_any_element(),
-                popup::button("queue", queue_words, queues, queue_at, theme, screen)
-                    .into_any_element(),
-            ],
+            Vec::new(),
             vec![
                 native::button("cancel", t("Cancel").into(), false, theme, screen)
                     .on_click(cx.listener(|this, _, window, cx| this.cancel(window, cx)))
+                    .into_any_element(),
+                native::button("later", t("Add for later").into(), false, theme, screen)
+                    .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
                     .into_any_element(),
                 native::button("start", t("Start now").into(), true, theme, screen)
                     .on_click(cx.listener(|this, _, window, cx| this.add(false, window, cx)))

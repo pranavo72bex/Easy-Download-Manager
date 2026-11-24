@@ -97,8 +97,9 @@ says **From** and the browser's name. With several addresses it says **and
 
 ## Buttons
 
-- **Add for later** **to** [queue]: adds the download to the queue picked
-  beside it (the Main queue at first), without starting it.
+- **Queue:** the queue **Add for later** puts it in (the Main queue at
+  first).
+- **Add for later:** adds the download to that queue, without starting it.
 - **Cancel:** adds nothing. A download the browser handed over is left
   with nothing; cancel two from the same site and dm asks **Leave this site
   to the browser?** (see [Questions dm asks](questions.md)).
