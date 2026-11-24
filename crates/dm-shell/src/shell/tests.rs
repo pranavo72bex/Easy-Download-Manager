@@ -154,9 +154,16 @@ fn a_magnet_without_a_torrent_hash_is_refused_at_add() {
 #[test]
 fn a_command_line_is_split_as_a_shell_splits_it() {
     assert_eq!(super::words("clamscan --quiet"), ["clamscan", "--quiet"]);
+    // A backslash escapes on macOS and Linux; on Windows it is the folder separator.
+    #[cfg(not(windows))]
     assert_eq!(
         super::words(r#""/Applications/My Scanner.app/x" -a 'b c' d\ e"#),
         ["/Applications/My Scanner.app/x", "-a", "b c", "d e"]
+    );
+    #[cfg(windows)]
+    assert_eq!(
+        super::words(r#""C:\Program Files\Scanner\scan.exe" /quiet C:\Tools\x"#),
+        ["C:\\Program Files\\Scanner\\scan.exe", "/quiet", "C:\\Tools\\x"]
     );
     assert!(super::words("   ").is_empty());
     assert_eq!(super::words(r#"x """#), ["x", ""]);

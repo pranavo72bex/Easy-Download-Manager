@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed (Windows): "When a download finishes, run this command" kept a path's backslashes (`C:\Tools\scan.exe` was read as `C:Toolsscan.exe`); the file is also in `DM_FILE`, and a name that `cmd` or PowerShell would run part of is not added to their line.
 - Fixed: a download that met something its reader did not expect (a `.torrent` with a piece length of 0, for one) stayed "running" for good and held its place in the queue; it now fails and says why.
 - Fixed: unpacking a `.tar` whose entries carry extended headers (what most tar tools write for long names) could stop with a crash, leaving the unpack unanswered.
 - Fixed (browser extension, Firefox): a page could make the extension download any address by faking an Alt-click; such a download also left a private window's privacy and a container's cookies. Alt-click now needs a real click, and Firefox's own download stays in the tab's private window and container.

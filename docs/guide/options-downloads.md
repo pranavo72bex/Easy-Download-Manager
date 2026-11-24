@@ -70,7 +70,10 @@ A site that allows fewer connections can be given its own number: see
   in it every few seconds.
 - "When a download finishes, run this command (a virus checker or a script).
   The file's path is added at the end:" type it in **Command**. Empty runs
-  nothing.
+  nothing. The path is also in the variable `DM_FILE`. On Windows, with
+  `cmd /c` or PowerShell, use `%DM_FILE%` or `$env:DM_FILE`: a file name
+  that holds `&`, `;` or the like, which they would run as a command, is
+  not added at the end for them.
 
 ## A metered connection and the battery
 
