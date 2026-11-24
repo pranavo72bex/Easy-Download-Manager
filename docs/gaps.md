@@ -87,10 +87,8 @@ way: their colour and button findings fixed (1d4c22fd), and the keyboard ones st
 
 **Start with, in this order** (the maintainer, 2026-11-24: "write it down for tomorrow; we will
 continue tomorrow"):
-1. Commit what is in the working tree if it is not yet (the keyboard part of E24 to E27:
-   `native::ringed`, `native::return_is_default`, the pop-ups' names, Back closing a pop-up's
-   sheet first); then rows E24 to E44 below, in their order (section "E, fifth part"), each
-   with its test, then `cargo test --workspace`, then push. Every word added goes into all 15
+1. Rows E24 to E44 below, in their order (section "E, fifth part"; the keyboard work before
+   them is in fa09b82b), each with its test, then `cargo test --workspace`, then push. Every word added goes into all 15
    catalogs and `assets/i18n/unread/` (`docs/ui-design.md`, "Words").
 2. Owed checks: `python3 scripts/human-qa.py` in a visible window (B25's pictures change: the
    accent's shade, the empty list's button, sentence case, the kinds' colours); a reader for
@@ -1301,8 +1299,7 @@ ring, never a fill), Find a setting's page names and the status bar's Undo in `a
 one filled button per window (the Grabber, Statistics, Download complete), every destroying
 button through `native::destructive`, Undo after Delete search and Clear history
 (`native::undo_line`), Cancel beside Done in Options on a phone, the switch's off edge, the
-Grabber's Stop greyed through `native::enabled`. Then, in the working tree at the end of the
-day: the check box, radio and switch ringed by `native::ringed` (a stripe's 1.1 to 1 was no
+Grabber's Stop greyed through `native::enabled`. Then (fa09b82b): the check box, radio and switch ringed by `native::ringed` (a stripe's 1.1 to 1 was no
 ring); the hand-built controls reached by Tab and ringed (the "?" button, About's links, the
 progress window's openers, "How to use your phone", the Scheduler's queues with
 `aria_selected`, the presets, quality chips and segments, Take out, the text size stops, the
