@@ -8841,3 +8841,12 @@ not actions and stay with N24 and N31. Nothing was added to the phone: the audit
   `secrets.json` may hold them, sealed where the system has a store); a counting site behind a
   proxy that answers everything sees no connection. Wiping secrets from memory is left until
   each secret has one owner: the engine clones them into every request.
+
+## 2026-11-24: A wall-clock test limit allows for the machine's load (gaps rows N33, 221)
+
+`dm_test_support::load::load_factor` measures the load as `bench/` measures a runner, by doing
+work: a busy loop's wall time over the processor time the thread was given (from the thread's
+own clock on macOS and Linux), and how late a 2 ms sleep is woken; at least 1, at most 8. A
+test's limit is multiplied by it, the worse of the load as the timed work began and at the
+check. Tried and dropped: the sleep alone, which read no load on macOS with every core busy
+(the scheduler still woke sleepers promptly) while the download beside it was slowed.

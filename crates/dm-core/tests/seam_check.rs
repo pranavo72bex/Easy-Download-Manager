@@ -305,9 +305,12 @@ async fn a_ranges_own_checks_are_asked_at_once() {
     assert!(came.len() >= 2, "{} checks", came.len());
     let (first, last) = (came.iter().min().unwrap(), came.iter().max().unwrap());
     let spread = last.duration_since(*first);
+    // Allowing for a loaded machine, which stretched the gap between ranges ending (N33).
+    let allowed = dm_test_support::allowing_for_load(wait / 2);
     assert!(
-        spread < wait / 2,
-        "a check was asked only once the one before it was answered: the checks came over {spread:?}"
+        spread < allowed,
+        "a check was asked only once the one before it was answered: the checks came over \
+         {spread:?} (allowed {allowed:?})"
     );
 }
 

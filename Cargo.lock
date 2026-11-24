@@ -2301,6 +2301,9 @@ dependencies = [
 [[package]]
 name = "dm-test-support"
 version = "0.10.3"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "dm-torrent"

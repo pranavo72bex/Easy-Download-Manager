@@ -7,4 +7,7 @@
 //! `[dev-dependencies]`, so it is never built into the program, and no test
 //! reaches into another crate's folder by `#[path]` (`cargo xtask layers`).
 
+pub mod load;
 pub mod secrets;
+
+pub use load::allowing_for_load;

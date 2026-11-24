@@ -10,5 +10,9 @@ description = "What dm's tests share: the logins and secrets they use, never wri
 # Nothing: the standard library is enough.
 [dependencies]
 
+[target.'cfg(unix)'.dependencies]
+# The thread's own processor clock, for how loaded the machine is (`load.rs`, gaps row N33).
+libc.workspace = true
+
 [lints]
 workspace = true

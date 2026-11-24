@@ -336,6 +336,7 @@ async fn two_at_a_time(State(b): State<Arc<Busy>>, headers: HeaderMap) -> Respon
 /// and none is turned away.
 #[tokio::test]
 async fn connections_a_server_turns_away_step_aside_at_once() {
+    let load = dm_test_support::load::load_factor();
     let busy = Arc::new(Busy {
         data: body(4 * 1024 * 1024),
         now: AtomicUsize::new(0),
@@ -371,9 +372,11 @@ async fn connections_a_server_turns_away_step_aside_at_once() {
      * away ending for good, and a wait after each refusal for the next
      * request though the server took one the moment another ended, 1.5 to
      * 4.3 (gaps row 197). */
+    // Allowing for a loaded machine, which stretched it on its own (gaps row N33).
+    let allowed = dm_test_support::load::allowing_for_load_since(Duration::from_millis(1500), load);
     assert!(
-        took < Duration::from_millis(1500),
-        "took {took:?}: the refusals were waited out"
+        took < allowed,
+        "took {took:?} (allowed {allowed:?}): the refusals were waited out"
     );
 
     // The same server again: two connections from the start, none turned away.
@@ -536,6 +539,7 @@ async fn mirrored(State(m): State<Arc<Mirror>>, headers: HeaderMap) -> Response 
 /// halved for a request the server refused left its back half to no one for seconds.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_one_connection() {
+    let load = dm_test_support::load::load_factor();
     let mirror = Arc::new(Mirror {
         data: body(32 * 1024 * 1024),
         started: Instant::now(),
@@ -580,9 +584,12 @@ async fn a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_on
     for asked in &log {
         println!("  {asked:?}");
     }
+    // Allowing for a loaded machine: a runner's pause read as dm's (gaps rows 221, N33).
+    let allowed = dm_test_support::load::allowing_for_load_since(Duration::from_millis(300), load);
     assert!(
-        longest_still < Duration::from_millis(300),
-        "nothing was fetched for {longest_still:?} while the server was there to fetch from"
+        longest_still < allowed,
+        "nothing was fetched for {longest_still:?} (allowed {allowed:?}) while the server was \
+         there to fetch from"
     );
     /* The seams' checks (a kibibyte or so each) went out once no range was being asked for:
      * asked as each range ended, each took the request the server would have taken for the
