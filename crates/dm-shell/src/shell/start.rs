@@ -143,6 +143,7 @@ fn engine_config(settings: &Settings) -> dm_core::EngineConfig {
         // (`dm_core::configure`, gaps row W12).
         only_through: settings.advanced.only_through.clone(),
         second_limit: settings.second_limit_kb.saturating_mul(1024),
+        third_path: (!settings.advanced.proxy.enabled).then(|| settings.third_path.clone()),
     }
 }
 

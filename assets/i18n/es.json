@@ -1047,5 +1047,7 @@
  "This computer's connection": "Conexión de este equipo",
  "the second network brings nothing now": "la segunda red no aporta nada ahora",
  "Second network's speed limit, KB/s (0 for none)": "Límite de velocidad de la segunda red, KB/s (0 sin límite)",
- "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Mantiene la segunda red, como los datos de un teléfono, a esta velocidad, haga lo que haga la otra conexión."
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Mantiene la segunda red, como los datos de un teléfono, a esta velocidad, haga lo que haga la otra conexión.",
+ "Third network": "Tercera red",
+ "Each download's connections are shared among all the networks chosen.": "Las conexiones de cada descarga se reparten entre todas las redes elegidas."
 }

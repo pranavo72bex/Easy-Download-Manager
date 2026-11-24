@@ -351,12 +351,12 @@ impl Render for Progress {
             .child(whole_bar(&look, &row, &pieces, multi));
         let body = facts(&look, &row, joining, resumable, body);
         // How much each network brings, where the second carries part of it (gaps row K4).
-        let second_name = view.read(cx).backend.settings().second_path.clone();
+        let settings = view.read(cx).backend.settings();
         let body = body.children(networks_line(
             &look,
             &connections,
             &speeds,
-            &second_name,
+            [&settings.second_path, &settings.third_path],
             row.state == State::Running && !joining,
         ));
         let body = body.when(!row.state.settled(), |d| {

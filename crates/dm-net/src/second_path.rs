@@ -37,16 +37,23 @@ static SECOND: RwLock<Option<reqwest::Client>> = RwLock::new(None);
 /// Which ranges of each download (by its parts folder) were last taken by a
 /// connection on the second path, in this run: what the progress window
 /// shows each path's share from.
-static ON_SECOND: std::sync::Mutex<Option<HashMap<PathBuf, HashSet<usize>>>> =
+/// Each download's ranges last fetched over another network than the system's route, by the
+/// network (1 the second, 2 the third; gaps row K3).
+static ON_SECOND: std::sync::Mutex<Option<HashMap<PathBuf, HashMap<usize, u8>>>> =
     std::sync::Mutex::new(None);
 
-/// Range `index` of the download staged in `parts` was taken by a
-/// connection on the second path, or (`second` false) on the first.
-pub fn fetched_by(parts: &Path, index: usize, second: bool) {
+/// The third network's client, where one is chosen (gaps row K3).
+static THIRD: RwLock<Option<reqwest::Client>> = RwLock::new(None);
+
+/// Range `index` of the download staged in `parts` was taken by a connection on network
+/// `network`: 0 the system's route, 1 the second, 2 the third (gaps row K3).
+pub fn fetched_by(parts: &Path, index: usize, network: u8) {
     let mut held = crate::lock(&ON_SECOND);
     let all = held.get_or_insert_with(HashMap::new);
-    if second {
-        all.entry(parts.to_path_buf()).or_default().insert(index);
+    if network > 0 {
+        all.entry(parts.to_path_buf())
+            .or_default()
+            .insert(index, network);
     } else if let Some(ranges) = all.get_mut(parts) {
         ranges.remove(&index);
     }
@@ -56,21 +63,73 @@ pub fn fetched_by(parts: &Path, index: usize, second: bool) {
 /// piece goes out on the second path where one is chosen, the rest (and all
 /// of them where none is) on `first`. Records which, for `on_second`.
 pub fn client_for_piece(first: &reqwest::Client, parts: &Path, index: usize) -> reqwest::Client {
-    match second_client() {
-        Some(second) if index % 2 == 1 => {
-            fetched_by(parts, index, true);
-            second
-        }
-        _ => {
-            fetched_by(parts, index, false);
-            first.clone()
-        }
+    let (network, client) = network_for(first, index);
+    fetched_by(parts, index, network);
+    client
+}
+
+/// The networks downloads go out on, beyond the system's route: each its number (1 the second,
+/// 2 the third) and its client, those chosen and connected alone (gaps row K3).
+pub fn extra_networks() -> Vec<(u8, reqwest::Client)> {
+    let mut found = Vec::new();
+    if let Some(second) = second_client() {
+        found.push((1, second));
     }
+    if let Some(third) = THIRD.read().ok().and_then(|t| t.clone()) {
+        found.push((2, third));
+    }
+    found
+}
+
+/// The network the `ordinal`th connection or piece goes out on, in turn over the system's route
+/// (0, with `first`) and each network chosen beside it: its number and its client.
+pub fn network_for(first: &reqwest::Client, ordinal: usize) -> (u8, reqwest::Client) {
+    let extra = extra_networks();
+    match ordinal % (extra.len() + 1) {
+        0 => (0, first.clone()),
+        n => extra
+            .get(n - 1)
+            .cloned()
+            .unwrap_or_else(|| (0, first.clone())),
+    }
+}
+
+/// Downloads' third network, as [`set_second_path`] sets the second (gaps row K3).
+#[doc(hidden)]
+pub fn set_third_path(name: Option<&str>) -> Result<(), String> {
+    let name = name.map(str::trim).filter(|n| !n.is_empty());
+    let client = match name {
+        None => None,
+        Some(name) => Some(bound_client(name)?),
+    };
+    if let Ok(mut slot) = THIRD.write() {
+        *slot = client;
+    }
+    Ok(())
+}
+
+/// A client bound to the network `name`, or why it cannot be.
+fn bound_client(name: &str) -> Result<reqwest::Client, String> {
+    let Some(found) = interfaces().into_iter().find(|i| i.name == name) else {
+        return Err(format!("the network {name} is not connected"));
+    };
+    let builder = crate::builder().local_address(found.address);
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    let builder = builder.interface(&found.name);
+    builder
+        .build()
+        .map_err(|e| format!("the network {name} could not be used: {e}"))
 }
 
 /// The ranges of the download staged in `parts` last taken on the second
 /// path, in this run.
 pub fn on_second(parts: &Path) -> HashSet<usize> {
+    networks_of(parts).into_keys().collect()
+}
+
+/// The ranges of the download staged in `parts` last taken on another network than the
+/// system's route, each with its network (1 the second, 2 the third), in this run.
+pub fn networks_of(parts: &Path) -> HashMap<usize, u8> {
     crate::lock(&ON_SECOND)
         .as_ref()
         .and_then(|all| all.get(parts).cloned())
@@ -205,12 +264,12 @@ mod tests {
     #[test]
     fn a_range_is_counted_to_the_path_that_took_it_last() {
         let parts = Path::new("/dm-test/second-path-share");
-        fetched_by(parts, 1, true);
-        fetched_by(parts, 3, true);
-        fetched_by(parts, 2, false);
+        fetched_by(parts, 1, 1);
+        fetched_by(parts, 3, 2);
+        fetched_by(parts, 2, 0);
         assert_eq!(on_second(parts), HashSet::from([1, 3]));
         // Taken again by a connection on the first path.
-        fetched_by(parts, 3, false);
+        fetched_by(parts, 3, 0);
         assert_eq!(on_second(parts), HashSet::from([1]));
         assert!(on_second(Path::new("/dm-test/another")).is_empty());
     }
@@ -228,7 +287,7 @@ mod tests {
 tokio::task_local! {
     /// Whether the connection running in this task goes out over the second network (gaps row
     /// K5): its reads then take from that network's own limit too.
-    pub static ON_SECOND_TASK: bool;
+    pub static ON_SECOND_TASK: u8;
 }
 
 /// The second network's own speed limit, shared by every connection over it (gaps row K5);
@@ -244,7 +303,8 @@ pub fn set_second_limit(bytes_per_second: u64) {
 /// The limit this task's reads take from beside the download's own: the second network's,
 /// where this task's connection goes out over it and it has one.
 pub fn task_limit() -> Option<crate::limit::Limiter> {
-    if !ON_SECOND_TASK.try_with(|on| *on).unwrap_or(false) {
+    // The second network's limit is the second's alone (1), not the third's.
+    if ON_SECOND_TASK.try_with(|on| *on).unwrap_or(0) != 1 {
         return None;
     }
     crate::lock(&SECOND_LIMIT).clone()
@@ -260,15 +320,15 @@ mod limit_tests {
     async fn the_second_networks_limit_is_its_connections_alone() {
         set_second_limit(64 * 1024);
         let over_second = ON_SECOND_TASK
-            .scope(true, async { task_limit().is_some() })
+            .scope(1, async { task_limit().is_some() })
             .await;
         let over_first = ON_SECOND_TASK
-            .scope(false, async { task_limit().is_some() })
+            .scope(0, async { task_limit().is_some() })
             .await;
         let outside = task_limit().is_some();
         set_second_limit(0);
         let unset = ON_SECOND_TASK
-            .scope(true, async { task_limit().is_some() })
+            .scope(1, async { task_limit().is_some() })
             .await;
         assert!(over_second, "the second network's connection took no limit");
         assert!(
@@ -276,5 +336,27 @@ mod limit_tests {
             "a connection over the first took the second's limit"
         );
         assert!(!unset, "a limit of 0 still limited");
+    }
+}
+
+#[cfg(test)]
+mod network_tests {
+    use super::*;
+
+    /// With a second and a third network chosen, connections and pieces go out over the
+    /// system's route and each in turn; without them, all over the system's route (gaps row K3).
+    #[test]
+    fn connections_are_spread_over_every_network_chosen() {
+        let first = crate::builder().build().unwrap();
+        set_second_client(Some(crate::builder().build().unwrap()));
+        if let Ok(mut third) = THIRD.write() {
+            *third = Some(crate::builder().build().unwrap());
+        }
+        let turns: Vec<u8> = (0..6).map(|n| network_for(&first, n).0).collect();
+        set_second_client(None);
+        set_third_path(None).unwrap();
+        let alone: Vec<u8> = (0..3).map(|n| network_for(&first, n).0).collect();
+        assert_eq!(turns, [0, 1, 2, 0, 1, 2]);
+        assert_eq!(alone, [0, 0, 0]);
     }
 }

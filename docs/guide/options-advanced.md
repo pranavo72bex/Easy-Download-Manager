@@ -34,6 +34,9 @@ BitTorrent. See [Options](options.md) for how the window works.
   USB or its hotspot. Half of each download's connections go over it. Not
   used while a proxy is on." **None** uses only the computer's usual
   connection.
+- **Third network:** once a second is chosen, a third beside it: "Each
+  download's connections are shared among all the networks chosen." **None**
+  uses the two.
 - "Second network's speed limit, KB/s (0 for none)": "Holds the second
   network, such as a phone's data, to this speed, whatever the other
   connection does." Its connections share it, beside the speed limit above.

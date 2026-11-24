@@ -3,7 +3,8 @@
 dm can download over two networks at once: the one your computer normally uses, and a
 second one you choose in **Options › Advanced › Network › Second network**. Half of each
 download's connections then go over the second network, so a download can be as fast as both
-lines together.
+lines together. Once a second is chosen, **Third network** beside it adds one more line, and
+each download's connections are then shared among all three.
 
 ## When it helps, and when it does not
 

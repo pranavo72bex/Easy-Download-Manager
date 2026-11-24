@@ -317,10 +317,9 @@ pub(super) async fn run(
     let first_wave = Arc::new(std::sync::atomic::AtomicUsize::new(workers.max(1)));
     let (wave_over, wave_over_seen) = tokio::sync::watch::channel(false);
     let started = tokio::time::Instant::now();
-    // A second network path, where one is chosen: every other connection
-    // goes out on it (`second_path`). The ranges are taken as connections
-    // free up, so the faster path fetches more of them.
-    let second = crate::second_path::second_client();
+    // The networks chosen beside the system's route (a second, a third; gaps rows 47, K3):
+    // the connections are spread over them in turn (`second_path::network_for`). The ranges
+    // are taken as connections free up, so a faster network fetches more of them.
     /* The connections past `OPENED_AT_ONCE` wait to be let in by `grow`, which lets them in
      * while they raise the rate and takes them back when they do not. One taken back finishes
      * its piece and waits again; once `grow` is done, those still waiting are not needed. */
@@ -347,16 +346,12 @@ pub(super) async fn run(
         let helper = ordinal >= workers.max(1);
         // Which of the connections `grow` lets in this one is.
         let grown_as = ordinal.checked_sub(grown_from);
-        let on_second = second.is_some() && ordinal % 2 == 1;
-        let client = match &second {
-            Some(second) if on_second => second.clone(),
-            _ => client.clone(),
-        };
+        let (network, client) = crate::second_path::network_for(client, ordinal);
         // Its reads take from the second network's own limit where it goes out over it (gaps
         // row K5).
         running.spawn(
             crate::second_path::ON_SECOND_TASK.scope(
-                on_second,
+                network,
                 Connection {
                     client,
                     job: Arc::clone(job),
@@ -373,7 +368,7 @@ pub(super) async fn run(
                     started,
                     helper,
                     grown_as,
-                    on_second,
+                    network,
                     counted: !helper,
                     alone_again: false,
                 }
@@ -490,7 +485,7 @@ async fn fetch_left(client: &reqwest::Client, job: &Job, resumable: bool) -> Res
             &AtomicUsize::new(1),
             None,
             &AtomicBool::new(false),
-            false,
+            0,
         )
         .await;
         fetched?;
@@ -580,7 +575,7 @@ async fn fetch_chain(
     active: &AtomicUsize,
     mut answer: Option<Answer>,
     turned_away: &AtomicBool,
-    on_second: bool,
+    network: u8,
 ) -> (usize, Result<(), Error>) {
     loop {
         let fetched = fetch_segment(
@@ -596,7 +591,7 @@ async fn fetch_chain(
         match fetched {
             Ok(Some((next, carried))) => {
                 job.moved.notify_waiters();
-                crate::second_path::fetched_by(&job.parts, next, on_second);
+                crate::second_path::fetched_by(&job.parts, next, network);
                 index = next;
                 answer = Some(Answer::Carried(carried));
             }

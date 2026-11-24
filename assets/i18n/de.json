@@ -1047,5 +1047,7 @@
  "This computer's connection": "Verbindung dieses Computers",
  "the second network brings nothing now": "das zweite Netzwerk bringt gerade nichts",
  "Second network's speed limit, KB/s (0 for none)": "Tempolimit des zweiten Netzwerks, KB/s (0 für keines)",
- "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Hält das zweite Netzwerk, etwa die Daten eines Telefons, auf diesem Tempo, egal was die andere Verbindung tut."
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Hält das zweite Netzwerk, etwa die Daten eines Telefons, auf diesem Tempo, egal was die andere Verbindung tut.",
+ "Third network": "Drittes Netzwerk",
+ "Each download's connections are shared among all the networks chosen.": "Die Verbindungen jedes Downloads werden auf alle gewählten Netzwerke verteilt."
 }

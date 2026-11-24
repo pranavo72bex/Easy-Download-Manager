@@ -255,34 +255,33 @@ pub(super) fn networks_line(
     look: &Look,
     connections: &[dm_core::Connection],
     speeds: &[f64],
-    second: &str,
+    chosen: [&str; 2],
     running: bool,
 ) -> Option<gpui::Div> {
-    if second.is_empty() {
-        return None;
-    }
-    let named = dm_core::system_name(second).unwrap_or_else(|| second.to_string());
-    networks_words(connections, speeds, &named, running).map(|said| look.line("Networks", said))
+    let named = chosen.map(|name| dm_core::system_name(name).unwrap_or_else(|| name.to_string()));
+    networks_words(connections, speeds, [&named[0], &named[1]], running)
+        .map(|said| look.line("Networks", said))
 }
 
-/// [`networks_line`]'s words: each network's speed and share, by its name `named` for the
-/// second; none where the second carries nothing of the download.
+/// [`networks_line`]'s words: each network's speed and share, the second and third by their
+/// names `named`; none where no connection went over another network than the system's route
+/// (gaps rows K3, K4).
 pub(super) fn networks_words(
     connections: &[dm_core::Connection],
     speeds: &[f64],
-    named: &str,
+    named: [&str; 2],
     running: bool,
 ) -> Option<String> {
-    if !connections.iter().any(|c| c.second) {
+    if !connections.iter().any(|c| c.network > 0) {
         return None;
     }
-    let (mut speed, mut done) = ([0.0f64; 2], [0u64; 2]);
+    let (mut speed, mut done) = ([0.0f64; 3], [0u64; 3]);
     for (c, rate) in connections.iter().zip(speeds) {
-        let path = usize::from(c.second);
+        let path = usize::from(c.network.min(2));
         speed[path] += rate;
         done[path] += c.done;
     }
-    let total = (done[0] + done[1]).max(1) as f64;
+    let total = done.iter().sum::<u64>().max(1) as f64;
     let part = |path: usize, name: &str| {
         format!(
             "{name}: {} · {}%",
@@ -290,12 +289,18 @@ pub(super) fn networks_words(
             (done[path] as f64 * 100.0 / total).round() as u32
         )
     };
-    let mut said = format!(
-        "{}   {}",
-        part(0, t("This computer's connection")),
-        part(1, named)
-    );
-    if running && speed[1] < 1.0 && speed[0] > 1.0 {
+    let mut parts = vec![part(0, t("This computer's connection"))];
+    for (path, name) in [(1, named[0]), (2, named[1])] {
+        if connections.iter().any(|c| usize::from(c.network) == path) {
+            parts.push(part(path, name));
+        }
+    }
+    let mut said = parts.join("   ");
+    if running
+        && speed[0] > 1.0
+        && connections.iter().any(|c| c.network > 0)
+        && speed[1] + speed[2] < 1.0
+    {
         said.push_str(&format!(
             "   ({})",
             t("the second network brings nothing now")
@@ -570,13 +575,14 @@ impl Progress {
 mod network_tests {
     use super::*;
 
-    fn connection(done: u64, second: bool) -> dm_core::Connection {
+    fn connection(done: u64, network: u8) -> dm_core::Connection {
         dm_core::Connection {
             start: 0,
             end: 0,
             done,
             started: true,
-            second,
+            second: network > 0,
+            network,
         }
     }
 
@@ -584,8 +590,14 @@ mod network_tests {
     /// while it runs; nothing said where it carries none of the download (gaps row K4).
     #[test]
     fn each_networks_speed_and_share_are_said() {
-        let both = [connection(600, false), connection(400, true)];
-        let said = networks_words(&both, &[2_000_000.0, 1_000_000.0], "iPhone USB", true).unwrap();
+        let both = [connection(600, 0), connection(400, 1)];
+        let said = networks_words(
+            &both,
+            &[2_000_000.0, 1_000_000.0],
+            ["iPhone USB", "Ethernet"],
+            true,
+        )
+        .unwrap();
         assert!(
             said.contains("This computer's connection") && said.contains("60%"),
             "{said}"
@@ -595,12 +607,27 @@ mod network_tests {
             "{said}"
         );
         assert!(!said.contains("brings nothing"), "{said}");
-        let idle = networks_words(&both, &[2_000_000.0, 0.0], "iPhone USB", true).unwrap();
+        let idle =
+            networks_words(&both, &[2_000_000.0, 0.0], ["iPhone USB", "Ethernet"], true).unwrap();
         assert!(idle.contains("brings nothing"), "{idle}");
-        let first_only = [connection(600, false)];
+        let first_only = [connection(600, 0)];
         assert_eq!(
-            networks_words(&first_only, &[1.0], "iPhone USB", true),
+            networks_words(&first_only, &[1.0], ["iPhone USB", "Ethernet"], true),
             None
         );
+        // A third network beside the second, each by its own name and share (gaps row K3).
+        let three = [connection(500, 0), connection(300, 1), connection(200, 2)];
+        let said = networks_words(
+            &three,
+            &[1.0e6, 1.0e6, 1.0e6],
+            ["iPhone USB", "Ethernet"],
+            true,
+        )
+        .unwrap();
+        assert!(
+            said.contains("iPhone USB") && said.contains("30%"),
+            "{said}"
+        );
+        assert!(said.contains("Ethernet") && said.contains("20%"), "{said}");
     }
 }

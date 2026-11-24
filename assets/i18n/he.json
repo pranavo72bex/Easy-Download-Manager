@@ -1047,5 +1047,7 @@
  "This computer's connection": "החיבור של המחשב הזה",
  "the second network brings nothing now": "הרשת השנייה לא מביאה כלום כרגע",
  "Second network's speed limit, KB/s (0 for none)": "מגבלת המהירות של הרשת השנייה, KB/s (0 ללא)",
- "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "מגביל את הרשת השנייה, למשל נתוני הטלפון, למהירות הזו, ללא קשר לחיבור האחר."
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "מגביל את הרשת השנייה, למשל נתוני הטלפון, למהירות הזו, ללא קשר לחיבור האחר.",
+ "Third network": "רשת שלישית",
+ "Each download's connections are shared among all the networks chosen.": "החיבורים של כל הורדה מתחלקים בין כל הרשתות שנבחרו."
 }

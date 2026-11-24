@@ -1047,5 +1047,7 @@
  "This computer's connection": "이 컴퓨터의 연결",
  "the second network brings nothing now": "두 번째 네트워크가 지금 아무것도 가져오지 않습니다",
  "Second network's speed limit, KB/s (0 for none)": "두 번째 네트워크 속도 제한, KB/s (0은 제한 없음)",
- "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "다른 연결과 상관없이 두 번째 네트워크(휴대전화 데이터 등)를 이 속도로 제한합니다."
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "다른 연결과 상관없이 두 번째 네트워크(휴대전화 데이터 등)를 이 속도로 제한합니다.",
+ "Third network": "세 번째 네트워크",
+ "Each download's connections are shared among all the networks chosen.": "각 다운로드의 연결이 선택한 모든 네트워크에 나뉩니다."
 }

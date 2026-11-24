@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options › Advanced › Network: a third network can be chosen beside the second; each download's connections are shared among all of them.
 - Options › Advanced › Network: the second network (a phone's data, say) can have a speed limit of its own.
 - With a second network chosen, the progress window shows how fast each network brings the download and its share, and says when the second one brings nothing.
 - New help page: how to use a phone as a second network for faster downloads, and which setups help.

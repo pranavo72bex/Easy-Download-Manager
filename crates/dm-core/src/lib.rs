@@ -166,7 +166,7 @@ pub use second_path::{interfaces, on_second, system_name, Interface};
 
 // A test's own second network alone; the program's is put in force by `configure`.
 #[doc(hidden)]
-pub use second_path::{set_second_client, set_second_path};
+pub use second_path::{set_second_client, set_second_path, set_third_path};
 
 mod torrent;
 

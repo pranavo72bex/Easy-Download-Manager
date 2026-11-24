@@ -40,8 +40,9 @@ pub(super) struct Connection {
     pub(super) helper: bool,
     /// Which of the connections `grow` lets in this one is.
     pub(super) grown_as: Option<usize>,
-    /// Whether it goes out on the second network path.
-    pub(super) on_second: bool,
+    /// The network it goes out on: 0 the system's route, 1 the second, 2 the third (gaps row
+    /// K3).
+    pub(super) network: u8,
     /// Counted among the connections at work (`active`): one with a range of its own from
     /// the start, a helper from when it takes one, and neither while it waits as one a
     /// limiting server turned away past the most it serves at once (`limits::rejoin`).
@@ -115,7 +116,7 @@ impl Connection {
                     self.counted = true;
                     self.active.fetch_add(1, Ordering::SeqCst);
                 }
-                crate::second_path::fetched_by(&self.job.parts, index, self.on_second);
+                crate::second_path::fetched_by(&self.job.parts, index, self.network);
                 let first = if index == 0 {
                     crate::lock(&self.probe).take().map(Answer::Probe)
                 } else {
@@ -131,7 +132,7 @@ impl Connection {
                     &self.active,
                     first,
                     &turned_away,
-                    self.on_second,
+                    self.network,
                 )
                 .await;
                 // A connection waiting for a range worth halving looks again.

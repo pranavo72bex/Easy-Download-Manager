@@ -14,7 +14,7 @@ impl DownloadList {
             let Some(plan) = crate::plan::recorded(&parts) else {
                 return Vec::new();
             };
-            let second = crate::second_path::on_second(&parts);
+            let networks = crate::second_path::networks_of(&parts);
             plan.ranges
                 .iter()
                 .enumerate()
@@ -29,7 +29,8 @@ impl DownloadList {
                         end,
                         done: on_disk.min(span),
                         started: ledger.is_some() || part.is_some(),
-                        second: second.contains(&i),
+                        second: networks.contains_key(&i),
+                        network: networks.get(&i).copied().unwrap_or(0),
                     }
                 })
                 .collect()

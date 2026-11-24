@@ -210,6 +210,10 @@ pub struct Settings {
     /// empty for none. Not used while a proxy is on: the proxy is the path.
     #[serde(default)]
     pub second_path: String,
+    /// A third network beside the second, by name; empty for none (gaps row K3). Its
+    /// connections are a share of every download's as the second's are.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub third_path: String,
     /// The second network's own speed limit in KB/s, shared by its connections; 0 for none
     /// (gaps row K5): a phone's metered data held to a rate whatever the line beside it does.
     #[serde(default, skip_serializing_if = "none_set")]
@@ -495,6 +499,7 @@ impl Default for Settings {
             downloads: DownloadSettings::default(),
             advanced: AdvancedSettings::default(),
             second_path: String::new(),
+            third_path: String::new(),
             second_limit_kb: 0,
             sounds: Default::default(),
             site_searches: Vec::new(),

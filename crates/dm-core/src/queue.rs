@@ -325,6 +325,15 @@ pub struct Connection {
     /// run of dm.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub second: bool,
+    /// The network it was last fetched over: 0 the system's route, 1 the second, 2 the third
+    /// (gaps row K3).
+    #[serde(default, skip_serializing_if = "is_zero_network")]
+    pub network: u8,
+}
+
+/// Whether a connection's network is the system's route (0), to leave it out of what is said.
+fn is_zero_network(network: &u8) -> bool {
+    *network == 0
 }
 
 impl Entry {

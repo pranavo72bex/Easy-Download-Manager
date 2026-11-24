@@ -33,6 +33,8 @@ pub struct EngineConfig {
     /// The second network downloads may also go out on, by its interface's name; `None`, or an
     /// empty name, for none.
     pub second_path: Option<String>,
+    /// A third network beside the second, by its interface's name (gaps row K3).
+    pub third_path: Option<String>,
     /// The second network's own speed limit, in bytes a second, shared by its connections; 0
     /// for none (gaps row K5).
     pub second_limit: u64,
@@ -55,6 +57,7 @@ impl std::fmt::Debug for EngineConfig {
             .field("kept_players", &self.kept_players)
             .field("only_through", &self.only_through)
             .field("second_limit", &self.second_limit)
+            .field("third_path", &self.third_path)
             .finish()
     }
 }
@@ -73,7 +76,10 @@ pub fn configure(config: &EngineConfig) -> Result<(), String> {
     crate::only_through::set_only_through(Some(only));
     let second = config.second_path.as_deref().filter(|_| only.is_empty());
     crate::second_path::set_second_limit(config.second_limit);
-    crate::second_path::set_second_path(second)
+    let third = config.third_path.as_deref().filter(|_| only.is_empty());
+    // The third's failure is said after the second's own: the second is in force either way.
+    let set_third = crate::second_path::set_third_path(third);
+    crate::second_path::set_second_path(second).and(set_third)
 }
 
 /// Trusts the certificate file `DM_BENCH_CA` names beside the public roots, for the benchmark's

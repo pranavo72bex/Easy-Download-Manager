@@ -1047,5 +1047,7 @@
  "This computer's connection": "Koneksi komputer ini",
  "the second network brings nothing now": "jaringan kedua tidak membawa apa pun sekarang",
  "Second network's speed limit, KB/s (0 for none)": "Batas kecepatan jaringan kedua, KB/s (0 tanpa batas)",
- "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Menahan jaringan kedua, misalnya data ponsel, pada kecepatan ini, apa pun yang dilakukan koneksi lainnya."
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Menahan jaringan kedua, misalnya data ponsel, pada kecepatan ini, apa pun yang dilakukan koneksi lainnya.",
+ "Third network": "Jaringan ketiga",
+ "Each download's connections are shared among all the networks chosen.": "Koneksi setiap unduhan dibagi ke semua jaringan yang dipilih."
 }

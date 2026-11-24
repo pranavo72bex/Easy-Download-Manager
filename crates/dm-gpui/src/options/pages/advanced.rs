@@ -130,6 +130,38 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
         ),
     );
     p.note(t("Use a second connection too, such as your phone over USB or its hotspot. Half of each download's connections go over it. Not used while a proxy is on."));
+    // A third beside it, once a second is chosen (gaps row K3).
+    if !second.is_empty() {
+        let third = o.draft.third_path.clone();
+        let third_at = if third.is_empty() {
+            Some(0)
+        } else {
+            o.networks
+                .iter()
+                .position(|n| n.name == third)
+                .map(|i| i + 1)
+        };
+        p.setting(
+            t("Third network"),
+            o.draft.advanced.only_through.is_empty(),
+            popup::button(
+                "third-network",
+                if third.is_empty() {
+                    t("None").to_string()
+                } else {
+                    third
+                }
+                .into(),
+                network_words(o),
+                third_at,
+                theme,
+                &screen,
+            ),
+        );
+        p.note(t(
+            "Each download's connections are shared among all the networks chosen.",
+        ));
+    }
     // Its own speed limit, shared by its connections (gaps row K5).
     let words = "Second network's speed limit, KB/s (0 for none)";
     let field = input(
