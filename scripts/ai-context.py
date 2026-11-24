@@ -10,14 +10,21 @@ Writes .bot/context.md from what the task says (.bot/issue.json, .bot/failing-te
 .bot/row.md, or the FILE a nightly test run is for), so a model that would not find its way
 alone starts with:
 
-1. which part of dm the task is about (the desktop window, the phone, the engine, the
-   browser extension, video pages), from its words and the crates its tests name;
-2. the skill pages to read for that part (docs/ai-skills/, .claude/skills/), in the order
-   they win, only when scripts/ai-skills-check.py finds them clean;
-3. a map of the crates concerned: each file with the first line of its module comment;
-4. the files that mention the task's own words and names, with the lines;
-5. the last commits on those files (how such changes are written here);
-6. how to run the tests for that part.
+1. the task itself, when it is a step of docs/gaps.md (K3a): its Do, Where, Test and Done
+   when, word for word, first;
+2. how to work: the test first, then make it build (`cargo test -p CRATE --no-run` after each
+   edit), then make it pass, then the checks;
+3. which part of dm the task is about (the desktop window, the phone, the engine, the
+   browser extension, video pages), from its words and the crates its tests name, and the
+   skill pages for it (docs/ai-skills/, .claude/skills/), in the order they win, only when
+   scripts/ai-skills-check.py finds them clean;
+4. an outline of each file the task names: every fn, struct, enum, trait, impl and const
+   with its line and whether it is public, so a model calls what exists and is reachable;
+5. a test to copy: the head of the test file the new test goes in (its imports, its helpers,
+   one whole test), or the nearest one;
+6. for the window, the public methods of its test harness (crates/dm-gpui/src/harness.rs);
+7. the files that mention the task's words, their last commits, and a map of the crates
+   (cut first when the whole is too long).
 
 The task's words are only searched for, as fixed strings (git grep -F), never run.
 Standard library and git only.
@@ -30,7 +37,8 @@ import subprocess
 import sys
 from collections import Counter
 
-LIMIT = 45000
+LIMIT = 60000
+ITEM = re.compile(r"^\s*(pub(\([^)]*\))?\s+)?(async\s+)?(unsafe\s+)?(const\s+fn|fn|struct|enum|trait|impl|const|static|type|mod)\b")
 AREAS = {
     "android": {
         "words": r"android|phone|mobile|apk|notification|tap|touch|swipe|back button|gradle|dm-android",
@@ -100,7 +108,7 @@ def task_text():
     for extra in (".bot/failing-tests.txt", ".bot/row.md", ".bot/feedback.md", ".bot/missing-lines.txt"):
         parts.append(read(extra, 8000))
     if len(sys.argv) > 1:
-        parts.append(sys.argv[1])
+        parts.append(f"`{sys.argv[1]}`")  # the nightly tests' file: named, so it is outlined
     return "\n".join(p for p in parts if p)
 
 
@@ -169,6 +177,103 @@ def crate_map(crate):
     return out[:120]
 
 
+def step_of(text):
+    """The docs/gaps.md row the task is, by the issue's gaps_row line: (id, the row's cells)."""
+    m = re.search(r"gaps_row:\s*([A-Z]+[0-9]+[a-z]?)", text)
+    if not m:
+        return None
+    rid = m.group(1)
+    for line in read("docs/gaps.md").splitlines():
+        if re.match(rf"^\|\s*{rid}\s*\|", line):
+            cells, cur, code = [], "", False
+            for ch in line.strip():
+                if ch == "`":
+                    code = not code
+                if ch == "|" and not code:
+                    cells.append(cur.strip())
+                    cur = ""
+                else:
+                    cur += ch
+            # cells: "", the id, the problem, the state, what to do.
+            return rid, [c for c in cells[2:] if c != ""]
+    return None
+
+
+def named_files(text):
+    """The source files the task names, that exist, in the order named."""
+    out = []
+    for p in re.findall(r"`(crates/[A-Za-z0-9_./-]+\.rs)`", text):
+        if os.path.exists(p) and p not in out:
+            out.append(p)
+    return out[:8]
+
+
+def outline(path, only_public=False, limit=70):
+    """Every item of a Rust file with its line: what exists and what is reachable."""
+    out = []
+    for n, line in enumerate(read(path).splitlines(), 1):
+        if line.strip().startswith("#[cfg(test)]"):
+            out.append(f"{n}: #[cfg(test)] (tests from here)")
+            continue
+        m = ITEM.match(line)
+        if not m:
+            continue
+        public = bool(m.group(1))
+        if only_public and not public:
+            continue
+        out.append(f"{n}: {line.strip()[:150]}" + ("" if public or m.group(5) in ("impl", "mod") else "   [private]"))
+        if len(out) >= limit:
+            out.append("…")
+            break
+    return out
+
+
+def test_template(text, files):
+    """The head of the file the new test goes in, or the nearest test file: a test to copy."""
+    named = re.findall(r"Test:[^`]*`[^`]+`[^`]*`(crates/[A-Za-z0-9_./-]+\.rs)`", text)
+    candidates = [p for p in named if os.path.exists(p)]
+    # A named file with tests inside it (its own `#[cfg(test)] mod`): those are the template.
+    for f in files:
+        lines = read(f).splitlines()
+        at = next((i for i, l in enumerate(lines) if l.strip().startswith("#[cfg(test)]")), None)
+        if at is not None and any("#[test]" in l for l in lines[at:]):
+            body = lines[at:]
+            first = next((i for i, l in enumerate(body) if l.strip().startswith("#[test]") or l.strip().startswith("#[tokio::test")), 0)
+            depth, opened, end = 0, False, len(body)
+            for i in range(first, len(body)):
+                depth += body[i].count("{") - body[i].count("}")
+                opened = opened or "{" in body[i]
+                if opened and depth <= 0 and i > first:
+                    end = i + 1
+                    break
+            return f"{f} (its tests, from line {at + 1})", body[: min(end, 90)]
+    # A file the task names that is itself a test file is the best template.
+    candidates += [f for f in files if re.search(r"(^|/)(tests?|window_tests)/|tests\.rs$|_tests\.rs$", f)]
+    for f in files:
+        base = f[:-3]
+        d = os.path.dirname(f)
+        crate = "/".join(f.split("/")[:2])
+        candidates += [f"{base}/tests.rs", *sorted(git("ls-files", f"{base}/").split()),
+                       f"{d}/tests.rs"]
+        candidates += sorted(git("ls-files", f"{crate}/tests").split())[:3]
+    for c in candidates:
+        if c.endswith(".rs") and ("test" in c) and os.path.exists(c):
+            lines = read(c).splitlines()
+            # Its imports and helpers, then the first whole test.
+            end = len(lines)
+            first = next((i for i, l in enumerate(lines) if l.strip().startswith("#[test]") or l.strip().startswith("#[tokio::test")), None)
+            if first is not None:
+                depth, opened = 0, False
+                for i in range(first, len(lines)):
+                    depth += lines[i].count("{") - lines[i].count("}")
+                    opened = opened or "{" in lines[i]
+                    if opened and depth <= 0:
+                        end = i + 1
+                        break
+            return c, lines[: min(end, 90)]
+    return None, []
+
+
 def skills_clean():
     r = subprocess.run([sys.executable, "-I", "scripts/ai-skills-check.py"], capture_output=True, text=True)
     return r.returncode == 0, r.stdout.strip()
@@ -176,6 +281,10 @@ def skills_clean():
 
 def main():
     text = task_text()
+    # A step of docs/gaps.md: its own words decide the part of dm and the files.
+    step = step_of(text)
+    if step:
+        text += "\n" + " ".join(step[1])
     areas = areas_of(text)
     crates = []
     for a in areas:
@@ -183,7 +292,28 @@ def main():
             if c not in crates:
                 crates.append(c)
     clean, why = skills_clean()
+    files = named_files(text)
+    for f in files:
+        c = f.split("/")[1]
+        if c not in crates:
+            crates.insert(0, c)
+    main_crate = next((f.split("/")[1] for f in files), crates[0] if crates else "dm-core")
     out = ["# What this task is about (made by scripts/ai-context.py)", ""]
+    if step:
+        rid, cells = step
+        out.append(f"## Your task: row {rid} of docs/gaps.md (do exactly this, nothing more)")
+        out.append("")
+        for label, cell in zip(("Problem", "State", "What to do"), cells):
+            out.append(f"**{label}:** {cell}")
+            out.append("")
+    out.append("## How to work, in small steps")
+    out.append("")
+    out.append(f"1. Write the test first, where the task says (or beside the code, as in the template below).")
+    out.append(f"2. After every edit, build: `cargo test -p {main_crate} --no-run`. Fix each compile error before anything else: call only what the outlines below say exists, and only what is public (or in the same module).")
+    out.append(f"3. Run the test: `cargo nextest run -p {main_crate} -E 'test(~NAME)'`. For a fix, see it fail first.")
+    out.append("4. Make the change, smallest first, and run the test again until it passes.")
+    out.append("5. Then `cargo fmt --all`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, and `cargo xtask test --profile ci`.")
+    out.append("")
     out.append(f"Part of dm: **{', '.join(areas)}** (crates: {', '.join(crates)}).")
     out.append("")
     out.append("## Read these first, in this order (the first wins)")
@@ -209,6 +339,30 @@ def main():
         out.append(f"{n}. (The skill pages are left out today: scripts/ai-skills-check.py found a problem.)")
         print(why, file=sys.stderr)
     out.append("")
+    for f in files:
+        out.append(f"## Outline of `{f}` (line: item; [private] cannot be called from another module)")
+        out.append("")
+        out.append("```")
+        out.extend(outline(f))
+        out.append("```")
+        out.append("")
+    where, template = test_template(text, files)
+    if template:
+        out.append(f"## A test to copy: the head of `{where}`")
+        out.append("")
+        out.append("```rust")
+        out.extend(template)
+        out.append("```")
+        out.append("")
+    if "dm-gpui" in crates or any("dm-gpui" in f for f in files):
+        out.append("## The window test harness: its public methods (`crates/dm-gpui/src/harness.rs` and `harness/`)")
+        out.append("")
+        out.append("```")
+        for h in ["crates/dm-gpui/src/harness.rs"] + sorted(git("ls-files", "crates/dm-gpui/src/harness").split()):
+            if h.endswith(".rs"):
+                out.extend(f"{h.rsplit('/', 1)[-1]}:{l}" for l in outline(h, only_public=True, limit=60))
+        out.append("```")
+        out.append("")
     files = related_files(names_in(text), crates)
     if files:
         out.append("## The files that mention this task's words")

@@ -184,6 +184,26 @@ ai_patch() {
     git add -A -- . && git diff --cached --binary HEAD >"$1" && git reset -q
 }
 
+# What failed, for the model's next try, short and first: the compiler's errors with their
+# file and line, a rule broken, the tests that fail beside main's own, a refused file.
+ai_what_failed() {
+    local errors
+    errors=$(grep -E -A6 '^error(\[E[0-9]+\])?:' .bot/check.log 2>/dev/null | grep -vE '^--$|^\s*\|?\s*$' | head -n 60)
+    if [ -n "$errors" ]; then
+        printf 'The code does not build:\n%s\n' "$errors"
+        return
+    fi
+    if grep -qE '^crates/.*:[0-9]+: |^crates/.*: a module' .bot/check.log 2>/dev/null; then
+        printf 'A rule of AGENTS.md is broken (scripts/ai-rules.py):\n%s\n' "$(grep -E '^crates/.*: ' .bot/check.log | head -n 20)"
+        return
+    fi
+    if grep -q 'fails here, not on main' .bot/check.log 2>/dev/null; then
+        printf 'These tests fail with your change:\n%s\n' "$(grep -E 'fails here, not on main|panicked at|assertion' .bot/check.log | head -n 30)"
+        return
+    fi
+    tail -n 40 .bot/check.log 2>/dev/null
+}
+
 # `ai_try PROMPT_FILE`: each provider, from a clean tree, until a change passes.
 ai_try() {
     local prompt provider attempt status result report=""
@@ -220,9 +240,15 @@ ai_try() {
             fi
             ask="$prompt
 
-Your previous change was checked and refused ($result). What the checks printed is in
-.bot/check.log; read it, then make a change that passes. The tree still holds your change
-unless it was refused for touching a file it may not, or for removing or ignoring a test."
+Your previous change was checked and refused ($result). The tree still holds your change
+unless it was refused for touching a file it may not, or for removing or ignoring a test.
+What went wrong, first (the whole log is .bot/check.log):
+
+$(ai_what_failed)
+
+Fix exactly these, one at a time: after each fix, build again with cargo test -p CRATE
+--no-run, then run the test. Call only what the outlines in .bot/context.md say exists and is
+public."
         done
     done
     { echo 'report<<REPORT_END'; printf '%s' "$report"; echo 'REPORT_END'; } >>"$GITHUB_OUTPUT"

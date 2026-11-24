@@ -409,8 +409,14 @@ tree, and the workflow, not the model, decides what is done.
 | `ai-merge.yml` | When CI and Desktop have finished on a bot pull request's last commit (`scripts/ai-merge.sh`): all green and a second model's review finds nothing against the rules, it is merged and CI and Desktop run on main; otherwise it goes back to the fixer, twice, then is closed. |
 
 **What a model is handed.** Free models do better with the way pointed out, so before one
-starts, `scripts/ai-context.py` writes `.bot/context.md`: which part of dm the task is about
-(desktop window, phone, engine, extension, video), the skill pages to follow for it in the
+starts, `scripts/ai-context.py` writes `.bot/context.md`: for a step of `docs/gaps.md`, the
+step itself word for word first; how to work in small steps (the test first, then build with
+`cargo test -p CRATE --no-run` after each edit, then make it pass, then the checks); an
+outline of each file the task names (every fn, struct, impl and const with its line, the
+private ones marked, so a model calls only what exists and is reachable); a test to copy
+(the file's own tests, or the test file it names, or the nearest); for the window, the test
+harness's public methods; then which part of dm the task is about (desktop window, phone,
+engine, extension, video), the skill pages to follow for it in the
 order they win (`docs/ai-skills/`, written for the bots, and the window's own
 `.claude/skills/dm-design` and `better-*`), the files that mention the task's words with the
 lines, the last commits on them, and how to test that part. The pages are given only when
