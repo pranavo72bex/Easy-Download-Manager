@@ -311,7 +311,7 @@ pub async fn on_page_message(message: JsValue, sender: JsValue) -> JsValue {
         return answer(true, "the rules are current");
     }
     if click.kind == decide::SKIP_MESSAGE {
-        return skip_click(&click).await;
+        return skip_click(&click, &sender, private).await;
     }
     let target = match decide::panel_target(&click, &tab_url, private) {
         Ok(target) => target,

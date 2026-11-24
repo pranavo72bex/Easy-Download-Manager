@@ -71,13 +71,25 @@ pub fn http_address(url: &str) -> Option<String> {
         .then(|| format!("http://{rest}"))
 }
 
+/// `len` bytes of `b` from `at`, `None` past its end or where `at + len` overflows: an object
+/// size a server wrote put `at` near the top of the address space, and `at + 16` panicked
+/// (gaps row H10, audit of RTMP, RTSP and MMS).
+fn bytes_at(b: &[u8], at: usize, len: usize) -> Option<&[u8]> {
+    b.get(at..at.checked_add(len)?)
+}
+
 fn le32(b: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(b.get(at..at + 4)?.try_into().ok()?))
+    Some(u32::from_le_bytes(bytes_at(b, at, 4)?.try_into().ok()?))
 }
 
 fn le64(b: &[u8], at: usize) -> Option<u64> {
-    Some(u64::from_le_bytes(b.get(at..at + 8)?.try_into().ok()?))
+    Some(u64::from_le_bytes(bytes_at(b, at, 8)?.try_into().ok()?))
 }
+
+/// The largest packet size taken from a header: an MMSH chunk's length is 16 bits, so a data
+/// packet is never longer, and a larger size only padded each few-byte chunk to it (a 1 MiB
+/// size made 4 bytes from the server 1 MiB on the disk; gaps row H10).
+const MOST_PACKET: u32 = u16::MAX as u32;
 
 /// The packet size and the stream numbers an ASF header names.
 pub fn header_facts(header: &[u8]) -> (Option<u32>, Vec<u16>) {
@@ -86,13 +98,19 @@ pub fn header_facts(header: &[u8]) -> (Option<u32>, Vec<u16>) {
     let mut packet = None;
     let mut streams = Vec::new();
     for _ in 0..count.min(1024) {
-        let (Some(id), Some(size)) = (header.get(at..at + 16), le64(header, at + 16)) else {
+        let (Some(id), Some(size)) = (
+            bytes_at(header, at, 16),
+            at.checked_add(16).and_then(|a| le64(header, a)),
+        ) else {
             break;
         };
         if id == FILE_PROPERTIES {
-            packet = le32(header, at + 92).filter(|p| *p > 0 && *p <= 1 << 20);
+            packet = at
+                .checked_add(92)
+                .and_then(|a| le32(header, a))
+                .filter(|p| *p > 0 && *p <= MOST_PACKET);
         } else if id == STREAM_PROPERTIES {
-            if let Some(flags) = header.get(at + 72..at + 74) {
+            if let Some(flags) = at.checked_add(72).and_then(|a| bytes_at(header, a, 2)) {
                 let number = u16::from_le_bytes([flags.first().copied().unwrap_or(0), 0]) & 0x7f;
                 if number > 0 && !streams.contains(&number) {
                     streams.push(number);

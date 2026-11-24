@@ -266,15 +266,26 @@ pub(super) async fn take_click(
 }
 
 /// Alt-click: the download about to start is the browser's.
-pub(super) async fn skip_click(click: &decide::PanelClick) -> JsValue {
+pub(super) async fn skip_click(
+    click: &decide::PanelClick,
+    sender: &JsValue,
+    private: bool,
+) -> JsValue {
     match decide::skip_url(click) {
         Ok(url) => {
             RELEASED.with(|r| r.borrow_mut().remember(&url, now()));
             // Firefox does not download on Alt-click as Chromium does;
             // asked to, it downloads it itself, and dm leaves it be
-            // (it did nothing at all).
+            // (it did nothing at all). In the tab's own private window and
+            // container, as the browser's own download would be: without them
+            // a private tab's download went out with the normal session's
+            // cookies and into its history (gaps row H10, audit F1).
             if is_firefox() {
-                let wanted = to_js(&serde_json::json!({ "url": url }));
+                let mut wanted = serde_json::json!({ "url": url, "incognito": private });
+                if let Some(store) = tab_store(sender, "tab") {
+                    wanted["cookieStoreId"] = serde_json::Value::String(store);
+                }
+                let wanted = to_js(&wanted);
                 if let Err(why) = call("downloads", "download", &[wanted]).await {
                     return answer(false, &why);
                 }

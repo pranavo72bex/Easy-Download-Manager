@@ -69,6 +69,40 @@ fn own_provider(content: &str) -> bool {
     host == OWN_PACKAGE || host.starts_with(&format!("{OWN_PACKAGE}."))
 }
 
+/// Keeps a shared `.torrent`'s `bytes` in `torrents` under `name`, or `name (1)` and on where
+/// that is taken, never over a file already there: a row reads its `.torrent` again from its
+/// path each time it starts, so another app sharing one of the same name had that row fetch,
+/// and share, the other's torrent (gaps row H10, audit of the Android app).
+pub(crate) fn keep_torrent(
+    torrents: &std::path::Path,
+    name: &str,
+    bytes: &[u8],
+) -> Result<std::path::PathBuf, String> {
+    use std::io::Write;
+    std::fs::create_dir_all(torrents)
+        .map_err(|e| format!("dm could not make its folder for torrents: {e}"))?;
+    // A name free now, claimed by creating it: another share between the look and the write
+    // takes the next one rather than being written over.
+    for _ in 0..16 {
+        let path = torrents.join(dm_core::free_name(torrents, name));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut file) => {
+                return file
+                    .write_all(bytes)
+                    .map(|()| path)
+                    .map_err(|e| format!("dm could not keep the .torrent: {e}"));
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("dm could not keep the .torrent: {e}")),
+        }
+    }
+    Err("dm could not find a free name for the .torrent".into())
+}
+
 /// The name a shared `.torrent` is kept under in dm's folder: the name the sending app gave
 /// (`display`), else the address's last part, made safe for a file name and ending `.torrent`.
 pub(crate) fn torrent_name(display: Option<&str>, last_part: Option<&str>) -> String {
@@ -163,5 +197,16 @@ mod tests {
         assert_eq!(torrent_name(Some(" .. "), None), "shared.torrent");
         assert_eq!(torrent_name(None, None), "shared.torrent");
         assert!(torrent_name(Some(&"x".repeat(500)), None).len() <= 128);
+    }
+
+    #[test]
+    fn a_shared_torrent_never_replaces_one_already_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = keep_torrent(dir.path(), "ubuntu.torrent", b"the person's").unwrap();
+        let second = keep_torrent(dir.path(), "ubuntu.torrent", b"another app's").unwrap();
+        assert_ne!(first, second);
+        assert_eq!(std::fs::read(&first).unwrap(), b"the person's");
+        assert_eq!(std::fs::read(&second).unwrap(), b"another app's");
+        assert_eq!(second.file_name().unwrap(), "ubuntu (1).torrent");
     }
 }

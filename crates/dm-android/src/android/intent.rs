@@ -145,11 +145,11 @@ fn copy(uri: &str, torrents: &Path) -> Result<std::path::PathBuf, String> {
     if bytes.len() > MOST {
         return Err("the file shared is too big to be a .torrent".into());
     }
-    std::fs::create_dir_all(torrents)
-        .map_err(|e| format!("dm could not make its folder for torrents: {e}"))?;
-    let path = torrents.join(shared::torrent_name(display.as_deref(), last.as_deref()));
-    std::fs::write(&path, &bytes).map_err(|e| format!("dm could not keep the .torrent: {e}"))?;
-    Ok(path)
+    shared::keep_torrent(
+        torrents,
+        &shared::torrent_name(display.as_deref(), last.as_deref()),
+        &bytes,
+    )
 }
 
 /// `Uri.parse(uri)`.

@@ -215,3 +215,28 @@ proptest::proptest! {
         let _ = take_chunks(&mut buffer);
     }
 }
+
+/// An object size near the top of the address space ends the header's reading, where `at + 16`
+/// overflowed and panicked; a packet size over what a chunk can carry is not taken (gaps row
+/// H10).
+#[test]
+fn a_huge_object_or_packet_size_is_refused_not_panicked_on() {
+    let mut header = vec![0u8; 24];
+    header.extend_from_slice(&2u32.to_le_bytes());
+    header.extend_from_slice(&[1, 2]);
+    let mut object = vec![0u8; 16];
+    object.extend_from_slice(&((usize::MAX - 30) as u64).to_le_bytes());
+    header.extend_from_slice(&object);
+    assert_eq!(header_facts(&header), (None, Vec::new()));
+
+    let mut file = FILE_PROPERTIES.to_vec();
+    file.extend_from_slice(&104u64.to_le_bytes());
+    file.resize(92, 0);
+    file.extend_from_slice(&(1u32 << 20).to_le_bytes());
+    file.resize(104, 0);
+    let mut big = vec![0u8; 24];
+    big.extend_from_slice(&1u32.to_le_bytes());
+    big.extend_from_slice(&[1, 2]);
+    big.extend_from_slice(&file);
+    assert_eq!(header_facts(&big).0, None, "a 1 MiB packet size was taken");
+}

@@ -119,8 +119,8 @@
   // the one that hands it to dm whatever its type or size (Shift unless
   // changed). The background is told before the download starts.
   // Capturing, so a page that stops the click on its way up cannot hide the
-  // key. The take key is held to isTrusted, since it hands something over;
-  // a made-up keep click can only leave a download with the browser.
+  // key. Both keys are held to isTrusted: the take key hands something over,
+  // and in Firefox the keep key has the extension download the link.
   const keys = { keep: 'alt', take: 'shift' };
   // The app's master switch and the popup's "Catch downloads": either
   // off, a magnet link is the browser's.
@@ -223,7 +223,10 @@
         return;
       }
     }
-    const keep = held(event, keys.keep);
+    // Both keys held to isTrusted: in Firefox the keep key makes the
+    // extension download the link itself, so a click a page made up could
+    // download any address in the person's name (gaps row H10, audit F1).
+    const keep = event.isTrusted && held(event, keys.keep);
     const take = !keep && !privateTab && keys.take !== '' && event.isTrusted && held(event, keys.take);
     if (!keep && !take) return;
     const link = event.target.closest('a[href]');
