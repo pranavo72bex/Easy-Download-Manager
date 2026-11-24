@@ -10,15 +10,19 @@
     python3 scripts/coverage-table.py missed TABLE FILE        # FILE's lines no test runs
     python3 scripts/coverage-table.py pick TABLE [SKIP...]     # the file to write tests for
 
-`pick` names the file with the most lines no test runs, leaving out what a Linux runner
-cannot run (each system's own code: platform/, the tray, X11, Wayland, macOS, Windows,
-Android, Safari), files too small to be worth a night, and each SKIP (files tried lately).
+`pick` names the file with the most lines no test runs among files a free model can hold in
+mind (400 lines or fewer; a larger one only when none of those is left: the first nightly run
+was given a 434-line module that runs the whole app, and no model's tests compiled), leaving
+out what a Linux runner cannot run (each system's own code: platform/, the tray, X11, Wayland,
+macOS, Windows, Android, Safari), files too small to be worth a night, and each SKIP (files
+tried lately).
 It prints `FILE LINES MISSED`, or nothing when no file is left.
 """
 
 import re
 import sys
 
+SMALL = 400  # lines: what a free model holds in mind while it writes a test
 ELSEWHERE = re.compile(
     r"/platform/|tray|x11|wayland|macos|windows|android|syswindow|mica|safari|"
     r"crates/dm-android/|crates/dm-safari/|/main\.rs$|/build\.rs$"
@@ -72,8 +76,9 @@ def main(argv):
             and lines >= 60
             and missed >= 20
         ]
-        if left:
-            missed, name, lines = max(left)
+        small = [x for x in left if x[2] <= SMALL]
+        if small or left:
+            missed, name, lines = max(small or left)
             print(f"{name} {lines} {missed}")
         return
     sys.exit(__doc__)
