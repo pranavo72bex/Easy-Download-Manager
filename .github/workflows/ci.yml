@@ -20,7 +20,10 @@ jobs:
     # vendored files at their pinned SHA-256, no hidden or direction-changing character, no
     # line written to steer a model, no link in dm's own pages, nothing executable
     # (scripts/ai-skills-check.py; docs/ai-skills/README.md).
-    name: The bots' skills are clean
+    # And the bots' guardrails themselves (scripts/ai-selftest.sh): each refusal tried on a
+    # throwaway repository, so a guardrail that stops working fails here, before a bot
+    # leans on it.
+    name: The bots' skills are clean and their guardrails hold
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -28,6 +31,8 @@ jobs:
           persist-credentials: false
       - name: Check the skills
         run: python3 -I scripts/ai-skills-check.py
+      - name: Try each guardrail
+        run: bash scripts/ai-selftest.sh
 
   extension:
     name: Extension (Rust, WebAssembly)

@@ -85,7 +85,9 @@ jobs:
           set -o pipefail
           mkdir -p .bot
           printf '.bot/\n.gemini/\nopencode.json\n' >> .git/info/exclude
-          cargo llvm-cov --workspace --locked --summary-only | tee .bot/coverage-before.txt
+          # Measured whatever main's own failing tests do: a red test on main is the tests'
+          # to judge, not a reason to measure nothing (the first run died here so).
+          cargo llvm-cov --workspace --locked --summary-only --ignore-run-fail | tee .bot/coverage-before.txt
           # The lines no test runs, file by file, from the same run.
           cargo llvm-cov report --summary-only --show-missing-lines > .bot/missing.txt 2>/dev/null || true
 
@@ -127,6 +129,10 @@ jobs:
         env:
           FILE: ${{ steps.pick.outputs.file }}
         run: python3 -I scripts/ai-context.py "$FILE"
+
+      - name: Main's own failing tests
+        if: steps.pick.outputs.file != ''
+        run: bash scripts/ai-baseline.sh
 
       - name: The agents
         if: steps.pick.outputs.file != ''
@@ -175,6 +181,7 @@ jobs:
             GEMINI_API_KEY="$GEMINI_API_KEY" GEMINI_MODEL="$GEMINI_MODEL" KILO_MODEL="$KILO_MODEL" \
             PROVIDERS="$PROVIDERS" FILE="$FILE" MISSED="$MISSED" TOTAL_BEFORE="$TOTAL_BEFORE" \
             GITHUB_OUTPUT=.bot/outputs CI=true TERM=dumb CARGO_TERM_COLOR=never \
+            AI_BASELINE=/opt/dm-bot/baseline.txt \
             bash -c '
               set +e -uo pipefail
               cd "$0"

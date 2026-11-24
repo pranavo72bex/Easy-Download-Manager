@@ -140,7 +140,10 @@ jobs:
         run: |
           set -o pipefail
           floor=$(cat docs/coverage-floor.txt)
-          cargo llvm-cov --workspace --locked --summary-only --fail-under-lines "$floor" | tee coverage.txt
+          # --ignore-run-fail: a failing test is the Tests jobs' to report; this job reports
+          # only coverage, so main's one red test does not hide the measure (and the bots'
+          # pull requests are judged on each, ai-merge.sh).
+          cargo llvm-cov --workspace --locked --summary-only --ignore-run-fail --fail-under-lines "$floor" | tee coverage.txt
       - name: Say the total in the run's summary
         if: always()
         run: grep -E '^TOTAL' coverage.txt >> "$GITHUB_STEP_SUMMARY" || true

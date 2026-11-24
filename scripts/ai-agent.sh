@@ -112,6 +112,13 @@ ai_guard() {
         echo removes-a-test
         return
     fi
+    # The rules of AGENTS.md and the skill pages that a machine can check, on what the change
+    # adds (scripts/ai-rules.py: no unwrap or panic, note! not eprintln!, named waits, no
+    # foo/mod.rs, tests on 127.0.0.1 only, no unsafe, no lint turned off).
+    if ! python3 -I scripts/ai-rules.py >>.bot/check.log 2>&1; then
+        echo breaks-a-rule
+        return
+    fi
     echo ok
 }
 
@@ -121,8 +128,33 @@ ai_clean() {
         -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL "$@"
 }
 
-# Echoes one word: pass, none (nothing changed), forbidden, removes-a-test or fail. What
-# the checks printed is in .bot/check.log; the coverage summary in .bot/coverage.txt.
+# The tests, held to main's own failures: a test main already fails (AI_BASELINE, read from
+# main's last run, outside the checkout where the model cannot change it) does not refuse a
+# change; any other failing test does, and so does a build that runs no test. With
+# AI_REQUIRE_FEWER=1 (a fix for main's red run) fewer must fail than on main.
+ai_tests() {
+    local junit=target/nextest/ci/junit.xml
+    rm -f "$junit"
+    if ai_clean cargo xtask test --profile ci >>.bot/check.log 2>&1; then
+        echo "The whole test run passed." >>.bot/check.log
+        return 0
+    fi
+    if ! python3 -I scripts/ai-test-failures.py junit "$junit" >.bot/failed-tests.txt 2>>.bot/check.log; then
+        return 1
+    fi
+    if [ ! -s .bot/failed-tests.txt ]; then
+        echo "The test run failed, but no test is named as failing (a doctest, or the run itself)." >>.bot/check.log
+        return 1
+    fi
+    local fewer=()
+    if [ "${AI_REQUIRE_FEWER:-0}" = 1 ]; then fewer=(--fewer); fi
+    python3 -I scripts/ai-test-failures.py within .bot/failed-tests.txt "${AI_BASELINE:-/dev/null}" "${fewer[@]}" >>.bot/check.log
+}
+
+# Echoes one word: pass, none (nothing changed), forbidden, removes-a-test, breaks-a-rule or
+# fail. What the checks printed is in .bot/check.log; the coverage summary in
+# .bot/coverage.txt (measured whatever main's own failing tests do: they are the tests' to
+# judge, above, not coverage's).
 ai_check() {
     local guard
     : >.bot/check.log
@@ -132,8 +164,8 @@ ai_check() {
     if ai_clean cargo clippy --workspace --all-targets --locked -- -D warnings >>.bot/check.log 2>&1 &&
         ai_clean cargo xtask layers >>.bot/check.log 2>&1 && ai_clean cargo xtask headers >>.bot/check.log 2>&1 &&
         ai_clean cargo xtask privacy >>.bot/check.log 2>&1 &&
-        ai_clean cargo xtask test --profile ci >>.bot/check.log 2>&1 &&
-        ai_clean cargo llvm-cov --workspace --locked --summary-only \
+        ai_tests &&
+        ai_clean cargo llvm-cov --workspace --locked --summary-only --ignore-run-fail \
             --fail-under-lines "$(cat docs/coverage-floor.txt)" >.bot/coverage.txt 2>>.bot/check.log; then
         if declare -F ai_extra_check >/dev/null; then
             ai_extra_check

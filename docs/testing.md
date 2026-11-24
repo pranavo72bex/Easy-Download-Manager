@@ -431,6 +431,22 @@ state can steer it: `· person` keeps it from the bots, `· bot` hands it to the
 section "Taken by the free-model bots" in `docs/gaps.md` lists the order they take. A bot
 branch that changes code also runs "Android, the engine built", and ai-merge waits for it.
 
+**Main being red stops nothing.** The tests main already fails are read from its last
+Desktop run (`scripts/ai-baseline.sh`, into a file the model cannot change): a bot's change
+is refused only for a test that fails beside it and not on main, and a fix for main's red
+run must leave fewer failing (`scripts/ai-test-failures.py`). At merge, a failing job on the
+bot's branch is held against the same job on main: failing only where main fails too, it
+does not stop the merge; a job that fails naming no test (a build, a lint, the coverage
+floor) always does; a cancelled run is run again. Coverage is measured whatever tests fail
+(`--ignore-run-fail`, also in Desktop's coverage job): failures are the tests' to report.
+
+**The rules, checked by machine** (`scripts/ai-rules.py`, on what a change adds): no
+`unwrap`, `expect` or `panic` in shipped code, `note!` not `eprintln!` or `dbg!`, a wait or a
+timeout a named const, no `foo/mod.rs`, a test reaching only 127.0.0.1, no `unsafe`, no lint
+turned off. The review adds what a machine cannot: words in `assets/i18n`, the theme's
+tokens, one filled button. `scripts/ai-selftest.sh`, a CI job, tries every guardrail on a
+throwaway repository, so one that stops working fails CI before a bot leans on it.
+
 What any change is held to (`ai_check`): no edit to the guardrails (the workflows,
 `scripts/`, `tooling/xtask/`, `.config/`, `.cargo/`, `Cargo.lock`, the floors,
 `CLAUDE.md`, `AGENTS.md`, `docs/ai-notes.md`, `docs/ai-skills/`, `.claude/`), no test removed or `#[ignore]`d, no

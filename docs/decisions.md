@@ -9010,3 +9010,19 @@ stays a session's tool, as what it would build is the bots' guardrails. Not take
 and `variant` (web harness pages). Every file copied into `.claude/skills/` from outside is
 now pinned by SHA-256 in `.claude/skills/UPSTREAM.tsv`, and `scripts/ai-skills-check.py`
 fails a changed one, or an unnamed file inside a copied skill, as it does for `vendor/`.
+
+## The bots work while main is red, keep the rules by machine, and their guardrails are tested, 2026-11-24
+
+CI/CD was failing, and the bots with it: the first nightly test run died measuring coverage
+(one red test on main made `cargo llvm-cov` stop), and while main is red every bot change
+failed its checks and could never merge, whatever it did. So: coverage is measured with
+`--ignore-run-fail` (the bots' and Desktop's coverage job), failures being the tests' to
+report; the tests main already fails (`scripts/ai-baseline.sh`, read from main's last Desktop
+run, kept where the model cannot change it) do not refuse a change, a new failing test does,
+and a fix for main's red run must leave fewer; at merge a failing job counts only where it
+fails a test main does not (a build, lint or coverage failure always counts), and a
+cancelled run is run again. The rules of `AGENTS.md` and the skill pages a machine can check
+are checked on what a change adds (`scripts/ai-rules.py`), the rest asked of the review; and
+`scripts/ai-selftest.sh` (CI) tries all 35 guardrail cases on throwaway repositories. Found
+on the way: a missing label made the worker's whole edit fail (#56 was never queued); the
+worker now makes every label first.

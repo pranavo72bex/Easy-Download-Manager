@@ -152,6 +152,12 @@ jobs:
         if: steps.context.outputs.skip == ''
         run: AI_TASK="$TASK" python3 -I scripts/ai-context.py
 
+      # The tests main already fails, outside the checkout (root's): a bot's change is refused
+      # only for one that fails beside it and not on main.
+      - name: Main's own failing tests
+        if: steps.context.outputs.skip == ''
+        run: bash scripts/ai-baseline.sh
+
       - name: The agents
         if: steps.context.outputs.skip == ''
         run: npm install -g @google/gemini-cli@0.68.0 opencode-ai@1.19.5
@@ -230,6 +236,7 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           KILO_MODEL: ${{ vars.KILO_MODEL }}
           REVISING: ${{ steps.pr.outputs.task }}
+          OS_ONLY: ${{ steps.context.outputs.os_only }}
           GH_TOKEN: '' # the models' step holds no GitHub token, not even a read-only one
         run: |
           # The models, and every program their code becomes, run as dmbot: a user of its own
@@ -244,9 +251,14 @@ jobs:
           if [ "$kind" = revise ]; then kind=$REVISING; fi
           contract=0
           if [ "$kind" = feature ] || [ "$kind" = improve ]; then contract=1; fi
+          # A fix for main's red run must leave fewer of main's tests failing (on Linux, where
+          # this runs: not for a failure seen only on Windows or macOS).
+          fewer=0
+          if [ "$TASK" = ci ] && [ "$OS_ONLY" != true ] && [ -s /opt/dm-bot/baseline.txt ]; then fewer=1; fi
           sudo -u dmbot -H env -i HOME=/home/dmbot USER=dmbot PATH="$HOME/.cargo/bin:$PATH" CARGO_HOME="$HOME/.cargo" RUSTUP_HOME="$HOME/.rustup" \
             GEMINI_API_KEY="$GEMINI_API_KEY" GEMINI_MODEL="$GEMINI_MODEL" KILO_MODEL="$KILO_MODEL" \
             PROVIDERS="$PROVIDERS" TASK="$TASK" AI_CONTRACT_ADD="$contract" GITHUB_OUTPUT=.bot/outputs \
+            AI_BASELINE=/opt/dm-bot/baseline.txt AI_REQUIRE_FEWER="$fewer" \
             CI=true TERM=dumb CARGO_TERM_COLOR=never \
             bash -c '
               set +e -uo pipefail
