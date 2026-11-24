@@ -391,12 +391,17 @@ impl Properties {
         let path = row.path.clone();
         let row_for_details = row.clone();
         native::buttons(
-            vec![native::enabled(
-                finished,
-                native::button("open", t("Open").into(), false, theme, screen)
-                    .on_click(cx.listener(move |this, _, _, cx| this.open_file(path.clone(), cx))),
-            )
-            .into_any_element()]
+            // Its page of the guide first (gaps row E11).
+            vec![
+                native::help_button("properties", theme, screen).into_any_element(),
+                native::enabled(
+                    finished,
+                    native::button("open", t("Open").into(), false, theme, screen).on_click(
+                        cx.listener(move |this, _, _, cx| this.open_file(path.clone(), cx)),
+                    ),
+                )
+                .into_any_element(),
+            ]
             .into_iter()
             .chain(failed.then(|| {
                 native::button(

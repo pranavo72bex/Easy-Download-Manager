@@ -240,7 +240,10 @@ impl Render for Limiter {
                         d.child(native::note(says, theme.warning, &screen))
                     })
                     .child(native::buttons(
-                        Vec::new(),
+                        // Its page of the guide (gaps row E11).
+                        vec![
+                            native::help_button("speed-limiter", theme, &screen).into_any_element()
+                        ],
                         vec![
                             native::button("cancel", t("Cancel").into(), false, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, _| this.cancel(window)))

@@ -286,7 +286,8 @@ impl Grabber {
         cx: &mut Context<Self>,
     ) -> gpui::Div {
         native::buttons(
-            Vec::new(),
+            // Its page of the guide (gaps row E11).
+            vec![native::help_button("grabber", theme, screen).into_any_element()],
             std::iter::once(
                 native::button("close", t("Close").into(), !found_any, theme, screen)
                     .on_click(cx.listener(|_, _, window, _| window.remove_window()))
