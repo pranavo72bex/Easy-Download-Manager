@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Text size goes up to 150% and 200% (Options › General and View › Text size) for anyone who needs larger words.
 - The progress window leads with what you look for: how far, how fast and how long, in larger type over the bar; its main button stands out and Cancel download is in red.
 - The side panel is quieter: the place you are in is marked with a soft fill and a bar at its edge, and places with nothing in them show no "0".
 - Each download's Status starts with a mark you can tell by its shape (running, paused, waiting, done, failed), and its progress bar is easier to see.

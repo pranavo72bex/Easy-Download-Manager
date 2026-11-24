@@ -92,8 +92,8 @@ fn appearance(
             &screen,
         ),
     );
-    // The window's scale, a slider of four stops (60, 80, 100 and 120
-    // percent; the maintainer's word), the one View › Larger
+    // The window's scale, a slider of stops (60, 80, 100 and 120 percent, the
+    // maintainer's word; 150 and 200 for a person who needs them, gaps row E12), the one View › Larger
     // and Smaller and Ctrl (⌘) with + and − also step: it shows the scale in
     // force, a choice takes effect at once in every window, and it is kept
     // whatever OK or Cancel. Each stop's

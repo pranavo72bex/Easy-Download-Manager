@@ -49,7 +49,7 @@ pub struct SetLanguage {
 }
 
 /// View › Text size › Larger (Ctrl or ⌘ with +): everything a stop
-/// larger (60, 80, 100, 120%), in every window.
+/// larger (60, 80, 100, 120, 150, 200%), in every window.
 #[derive(Clone, PartialEq, Default, Action)]
 #[action(namespace = dm, no_json)]
 pub struct TextLarger;

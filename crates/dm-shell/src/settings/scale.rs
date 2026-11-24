@@ -6,19 +6,20 @@
 //! The window's scale and the side panel's widths, as Options and View set them.
 
 /// The window's scale (Options › General › Appearance's slider, View ›
-/// Larger and Smaller): four stops, 60, 80, 100 and 120 percent, 100 the
-/// default (the maintainer's word, docs/decisions.md 2026-11-11).
+/// Larger and Smaller): 60, 80, 100 and 120 percent, 100 the default (the
+/// maintainer's word, docs/decisions.md 2026-11-11), and 150 and 200 for a
+/// person who needs them (gaps row E12, the maintainer's word of 2026-11-24).
 pub struct TextSizes {
     /// The window as it is designed.
     pub default: f32,
     /// The stops, smallest first.
-    pub stops: [f32; 4],
+    pub stops: [f32; 6],
 }
 
 /// The scales the window offers.
 pub const TEXT_SIZE: TextSizes = TextSizes {
     default: 1.0,
-    stops: [0.6, 0.8, 1.0, 1.2],
+    stops: [0.6, 0.8, 1.0, 1.2, 1.5, 2.0],
 };
 
 /// How wide the GPUI window's side panel may be, in points at 100% (gaps row U12).

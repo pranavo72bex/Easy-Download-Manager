@@ -1477,8 +1477,8 @@ fn a_test_of_this_crate_keeps_its_settings_out_of_the_real_home() {
 /// file's names read as 80, 100 and 120, and View's steps held at 60 and
 /// 120.
 #[test]
-fn the_text_size_is_one_of_four_stops_kept_and_stepped() {
-    assert_eq!(TEXT_SIZE.stops, [0.6, 0.8, 1.0, 1.2]);
+fn the_text_size_is_one_of_its_stops_kept_and_stepped() {
+    assert_eq!(TEXT_SIZE.stops, [0.6, 0.8, 1.0, 1.2, 1.5, 2.0]);
     assert_eq!(Settings::default().text_size, 1.0);
     let old: Settings = serde_json::from_str("{}").unwrap();
     assert_eq!(old.text_size, 1.0, "a file from before it is 100%");
@@ -1497,7 +1497,8 @@ fn the_text_size_is_one_of_four_stops_kept_and_stepped() {
         ("0.6", 0.6),
         ("0.85", 0.8),
         ("1.1", 1.0),
-        ("9", 1.2),
+        ("9", 2.0),
+        ("1.6", 1.5),
         ("0.01", 0.6),
         ("-2", 0.6),
         ("80", 0.8),
@@ -1528,7 +1529,8 @@ fn the_text_size_is_one_of_four_stops_kept_and_stepped() {
     assert_eq!(odd.clamped().text_size, 1.0);
 
     assert_eq!(TEXT_SIZE.stepped(1.0, true), 1.2);
-    assert_eq!(TEXT_SIZE.stepped(1.2, true), 1.2, "held at 120");
+    assert_eq!(TEXT_SIZE.stepped(1.2, true), 1.5);
+    assert_eq!(TEXT_SIZE.stepped(2.0, true), 2.0, "held at 200");
     assert_eq!(TEXT_SIZE.stepped(1.0, false), 0.8);
     assert_eq!(TEXT_SIZE.stepped(0.8, false), 0.6);
     assert_eq!(TEXT_SIZE.stepped(0.6, false), 0.6, "held at 60");
