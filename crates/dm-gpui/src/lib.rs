@@ -315,6 +315,8 @@ fn windowed(ready: Ready, wake: &Arc<dyn Fn(Wake) + Send + Sync>, application: g
     application.run(move |cx: &mut App| {
         // The text fields and the system's own menus (gpui-component).
         gpui_component::init(cx);
+        // A form's labels measured as they are drawn (gaps row E2).
+        widgets::native::measure_with(cx);
         // Notifications are posted as dm's own (macOS: its bundle id),
         // claimed after GPUI's own notification centre has started: the
         // claim before it made the system look for a bundle a bare

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed: a label longer than its dialog guessed (the progress window's "When this download is done", and others in a longer language) began outside the window's left edge; labels are now measured as they are drawn. A column's heading or value longer than its column (German's "Übertragungsrate") ends in "…" inside it instead of starting outside it.
 - Torrent feeds can be followed: a feed's `.torrent` files and magnet links are added as torrents, and "Only add new items whose titles have the words" keeps only the ones you want.
 - Browser extension: the toolbar popup lists the downloads stopped or finished last under "Recent", with Open, Open folder, Resume or Retry, and Clear finished; a running download has Stop. Needs this dm; with an older one the popup shows what it did before.
 - Android: holding a download's card opens its menu at once (it acted as a tap before); Back in Options goes from a page to the list, then closes Options; the phone no longer shows desktop-only items (View's side panel, toolbar, drop target and columns, Check for updates, Sounds).

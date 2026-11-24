@@ -24,6 +24,9 @@ impl Look {
             t("File size"),
             t("Downloaded"),
             t("Can resume"),
+            t("Speed"),
+            t("Time left"),
+            t("When this download is done"),
         ]);
         Self {
             theme,
@@ -38,7 +41,8 @@ impl Look {
             Some(t(label)),
             self.width,
             &self.screen,
-            div().child(self.screen.label(words)),
+            // Wrapped at the window's edge where a fact is longer than its line (gaps row E2).
+            div().min_w_0().child(self.screen.label(words)),
         )
     }
 }

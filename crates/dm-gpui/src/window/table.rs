@@ -126,6 +126,18 @@ pub fn least_width(view: &Downloads) -> f32 {
         + 8.0
 }
 
+/// `words` in a cell, able to be narrower than they are: cut at the cell's end with an
+/// ellipsis where the column is narrower. As a flex item of their own width a right-aligned
+/// column's words began outside it ("ertragungsrate" for "Übertragungsrate", gaps row E2).
+pub(crate) fn fitted(words: impl IntoElement) -> gpui::Div {
+    div()
+        .min_w_0()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_ellipsis()
+        .child(words)
+}
+
 /// A cell of `column` sized as its column is: one line, cut short with an
 /// ellipsis where its words are longer.
 fn cell(column: Column, widths: &Widths) -> gpui::Div {
@@ -420,7 +432,7 @@ fn row_cells(
                 let numeric = numeric(column);
                 let worded = cell(column, widths)
                     .when(!numeric, |c| c.text_color(theme.muted))
-                    .child(screen.label(said.clone()));
+                    .child(fitted(screen.label(said.clone())));
                 maybe_told(worded, told, (column.key(), id), place, said)
             }
         })

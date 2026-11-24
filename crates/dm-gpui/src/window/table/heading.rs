@@ -142,7 +142,7 @@ pub fn header(
                                 view.move_column(dragged.column, column, cx)
                             }))
                     })
-                    .child(screen.label(format!("{heading}{arrow}")))
+                    .child(super::fitted(screen.label(format!("{heading}{arrow}"))))
                     // Its right edge dragged makes it wider or narrower, and a double-click there
                     // fits it to what it shows (gaps row U4). Not the name's, which takes the rest.
                     .when(width(column).is_some(), |heading| {

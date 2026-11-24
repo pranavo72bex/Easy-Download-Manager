@@ -343,8 +343,10 @@ pub fn row(
         .items_center()
         .gap(px(LABEL_GAP))
         .child(
+            // At least the column's width, and wider where a label is longer than measured,
+            // so its words push the control along rather than begin outside the window.
             div()
-                .w(px(label_width))
+                .min_w(px(label_width))
                 .flex_none()
                 .flex()
                 .justify_end()
@@ -362,17 +364,6 @@ pub fn row(
                 .gap(px(LABEL_GAP))
                 .child(control),
         )
-}
-
-/// The width a form's label column needs for `labels` at the system's
-/// size: the widest, measured as the system font sets these words (about
-/// 0.55 of the size a letter), never under 60 points.
-pub fn label_width(labels: &[&str]) -> f32 {
-    labels
-        .iter()
-        .map(|l| l.chars().count() as f32 * TEXT * 0.55)
-        .fold(60.0, f32::max)
-        .ceil()
 }
 
 /// A check box and its words, as the system draws one: ticked, in the
@@ -763,8 +754,10 @@ pub fn time_picked(time: &mut String, hour: bool, to: usize) {
     *time = if hour { time_of(to, m) } else { time_of(h, to) };
 }
 
+mod measure;
 mod path;
 mod switch;
+pub use measure::{label_width, measure_with};
 pub use switch::{switch, switch_inline};
 mod phone;
 pub use path::path_field;

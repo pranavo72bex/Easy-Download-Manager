@@ -233,6 +233,7 @@ impl Harness {
         let (wakes, woken) = dm_desktop_base::wakes::pair();
         let mut cx = TestAppContext::single();
         cx.update(gpui_component::init);
+        cx.update(|cx| crate::widgets::native::measure_with(cx));
         crate::window::screen::record();
         // As `main` opens it: the list in gpui-component's root, then what the application
         // hears beside it (`wire`: the keys, the menus, Quit and the text size).

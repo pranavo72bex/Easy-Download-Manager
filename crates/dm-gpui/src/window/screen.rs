@@ -21,8 +21,12 @@ use gpui::{div, prelude::*, AnyWindowHandle, App, Bounds, Global, Pixels, Shared
 pub struct Drawn {
     /// The words.
     pub text: SharedString,
-    /// Where.
+    /// Where they can be seen: their place, less what the window or a scrolled page hides.
     pub bounds: Bounds<Pixels>,
+    /// Where they were laid out, the part cut off included: words that run past the window's
+    /// edge show it here (gaps row E2). Read by the window's tests.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub laid: Bounds<Pixels>,
 }
 
 /// This frame's words, in the order they were laid out (back to front).
@@ -81,6 +85,7 @@ impl Screen {
                     record.borrow_mut().push(Drawn {
                         text: words.clone(),
                         bounds: seen,
+                        laid: *bounds,
                     });
                 }
             })
@@ -179,6 +184,7 @@ impl Screens {
                 screen.0.borrow_mut().push(Drawn {
                     text: text.into(),
                     bounds: seen,
+                    laid: bounds,
                 });
             }
         }

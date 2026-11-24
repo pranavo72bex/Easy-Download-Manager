@@ -22,12 +22,14 @@ filter (C10) and recent downloads in the extension popup (C12). `cargo test --wo
 passed, 0 failed.
 
 **Start with, in this order:**
-1. Rows E, first priority (section below): E1 and E2, then the next E row that can move.
+1. Rows E, first priority (section below): E1 and E2 are done (2026-11-24); every other E row
+   waits for the maintainer's word but E5 and E7, so E5 and E7 next, then rows H.
 2. Phone leftovers: Download details and the video's quality list seen on the emulator, and a
    text field's long press (N31); Share of several files (N23); haptic feedback (C22);
    changes applied at once and a "More" section in Options on the phone (C21); the rest of N24.
 3. Owed checks: `python3 scripts/human-qa.py` in a visible window before the next merge or
-   release; the extension popup's new buttons clicked through in Edge (C12); a reader for the
+   release (B25's Download details picture may move a few points: a form's label column is now
+   measured, not guessed, E2); the extension popup's new buttons clicked through in Edge (C12); a reader for the
    new translations in `assets/i18n/unread/`; the maintainer's word on mentioning the torrent
    feed's word filter in contract row B75 (C10).
 4. Timing tests that fail under load (N33): `seam_check`, `limits`, `second_path`,
@@ -906,7 +908,7 @@ below 600 points (`window/narrow.rs`). Three things hold it back:
 
 | #   | Gap | Status | Next |
 |-----|-----|--------|------|
-| V1  | No written rule for wording: `docs/ui-design.md` covers colours and sizes only | OPEN · S | A "Words" section: sentence case; a button is a verb of one or two words; a label under 40 characters; a help line under 90, one idea; no "please", no "!"; say "you", not "the user"; numbers with their unit. With U20's list of one word per thing |
+| V1  | The wording rule lacks its list of one word per thing | PARTIAL | `docs/ui-design.md` has its "Words" section (2026-11-24). Left: U20's list of one word per thing, once U20 is decided |
 | V2  | 150 strings over 60 characters, 24 over 120; on a phone a setting's explanation fills the screen | OPEN · M | Each long string cut to one short line under its setting; the rest moves to that setting's page in `docs/guide/`, opened by a "Learn more" link. Longest first (the dial-up, firewall, "Only through", backup and seeding texts) |
 | V3  | Capitals are mixed: "Stop All", "Start Queue", "Delete Completed", "File Name", "Last Try Date" beside sentence-case lines | OPEN · S | Sentence case everywhere ("Stop all", "File name"); menu words that follow reference A are changed in `docs/parity.md` in the same commit |
 | V4  | A failure is told in several shapes ("could not" 16 times, "failed" 6, "cannot" 5), often in one long sentence | OPEN · M | One shape: what happened in a few words on the row ("Server refused the sign-in"), what to do in the details ("Check the user name and password in Properties"). `docs/guide/failures.md` follows |
@@ -1010,10 +1012,9 @@ its window before and after at 360, 700 and 1280 points wide, light and dark.
 
 ### E, first part: the rule, and two defects
 
-| #   | Gap | Status | Next |
-|-----|-----|--------|------|
-| E1  | `docs/ui-design.md` gives colours and sizes but no rule for rank, and is stale: Fluent's colours on every system (the tokens are per system), a "Program" menu, Properties on a double-click (B46 opens the progress window) | OPEN · S | Rewritten as the rules the rows below are checked against: one filled button in a window, its main action; the accent for that, the selection and progress alone; the error colour for a failure and a destructive button alone; three ranks of text (figure, body, hint); a state is a mark and a word, never colour alone; labels in one column; nothing cut while room stands empty. With V1's words |
-| E2  | Text cut by its own window, as pictured on 2026-11-16: the progress window's "When this download is done" starts outside the left edge ("ownload is done"); the Scheduler's "Stop at" minutes run past the right edge | OPEN · S · a defect, no word needed | A fresh picture first (`dialogs/progress.rs` is being changed for N31). The label column is as wide as its longest label in the language shown; the Scheduler's hours wrap to a second line. A window test in English and German at each dialog's least width |
+Done 2026-11-24 (E1, E2): `docs/ui-design.md` holds the rules the rows below are checked against; the
+progress window's label, the Scheduler's times and the list's headings stay inside their room in
+English and German (`window_tests/layout/language.rs`).
 
 ### E, second part: the main window
 

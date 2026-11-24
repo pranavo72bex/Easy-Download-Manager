@@ -178,3 +178,67 @@ fn a_language_read_right_to_left_mirrors_the_window_and_english_does_not() {
     }
     i18n::set("en");
 }
+
+/// No word of the progress window or the Scheduler starts outside its window's left edge or
+/// runs past its right one, in English and in German, at the size each opens at (gaps row E2:
+/// "When this download is done" began outside the left edge, the Scheduler's "Stop at" minutes
+/// ran past the right one).
+#[test]
+fn the_progress_window_and_the_scheduler_keep_their_words_inside_in_english_and_german() {
+    use dm_desktop_base::i18n::t;
+    // The language and the text size are the process's.
+    let _file = settings_file();
+    for language in ["en", "de"] {
+        let world = world();
+        let mut settings = world.settings();
+        settings.general.language = language.into();
+        let mut h = world.harness_with(settings);
+        dm_desktop_base::i18n::set(language);
+        h.call(
+            "downloads.add",
+            serde_json::json!({ "urls": [world.url("file.zip")], "later": true }),
+        )
+        .unwrap();
+        h.until("the row", |h| h.rows().len() == 1);
+        let id = h.rows()[0].id;
+        h.update(|view, cx| view.show_progress(id, cx));
+        h.until_shown(t("When this download is done"));
+        let past = h.words_past_the_edges();
+        assert!(past.is_empty(), "progress window, {language}: {past:#?}");
+        h.key("escape", &[]);
+        h.until("the progress window to close", |h| h.dialogs().is_empty());
+        h.command("downloads.scheduler");
+        h.until_shown(t("Stop at"));
+        let past = h.words_past_the_edges();
+        assert!(past.is_empty(), "Scheduler, {language}: {past:#?}");
+    }
+    dm_desktop_base::i18n::set("en");
+}
+
+/// In German, where the list's headings are longest, no word of the main window is laid out
+/// past the edge of what shows it: a column's heading ends in "…" in its column, and did not
+/// begin outside it ("ertragungsrate" for "Übertragungsrate", gaps row E2).
+#[test]
+fn no_word_of_the_main_window_is_cut_unseen_in_german() {
+    // The language and the text size are the process's.
+    let _file = settings_file();
+    let world = world();
+    let mut settings = world.settings();
+    settings.general.language = "de".into();
+    let mut h = world.harness_with(settings);
+    dm_desktop_base::i18n::set("de");
+    h.call(
+        "downloads.add",
+        serde_json::json!({ "urls": [world.url("file.zip")] }),
+    )
+    .unwrap();
+    h.until("the download to complete", |h| {
+        h.rows()
+            .iter()
+            .any(|r| r.state == dm_core::State::Completed)
+    });
+    h.until_shown("Übertragungsrate");
+    let cut = h.words_cut_unseen();
+    dm_desktop_base::i18n::set("en");
+    assert!(cut.is_empty(), "{cut:#?}");
+}

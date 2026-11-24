@@ -54,6 +54,45 @@ impl Harness {
         })
     }
 
+    /// The words of the dialog in front that are laid out, even in part, past its window's left
+    /// or right edge (gaps row E2: nothing is cut while room stands empty).
+    pub(crate) fn words_past_the_edges(&mut self) -> Vec<String> {
+        let (window, drawn) = self.front_dialog();
+        let width = self.cx.update(|cx| {
+            window
+                .update(cx, |_, window, _| window.viewport_size().width)
+                .unwrap()
+        });
+        drawn
+            .iter()
+            .filter(|d| !d.text.trim().is_empty())
+            .filter(|d| d.laid.left() < gpui::px(0.0) || d.laid.right() > width)
+            .map(|d| format!("{:?} at {:?} in {width:?}", d.text, d.laid))
+            .collect()
+    }
+
+    /// The main window's words that are laid out past the edges of what shows them: the part
+    /// cut off is hidden with no "…" to say so (gaps row E2).
+    pub(crate) fn words_cut_unseen(&mut self) -> Vec<String> {
+        self.step();
+        let drawn = self.cx.update(|cx| {
+            crate::window::screen::Screens::all(cx)
+                .into_iter()
+                .filter(|(_, _, dialog)| !*dialog)
+                .flat_map(|(_, screen, _)| screen.drawn())
+                .collect::<Vec<_>>()
+        });
+        let half = gpui::px(0.5);
+        drawn
+            .iter()
+            .filter(|d| !d.text.trim().is_empty())
+            .filter(|d| {
+                d.laid.left() < d.bounds.left() - half || d.laid.right() > d.bounds.right() + half
+            })
+            .map(|d| format!("{:?} laid at {:?}, seen at {:?}", d.text, d.laid, d.bounds))
+            .collect()
+    }
+
     /// Where the words `words` are in the dialog in front, if they are on it.
     pub(crate) fn dialog_words(&mut self, words: &str) -> Option<gpui::Bounds<gpui::Pixels>> {
         let (_, drawn) = self.front_dialog();

@@ -8764,3 +8764,26 @@ fields, which keeps each menu's order in a second place; and declaring the narro
 buttons (Add, search, the choosing bar), which the sheets reach anyway. Options' settings are
 not actions and stay with N24 and N31. Nothing was added to the phone: the audit's misses
 (N23) were already closed, and the test found none left.
+
+## 2026-11-24: A form's labels measured by the text system; words never begin outside their room (gaps rows E1, E2)
+
+- `docs/ui-design.md` is now the rules a window is checked against (rank, the accent's and the
+  error colour's three and two uses, three ranks of text, a state as a mark and a word, one label
+  column, nothing cut while room stands empty) and V1's words; the per-system colours and sizes
+  are given as roles with the file that holds them, not copied values, so the page cannot go
+  stale as it had (Fluent's colours on every system, a "Program" menu, Properties on a
+  double-click).
+- `native::label_width` measures each label with GPUI's text system (each letter's advance in
+  the interface font), kept once per thread by `native::measure_with` after gpui-component's
+  theme is set (`lib.rs` and the test harness). The guess of 0.55 of the size a letter fell a
+  tenth short ("When this download is done": 186 points for 203), so a right-aligned label began
+  outside the window. Before the text system is kept the guess is 0.6. Set aside: measuring in
+  each dialog's render with its `Window` (thirteen dialogs' constructors would take it) and a
+  CSS-like grid with an auto column (GPUI's grid columns are equal shares).
+- `native::row`'s label column is a least width, not a fixed one, so a label longer than measured
+  pushes its control along rather than spilling out of the window.
+- A list cell's and a heading's words are wrapped in `table::fitted` (`min_w_0`): as a flex item
+  of their own width, a right-aligned column's words began outside it ("ertragungsrate").
+- `screen::Drawn` keeps `laid` (where words were laid out) beside `bounds` (what is seen), so a
+  test can tell words cut by a window's edge or a column; `words_past_the_edges` and
+  `words_cut_unseen` in the harness use it.
