@@ -1,0 +1,35 @@
+name: AI worker
+
+# The bots' queue (scripts/ai-worker.sh): every two hours, and whenever a bot finishes or
+# queues something, it starts the next task for the free AI models, one at a time (main's
+# red runs, revisions of the bot's pull requests, people's bugs, features, then the nightly
+# tests), retries what failed a week ago, moves the bot's waiting pull requests on to
+# ai-merge.yml, and keeps the repository's schedules from being switched off.
+on:
+  schedule:
+    - cron: '23 */2 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write # starts ai-fix, ai-tests, ai-merge
+  contents: write # .github/keepalive
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: ai-worker
+  cancel-in-progress: false
+
+jobs:
+  next:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BOT_FEATURE_VOTES: ${{ vars.BOT_FEATURE_VOTES }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: The next task
+        run: bash scripts/ai-worker.sh

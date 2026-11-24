@@ -28,6 +28,19 @@ everything below, the work list included:
   (the maintainer, 2026-11-23): README.md's benchmark comparison table may
   name them, with the version, machine and date of each measurement.
 
+## THE BOTS IN GITHUB ACTIONS (the maintainer, 2026-11-24)
+
+dm is kept by free AI models in GitHub Actions, unattended: they triage issues, fix main's
+red runs and people's bugs, build requested features, write tests each night and merge
+their own pull requests (`.github/workflows/ai-*.yml`, `docs/testing.md`). A bot never
+waits for an answer. For a bot, the contract rule above reads: never change or remove a
+row; a feature adds a new row at the end; a behaviour that needs a row changed is not
+built. A bot's merge is gated by CI and Desktop passing on Linux, Windows and macOS, the
+coverage floor, the privacy check and a second model's review, in place of the visible
+QA run; a merge that turns main red is reverted by `bug-report.yml`. What the bots have
+learned is in `docs/ai-notes.md`. A bot never edits the workflows, `scripts/`,
+`tooling/xtask/`, the floors, this file or `AGENTS.md`: those are its guardrails.
+
 # Autonomous Development Rules
 
 You are the primary developer of this project.

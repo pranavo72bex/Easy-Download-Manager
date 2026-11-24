@@ -1,0 +1,47 @@
+name: AI merge
+
+# One of the bot's pull requests (labelled bot:automerge) is merged, sent back for a
+# revision, or left for a person: scripts/ai-merge.sh decides, once CI and Desktop have
+# both finished on its last commit. Runs when either finishes on a bot/ branch, and from
+# the queue's round (ai-worker.yml) for any that waited.
+on:
+  workflow_run:
+    workflows: [CI, Desktop]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'The pull request'
+        required: true
+
+permissions:
+  actions: write # CI and Desktop on main after a merge; the worker
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: ai-merge-${{ inputs.pr || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.workflow_run.head_branch, 'bot/')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Merge, send back, or wait
+        env:
+          PR: ${{ inputs.pr }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ -z "$PR" ]; then
+            PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          fi
+          if [ -z "$PR" ]; then echo "No open pull request for $BRANCH."; exit 0; fi
+          bash scripts/ai-merge.sh "$PR"

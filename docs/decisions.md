@@ -8936,3 +8936,22 @@ Tried and dropped: the OpenRouter, Cerebras and NVIDIA free tiers (each needs a 
 the maintainer could not complete), GitHub Models (8k tokens of input, too few for an
 agent), and a router stacking free providers behind one address (it installs from a
 repository's moving branch, and adds nothing without more keys).
+
+## The bots keep dm unattended, inside guardrails they cannot edit, 2026-11-24
+
+The maintainer: everything automatic, working even if no one looks at the project again,
+run by free models and GitHub Actions, improving on users' and the maintainer's feedback.
+So the bots now triage every issue, fix main's failures and people's bugs, build requested
+features, write tests and merge their own pull requests (`docs/testing.md`, "The bots").
+What keeps that safe with nobody reviewing: the guardrails (the workflows, `scripts/`,
+xtask, the floors, `CLAUDE.md`) are files no bot may change; every merge passes CI on three
+systems, the coverage floor, the privacy check and a second model's review; a bot merge
+that turns main red is reverted; a fix for a reported bug must bring a test that fails
+without it; a feature adds contract rows and never changes one; and what a stranger asks
+for is merged unattended only when it touches nothing that reaches the network, the
+browser, the updater, secrets or packaging, which wait for a person. A feature needs three
+thumbs-up (or the maintainer) before a model spends a day's quota on it. Only the
+maintainer's words and the machine's own output become notes every later prompt reads, so
+one crafted issue cannot steer all future runs. Releases stay the maintainer's: they need
+the signing key. Kept alive past GitHub's 60-day rule for quiet repositories by a commit
+the worker writes after 45 quiet days.

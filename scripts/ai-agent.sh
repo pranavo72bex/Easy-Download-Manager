@@ -21,12 +21,24 @@
 AI_ATTEMPTS=${AI_ATTEMPTS:-2}
 AI_TIMEOUT=${AI_TIMEOUT:-60m}
 GEMINI_MODEL=${GEMINI_MODEL:-}
-KILO_MODEL=${KILO_MODEL:-nvidia/nemotron-3-ultra-550b-a55b:free}
+KILO_MODEL=${KILO_MODEL:-}
+# 1 (a feature's task): rows may be added to docs/behaviour-contract.md, never changed or
+# taken away.
+AI_CONTRACT_ADD=${AI_CONTRACT_ADD:-0}
 
 # Gemini CLI's tools: read, search, edit, and cargo and read-only git in the shell.
 # opencode's: the same, Kilo's gateway as an OpenAI-compatible provider, the web denied.
 ai_setup() {
     mkdir -p "$HOME/.gemini" .bot
+    # Free models come and go: unless one is named, the first that answers now
+    # (scripts/ai-ask.py reads each provider's own catalogue).
+    if [ -z "$GEMINI_MODEL" ] && [ -n "${GEMINI_API_KEY:-}" ]; then
+        GEMINI_MODEL=$(python3 scripts/ai-ask.py pick gemini 2>/dev/null || true)
+    fi
+    if [ -z "$KILO_MODEL" ]; then
+        KILO_MODEL=$(python3 scripts/ai-ask.py pick kilo 2>/dev/null || echo nvidia/nemotron-3-ultra-550b-a55b:free)
+    fi
+    echo "Models: gemini ${GEMINI_MODEL:-the default of Gemini CLI}, kilo $KILO_MODEL"
     cat >"$HOME/.gemini/settings.json" <<'EOF'
 { "model": { "maxSessionTurns": 120 },
   "tools": { "core": [ "list_directory", "read_file", "glob", "grep_search", "search_file_content",
@@ -67,13 +79,22 @@ ai_run() {
 # Echoes one word: pass, none (nothing changed), forbidden, removes-a-test or fail. What
 # the checks printed is in .bot/check.log; the coverage summary in .bot/coverage.txt.
 ai_check() {
-    local changed
+    local changed guarded
     : >.bot/check.log
     changed=$(git status --porcelain)
     if [ -z "$changed" ]; then echo none; return; fi
-    if grep -qE ' (\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|docs/behaviour-contract\.md|docs/behaviour-baseline/|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|Cargo\.lock|rust-toolchain\.toml)' <<<"$changed"; then
-        echo "Changed a file the checks depend on, which no change may touch:" >>.bot/check.log
-        grep -E ' (\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|docs/behaviour-|docs/coverage-floor|docs/contract-coverage-floor|Cargo\.lock|rust-toolchain)' <<<"$changed" >>.bot/check.log
+    guarded='\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|docs/behaviour-baseline/|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md'
+    if [ "$AI_CONTRACT_ADD" != 1 ]; then guarded+='|docs/behaviour-contract\.md'; fi
+    guarded=" ($guarded)"
+    if grep -qE "$guarded" <<<"$changed"; then
+        echo "Changed a file the checks or the rules depend on, which no change may touch:" >>.bot/check.log
+        grep -E "$guarded" <<<"$changed" >>.bot/check.log
+        echo forbidden
+        return
+    fi
+    # The contract: rows added, none changed or taken away.
+    if git diff -U0 -- docs/behaviour-contract.md | grep -E '^-[^-]' >>.bot/check.log; then
+        echo "Changed or removed a row of docs/behaviour-contract.md (lines above): only new rows may be added." >>.bot/check.log
         echo forbidden
         return
     fi
@@ -87,6 +108,7 @@ ai_check() {
     cargo fmt --all >>.bot/check.log 2>&1
     if cargo clippy --workspace --all-targets --locked -- -D warnings >>.bot/check.log 2>&1 &&
         cargo xtask layers >>.bot/check.log 2>&1 && cargo xtask headers >>.bot/check.log 2>&1 &&
+        cargo xtask privacy >>.bot/check.log 2>&1 &&
         cargo xtask test --profile ci >>.bot/check.log 2>&1 &&
         cargo llvm-cov --workspace --locked --summary-only \
             --fail-under-lines "$(cat docs/coverage-floor.txt)" >.bot/coverage.txt 2>>.bot/check.log; then

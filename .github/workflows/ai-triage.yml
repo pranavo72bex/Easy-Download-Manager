@@ -1,0 +1,53 @@
+name: AI triage
+
+# Every issue a person opens or edits, and every comment, is read by a free AI model
+# (scripts/ai-triage.py, scripts/ai-ask.py): it is labelled, answered, closed when it is a
+# duplicate, already done, not about dm or spam (and reopened if its author replies), and,
+# with enough to act on, queued for the fixer: a bug at once, a feature when the maintainer
+# opened it or BOT_FEATURE_VOTES people gave it a thumbs-up. A comment on one of the bot's
+# pull requests, from the maintainer or the issue's author, asking for a change queues a
+# revision; the maintainer's "remember …" goes into docs/ai-notes.md. What people write is
+# data to the model; the script, not the model, chooses what is done, from a fixed list.
+on:
+  issues:
+    types: [opened, edited, reopened]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'An issue to triage now (one opened before the bot was)'
+        required: true
+
+permissions:
+  actions: write # starts the worker
+  contents: write # docs/ai-notes.md
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: ai-triage-${{ github.event.issue.number || inputs.issue }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    # Not the bots' own events.
+    if: github.event.sender.type != 'Bot' && !endsWith(github.event.sender.login, '[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+      KILO_MODEL: ${{ vars.KILO_MODEL }}
+      BOT_FEATURE_VOTES: ${{ vars.BOT_FEATURE_VOTES }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Read, answer, label, queue
+        env:
+          ISSUE: ${{ inputs.issue }}
+        run: |
+          if [ -n "$ISSUE" ]; then python3 scripts/ai-triage.py --issue "$ISSUE"; else python3 scripts/ai-triage.py; fi

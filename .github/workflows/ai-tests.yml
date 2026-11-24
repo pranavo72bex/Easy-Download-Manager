@@ -5,18 +5,19 @@ name: AI tests
 # change is kept only when, besides every check the AI fixer holds a change to (no test
 # taken away or ignored, format, clippy, layering, headers, the whole test run, the
 # coverage floor), that file has fewer lines untested and the workspace's coverage has
-# not gone down. It becomes a *draft* pull request, with the coverage floor raised to
+# not gone down. It becomes a pull request (bot:automerge), with the coverage floor raised to
 # the new whole percent when it has passed one, and CI and Desktop started on its branch
 # (Linux, Windows, macOS). A model that finds a bug may fix it, and says so: the pull
-# request lists every file changed, for a person to read before merging.
+# request lists every file changed.
 #
 # Each night's file and how it ended are a comment on the issue "Nightly AI tests
 # (log)"; a file tried in the last fortnight, or with its pull request still open, is
 # not picked again. Files a Linux runner cannot run (each system's own code) are left
 # out (scripts/coverage-table.py).
+# Started once a day by the queue (ai-worker.yml) when no other task waits, so it never
+# spends the free models' quota beside the fixer. Its pull requests are labelled
+# bot:automerge and merged by ai-merge.yml when CI, Desktop and a review pass.
 on:
-  schedule:
-    - cron: '41 1 * * *'
   workflow_dispatch:
     inputs:
       file:
@@ -201,15 +202,17 @@ jobs:
           git switch -c "$branch"
           git add -A -- . ':!.bot'
           changed=$(git diff --cached --name-only | sed 's/^/- /')
-          git commit -m "Tests for $FILE ($PROVIDER, draft)"
+          git commit -m "Tests for $FILE ($PROVIDER) [bot]"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git" "HEAD:$branch"
           gh workflow run ci.yml --ref "$branch" || true
           gh workflow run desktop.yml --ref "$branch" -f bundles=false || true
           summary=$(cat .bot/summary.md 2>/dev/null || echo 'No summary written.')
           # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-          body=$(printf 'file: %s\n\nTests by **%s**: %s lines of this file untested before, %s after; the workspace %s%% of lines before, %s%% after. %s\n\n%s\n\nFiles changed (a file other than tests is a fix the tests led to: read it):\n%s\n\nTried:\n%s\nOn Linux in the run: no test removed or ignored, format, clippy, layering, headers, `cargo xtask test --profile ci` and the coverage floor passed. CI and Desktop (Linux, Windows, macOS) were started on this branch: their checks are below. Before merging: run `python3 scripts/human-qa.py` in a visible window.\n' \
+          body=$(printf 'file: %s\n\nTests by **%s**: %s lines of this file untested before, %s after; the workspace %s%% of lines before, %s%% after. %s\n\n%s\n\nFiles changed (a file other than tests is a fix the tests led to: read it):\n%s\n\nTried:\n%s\nOn Linux in the run: no test removed or ignored, format, clippy, layering, headers, `cargo xtask test --profile ci` and the coverage floor passed. CI and Desktop (Linux, Windows, macOS) were started on this branch: their checks are below. ai-merge.yml merges it when they and its review pass.\n' \
             "$FILE" "$PROVIDER" "$MISSED" "$after" "$TOTAL_BEFORE" "$total" "$floor_note" "$summary" "$changed" "$REPORT")
-          url=$(gh pr create --draft --head "$branch" --title "Tests for $FILE ($PROVIDER, needs review)" --body "$body")
+          body=$(printf 'task: tests\norigin: ai\n\n%s' "$body")
+          gh label create bot:automerge --color ededed --description "dm's bot" 2>/dev/null || true
+          url=$(gh pr create --head "$branch" --title "Tests for $FILE ($PROVIDER) [bot]" --body "$body" --label bot:automerge)
           gh issue comment "$LOG" --body "$(printf 'file: %s\n\n%s: pull request %s (%s → %s lines untested; %s%% → %s%%) ([run](%s))\n' \
             "$FILE" "$PROVIDER" "$url" "$MISSED" "$after" "$TOTAL_BEFORE" "$total" "$RUN_URL")"
 
@@ -222,3 +225,7 @@ jobs:
         run: |
           gh issue comment "$LOG" --body "$(printf 'file: %s\n\nNo model wrote tests that pass the checks and raise its coverage ([run](%s)).\n\n%s\n' \
             "$FILE" "$RUN_URL" "${REPORT:-Stopped before asking a model.}")"
+
+      - name: Next in the queue
+        if: always()
+        run: gh workflow run ai-worker.yml || true

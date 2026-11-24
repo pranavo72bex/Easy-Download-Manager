@@ -390,32 +390,41 @@ can break it. The pre-commit hook (`scripts/pre-commit`; install with
 `ln -sf ../../scripts/pre-commit .git/hooks/pre-commit`) refuses a commit that
 writes a credential into a tracked file.
 
-## Free AI models: fixing CI's failures, and writing tests each night
+## The bots: free AI models that keep dm, unattended
 
-Two workflows give work to free AI models (Gemini on Google AI Studio's free tier, the
-`GEMINI_API_KEY` secret; then Kilo Code's free models, which need no key). Each model
-runs with no GitHub token and only edits the tree; `scripts/ai-agent.sh` checks the
-change as CI checks main and refuses one that touches the checks themselves (the
-workflows, `scripts/`, `tooling/xtask/`, the floors, `.config/`, `Cargo.lock`) or that
-removes or ignores a test. A change that fails goes back to the same model once, with
-what failed. What passes becomes a *draft* pull request, with CI and Desktop started on
-its branch so it is tested on Linux, Windows and macOS. A person runs
-`scripts/human-qa.py` before marking it ready.
+dm is looked after by free AI models in GitHub Actions, with nobody watching (the
+maintainer, 2026-11-24). The models are Gemini on Google AI Studio's free tier (the
+`GEMINI_API_KEY` secret) and Kilo Code's free models, which need no key; which ones answer
+is found each run from the providers' own catalogues (`scripts/ai-ask.py`), so a retired
+model does not stop anything. A model never holds a GitHub token: it reads and edits the
+tree, and the workflow, not the model, decides what is done.
 
-- **AI fix** (`ai-fix.yml`). A red run on main opens one issue per workflow
-  (`bug-report.yml`, which also closes it at the workflow's next green run) and starts
-  the fixer. Before any model is asked, `scripts/ai-fix-context.sh` closes the issue
-  if the workflow has passed since, leaves it for a person when every failing test
-  passes when run alone on Linux where it failed, and gathers the failing tests by
-  name, what changed since the last green run and each test run on Linux. Each issue
-  ends labelled `bot:pr`, `bot:no-fix`, `bot:green-since` or `bot:not-reproduced`.
-  Add the `bot-fix` label to any issue to hand it over.
-- **AI tests** (`ai-tests.yml`, each night). The file with the most lines no test runs
-  (`scripts/coverage-table.py pick`) is given to the models to test; the change is kept
-  only when that file has fewer untested lines and the workspace's coverage has not gone
-  down, and the coverage floor is raised to each whole percent passed. The issue
-  "Nightly AI tests (log)" records each night; a file tried in the last fortnight is not
-  picked again.
+| Workflow | What it does |
+|---|---|
+| `ai-triage.yml` | Each issue opened or edited, and each comment: labels it, answers it, closes a duplicate, something already done, spam or not about dm (reopened if its author replies), and queues a bug with enough to act on, or a feature the maintainer opened or that has `BOT_FEATURE_VOTES` (3) thumbs-up. A comment on the bot's pull request from the maintainer or the reporter queues a revision; the maintainer's "remember …" goes into `docs/ai-notes.md` (`scripts/ai-triage.py`). |
+| `bug-report.yml` | A red run on main opens one issue per workflow and queues it; a green one closes it. When the red commit is the bot's own merge and the run before was green, it reverts that merge and queues its issue again. |
+| `ai-worker.yml` | The queue, every two hours and after each task (`scripts/ai-worker.sh`): one AI job at a time, the most urgent first (main's red runs, revisions, bugs, features, then the nightly tests); a task no model could do is tried again after a week, three times; the site watch's reports are queued as bugs; and past 45 days without a commit it writes `.github/keepalive`, as GitHub turns off a quiet public repository's schedules at 60. |
+| `ai-fix.yml` | One task (`ci`, `bug`, `feature` or `revise`) for the models, each with two tries, the second told what failed (`scripts/ai-agent.sh`). Before a CI failure is given to a model, `scripts/ai-fix-context.sh` closes it if main went green since, leaves it when its failing tests pass alone on Linux, and gathers the failing tests, what changed since the last green run and each test run here. What passes becomes a pull request labelled `bot:automerge`, with CI and Desktop started on its branch. |
+| `ai-tests.yml` | Once a day when nothing else waits: tests for the file with the most lines no test runs (`scripts/coverage-table.py`), kept only when that file has fewer untested lines and the whole is not down; the floor is raised to each whole percent passed. |
+| `ai-merge.yml` | When CI and Desktop have finished on a bot pull request's last commit (`scripts/ai-merge.sh`): all green and a second model's review finds nothing against the rules, it is merged and CI and Desktop run on main; otherwise it goes back to the fixer, twice, then is closed. |
+
+What any change is held to (`ai_check`): no edit to the guardrails (the workflows,
+`scripts/`, `tooling/xtask/`, `.config/`, `.cargo/`, `Cargo.lock`, the floors,
+`CLAUDE.md`, `AGENTS.md`, `docs/ai-notes.md`), no test removed or `#[ignore]`d, no
+contract row changed (a feature may add one), format, clippy, layering, headers, privacy,
+the whole test run and the coverage floor. A bug a person reported must come with a test
+that fails without the fix (`scripts/ai-fails-before.sh`). A change from an issue anyone
+could open is never merged without a person when it touches the network, protocol,
+extension, updater, secrets, packaging or a manifest, or changes over 1,500 lines: it is
+labelled `bot:needs-maintainer` and waits. Releases are not the bots': a release needs the
+maintainer's signing key (`docs/RELEASING.md`).
+
+Labels say where each issue stands: `bot:queue` with `bot-task:ci|bug|feature|revise`,
+`bot:working`, `bot:pr`, `bot:merged`, `bot:no-fix`, `bot:green-since`,
+`bot:not-reproduced`, `bot:needs-votes`, `bot:needs-info`, `bot:needs-maintainer`,
+`bot:reverted`, `bot:closed`. To steer the bots, write on the issue or the bot's pull
+request; to teach them, write "remember …" as the maintainer; to stop them, disable
+`ai-worker.yml` and `ai-triage.yml` in the Actions tab.
 
 ## Memory at rest (Windows)
 

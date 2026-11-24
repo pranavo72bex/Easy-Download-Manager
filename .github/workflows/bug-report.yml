@@ -1,12 +1,14 @@
 name: Bug report
 
-# Turns a red run on main into an issue, so no failure goes unread: one open
-# issue per workflow (a later failure of the same workflow is a comment on it,
-# not a second issue), closed by the workflow's next green run on main. A new
-# issue is labelled `bot-fix` and handed to the AI fixer (ai-fix.yml: Gemini's
-# free tier, then Kilo Code's keyless free models), which opens a draft pull
-# request for the maintainer to QA and merge. GitHub's free runners and free
-# models only; nothing to pay for.
+# Turns a red run on main into an issue, so no failure goes unread: one open issue per
+# workflow (a later failure of the same workflow is a comment on it, not a second issue),
+# closed by the workflow's next green run on main. A new issue is queued for the AI fixer
+# (labels bot:queue, bot-task:ci; ai-worker.yml starts ai-fix.yml).
+#
+# And the bots' safety net: when the commit that turned main red is one the bot merged
+# (ai-merge.yml) and the run before it was green, that merge is reverted at once, CI and
+# Desktop run again on main, and its issue is reopened and queued to be tried again.
+# GitHub's free runners and free models only; nothing to pay for.
 on:
   workflow_run:
     workflows: [CI, Desktop, Deep fuzz, Audit]
@@ -19,25 +21,30 @@ on:
         required: true
 
 permissions:
-  actions: write # to start the fixer (workflow_dispatch)
+  actions: write # starts the worker; CI and Desktop again after a revert
+  contents: write # the revert
   issues: write
 
 jobs:
   report:
     if: github.event_name == 'workflow_dispatch' || contains(fromJSON('["failure", "success"]'), github.event.workflow_run.conclusion)
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
     steps:
-      - name: Open or update the issue
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 50
+      - name: Open or update the issue, or revert the bot's merge
         run: |
           set -euo pipefail
-          gh label create bot-fix --color 5319e7 \
-            --description 'A failure the AI fixer is asked to fix' 2>/dev/null || true
+          for l in bot-fix bot:queue bot-task:ci bot:reverted; do
+            gh label create "$l" --color 5319e7 --description "dm's bot" 2>/dev/null || true
+          done
 
-          run_json=$(gh run view "$RUN_ID" --json workflowName,headSha,url,displayTitle,jobs,conclusion)
+          run_json=$(gh run view "$RUN_ID" --json workflowName,workflowDatabaseId,headSha,url,jobs,conclusion,createdAt)
           workflow=$(jq -r .workflowName <<<"$run_json")
           url=$(jq -r .url <<<"$run_json")
           sha=$(jq -r .headSha <<<"$run_json")
@@ -59,6 +66,37 @@ jobs:
             exit 0
           fi
 
+          # The bot's own merge turned main red: undone.
+          message=$(git log -1 --format=%B "$sha" 2>/dev/null || true)
+          created=$(jq -r .createdAt <<<"$run_json")
+          wid=$(jq -r .workflowDatabaseId <<<"$run_json")
+          before=$(gh api "repos/$GH_REPO/actions/workflows/$wid/runs?branch=main&status=completed&per_page=20" \
+            --jq "[.workflow_runs[] | select(.created_at < \"$created\" and .conclusion != \"cancelled\")] | first | .conclusion // empty")
+          if grep -q 'Merged by ai-merge.yml' <<<"$message" && [ "$before" = success ] \
+             && git merge-base --is-ancestor "$sha" origin/main 2>/dev/null; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git checkout -q main && git pull -q --ff-only origin main
+            if git revert --no-edit "$sha"; then
+              git commit --amend -q -m "$(printf 'Revert the bot'"'"'s merge that turned %s red [bot-revert]\n\n%s\n\nIts run: %s' "$workflow" "$(git log -1 --format=%s "$sha")" "$url")"
+              git push -q origin HEAD:main
+              gh workflow run ci.yml --ref main || true
+              gh workflow run desktop.yml --ref main -f bundles=false || true
+              issue=$(grep -oE '^issue: #?[0-9]+' <<<"$message" | grep -oE '[0-9]+' | head -n1 || true)
+              task=$(grep -oE '^task: [a-z]+' <<<"$message" | cut -d' ' -f2 | head -n1 || true)
+              if [ -n "$issue" ]; then
+                gh issue reopen "$issue" || true
+                gh issue edit "$issue" --add-label "bot:reverted,bot:queue,bot-task:${task:-bug}" --remove-label bot:merged || true
+                gh issue comment "$issue" --body "$(printf '<!-- dm-bot -->\nThe bot'"'"'s fix was reverted: after it was merged, [%s](%s) failed on main. Queued to be tried again.\n\n— dm'"'"'s bot' "$workflow" "$url")" || true
+              fi
+              gh workflow run ai-worker.yml || true
+              echo "Reverted $sha."
+              exit 0
+            fi
+            git revert --abort || true
+            echo "The revert did not apply cleanly: reported as an ordinary failure."
+          fi
+
           body=$(printf '%s\n\n%s\n\n%s\n%s\n' \
             "[$workflow]($url) failed on main at $sha." \
             "run_id: $RUN_ID" \
@@ -69,9 +107,7 @@ jobs:
             gh issue comment "$existing" --body "$body"
             echo "Commented on #$existing"
           else
-            issue_url=$(gh issue create --title "$title" --label bot-fix --body "$body")
-            number=${issue_url##*/}
-            echo "Opened #$number"
-            # A label added with this token starts no workflow, so the fixer is started directly.
-            gh workflow run ai-fix.yml -f issue="$number"
+            issue_url=$(gh issue create --title "$title" --label bot-fix,bot:queue,bot-task:ci --body "$body")
+            echo "Opened ${issue_url##*/}"
+            gh workflow run ai-worker.yml || true
           fi
