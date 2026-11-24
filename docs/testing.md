@@ -404,13 +404,34 @@ tree, and the workflow, not the model, decides what is done.
 | `ai-triage.yml` | Each issue opened or edited, and each comment: labels it, answers it, closes a duplicate, something already done, spam or not about dm (reopened if its author replies), and queues a bug with enough to act on, or a feature the maintainer opened or that has `BOT_FEATURE_VOTES` (3) thumbs-up. A comment on the bot's pull request from the maintainer or the reporter queues a revision; the maintainer's "remember …" goes into `docs/ai-notes.md` (`scripts/ai-triage.py`). |
 | `bug-report.yml` | A red run on main opens one issue per workflow and queues it; a green one closes it. When the red commit is the bot's own merge and the run before was green, it reverts that merge and queues its issue again. |
 | `ai-worker.yml` | The queue, every two hours and after each task (`scripts/ai-worker.sh`): one AI job at a time, the most urgent first (main's red runs, revisions, bugs, features, then the nightly tests); a task no model could do is tried again after a week, three times; the site watch's reports are queued as bugs; and past 45 days without a commit it writes `.github/keepalive`, as GitHub turns off a quiet public repository's schedules at 60. |
-| `ai-fix.yml` | One task (`ci`, `bug`, `feature` or `revise`) for the models, each with two tries, the second told what failed (`scripts/ai-agent.sh`). Before a CI failure is given to a model, `scripts/ai-fix-context.sh` closes it if main went green since, leaves it when its failing tests pass alone on Linux, and gathers the failing tests, what changed since the last green run and each test run here. What passes becomes a pull request labelled `bot:automerge`, with CI and Desktop started on its branch. |
+| `ai-fix.yml` | One task (`ci`, `bug`, `feature`, `improve` or `revise`) for the models, each with two tries, the second told what failed (`scripts/ai-agent.sh`). Before a CI failure is given to a model, `scripts/ai-fix-context.sh` closes it if main went green since, leaves it when its failing tests pass alone on Linux, and gathers the failing tests, what changed since the last green run and each test run here. What passes becomes a pull request labelled `bot:automerge`, with CI and Desktop started on its branch. |
 | `ai-tests.yml` | Once a day when nothing else waits: tests for the file with the most lines no test runs (`scripts/coverage-table.py`), kept only when that file has fewer untested lines and the whole is not down; the floor is raised to each whole percent passed. |
 | `ai-merge.yml` | When CI and Desktop have finished on a bot pull request's last commit (`scripts/ai-merge.sh`): all green and a second model's review finds nothing against the rules, it is merged and CI and Desktop run on main; otherwise it goes back to the fixer, twice, then is closed. |
 
+**What a model is handed.** Free models do better with the way pointed out, so before one
+starts, `scripts/ai-context.py` writes `.bot/context.md`: which part of dm the task is about
+(desktop window, phone, engine, extension, video), the skill pages to follow for it in the
+order they win (`docs/ai-skills/`, written for the bots, and the window's own
+`.claude/skills/dm-design` and `better-*`), the files that mention the task's words with the
+lines, the last commits on them, and how to test that part. The pages are given only when
+`scripts/ai-skills-check.py` finds them clean (also a CI job): vendored text at its pinned
+SHA-256, no hidden or direction-changing character, no line written to steer a model, no
+link in dm's own pages, nothing executable. Each page ends with "Lessons" that runs add
+(`scripts/ai-lesson.sh`, `docs/ai-skills/learning.md`): from a CI failure's run, the nightly
+tests or a gaps row, never from a person's issue; kept only if the check still passes.
+
+**Improving without being asked.** When nothing else waits and the nightly tests have run,
+the worker takes the next row of `docs/gaps.md` (the maintainer's ranked work list) that
+needs nothing only a person can give (`scripts/ai-improve-pick.py`: no "decide", no
+maintainer's word or approval still to come, no real phone, Mac, Windows laptop, USB disk,
+bench, store, certificate or signing), opens an issue for it (`bot:improve`) and gives it
+to the fixer as `improve`: the next complete step, its tests, the row updated. Three in
+flight at most, one new every six hours at most, no row again within a fortnight. A bot
+branch that changes code also runs "Android, the engine built", and ai-merge waits for it.
+
 What any change is held to (`ai_check`): no edit to the guardrails (the workflows,
 `scripts/`, `tooling/xtask/`, `.config/`, `.cargo/`, `Cargo.lock`, the floors,
-`CLAUDE.md`, `AGENTS.md`, `docs/ai-notes.md`), no test removed or `#[ignore]`d, no
+`CLAUDE.md`, `AGENTS.md`, `docs/ai-notes.md`, `docs/ai-skills/`, `.claude/`), no test removed or `#[ignore]`d, no
 contract row changed (a feature may add one), format, clippy, layering, headers, privacy,
 the whole test run and the coverage floor. A bug a person reported must come with a test
 that fails without the fix (`scripts/ai-fails-before.sh`). A change from an issue anyone

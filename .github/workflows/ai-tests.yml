@@ -121,6 +121,13 @@ jobs:
           echo "total=$(python3 scripts/coverage-table.py total .bot/coverage-before.txt)" >> "$GITHUB_OUTPUT"
           grep -F "$file" .bot/missing.txt > .bot/missing-lines.txt || true
 
+      # Before any model: what it is handed (scripts/ai-context.py), from main's own tree.
+      - name: What the model is handed
+        if: steps.pick.outputs.file != ''
+        env:
+          FILE: ${{ steps.pick.outputs.file }}
+        run: python3 -I scripts/ai-context.py "$FILE"
+
       - name: The agents
         if: steps.pick.outputs.file != ''
         run: npm install -g @google/gemini-cli@0.68.0 opencode-ai@1.19.5
@@ -134,7 +141,7 @@ jobs:
           cat > .bot/prompt.md <<EOF
           You are writing tests for one file of this repository (a Rust download manager, Cargo workspace at the root, crates in crates/): $FILE, where $MISSED lines are run by no test.
 
-          1. Read CLAUDE.md, AGENTS.md, docs/behaviour-contract.md and docs/ai-notes.md first and follow them. You are a bot working unattended: no person will answer a question.
+          1. Start with .bot/context.md: the part of dm this file belongs to, the skill pages to follow (read them, in its order, and docs/ai-skills/testing.md), the files around it and how to test. Then CLAUDE.md, AGENTS.md, docs/behaviour-contract.md and docs/ai-notes.md. You are a bot working unattended: no person will answer a question.
           2. The lines no test runs are listed in .bot/missing-lines.txt (it may be empty; then read the file and its existing tests to see what is untested).
           3. Write tests that run those lines, in the style the crate already uses: the file's own #[cfg(test)] module or its tests/ module, the crate's tests/ directory, and the helpers the crate's tests already have.
           4. Test what the code is meant to do (its doc comments, docs/, the behaviour contract), not just what it happens to return. If a test shows the code is wrong, fix the code with the smallest change and say so in the summary.
@@ -298,6 +305,7 @@ jobs:
           git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git" "HEAD:$branch"
           gh workflow run ci.yml --ref "$branch" || true
           gh workflow run desktop.yml --ref "$branch" -f bundles=false || true
+          gh workflow run android.yml --ref "$branch" || true
           summary=$(head -c 6000 .bot/summary.md 2>/dev/null || echo 'No summary written.')
           # shellcheck disable=SC2016 # the backticks are Markdown, not a command
           body=$(printf 'file: %s\ntask: tests\norigin: ai\n\nTests by **%s**: %s lines of this file untested before, %s after; the workspace %s%% of lines before, %s%% after. %s\n\n%s\n\nFiles changed (a file other than tests is a fix the tests led to):\n%s\n\nIn the run, on Linux: no guardrail touched, no test removed or ignored, format, clippy, layering, headers, privacy, `cargo xtask test --profile ci` and the coverage floor passed. CI and Desktop (Linux, Windows, macOS) run on this branch; ai-merge.yml merges it when they and its review pass.\n' \
@@ -317,6 +325,13 @@ jobs:
           if [ -n "$REFUSED" ]; then why="A change passed in the work job but broke a rule when checked again ($REFUSED): refused."; fi
           if [ "$WORKED" != success ]; then why="The work job did not finish ($WORKED)."; fi
           gh issue comment "$LOG" --body "$(printf 'file: %s\n\n%s ([run](%s))\n' "$FILE" "$why" "$RUN_URL")"
+
+      # What the night teaches (a skill page's Lessons): the input was the machine's own.
+      - name: What this run teaches
+        if: always() && env.WORKED == 'success'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: bash scripts/ai-lesson.sh "${PROVIDER:+tests written by $PROVIDER}" || true
 
       - name: Next in the queue
         if: always()

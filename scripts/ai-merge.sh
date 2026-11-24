@@ -23,7 +23,7 @@ pr=$1
 MARK='<!-- dm-bot -->'
 # Never merged by a bot, whoever asked: the guardrails (ai_guard refuses them too; this is
 # the last look).
-GUARDRAILS='^(\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/coverage-floor\.txt$|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/behaviour-baseline/|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml)'
+GUARDRAILS='^(\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/coverage-floor\.txt$|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|docs/behaviour-baseline/|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml)'
 # Not merged without a person when the change comes from an issue anyone could open: what
 # reaches the network, the browser, the system, the updater, secrets or packaging.
 SENSITIVE='^(crates/dm-net/|crates/dm-protocol/|crates/dm-catcher/|crates/dm-safari/|crates/dm-android/|extension/|packaging/|vendor/|crates/dm-core/src/(download|http|ftp|torrent|secretstore|platform|rtsp|youtube|extract)|crates/dm-shell/src/(app/update|app/handoff|register|shell|native)|crates/dm-desktop-base/src/(control|platform|boot)|crates/[^/]+/build\.rs|Cargo\.toml|crates/[^/]+/Cargo\.toml|assets/)'
@@ -50,13 +50,21 @@ origin=$(grep -oE '^origin: [a-z]+' <<<"$body" | cut -d' ' -f2 | head -n1)
 issue=$(grep -oE '^issue: #?[0-9]+' <<<"$body" | grep -oE '[0-9]+' | head -n1)
 task=$(grep -oE '^task: [a-z]+' <<<"$body" | cut -d' ' -f2 | head -n1)
 
-# Both workflows, on this very commit, finished.
+# CI and Desktop, and Android when code changed (the phone builds the same crates), on this
+# very commit, finished.
+ANDROID='Android, the engine built'
+needed=(CI Desktop)
+if jq -r '.files[].path' <<<"$info" | grep -qE '^(crates/|Cargo\.toml|assets/)'; then needed+=("$ANDROID"); fi
 runs=$(gh api "repos/$GH_REPO/actions/runs?head_sha=$sha&per_page=50" \
-    --jq '[.workflow_runs[] | select(.name == "CI" or .name == "Desktop")] | group_by(.name) | map(max_by(.created_at)) | .[] | "\(.name)\t\(.status)\t\(.conclusion)\t\(.id)"')
-for w in CI Desktop; do
+    --jq "[.workflow_runs[] | select(.name == \"CI\" or .name == \"Desktop\" or .name == \"$ANDROID\")] | group_by(.name) | map(max_by(.created_at)) | .[] | \"\\(.name)\\t\\(.status)\\t\\(.conclusion)\\t\\(.id)\"")
+for w in "${needed[@]}"; do
     if ! grep -q "^$w	" <<<"$runs"; then
         echo "$w has not run on $sha: started."
-        if [ "$w" = CI ]; then gh workflow run ci.yml --ref "$branch"; else gh workflow run desktop.yml --ref "$branch" -f bundles=false; fi
+        case "$w" in
+        CI) gh workflow run ci.yml --ref "$branch" ;;
+        Desktop) gh workflow run desktop.yml --ref "$branch" -f bundles=false ;;
+        *) gh workflow run android.yml --ref "$branch" ;;
+        esac
         exit 0
     fi
 done

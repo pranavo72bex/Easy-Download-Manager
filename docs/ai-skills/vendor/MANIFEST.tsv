@@ -1,0 +1,5 @@
+path	sha256	upstream	commit	licence
+ui-ux-pro-max/LICENSE	738f69dfa83db5c347c678fb9d90e560877059f0de93a327c39001bff92dc014	nextlevelbuilder/ui-ux-pro-max-skill:LICENSE	f2f7266b07805025421611656045e9b44b41e2eb	MIT
+ui-ux-pro-max/quick-reference.md	ede37ffbdd543eb56c4ca328155d395fef979b3bf3e9c25581123c5cb46fdb65	nextlevelbuilder/ui-ux-pro-max-skill:.claude/skills/ui-ux-pro-max/references/quick-reference.md	f2f7266b07805025421611656045e9b44b41e2eb	MIT
+ui-ux-pro-max/app-interface.csv	331e7cf2c0b222d80c566c5f255c63cb339f65bfd02e471a720f28e4864a9f08	nextlevelbuilder/ui-ux-pro-max-skill:.claude/skills/ui-ux-pro-max/data/app-interface.csv	f2f7266b07805025421611656045e9b44b41e2eb	MIT
+ui-ux-pro-max/ux-guidelines.csv	03b89ae5e237ab2f23a2e9a7ecebd5d70e42776341d0d7eb7302393fbd79c26a	nextlevelbuilder/ui-ux-pro-max-skill:.claude/skills/ui-ux-pro-max/data/ux-guidelines.csv	f2f7266b07805025421611656045e9b44b41e2eb	MIT

@@ -15,6 +15,20 @@ permissions:
   contents: read
 
 jobs:
+  bots-skills:
+    # What the free-model bots read (docs/ai-skills/, .claude/skills/) is checked on every push:
+    # vendored files at their pinned SHA-256, no hidden or direction-changing character, no
+    # line written to steer a model, no link in dm's own pages, nothing executable
+    # (scripts/ai-skills-check.py; docs/ai-skills/README.md).
+    name: The bots' skills are clean
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Check the skills
+        run: python3 -I scripts/ai-skills-check.py
+
   extension:
     name: Extension (Rust, WebAssembly)
     runs-on: ubuntu-latest

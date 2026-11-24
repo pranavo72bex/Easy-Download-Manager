@@ -8973,3 +8973,24 @@ deletions), 600 lines at most for those, third parties' comments kept from the m
 four replies a day per issue, votes only from accounts 90 days old. The free model key
 stays in reach of model-written code (the agent holding it runs that code): worth a day's
 free quota, and said so in `docs/testing.md`.
+
+## Skills for the bots: text only, checked, and handed to the model by the task, 2026-11-24
+
+The maintainer: let the bots use skills, improve the desktop and Android apps continuously,
+give a weak model the context it needs, keep security first and the skills clean. Two
+outside skills were read in full first (both clean: no hidden characters but a Persian
+README's ordinary ones, no line addressed to a model). From nextlevelbuilder's
+ui-ux-pro-max (MIT) only three text files are taken, verbatim and pinned by SHA-256 in
+`docs/ai-skills/vendor/`; none of its 197 scripts, its CLI or its workflows. From
+rebelytics' one-skill-to-rule-them-all (CC BY 4.0) only the idea, credited: a run's
+evidence becomes a lesson under the page it concerns; its scripts and its
+person-approves-each-change flow are not used, the guardrails taking that person's place.
+dm's own pages (`docs/ai-skills/`: desktop, android, engine, ui-ux, testing, learning) say
+where to look and which rule wins, and send window work to the design skills already in
+`.claude/skills/`. A free model does not find these alone, so `scripts/ai-context.py`
+hands each task the pages for its part, the files that mention its words, their recent
+commits and its tests. `scripts/ai-skills-check.py` stands between every page and a model
+(and runs in CI): a page that fails is not given. No model edits a page; lessons are added
+by the trusted job only, from machine output or the maintainer. Continuous improvement is
+the maintainer's own work list: the next row of `docs/gaps.md` that needs nothing only a
+person can give, three in flight at most, and Android's workflow now gates a bot's merge.

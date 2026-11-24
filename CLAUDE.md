@@ -38,8 +38,11 @@ row; a feature adds a new row at the end; a behaviour that needs a row changed i
 built. A bot's merge is gated by CI and Desktop passing on Linux, Windows and macOS, the
 coverage floor, the privacy check and a second model's review, in place of the visible
 QA run; a merge that turns main red is reverted by `bug-report.yml`. What the bots have
-learned is in `docs/ai-notes.md`. A bot never edits the workflows, `scripts/`,
-`tooling/xtask/`, the floors, this file or `AGENTS.md`: those are its guardrails.
+learned is in `docs/ai-notes.md` and each skill page's Lessons (`docs/ai-skills/`, handed
+to a model by `scripts/ai-context.py`). When nothing else waits, the bots take the next row
+of `docs/gaps.md` that needs nothing only a person can give. A bot never edits the workflows, `scripts/`,
+`tooling/xtask/`, the floors, the skill pages, this file or `AGENTS.md`: those are its
+guardrails.
 Security is the first priority (the maintainer, 2026-11-24): a model's code never runs
 where a token can write, and a change to the automation keeps that split
 (`docs/testing.md`, "Security first").

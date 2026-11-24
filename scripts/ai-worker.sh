@@ -14,8 +14,9 @@
 #    is queued again after a week, three tries in all; each of the bot's pull requests that
 #    waited is handed to ai-merge.yml.
 # 3. The next task, the most urgent first: main's red runs (bot-task:ci), then revisions of
-#    the bot's pull requests, people's bugs, features; the oldest first.
-# 4. Nothing queued: the nightly tests (ai-tests.yml), once a day.
+#    the bot's pull requests, people's bugs, features, improvements; the oldest first.
+# 4. Nothing queued: the nightly tests (ai-tests.yml), once a day; then the next row of
+#    docs/gaps.md (scripts/ai-improve-pick.py), opened as an issue labelled bot:improve.
 #
 # And GitHub turns off a public repository's schedules after 60 days without a commit:
 # past 45, the date is written to .github/keepalive.
@@ -96,7 +97,7 @@ next() {
     # shellcheck disable=SC2016 # $t is jq's, not the shell's
     gh issue list --state open --label bot:queue --limit 100 --json number,labels,createdAt,body \
         --jq '.[] | (([.labels[].name] | map(select(startswith("bot-task:"))) | .[0]) // (if ((.body // "") | contains("run_id:")) then "bot-task:ci" else "bot-task:bug" end)) as $t
-              | "\({"bot-task:ci": 0, "bot-task:bug": 2, "bot-task:feature": 3}[$t] // 4) \(.createdAt) \(.number) \($t | ltrimstr("bot-task:"))"' |
+              | "\({"bot-task:ci": 0, "bot-task:bug": 2, "bot-task:feature": 3, "bot-task:improve": 4}[$t] // 5) \(.createdAt) \(.number) \($t | ltrimstr("bot-task:"))"' |
         { cat; [ -n "$pr" ] && echo "1 0000 $pr revise"; } | sort | head -n1
 }
 pick=$(next)
@@ -113,6 +114,34 @@ if [ -z "$(gh run list --workflow ai-tests.yml --limit 5 --json createdAt,conclu
     --jq ".[] | select(.createdAt > \"$since\" and .conclusion != \"cancelled\") | .createdAt")" ]; then
     echo "Next: the nightly tests"
     run gh workflow run ai-tests.yml
-else
-    echo "Nothing to do."
+    exit 0
 fi
+
+# Then the next row of docs/gaps.md (scripts/ai-improve-pick.py): three in flight at most, a new
+# one every six hours at most, no row tried in the last fortnight or still open.
+gh label create bot:improve --color 1d76db --description "dm's bot: a row of docs/gaps.md" 2>/dev/null || true
+open_count=$(gh issue list --state open --label bot:improve --json number --jq length)
+six_hours_ago=$(date -u -d '6 hours ago' +%FT%TZ 2>/dev/null || date -u -v-6H +%FT%TZ)
+fortnight_ago=$(date -u -d '14 days ago' +%FT%TZ 2>/dev/null || date -u -v-14d +%FT%TZ)
+recent=$(gh issue list --state all --label bot:improve --limit 100 --json createdAt \
+    --jq "[.[] | select(.createdAt > \"$six_hours_ago\")] | length")
+if [ "$open_count" -ge 3 ] || [ "$recent" -gt 0 ]; then
+    echo "Improvements in flight ($open_count open, $recent in six hours): nothing to do."
+    exit 0
+fi
+mapfile -t tried < <(gh issue list --state all --label bot:improve --limit 200 --json title,state,updatedAt \
+    --jq ".[] | select(.state == \"OPEN\" or .updatedAt > \"$fortnight_ago\") | .title" |
+    grep -oE 'gaps row [A-Z]+[0-9]+[a-z]?' | cut -d' ' -f3)
+row=$(python3 -I scripts/ai-improve-pick.py "${tried[@]}")
+if [ -z "$row" ]; then
+    echo "No row of docs/gaps.md a bot can take: nothing to do."
+    exit 0
+fi
+IFS=$'\t' read -r id problem state detail <<<"$row"
+title="Improvement: gaps row $id — $(cut -c1-80 <<<"$problem")"
+body=$(printf 'gaps_row: %s\n\nFrom docs/gaps.md, the maintainer'"'"'s ranked work list:\n\n- **Problem:** %s\n- **State:** %s\n- **Done and left:** %s\n\nTaken by the bot (ai-worker.yml): the next step it can make complete, with its tests.\n' \
+    "$id" "$problem" "$state" "$detail")
+echo "Next: gaps row $id"
+if [ "$DRY" = 1 ]; then echo "-> open \"$title\""; exit 0; fi
+url=$(gh issue create --title "$title" --label bot:improve,bot:queue,bot-task:improve --body "$body")
+run gh workflow run ai-fix.yml -f issue="${url##*/}" -f task=improve
