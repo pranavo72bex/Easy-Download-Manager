@@ -1053,5 +1053,12 @@
  "More": "Más",
  "Speed limit": "Límite de velocidad",
  "No limit": "Sin límite",
- "Look-alike letters from another alphabet: the real name is {}": "Letras parecidas de otro alfabeto: el nombre real es {}"
+ "Look-alike letters from another alphabet: the real name is {}": "Letras parecidas de otro alfabeto: el nombre real es {}",
+ "the site's security certificate has expired, so dm didn't connect": "el certificado de seguridad del sitio ha caducado, así que dm no se conectó",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "el certificado de seguridad del sitio aún no es válido, así que dm no se conectó",
+ "the site's security certificate is for another site, so dm didn't connect": "el certificado de seguridad del sitio es de otro sitio, así que dm no se conectó",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "el certificado de seguridad del sitio es de un emisor en el que dm no confía, así que dm no se conectó",
+ "The site must renew it. If many sites say this, check the computer's date and time": "El sitio debe renovarlo. Si muchos sitios dicen esto, revisa la fecha y la hora del equipo",
+ "Check the address. On a public network someone may be in between: try another network": "Revisa la dirección. En una red pública alguien puede estar en medio: prueba otra red",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "Puede haber en medio una red que inspecciona el tráfico (en el trabajo o la escuela): prueba otra red"
 }

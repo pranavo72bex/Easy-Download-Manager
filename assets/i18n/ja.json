@@ -1053,5 +1053,12 @@
  "More": "その他",
  "Speed limit": "速度制限",
  "No limit": "制限なし",
- "Look-alike letters from another alphabet: the real name is {}": "別の文字体系のよく似た文字があります。本当の名前は {}"
+ "Look-alike letters from another alphabet: the real name is {}": "別の文字体系のよく似た文字があります。本当の名前は {}",
+ "the site's security certificate has expired, so dm didn't connect": "サイトのセキュリティ証明書の有効期限が切れているため、dm は接続しませんでした",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "サイトのセキュリティ証明書がまだ有効ではないため、dm は接続しませんでした",
+ "the site's security certificate is for another site, so dm didn't connect": "サイトのセキュリティ証明書が別のサイトのものであるため、dm は接続しませんでした",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "サイトのセキュリティ証明書の発行元を dm が信頼していないため、dm は接続しませんでした",
+ "The site must renew it. If many sites say this, check the computer's date and time": "サイト側で更新が必要です。多くのサイトでこう表示される場合は、コンピューターの日付と時刻を確認してください",
+ "Check the address. On a public network someone may be in between: try another network": "アドレスを確認してください。公共のネットワークでは誰かが間に入っている可能性があります。別のネットワークを試してください",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "通信を検査するネットワーク（職場や学校）が間に入っている可能性があります。別のネットワークを試してください"
 }

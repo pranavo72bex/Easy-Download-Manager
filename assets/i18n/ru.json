@@ -1053,5 +1053,12 @@
  "More": "Ещё",
  "Speed limit": "Ограничение скорости",
  "No limit": "Без ограничения",
- "Look-alike letters from another alphabet: the real name is {}": "Похожие буквы из другого алфавита: настоящее имя — {}"
+ "Look-alike letters from another alphabet: the real name is {}": "Похожие буквы из другого алфавита: настоящее имя — {}",
+ "the site's security certificate has expired, so dm didn't connect": "срок действия сертификата безопасности сайта истёк, поэтому dm не подключился",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "сертификат безопасности сайта ещё не действует, поэтому dm не подключился",
+ "the site's security certificate is for another site, so dm didn't connect": "сертификат безопасности выдан другому сайту, поэтому dm не подключился",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "сертификат безопасности сайта выдан издателем, которому dm не доверяет, поэтому dm не подключился",
+ "The site must renew it. If many sites say this, check the computer's date and time": "Сайт должен его обновить. Если так пишут многие сайты, проверьте дату и время на компьютере",
+ "Check the address. On a public network someone may be in between: try another network": "Проверьте адрес. В общественной сети кто-то может быть посередине: попробуйте другую сеть",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "Посередине может быть сеть, проверяющая трафик (на работе или в учёбе): попробуйте другую сеть"
 }

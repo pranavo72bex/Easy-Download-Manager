@@ -209,9 +209,18 @@ it made of a finished archive:
   sets how long a silent connection may last.
 - `network: …`
   Another network failure, in the network library's own words, with each
-  cause after it. Where the words name a certificate, the site's security
-  certificate could not be checked: check that the computer's date and time
-  are right, then click **Retry**. Otherwise check that you are online and
+  cause after it. Where the words name a certificate, dm says which way it
+  failed, and never offers a way around it:
+  - "has expired": the site must renew it; if many sites say this, check the
+    computer's date and time.
+  - "isn't valid yet": check that the computer's date and time are right,
+    then click **Retry**.
+  - "is for another site": check the address; on a public network someone may
+    be in between, so try another network.
+  - "is from an issuer dm doesn't trust": a network that inspects traffic (at
+    work or school) may be in between; try another network.
+  - otherwise "couldn't be checked": check that the computer's date and time
+    are right, then click **Retry**. Otherwise check that you are online and
   click **Retry**. This prefix also comes before an FTP server's "try
   later" answers and dropped FTP connections, which dm tries again by
   itself.

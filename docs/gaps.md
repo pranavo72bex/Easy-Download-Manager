@@ -849,7 +849,6 @@ and only the needed components exported on the phone; `SECURITY.md`.
 | H4  | Only checksum files are checked; a signature published beside a download (`.minisig`, `.sig`, `.asc`) is ignored | OPEN · M · decide | Start with minisign and signify (Ed25519, already in the tree); the person pastes or keeps the publisher's key per site; the row says "signed by the key you keep for …". OpenPGP is large: decide separately |
 | H5  | A finished file is checked once; years later nothing can say whether it changed | OPEN · S · the maintainer's word | Keep the SHA-256 of each finished file; "Check file again" on a row compares; Properties shows the digest with Copy |
 | H6  | A download over plain `http://` looks the same as one over HTTPS, and a checksum fetched over plain HTTP beside it is believed as much | OPEN · S to M · the maintainer's word | Try `https://` first for a typed or pasted `http://` address and fall back only when it fails; the row says "not encrypted"; a checksum that came unencrypted is called "matches, but could have been changed on the way" |
-| H8  | A certificate failure is one sentence for every cause | OPEN · S | Say which it is (expired, wrong name, unknown issuer, the computer's clock wrong) with what to do next in `docs/guide/failures.md`; never a "continue anyway" button |
 
 ### H, second part: keeping an attack inside a box
 

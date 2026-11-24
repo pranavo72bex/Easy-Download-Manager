@@ -184,8 +184,35 @@ fn common_failures_have_plain_reasons() {
     );
     assert_eq!(
             reason("error sending request for url (https://e.com/a): invalid peer certificate: UnknownIssuer"),
-            Some("the site's security certificate couldn't be checked, so dm didn't connect")
+            Some("the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect")
         );
+}
+
+/// A certificate failure is said by its cause, each with what to do, and never with a way
+/// around it (gaps row H8); a cause the library names otherwise is one that could not be
+/// checked.
+#[test]
+fn a_certificate_failure_is_said_by_its_cause() {
+    let raw = |cause: &str| {
+        format!("network: error sending request for url (https://e.com/a): invalid peer certificate: {cause}")
+    };
+    for (cause, said) in [
+        ("Expired", "has expired"),
+        ("ExpiredContext { time: 1, not_after: 0 }", "has expired"),
+        ("NotValidYet", "isn't valid yet"),
+        (
+            "NotValidForNameContext { expected: e.com, presented: [] }",
+            "is for another site",
+        ),
+        ("UnknownIssuer", "is from an issuer dm doesn't trust"),
+        ("BadSignature", "couldn't be checked"),
+    ] {
+        let plain = reason(&raw(cause)).unwrap_or_default();
+        assert!(plain.contains(said), "{cause}: {plain}");
+        let step = next_step(&raw(cause)).unwrap_or_default();
+        assert!(!step.is_empty(), "{cause}: no next step");
+        assert!(!step.to_lowercase().contains("anyway"), "{cause}: {step}");
+    }
 }
 
 #[test]

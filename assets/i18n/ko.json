@@ -1053,5 +1053,12 @@
  "More": "더 보기",
  "Speed limit": "속도 제한",
  "No limit": "제한 없음",
- "Look-alike letters from another alphabet: the real name is {}": "다른 문자의 비슷한 글자가 있습니다. 실제 이름은 {}"
+ "Look-alike letters from another alphabet: the real name is {}": "다른 문자의 비슷한 글자가 있습니다. 실제 이름은 {}",
+ "the site's security certificate has expired, so dm didn't connect": "사이트의 보안 인증서가 만료되어 dm이 연결하지 않았습니다",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "사이트의 보안 인증서가 아직 유효하지 않아 dm이 연결하지 않았습니다",
+ "the site's security certificate is for another site, so dm didn't connect": "사이트의 보안 인증서가 다른 사이트의 것이어서 dm이 연결하지 않았습니다",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "사이트의 보안 인증서 발급자를 dm이 신뢰하지 않아 연결하지 않았습니다",
+ "The site must renew it. If many sites say this, check the computer's date and time": "사이트에서 갱신해야 합니다. 여러 사이트에서 이렇게 나오면 컴퓨터의 날짜와 시간을 확인하세요",
+ "Check the address. On a public network someone may be in between: try another network": "주소를 확인하세요. 공용 네트워크에서는 누군가 중간에 있을 수 있습니다. 다른 네트워크를 사용해 보세요",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "트래픽을 검사하는 네트워크(직장이나 학교)가 중간에 있을 수 있습니다. 다른 네트워크를 사용해 보세요"
 }

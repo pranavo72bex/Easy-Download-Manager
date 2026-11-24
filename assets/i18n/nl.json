@@ -1053,5 +1053,12 @@
  "More": "Meer",
  "Speed limit": "Snelheidslimiet",
  "No limit": "Geen limiet",
- "Look-alike letters from another alphabet: the real name is {}": "Gelijkende letters uit een ander alfabet: de echte naam is {}"
+ "Look-alike letters from another alphabet: the real name is {}": "Gelijkende letters uit een ander alfabet: de echte naam is {}",
+ "the site's security certificate has expired, so dm didn't connect": "het beveiligingscertificaat van de site is verlopen, dus dm heeft geen verbinding gemaakt",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "het beveiligingscertificaat van de site is nog niet geldig, dus dm heeft geen verbinding gemaakt",
+ "the site's security certificate is for another site, so dm didn't connect": "het beveiligingscertificaat van de site hoort bij een andere site, dus dm heeft geen verbinding gemaakt",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "het beveiligingscertificaat van de site komt van een uitgever die dm niet vertrouwt, dus dm heeft geen verbinding gemaakt",
+ "The site must renew it. If many sites say this, check the computer's date and time": "De site moet het vernieuwen. Zeggen veel sites dit, controleer dan de datum en tijd van de computer",
+ "Check the address. On a public network someone may be in between: try another network": "Controleer het adres. Op een openbaar netwerk kan iemand ertussen zitten: probeer een ander netwerk",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "Een netwerk dat verkeer inspecteert (op het werk of op school) kan ertussen zitten: probeer een ander netwerk"
 }

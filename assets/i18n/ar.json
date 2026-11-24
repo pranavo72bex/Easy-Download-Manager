@@ -1053,5 +1053,12 @@
  "More": "المزيد",
  "Speed limit": "حد السرعة",
  "No limit": "بلا حد",
- "Look-alike letters from another alphabet: the real name is {}": "حروف مشابهة من أبجدية أخرى: الاسم الحقيقي هو {}"
+ "Look-alike letters from another alphabet: the real name is {}": "حروف مشابهة من أبجدية أخرى: الاسم الحقيقي هو {}",
+ "the site's security certificate has expired, so dm didn't connect": "انتهت صلاحية شهادة أمان الموقع، لذا لم يتصل dm",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "شهادة أمان الموقع غير صالحة بعد، لذا لم يتصل dm",
+ "the site's security certificate is for another site, so dm didn't connect": "شهادة أمان الموقع خاصة بموقع آخر، لذا لم يتصل dm",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "شهادة أمان الموقع صادرة عن جهة لا يثق بها dm، لذا لم يتصل",
+ "The site must renew it. If many sites say this, check the computer's date and time": "على الموقع تجديدها. إذا ظهر هذا لمواقع كثيرة، فتحقق من تاريخ الكمبيوتر ووقته",
+ "Check the address. On a public network someone may be in between: try another network": "تحقق من العنوان. على شبكة عامة قد يكون أحدهم في المنتصف: جرّب شبكة أخرى",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "قد تكون في المنتصف شبكة تفحص حركة البيانات (في العمل أو المدرسة): جرّب شبكة أخرى"
 }

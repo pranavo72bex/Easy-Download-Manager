@@ -1053,5 +1053,12 @@
  "More": "Daha fazla",
  "Speed limit": "Hız sınırı",
  "No limit": "Sınır yok",
- "Look-alike letters from another alphabet: the real name is {}": "Başka bir alfabeden benzer harfler: gerçek ad {}"
+ "Look-alike letters from another alphabet: the real name is {}": "Başka bir alfabeden benzer harfler: gerçek ad {}",
+ "the site's security certificate has expired, so dm didn't connect": "sitenin güvenlik sertifikasının süresi dolmuş, bu yüzden dm bağlanmadı",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "sitenin güvenlik sertifikası henüz geçerli değil, bu yüzden dm bağlanmadı",
+ "the site's security certificate is for another site, so dm didn't connect": "sitenin güvenlik sertifikası başka bir siteye ait, bu yüzden dm bağlanmadı",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "sitenin güvenlik sertifikası dm'nin güvenmediği bir yayıncıdan, bu yüzden dm bağlanmadı",
+ "The site must renew it. If many sites say this, check the computer's date and time": "Sitenin yenilemesi gerekiyor. Birçok site bunu söylüyorsa bilgisayarın tarih ve saatini kontrol edin",
+ "Check the address. On a public network someone may be in between: try another network": "Adresi kontrol edin. Herkese açık bir ağda araya biri girmiş olabilir: başka bir ağ deneyin",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "Trafiği denetleyen bir ağ (iş yerinde ya da okulda) araya girmiş olabilir: başka bir ağ deneyin"
 }

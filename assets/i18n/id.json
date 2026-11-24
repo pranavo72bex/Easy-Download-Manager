@@ -1053,5 +1053,12 @@
  "More": "Lainnya",
  "Speed limit": "Batas kecepatan",
  "No limit": "Tanpa batas",
- "Look-alike letters from another alphabet: the real name is {}": "Huruf mirip dari alfabet lain: nama sebenarnya {}"
+ "Look-alike letters from another alphabet: the real name is {}": "Huruf mirip dari alfabet lain: nama sebenarnya {}",
+ "the site's security certificate has expired, so dm didn't connect": "sertifikat keamanan situs sudah kedaluwarsa, jadi dm tidak terhubung",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "sertifikat keamanan situs belum berlaku, jadi dm tidak terhubung",
+ "the site's security certificate is for another site, so dm didn't connect": "sertifikat keamanan situs ini untuk situs lain, jadi dm tidak terhubung",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "sertifikat keamanan situs berasal dari penerbit yang tidak dipercaya dm, jadi dm tidak terhubung",
+ "The site must renew it. If many sites say this, check the computer's date and time": "Situs harus memperbaruinya. Jika banyak situs mengatakan ini, periksa tanggal dan jam komputer",
+ "Check the address. On a public network someone may be in between: try another network": "Periksa alamatnya. Di jaringan publik mungkin ada pihak di tengah: coba jaringan lain",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "Jaringan yang memeriksa lalu lintas (di kantor atau sekolah) mungkin ada di tengah: coba jaringan lain"
 }

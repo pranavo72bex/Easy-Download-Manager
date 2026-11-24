@@ -15,7 +15,7 @@
 /// system's and servers' own words, and the same rewording serves texts that carry no kind (a
 /// stalled row's why, a retry's cause, a file error). It chooses only the words shown, and the
 /// next step and button that go with them (gaps row A9).
-pub const REASONS: [(&[&str], &str); 34] = [
+pub const REASONS: [(&[&str], &str); 38] = [
     // First: the failure text of a row waiting for a fresh address also names
     // the refusal that expired it (`dm_core::LINK_EXPIRED`).
     (
@@ -68,6 +68,24 @@ pub const REASONS: [(&[&str], &str); 34] = [
     (
         &["the server did not answer in time", "timed out"],
         "the server took too long to answer. Try again in a moment",
+    ),
+    // A certificate failure by its cause, as the TLS library names it (gaps row H8); any
+    // other cause is said as one that could not be checked, the next line.
+    (
+        &["certificate: expired"],
+        "the site's security certificate has expired, so dm didn't connect",
+    ),
+    (
+        &["certificate: notvalidyet"],
+        "the site's security certificate isn't valid yet, so dm didn't connect",
+    ),
+    (
+        &["certificate: notvalidforname"],
+        "the site's security certificate is for another site, so dm didn't connect",
+    ),
+    (
+        &["certificate: unknownissuer"],
+        "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect",
     ),
     (
         &["certificate"],
@@ -302,7 +320,7 @@ pub fn reason(raw: &str) -> Option<&'static str> {
 /// what went wrong: one sentence each, keyed by those words. The failures
 /// whose sentence already says what to do (try again, check the address, add
 /// the login) have none here.
-pub const NEXT_STEPS: [(&str, &str); 7] = [
+pub const NEXT_STEPS: [(&str, &str); 11] = [
     (
         "the disk is full",
         "Free some space, or choose a folder on another drive (Options › Folders), then click Retry",
@@ -326,6 +344,22 @@ pub const NEXT_STEPS: [(&str, &str); 7] = [
     (
         "the site's security certificate couldn't be checked, so dm didn't connect",
         "Check that the computer's date and time are right, then click Retry",
+    ),
+    (
+        "the site's security certificate has expired, so dm didn't connect",
+        "The site must renew it. If many sites say this, check the computer's date and time",
+    ),
+    (
+        "the site's security certificate isn't valid yet, so dm didn't connect",
+        "Check that the computer's date and time are right, then click Retry",
+    ),
+    (
+        "the site's security certificate is for another site, so dm didn't connect",
+        "Check the address. On a public network someone may be in between: try another network",
+    ),
+    (
+        "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect",
+        "A network that inspects traffic (at work or school) may be in between: try another network",
     ),
     (
         "cannot connect to the Internet. The dial-up or VPN connection did not come up",

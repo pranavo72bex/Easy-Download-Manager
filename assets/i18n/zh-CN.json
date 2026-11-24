@@ -1053,5 +1053,12 @@
  "More": "更多",
  "Speed limit": "速度限制",
  "No limit": "不限速",
- "Look-alike letters from another alphabet: the real name is {}": "含有其他字母表中形似的字母：真实名称是 {}"
+ "Look-alike letters from another alphabet: the real name is {}": "含有其他字母表中形似的字母：真实名称是 {}",
+ "the site's security certificate has expired, so dm didn't connect": "网站的安全证书已过期，因此 dm 未连接",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "网站的安全证书尚未生效，因此 dm 未连接",
+ "the site's security certificate is for another site, so dm didn't connect": "网站的安全证书属于其他网站，因此 dm 未连接",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "网站的安全证书来自 dm 不信任的颁发者，因此 dm 未连接",
+ "The site must renew it. If many sites say this, check the computer's date and time": "需要网站续订证书。如果很多网站都这样提示，请检查电脑的日期和时间",
+ "Check the address. On a public network someone may be in between: try another network": "请检查地址。在公共网络上可能有人在中间拦截：请换一个网络试试",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "中间可能有检查流量的网络（单位或学校）：请换一个网络试试"
 }

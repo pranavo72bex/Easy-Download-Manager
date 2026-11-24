@@ -1053,5 +1053,12 @@
  "More": "עוד",
  "Speed limit": "מגבלת מהירות",
  "No limit": "ללא מגבלה",
- "Look-alike letters from another alphabet: the real name is {}": "אותיות דומות מאלפבית אחר: השם האמיתי הוא {}"
+ "Look-alike letters from another alphabet: the real name is {}": "אותיות דומות מאלפבית אחר: השם האמיתי הוא {}",
+ "the site's security certificate has expired, so dm didn't connect": "תוקף אישור האבטחה של האתר פג, ולכן dm לא התחבר",
+ "the site's security certificate isn't valid yet, so dm didn't connect": "אישור האבטחה של האתר עדיין אינו בתוקף, ולכן dm לא התחבר",
+ "the site's security certificate is for another site, so dm didn't connect": "אישור האבטחה של האתר שייך לאתר אחר, ולכן dm לא התחבר",
+ "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect": "אישור האבטחה של האתר הונפק על ידי גורם ש-dm אינו סומך עליו, ולכן dm לא התחבר",
+ "The site must renew it. If many sites say this, check the computer's date and time": "האתר צריך לחדש אותו. אם אתרים רבים אומרים זאת, בדקו את התאריך והשעה במחשב",
+ "Check the address. On a public network someone may be in between: try another network": "בדקו את הכתובת. ברשת ציבורית מישהו עשוי להיות באמצע: נסו רשת אחרת",
+ "A network that inspects traffic (at work or school) may be in between: try another network": "ייתכן שבאמצע יש רשת שבודקת את התעבורה (בעבודה או בבית הספר): נסו רשת אחרת"
 }
