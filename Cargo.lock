@@ -2308,6 +2308,7 @@ version = "0.10.3"
 dependencies = [
  "bytes",
  "librqbit",
+ "tempfile",
  "tokio",
  "tokio-util",
  "url",

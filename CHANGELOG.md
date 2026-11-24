@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options › Only through now holds torrents to the chosen network too (macOS, Linux, Android): every peer, tracker and DHT connection goes through that adapter, and a torrent waits while it is down. Torrents were refused under Only through before; on Windows they still are.
 - Release builds are checked for the system's protections before they are published (address randomisation, no writable-and-runnable memory, read-only relocations); Windows builds now have Control Flow Guard.
 - Every release file (installers, extension, APKs) now carries a build attestation: `gh attestation verify <file> --repo pranavo72bex/Easy-Download-Manager` says which commit and workflow built it. A new page, [What dm protects you from](docs/guide/security.md), lists each guard and the test that holds it.
 - A finished file that is really a program while its name says a picture, film, document or archive (`invoice.pdf` that is a Windows program) says so on its row: "Complete · not what its name says: a Windows program".

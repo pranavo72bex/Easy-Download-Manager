@@ -318,15 +318,22 @@ fn refused_here(url: &str, options: &Options) -> Result<(), Error> {
     if let Some(why) = options.no_route_through_system_proxy(url, "a torrent") {
         return Err(Error::Internal(why));
     }
-    // The swarm's sockets are librqbit's, which dm cannot bind to one network: held to one
-    // (gaps row W12), a torrent is not started rather than sent around it.
-    if let Some(name) = crate::only_through::only_through() {
+    // Held to one network (gaps row W12), a torrent's every socket is bound to its adapter
+    // (`held_to`, gaps row H23); on Windows the library cannot bind to an adapter, so a
+    // torrent is not started there rather than sent around it.
+    if let Some(name) = crate::only_through::only_through().filter(|_| cfg!(windows)) {
         return Err(Error::Internal(crate::only_through::refused_words(
             "a torrent",
             &name,
         )));
     }
     Ok(())
+}
+
+/// The adapter a torrent's sockets are bound to: Only through's, where one is chosen (gaps rows
+/// W12, H23). On Windows none (`refused_here` keeps the torrent off the network there).
+fn held_to() -> Option<String> {
+    crate::only_through::only_through().filter(|_| !cfg!(windows))
 }
 
 /// How often the row is redrawn while a torrent transfers.
@@ -400,6 +407,7 @@ pub async fn download_torrent(
         download_bps: download_cap(options).await,
         upload_bps: None,
         socks5: connect,
+        bind_device: held_to(),
     })
     .await
     .map_err(|e| Error::Internal(format!("the torrent engine would not start: {e}")))?;
@@ -569,6 +577,7 @@ async fn share_until(
         download_bps: NonZeroU32::new(1),
         upload_bps,
         socks5: connect,
+        bind_device: held_to(),
     })
     .await
     .map_err(|e| Error::Internal(format!("its session would not start: {e}")))?;

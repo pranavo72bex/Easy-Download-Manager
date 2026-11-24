@@ -141,6 +141,10 @@ pub struct Setup {
     pub upload_bps: Option<NonZeroU32>,
     /// The SOCKS5 proxy (`socks5://...`) trackers and peers are reached through, where one is.
     pub socks5: Option<String>,
+    /// The network adapter every socket of the session is bound to (peers, the DHT, trackers,
+    /// local discovery, the listening port), by its system name: Options › Only through (gaps
+    /// row H23). The library binds by name on macOS, Linux and Android, not on Windows.
+    pub bind_device: Option<String>,
 }
 
 /// What a torrent is added from.
@@ -176,6 +180,7 @@ impl Session {
             setup.output,
             librqbit::SessionOptions {
                 persistence: None,
+                bind_device_name: setup.bind_device,
                 dht: (!setup.private).then(|| librqbit::DhtSessionConfig {
                     persistence: None,
                     bootstrap_addrs: Some(bootstrap_from(&kept)),
@@ -496,6 +501,33 @@ mod tests {
             ..Setup::default()
         };
         assert!(session_trackers(&proxied).is_empty());
+    }
+
+    /// A session held to one adapter binds every socket to it (gaps row H23): one that names
+    /// no adapter of this computer does not start at all, rather than going out another way;
+    /// the loopback adapter, which every computer has, starts.
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_session_held_to_an_adapter_binds_to_it_or_does_not_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let held = |name: &str| Setup {
+            output: dir.path().to_path_buf(),
+            private: true,
+            listen: true,
+            bind_device: Some(name.into()),
+            ..Setup::default()
+        };
+        assert!(Session::start(held("dm-no-such-adapter0")).await.is_err());
+        let lo = if cfg!(target_os = "macos") {
+            "lo0"
+        } else {
+            "lo"
+        };
+        let setup = held(lo);
+        let cancel = setup.cancel.clone();
+        let started = Session::start(setup).await;
+        cancel.cancel();
+        assert!(started.is_ok(), "{:?}", started.err());
     }
 }
 

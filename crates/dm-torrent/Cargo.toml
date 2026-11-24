@@ -24,5 +24,10 @@ url.workspace = true
 # the runtime's threads).
 tokio = { workspace = true, features = ["rt", "time", "macros"] }
 
+[dev-dependencies]
+# A session's folder in a test (gaps row H23).
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
 [lints]
 workspace = true
