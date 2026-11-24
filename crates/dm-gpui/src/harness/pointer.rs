@@ -73,6 +73,26 @@ impl Harness {
     }
 
     /// A press and release of the pointer at `at` in `window`, `clicks` times.
+    /// A finger held still on the words `text`, as the phone's gesture recogniser reports one
+    /// (GPUI's `LongPressEvent`), in the main window.
+    pub(crate) fn long_press(&mut self, text: &str) {
+        let (window, bounds) = self.drawn(text, 0);
+        let at = bounds.center();
+        self.cx.update(|cx| {
+            let _ = window.update(cx, |_, window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::LongPress(gpui::LongPressEvent {
+                        phase: gpui::TouchPhase::Started,
+                        start_position: at,
+                        position: at,
+                    }),
+                    cx,
+                );
+            });
+        });
+        self.step();
+    }
+
     pub(super) fn press_at(
         &mut self,
         window: gpui::AnyWindowHandle,

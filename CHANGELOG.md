@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Android: holding a download's card (or a place) is felt, as the phone's own apps' long presses are; it follows the phone's touch-feedback setting.
 - Fixed: recording a live stream whose picture never has a key frame, or whose timestamps leap, kept everything in memory (or stopped with a crash); it is now written to the file as it comes.
 - Security: a crafted video or archive can no longer ask dm for tens of gigabytes of memory from a few kilobytes, or keep the computer busy for days making a 7z's password keys; sizes near the largest a number holds no longer stop the join or unpack with a crash.
 - Security: a `.torrent` or magnet whose info cannot be true (pieces of no length, a few hundred bytes claiming gigabytes of pieces) is refused with a reason before the torrent engine works from it; a peer that sends a torrent's metadata out of turn is dropped rather than stopping the download.

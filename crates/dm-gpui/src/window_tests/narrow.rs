@@ -461,3 +461,23 @@ fn a_place_held_opens_its_menu_as_a_sheet() {
         h.view(|view| view.layout.narrow.sheet.is_none())
     });
 }
+
+/// A finger held on a card opens its menu while it is still down, and the press is felt, as a
+/// phone's own long press is (gaps row C22): the phone's haptic feedback is asked for.
+#[test]
+fn a_long_press_on_a_card_opens_its_menu_and_is_felt() {
+    use std::sync::atomic::Ordering;
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    add_later(&mut h, &world, &["file.zip"]);
+    h.until_shown("file.zip");
+    let before = dm_desktop_base::phone::FELT.load(Ordering::Relaxed);
+    h.long_press("file.zip");
+    h.until("the press felt", |_| {
+        dm_desktop_base::phone::FELT.load(Ordering::Relaxed) > before
+    });
+    h.until("the card's menu", |h| {
+        h.view(|view| view.layout.narrow.held_open.is_some())
+    });
+}

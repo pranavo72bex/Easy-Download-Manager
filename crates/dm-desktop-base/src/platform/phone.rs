@@ -52,6 +52,9 @@ pub trait PhoneServices: Send + Sync {
         let _ = path;
     }
 
+    /// The phone's feel of a long press, as its own apps give one (gaps row C22).
+    fn felt(&self) {}
+
     /// The clipboard's text, if it holds any.
     fn clipboard(&self) -> Option<String> {
         None
@@ -284,6 +287,17 @@ pub fn open_with(path: &str) -> Result<(), String> {
 /// Offers `path` to the phone's other apps through its share sheet, or says it cannot.
 pub fn share(path: &str) -> Result<(), String> {
     phone().map_or_else(|| Err(NOT_YET.into()), |phone| phone.share(path))
+}
+
+/// How many long presses were felt this run: the window's tests read it, which have no phone.
+pub static FELT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// A long press felt on the phone (its haptic feedback); nothing on a desktop.
+pub fn felt() {
+    FELT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    if let Some(phone) = phone() {
+        phone.felt();
+    }
 }
 
 /// Tells the phone dm wrote the file at `path`; nothing on a desktop.

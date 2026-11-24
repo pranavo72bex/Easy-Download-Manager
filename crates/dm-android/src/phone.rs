@@ -49,6 +49,8 @@ pub trait Java: Send + Sync + 'static {
     /// Whether dm's window is in front: Android 10 and up let only the app in front read the
     /// clipboard, and answer the others as if it were empty (gaps row N5).
     fn in_front(&self) -> bool;
+    /// The activity's own haptic feedback for a long press (gaps row C22).
+    fn feel(&self) {}
     /// The clipboard's text, where there is any.
     fn clipboard(&self) -> Option<String>;
     /// Puts `text` on the clipboard.
@@ -306,6 +308,10 @@ impl<J: Java> PhoneServices for Phone<J> {
 
     fn publish(&self, path: &Path) -> Result<Option<PathBuf>, String> {
         self.java.publish(path)
+    }
+
+    fn felt(&self) {
+        self.java.feel();
     }
 
     fn wrote(&self, path: &Path) {

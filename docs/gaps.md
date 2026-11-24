@@ -151,7 +151,7 @@ technology-only items (encrypted DNS, themes, crash reports). Decisions: `docs/d
 | C11 | The progress window does not show where the server is | OPEN · M | Country and distance (by round-trip time) from an offline IP table (DB-IP Lite, CC BY 4.0); nothing sent |
 | C14 | No Click'n'Load support | OPEN · M · decide | Off by default (it opens a listening port); needs the maintainer's approval before work starts |
 | C21 | Options was hard to use on both phone and desktop | PARTIAL · approved | Done: a list of pages with summaries, side by side when wide and one screen at a time when narrow; switches for on/off settings; Back steps from a page to the list. Left: test on a real phone; apply changes instantly on the phone; move rarely used settings under "More" |
-| C22 | The card's long press was slow and not very useful | PARTIAL · approved | Done: the menu opens while the finger is down, with Open, Share and Delete at the top (verified on the emulator). Left: haptic feedback |
+| C22 | The card's long press was slow and not very useful | PARTIAL · approved | Done: the menu opens while the finger is down, with Open, Share and Delete at the top (verified on the emulator); the press is felt (2026-11-24: the view's own haptic feedback through `DmActivity.feel`, no permission, the phone's own touch-feedback setting followed; a place's long press too; `a_long_press_on_a_card_opens_its_menu_and_is_felt`). Left: felt on a real phone (an emulator has no vibration) |
 
 ### README and help pages
 

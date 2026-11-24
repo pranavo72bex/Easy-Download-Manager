@@ -10,6 +10,7 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -49,6 +50,16 @@ public class DmActivity extends GpuiInputActivity {
     public void onConfigurationChanged(Configuration configuration) {
         super.onConfigurationChanged(configuration);
         barIconsFor(configuration);
+    }
+
+    /**
+     * The phone's own feel of a long press (gaps row C22), on the UI thread where a view's
+     * methods belong; called from Rust's thread. It needs no permission, and follows the
+     * phone's own setting for touch feedback.
+     */
+    public void feel() {
+        runOnUiThread(() -> getWindow().getDecorView()
+                .performHapticFeedback(HapticFeedbackConstants.LONG_PRESS));
     }
 
     @Override

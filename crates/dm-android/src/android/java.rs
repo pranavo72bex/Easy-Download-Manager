@@ -45,6 +45,14 @@ impl Java for Jni {
         open::scan(path)
     }
 
+    fn feel(&self) {
+        // DmActivity's `feel`, which runs the view's haptic feedback on the UI thread.
+        let _ = jvm::with("feel a long press", |env, activity| {
+            env.call_method(activity, jni_str!("feel"), jni_sig!("()V"), &[])?;
+            Ok(())
+        });
+    }
+
     fn in_front(&self) -> bool {
         // gpui-android's own: set as the activity resumes or gains the focus, cleared as it
         // pauses or loses it.

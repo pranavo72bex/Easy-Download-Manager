@@ -438,6 +438,8 @@ pub(crate) fn held_layer(
                     return;
                 }
                 window.prevent_default();
+                // Felt, as a phone's own long press is (gaps row C22).
+                dm_desktop_base::phone::felt();
                 cx.stop_propagation();
                 let _ = view.update(cx, |view, cx| on_hold(view, cx));
             });
