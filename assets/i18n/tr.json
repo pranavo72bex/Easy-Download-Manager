@@ -1052,5 +1052,6 @@
  "Each download's connections are shared among all the networks chosen.": "Her indirmenin bağlantıları seçilen tüm ağlar arasında paylaştırılır.",
  "More": "Daha fazla",
  "Speed limit": "Hız sınırı",
- "No limit": "Sınır yok"
+ "No limit": "Sınır yok",
+ "Look-alike letters from another alphabet: the real name is {}": "Başka bir alfabeden benzer harfler: gerçek ad {}"
 }

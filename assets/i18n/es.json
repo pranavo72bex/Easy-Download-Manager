@@ -1052,5 +1052,6 @@
  "Each download's connections are shared among all the networks chosen.": "Las conexiones de cada descarga se reparten entre todas las redes elegidas.",
  "More": "Más",
  "Speed limit": "Límite de velocidad",
- "No limit": "Sin límite"
+ "No limit": "Sin límite",
+ "Look-alike letters from another alphabet: the real name is {}": "Letras parecidas de otro alfabeto: el nombre real es {}"
 }

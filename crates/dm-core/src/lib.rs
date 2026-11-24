@@ -52,6 +52,7 @@ pub mod dash;
 pub(crate) use dm_net::decode;
 
 mod download;
+pub mod lookalike;
 
 // What the engine is told for the whole program, put in force in one place (gaps row A11).
 mod engine_config;

@@ -1052,5 +1052,6 @@
  "Each download's connections are shared among all the networks chosen.": "Подключения каждой загрузки делятся между всеми выбранными сетями.",
  "More": "Ещё",
  "Speed limit": "Ограничение скорости",
- "No limit": "Без ограничения"
+ "No limit": "Без ограничения",
+ "Look-alike letters from another alphabet: the real name is {}": "Похожие буквы из другого алфавита: настоящее имя — {}"
 }

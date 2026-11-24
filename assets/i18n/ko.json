@@ -1052,5 +1052,6 @@
  "Each download's connections are shared among all the networks chosen.": "각 다운로드의 연결이 선택한 모든 네트워크에 나뉩니다.",
  "More": "더 보기",
  "Speed limit": "속도 제한",
- "No limit": "제한 없음"
+ "No limit": "제한 없음",
+ "Look-alike letters from another alphabet: the real name is {}": "다른 문자의 비슷한 글자가 있습니다. 실제 이름은 {}"
 }

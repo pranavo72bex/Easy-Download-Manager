@@ -50,6 +50,11 @@ selects the address so you can type a new one:
 
 The warning goes as soon as you change the address.
 
+An address whose site name is written with letters of another alphabet that look like Latin
+ones (a Cyrillic "а" in "apple.com") is said under the field as you type it: "Look-alike
+letters from another alphabet: the real name is xn--…". It may not be the site it seems. Such a
+name is shown in its `xn--` form everywhere in dm, and Download details says the same line.
+
 ## Keys
 
 - **Return** in any field is **OK**.

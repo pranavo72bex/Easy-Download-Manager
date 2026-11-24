@@ -380,7 +380,8 @@ impl Entry {
 }
 
 /// A download's address as a window shows it: a password in it is replaced
-/// by dots, the rest kept.
+/// by dots, and a host that copies another in letters of another alphabet
+/// shown in its `xn--` form (`lookalike`, gaps row H7); the rest kept.
 pub fn shown_url(url: &str) -> String {
     match url::Url::parse(url) {
         Ok(mut parsed) if parsed.password().is_some() => {
@@ -390,7 +391,7 @@ pub fn shown_url(url: &str) -> String {
             let _ = parsed.set_password(Some("dmmasked"));
             parsed.to_string().replacen(":dmmasked@", ":•••@", 1)
         }
-        _ => url.to_string(),
+        _ => crate::lookalike::honest(url),
     }
 }
 

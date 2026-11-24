@@ -1052,5 +1052,6 @@
  "Each download's connections are shared among all the networks chosen.": "De verbindingen van elke download worden over alle gekozen netwerken verdeeld.",
  "More": "Meer",
  "Speed limit": "Snelheidslimiet",
- "No limit": "Geen limiet"
+ "No limit": "Geen limiet",
+ "Look-alike letters from another alphabet: the real name is {}": "Gelijkende letters uit een ander alfabet: de echte naam is {}"
 }

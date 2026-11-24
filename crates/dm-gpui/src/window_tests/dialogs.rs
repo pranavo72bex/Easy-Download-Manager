@@ -273,6 +273,25 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     });
 }
 
+/// An address whose host copies another in letters of another alphabet is said in Add URL as
+/// it is typed, with its real `xn--` name; a plain one says nothing (gaps row H7).
+#[test]
+fn a_lookalike_address_is_said_in_add_url() {
+    let world = world();
+    let mut h = world.harness();
+    h.click("Add URL");
+    h.until_shown("Address");
+    h.type_text("https://\u{430}pple.com/setup.exe");
+    h.until_shown("Look-alike letters from another alphabet: the real name is xn--pple-43d.com");
+    h.key("a", &["cmd"]);
+    h.type_text("https://apple.com/setup.exe");
+    h.until("the line gone", |h| {
+        !h.texts()
+            .iter()
+            .any(|t| t.starts_with("Look-alike letters"))
+    });
+}
+
 /// A dialog asked for again while it is open is brought forward as it stands: what was typed
 /// in it is kept, and no second one opens.
 #[test]

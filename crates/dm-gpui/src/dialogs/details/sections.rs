@@ -441,6 +441,11 @@ impl Details {
                     .overflow_hidden()
                     .child(screen.label(format::shown_url(first))),
             )
+            // Its host copies another in letters of another alphabet (gaps row H7).
+            .children(
+                crate::dialogs::addurl::lookalike_said(first)
+                    .map(|said| native::note(said, theme.warning, screen)),
+            )
             // Where a handed-over download came from, as the host
             // saw it.
             .when_some(

@@ -1052,5 +1052,6 @@
  "Each download's connections are shared among all the networks chosen.": "Koneksi setiap unduhan dibagi ke semua jaringan yang dipilih.",
  "More": "Lainnya",
  "Speed limit": "Batas kecepatan",
- "No limit": "Tanpa batas"
+ "No limit": "Tanpa batas",
+ "Look-alike letters from another alphabet: the real name is {}": "Huruf mirip dari alfabet lain: nama sebenarnya {}"
 }

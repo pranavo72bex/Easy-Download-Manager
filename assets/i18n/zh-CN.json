@@ -1052,5 +1052,6 @@
  "Each download's connections are shared among all the networks chosen.": "每个下载的连接会分配到所有选中的网络。",
  "More": "更多",
  "Speed limit": "速度限制",
- "No limit": "不限速"
+ "No limit": "不限速",
+ "Look-alike letters from another alphabet: the real name is {}": "含有其他字母表中形似的字母：真实名称是 {}"
 }

@@ -1052,5 +1052,6 @@
  "Each download's connections are shared among all the networks chosen.": "各ダウンロードの接続は、選んだすべてのネットワークに分けられます。",
  "More": "その他",
  "Speed limit": "速度制限",
- "No limit": "制限なし"
+ "No limit": "制限なし",
+ "Look-alike letters from another alphabet: the real name is {}": "別の文字体系のよく似た文字があります。本当の名前は {}"
 }

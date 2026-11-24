@@ -207,6 +207,12 @@ impl Render for AddUrl {
                             .children(
                                 self.says
                                     .clone()
+                                    // A host that copies another in another alphabet's
+                                    // letters, said as it is typed (gaps row H7).
+                                    .or_else(|| {
+                                        lookalike_said(&self.address.read(cx).value())
+                                            .map(Into::into)
+                                    })
                                     .map(|says| native::note(says, theme.warning, &screen)),
                             ),
                     ))
@@ -226,6 +232,17 @@ impl Render for AddUrl {
             ));
         crate::window::safe::kept_clear(root, window)
     }
+}
+
+/// What is said of an address whose host copies another in letters of another alphabet: its
+/// real, `xn--` name (gaps row H7). `None` for any other.
+pub(crate) fn lookalike_said(url: &str) -> Option<String> {
+    dm_core::lookalike::lookalike_host(url.trim()).map(|(_, ascii)| {
+        dm_desktop_base::i18n::tf(
+            "Look-alike letters from another alphabet: the real name is {}",
+            &[&ascii],
+        )
+    })
 }
 
 /// Opens Add URL over the middle of the screen, a link on the clipboard
