@@ -45,7 +45,8 @@ pub(crate) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
     let track = div()
         .mt(px(space::XXS))
         .w_full()
-        .h(px(3.0))
+        // Thick enough to read at a glance across the cell (gaps row E4).
+        .h(px(4.0))
         .rounded_full()
         .bg(theme.separator)
         // Filled from the right where the window is mirrored (gaps row U35).
@@ -67,5 +68,53 @@ pub(crate) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
             .into_any_element()
     } else {
         track.into_any_element()
+    }
+}
+
+/// A download's state as a mark told by its shape (gaps row E4): a play mark while it runs,
+/// pause bars when paused, a clock while it waits, a tick once done, a ring with "!" when it
+/// failed; none for one cancelled. In the colour the row's words take.
+pub(super) fn state_mark(state: &dm_core::State, theme: Theme) -> Option<AnyElement> {
+    use dm_core::State;
+    let colour = if theme.is_chosen() {
+        theme.text
+    } else {
+        match state {
+            State::Failed(_) => theme.warning,
+            State::Completed => theme.success,
+            State::Running => theme.accent,
+            _ => theme.muted,
+        }
+    };
+    let picture = |path: &'static str| {
+        gpui::svg()
+            .path(path)
+            .size(px(12.0))
+            .flex_none()
+            .text_color(colour)
+            .into_any_element()
+    };
+    match state {
+        State::Running => Some(picture("icons/resume.svg")),
+        State::Paused => Some(picture("icons/stop.svg")),
+        State::Queued => Some(picture("icons/place-unfinished.svg")),
+        State::Completed => Some(picture("icons/place-finished.svg")),
+        State::Failed(_) => Some(
+            div()
+                .flex_none()
+                .size(px(12.0))
+                .rounded_full()
+                .border_1()
+                .border_color(colour)
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_size(px(9.0))
+                .font_weight(gpui::FontWeight::BOLD)
+                .text_color(colour)
+                .child("!")
+                .into_any_element(),
+        ),
+        State::Cancelled => None,
     }
 }

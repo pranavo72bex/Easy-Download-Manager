@@ -426,7 +426,18 @@ fn row_cells(
                         State::Running => c.text_color(theme.accent),
                         _ => c,
                     })
-                    .child(screen.label(said))
+                    // A mark told by its shape, then the words (gaps row E4): a state is
+                    // never told by colour alone (`docs/ui-design.md`, rule 5).
+                    .child(
+                        div()
+                            .flex()
+                            .map(crate::window::mirror::row)
+                            .items_center()
+                            .gap(px(space::XS))
+                            .max_w_full()
+                            .children(cells::state_mark(&row.state, theme))
+                            .child(fitted(screen.label(said))),
+                    )
                     .when_some(fraction, |c, f| {
                         c.child(cells::progress_track(f, told, theme))
                     })

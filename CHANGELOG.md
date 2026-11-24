@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Each download's Status starts with a mark you can tell by its shape (running, paused, waiting, done, failed), and its progress bar is easier to see.
 - The toolbar is ranked: Add URL stands out at the start, Resume, Stop and Delete beside it, and the rest at the end.
 - Android: several finished downloads chosen can be shared together, to one app in one go.
 - Android: a change in Options takes effect as you make it, as the phone's own settings do; Done closes Options.
