@@ -52,7 +52,8 @@ pub(crate) const RESIZE_KEPT_EVERY: std::time::Duration = std::time::Duration::f
 fn width(column: Column) -> Option<f32> {
     match column {
         Column::Name => None,
-        Column::Queue => Some(22.0),
+        // The queue's name, where it was a dot (gaps row E7).
+        Column::Queue => Some(96.0),
         Column::Size => Some(72.0),
         Column::Status => Some(150.0),
         Column::TimeLeft => Some(68.0),
@@ -377,20 +378,18 @@ fn row_cells(
                     .child(cells::name_drawn(&name, screen));
                 maybe_told(named, told, ("name", id), place, name)
             }
-            // Reference A's Q: a mark for a download in a queue; its queue's name to a screen
-            // reader.
+            // The queue a download waits in, by its name (gaps row E7): it was a dot under a
+            // heading with no word.
             Column::Queue => {
-                let marked = cell(column, widths)
-                    .justify_center()
-                    .when(!row.queue.is_empty(), |c| {
-                        c.child(div().size(px(8.0)).rounded_full().bg(theme.selection))
-                    });
                 let queue = if row.queue.is_empty() {
                     String::new()
                 } else {
                     dm_desktop_base::i18n::name(&row.queue)
                 };
-                maybe_told(marked, told, ("queue", id), place, queue)
+                let named = cell(column, widths)
+                    .when(!theme.is_chosen(), |c| c.text_color(theme.muted))
+                    .child(fitted(screen.label(queue.clone())));
+                maybe_told(named, told, ("queue", id), place, queue)
             }
             Column::Status => {
                 let said = words(column, row, whens);

@@ -222,7 +222,13 @@ fn download_later_waits_in_the_main_queue_until_start_queue() {
     let row = h.rows()[0].clone();
     assert_eq!(row.state, State::Paused);
     assert_eq!(row.queue, dm_core::MAIN_QUEUE);
-    h.click("Main queue");
+    // The side panel's place (the row's Queue cell says the name too, gaps row E7).
+    h.update(|view, cx| {
+        view.choose(dm_shell::app::places::Place::Queue(
+            dm_core::MAIN_QUEUE.into(),
+        ));
+        cx.notify();
+    });
     h.until("the Main queue to be shown", |h| {
         h.view(|view| view.list.place.clone())
             == dm_shell::app::places::Place::Queue(dm_core::MAIN_QUEUE.into())

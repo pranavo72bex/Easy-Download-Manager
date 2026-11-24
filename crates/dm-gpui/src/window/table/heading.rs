@@ -104,11 +104,8 @@ pub fn header(
                 .into_iter()
                 .enumerate()
                 .map(|(place, column)| {
-                    let heading = if column == Column::Queue {
-                        String::new()
-                    } else {
-                        column.title().to_string()
-                    };
+                    // Every heading in words, the queue's too (gaps row E7).
+                    let heading = column.title().to_string();
                     let arrow = match sort {
                         Some((c, true)) if c == column => " ▲",
                         Some((c, false)) if c == column => " ▼",
