@@ -153,11 +153,14 @@ fn take(reader: &mut dyn Read, size: u64, sink: &mut dyn Write) -> Result<(), Er
 fn pax_path(text: &str) -> Option<String> {
     let mut rest = text;
     while !rest.is_empty() {
-        let (len, after) = rest.split_once(' ')?;
-        let len: usize = len.parse().ok()?;
+        let (digits, _) = rest.split_once(' ')?;
+        let len: usize = digits.parse().ok()?;
         let record = rest.get(..len)?;
+        // `key=value\n` after the length and its space, within this record alone: measured
+        // from the rest of the whole header it underflowed on a second record, which every
+        // pax header a common tar tool writes has (gaps row H10, audit of the archive readers).
         let (key, value) = record
-            .get(record.len() - after.len()..)?
+            .get(digits.len() + 1..)?
             .trim_end_matches('\n')
             .split_once('=')?;
         if key == "path" {

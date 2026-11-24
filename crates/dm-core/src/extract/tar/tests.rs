@@ -137,3 +137,20 @@ fn a_pax_or_gnu_long_name_names_the_next_entry() {
     assert!(dir.path().join("out").join(&long).exists());
     assert!(is_tar("a.TAR.GZ") && is_tar("b.tgz") && !is_tar("c.zip"));
 }
+
+/// A pax header of several records, as common tar tools write one (a path and a time), names
+/// the entry by its path, whichever record comes first; its arithmetic underflowed on the
+/// second record and the extraction panicked (gaps row H10).
+#[test]
+fn a_pax_header_of_several_records_gives_its_path() {
+    assert_eq!(
+        super::pax_path("16 path=a/b.txt\n20 mtime=1234567890\n").as_deref(),
+        Some("a/b.txt")
+    );
+    assert_eq!(
+        super::pax_path("20 mtime=1234567890\n16 path=a/b.txt\n").as_deref(),
+        Some("a/b.txt")
+    );
+    assert_eq!(super::pax_path("20 mtime=1234567890\n"), None);
+    assert_eq!(super::pax_path("99 path=short\n"), None);
+}

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed: unpacking a `.tar` whose entries carry extended headers (what most tar tools write for long names) could stop with a crash, leaving the unpack unanswered.
 - Fixed (browser extension, Firefox): a page could make the extension download any address by faking an Alt-click; such a download also left a private window's privacy and a container's cookies. Alt-click now needs a real click, and Firefox's own download stays in the tab's private window and container.
 - Fixed: an MMS server could crash a download with a huge object size, or make a few bytes fill the disk with a huge packet size.
 - Fixed (Android): a `.torrent` shared by another app with the same name as one dm kept replaced it.
