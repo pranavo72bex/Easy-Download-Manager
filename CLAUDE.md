@@ -43,6 +43,8 @@ to a model by `scripts/ai-context.py`). When nothing else waits, the bots take t
 of `docs/gaps.md` that needs nothing only a person can give. A bot never edits the workflows, `scripts/`,
 `tooling/xtask/`, the floors, the skill pages, this file or `AGENTS.md`: those are its
 guardrails.
+Every session starts by checking they work: `python3 scripts/ai-health.py`, and a FAIL is
+that session's first task (`docs/gaps.md`, "Every session first: are the bots working?").
 Security is the first priority (the maintainer, 2026-11-24): a model's code never runs
 where a token can write, and a change to the automation keeps that split
 (`docs/testing.md`, "Security first").

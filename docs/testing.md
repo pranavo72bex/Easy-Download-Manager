@@ -488,6 +488,12 @@ writes, since the agent that holds it runs that code; it is a free key, worth a 
 quota. The agents' npm packages are pinned, their own dependencies are not; they run only
 in the `work` job. Releases are never the bots'.
 
+**Checked every session.** `python3 scripts/ai-health.py` reads GitHub and says whether the
+bots work: their workflows on, a free model answering, the worker running, the guardrails
+holding, their jobs not failing, work taken in the last day, pull requests not stuck, merges
+and lessons in the last week, and main's own state. A FAIL is the session's first task
+(`docs/gaps.md`, "Every session first: are the bots working?", says what to do for each).
+
 Labels say where each issue stands: `bot:queue` with `bot-task:ci|bug|feature|revise`,
 `bot:working`, `bot:pr`, `bot:merged`, `bot:no-fix`, `bot:green-since`,
 `bot:not-reproduced`, `bot:needs-votes`, `bot:needs-info`, `bot:needs-maintainer`,

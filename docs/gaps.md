@@ -11,6 +11,36 @@ and how it closes; when it closes, its row is deleted (what was done is in
 | PARTIAL      | Works and is tested, but not everywhere it must              |
 | BLOCKED      | Needs something this project cannot get for free, or a person |
 
+## Every session first: are the bots working? (the maintainer, 2026-11-24)
+
+The free-model bots keep dm unattended (`docs/testing.md`, "The bots"; the section "Taken
+by the free-model bots" below). At the start of every session, before any row:
+
+```sh
+python3 scripts/ai-health.py      # reads GitHub only; exit 1 when a check FAILs
+```
+
+Each line is OK, WARN (worth a look; the bots still work) or FAIL (they are stopped or broken).
+**A FAIL is this session's first task**, before any row here: fix it, then run the check again.
+
+| FAIL | What to do |
+|---|---|
+| bot workflows not active | `gh workflow enable "AI worker"` (and each named). `disabled_inactivity`: GitHub's 60-day rule; see that the worker writes `.github/keepalive` |
+| the worker has not succeeded in 5 hours | Read its last run's log; fix `scripts/ai-worker.sh`; `gh workflow run ai-worker.yml` |
+| the guardrail job failed on main | `python3 scripts/ai-skills-check.py` and `bash scripts/ai-selftest.sh` say which guardrail or skill page broke; fix, push |
+| AI fix / AI tests / AI merge / AI triage: its last two runs failed | The pipeline, not the model: the failed step of the run named says why (a workflow, a script, a runner change, a CLI's new version). Fix it, run `bash scripts/ai-selftest.sh`, push, start the workflow again |
+| no AI fix and no AI tests run in 26 hours | The queue is stuck: `gh workflow run ai-worker.yml` and read its log; `python3 scripts/ai-improve-pick.py` should name a row |
+| bot pull requests open over a day | `gh workflow run ai-merge.yml -f pr=N` and read its log: the checks, the review, or `scripts/ai-merge.sh` |
+
+A WARN that stays a week is a FAIL: no bot pull request merged in seven days (read the last
+runs' reports on their issues: which check refuses them most; mark small rows `· bot`); no
+lesson learned in seven days; no free model answering (`python3 scripts/ai-ask.py pick kilo`,
+and `GEMINI_API_KEY` still valid at aistudio.google.com: `gh secret set GEMINI_API_KEY`); a
+`bot:needs-maintainer` pull request (read it; merge or close). A session that changes the
+bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The bots in
+GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
+in `docs/decisions.md`.
+
 ## Next session (written 2026-11-23, end of day)
 
 **Done today:** the phone's layout. Choosing several cards, Undo after Remove, a place's menu by
