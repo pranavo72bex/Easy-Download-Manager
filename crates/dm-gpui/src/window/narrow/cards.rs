@@ -313,6 +313,7 @@ fn card(
                 // No bar on a finished card: its tick says it (gaps row E4).
                 .when(row.state != State::Completed, |card| {
                     card.child(div().w_full().child(crate::window::table::progress_track(
+                        row.id,
                         row.progress.fraction().unwrap_or(0.0),
                         false,
                         card_theme,

@@ -317,6 +317,10 @@ fn windowed(ready: Ready, wake: &Arc<dyn Fn(Wake) + Send + Sync>, application: g
         gpui_component::init(cx);
         // A form's labels measured as they are drawn (gaps row E2).
         widgets::native::measure_with(cx);
+        // No motion that is not needed where the system asks for less (gaps row K7).
+        let still = dm_desktop_base::motion::reduced();
+        cx.set_reduce_motion(still);
+        window::table::set_still(still);
         // Notifications are posted as dm's own (macOS: its bundle id),
         // claimed after GPUI's own notification centre has started: the
         // claim before it made the system look for a bundle a bare

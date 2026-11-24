@@ -29,7 +29,7 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 mod cells;
-pub(crate) use cells::state_mark;
+pub(crate) use cells::{set_still, state_mark};
 mod heading;
 mod pointer;
 mod rowbuttons;
@@ -439,7 +439,7 @@ fn row_cells(
                             .child(fitted(screen.label(said))),
                     )
                     .when_some(fraction, |c, f| {
-                        c.child(cells::progress_track(f, told, theme))
+                        c.child(cells::progress_track(row.id, f, told, theme))
                     })
                     .into_any_element()
             }

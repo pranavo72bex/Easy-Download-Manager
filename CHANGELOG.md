@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Progress bars glide smoothly instead of jumping each second; with your system's "reduce motion" on, they don't move.
 - Download details, the Scheduler and Options have a "?" that opens their help page, even offline.
 - View › Details shows the chosen download under the list: how far it is, where it is saved, where it came from, and why it failed with what to do.
 - The list's queue column says the queue's name under the heading "Queue", where it showed a dot.

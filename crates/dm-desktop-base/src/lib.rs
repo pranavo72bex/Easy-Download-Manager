@@ -50,7 +50,7 @@ pub use error::Error;
 // through `platform` (gaps row A10).
 pub use platform::{
     a11y_tree, accent, autostart, awake, contrast, desktop, drops, jumplist, login, metered, mica,
-    phone, power, quiet, region, signals, system_theme, taskbar, wake,
+    motion, phone, power, quiet, region, signals, system_theme, taskbar, wake,
 };
 pub use run::{boot, cli, control, headless, mcp, modes, probe, session, wakes};
 pub use view::{

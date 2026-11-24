@@ -41,7 +41,9 @@ pub(super) fn name_drawn(name: &SharedString, screen: &Screen) -> impl IntoEleme
 }
 
 /// The bar under a running row's status, `f` of the way along.
-pub(crate) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
+pub(crate) fn progress_track(id: u64, f: f64, told: bool, theme: Theme) -> AnyElement {
+    let target = f.clamp(0.0, 1.0) as f32;
+    let fill = div().h_full().rounded_full().bg(theme.selection);
     let track = div()
         .mt(px(space::XXS))
         .w_full()
@@ -53,13 +55,7 @@ pub(crate) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
         .when(crate::window::mirror::rtl(), |track| {
             track.flex().flex_row_reverse()
         })
-        .child(
-            div()
-                .h_full()
-                .rounded_full()
-                .bg(theme.selection)
-                .w(relative(f.clamp(0.0, 1.0) as f32)),
-        );
+        .child(glided(id, target, fill));
     // How far it is, told to a screen reader as a bar's value.
     if told {
         track
@@ -69,6 +65,44 @@ pub(crate) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
     } else {
         track.into_any_element()
     }
+}
+
+/// Whether the system asked for less motion: bars move straight to their width (gaps row K7).
+static STILL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Set as the window starts, from the system's own setting.
+pub(crate) fn set_still(still: bool) {
+    STILL.store(still, std::sync::atomic::Ordering::Relaxed);
+}
+
+thread_local! {
+    /// Each bar's glide, by download: the width it glides from and the one it glides to.
+    static GLIDES: std::cell::RefCell<std::collections::HashMap<u64, (f32, f32)>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// A bar's fill at `target` of its track, gliding there over 300 ms from where it last stood
+/// rather than jumping at each tick (gaps row K7). An animation of GPUI's own, drawn only
+/// while it moves; none where the system asks for less motion.
+fn glided(id: u64, target: f32, fill: gpui::Div) -> AnyElement {
+    use gpui::{Animation, AnimationExt};
+    let (from, to) = GLIDES.with(|g| {
+        let mut g = g.borrow_mut();
+        let entry = g.entry(id).or_insert((target, target));
+        if (entry.1 - target).abs() > 0.0005 {
+            *entry = (entry.1, target);
+        }
+        *entry
+    });
+    if STILL.load(std::sync::atomic::Ordering::Relaxed) || (to - from).abs() < 0.0005 {
+        return fill.w(relative(to)).into_any_element();
+    }
+    fill.with_animation(
+        gpui::ElementId::Name(format!("glide-{id}-{}", (to * 10_000.0) as u32).into()),
+        Animation::new(std::time::Duration::from_millis(300)).with_easing(gpui::ease_in_out),
+        move |fill, delta| fill.w(relative(from + (to - from) * delta)),
+    )
+    .into_any_element()
 }
 
 /// A download's state as a mark told by its shape (gaps row E4): a play mark while it runs,
@@ -116,5 +150,27 @@ pub(crate) fn state_mark(state: &dm_core::State, theme: Theme) -> Option<AnyElem
                 .into_any_element(),
         ),
         State::Cancelled => None,
+    }
+}
+
+#[cfg(test)]
+mod glide_tests {
+    use super::*;
+
+    /// A bar glides from where it last stood to its new width, and stands still where its
+    /// width has not changed (gaps row K7).
+    #[test]
+    fn a_bar_glides_from_its_last_width_to_its_new_one() {
+        let fill = || div();
+        let glide = |id| GLIDES.with(|g| g.borrow().get(&id).copied());
+        let _ = glided(7_000_001, 0.2, fill());
+        assert_eq!(glide(7_000_001), Some((0.2, 0.2)), "a first width stands");
+        let _ = glided(7_000_001, 0.5, fill());
+        assert_eq!(glide(7_000_001), Some((0.2, 0.5)));
+        // Drawn again with the same width (a hover, a tick with no news): the same glide.
+        let _ = glided(7_000_001, 0.5, fill());
+        assert_eq!(glide(7_000_001), Some((0.2, 0.5)));
+        let _ = glided(7_000_001, 0.9, fill());
+        assert_eq!(glide(7_000_001), Some((0.5, 0.9)));
     }
 }

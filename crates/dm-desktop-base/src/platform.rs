@@ -36,6 +36,7 @@ pub mod jumplist;
 pub mod login;
 pub mod metered;
 pub mod mica;
+pub mod motion;
 #[cfg(target_os = "macos")]
 pub mod opened;
 pub(crate) mod permissions;
