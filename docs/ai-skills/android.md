@@ -18,7 +18,8 @@ dm on Android is the same Rust and the same GPUI window as the desktop, in the p
 
 - `cargo test -p dm-android` runs on the runner (no phone needed).
 - The phone's layout: dm-gpui's window tests at phone width (the sweep's narrow widths, and
-  the tests named for a phone, e.g. `on_a_phone_…`).
+  the tests named for a phone, e.g. `on_a_phone_…`), with the worst cases in
+  `.claude/skills/break/scenarios.md` (the largest text size, a long name, right to left).
 - The pull request runs "Android, the engine built" (`android.yml`): `cargo ndk` check and
   clippy for arm64-v8a and x86_64, the tests, and the APK. Code behind
   `#[cfg(target_os = "android")]` is only compiled there: read it carefully, it is not built

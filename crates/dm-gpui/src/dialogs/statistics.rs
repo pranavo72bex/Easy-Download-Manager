@@ -79,7 +79,7 @@ impl StatisticsWindow {
                         div()
                             .flex_1()
                             .h(gpui::relative(fraction(day.bytes, top)))
-                            .bg(theme.accent)
+                            .bg(theme.accent_text)
                     })),
             )
             .child(
@@ -139,7 +139,7 @@ impl StatisticsWindow {
                                 div()
                                     .h_full()
                                     .rounded_full()
-                                    .bg(theme.accent)
+                                    .bg(theme.accent_text)
                                     .w(gpui::relative(fraction(share.bytes, top))),
                             ),
                     )

@@ -182,7 +182,7 @@ impl Render for DropTarget {
                                         .h_full()
                                         .w(px((inner * f).max(3.0)))
                                         .rounded(px(1.5))
-                                        .bg(theme.accent),
+                                        .bg(theme.accent_text),
                                 ),
                         )
                     }),

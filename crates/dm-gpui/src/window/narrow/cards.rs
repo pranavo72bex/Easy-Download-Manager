@@ -142,7 +142,7 @@ fn state_colour(row: &Entry, chosen: bool, theme: Theme) -> gpui::Rgba {
         return theme.chosen().text;
     }
     match row.state {
-        State::Running => theme.accent,
+        State::Running => theme.accent_text,
         State::Failed(_) => theme.warning,
         State::Completed => theme.success,
         _ => theme.muted,
@@ -419,7 +419,7 @@ fn quick_button(
                     .text_color(if chosen {
                         card_theme.text
                     } else {
-                        theme.accent
+                        theme.accent_text
                     }),
             ),
         )

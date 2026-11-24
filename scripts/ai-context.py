@@ -36,14 +36,15 @@ AREAS = {
         "words": r"android|phone|mobile|apk|notification|tap|touch|swipe|back button|gradle|dm-android",
         "crates": ["dm-android", "dm-gpui"],
         "skills": ["docs/ai-skills/android.md", "docs/ai-skills/desktop.md", "docs/ai-skills/ui-ux.md",
-                   ".claude/skills/dm-design/SKILL.md"],
+                   ".claude/skills/dm-design/SKILL.md", ".claude/skills/break/scenarios.md"],
         "tests": ["cargo test -p dm-android", "cargo nextest run -p dm-gpui -E 'test(~phone)'"],
     },
     "desktop": {
         "words": r"window|dialog|button|menu|toolbar|layout|column|theme|dark mode|font|icon|label|word|"
                  r"translat|language|i18n|scheduler|options|settings|progress window|tray|dm-gpui",
         "crates": ["dm-gpui", "dm-desktop-base"],
-        "skills": ["docs/ai-skills/desktop.md", ".claude/skills/dm-design/SKILL.md", "docs/ai-skills/ui-ux.md"],
+        "skills": ["docs/ai-skills/desktop.md", ".claude/skills/dm-design/SKILL.md", "docs/ai-skills/ui-ux.md",
+                   ".claude/skills/break/scenarios.md"],
         "tests": ["cargo nextest run -p dm-gpui -E 'test(~NAME)'", "cargo test -p dm-gpui window_tests"],
     },
     "engine": {
@@ -192,6 +193,11 @@ def main():
     n = 3
     if clean:
         seen = set()
+        # The task's own method first: an improvement follows improving.md.
+        if os.environ.get("AI_TASK") == "improve" and os.path.exists("docs/ai-skills/improving.md"):
+            out.append(f"{n}. `docs/ai-skills/improving.md` (how to improve dm unattended: this task)")
+            seen.add("docs/ai-skills/improving.md")
+            n += 1
         for a in areas:
             for s in AREAS[a]["skills"]:
                 if s not in seen and os.path.exists(s):

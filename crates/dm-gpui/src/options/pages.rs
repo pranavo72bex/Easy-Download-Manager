@@ -129,7 +129,7 @@ impl Page {
                 heading
                     .mt(px(space::XL))
                     .text_size(px(native::SMALL_TEXT + 1.0))
-                    .text_color(self.theme.accent)
+                    .text_color(self.theme.accent_text)
             })
             .child(self.screen.label(words.to_string()));
         self.add(heading);

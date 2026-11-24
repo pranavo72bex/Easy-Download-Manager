@@ -423,7 +423,7 @@ fn row_cells(
                     .when(!theme.is_chosen(), |c| match row.state {
                         State::Failed(_) => c.text_color(theme.warning),
                         State::Completed => c.text_color(theme.success),
-                        State::Running => c.text_color(theme.accent),
+                        State::Running => c.text_color(theme.accent_text),
                         _ => c,
                     })
                     // A mark told by its shape, then the words (gaps row E4): a state is

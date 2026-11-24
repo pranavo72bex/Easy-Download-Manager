@@ -150,7 +150,7 @@ jobs:
       # Before any model: main's own tree (or the bot's branch), read, never run.
       - name: What the model is handed
         if: steps.context.outputs.skip == ''
-        run: python3 -I scripts/ai-context.py
+        run: AI_TASK="$TASK" python3 -I scripts/ai-context.py
 
       - name: The agents
         if: steps.context.outputs.skip == ''
@@ -204,6 +204,7 @@ jobs:
                 ;;
               improve) cat <<'EOF'
           You are improving dm (a Rust download manager with a desktop window and an Android app; Cargo workspace at the root, crates in crates/) by one row of docs/gaps.md, the maintainer's ranked work list. The row is in .bot/issue.json (its id, problem, state, and what is done and left).
+          - Follow docs/ai-skills/improving.md (adapted from the afk skill): name the person the step helps, match how dm already does it, then try to reject your own change before you finish.
           - Do the next part of what the row leaves to do: the smallest step that is complete on its own, with its tests. Not the whole row if it is large.
           - Follow the skill pages .bot/context.md names: for the window, docs/ui-design.md and .claude/skills/dm-design/SKILL.md; its words go in assets/i18n (English).
           - Never change or remove a row of docs/behaviour-contract.md; a new behaviour adds a row at its end. If the step needs an existing row changed, a person's decision, a real phone or other hardware, change nothing and write why to .bot/summary.md.

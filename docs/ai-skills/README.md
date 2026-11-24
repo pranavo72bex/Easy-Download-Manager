@@ -12,10 +12,13 @@ that matter, in `.bot/context.md`, so a model that would not find them alone is 
 | [engine.md](engine.md) | downloading (`crates/dm-core`, `crates/dm-net`): ranges, resume, connections, files |
 | [ui-ux.md](ui-ux.md) | how anything in the window looks and reads, on any system |
 | [testing.md](testing.md) | writing a test anywhere in the workspace |
+| [improving.md](improving.md) | the `improve` task: a row of `docs/gaps.md`, unattended |
 | [learning.md](learning.md) | how the bots learn: the lessons at the end of each page |
 
 The window's own design skills, written for dm, are in `.claude/skills/` (`dm-design` first,
-then the `better-*` skills it maps); a page here sends a model to them for window work.
+then the `better-*` skills it maps, and `break`'s worst cases); a page here sends a model to
+them for window work. Those copied from outside are pinned by SHA-256 in
+`.claude/skills/UPSTREAM.tsv` and checked like `vendor/`.
 
 ## What keeps these pages clean
 
@@ -35,6 +38,7 @@ then the `better-*` skills it maps); a page here sends a model to them for windo
 | Taken | From | Licence | How |
 |---|---|---|---|
 | `vendor/ui-ux-pro-max/quick-reference.md`, `app-interface.csv`, `ux-guidelines.csv` | nextlevelbuilder/ui-ux-pro-max-skill at `f2f7266b07805025421611656045e9b44b41e2eb` | MIT (`vendor/ui-ux-pro-max/LICENSE`) | Verbatim, hash-pinned. Its scripts, CLI, workflows and the rest of its 748 files are not taken. [ui-ux.md](ui-ux.md) says which of its rules hold for dm's native window and which (the web's) do not. |
+| `.claude/skills/better-*`, `interface-review`, `break`, `afk`, `upskill` | jakubkrehel/skills at `672ae44ace6aaed65b86cbb1e2fd6fbea0e79578` | MIT (`.claude/skills/LICENSE-better-skills`) | Verbatim but for their `agents/` files, hash-pinned in `.claude/skills/UPSTREAM.tsv`. [improving.md](improving.md) adapts `afk`'s method; `explain-interface` (fetches pages with `curl`), `build-design` (Figma), `state-machine` and `variant` (web harness pages) are not taken. |
 | The way [learning.md](learning.md) turns a run's evidence into a lesson | rebelytics/one-skill-to-rule-them-all at `6325c8e477608942da2f98b7f3a0d625c722ee22` (its task-observer skill) | CC BY 4.0: the idea, credited here, in dm's own words | Nothing copied. Its own scripts and its person-approves-each-change flow are not used: here the guardrails above take the person's place. |
 
 Both were read in full before they were taken (2026-11-24): no hidden characters but the

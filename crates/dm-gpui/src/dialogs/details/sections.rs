@@ -236,7 +236,7 @@ impl Details {
                                                         .id(("take", i))
                                                         .role(Role::Button)
                                                         .aria_label(t("Take out"))
-                                                        .text_color(theme.accent)
+                                                        .text_color(theme.accent_text)
                                                         .child(screen.label(t("Take out")))
                                                         .on_click(cx.listener(
                                                             move |this, _, window, cx| {

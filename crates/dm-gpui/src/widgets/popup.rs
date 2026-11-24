@@ -141,7 +141,7 @@ pub fn button_of(
         .off_where_greyed()
         // Reached by Tab, opened by Space or Return (gaps row U2).
         .tab_index(0)
-        .focus(move |s| s.border_2().border_color(theme.accent))
+        .focus(move |s| s.border_2().border_color(theme.accent_text))
         .aria_label(words.clone())
         .h(px(CONTROL))
         .min_w(px(100.0))
@@ -247,7 +247,7 @@ fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoEleme
                     div()
                         .flex_none()
                         .w(px(20.0))
-                        .text_color(theme.accent)
+                        .text_color(theme.accent_text)
                         .when(ticked, |d| d.child("✓")),
                 )
                 .child(

@@ -51,7 +51,7 @@ pub(super) fn rows(
                         .path("icons/place-queue.svg")
                         .size(px(16.0))
                         .flex_none()
-                        .text_color(theme.accent),
+                        .text_color(theme.accent_text),
                 )
                 .child(screen.label(name))
                 .on_click(cx.listener(move |view, _, _, cx| {

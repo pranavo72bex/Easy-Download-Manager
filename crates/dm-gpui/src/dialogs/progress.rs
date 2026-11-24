@@ -93,7 +93,7 @@ fn bar(id: impl Into<gpui::ElementId>, fraction: f32, theme: Theme) -> gpui::Sta
             div()
                 .h_full()
                 .rounded_full()
-                .bg(theme.accent)
+                .bg(theme.accent_text)
                 .w(gpui::relative(fraction.clamp(0.0, 1.0))),
         )
 }

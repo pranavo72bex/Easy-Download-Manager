@@ -13,6 +13,11 @@
 - A test reaches only 127.0.0.1, writes only in its own temporary directory, and never sleeps
   on a guess: wait for the thing itself, with a named timeout.
 - A bug's test fails without the fix: run it before the fix and see it fail.
+- For anything the window shows, test the worst cases `.claude/skills/break/scenarios.md`
+  lists that can reach it (empty, one word, an unbreakable string, right to left, emoji, no
+  items and many, the narrowest and widest window, loading, error, disabled), through
+  `crates/dm-gpui/src/window_tests/`: its layout sweep already runs four widths, two text
+  sizes, German (long words) and Hebrew (right to left).
 - Never weaken, skip, `#[ignore]` or delete a test to make a change pass.
 
 ## Lessons

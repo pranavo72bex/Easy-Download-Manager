@@ -9,8 +9,10 @@
 Run before any model reads docs/ai-skills/ or .claude/skills/ (scripts/ai-context.py) and in
 CI. Fails (exit 1, each problem said) when:
 
-- a file in docs/ai-skills/vendor/ is not in its MANIFEST.tsv, or no longer has the SHA-256
-  written there (what was read and checked when it was taken is what stays);
+- a file in docs/ai-skills/vendor/ is not in its MANIFEST.tsv, or a skill copied into
+  .claude/skills/ from outside is not in .claude/skills/UPSTREAM.tsv (any file in a copied
+  skill's folder), or either no longer has the SHA-256 written there: what was read and
+  checked when it was taken is what stays;
 - any file holds a hidden or direction-changing character (zero-width, bidirectional
   overrides, Unicode tags), with which a page can say one thing to a person and another to a
   model;
@@ -30,6 +32,7 @@ import sys
 
 ROOTS = ["docs/ai-skills", ".claude/skills"]
 VENDOR = "docs/ai-skills/vendor"
+COPIED = ".claude/skills"  # its UPSTREAM.tsv names each file copied in from outside
 HIDDEN = re.compile("[​-‏‪-‮⁠-⁤⁦-⁩﻿\U000e0000-\U000e007f]")
 STEERING = re.compile(
     r"ignore (all |any |the )?(previous|prior|above|earlier) (instructions|rules|prompts?)"
@@ -45,18 +48,27 @@ URL = re.compile(r"https?://", re.I)
 KINDS = re.compile(r"(\.md|\.csv|\.tsv)$|(^|/)LICENSE[^/]*$")
 
 
+def pins(path, problems):
+    """path -> SHA-256, from a manifest whose first two columns they are."""
+    out = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f.read().splitlines()[1:]:
+                if line.strip():
+                    rel, digest = line.split("\t")[:2]
+                    out[rel] = digest
+    except OSError as e:
+        problems.append(f"{path}: {e}")
+    return out
+
+
 def main():
     problems = []
     seen_vendor = set()
-    manifest = {}
-    try:
-        with open(os.path.join(VENDOR, "MANIFEST.tsv"), encoding="utf-8") as f:
-            for line in f.read().splitlines()[1:]:
-                if line.strip():
-                    path, digest = line.split("\t")[:2]
-                    manifest[path] = digest
-    except OSError as e:
-        problems.append(f"{VENDOR}/MANIFEST.tsv: {e}")
+    seen_copied = set()
+    manifest = pins(os.path.join(VENDOR, "MANIFEST.tsv"), problems)
+    upstream = pins(os.path.join(COPIED, "UPSTREAM.tsv"), problems)
+    copied_dirs = {k.split("/")[0] for k in upstream if "/" in k}
 
     for root in ROOTS:
         if not os.path.isdir(root):
@@ -73,7 +85,7 @@ def main():
                 if os.stat(path).st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
                     problems.append(f"{path}: executable")
                 rel = path.replace(os.sep, "/")
-                if rel.endswith("/MANIFEST.tsv"):
+                if rel.endswith("/MANIFEST.tsv") or rel == f"{COPIED}/UPSTREAM.tsv":
                     continue
                 if not KINDS.search(rel):
                     problems.append(f"{path}: not a kind of file a skill needs (Markdown, CSV, TSV, a licence)")
@@ -88,6 +100,14 @@ def main():
                         problems.append(f"{path}: not in {VENDOR}/MANIFEST.tsv")
                     elif hashlib.sha256(data).hexdigest() != want:
                         problems.append(f"{path}: changed since it was checked (its SHA-256 is not the manifest's)")
+                if rel.startswith(COPIED + "/"):
+                    key = rel[len(COPIED) + 1 :]
+                    if key in upstream:
+                        seen_copied.add(key)
+                        if hashlib.sha256(data).hexdigest() != upstream[key]:
+                            problems.append(f"{path}: changed since it was copied and checked (not UPSTREAM.tsv's SHA-256)")
+                    elif key.split("/")[0] in copied_dirs:
+                        problems.append(f"{path}: in a skill copied from outside, but not in {COPIED}/UPSTREAM.tsv")
                 text = data.decode("utf-8", "replace")
                 for n, line in enumerate(text.splitlines(), 1):
                     if HIDDEN.search(line):
@@ -99,6 +119,9 @@ def main():
     for key in manifest:
         if key not in seen_vendor:
             problems.append(f"{VENDOR}/{key}: in the manifest but missing")
+    for key in upstream:
+        if key not in seen_copied:
+            problems.append(f"{COPIED}/{key}: in UPSTREAM.tsv but missing")
 
     for p in problems:
         print(p)

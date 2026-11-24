@@ -63,7 +63,7 @@ pub(super) fn row_handlers(
     // A row dropped here takes this row's place (gaps row U39).
     .when(reorders, |r| {
         r.drag_over::<crate::platform::dragout::DraggedRow>(move |style, _, _, _| {
-            style.border_t_2().border_color(original.accent)
+            style.border_t_2().border_color(original.accent_text)
         })
         .on_drop(cx.listener(
             move |view, dragged: &crate::platform::dragout::DraggedRow, _, cx| {

@@ -329,7 +329,7 @@ fn projects(
                             .path("icons/place-folder.svg")
                             .size(px(16.0))
                             .flex_none()
-                            .text_color(theme.accent),
+                            .text_color(theme.accent_text),
                     )
                     .child(screen.label(name))
                     .on_click(cx.listener(move |_, _, _, cx| {
@@ -426,7 +426,7 @@ fn place_row(
                             })
                             .w(px(3.0))
                             .rounded_full()
-                            .bg(theme.accent),
+                            .bg(theme.accent_text),
                     )
             })
             .when(!chosen, |d| d.hover(|s| s.bg(theme.stripe)))
@@ -476,7 +476,7 @@ fn place_row(
                             .flex_none()
                             // In the selection's own colour where chosen, as
                             // the words are.
-                            .text_color(theme.accent),
+                            .text_color(theme.accent_text),
                     )
                     // One line, cut with an ellipsis where the panel is too narrow for it.
                     .child(

@@ -1,6 +1,7 @@
 # Project skills
 
-Skills Claude Code loads in this repository. They are instructions for the AI, not part of
+Skills Claude Code loads in this repository, and that dm's free-model bots read
+(`docs/ai-skills/`, `scripts/ai-context.py`). They are instructions for the AI, not part of
 dm: nothing here is built into or shipped with the app.
 
 - `dm-design/`: dm's own. Read first for any work on the window; it maps the skills below
@@ -10,6 +11,32 @@ dm: nothing here is built into or shipped with the app.
   unchanged (less their `agents/` files) from github.com/jakubkrehel/skills at commit
   672ae44a (2026-11-18), MIT licence in `LICENSE-better-skills`. Written for web pages; read
   them through `dm-design`.
+- `break/`, `afk/`, `upskill/`: from the same commit, the same way (2026-11-24). How they read
+  for dm:
+  - `break`: its scenarios (`break/scenarios.md`) are the worst cases a window test covers.
+    Its harness, a temporary web page looked at in a browser, is not dm's: for dm the harness
+    is `crates/dm-gpui/src/window_tests/` and the layout sweep (four widths, two text sizes,
+    German for long words, Hebrew for right to left).
+  - `afk`: work done while the maintainer is away. Here the free-model bots in GitHub Actions
+    do that unattended (`docs/testing.md`, "The bots"); they follow its method through
+    `docs/ai-skills/improving.md`. In a session, its "push, open pull requests, merge only
+    when asked" holds, and `CLAUDE.md`'s rules come first.
+  - `upskill`: proposes skills, hooks and automations from past sessions, for a person to
+    pick. A bot never runs it: what it would change (the workflows, the skills) is the bots'
+    guardrails.
+- Not taken from that repository, though each was read and is clean: `explain-interface`
+  (it fetches web pages and their stylesheets with `curl`), `build-design` (Figma),
+  `state-machine` and `variant` (they render a component on a throwaway web page; dm's window
+  is not one).
 
-To update them, copy the folders again from a newer commit, read the diff, and change the
-commit named above.
+## Checked, every time
+
+`UPSTREAM.tsv` names every file copied in from outside, with its SHA-256 at the commit above.
+`scripts/ai-skills-check.py` (a CI job, and run before any bot reads these) fails when one of
+them changes, when a file appears inside a copied skill's folder that the list does not name,
+or when any file here holds a hidden or direction-changing character, a line written to steer
+a model, or anything executable. No bot may edit this folder.
+
+To update them: copy the folders again from a newer commit (never the `agents/` files), read
+the diff in full, write the new SHA-256s into `UPSTREAM.tsv`, and change the commit named
+above.

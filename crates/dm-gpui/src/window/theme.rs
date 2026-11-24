@@ -49,6 +49,10 @@ pub struct Theme {
     pub accent: Rgba,
     /// Words and marks on the accent.
     pub on_accent: Rgba,
+    /// Words drawn in the accent on a surface (a running download's state, a link, "+N
+    /// more"): the accent's text shade, at 4.5 to 1 on the list, a stripe, a dialog and the
+    /// side panel, where the fill itself may not be.
+    pub accent_text: Rgba,
     /// What is in order (an extension that has spoken to dm): the system's
     /// green.
     pub success: Rgba,
@@ -62,6 +66,7 @@ impl Theme {
             text: self.on_selection,
             muted: self.on_selection,
             selection: self.on_selection,
+            accent_text: self.on_selection,
             ..self
         }
     }
@@ -113,14 +118,28 @@ impl Theme {
         let [r, g, b] = if dark { accent.light1 } else { accent.dark1 };
         let shade = rgb(u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b));
         let readable = |words: Rgba| words_on(words, shade) >= 4.5;
+        // The same shade as words on the window's surfaces, where it reads on each; else dm's.
+        let reads_on = |surface: Rgba| words_on(shade, surface) >= 4.5;
+        let accent_text = if [self.background, self.window, self.sidebar]
+            .into_iter()
+            .all(reads_on)
+        {
+            shade
+        } else {
+            self.accent_text
+        };
         if readable(self.on_accent) && readable(self.on_selection) {
             Theme {
                 accent: shade,
                 selection: shade,
+                accent_text,
                 ..self
             }
         } else {
-            self
+            Theme {
+                accent_text,
+                ..self
+            }
         }
     }
 
@@ -131,7 +150,7 @@ impl Theme {
         if on_accent {
             self.on_accent
         } else {
-            self.accent
+            self.accent_text
         }
     }
 
@@ -206,10 +225,14 @@ fn macos(dark: bool) -> Theme {
             control_border: rgba(0x00000000),
             field: rgb(0x1a1a1a),
             window: rgb(0x2d2d2d),
-            accent: rgb(0x007aff),
+            // The selection's blue: white words on the system blue (0x007aff) read 4.0 to 1.
+            accent: rgb(0x0a5fd8),
             // NSColor.systemGreen, dark.
             success: rgb(0x30d158),
             on_accent: rgb(0xffffff),
+            // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
+            // read at 4.5 to 1 on each (`accent_text`).
+            accent_text: rgb(0x409cff),
         }
     } else {
         Theme {
@@ -230,10 +253,14 @@ fn macos(dark: bool) -> Theme {
             control_border: rgba(0x00000026),
             field: rgb(0xffffff),
             window: rgb(0xececec),
-            accent: rgb(0x007aff),
+            // The selection's blue: white words on the system blue (0x007aff) read 4.0 to 1.
+            accent: rgb(0x0064e1),
             // Darker than NSColor.systemGreen (1.9 to 1 on a dialog, gaps row U22).
             success: rgb(0x1d7a34),
             on_accent: rgb(0xffffff),
+            // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
+            // read at 4.5 to 1 on each (`accent_text`).
+            accent_text: rgb(0x0064e1),
         }
     }
 }
@@ -260,6 +287,9 @@ fn windows(dark: bool) -> Theme {
             window: rgb(0x202020),
             accent: rgb(0x60cdff),
             on_accent: rgb(0x000000),
+            // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
+            // read at 4.5 to 1 on each (`accent_text`).
+            accent_text: rgb(0x60cdff),
             success: rgb(0x6ccb5f),
         }
     } else {
@@ -280,6 +310,9 @@ fn windows(dark: bool) -> Theme {
             window: rgb(0xf3f3f3),
             accent: rgb(0x005fb8),
             on_accent: rgb(0xffffff),
+            // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
+            // read at 4.5 to 1 on each (`accent_text`).
+            accent_text: rgb(0x005fb8),
             success: rgb(0x0f7b0f),
         }
     }
@@ -311,6 +344,7 @@ fn high_contrast(p: &dm_desktop_base::contrast::Palette) -> Theme {
         window: c(p.window),
         accent: c(p.highlight),
         on_accent: c(p.highlight_text),
+        accent_text: c(p.hotlight),
         success: c(p.window_text),
     }
 }
@@ -326,7 +360,7 @@ fn gnome(dark: bool) -> Theme {
             stripe: rgba(0xffffff08),
             separator: rgba(0xffffff17),
             sidebar: rgb(0x2e2e32),
-            selection: rgb(0x3584e4),
+            selection: rgb(0x1c71d8),
             on_selection: rgb(0xffffff),
             menu: rgb(0x36363a),
             warning: rgb(0xff7b63),
@@ -334,8 +368,12 @@ fn gnome(dark: bool) -> Theme {
             control_border: rgba(0x00000000),
             field: rgba(0xffffff1a),
             window: rgb(0x222226),
-            accent: rgb(0x3584e4),
+            // libadwaita's accent colour: white on its accent fill (0x3584e4) read 3.8 to 1.
+            accent: rgb(0x1c71d8),
             on_accent: rgb(0xffffff),
+            // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
+            // read at 4.5 to 1 on each (`accent_text`).
+            accent_text: rgb(0x78aeed),
             success: rgb(0x78e9ab),
         }
     } else {
@@ -346,7 +384,7 @@ fn gnome(dark: bool) -> Theme {
             stripe: rgba(0x00000008),
             separator: rgba(0x00000017),
             sidebar: rgb(0xebebed),
-            selection: rgb(0x3584e4),
+            selection: rgb(0x1c71d8),
             on_selection: rgb(0xffffff),
             menu: rgb(0xffffff),
             warning: rgb(0xc01c28),
@@ -354,8 +392,12 @@ fn gnome(dark: bool) -> Theme {
             control_border: rgba(0x00000000),
             field: rgba(0x0000000f),
             window: rgb(0xfafafb),
-            accent: rgb(0x3584e4),
+            // libadwaita's accent colour: white on its accent fill (0x3584e4) read 3.8 to 1.
+            accent: rgb(0x1c71d8),
             on_accent: rgb(0xffffff),
+            // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
+            // read at 4.5 to 1 on each (`accent_text`).
+            accent_text: rgb(0x1866c2),
             // Darker than the GNOME palette's (3.9 to 1 on the side panel, gaps row U22).
             success: rgb(0x17733a),
         }

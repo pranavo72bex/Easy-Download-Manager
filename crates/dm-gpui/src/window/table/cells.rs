@@ -296,7 +296,7 @@ pub(crate) fn state_mark(state: &dm_core::State, theme: Theme) -> Option<AnyElem
         match state {
             State::Failed(_) => theme.warning,
             State::Completed => theme.success,
-            State::Running => theme.accent,
+            State::Running => theme.accent_text,
             _ => theme.muted,
         }
     };

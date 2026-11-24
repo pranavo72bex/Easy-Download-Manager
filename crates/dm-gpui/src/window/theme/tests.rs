@@ -19,6 +19,12 @@ fn over(fore: Rgba, back: Rgba) -> [u8; 3] {
     [on(fore.r, back.r), on(fore.g, back.g), on(fore.b, back.b)]
 }
 
+/// `fore` blended onto `back`, as a colour of its own (a stripe over the list).
+fn over_rgba(fore: Rgba, back: Rgba) -> Rgba {
+    let [r, g, b] = over(fore, back);
+    rgb(u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b))
+}
+
 /// Every system's palette, light and dark, named.
 fn systems() -> Vec<(String, Theme)> {
     let mut all = Vec::new();
@@ -211,14 +217,30 @@ fn every_systems_palette_keeps_its_words_readable() {
                 }
             }
         }
+        // A chosen row's words and the default button's are words like any other: 4.5 to 1
+        // (the system blue under white read 4.0 on macOS and 3.8 on GNOME).
         assert!(
-            contrast(theme.on_selection, theme.selection) >= 3.0,
+            contrast(theme.on_selection, theme.selection) >= 4.5,
             "{at}: a chosen row"
         );
         assert!(
-            contrast(theme.on_accent, theme.accent) >= 3.0,
+            contrast(theme.on_accent, theme.accent) >= 4.5,
             "{at}: default button"
         );
+        // Words and marks in the accent (a running download's state, "+N more", a link, a
+        // bar) on every surface they are drawn on, a striped row's included.
+        for (surface, back) in [
+            ("list", theme.background),
+            ("striped row", over_rgba(theme.stripe, theme.background)),
+            ("side panel", theme.sidebar),
+            ("dialog", theme.window),
+            ("menu", theme.menu),
+        ] {
+            let ratio = contrast(theme.accent_text, back);
+            if ratio < 4.5 {
+                faint.push(format!("{at}: accent words on the {surface}: {ratio:.2}"));
+            }
+        }
     }
     assert!(faint.is_empty(), "too faint: {faint:#?}");
     // A deep purple accent is taken by every look; a yellow one, which white words cannot

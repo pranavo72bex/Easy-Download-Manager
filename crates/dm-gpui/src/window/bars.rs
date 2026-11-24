@@ -122,7 +122,7 @@ pub(crate) fn framed(
                     .id("more-bars")
                     .flex_none()
                     .text_size(px(native::SMALL_TEXT))
-                    .text_color(theme.accent)
+                    .text_color(theme.accent_text)
                     .cursor_pointer()
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.layout.bars.all = true;

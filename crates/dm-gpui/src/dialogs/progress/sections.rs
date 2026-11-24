@@ -321,7 +321,7 @@ pub(super) fn speed_line(look: &Look, line: &dm_desktop_base::statistics::SpeedL
                 .children(
                     line.bars(LINE_BARS)
                         .into_iter()
-                        .map(|tall| div().flex_1().h(gpui::relative(tall)).bg(theme.accent)),
+                        .map(|tall| div().flex_1().h(gpui::relative(tall)).bg(theme.accent_text)),
                 ),
         )
 }
@@ -353,7 +353,7 @@ pub(super) fn whole_bar(
                     .flex_basis(px(0.0))
                     .h_full()
                     .bg(theme.stripe)
-                    .child(div().h_full().bg(theme.accent).w(gpui::relative(
+                    .child(div().h_full().bg(theme.accent_text).w(gpui::relative(
                         (*done as f32 / (*span).max(1) as f32).clamp(0.0, 1.0),
                     )))
             }))

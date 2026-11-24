@@ -75,7 +75,7 @@ impl Render for About {
                 .id(("page", i))
                 .role(Role::Link)
                 .aria_label(SharedString::from(words))
-                .text_color(theme.accent)
+                .text_color(theme.accent_text)
                 .cursor_pointer()
                 .child(screen.label(words))
                 .tooltip(move |window, cx| {

@@ -188,7 +188,7 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
             .flex()
             .items_center()
             .gap(px(space::XS))
-            .text_color(theme.accent)
+            .text_color(theme.accent_text)
             .child(screen.label(if phone { "▾" } else { "▸" }))
             .child(screen.label(t("How to use your phone")))
             .on_click(cx.listener(|o, _, _, cx| {

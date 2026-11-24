@@ -37,7 +37,8 @@ points wide) Android. A change to it is a change on every system.
   two text sizes and in German and Hebrew (right to left). Words must fit inside their
   box in all of them.
 - The window cannot be seen in CI; a test is the only proof. Write the test that would fail
-  if the change were wrong.
+  if the change were wrong, and cover the worst cases in `.claude/skills/break/scenarios.md`
+  that can reach what you changed ([testing.md](testing.md)).
 
 ## Traps
 
