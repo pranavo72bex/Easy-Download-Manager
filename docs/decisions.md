@@ -8861,3 +8861,11 @@ as a network change's restart does (`only_through::woke`). Chosen over each syst
 way on every system, no window message or D-Bus connection, and a sleep the notice misses (a
 lid closed while the app was busy) is still seen. On Windows, where the monotonic clock may go
 on during sleep, the notice may be owed; seen on the Windows laptop.
+
+## The speed figure is not animated (gaps row K7), 2026-11-24
+
+K7 asked for "the speed eased". The figure is already smoothed where it is counted
+(`dm_core::progress::Meter`, 0.3 of each sample carried in), so it moves in small steps once a
+second. Rolling its digits between those steps as well was dropped: a number whose digits change
+many times a second is harder to read than one that changes once, and it would draw frames for
+every running row. The bar's glide carries the sense of motion instead.

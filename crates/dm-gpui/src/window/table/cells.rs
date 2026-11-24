@@ -157,6 +157,69 @@ pub(crate) fn arriving<E: IntoElement + gpui::Styled + 'static>(id: u64, row: E)
     .into_any_element()
 }
 
+thread_local! {
+    /// For each download: whether it was last seen running, and when it was first seen
+    /// finished after that.
+    static SETTLING: std::cell::RefCell<
+        std::collections::HashMap<u64, (bool, Option<std::time::Instant>)>,
+    > = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// How long a finished bar stays: it fills, then fades out (gaps row K7).
+const SETTLE: std::time::Duration = std::time::Duration::from_millis(600);
+
+/// Whether download `id`'s bar is settling: it was seen running and finished moments ago, so
+/// its bar fills and fades rather than vanishing at once. Told each drawing whether it runs and
+/// whether it is finished; none where the system asks for less motion.
+pub(crate) fn settling(id: u64, running: bool, finished: bool) -> bool {
+    SETTLING.with(|s| {
+        let mut s = s.borrow_mut();
+        let entry = s.entry(id).or_insert((false, None));
+        if running {
+            *entry = (true, None);
+            return false;
+        }
+        if !finished {
+            *entry = (false, None);
+            return false;
+        }
+        if entry.0 && entry.1.is_none() {
+            entry.1 = Some(std::time::Instant::now());
+        }
+        entry.0 = false;
+        !STILL.load(std::sync::atomic::Ordering::Relaxed)
+            && entry.1.is_some_and(|at| at.elapsed() < SETTLE)
+    })
+}
+
+/// `row`'s settling bar where it has just finished ([`settling`]), or none.
+pub(crate) fn finishing_bar(row: &Entry, theme: Theme) -> Option<AnyElement> {
+    use dm_core::State;
+    let (running, finished) = (row.state == State::Running, row.state == State::Completed);
+    settling(row.id, running, finished).then(|| settled_track(row.id, theme))
+}
+
+/// A just-finished download's bar: full (glided there from where it stood), then faded out
+/// over the second half of [`SETTLE`] (gaps row K7).
+pub(crate) fn settled_track(id: u64, theme: Theme) -> AnyElement {
+    use gpui::{Animation, AnimationExt};
+    div()
+        .w_full()
+        .child(progress_track(id, 1.0, false, theme))
+        .with_animation(
+            gpui::ElementId::Name(format!("settle-{id}").into()),
+            Animation::new(SETTLE),
+            |track, delta| {
+                track.opacity(if delta < 0.5 {
+                    1.0
+                } else {
+                    2.0 * (1.0 - delta)
+                })
+            },
+        )
+        .into_any_element()
+}
+
 /// A download's state as a mark told by its shape (gaps row E4): a play mark while it runs,
 /// pause bars when paused, a clock while it waits, a tick once done, a ring with "!" when it
 /// failed; none for one cancelled. In the colour the row's words take.
@@ -236,5 +299,25 @@ mod glide_tests {
         assert!(just_added(8_000_002), "a row added since");
         std::thread::sleep(ARRIVING + std::time::Duration::from_millis(50));
         assert!(!just_added(8_000_002), "drawn again once it has faded in");
+    }
+
+    /// A bar settles only where its download was seen running and has just finished: not one
+    /// finished when first seen, nor one stopped, nor once it has faded (K7).
+    #[test]
+    fn only_a_download_seen_finishing_settles() {
+        assert!(
+            !settling(9_000_001, false, true),
+            "finished when first seen"
+        );
+        assert!(!settling(9_000_002, true, false), "running");
+        assert!(settling(9_000_002, false, true), "seen finishing");
+        assert!(
+            settling(9_000_002, false, true),
+            "drawn again while it settles"
+        );
+        assert!(!settling(9_000_003, true, false));
+        assert!(!settling(9_000_003, false, false), "stopped, not finished");
+        std::thread::sleep(SETTLE + std::time::Duration::from_millis(50));
+        assert!(!settling(9_000_002, false, true), "once it has faded");
     }
 }

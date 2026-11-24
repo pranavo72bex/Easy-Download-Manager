@@ -318,6 +318,8 @@ fn card(
                         }),
                 )
                 // No bar on a finished card: its tick says it (gaps row E4).
+                // One just finished fills and fades rather than vanishing (gaps row K7).
+                .children(crate::window::table::finishing_bar(row, card_theme))
                 .when(row.state != State::Completed, |card| {
                     card.child(div().w_full().child(crate::window::table::progress_track(
                         row.id,

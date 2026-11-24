@@ -35,7 +35,7 @@ mod pointer;
 mod rowbuttons;
 use rowbuttons::{buttons_width, row_actions, row_buttons, ROW_GROUP};
 
-pub(crate) use cells::progress_track;
+pub(crate) use cells::{finishing_bar, progress_track};
 pub(crate) use heading::moved_onto;
 #[cfg(test)]
 use heading::{as_table, told_heading};
@@ -441,6 +441,8 @@ fn row_cells(
                     .when_some(fraction, |c, f| {
                         c.child(cells::progress_track(row.id, f, told, theme))
                     })
+                    // A bar just finished fills and fades rather than vanishing (gaps row K7).
+                    .children(cells::finishing_bar(row, theme))
                     .into_any_element()
             }
             _ => {
