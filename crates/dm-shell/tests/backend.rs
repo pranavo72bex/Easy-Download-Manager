@@ -87,6 +87,26 @@ fn world() -> World {
                 "/file.zip",
                 axum::routing::get(|| async { Response::new(Body::from(vec![7u8; 64 * 1024])) }),
             )
+            // Refuses every sign-in, as a server whose password changed does.
+            .route(
+                "/refused.bin",
+                axum::routing::get(|| async {
+                    Response::builder()
+                        .status(401)
+                        .header("www-authenticate", "Basic realm=\"files\"")
+                        .body(Body::from("sign in"))
+                        .unwrap()
+                }),
+            )
+            .route(
+                "/broken.bin",
+                axum::routing::get(|| async {
+                    Response::builder()
+                        .status(404)
+                        .body(Body::from("gone"))
+                        .unwrap()
+                }),
+            )
             .route(
                 "/stalled.bin",
                 axum::routing::get(|| async {
@@ -116,6 +136,12 @@ impl World {
 
     /// A backend over settings that keep its files in the test's folder.
     fn backend(&self) -> Backend {
+        self.backend_kept(false)
+    }
+
+    /// [`World::backend`], its queue kept in `queue.json` in the test's folder where `kept`, as
+    /// dm's own start keeps it in its home (with its journal and `secrets.json` beside it).
+    fn backend_kept(&self, kept: bool) -> Backend {
         let settings = Settings {
             general: dm_shell::settings::GeneralSettings {
                 start_on_login: false,
@@ -137,6 +163,10 @@ impl World {
             settings.options(self.dir.path().join("parts"), dm_core::Limiter::unlimited()),
             settings.downloads.concurrency,
         );
+        if kept {
+            self.runtime
+                .block_on(queue.persist_to(self.dir.path().join(dm_core::paths::QUEUE)));
+        }
         Backend::new(
             self.runtime.handle().clone(),
             queue,
@@ -231,4 +261,104 @@ fn a_running_download_given_a_new_address_goes_on_from_it() {
     assert_eq!(row.url, fresh);
     until_state(&backend, id, State::Running, "not started again");
     backend.pause(id);
+}
+
+/// Every file under `dir`, whole, with its path.
+fn files_under(dir: &Path) -> Vec<(std::path::PathBuf, Vec<u8>)> {
+    let mut found = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return found;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            found.extend(files_under(&path));
+        } else if let Ok(bytes) = std::fs::read(&path) {
+            found.push((path, bytes));
+        }
+    }
+    found
+}
+
+/// A password in an address, a cookie and a header handed with downloads that are refused and
+/// fail reach no file dm writes but the one kept for them, `secrets.json` (sealed by the
+/// system's store where there is one; this test runs without one, so it is in clear and is the
+/// only file let hold them), and no row's words (gaps row H15).
+#[test]
+fn a_sign_in_cookie_and_header_reach_no_file_but_the_secrets_one() {
+    let _one = one_at_a_time();
+    let world = world();
+    let backend = world.backend_kept(true);
+    const PASSWORD: &str = "planted-password-7f3a";
+    const COOKIE: &str = "planted-cookie-91bc";
+    const TOKEN: &str = "planted-token-c2d8";
+    let with = || AddOptions {
+        cookies: format!("session={COOKIE}"),
+        headers: vec![("Authorization".into(), format!("Bearer {TOKEN}"))],
+        ..Default::default()
+    };
+    let signed = format!("http://someone:{PASSWORD}@{}/refused.bin", world.addr);
+    let ids = [
+        backend.add_with(&signed, with()).unwrap(),
+        backend.add_with(&world.url("broken.bin"), with()).unwrap(),
+        backend.add_with(&world.url("file.zip"), with()).unwrap(),
+    ];
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !ids.iter().all(|id| {
+        backend
+            .row(*id)
+            .is_some_and(|r| matches!(r.state, State::Failed(_) | State::Completed))
+    }) {
+        assert!(
+            Instant::now() < deadline,
+            "the downloads did not end: {:?}",
+            ids.map(|id| backend.row(id).map(|r| r.state.clone()))
+        );
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    backend.flush();
+    backend.shut_down();
+    for id in ids {
+        let row = backend.row(id).unwrap();
+        let said = format!("{:?}", row.state);
+        for secret in [PASSWORD, COOKIE, TOKEN] {
+            assert!(!said.contains(secret), "row {id} says {secret}: {said}");
+            assert!(
+                !row.redacted().url.contains(secret),
+                "row {id}'s shown address"
+            );
+        }
+    }
+    let mut looked = Vec::new();
+    let mut kept = false;
+    for dir in [home(), world.dir.path()] {
+        for (path, bytes) in files_under(dir) {
+            looked.push(path.file_name().unwrap().to_string_lossy().into_owned());
+            if path
+                .file_name()
+                .is_some_and(|n| n == dm_core::paths::SECRETS)
+            {
+                // They were kept, so the search below is of files written after they were.
+                kept |= String::from_utf8_lossy(&bytes).contains(COOKIE);
+                continue;
+            }
+            let text = String::from_utf8_lossy(&bytes);
+            for secret in [PASSWORD, COOKIE, TOKEN] {
+                assert!(
+                    !text.contains(secret),
+                    "{} holds {secret}:\n{}",
+                    path.display(),
+                    text.chars().take(2000).collect::<String>()
+                );
+            }
+        }
+    }
+    assert!(
+        kept,
+        "the cookie was never kept, so nothing was tried: {looked:?}"
+    );
+    assert!(
+        looked.iter().any(|n| n.starts_with("queue")),
+        "the queue file was not among those looked in: {looked:?}"
+    );
 }
