@@ -40,7 +40,9 @@ pub(crate) fn take(torrents: &Path) {
             dm_desktop_base::phone::shared(text);
             Ok(())
         }
-        Ok(Handed::File(uri)) => copy(&uri, torrents).map(dm_desktop_base::phone::shared_file),
+        Ok(Handed::File(uri)) => {
+            copy_within(uri, torrents.to_path_buf()).map(dm_desktop_base::phone::shared_file)
+        }
         Err(why) => Err(why),
     };
     if let Err(why) = taken {
@@ -113,6 +115,25 @@ fn string_call(
         .call_method(intent, name, jni_sig!("()Ljava/lang/String;"), &[])?
         .l()?;
     jvm::string_of(env, value)
+}
+
+/// How long a shared file's copy may take: a `.torrent` is kilobytes.
+const COPY_WITHIN: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// [`copy`] on a thread of its own, waited for up to [`COPY_WITHIN`]: a sharing app whose
+/// stream never ends held the share lock for good, and every later share waited behind it
+/// (gaps row H37). Past the time the copy is left to its thread and the share is refused.
+fn copy_within(uri: String, torrents: std::path::PathBuf) -> Result<std::path::PathBuf, String> {
+    let (sent, got) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("dm-shared-copy".into())
+        .spawn(move || {
+            let _ = sent.send(copy(&uri, &torrents));
+        })
+        .map_err(|e| format!("dm could not read the file shared: {e}"))?;
+    got.recv_timeout(COPY_WITHIN).unwrap_or_else(|_| {
+        Err("the app that shared the file did not hand it over within 30 seconds".into())
+    })
 }
 
 /// Copies the file at `uri` (a `.torrent` from Files, a browser or a mail) into `torrents`,
