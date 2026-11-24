@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "не удалось связаться с сервером",
  "Check that you're online": "Проверьте подключение к интернету",
  "Deleted the search {}.": "Поиск {} удалён.",
- "History cleared.": "История очищена."
+ "History cleared.": "История очищена.",
+ "Hour": "Часы",
+ "Minute": "Минуты",
+ "Day": "День",
+ "Month": "Месяц",
+ "Year": "Год",
+ "Priority": "Приоритет"
 }

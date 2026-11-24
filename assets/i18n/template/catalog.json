@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "",
  "Check that you're online": "",
  "Deleted the search {}.": "",
- "History cleared.": ""
+ "History cleared.": "",
+ "Hour": "",
+ "Minute": "",
+ "Day": "",
+ "Month": "",
+ "Year": "",
+ "Priority": ""
 }

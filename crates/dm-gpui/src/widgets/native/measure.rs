@@ -33,6 +33,13 @@ pub fn small_width(words: &str) -> f32 {
     words_width(words, super::SMALL_TEXT)
 }
 
+/// The font's figures all one width ("tnum"), for figures that change as they are read: a
+/// speed, the time left, a percentage. Proportional figures shifted the words after them at
+/// every tick (gaps row E20).
+pub fn figures() -> gpui::FontFeatures {
+    gpui::FontFeatures(std::sync::Arc::new(vec![("tnum".into(), 1)]))
+}
+
 thread_local! {
     /// The text system and the font the window's words are set in, as `measure_with` kept
     /// them: one for each thread an application runs on (a test's own).

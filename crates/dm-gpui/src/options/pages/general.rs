@@ -107,6 +107,7 @@ fn appearance(
         let on = sizes.index(now) == i;
         div()
             .id(("scale-stop", i))
+            .map(|c| crate::widgets::native::ringed(c, theme))
             .role(gpui::Role::Button)
             // Centred under where the slider's thumb stands at this stop.
             .absolute()

@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "sunucuya ulaşılamadı",
  "Check that you're online": "Çevrimiçi olduğunuzu kontrol edin",
  "Deleted the search {}.": "{} araması silindi.",
- "History cleared.": "Geçmiş temizlendi."
+ "History cleared.": "Geçmiş temizlendi.",
+ "Hour": "Saat",
+ "Minute": "Dakika",
+ "Day": "Gün",
+ "Month": "Ay",
+ "Year": "Yıl",
+ "Priority": "Öncelik"
 }

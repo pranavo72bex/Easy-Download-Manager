@@ -385,6 +385,9 @@ pub(crate) fn search(
         found.push(
             div()
                 .id(SharedString::from(format!("found-{name}")))
+                .role(gpui::Role::Link)
+                .aria_label(SharedString::from(t(name)))
+                .map(|c| native::ringed(c, theme))
                 .mt(px(space::M_L))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 // A link to its page, in the accent's text shade: the selection's fill read 2.4

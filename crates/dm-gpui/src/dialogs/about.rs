@@ -73,6 +73,7 @@ impl Render for About {
         .map(|(i, (words, page))| {
             div()
                 .id(("page", i))
+                .map(|c| crate::widgets::native::ringed(c, theme))
                 .role(Role::Link)
                 .aria_label(SharedString::from(words))
                 .text_color(theme.accent_text)

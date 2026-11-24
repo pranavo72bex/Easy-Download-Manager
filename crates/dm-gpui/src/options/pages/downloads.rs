@@ -52,6 +52,7 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
         let on = now == count as usize;
         div()
             .id(SharedString::from(format!("preset-{count}")))
+            .map(|c| crate::widgets::native::ringed(c, theme))
             .role(gpui::Role::RadioButton)
             .aria_label(SharedString::from(t(words)))
             .aria_toggled(if on {

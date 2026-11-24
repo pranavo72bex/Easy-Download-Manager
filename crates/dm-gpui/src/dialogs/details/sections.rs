@@ -137,6 +137,7 @@ impl Details {
                             let picked_label = choice.label.clone();
                             div()
                                 .id(("quality", i))
+                                .map(|c| crate::widgets::native::ringed(c, theme))
                                 .role(Role::RadioButton)
                                 .aria_label(words.replace('\n', " "))
                                 .px(px(space::M_L))
@@ -234,6 +235,9 @@ impl Details {
                                                 d.child(
                                                     div()
                                                         .id(("take", i))
+                                                        .map(|c| {
+                                                            crate::widgets::native::ringed(c, theme)
+                                                        })
                                                         .role(Role::Button)
                                                         .aria_label(t("Take out"))
                                                         .text_color(theme.accent_text)

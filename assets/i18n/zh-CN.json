@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "无法连接服务器",
  "Check that you're online": "请确认已联网",
  "Deleted the search {}.": "已删除搜索 {}。",
- "History cleared.": "已清除历史记录。"
+ "History cleared.": "已清除历史记录。",
+ "Hour": "时",
+ "Minute": "分",
+ "Day": "日",
+ "Month": "月",
+ "Year": "年",
+ "Priority": "优先级"
 }

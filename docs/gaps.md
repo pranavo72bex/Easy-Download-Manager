@@ -76,6 +76,29 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
+## Next session (written 2026-11-24, end of day)
+
+**Done today (2026-11-24, all pushed to main):** the `better-*` interface skills in
+`.claude/skills/` with `dm-design` mapping them onto dm; the main window reviewed with them and
+every finding fixed (contrast `Theme::accent_text`, keyboard and screen reader, columns, cut
+text, middle-cut names, even figures, the kinds' colours, sentence case, failures in one
+shape: V3, V4, E13 to E23); then the dialogs, Options and the phone's sheets reviewed the same
+way: their colour and button findings fixed (1d4c22fd), and the keyboard ones started (below).
+
+**Start with, in this order** (the maintainer, 2026-11-24: "write it down for tomorrow; we will
+continue tomorrow"):
+1. Commit what is in the working tree if it is not yet (the keyboard part of E24 to E27:
+   `native::ringed`, `native::return_is_default`, the pop-ups' names, Back closing a pop-up's
+   sheet first); then rows E24 to E44 below, in their order (section "E, fifth part"), each
+   with its test, then `cargo test --workspace`, then push. Every word added goes into all 15
+   catalogs and `assets/i18n/unread/` (`docs/ui-design.md`, "Words").
+2. Owed checks: `python3 scripts/human-qa.py` in a visible window (B25's pictures change: the
+   accent's shade, the empty list's button, sentence case, the kinds' colours); a reader for
+   `assets/i18n/unread/` (many new and derived lines today); a VoiceOver walk of the list,
+   the side panel and a dialog; the phone on the emulator (Remove animations, Cancel in
+   Options, the sheets); the window at 360 and 700 points wide.
+3. Then the order below: rows K, rows H, the phone leftovers.
+
 ## Next session (written 2026-11-23, end of day)
 
 **Done today:** the phone's layout. Choosing several cards, Undo after Remove, a place's menu by
@@ -1268,6 +1291,50 @@ words in sentence case); a reader for the new and derived translations in `asset
 ("This link no longer works", "The disk is full in {}"); a walk with VoiceOver over the list's arrow
 keys and the side panel; the window at 360 and 700 points wide (`ui-shot.py` pictures one size
 only); the phone on the emulator with Remove animations on.
+
+### E, fifth part: what the review of the dialogs, Options and the phone's sheets left
+
+Reviewed 2026-11-24 with the same skills, from `ui-shot.py` pictures of every dialog and Options
+page in light and dark and from the code (three reviews: accessibility and motion, layout and
+type, words, colour and polish). Fixed the same day: Options' chosen page readable (focus a
+ring, never a fill), Find a setting's page names and the status bar's Undo in `accent_text`,
+one filled button per window (the Grabber, Statistics, Download complete), every destroying
+button through `native::destructive`, Undo after Delete search and Clear history
+(`native::undo_line`), Cancel beside Done in Options on a phone, the switch's off edge, the
+Grabber's Stop greyed through `native::enabled`. Then, in the working tree at the end of the
+day: the check box, radio and switch ringed by `native::ringed` (a stripe's 1.1 to 1 was no
+ring); the hand-built controls reached by Tab and ringed (the "?" button, About's links, the
+progress window's openers, "How to use your phone", the Scheduler's queues with
+`aria_selected`, the presets, quality chips and segments, Take out, the text size stops, the
+links' Edit, Find a setting's page names as links); Return runs a dialog's default only where
+a text field or the dialog has the keys (`native::return_is_default`, 11 dialogs); every
+pop-up named by what it sets, its choice its value (`popup::spoken_name`, the words Hour,
+Minute, Day, Month, Year, Priority added); Escape (a phone's Back) closes a pop-up's sheet
+before its dialog (`popup::close_picking`).
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| E24 | A dialog's failure note (`native::note(says, theme.warning, …)` in Add URL, Links, the list file, Properties, the row dialogs, the limiter, Backup, the playlist, the clipboard's links, Download details, the Grabber) is not said to a screen reader: pressing OK makes no sound | OPEN · S | One `native::says(id, Option<SharedString>, theme, screen)` drawing an empty node that is always there (`Told::said_aloud`, `window/a11y.rs`) with the note in it; every dialog through it; a test that the node is said |
+| E25 | The phone's sheets (`window/narrow/sheet.rs`, `widgets/bottomsheet.rs`, `widgets/popup.rs`' sheet, `native/phone.rs`): a greyed line is told as live, a tick is never told (and drawn only where there is no picture), the lines, Close and Back have no tab stop and the focus is not moved into an opened sheet | OPEN · S | `.off_if(disabled)`, `.aria_toggled(..)` from `checked`, `native::ringed` on `bottomsheet::line`, Close and Back, the first line focused as a sheet opens; the sheet's lines answer the pointer with `theme.answering`, not `theme.control` (1.08 to 1 on a menu) |
+| E26 | Hit areas on the phone under 48 points: `native::CONTROL` is 44 there (buttons, pop-ups, fields, "?"), the check box and radio have no least height, the Scheduler's queue rows are 24 tall (`scheduler/sections.rs`), the presets 20 (`options/pages/downloads.rs`), the quality chips `py(XS)`; `docs/ui-design.md`'s table (phone 44) disagrees with its own "a touch target is at least 48" | OPEN · S, with V12 | `CONTROL`'s phone value `space::TOUCH`; the switch's `.min_h(on_a_phone(TOUCH, CONTROL))` for check box and radio; the rows and chips at `CONTROL`; the table in `docs/ui-design.md` |
+| E27 | Today's keyboard fixes have no test of their own: Return on a focused Cancel adds nothing, a pop-up's accessible name, Escape closing a pop-up's sheet before its dialog | OPEN · S | Window tests in `window_tests/keyboard.rs` (the harness's `ui.key` lets the key go now, so a focused control's Return and Space are pressed as by a person) |
+| E28 | Rows that do not fit: the Grabber's save line (`grabber/sections.rs` `saving_line`: a 180-point field, a 60-point field and Save search in one row with no wrap, about 720 points needed at Windows' sizes against 552) and the Links dialog's filter and edit rows (`links/sections.rs`, `links.rs`, fixed `w(px(200/180))`) | OPEN · S, with E2 | The phone's `row_wide`/`row_short` stack for both (off a phone those fall back to `native::row`); Links' rows `.flex_wrap()` with the field `flex_1`; pictured at Windows' sizes and in German |
+| E29 | No section heading of one kind: `Page::section`, Statistics, the Scheduler, `savefolder.rs` and the playlist each draw their own (four margins), and several Options headings are body words with a colon (`p.words("…:")` in `browser.rs`, `downloads.rs`, `advanced.rs`, `folders.rs`, the Scheduler's "When the scheduled downloads are done") | OPEN · S | `native::heading(words, screen)` (semibold, one top gap from `space`) for every one; the `p.words("…:")` headings `p.section(…)` with no colon (the Browser page's summary line then comes from its headings) |
+| E30 | A setting's explanation through `p.note` (no pull towards its setting) where `p.hint` is meant: `advanced.rs` (six), `downloads.rs`, more; such a line sits as near the next setting as its own | OPEN · S | `p.hint` for every line that explains the setting above it; `p.note` for standalone words only |
+| E31 | Field widths a literal at each call (`pages.rs` NUMBER 90 and WIDE 300, `browser.rs` 480 and a 160-point label column, number boxes of 48 to 110 points in the playlist, Scheduler, Grabber, Download details, Add series, progress window, limiter); `Page::labelled` puts a wide field beside its label on one page and above it on another; "Check now" a full-width bar | OPEN · M, with V13 | `native::NUMBER_FIELD`; wide fields `flex_1` to the trailing edge; off a phone `labelled` takes the label above; the browser rows through `p.setting`; "Check now" its own size |
+| E32 | `native::row` never puts a label above its field, so rule 6's "a label wider than 40% of the window goes above its field" holds nowhere (the speed limiter's "Download at most this many MB (0 for no limit)" is 44%); the limiter's slower hours nest a second label column | OPEN · S, with E10 | In `native::row`, the label above where its width passes 0.4 of the window's (the phone's branch already does); the slower hours on the main label column |
+| E33 | `native::figures()` only on the progress window's figure line: its Downloaded line, each connection's figures and rate, the networks' speeds, Download details' figures and Statistics' are proportional | OPEN · S, with E20 | `.font_features(native::figures())` on the progress window's body, Download details' and Statistics' |
+| E34 | Type sizes made by arithmetic outside the three ranks: `native/phone.rs` (`TEXT + 4.0`, the phone dialog's title), `bottomsheet.rs` (`TEXT + 2.0`), `progress/sections.rs` (`TEXT * 1.4`), `options/pages.rs` (`SMALL_TEXT + 1.0`, a fourth rank on a phone), `native.rs` (`on_a_phone(15.0, 10.0)`); BOLD in About, the question and the check box beside SEMIBOLD elsewhere | OPEN · S, with V13 | One `native::FIGURE_TEXT` (at least `TEXT` × 1.3, rule 4) for the figure, the phone bar's and a sheet's titles; a phone's section headings at `SMALL_TEXT` or `TEXT`; `MARK_TEXT` for the tick; SEMIBOLD throughout |
+| E35 | Cut words with no way to read them whole in the dialogs: Download complete's name and path, the row dialogs' link, the progress window's address, Options' page summaries (cut with room below them), a sheet's title and a card's name in it, the zip lists of Download details and Properties (one list drawn twice) | OPEN · S, with E2 | The table's `Tooltip::new(whole)` on each; `.text_ellipsis_middle()` for paths and addresses; page summaries on two lines; one zip list helper |
+| E36 | Right to left in the dialogs: `native::row` (label first, `justify_end`), `native::buttons`, `switch_inline`, `Page::setting` call nothing in `window/mirror.rs`; the "▸", "‹" and "›" arrows point one way | OPEN · S, with U35 | `mirror::row` inside those shared helpers (one change reaches every dialog), labels `justify_start` under `rtl()`, the arrows swapped; a picture in Arabic; U35's "dialogs … not mirrored yet" closed |
+| E37 | "OK" where a verb fits: Add URL (Download details follows), Update download link, Move to queue, Move/Rename, the list file, the speed limiter, the Scheduler, Properties (`addurl.rs`, `rowdialogs.rs`, `listfile.rs`, `limiter.rs`, `scheduler.rs`, `properties/sections.rs`) | OPEN · M, with V1 | Next, Update link, Move, Move, Import or Export, Save, Save, Save (Options keeps OK); the harness's and `human-qa.py`'s "OK" clicks; contract rows B01, B02 and B25's pictures |
+| E38 | One thing, two names: Login, Sign-in and User name/Username (Add URL, Properties, Options › Sign-ins' "Add a login", the proxy's "Username", Dial-up's "User name"); Add URL, Address and download link; kind and category ("Folders by kind" beside "Add a category"); Check all/Uncheck all beside Select all; the welcome dialog's "Start dm with the computer … Options › General" for the switch "Start dm when I sign in"; "Speed limit (KB/s, 0 for none)" and "Speed limit, KB/s (0 for none)"; "Look" in `docs/ui-design.md` for the window's "Theme" | OPEN · M, with U20 | One word each, the list kept in `docs/ui-design.md` (Words) as U20 asks; the catalogs and contract rows B01, B02, B43 |
+| E39 | The Remove question's buttons read "Yes, remove" and "Yes, delete" (`dm-desktop-base/src/view/asks.rs`), the Yes/No shape the words rule leaves out | OPEN · S | "Remove download"/"Remove downloads" and "Delete file"/"Delete files"; contract B38 |
+| E40 | Hover and press drawn several ways or not at all on controls with a face: the pop-up, the presets, Download details' segments, the quality chips, the sheet's quick buttons | OPEN · S, with V25 | One chip/segment helper in `native` answering with `theme.answering(face, HOVERED/PRESSED)`, ringed as E25's |
+| E41 | Literal sizes and marks typed as text: the check box's `rounded(px(3.5))`, `rounded(px(space::M))` as a corner, `CORNER_L * 2.0`, the pop-up's chevron at 11, a local `ICON` 20 in `sheet.rs`, heights 20 and 24; "✕", "›", "✓", "▸/▾" as characters of the font | OPEN · S, with V11, V17 | `space::CORNER_S`/`native::RADIUS`, `native::ICON_SMALL`/`ICON_LARGE`, `native::CONTROL`; close, check and chevron-right drawn as SVGs in `assets/icons/` (stroke 1.75) |
+| E42 | On a phone every pop-up's sheet is titled "Choose…" | OPEN · S, with V22 | The sheet titled by what it sets (`popup::spoken_name`, written today) |
+| E43 | Options › Sign-ins has no summary line in the list of pages, which contract B43 promises ("each with a line of what it holds"): the summary comes from a page's headings or labels and this page has neither | OPEN · S | A heading on the page, or a summary of its own; contract B43 |
+| E44 | Options › General's text size offers stops to 200% while `docs/ui-design.md` says 60% to 120% (B66) | OPEN · S | Settle which is meant (the maintainer's word on B66) and make the slider and the doc say the same |
 
 **Order to take them** (first priority, the top of this file): E1 with V1 (the rules, a day) and
 E2 (two defects) first. Then each with its part, the part built for it: E3 with Commands (V9,

@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "サーバーに接続できませんでした",
  "Check that you're online": "オンラインかどうか確認してください",
  "Deleted the search {}.": "検索「{}」を削除しました。",
- "History cleared.": "履歴を消去しました。"
+ "History cleared.": "履歴を消去しました。",
+ "Hour": "時",
+ "Minute": "分",
+ "Day": "日",
+ "Month": "月",
+ "Year": "年",
+ "Priority": "優先度"
 }

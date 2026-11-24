@@ -196,13 +196,6 @@ pub const ICON_TOOL: f32 = 18.0;
 /// A phone's picture: a card's button, a tab of the bottom bar.
 pub const ICON_LARGE: f32 = 20.0;
 
-/// The font's figures all one width ("tnum"), for figures that change as they are read: a
-/// speed, the time left, a percentage. Proportional figures shifted the words after them at
-/// every tick (gaps row E20).
-pub fn figures() -> gpui::FontFeatures {
-    gpui::FontFeatures(std::sync::Arc::new(vec![("tnum".into(), 1)]))
-}
-
 /// A dialog's body: the margins, the system's text, its rows apart.
 pub fn body(theme: Theme) -> Div {
     div()
@@ -406,8 +399,7 @@ pub fn checkbox(
         .aria_label(words.clone())
         .off_where_greyed()
         // Reached by Tab, ticked by Space, its place ringed (gaps row U2).
-        .tab_index(0)
-        .focus(move |s| s.bg(theme.stripe))
+        .map(|c| ringed(c, theme))
         .aria_toggled(if ticked {
             gpui::Toggled::True
         } else {
@@ -513,8 +505,7 @@ pub fn radio(
         .off_where_greyed()
         // Reached by Tab, chosen by Space, its place ringed (gaps row U2); the arrows move
         // to the radio before or after it, as in the system's groups of them.
-        .tab_index(0)
-        .focus(move |s| s.bg(theme.stripe))
+        .map(|c| ringed(c, theme))
         .on_key_down(|event: &gpui::KeyDownEvent, window, cx| {
             if event.keystroke.modifiers.modified() {
                 return;
@@ -606,6 +597,11 @@ pub fn dialog<V: CloseButton>(
         .aria_label(label.clone())
         .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" {
+                // A pop-up's sheet open closes first; the dialog with the next Escape.
+                if crate::widgets::popup::close_picking() {
+                    window.refresh();
+                    return;
+                }
                 this.close_button(window, cx);
             }
         }))
@@ -781,12 +777,14 @@ pub fn time_picked(time: &mut String, hour: bool, to: usize) {
 
 mod destroy;
 mod help;
+mod keys;
 mod measure;
 pub use help::help_button;
 mod path;
 mod switch;
 pub use destroy::{destructive, undo_line};
-pub use measure::{label_width, measure_with, small_width, text_width};
+pub use keys::{return_is_default, ringed};
+pub use measure::{figures, label_width, measure_with, small_width, text_width};
 pub use switch::{switch, switch_inline};
 mod phone;
 pub use path::path_field;

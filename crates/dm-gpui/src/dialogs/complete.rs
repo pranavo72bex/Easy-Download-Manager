@@ -119,7 +119,9 @@ impl Render for Complete {
             // Return meant for another dialog must not run the file that just
             // finished. Running it takes a click on Open.
             .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
-                if event.keystroke.key == "enter" {
+                if event.keystroke.key == "enter"
+                    && crate::widgets::native::return_is_default(window, Some(&this.focus), cx)
+                {
                     this.close(window, cx);
                 }
             }))

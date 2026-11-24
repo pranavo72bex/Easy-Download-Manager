@@ -406,7 +406,9 @@ impl Render for Grabber {
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "escape" {
                     window.remove_window();
-                } else if event.keystroke.key == "enter" {
+                } else if event.keystroke.key == "enter"
+                    && crate::widgets::native::return_is_default(window, Some(&this.focus), cx)
+                {
                     this.look(window, cx);
                 }
             }))

@@ -40,6 +40,8 @@ impl Scheduler {
                 let q = queue.clone();
                 div()
                     .id(("queue", i))
+                    .map(|c| crate::widgets::native::ringed(c, theme))
+                    .aria_selected(chosen)
                     .role(Role::ListItem)
                     .aria_label(dm_desktop_base::i18n::name(queue))
                     .h(px(24.0))

@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "der Server war nicht erreichbar",
  "Check that you're online": "Prüfen Sie, ob Sie online sind",
  "Deleted the search {}.": "Die Suche {} wurde gelöscht.",
- "History cleared.": "Verlauf gelöscht."
+ "History cleared.": "Verlauf gelöscht.",
+ "Hour": "Stunde",
+ "Minute": "Minute",
+ "Day": "Tag",
+ "Month": "Monat",
+ "Year": "Jahr",
+ "Priority": "Priorität"
 }

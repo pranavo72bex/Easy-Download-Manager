@@ -20,6 +20,9 @@ pub fn help_button(page: &'static str, theme: Theme, screen: &Screen) -> Statefu
         .id(gpui::ElementId::Name(format!("help-{page}").into()))
         .role(Role::Button)
         .aria_label(words)
+        // Reached by Tab, pressed by Space or Return, ringed, as `native::button` is.
+        .tab_index(0)
+        .focus(move |s| s.border_2().border_color(theme.ring(false)))
         .flex_none()
         .size(px(super::CONTROL))
         .rounded_full()

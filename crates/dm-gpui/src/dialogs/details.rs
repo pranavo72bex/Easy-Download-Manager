@@ -599,6 +599,7 @@ fn segment(
 ) -> gpui::Stateful<gpui::Div> {
     div()
         .id(id)
+        .map(|c| crate::widgets::native::ringed(c, theme))
         .role(Role::RadioButton)
         .aria_label(words.clone())
         .aria_toggled(if on {
@@ -654,7 +655,9 @@ impl Render for Details {
                 .track_focus(&self.focus)
                 .on_action(cx.listener(|this, pick: &Pick, window, cx| this.pick(pick, window, cx)))
                 .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                    if event.keystroke.key == "enter" {
+                    if event.keystroke.key == "enter"
+                        && crate::widgets::native::return_is_default(window, Some(&this.focus), cx)
+                    {
                         this.add(false, window, cx);
                     }
                 }))

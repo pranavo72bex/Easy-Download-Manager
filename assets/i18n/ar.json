@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "تعذّر الوصول إلى الخادم",
  "Check that you're online": "تحقق من أنك متصل بالإنترنت",
  "Deleted the search {}.": "حُذف البحث {}.",
- "History cleared.": "تم مسح السجل."
+ "History cleared.": "تم مسح السجل.",
+ "Hour": "الساعة",
+ "Minute": "الدقيقة",
+ "Day": "اليوم",
+ "Month": "الشهر",
+ "Year": "السنة",
+ "Priority": "الأولوية"
 }

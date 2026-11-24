@@ -379,6 +379,7 @@ fn opener(
     let (theme, screen) = (look.theme, &look.screen);
     div()
         .id(id)
+        .map(|c| crate::widgets::native::ringed(c, theme))
         .role(Role::Button)
         .aria_label(t(label))
         // Open or shut, as its arrow shows (gaps row U23).

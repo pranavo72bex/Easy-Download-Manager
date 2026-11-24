@@ -173,7 +173,9 @@ impl Render for ClipLinks {
                     }
                 }))
                 .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                    if event.keystroke.key == "enter" {
+                    if event.keystroke.key == "enter"
+                        && crate::widgets::native::return_is_default(window, Some(&this.focus), cx)
+                    {
                         this.add(false, window, cx);
                     }
                 }))

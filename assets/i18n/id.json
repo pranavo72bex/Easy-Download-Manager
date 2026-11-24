@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "server tidak dapat dijangkau",
  "Check that you're online": "Pastikan Anda online",
  "Deleted the search {}.": "Pencarian {} dihapus.",
- "History cleared.": "Riwayat dihapus."
+ "History cleared.": "Riwayat dihapus.",
+ "Hour": "Jam",
+ "Minute": "Menit",
+ "Day": "Hari",
+ "Month": "Bulan",
+ "Year": "Tahun",
+ "Priority": "Prioritas"
 }

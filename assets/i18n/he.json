@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "לא ניתן להגיע לשרת",
  "Check that you're online": "יש לבדוק את החיבור לאינטרנט",
  "Deleted the search {}.": "החיפוש {} נמחק.",
- "History cleared.": "ההיסטוריה נמחקה."
+ "History cleared.": "ההיסטוריה נמחקה.",
+ "Hour": "שעה",
+ "Minute": "דקה",
+ "Day": "יום",
+ "Month": "חודש",
+ "Year": "שנה",
+ "Priority": "עדיפות"
 }

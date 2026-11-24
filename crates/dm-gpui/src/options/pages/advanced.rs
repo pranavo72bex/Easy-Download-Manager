@@ -182,6 +182,7 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
     p.add(
         div()
             .id("phone-steps")
+            .map(|c| crate::widgets::native::ringed(c, theme))
             .role(gpui::Role::Button)
             .aria_label(SharedString::from(t("How to use your phone")))
             .aria_expanded(phone)

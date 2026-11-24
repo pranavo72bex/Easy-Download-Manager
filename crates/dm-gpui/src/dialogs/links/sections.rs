@@ -175,6 +175,11 @@ impl Links {
                                             .child(
                                                 div()
                                                     .id(("edit", i))
+                                                    .role(gpui::Role::Button)
+                                                    .aria_label(t("Edit"))
+                                                    .map(|c| {
+                                                        crate::widgets::native::ringed(c, theme)
+                                                    })
                                                     .w(px(52.0))
                                                     .flex_none()
                                                     .text_color(theme.accent_text)

@@ -206,7 +206,9 @@ impl Render for PlaylistWindow {
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                if event.keystroke.key == "enter" {
+                if event.keystroke.key == "enter"
+                    && crate::widgets::native::return_is_default(window, Some(&this.focus), cx)
+                {
                     this.add(false, window, cx);
                 }
             }))

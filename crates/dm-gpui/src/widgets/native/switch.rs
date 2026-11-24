@@ -7,6 +7,7 @@
 
 use gpui::{div, prelude::*, Div, Role, SharedString, Stateful};
 
+use super::ringed;
 use super::{on_a_phone, CONTROL};
 use crate::widgets::space;
 use crate::window::a11y::Told as _;
@@ -30,8 +31,7 @@ pub fn switch(
         .role(Role::Switch)
         .aria_label(words.clone())
         .off_where_greyed()
-        .tab_index(0)
-        .focus(move |s| s.bg(theme.stripe))
+        .map(|c| ringed(c, theme))
         .aria_toggled(if on {
             gpui::Toggled::True
         } else {
@@ -62,8 +62,7 @@ pub fn switch_inline(
         .role(Role::Switch)
         .aria_label(words.clone())
         .off_where_greyed()
-        .tab_index(0)
-        .focus(move |s| s.bg(theme.stripe))
+        .map(|c| ringed(c, theme))
         .aria_toggled(if on {
             gpui::Toggled::True
         } else {

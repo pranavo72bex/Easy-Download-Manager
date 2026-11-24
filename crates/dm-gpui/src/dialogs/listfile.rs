@@ -146,7 +146,9 @@ impl Render for ListFile {
         let width = native::label_width(&[t(PATH)]);
         let root = native::dialog("list-file", title(self.save), theme, cx)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                if event.keystroke.key == "enter" {
+                if event.keystroke.key == "enter"
+                    && crate::widgets::native::return_is_default(window, None, cx)
+                {
                     this.ok(window, cx);
                 }
             }))

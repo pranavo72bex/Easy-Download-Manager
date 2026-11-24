@@ -142,7 +142,13 @@ pub fn button_of(
         // Reached by Tab, opened by Space or Return (gaps row U2).
         .tab_index(0)
         .focus(move |s| s.border_2().border_color(theme.accent_text))
-        .aria_label(words.clone())
+        // Named by what it sets, its choice as its value: named by its choice alone, a screen
+        // reader said "00, pop-up button" with no way to tell start from stop or hour from
+        // minute.
+        .map(|b| match spoken_name(field) {
+            Some(name) => b.aria_label(name).aria_value(words.clone()),
+            None => b.aria_label(words.clone()),
+        })
         .h(px(CONTROL))
         .min_w(px(100.0))
         .pl(px(9.0))
@@ -192,6 +198,53 @@ pub fn button_of(
             }
             open(field, item, &choices, chosen, event.position(), window, cx)
         })
+}
+
+/// What the pop-up `field` sets, said to a screen reader, in the language in force: the label
+/// its row shows; `None` where its choice says it alone.
+fn spoken_name(field: &str) -> Option<SharedString> {
+    use dm_desktop_base::i18n::t;
+    let part = |at: &'static str, unit: &'static str| format!("{}, {}", t(at), t(unit)).into();
+    Some(match field {
+        "start-hour" | "from-hour" | "slow-from-hour" => part("Start at", "Hour"),
+        "start-minute" | "from-minute" | "slow-from-minute" => part("Start at", "Minute"),
+        "to-hour" | "slow-to-hour" => part("Stop at", "Hour"),
+        "to-minute" | "slow-to-minute" => part("Stop at", "Minute"),
+        _ => t(match field {
+            "date-day" => "Day",
+            "date-month" => "Month",
+            "date-year" => "Year",
+            "priority" => "Priority",
+            "category" => "Category",
+            "delete-after" => "Delete file after",
+            "dialup-connection" => "Connection",
+            "digits" => "Digits",
+            "duplicate" => "When an address is already in the list",
+            "follow-queue" | "links-queue" | "queue-limit" | "queue-start" => "Queue",
+            "language" => "Language",
+            "network" => "Network",
+            "on-close" => "When I close the window",
+            "on-metered" => "On a metered connection",
+            "proxy-kind" => "Proxy",
+            "quality" => "Video quality",
+            "recent" => "Recent",
+            "same-file" => "When the same file is already here",
+            "template" => "Template",
+            "theme" => "Theme",
+            "third-network" => "Third network",
+            "keep-key" => "Hold while clicking to leave it with the browser",
+            "take-key" => "Hold while clicking to send it to dm whatever its type or size",
+            _ => return None,
+        })
+        .into(),
+    })
+}
+
+/// Closes a pop-up's sheet where one is open, as a phone's Back closes the top layer only:
+/// true where one was. Back with a pop-up's choices open closed the whole dialog, and what was
+/// typed in it went.
+pub fn close_picking() -> bool {
+    PICKING.with(|p| p.borrow_mut().take().is_some())
 }
 
 /// The hooks a pop-up's sheet answers through: its state is [`PICKING`].

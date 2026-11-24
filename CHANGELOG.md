@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The keyboard reaches every control in the dialogs and Options, each showing a ring when it has the keys; Return on a focused button presses that button, not the dialog's default. A screen reader names each pop-up by what it sets ("Start at, Hour"), and Back on a phone closes an open list of choices before the dialog.
+
 - Options: the page you are on is easy to read again (its name was white on light grey after a click), and the results of Find a setting are readable in dark looks.
 - Delete search in the Grabber and Clear history in Add URL can be undone. On a phone, Options has Cancel beside Done, which puts back what you changed.
 - Buttons that delete something have red words, the same in every dialog; each window has one blue button, its main action (the Grabber, Statistics and Download complete had two or a blue Close).

@@ -1075,5 +1075,11 @@
  "the server couldn't be reached": "de server was niet bereikbaar",
  "Check that you're online": "Controleer of je online bent",
  "Deleted the search {}.": "Zoekopdracht {} verwijderd.",
- "History cleared.": "Geschiedenis gewist."
+ "History cleared.": "Geschiedenis gewist.",
+ "Hour": "Uur",
+ "Minute": "Minuut",
+ "Day": "Dag",
+ "Month": "Maand",
+ "Year": "Jaar",
+ "Priority": "Prioriteit"
 }
