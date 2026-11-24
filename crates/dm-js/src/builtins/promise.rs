@@ -344,6 +344,24 @@ pub fn settled_value(i: &mut Interp, v: Value) -> Res<Value> {
     }
 }
 
+/// What `Promise.any` rejects with when every promise was rejected: an `AggregateError`
+/// holding their reasons.
+fn all_rejected(i: &mut Interp, errors: Value) -> Value {
+    let global = Value::Object(i.global.clone());
+    let proto = match i.get_of(&global, &Key::str("AggregateError")) {
+        Ok(c @ Value::Object(_)) => match i.get_of(&c, &Key::str("prototype")) {
+            Ok(Value::Object(p)) => p,
+            _ => i.intrinsics.error_proto.clone(),
+        },
+        _ => i.intrinsics.error_proto.clone(),
+    };
+    let e = i.error_of(&proto, "All promises were rejected");
+    if let Value::Object(eo) = &e {
+        eo.set_hidden(Key::str("errors"), errors);
+    }
+    e
+}
+
 /// `Promise.all` (0), `allSettled` (1), `any` (2), `race` (3).
 fn combine(i: &mut Interp, items: Value, how: u8) -> Res<Value> {
     let list: Vec<Value> = i.iterate(items)?.collect::<Res<_>>()?;
@@ -351,10 +369,8 @@ fn combine(i: &mut Interp, items: Value, how: u8) -> Res<Value> {
     if list.is_empty() {
         match how {
             2 => {
-                let e = i.error_of(
-                    &i.intrinsics.error_proto.clone(),
-                    "All promises were rejected",
-                );
+                let none = i.array(Vec::new());
+                let e = all_rejected(i, none);
                 reject(i, &out, e);
             }
             3 => {}
@@ -423,13 +439,7 @@ fn collected(i: &mut Interp, v: Value, ok: bool) -> Res<Value> {
         }
         (2, false) => {
             if finish(i, v)? {
-                let e = i.error_of(
-                    &i.intrinsics.error_proto.clone(),
-                    "All promises were rejected",
-                );
-                if let Value::Object(eo) = &e {
-                    eo.set_hidden(Key::str("errors"), state.clone());
-                }
+                let e = all_rejected(i, state.clone());
                 reject(i, &out, e);
             }
         }

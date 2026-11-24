@@ -8,7 +8,8 @@
 use super::{make_error, this_bool};
 use crate::builtins::{arg, constructor, method};
 use crate::interp::Interp;
-use crate::object::{Class, Obj, Slot};
+use crate::interp::Res;
+use crate::object::{Class, NativeFn, Obj, Slot};
 use crate::value::{Key, Value};
 
 /// `Error`, with its prototype's `toString`, and its kinds (`TypeError`, …).
@@ -52,7 +53,12 @@ pub(super) fn install_errors(interp: &mut Interp, ep: &Obj) {
         ]
     };
     for (name, proto) in kinds {
-        let c = constructor(interp, name, 1, make_error, &proto);
+        let (make, length): (NativeFn, usize) = if name == "AggregateError" {
+            (make_aggregate_error, 2)
+        } else {
+            (make_error, 1)
+        };
+        let c = constructor(interp, name, length, make, &proto);
         c.borrow_mut().proto = interp
             .global
             .own(&Key::str("Error"))
@@ -63,6 +69,26 @@ pub(super) fn install_errors(interp: &mut Interp, ep: &Obj) {
         proto.set_hidden(Key::str("name"), Value::str(name));
         proto.set_hidden(Key::str("message"), Value::str(""));
     }
+}
+
+/// `AggregateError(errors, message, options)`: an error whose `errors` are the values
+/// `errors` gives when iterated.
+fn make_aggregate_error(
+    i: &mut Interp,
+    this: &Value,
+    a: &[Value],
+    made: Option<&Obj>,
+) -> Res<Value> {
+    let rest: Vec<Value> = a.iter().skip(1).cloned().collect();
+    let e = make_error(i, this, &rest, made)?;
+    let mut errors = Vec::new();
+    for v in i.iterate(arg(a, 0))? {
+        errors.push(v?);
+    }
+    if let Value::Object(o) = &e {
+        o.set_hidden(Key::str("errors"), i.array(errors));
+    }
+    Ok(e)
 }
 
 /// `Boolean`, and its prototype's methods.

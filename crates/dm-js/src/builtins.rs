@@ -126,8 +126,16 @@ pub fn fill(interp: &mut Interp) {
         Prop::data(Value::Undefined, false, false, false),
     );
     let on = interp.global.clone();
-    method(interp, &on, "parseInt", 2, parse_int);
-    method(interp, &on, "parseFloat", 1, parse_float);
+    let parse_int = method(interp, &on, "parseInt", 2, parse_int);
+    let parse_float = method(interp, &on, "parseFloat", 1, parse_float);
+    // `Number.parseInt` and `Number.parseFloat` are the globals themselves; `Number` is
+    // installed before them, so they are put on it here.
+    if let Some(Slot::Data(Value::Object(number))) =
+        interp.global.own(&Key::str("Number")).map(|p| p.slot)
+    {
+        number.set_hidden(Key::str("parseInt"), Value::Object(parse_int));
+        number.set_hidden(Key::str("parseFloat"), Value::Object(parse_float));
+    }
     method(interp, &on, "isNaN", 1, |i, _, a, _| {
         Ok(Value::Bool(i.to_number(&arg(a, 0))?.is_nan()))
     });
@@ -239,13 +247,27 @@ fn parse_float(interp: &mut Interp, _: &Value, args: &[Value], _: Option<&Obj>) 
     Ok(Value::Number(s[..end].parse::<f64>().unwrap_or(f64::NAN)))
 }
 
+/// The `URIError` that `encodeURI` and `decodeURI` and their kin throw (a plain `Error` when
+/// `URIError` has been taken off the global object).
+fn uri_malformed(interp: &Interp) -> Value {
+    let proto = match interp.global.own(&Key::str("URIError")).map(|p| p.slot) {
+        Some(Slot::Data(Value::Object(c))) => match c.own(&Key::str("prototype")).map(|p| p.slot) {
+            Some(Slot::Data(Value::Object(p)) | Slot::ReadOnly(Value::Object(p))) => Some(p),
+            _ => None,
+        },
+        _ => None,
+    };
+    let proto = proto.unwrap_or_else(|| interp.intrinsics.error_proto.clone());
+    interp.error_of(&proto, "URI malformed")
+}
+
 /// `encodeURIComponent`: UTF-8, each byte not kept as `%XX`.
 fn encode(interp: &mut Interp, args: &[Value], kept: &str) -> Res<Value> {
     let s = interp.to_text(&arg(args, 0))?;
     let mut out = String::new();
     for c in char::decode_utf16(s.iter().copied()) {
         let Ok(c) = c else {
-            return Err(interp.error_of(&interp.intrinsics.error_proto.clone(), "URI malformed"));
+            return Err(uri_malformed(interp));
         };
         if c.is_ascii_alphanumeric() || kept.contains(c) {
             out.push(c);
@@ -262,7 +284,7 @@ fn encode(interp: &mut Interp, args: &[Value], kept: &str) -> Res<Value> {
 /// `decodeURIComponent`: `%XX` as UTF-8, but those that stand for a character of `reserved`.
 fn decode(interp: &mut Interp, args: &[Value], reserved: &str) -> Res<Value> {
     let s = interp.to_rust_string(&arg(args, 0))?;
-    let malformed = |i: &Interp| i.error_of(&i.intrinsics.error_proto, "URI malformed");
+    let malformed = uri_malformed;
     let bytes = s.as_bytes();
     let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
     let mut i = 0;

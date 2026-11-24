@@ -77,13 +77,43 @@ fn install_number(interp: &mut Interp, np: &Obj) {
             matches!(arg(a, 0), Value::Number(n) if n.is_nan()),
         ))
     });
-    for name in ["parseInt", "parseFloat"] {
-        if let Some(p) = interp.global.own(&Key::str(name)) {
-            if let crate::object::Slot::Data(v) = p.slot {
-                number.set_hidden(Key::str(name), v);
+}
+
+/// `x` (finite, under 1e21) with `digits` after the point, as `toFixed` writes it: rounded on
+/// the number's exact value, a tie upward. Rust's `{:.N}` rounds a tie to even, which made
+/// `(0.5).toFixed(0)` "0" and `(2.5).toFixed(0)` "2" where a browser gives "1" and "3".
+fn to_fixed(x: f64, digits: usize) -> String {
+    // A finite double's exact decimal value has at most 1074 digits after the point.
+    let exact = format!("{:.1074}", x.abs());
+    let (int, frac) = exact.split_once('.').unwrap_or((&exact, ""));
+    let mut kept: Vec<u8> = int.bytes().chain(frac.bytes().take(digits)).collect();
+    if frac.as_bytes().get(digits).is_some_and(|d| *d >= b'5') {
+        let mut k = kept.len();
+        loop {
+            if k == 0 {
+                kept.insert(0, b'1');
+                break;
+            }
+            k -= 1;
+            if kept[k] == b'9' {
+                kept[k] = b'0';
+            } else {
+                kept[k] += 1;
+                break;
             }
         }
     }
+    let point = kept.len() - digits;
+    let mut out = String::with_capacity(kept.len() + 2);
+    if x < 0.0 {
+        out.push('-');
+    }
+    out.push_str(std::str::from_utf8(&kept[..point]).unwrap_or("0"));
+    if digits > 0 {
+        out.push('.');
+        out.push_str(std::str::from_utf8(&kept[point..]).unwrap_or(""));
+    }
+    out
 }
 
 /// `Number.prototype`'s methods.
@@ -119,7 +149,7 @@ fn install_number_methods(interp: &mut Interp, np: &Obj) {
         if !n.is_finite() || n.abs() >= 1e21 {
             return Ok(Value::str(&crate::number::to_string(n)));
         }
-        Ok(Value::str(&format!("{:.*}", digits as usize, n)))
+        Ok(Value::str(&to_fixed(n, digits as usize)))
     });
     method(interp, np, "toPrecision", 1, |i, this, a, _| {
         let n = this_number(i, this)?;

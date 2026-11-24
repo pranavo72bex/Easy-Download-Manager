@@ -25,7 +25,7 @@ pub fn install(interp: &mut Interp) {
         7,
         |i, _, a, made| {
             let Some(proto) = made else {
-                return Ok(Value::str(&format_date(NOW)));
+                return Ok(Value::str(&format_date(NOW, Shape::Whole)));
             };
             let t = match a {
                 [] => NOW,
@@ -88,18 +88,26 @@ pub fn install(interp: &mut Interp) {
     });
     for name in [
         "toString",
-        "toUTCString",
-        "toDateString",
         "toLocaleString",
         "toLocaleDateString",
         "toLocaleTimeString",
-        "toTimeString",
-        "toGMTString",
     ] {
         method(interp, &dp, name, 0, |i, this, _, _| {
-            Ok(Value::str(&format_date(time(i, this)?)))
+            Ok(Value::str(&format_date(time(i, this)?, Shape::Whole)))
         });
     }
+    // `toGMTString` is `toUTCString` under its old name.
+    for name in ["toUTCString", "toGMTString"] {
+        method(interp, &dp, name, 0, |i, this, _, _| {
+            Ok(Value::str(&format_date(time(i, this)?, Shape::Utc)))
+        });
+    }
+    method(interp, &dp, "toDateString", 0, |i, this, _, _| {
+        Ok(Value::str(&format_date(time(i, this)?, Shape::Day)))
+    });
+    method(interp, &dp, "toTimeString", 0, |i, this, _, _| {
+        Ok(Value::str(&format_date(time(i, this)?, Shape::Time)))
+    });
     install_getters(interp, &dp);
     install_setters(interp, &dp);
 }
@@ -179,7 +187,7 @@ fn install_setters(interp: &mut Interp, dp: &Obj) {
             Ok(if hint == "number" {
                 Value::Number(t)
             } else {
-                Value::str(&format_date(t))
+                Value::str(&format_date(t, Shape::Whole))
             })
         },
     );
@@ -291,7 +299,17 @@ fn parts(t: f64) -> (i64, i64, i64, i64, i64, i64, i64) {
     )
 }
 
-fn format_date(t: f64) -> String {
+/// Which of a date's written forms: `toString`'s, `toUTCString`'s, `toDateString`'s or
+/// `toTimeString`'s (local time is UTC here, so the zone is always +0000).
+#[derive(Clone, Copy)]
+enum Shape {
+    Whole,
+    Utc,
+    Day,
+    Time,
+}
+
+fn format_date(t: f64, shape: Shape) -> String {
     if t.is_nan() {
         return "Invalid Date".into();
     }
@@ -300,11 +318,15 @@ fn format_date(t: f64) -> String {
     const MONTHS: [&str; 12] = [
         "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ];
-    let wd = (((t / DAY).floor() + 4.0).rem_euclid(7.0)) as usize;
-    format!(
-        "{} {} {d:02} {y} {h:02}:{mi:02}:{s:02} GMT+0000 (Coordinated Universal Time)",
-        DAYS[wd], MONTHS[mo as usize]
-    )
+    let wd = DAYS[(((t / DAY).floor() + 4.0).rem_euclid(7.0)) as usize];
+    let mo = MONTHS[mo as usize];
+    let zone = "GMT+0000 (Coordinated Universal Time)";
+    match shape {
+        Shape::Whole => format!("{wd} {mo} {d:02} {y} {h:02}:{mi:02}:{s:02} {zone}"),
+        Shape::Utc => format!("{wd}, {d:02} {mo} {y} {h:02}:{mi:02}:{s:02} GMT"),
+        Shape::Day => format!("{wd} {mo} {d:02} {y}"),
+        Shape::Time => format!("{h:02}:{mi:02}:{s:02} {zone}"),
+    }
 }
 
 /// An ISO date (`2026-01-02`, `2026-01-02T03:04:05.006Z`), as `Date.parse` reads one.
