@@ -8890,3 +8890,11 @@ file after", the speed limiter's "Download at most…"). Each letter is now meas
 system's own shaping (GPUI's `TextSystem::layout_width`), kept once measured. Shaping the whole
 label in one go would add kerning too, but needs a window's text system; the letter-by-letter
 sum is within a point of what is drawn here.
+
+## The speed limiter's long label stays beside its field (gaps row E10), 2026-11-24
+
+`docs/ui-design.md` rule 6 puts a label wider than 40% of its window above its field. The only
+one over it is the speed limiter's "Download at most this many MB (0 for no limit)", at 41% in
+English; with the line under it, "in each period of this many hours", it reads as one sentence
+across two lines, and above their fields the two would part. Kept beside its field; a shorter
+wording (rule V2, under 40 characters) is the way to bring it under, with the V rows.
