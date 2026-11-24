@@ -327,7 +327,7 @@ fn over(cx: &mut Context<Downloads>, close: impl Fn(&mut Downloads) + 'static) -
         .top_0()
         .left_0()
         .size_full()
-        .bg(gpui::rgba(0x00000040))
+        .bg(gpui::rgba(crate::window::theme::SCRIM))
         .occlude()
         .on_click(cx.listener(move |view, _, _, cx| {
             close(view);

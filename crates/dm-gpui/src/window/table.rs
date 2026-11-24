@@ -429,7 +429,7 @@ fn row_cells(
         .enumerate()
         .map(|(place, &column)| match column {
             Column::Name => {
-                let (picture, colour) = kind_picture(kind);
+                let (picture, colour) = kind_picture(kind, theme);
                 // On a chosen row the picture takes the row's words' colour: its own read 1.02
                 // to 1 on macOS's selection (gaps row U22).
                 let colour = if theme.is_chosen() {
@@ -459,7 +459,7 @@ fn row_cells(
                     .child(
                         gpui::svg()
                             .path(picture)
-                            .size(px(16.0))
+                            .size(px(crate::widgets::native::ICON))
                             .flex_none()
                             .text_color(colour),
                     )
@@ -624,14 +624,20 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
             empty
                 .child(
                     div().pt(px(space::M)).child(
+                        // Plain, and named as the toolbar's Add URL is, the command it runs: the
+                        // window's one filled button is that one (rule 1, gaps row E15).
                         crate::widgets::native::button(
                             "add-a-download",
-                            t("Add a download").into(),
-                            true,
+                            t("Add URL").into(),
+                            false,
                             theme,
                             &screen,
                         )
-                        .on_click(cx.listener(|view, _, _, cx| {
+                        .on_click(cx.listener(|view, _, window, cx| {
+                            // The keyboard back to the list: this button goes once a row is
+                            // listed, and the focus it took went with it, so the menus' and the
+                            // keys' commands reached nothing in the window.
+                            window.focus(&view.focus, cx);
                             view.run(dm_shell::app::commands::Command::AddUrl, cx);
                         })),
                     ),

@@ -134,7 +134,7 @@ mod state;
 use questions::countdown_question;
 use refresh::clicked;
 use refresh::needs_drawing;
-pub(crate) use rowline::{kind_picture, line};
+pub(crate) use rowline::{kind_path, kind_picture, line};
 pub(crate) use sections::Shown;
 use sorting::sort_command;
 

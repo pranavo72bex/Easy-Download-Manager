@@ -22,8 +22,10 @@ The eye must have somewhere to start. Every window is checked against these, at 
    *(The toolbar has none yet: gaps E3. The progress window's: E9.)*
 2. **The accent marks three things only:** the filled button, what is chosen (a row, a
    place, a picked item), and progress (a bar). Links take the accent's text shade
-   (`accent_text`). Nothing
-   else is drawn in it: not a heading, not a count, not a picture.
+   (`accent_text`). Nothing else is drawn in it: not a heading, not a count, not a picture,
+   with one exception: the side panel's place pictures, all in the accent's text shade as a
+   source list's are (the maintainer: "monocolor", 2026-11-12; kept at the review of
+   2026-11-24, gaps row E17). A button's picture is in its words' colour.
 3. **The error colour marks two things only:** a failure (a row, a field, a message) and a
    button that destroys (Delete, Cancel download), which is plain with its words in that
    colour. Never a filled red button.
@@ -112,6 +114,8 @@ Linux, and under High Contrast the system's own. A widget reads the role, never 
 | `control` / `control_border` / `field` | A button's face and edge, a text field's inside |
 | `accent` / `on_accent` | A fill: the default button, a switch on, a ticked box; the words on it |
 | `accent_text` | The accent drawn on a surface: a running download's state, a link, "+N more", a bar, a focus ring; at 4.5 to 1 on the list, a stripe, a dialog, the side panel and a menu |
+| `kinds` | Each kind of file's picture in a row and a card: a light set and a dark set at 3 to 1 on the list and a stripe; under High Contrast the text colour |
+| `SCRIM` | The shade behind a sheet or a drawer |
 | `selection` / `on_selection` | What is chosen; the words on it |
 | `warning` | A failure and a destructive button's words |
 | `success` | What is in order (an extension that has spoken to dm) |
@@ -132,7 +136,13 @@ Each system's own sizes, in points, macOS / Windows / Linux, and a phone's:
 | Between rows of a form (`ROW_GAP`) | 8 | 8 | 10 | 14 |
 | A control's corners (`RADIUS`) | 5 | 4 | 6 | 10 |
 
-Spacing steps (`space`): 2, 4, 6, 8, 10, 12, 16, 20, 24; a touch target is at least 48. The
+Spacing steps (`space`): 2, 4, 6, 8, 10, 12, 16, 20, 24; a touch target is at least 48.
+Pictures (`native`): `ICON_SMALL` 12 beside small words, `ICON` 16 beside body text,
+`ICON_TOOL` 18 in the toolbar, `ICON_LARGE` 20 on a phone; drawn on a 24 grid at a stroke of
+1.75, heavier (2 to 2.5) where a glyph is drawn at 12 or 13 points, so every line comes out
+about 1.2 points wide. Corners: a control's `native::RADIUS`, a small mark's `space::CORNER_S`.
+A button with a face answers the pointer by shading its face (`Theme::answering`); one with
+none (a toolbar item) by the stripe. The
 font is the system's (`.SystemUIFont`); dm ships none. Everything is multiplied by the text size setting (`zoom.rs`, B66: 60% to 120%).
 Pictures are dm's own SVGs (`assets/icons/`).
 

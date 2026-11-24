@@ -266,3 +266,40 @@ fn every_systems_palette_keeps_its_words_readable() {
         }
     }
 }
+
+/// Each kind's picture reads at 3 to 1 on the list and a striped row in every system's look, as
+/// a picture is read; under High Contrast every kind is the system's text colour (gaps E16).
+#[test]
+fn each_kinds_picture_reads_on_the_list_in_every_look() {
+    let mut faint = Vec::new();
+    for (look, theme) in systems() {
+        let k = theme.kinds;
+        for (kind, colour) in [
+            ("videos", k.videos),
+            ("audio", k.audio),
+            ("documents", k.documents),
+            ("apps", k.apps),
+            ("archives", k.archives),
+            ("pictures", k.pictures),
+            ("other", k.other),
+        ] {
+            for (surface, back) in [
+                ("list", theme.background),
+                ("striped row", over_rgba(theme.stripe, theme.background)),
+            ] {
+                let ratio = contrast(colour, back);
+                if ratio < 3.0 {
+                    faint.push(format!("{look}: {kind} on the {surface}: {ratio:.2}"));
+                }
+            }
+        }
+    }
+    assert!(faint.is_empty(), "too faint: {faint:#?}");
+    use dm_desktop_base::contrast::Palette;
+    let black = high_contrast(&Palette::BLACK);
+    assert_eq!(
+        black.kinds.of_kind(Some(dm_core::Category::Audio)),
+        black.text
+    );
+    assert_eq!(black.kinds.of_kind(None), black.text);
+}

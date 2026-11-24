@@ -636,7 +636,7 @@ pub fn resume_word(chosen: &[&Entry]) -> &'static str {
 
 /// What the list says where it shows no row, in the language in force: a
 /// heading, the line under it, and whether the next step is offered (the
-/// "Add a download" button and where links may be dropped), which it is
+/// Add URL button and where links may be dropped), which it is
 /// only while nothing at all is listed. `listed_any` is whether the list
 /// holds any row; `filtered` whether words are typed in the search box.
 #[must_use]

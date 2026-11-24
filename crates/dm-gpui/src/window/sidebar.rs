@@ -66,7 +66,7 @@ pub(crate) fn drawn_width(text: &str, size: f32, window: &Window, cx: &gpui::App
 fn picture(place: &Place) -> &'static str {
     match place {
         Place::All => "icons/place-all.svg",
-        Place::Kind(kind) => crate::window::list::kind_picture(Some(*kind)).0,
+        Place::Kind(kind) => crate::window::list::kind_path(Some(*kind)),
         Place::Custom(_) => "icons/place-folder.svg",
         Place::Unfinished => "icons/place-unfinished.svg",
         Place::Finished => "icons/place-finished.svg",
@@ -120,6 +120,9 @@ pub(crate) fn place_name(view: &Downloads) -> Option<SharedString> {
         .find(|(_, place, _)| *place == view.list.place)
         .map(|(_, _, label)| label)
 }
+
+/// A place's row in the side panel, in points: a saved search's and a followed list's too.
+pub(crate) const PLACE_ROW: f32 = 26.0;
 
 /// The side panel.
 pub fn sidebar(
@@ -343,7 +346,7 @@ fn projects(
                     .map(|d| reachable(d, theme))
                     .mx_2()
                     .px_2()
-                    .h(px(26.0))
+                    .h(px(PLACE_ROW))
                     .rounded(px(crate::widgets::native::RADIUS))
                     .flex()
                     .map(crate::window::mirror::row)
@@ -357,7 +360,7 @@ fn projects(
                     .child(
                         gpui::svg()
                             .path("icons/place-folder.svg")
-                            .size(px(16.0))
+                            .size(px(crate::widgets::native::ICON))
                             .flex_none()
                             .text_color(theme.accent_text),
                     )
@@ -425,7 +428,7 @@ fn place_row(
             .map(|d| reachable(d, theme))
             .mx_2()
             .px_2()
-            .h(px(26.0))
+            .h(px(PLACE_ROW))
             .rounded(px(crate::widgets::native::RADIUS))
             .flex()
             // Its picture and name on the right, its count on the left, where the window is
@@ -504,10 +507,11 @@ fn place_row(
                     .child(
                         gpui::svg()
                             .path(icon)
-                            .size(px(16.0))
+                            .size(px(crate::widgets::native::ICON))
                             .flex_none()
-                            // In the selection's own colour where chosen, as
-                            // the words are.
+                            // The accent's text shade, chosen or not: the side panel's
+                            // pictures are a source list's, all in one colour (the
+                            // maintainer: "monocolor"; `docs/ui-design.md` rule 2).
                             .text_color(theme.accent_text),
                     )
                     // One line, cut with an ellipsis where the panel is too narrow for it.

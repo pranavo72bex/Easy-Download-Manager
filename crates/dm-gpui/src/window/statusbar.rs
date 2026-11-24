@@ -205,7 +205,7 @@ pub fn statusbar(
                     })
                     // A button, not words in the line (gaps row U14).
                     .px_2()
-                    .rounded_sm()
+                    .rounded(px(crate::widgets::space::CORNER_S))
                     .border_1()
                     .border_color(theme.separator)
                     .cursor_pointer()

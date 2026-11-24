@@ -97,7 +97,7 @@ pub(super) fn more_button(
         .gap(px(crate::widgets::space::LINE))
         .px_2()
         .py_1()
-        .rounded_md()
+        .rounded(px(crate::widgets::native::RADIUS))
         .text_size(px(crate::widgets::native::SMALL_TEXT))
         .hover(move |s| s.bg(theme.stripe))
         // The dots where pictures are shown, and where only words are, its word alone.
@@ -105,7 +105,7 @@ pub(super) fn more_button(
             b.child(
                 svg()
                     .path("icons/more.svg")
-                    .size(px(18.0))
+                    .size(px(crate::widgets::native::ICON_TOOL))
                     .text_color(theme.text),
             )
         })

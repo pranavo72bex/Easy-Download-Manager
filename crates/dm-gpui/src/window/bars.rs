@@ -198,7 +198,9 @@ impl Downloads {
                     native::button(
                         "stalled-folder",
                         t("Choose another folder…").into(),
-                        true,
+                        // Plain beside the toolbar's Add URL, the window's one filled button
+                        // (`docs/ui-design.md` rule 1, gaps row E15).
+                        false,
                         theme,
                         screen,
                     )

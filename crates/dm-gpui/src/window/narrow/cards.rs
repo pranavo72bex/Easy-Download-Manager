@@ -265,6 +265,7 @@ fn card(
 ) -> gpui::AnyElement {
     let id = row.id;
     let name = crate::window::table::shown_name(row, &view.known.shown_names);
+    let menu_of = name.clone();
     let status = dm_desktop_base::rows::status_of(row);
     let whens = &view.known.whens;
     let speed = crate::window::table::words(Column::Rate, row, whens);
@@ -336,7 +337,7 @@ fn card(
                 .flex()
                 .flex_col()
                 .gap(px(space::S))
-                .child(name_line(name, left, card_theme, screen))
+                .child(name_line(name.clone(), left, card_theme, screen))
                 // No bar on a finished card: its tick says it (gaps row E4).
                 // One just finished fills and fades rather than vanishing (gaps row K7).
                 .children(crate::window::table::finishing_bar(row, card_theme))
@@ -374,21 +375,26 @@ fn card(
         })
         // Its menu.
         .child(
-            round(("card-menu", id as usize), t("Row menu").into(), theme)
-                .w(px(space::TOUCH - space::S))
-                .text_size(px(NAME_TEXT + 4.0))
-                .text_color(card_theme.muted)
-                .on_click(cx.listener(move |view, _, _, cx| {
-                    view.open_card_menu(id, cx);
-                }))
-                .child(screen.mark(t("Row menu"), div().child("⋮"))),
+            // Named with its download, as a screen reader moves from card to card; a finger's
+            // whole 48 points (gaps row E22).
+            round(
+                ("card-menu", id as usize),
+                format!("{}, {menu_of}", t("Row menu")).into(),
+                theme,
+            )
+            .text_size(px(NAME_TEXT + 4.0))
+            .text_color(card_theme.muted)
+            .on_click(cx.listener(move |view, _, _, cx| {
+                view.open_card_menu(id, cx);
+            }))
+            .child(screen.mark(t("Row menu"), div().child("⋮"))),
         )
         .into_any_element()
 }
 
 /// A card's kind, its picture on a tile of its colour.
 fn tile(kind: Option<dm_core::Category>, chosen: bool, card_theme: Theme) -> gpui::Div {
-    let (picture, colour) = kind_picture(kind);
+    let (picture, colour) = kind_picture(kind, card_theme);
     let tint = if chosen { card_theme.text } else { colour };
     div()
         .flex_none()
@@ -411,14 +417,9 @@ fn quick_button(
     cx: &mut Context<Downloads>,
 ) -> gpui::Stateful<gpui::Div> {
     let card_theme = if chosen { theme.chosen() } else { theme };
+    // A finger's 48 points to hit, its 40-point ring drawn inside (gaps row E22: the ring was
+    // the whole of what could be hit).
     round(("card-quick", id as usize), words.into(), theme)
-        .size(px(QUICK))
-        .border_1()
-        .border_color(if chosen {
-            card_theme.text
-        } else {
-            theme.control_border
-        })
         .on_click(cx.listener(move |view, _, _, cx| {
             view.choose_card(id);
             match &command {
@@ -430,17 +431,29 @@ fn quick_button(
             cx.notify();
         }))
         .child(
-            screen.mark(
-                words,
-                gpui::svg()
-                    .path(picture)
-                    .size(px(20.0))
-                    .text_color(if chosen {
-                        card_theme.text
-                    } else {
-                        theme.accent_text
-                    }),
-            ),
+            div()
+                .size(px(QUICK))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_full()
+                .border_1()
+                .border_color(if chosen {
+                    card_theme.text
+                } else {
+                    theme.control_border
+                })
+                .child(
+                    screen.mark(
+                        words,
+                        // In the words' colour: the accent is for a fill, the chosen and progress,
+                        // not a button's picture (`docs/ui-design.md` rule 2, gaps row E17).
+                        gpui::svg()
+                            .path(picture)
+                            .size(px(crate::widgets::native::ICON_LARGE))
+                            .text_color(card_theme.text),
+                    ),
+                ),
         )
 }
 

@@ -187,6 +187,15 @@ pub const BUTTON_MIN: f32 = on_a_phone(64.0, pick(80.0, 120.0, 80.0));
 /// A control's corners.
 pub const RADIUS: f32 = on_a_phone(10.0, pick(5.0, 4.0, 6.0));
 
+/// A picture's size, in points: a mark beside small words (a heading's arrow, a status mark).
+pub const ICON_SMALL: f32 = 12.0;
+/// A picture beside body text: a row's, a place's (gaps row E23: each size was a bare number).
+pub const ICON: f32 = 16.0;
+/// A toolbar button's picture over its word.
+pub const ICON_TOOL: f32 = 18.0;
+/// A phone's picture: a card's button, a tab of the bottom bar.
+pub const ICON_LARGE: f32 = 20.0;
+
 /// The font's figures all one width ("tnum"), for figures that change as they are read: a
 /// speed, the time left, a percentage. Proportional figures shifted the words after them at
 /// every tick (gaps row E20).

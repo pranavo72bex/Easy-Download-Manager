@@ -163,7 +163,7 @@ impl Render for DropTarget {
                     .child(
                         gpui::svg()
                             .path("icons/drop.svg")
-                            .size(px(20.0))
+                            .size(px(crate::widgets::native::ICON_LARGE))
                             .text_color(if over { theme.on_accent } else { theme.accent }),
                     )
                     .when_some(fraction, |d, f| {

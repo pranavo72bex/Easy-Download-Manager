@@ -49,7 +49,7 @@ mod tests {
     #[test]
     fn every_kind_has_its_picture() {
         for kind in dm_core::Category::ALL.into_iter().map(Some).chain([None]) {
-            let (path, _) = crate::window::list::kind_picture(kind);
+            let path = crate::window::list::kind_path(kind);
             assert!(matches!(Assets.load(path), Ok(Some(_))), "{kind:?}: {path}");
         }
     }

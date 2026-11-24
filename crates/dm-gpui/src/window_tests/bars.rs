@@ -62,13 +62,15 @@ fn a_problem_above_the_list_is_dismissed() {
     });
 }
 
-/// An empty list offers its first step as a button: Add URL.
+/// An empty list offers its first step as a button: Add URL, named as the toolbar's is.
 #[test]
 fn an_empty_list_offers_to_add_a_download() {
     let world = world();
     let mut h = world.harness();
-    h.until_shown("Add a download");
-    h.click("Add a download");
+    h.until("the empty list's button beside the toolbar's", |h| {
+        h.texts().iter().filter(|t| *t == "Add URL").count() >= 2
+    });
+    h.click("Add URL");
     h.until("Add URL", |h| h.dialog_open("Add URL"));
 }
 

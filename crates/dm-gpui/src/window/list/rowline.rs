@@ -8,41 +8,27 @@
 use dm_core::{Entry, State};
 use gpui::SharedString;
 
-/// A row's picture of its file's kind, and the kind's colour (B45): told
-/// apart by shape (a play mark, a note, lines, a window, a zip, a hill and a
-/// sun, a plain sheet), each in its kind's colour from `theme`.
-pub(crate) fn kind_picture(kind: Option<dm_core::Category>) -> (&'static str, gpui::Rgba) {
+/// A row's picture of its file's kind (B45), told apart by its shape (a film strip, a note, a
+/// page, four tiles, a box, a landscape, three dots).
+pub(crate) fn kind_path(kind: Option<dm_core::Category>) -> &'static str {
     use dm_core::Category as K;
     match kind {
-        Some(K::Videos) => (
-            "icons/kind-videos.svg",
-            gpui::rgb(crate::window::theme::KIND_VIDEOS),
-        ),
-        Some(K::Audio) => (
-            "icons/kind-audio.svg",
-            gpui::rgb(crate::window::theme::KIND_AUDIO),
-        ),
-        Some(K::Documents) => (
-            "icons/kind-documents.svg",
-            gpui::rgb(crate::window::theme::KIND_DOCUMENTS),
-        ),
-        Some(K::Apps) => (
-            "icons/kind-apps.svg",
-            gpui::rgb(crate::window::theme::KIND_APPS),
-        ),
-        Some(K::Archives) => (
-            "icons/kind-archives.svg",
-            gpui::rgb(crate::window::theme::KIND_ARCHIVES),
-        ),
-        Some(K::Pictures) => (
-            "icons/kind-pictures.svg",
-            gpui::rgb(crate::window::theme::KIND_PICTURES),
-        ),
-        _ => (
-            "icons/kind-other.svg",
-            gpui::rgb(crate::window::theme::KIND_OTHER),
-        ),
+        Some(K::Videos) => "icons/kind-videos.svg",
+        Some(K::Audio) => "icons/kind-audio.svg",
+        Some(K::Documents) => "icons/kind-documents.svg",
+        Some(K::Apps) => "icons/kind-apps.svg",
+        Some(K::Archives) => "icons/kind-archives.svg",
+        Some(K::Pictures) => "icons/kind-pictures.svg",
+        _ => "icons/kind-other.svg",
     }
+}
+
+/// A row's picture of its file's kind and its colour in `theme`'s look (`Theme::kinds`).
+pub(crate) fn kind_picture(
+    kind: Option<dm_core::Category>,
+    theme: crate::window::theme::Theme,
+) -> (&'static str, gpui::Rgba) {
+    (kind_path(kind), theme.kinds.of_kind(kind))
 }
 
 /// What a row's line says, in the shell: its name and its state.

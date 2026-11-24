@@ -84,7 +84,7 @@ pub(crate) fn scrim(id: impl Into<gpui::ElementId>, hooks: &Hooks) -> Stateful<D
         .top_0()
         .left_0()
         .size_full()
-        .bg(gpui::rgba(0x00000052))
+        .bg(gpui::rgba(crate::window::theme::SCRIM))
         .occlude()
         .on_click(move |_, window, cx| close(window, cx))
 }

@@ -37,7 +37,7 @@ pub(super) fn rows(
                 .map(|d| super::reachable(d, theme))
                 .mx_2()
                 .px_2()
-                .h(px(26.0))
+                .h(px(super::PLACE_ROW))
                 .rounded(px(crate::widgets::native::RADIUS))
                 .flex()
                 .items_center()
@@ -50,7 +50,7 @@ pub(super) fn rows(
                 .child(
                     gpui::svg()
                         .path("icons/place-queue.svg")
-                        .size(px(16.0))
+                        .size(px(crate::widgets::native::ICON))
                         .flex_none()
                         .text_color(theme.accent_text),
                 )

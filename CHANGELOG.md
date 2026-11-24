@@ -5,6 +5,11 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- One filled button per window: the empty list's button is a plain "Add URL", named as the toolbar's, and a stalled download's "Choose another folder…" is plain too. After using that button, the menus and keys work on the list again.
+- Each kind of file has its colour for light and for dark looks, easy to see on both; under High Contrast every kind takes the system's text colour.
+- On a phone, a card's round button and its menu are full finger-sized targets, and a screen reader names the download a card's menu belongs to.
+- Smaller consistency fixes: icons drawn at one line weight, one shade behind every sheet and drawer, one corner size per kind of control, and a row's buttons that stay visible when hovered on a chosen row.
+
 - A long file name is shortened in its middle, so its start and its extension both stay ("Ubuntu-24.04-de…amd64.iso"), on the phone too.
 - Speeds, times and percentages keep still as they change: every digit is the same width.
 - Progress bars move at an even pace; rows fade in a little more gently and out a little quicker.

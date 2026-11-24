@@ -49,6 +49,8 @@ pub struct Theme {
     pub accent: Rgba,
     /// Words and marks on the accent.
     pub on_accent: Rgba,
+    /// Each kind of file's colour (`Kinds`).
+    pub kinds: Kinds,
     /// Words drawn in the accent on a surface (a running download's state, a link, "+N
     /// more"): the accent's text shade, at 4.5 to 1 on the list, a stripe, a dialog and the
     /// side panel, where the fill itself may not be.
@@ -168,15 +170,84 @@ impl Theme {
     }
 }
 
-/// Each kind of file's colour in the list (B45), the same in Light and Dark,
-/// named here with the rest of the window's colours (gaps row A19).
-pub const KIND_VIDEOS: u32 = 0x8e44ad;
-pub const KIND_AUDIO: u32 = 0xe67e22;
-pub const KIND_DOCUMENTS: u32 = 0x2b6cc4;
-pub const KIND_APPS: u32 = 0x3d8b37;
-pub const KIND_ARCHIVES: u32 = 0xb7931f;
-pub const KIND_PICTURES: u32 = 0xc0395a;
-pub const KIND_OTHER: u32 = 0x7f8c8d;
+/// Each kind of file's colour (B45), in its row's and its card's picture: a set for the light
+/// looks and one for the dark, each at 3 to 1 on the list and a striped row, as a picture is
+/// read; under High Contrast the system's text colour, as every colour then is (gaps row E16:
+/// one set for both looks, Audio and Archives at 2.9 to 1 on white, Videos 2.6 on a dark list).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Kinds {
+    pub videos: Rgba,
+    pub audio: Rgba,
+    pub documents: Rgba,
+    pub apps: Rgba,
+    pub archives: Rgba,
+    pub pictures: Rgba,
+    pub other: Rgba,
+}
+
+impl Kinds {
+    /// On a light list.
+    fn light() -> Kinds {
+        Kinds {
+            videos: rgb(0x8e44ad),
+            audio: rgb(0xb85c0f),
+            documents: rgb(0x2b6cc4),
+            apps: rgb(0x3d8b37),
+            archives: rgb(0x8a6d0f),
+            pictures: rgb(0xc0395a),
+            other: rgb(0x6b7778),
+        }
+    }
+
+    /// On a dark list: the same hues, lighter.
+    fn dark() -> Kinds {
+        Kinds {
+            videos: rgb(0xc08ae0),
+            audio: rgb(0xf0a05a),
+            documents: rgb(0x6ea8f0),
+            apps: rgb(0x6cc463),
+            archives: rgb(0xd9b84a),
+            pictures: rgb(0xf07a98),
+            other: rgb(0xa8b3b4),
+        }
+    }
+
+    /// One colour for every kind (High Contrast's text): the pictures' shapes tell them apart.
+    fn one(colour: Rgba) -> Kinds {
+        Kinds {
+            videos: colour,
+            audio: colour,
+            documents: colour,
+            apps: colour,
+            archives: colour,
+            pictures: colour,
+            other: colour,
+        }
+    }
+
+    /// For the light look or the dark.
+    fn of(dark: bool) -> Kinds {
+        if dark {
+            Kinds::dark()
+        } else {
+            Kinds::light()
+        }
+    }
+
+    /// The colour of `kind`'s picture; a download of no kind, Other's.
+    pub fn of_kind(&self, kind: Option<dm_core::Category>) -> Rgba {
+        use dm_core::Category as K;
+        match kind {
+            Some(K::Videos) => self.videos,
+            Some(K::Audio) => self.audio,
+            Some(K::Documents) => self.documents,
+            Some(K::Apps) => self.apps,
+            Some(K::Archives) => self.archives,
+            Some(K::Pictures) => self.pictures,
+            _ => self.other,
+        }
+    }
+}
 /// Windows' close button under the pointer: its caption buttons' red.
 pub const CLOSE_HOVERED: u32 = 0xc42b1c;
 
@@ -184,6 +255,10 @@ pub const CLOSE_HOVERED: u32 = 0xc42b1c;
 pub const HOVERED: f32 = 0.08;
 /// Pressed.
 pub const PRESSED: f32 = 0.16;
+
+/// The shade over the window behind a sheet or a drawer: one for every one of them (gaps row
+/// E23: two, 25% and 32% black, said the same thing).
+pub const SCRIM: u32 = 0x00000052;
 
 /// WCAG's contrast of `words` laid over the opaque `back`.
 fn words_on(words: Rgba, back: Rgba) -> f32 {
@@ -233,6 +308,7 @@ fn macos(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x409cff),
+            kinds: Kinds::of(dark),
         }
     } else {
         Theme {
@@ -261,6 +337,7 @@ fn macos(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x0064e1),
+            kinds: Kinds::of(dark),
         }
     }
 }
@@ -290,6 +367,7 @@ fn windows(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x60cdff),
+            kinds: Kinds::of(dark),
             success: rgb(0x6ccb5f),
         }
     } else {
@@ -313,6 +391,7 @@ fn windows(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x005fb8),
+            kinds: Kinds::of(dark),
             success: rgb(0x0f7b0f),
         }
     }
@@ -345,6 +424,7 @@ fn high_contrast(p: &dm_desktop_base::contrast::Palette) -> Theme {
         accent: c(p.highlight),
         on_accent: c(p.highlight_text),
         accent_text: c(p.hotlight),
+        kinds: Kinds::one(c(p.window_text)),
         success: c(p.window_text),
     }
 }
@@ -374,6 +454,7 @@ fn gnome(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x78aeed),
+            kinds: Kinds::of(dark),
             success: rgb(0x78e9ab),
         }
     } else {
@@ -398,6 +479,7 @@ fn gnome(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x1866c2),
+            kinds: Kinds::of(dark),
             // Darker than the GNOME palette's (3.9 to 1 on the side panel, gaps row U22).
             success: rgb(0x17733a),
         }

@@ -209,7 +209,7 @@ fn button(
         .gap(px(space::LINE))
         .px_2()
         .py_1()
-        .rounded_md()
+        .rounded(px(crate::widgets::native::RADIUS))
         // A toolbar item's label: the system's small size.
         .text_size(px(crate::widgets::native::SMALL_TEXT))
         .when(main, |b| b.bg(theme.accent).text_color(theme.on_accent))
@@ -224,7 +224,7 @@ fn button(
             b.child(
                 svg()
                     .path(icon(command))
-                    .size(px(18.0))
+                    .size(px(crate::widgets::native::ICON_TOOL))
                     .text_color(if main { theme.on_accent } else { theme.text }),
             )
         })
@@ -279,7 +279,7 @@ fn queue_arrow(command: Command, queues: Vec<String>, theme: Theme) -> impl Into
         .flex()
         .items_center()
         .justify_center()
-        .rounded_md()
+        .rounded(px(crate::widgets::native::RADIUS))
         .hover(|s| s.bg(theme.stripe))
         .child(
             svg()

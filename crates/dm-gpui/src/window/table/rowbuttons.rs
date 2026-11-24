@@ -106,7 +106,10 @@ pub(super) fn row_buttons(
                 .justify_center()
                 .rounded(px(space::CORNER_S))
                 .bg(theme.control)
-                .hover(|s| s.bg(theme.stripe))
+                // A face answers the pointer a shade toward the words, as every button with a
+                // face does (`native::button`); the stripe in its place all but hid it on a
+                // chosen row (gaps row E23).
+                .hover(move |s| s.bg(theme.answering(theme.control, crate::window::theme::HOVERED)))
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .on_click(cx.listener(move |view, _, window, cx| {
                     cx.stop_propagation();

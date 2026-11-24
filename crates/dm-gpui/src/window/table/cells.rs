@@ -304,7 +304,7 @@ pub(crate) fn state_mark(state: &dm_core::State, theme: Theme) -> Option<AnyElem
     let picture = |path: &'static str| {
         gpui::svg()
             .path(path)
-            .size(px(12.0))
+            .size(px(crate::widgets::native::ICON_SMALL))
             .flex_none()
             .text_color(colour)
             .into_any_element()
