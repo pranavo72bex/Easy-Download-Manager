@@ -79,8 +79,12 @@ pub(crate) const WHEN_DONE: [(Command, WhenDone); 5] = [
 ];
 
 /// View's first items, each ticked while what it shows is shown.
-pub(crate) const VIEW_SHOWN: [Command; 3] =
-    [C::ToggleCategories, C::ToggleToolbar, C::ToggleDropTarget];
+pub(crate) const VIEW_SHOWN: [Command; 4] = [
+    C::ToggleCategories,
+    C::ToggleToolbar,
+    C::ToggleDetails,
+    C::ToggleDropTarget,
+];
 
 /// View › Sort by.
 pub(crate) const SORT: [Command; 7] = [
@@ -252,6 +256,7 @@ const fn command_on_phone(command: Command) -> Phone {
     match command {
         C::ToggleCategories => Left("a computer's side panel: the phone's places are a drawer"),
         C::ToggleToolbar => Left("a computer's toolbar: the phone's top bar and ⋮ hold it"),
+        C::ToggleDetails => Left("a wide window's pane: a phone opens a card's detail itself"),
         C::ToggleDropTarget => Left("a floating window over a computer's desktop"),
         C::CheckForUpdates => Left(
             "it knows only a computer's installers: the store or the APK updates the phone's app",

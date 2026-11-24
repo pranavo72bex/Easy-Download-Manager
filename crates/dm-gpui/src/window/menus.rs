@@ -35,6 +35,8 @@ pub struct Ticks {
     pub sidebar: bool,
     /// View › Toolbar.
     pub toolbar: bool,
+    /// View › Details (gaps row E8).
+    pub details: bool,
     /// View › Drop target.
     pub drop_target: bool,
     /// The columns' order and those hidden, by key (View › Columns).
@@ -284,6 +286,7 @@ pub fn carried_out(command: Command) -> bool {
             | C::Help
             | C::ToggleCategories
             | C::ToggleToolbar
+            | C::ToggleDetails
             | C::SortByName
             | C::SortBySize
             | C::SortByStatus

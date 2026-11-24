@@ -398,6 +398,8 @@ impl Downloads {
             .when(empty, |list| {
                 list.child(crate::window::table::empty(self, theme, cx))
             })
+            // The chosen download's detail under the list (View › Details, gaps row E8).
+            .children(self.detail_pane(theme, screen, cx))
     }
 
     /// The headings and the rows, which scroll sideways together, and the

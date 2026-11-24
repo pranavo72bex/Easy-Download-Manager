@@ -277,6 +277,8 @@ pub(crate) struct Layout {
     pub(crate) show_sidebar: bool,
     /// View › Toolbar: the toolbar shown.
     pub(crate) show_toolbar: bool,
+    /// View › Details: the chosen download's detail under the list (gaps row E8).
+    pub(crate) show_details: bool,
     /// What the bars above the list remember (`bars.rs`).
     pub(crate) bars: crate::window::bars::Bars,
     /// A column's width as its heading's edge is dragged, and when the drag's width was last

@@ -154,6 +154,8 @@ pub enum Command {
     ToggleCategories,
     /// Shows or hides the toolbar.
     ToggleToolbar,
+    /// Shows or hides the chosen download's detail under the list (gaps row E8).
+    ToggleDetails,
     /// Shows or hides the drop target.
     ToggleDropTarget,
     /// Sorts the list by name.
@@ -236,6 +238,7 @@ impl Command {
         Command::Options,
         Command::ToggleCategories,
         Command::ToggleToolbar,
+        Command::ToggleDetails,
         Command::ToggleDropTarget,
         Command::SortByName,
         Command::SortBySize,
@@ -306,6 +309,7 @@ impl Command {
             Command::Options => "downloads.options",
             Command::ToggleCategories => "view.categories",
             Command::ToggleToolbar => "view.toolbar",
+            Command::ToggleDetails => "view.details",
             Command::ToggleDropTarget => "view.drop_target",
             Command::SortByName => "view.sort.name",
             Command::SortBySize => "view.sort.size",
@@ -415,6 +419,7 @@ impl Command {
             Command::Options => "Options",
             Command::ToggleCategories => "Categories",
             Command::ToggleToolbar => "Toolbar",
+            Command::ToggleDetails => "Details",
             Command::ToggleDropTarget => "Drop target",
             Command::SortByName => "Sort by name",
             Command::SortBySize => "Sort by size",

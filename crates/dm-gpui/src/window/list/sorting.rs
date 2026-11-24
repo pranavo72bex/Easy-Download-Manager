@@ -31,9 +31,11 @@ impl Downloads {
     /// The side panel and toolbar kept as they are now shown, for the next launch.
     pub(super) fn keep_shown(&mut self, cx: &mut Context<Self>) {
         let (sidebar, toolbar) = (self.layout.show_sidebar, self.layout.show_toolbar);
+        let details = self.layout.show_details;
         self.backend.keep_look(|settings| {
             settings.show_categories = sidebar;
             settings.show_toolbar = toolbar;
+            settings.show_details = details;
         });
         cx.notify();
     }

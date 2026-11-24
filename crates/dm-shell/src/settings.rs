@@ -196,6 +196,9 @@ pub struct Settings {
     /// View › Toolbar: the toolbar shown, kept for the next launch.
     #[serde(default = "yes")]
     pub show_toolbar: bool,
+    /// View › Details: the chosen download's detail under the list (gaps row E8), off at first.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub show_details: bool,
     /// Toolbar buttons taken off, by command id.
     pub toolbar_hidden: Vec<String>,
     /// Sign-ins: a user and password used for downloads from a
@@ -528,6 +531,7 @@ impl Default for Settings {
             sort_ascending: true,
             show_categories: true,
             show_toolbar: true,
+            show_details: false,
             toolbar_hidden: Vec::new(),
             site_logins: Vec::new(),
         }

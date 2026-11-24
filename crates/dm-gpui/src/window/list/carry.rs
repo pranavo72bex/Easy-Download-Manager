@@ -137,6 +137,12 @@ impl Downloads {
                 cx.notify();
                 true
             }
+            Command::ToggleDetails => {
+                self.layout.show_details = !self.layout.show_details;
+                self.keep_shown(cx);
+                cx.notify();
+                true
+            }
             Command::ToggleToolbar => {
                 self.layout.show_toolbar = !self.layout.show_toolbar;
                 self.keep_shown(cx);

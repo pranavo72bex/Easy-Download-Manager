@@ -53,7 +53,7 @@ fn width(column: Column) -> Option<f32> {
     match column {
         Column::Name => None,
         // The queue's name, where it was a dot (gaps row E7).
-        Column::Queue => Some(96.0),
+        Column::Queue => Some(72.0),
         Column::Size => Some(72.0),
         Column::Status => Some(150.0),
         Column::TimeLeft => Some(68.0),

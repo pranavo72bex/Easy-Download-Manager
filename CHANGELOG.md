@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- View › Details shows the chosen download under the list: how far it is, where it is saved, where it came from, and why it failed with what to do.
 - The list's queue column says the queue's name under the heading "Queue", where it showed a dot.
 - Download details: the queue is a line of the form (Queue), and the buttons read Cancel, Add for later, Start now.
 - Text size goes up to 150% and 200% (Options › General and View › Text size) for anyone who needs larger words.

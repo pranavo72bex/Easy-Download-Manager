@@ -114,6 +114,7 @@ mod adding;
 mod carry;
 mod commands;
 mod complete;
+mod detail;
 mod following;
 mod in_front;
 mod keys;
@@ -213,6 +214,7 @@ impl Downloads {
             layout: state::Layout {
                 show_sidebar: true,
                 show_toolbar: true,
+                show_details: false,
                 contrast: dm_desktop_base::contrast::system(),
                 ..Default::default()
             },
@@ -433,6 +435,7 @@ impl Downloads {
             speed_limit: settings.advanced.speed_limit,
             sidebar: self.layout.show_sidebar,
             toolbar: self.layout.show_toolbar,
+            details: self.layout.show_details,
             drop_target: settings.drop_target,
             column_order: settings.column_order.clone(),
             columns_hidden: settings.columns_hidden.clone(),

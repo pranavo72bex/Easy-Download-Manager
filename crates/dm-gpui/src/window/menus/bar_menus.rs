@@ -166,7 +166,12 @@ pub(super) fn view_menu(ticks: &Ticks, phone: bool) -> Menu {
     // row N24, `reach::on_phone`).
     let mut items: Vec<MenuItem> = reach::VIEW_SHOWN
         .into_iter()
-        .zip([ticks.sidebar, ticks.toolbar, ticks.drop_target])
+        .zip([
+            ticks.sidebar,
+            ticks.toolbar,
+            ticks.details,
+            ticks.drop_target,
+        ])
         .filter(|(c, _)| reach::drawn(reach::Act::Run(*c), phone))
         .map(|(c, ticked)| item(c).checked(ticked))
         .collect();

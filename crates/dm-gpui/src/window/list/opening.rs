@@ -21,6 +21,7 @@ pub(super) fn first_settings(
     // And the side panel and toolbar as they were left (gaps row U29).
     this.layout.show_sidebar = settings.show_categories;
     this.layout.show_toolbar = settings.show_toolbar;
+    this.layout.show_details = settings.show_details;
     // The taskbar button's jump list (Windows): Add URL and the folder.
     dm_desktop_base::jumplist::publish(
         dm_desktop_base::i18n::t("Add URL"),
