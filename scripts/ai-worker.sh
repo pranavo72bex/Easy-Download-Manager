@@ -83,6 +83,20 @@ for n in $(gh issue list --state open --label bot:needs-votes --json number --jq
     fi
 done
 
+# An improvement whose row has moved on since it was opened (done and deleted, split into
+# steps, or now a person's) is closed with why, never tried again: the free quota goes to
+# what is still to do (#59, the whole of K5, after K5 was split).
+gh issue list --state open --label bot:improve --limit 100 --json number,body \
+    --jq '.[] | "\(.number) \(.body // "" | capture("gaps_row: *(?<r>[A-Z]+[0-9]+[a-z]?)").r // "")"' |
+    while read -r n row; do
+        [ -n "$row" ] || continue
+        if ! why=$(python3 -I scripts/ai-improve-pick.py --still "$row"); then
+            echo "#$n: $why"
+            run gh issue comment "$n" --body "$(printf '<!-- dm-bot -->\nClosed: %s.\n\n— dm'"'"'s bot' "$why")"
+            run gh issue close "$n" --reason "not planned"
+        fi
+    done
+
 # Tried again after a week, with whatever models answer then: three tries in all.
 week_ago=$(date -u -d '7 days ago' +%FT%TZ 2>/dev/null || date -u -v-7d +%FT%TZ)
 gh issue list --state open --label bot:no-fix --json number,updatedAt,comments \

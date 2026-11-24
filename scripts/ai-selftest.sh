@@ -166,6 +166,11 @@ expect "pick: a step waits for the step it is after" A4 "$(pick A1a)"
 sed -i.b '/^| A1a /d' "$work/pick/docs/gaps.md" && rm -f "$work/pick/docs/gaps.md.b"
 expect "pick: a step is free once the step before is deleted" A1b "$(pick)"
 expect "pick: never a person's row, a split row, a phone's or a waiting section's" "" "$(pick A1b A4)"
+still() { (cd "$work/pick" && python3 -I scripts/ai-improve-pick.py --still "$1" >/dev/null && echo yes || echo no); }
+expect "still: a bot's open row is still a bot's" yes "$(still A4)"
+expect "still: a split row is not (its steps are)" no "$(still A1)"
+expect "still: a person's row is not" no "$(still A2)"
+expect "still: a deleted row is not" no "$(still A1a)"
 
 echo
 if [ "$failures" -gt 0 ]; then

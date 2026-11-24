@@ -24,7 +24,9 @@ and that needs nothing only a person can give:
 
 Prints `ID<TAB>the row's problem<TAB>its state<TAB>what is done and left`, the smallest of the
 first section that has one, or nothing. `--all` prints every row a bot can take now, in the
-order they would be taken, one `ID  the problem` a line.
+order they would be taken, one `ID  the problem` a line. `--still ID` says whether row ID is
+still one for a bot (there, OPEN or PARTIAL, not split and not a person's): exit 0, or exit 1
+with why not, so the worker closes an improvement whose row was done, removed or split since.
 """
 
 import re
@@ -118,7 +120,32 @@ def every(skip):
         print(f"{rid:6} {problem[:110]}")
 
 
+def still(rid):
+    """Row RID is still a bot's to take: exit 0; else say why and exit 1."""
+    try:
+        text = open("docs/gaps.md", encoding="utf-8").read()
+    except OSError:
+        return 0  # no list to judge by: leave the issue alone
+    m = re.search(r"^\|\s*" + re.escape(rid) + r"\s*\|[^|]*\|([^|]*)", text, re.M)
+    if not m:
+        print(f"row {rid} is no longer in docs/gaps.md: done or removed")
+        return 1
+    state = m.group(1)
+    if not re.match(r"\s*(OPEN|PARTIAL)\b", state):
+        print(f"row {rid} is no longer OPEN or PARTIAL")
+        return 1
+    if re.search(r"·\s*split\b", state):
+        print(f"row {rid} has been split into steps ({rid}a, {rid}b, …): the bots take those")
+        return 1
+    if re.search(r"·\s*person\b", state):
+        print(f"row {rid} is now a person's")
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
+    if "--still" in sys.argv:
+        sys.exit(still(sys.argv[sys.argv.index("--still") + 1]))
     if "--all" in sys.argv:
         every({a for a in sys.argv[1:] if a != "--all"})
     else:
