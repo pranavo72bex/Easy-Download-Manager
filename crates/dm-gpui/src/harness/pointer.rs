@@ -310,6 +310,29 @@ impl Harness {
         self.step();
     }
 
+    /// The wheel turned `points` sideways (to the right where positive) over the words `text`
+    /// in the main window, as a trackpad's sideways swipe does.
+    pub(crate) fn wheel_sideways(&mut self, text: &str, points: f32) {
+        let at = self.bounds_of(text).center();
+        let window = self.window;
+        self.cx.update(|cx| {
+            let _ = window.update(cx, |_, window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::Scroll(gpui::ScrollEvent {
+                        position: at,
+                        delta: gpui::ScrollDelta::Pixels(gpui::point(
+                            gpui::px(-points),
+                            gpui::px(0.0),
+                        )),
+                        ..Default::default()
+                    }),
+                    cx,
+                );
+            });
+        });
+        self.step();
+    }
+
     /// Where the words `text` were drawn, nearest the front first, in whichever window.
     pub(crate) fn bounds_of(&mut self, text: &str) -> gpui::Bounds<gpui::Pixels> {
         self.drawn(text, 0).1

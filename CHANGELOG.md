@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- In a language read right to left, widening the window no longer leaves the file names scrolled out of sight.
 - At a large text size in a smaller window, dm takes its compact layout instead of squeezing the list beside the side panel; the browser bar and status bar no longer cut their words.
 - Properties and the speed limiter line up: every label ends at one edge and every box starts at one place.
 - Options lines up: every pop-up and number box stands at the right edge with the switches, instead of just after its words.

@@ -683,6 +683,8 @@ impl Render for Downloads {
         let root = crate::window::safe::kept_clear(root, window);
         // At a phone's width, the phone's layout of the same views (gaps row N7).
         let narrow = crate::window::narrow::is_narrow(window);
+        let width = window.viewport_size().width;
+        self.list.drawn_width = (width, self.list.drawn_width.0);
         self.layout.narrow.laid_out = narrow;
         let root = if narrow {
             self.narrow_window(root, theme, &screen, shown, window, cx)

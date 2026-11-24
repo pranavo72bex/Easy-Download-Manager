@@ -94,3 +94,102 @@ fn every_dialog_keeps_its_words_inside_at_each_size() {
     }
     assert!(found.is_empty(), "{found:#?}");
 }
+
+/// No word of a dialog is laid past its window's edge in German, whose words run longest, nor
+/// in Hebrew, read right to left (gaps row V15).
+#[test]
+fn every_dialog_keeps_its_words_inside_in_german_and_hebrew() {
+    use dm_desktop_base::i18n::t;
+    // The language is the process's.
+    let _file = settings_file();
+    let mut found = Vec::new();
+    for language in ["de", "he"] {
+        for (command, shown) in DIALOGS {
+            let world = world();
+            let mut settings = world.settings();
+            settings.general.language = language.into();
+            let mut h = world.harness_with(settings);
+            dm_desktop_base::i18n::set(language);
+            h.command(command);
+            h.until_shown(t(shown));
+            for past in h.words_past_the_edges() {
+                found.push(format!("{command} in {language}: {past}"));
+            }
+        }
+    }
+    dm_desktop_base::i18n::set("en");
+    assert!(found.is_empty(), "{found:#?}");
+}
+
+/// No word of the main window is cut unseen in German or Hebrew, at any of the widths.
+#[test]
+fn the_main_window_keeps_its_words_in_german_and_hebrew() {
+    use dm_desktop_base::i18n::t;
+    // The language is the process's.
+    let _file = settings_file();
+    let mut found = Vec::new();
+    for language in ["de", "he"] {
+        let world = world();
+        let mut settings = world.settings();
+        settings.general.language = language.into();
+        let mut h = world.harness_with(settings);
+        dm_desktop_base::i18n::set(language);
+        h.call(
+            "downloads.add",
+            serde_json::json!({ "urls": [world.url("file.zip")] }),
+        )
+        .unwrap();
+        h.until("the download to complete", |h| {
+            h.rows()
+                .iter()
+                .any(|r| r.state == dm_core::State::Completed)
+        });
+        for width in WIDTHS {
+            h.resize(width, 720.0);
+            let heading = t("File Name");
+            let list_top =
+                (width >= 600.0 && h.shows(heading)).then(|| f32::from(h.bounds_of(heading).top()));
+            for (text, laid, seen) in h.words_cut() {
+                // A column the list's sideways scroll cuts, at either edge where it is mirrored.
+                let scrolled = list_top.is_some_and(|top| f32::from(laid.top()) >= top - 1.0)
+                    && (f32::from(seen.right()) >= width - 1.0 || f32::from(seen.left()) <= 1.0);
+                if !scrolled {
+                    found.push(format!(
+                        "{width} in {language}: {text:?} laid {laid:?} seen {seen:?}"
+                    ));
+                }
+            }
+        }
+    }
+    dm_desktop_base::i18n::set("en");
+    assert!(found.is_empty(), "{found:#?}");
+}
+
+/// Where the window is mirrored, a person's sideways move of the list is kept as frames go by
+/// (gaps rows U35, V15); a move a resize left is not taken for one (the Hebrew sweep above).
+#[test]
+fn a_mirrored_lists_sideways_move_is_kept() {
+    use dm_desktop_base::i18n::t;
+    // The language is the process's.
+    let _file = settings_file();
+    let world = world();
+    let mut settings = world.settings();
+    settings.general.language = "he".into();
+    let mut h = world.harness_with(settings);
+    dm_desktop_base::i18n::set("he");
+    add_later(&mut h, &world, &["file.zip"]);
+    h.until("the row drawn", |h| h.shows("file.zip"));
+    h.resize(840.0, 720.0);
+    let heading = t("Size");
+    let at_first = h.bounds_of(heading).left();
+    h.wheel_sideways(heading, -60.0);
+    let moved = h.bounds_of(heading).left();
+    assert_ne!(moved, at_first, "the wheel did not move the list");
+    // Frames go by: the move is kept.
+    for _ in 0..3 {
+        h.update(|_, cx| cx.notify());
+        let _ = h.words_cut();
+    }
+    assert_eq!(h.bounds_of(heading).left(), moved, "the move was not kept");
+    dm_desktop_base::i18n::set("en");
+}

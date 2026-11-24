@@ -502,14 +502,21 @@ impl Downloads {
     fn keep_sideways_from_right(&mut self, cx: &mut Context<Self>) {
         let handle = &self.list.sideways;
         let room = handle.max_offset().x;
-        let at = handle.offset();
-        // How far from the right end the person moved it (`at.x` runs from 0 to -room).
-        let from_right = self
-            .list
-            .sideways_room
-            .map_or(gpui::px(0.0), |seen| (seen + at.x).max(gpui::px(0.0)));
-        handle.set_offset(gpui::point(-(room - from_right).max(gpui::px(0.0)), at.y));
-        if self.list.sideways_room != Some(room) {
+        let at = handle.offset().x;
+        let (now, before) = self.list.drawn_width;
+        let (mut from_right, last_set) = self.list.sideways_from_right;
+        // A person's move (the wheel, the sideways bar): the offset is not the one last set,
+        // while the window's width and the room are as they were. A resize or a new layout
+        // can leave the offset anywhere, and is not read as one (`at` runs from 0 to -room).
+        if now == before && self.list.sideways_room == Some(room) && at != last_set {
+            from_right = (room + at).max(gpui::px(0.0));
+        }
+        let set = -(room - from_right).max(gpui::px(0.0));
+        handle.set_offset(gpui::point(set, handle.offset().y));
+        self.list.sideways_from_right = (from_right, set);
+        // The room is the last layout's: where it or the window's width changed, the list is
+        // drawn once more with the room measured anew.
+        if self.list.sideways_room != Some(room) || now != before {
             self.list.sideways_room = Some(room);
             cx.notify();
         }

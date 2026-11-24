@@ -8907,3 +8907,14 @@ was a sliver and words were cut. The width is now divided by the text size first
 points of design, the phone's layout, as a 360-point window at 100% has had since N7. A person
 at 200% who wants the desktop's layout widens the window to 1200 points. The sweep's widths start
 at the least width at the size in force; narrower is large text on a phone (V14).
+
+## The coverage floor is enforced, at what Linux measures, 2026-11-24
+
+The Coverage (Linux) job piped `cargo llvm-cov --fail-under-lines` into `tee` without
+`pipefail`, so the step took `tee`'s status and never failed: on 2026-11-24 it passed at
+89.23% of lines against a floor of 91%. The 91 came from macOS (93.7%), where code that Linux
+does not build counts; Linux has never been held to it. The step now fails under the floor, and
+the floor is 89, what Linux measures, so that main is not red on the day the gate starts
+working; it is raised again as tests are added, and is only ever raised from here. The same
+masking was in the release build's binary-size check and the benchmark run, both now under
+`pipefail`. The AI fixer (`ai-fix.yml`) holds a model's change to the same floor.

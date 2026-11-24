@@ -32,6 +32,13 @@ pub(crate) struct ListView {
     /// Where the window is mirrored, how far the list could be moved sideways when last laid
     /// out: it stands that far from its left, at its right end, the file name's (gaps row U35).
     pub(crate) sideways_room: Option<Pixels>,
+    /// The window's width when the list was last drawn, and before that: a change means the
+    /// room to move sideways the last layout measured is stale (gaps row V15).
+    pub(crate) drawn_width: (Pixels, Pixels),
+    /// Where the window is mirrored, how far a person moved the list from its right end, and
+    /// the offset last set from it: an offset other than that one, the width and the room
+    /// unchanged, is a person's move; one a resize left is not (gaps row V15).
+    pub(crate) sideways_from_right: (Pixels, Pixels),
     /// The rows on screen, as the list last laid them out.
     pub(crate) visible: std::ops::Range<usize>,
     /// The place chosen in the side panel.
@@ -68,6 +75,8 @@ impl ListView {
             scroll: UniformListScrollHandle::new(),
             sideways: gpui::ScrollHandle::new(),
             sideways_room: None,
+            drawn_width: Default::default(),
+            sideways_from_right: Default::default(),
             visible: 0..0,
             place: Place::All,
             places: Places::default(),
