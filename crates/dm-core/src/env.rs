@@ -44,6 +44,12 @@ pub const SWITCHES: &[Switch] = &[
         test_only: false,
     },
     Switch {
+        name: "DM_FILE",
+        purpose: "Set by dm, not read: the finished file's path, handed to the command Options \
+                  › Downloads runs after a download (gaps row H39), for `%DM_FILE%` in cmd.",
+        test_only: false,
+    },
+    Switch {
         name: "DM_HOME",
         purpose: "A folder of dm's own for this run's settings, queue and inbox, so a test, a \
                   script or a portable copy keeps clear of the installed one.",
