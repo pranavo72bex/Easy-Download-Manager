@@ -742,6 +742,12 @@ impl Session {
                 #[cfg(feature = "rust-tls")]
                 let builder = builder.tls_backend_preconfigured(tracker_tls());
 
+                // dm(caps): a tracker's answer within a time, and no redirect to another host:
+                // one whose body never ended was read for good (gaps rows H10, H33).
+                let builder = builder
+                    .timeout(std::time::Duration::from_secs(30))
+                    .redirect(reqwest::redirect::Policy::none());
+
                 builder
                     .user_agent(&client_name_and_version)
                     .build()

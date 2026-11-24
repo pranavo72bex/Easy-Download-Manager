@@ -40,6 +40,13 @@ impl PeerStates {
 
     pub fn add_if_not_seen(&self, addr: SocketAddr) -> Option<PeerHandle> {
         use dashmap::mapref::entry::Entry;
+        // dm(caps): a torrent knows at most this many peers: PEX messages of 5,000 new
+        // addresses each, without end, grew the table until memory ran out (gaps rows H10,
+        // H33). A swarm needs a few hundred; the table keeps those it has.
+        const MOST_KNOWN: usize = 5_000;
+        if self.states.len() >= MOST_KNOWN {
+            return None;
+        }
         match self.states.entry(addr) {
             Entry::Occupied(_) => None,
             Entry::Vacant(vac) => {

@@ -1015,7 +1015,7 @@ index 94fcb87..377fb19 100644
                      .map(|i| {
                          use clone_to_owned::CloneToOwned;
 diff --git a/src/session.rs b/src/session.rs
-index 5e02415..07408a3 100644
+index 5e02415..0bd537b 100644
 --- a/src/session.rs
 +++ b/src/session.rs
 @@ -710,6 +710,16 @@ impl Session {
@@ -1035,7 +1035,7 @@ index 5e02415..07408a3 100644
              let reqwest_client = {
                  let builder = if let Some(proxy_url) = proxy_url {
                      let proxy = reqwest::Proxy::all(proxy_url)
-@@ -725,6 +735,13 @@ impl Session {
+@@ -725,6 +735,19 @@ impl Session {
                      b
                  };
  
@@ -1046,10 +1046,16 @@ index 5e02415..07408a3 100644
 +                #[cfg(feature = "rust-tls")]
 +                let builder = builder.tls_backend_preconfigured(tracker_tls());
 +
++                // dm(caps): a tracker's answer within a time, and no redirect to another host:
++                // one whose body never ended was read for good (gaps rows H10, H33).
++                let builder = builder
++                    .timeout(std::time::Duration::from_secs(30))
++                    .redirect(reqwest::redirect::Policy::none());
++
                  builder
                      .user_agent(&client_name_and_version)
                      .build()
-@@ -912,7 +929,7 @@ impl Session {
+@@ -912,7 +935,7 @@ impl Session {
          self: Arc<Self>,
          addr: SocketAddr,
          kind: ConnectionKind,
@@ -1058,7 +1064,7 @@ index 5e02415..07408a3 100644
          writer: BoxAsyncWrite,
      ) -> anyhow::Result<(Arc<TorrentStateLive>, CheckedIncomingConnection)> {
          let rwtimeout = self
-@@ -936,6 +953,29 @@ impl Session {
+@@ -936,6 +959,29 @@ impl Session {
              bail!("Incoming ip {incoming_ip} is not in allowlist");
          }
  
@@ -1088,7 +1094,7 @@ index 5e02415..07408a3 100644
          let mut read_buf = ReadBuf::new();
          let h = read_buf
              .read_handshake(&mut reader, rwtimeout)
-@@ -1009,7 +1049,14 @@ impl Session {
+@@ -1009,7 +1055,14 @@ impl Session {
                          }
                      }
                  },
@@ -1104,7 +1110,7 @@ index 5e02415..07408a3 100644
                      let (addr, kind) = (checked.addr, checked.kind);
                      if let Err(e) = live.add_incoming_peer(checked) {
                          warn!(?addr, ?kind, "error handing over incoming connection: {e:#}");
-@@ -1048,6 +1095,7 @@ impl Session {
+@@ -1048,6 +1101,7 @@ impl Session {
              max_request_window: other
                  .max_request_window
                  .or(self.peer_opts.max_request_window),
@@ -1112,7 +1118,7 @@ index 5e02415..07408a3 100644
          }
      }
  
-@@ -1166,7 +1214,9 @@ impl Session {
+@@ -1166,7 +1220,9 @@ impl Session {
                      InternalAddResult {
                          info_hash: torrent.meta.info_hash,
                          metadata: Some(TorrentMetadata::new(
@@ -1123,7 +1129,7 @@ index 5e02415..07408a3 100644
                              torrent.torrent_bytes,
                              torrent.meta.info.raw_bytes.0,
                          )?),
-@@ -1364,6 +1414,7 @@ impl Session {
+@@ -1364,6 +1420,7 @@ impl Session {
                      peer_connect_timeout: peer_opts.connect_timeout,
                      peer_read_write_timeout: peer_opts.read_write_timeout,
                      peer_max_request_window: peer_opts.max_request_window,
@@ -1131,7 +1137,7 @@ index 5e02415..07408a3 100644
                      allow_overwrite: opts.overwrite,
                      output_folder,
                      ratelimits: opts.ratelimits,
-@@ -1671,6 +1722,8 @@ impl Session {
+@@ -1671,6 +1728,8 @@ impl Session {
                  seen,
              } => {
                  trace!(?info, "received result from DHT");
@@ -1140,7 +1146,7 @@ index 5e02415..07408a3 100644
                  let info = info.validate()?;
                  Ok(ResolveMagnetResult {
                      metadata: TorrentMetadata::new(
-@@ -1818,13 +1871,25 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
+@@ -1818,13 +1877,25 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
      }
  }
  
@@ -1171,7 +1177,7 @@ index 5e02415..07408a3 100644
  
      #[test]
      fn test_is_bare_info_hash() {
-@@ -1843,25 +1908,42 @@ mod tests {
+@@ -1843,25 +1914,42 @@ mod tests {
          ));
      }
  
@@ -1306,7 +1312,7 @@ src/torrent_state/live/mod.rs:
   1, 2. Each peer's connection options take `peer_require_encryption`.
 
 diff --git a/src/torrent_state/live/mod.rs b/src/torrent_state/live/mod.rs
-index 804ef26..50fd09b 100644
+index 804ef26..96537c9 100644
 --- a/src/torrent_state/live/mod.rs
 +++ b/src/torrent_state/live/mod.rs
 @@ -495,6 +495,7 @@ impl TorrentStateLive {
@@ -1325,9 +1331,36 @@ index 804ef26..50fd09b 100644
              ..Default::default()
          };
          let peer_connection = PeerConnection::new(
-src/torrent_state/mod.rs:
-  1. `ManagedTorrentOptions::peer_require_encryption`.
-
+@@ -2035,8 +2037,9 @@ impl PeerHandler {
+     }
+ 
+     fn on_pex_message(&self, msg: UtPex<ByteBuf<'_>>) {
+-        msg.dropped_peers()
+-            .chain(msg.added_peers())
++        // dm(caps): the peers a peer says it added, not those it dropped (which upstream added
++        // too); the table they go into is bounded (`PeerStates::add_if_not_seen`).
++        msg.added_peers()
+             .for_each(|peer| {
+                 self.state
+                     .add_peer_if_not_seen(peer.addr)
+diff --git a/src/torrent_state/live/peers/mod.rs b/src/torrent_state/live/peers/mod.rs
+index 3cd3477..74480d7 100644
+--- a/src/torrent_state/live/peers/mod.rs
++++ b/src/torrent_state/live/peers/mod.rs
+@@ -40,6 +40,13 @@ impl PeerStates {
+ 
+     pub fn add_if_not_seen(&self, addr: SocketAddr) -> Option<PeerHandle> {
+         use dashmap::mapref::entry::Entry;
++        // dm(caps): a torrent knows at most this many peers: PEX messages of 5,000 new
++        // addresses each, without end, grew the table until memory ran out (gaps rows H10,
++        // H33). A swarm needs a few hundred; the table keeps those it has.
++        const MOST_KNOWN: usize = 5_000;
++        if self.states.len() >= MOST_KNOWN {
++            return None;
++        }
+         match self.states.entry(addr) {
+             Entry::Occupied(_) => None,
+             Entry::Vacant(vac) => {
 diff --git a/src/torrent_state/mod.rs b/src/torrent_state/mod.rs
 index db47001..b2db02e 100644
 --- a/src/torrent_state/mod.rs

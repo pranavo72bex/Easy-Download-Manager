@@ -2037,8 +2037,9 @@ impl PeerHandler {
     }
 
     fn on_pex_message(&self, msg: UtPex<ByteBuf<'_>>) {
-        msg.dropped_peers()
-            .chain(msg.added_peers())
+        // dm(caps): the peers a peer says it added, not those it dropped (which upstream added
+        // too); the table they go into is bounded (`PeerStates::add_if_not_seen`).
+        msg.added_peers()
             .for_each(|peer| {
                 self.state
                     .add_peer_if_not_seen(peer.addr)
