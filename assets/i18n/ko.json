@@ -1042,5 +1042,8 @@
  "an Android app's code": "Android 앱 코드",
  "a script": "스크립트",
  "a program": "프로그램",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "모든 다운로드는 VPN처럼 이 네트워크로만 나갑니다. 연결되지 않은 동안 다운로드는 기다리며 그렇게 알리고, 돌아오면 스스로 이어집니다. 선택된 동안 라이브 스트림은 시작되지 않으며(Windows에서는 토렌트도), 두 번째 네트워크는 쓰이지 않습니다."
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "모든 다운로드는 VPN처럼 이 네트워크로만 나갑니다. 연결되지 않은 동안 다운로드는 기다리며 그렇게 알리고, 돌아오면 스스로 이어집니다. 선택된 동안 라이브 스트림은 시작되지 않으며(Windows에서는 토렌트도), 두 번째 네트워크는 쓰이지 않습니다.",
+ "Networks": "네트워크",
+ "This computer's connection": "이 컴퓨터의 연결",
+ "the second network brings nothing now": "두 번째 네트워크가 지금 아무것도 가져오지 않습니다"
 }

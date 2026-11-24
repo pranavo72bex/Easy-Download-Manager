@@ -35,7 +35,7 @@ use crate::window::zoom::px;
 
 mod sections;
 
-use sections::{connection_lines, facts, figure_line, speed_line, whole_bar, Look};
+use sections::{connection_lines, facts, figure_line, networks_line, speed_line, whole_bar, Look};
 
 /// The progress window's view.
 /// The pop-up "When this download is done" (gaps row U36).
@@ -349,7 +349,17 @@ impl Render for Progress {
         let body = native::body(theme)
             .child(figure_line(&look, &row, joining))
             .child(whole_bar(&look, &row, &pieces, multi));
-        let body = facts(&look, &row, joining, resumable, body).when(!row.state.settled(), |d| {
+        let body = facts(&look, &row, joining, resumable, body);
+        // How much each network brings, where the second carries part of it (gaps row K4).
+        let second_name = view.read(cx).backend.settings().second_path.clone();
+        let body = body.children(networks_line(
+            &look,
+            &connections,
+            &speeds,
+            &second_name,
+            row.state == State::Running && !joining,
+        ));
+        let body = body.when(!row.state.settled(), |d| {
             d.child(speed_line(&look, &self.line))
         });
         let body = self.limits(&look, &row, this_done, cx, body);

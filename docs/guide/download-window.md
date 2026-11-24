@@ -25,6 +25,12 @@ right of the last. A window you closed is not opened again by itself;
 - **File size:** "unknown" until the server says.
 - **Downloaded:** how much has come.
 - **Speed** and **Time left:** while it runs.
+- **Networks:** where a second network is chosen (Options › Advanced ›
+  Network) and carries part of the download, how fast each network brings it
+  and its share of what is done: **This computer's connection** and the second
+  one by its name. "the second network brings nothing now" means it adds no
+  speed: it may share one internet line with the first (see
+  [A second network for faster downloads](second-network.md)).
 - **Can resume:** whether a stop can go on from where it stopped, as the
   server said: **Yes**; "No — a stop starts it again from the beginning";
   "No — the server refused it"; "Not known: it failed before the server

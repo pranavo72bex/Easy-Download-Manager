@@ -24,6 +24,7 @@ impl Look {
             t("File size"),
             t("Downloaded"),
             t("Can resume"),
+            t("Networks"),
             t("Speed"),
             t("Time left"),
             t("When this download is done"),
@@ -244,6 +245,63 @@ pub(super) fn figure_line(look: &Look, row: &dm_core::Entry, joining: bool) -> g
         .text_size(px(native::TEXT * 1.4))
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .child(look.screen.label(parts.join(" · ")))
+}
+
+/// How much each network brings (gaps row K4): the computer's own connection and the second
+/// network's, each its speed and its share of what is done, by the connections that went over
+/// it; none where the second network carries none of it. A second network that brings nothing
+/// while the download runs is said so: it shares one line with the first, or is not connected.
+pub(super) fn networks_line(
+    look: &Look,
+    connections: &[dm_core::Connection],
+    speeds: &[f64],
+    second: &str,
+    running: bool,
+) -> Option<gpui::Div> {
+    if second.is_empty() {
+        return None;
+    }
+    let named = dm_core::system_name(second).unwrap_or_else(|| second.to_string());
+    networks_words(connections, speeds, &named, running).map(|said| look.line("Networks", said))
+}
+
+/// [`networks_line`]'s words: each network's speed and share, by its name `named` for the
+/// second; none where the second carries nothing of the download.
+pub(super) fn networks_words(
+    connections: &[dm_core::Connection],
+    speeds: &[f64],
+    named: &str,
+    running: bool,
+) -> Option<String> {
+    if !connections.iter().any(|c| c.second) {
+        return None;
+    }
+    let (mut speed, mut done) = ([0.0f64; 2], [0u64; 2]);
+    for (c, rate) in connections.iter().zip(speeds) {
+        let path = usize::from(c.second);
+        speed[path] += rate;
+        done[path] += c.done;
+    }
+    let total = (done[0] + done[1]).max(1) as f64;
+    let part = |path: usize, name: &str| {
+        format!(
+            "{name}: {} · {}%",
+            format::rate(speed[path]),
+            (done[path] as f64 * 100.0 / total).round() as u32
+        )
+    };
+    let mut said = format!(
+        "{}   {}",
+        part(0, t("This computer's connection")),
+        part(1, named)
+    );
+    if running && speed[1] < 1.0 && speed[0] > 1.0 {
+        said.push_str(&format!(
+            "   ({})",
+            t("the second network brings nothing now")
+        ));
+    }
+    Some(said)
 }
 
 /// How many bars the speed line is drawn as: one for each five seconds of its five minutes.
@@ -505,5 +563,44 @@ impl Progress {
             .flatten()
             .collect(),
         )
+    }
+}
+
+#[cfg(test)]
+mod network_tests {
+    use super::*;
+
+    fn connection(done: u64, second: bool) -> dm_core::Connection {
+        dm_core::Connection {
+            start: 0,
+            end: 0,
+            done,
+            started: true,
+            second,
+        }
+    }
+
+    /// Each network's speed and share of what is done; said where the second brings nothing
+    /// while it runs; nothing said where it carries none of the download (gaps row K4).
+    #[test]
+    fn each_networks_speed_and_share_are_said() {
+        let both = [connection(600, false), connection(400, true)];
+        let said = networks_words(&both, &[2_000_000.0, 1_000_000.0], "iPhone USB", true).unwrap();
+        assert!(
+            said.contains("This computer's connection") && said.contains("60%"),
+            "{said}"
+        );
+        assert!(
+            said.contains("iPhone USB") && said.contains("40%"),
+            "{said}"
+        );
+        assert!(!said.contains("brings nothing"), "{said}");
+        let idle = networks_words(&both, &[2_000_000.0, 0.0], "iPhone USB", true).unwrap();
+        assert!(idle.contains("brings nothing"), "{idle}");
+        let first_only = [connection(600, false)];
+        assert_eq!(
+            networks_words(&first_only, &[1.0], "iPhone USB", true),
+            None
+        );
     }
 }
