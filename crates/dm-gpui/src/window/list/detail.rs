@@ -9,7 +9,7 @@
 
 use dm_core::{Entry, State};
 use dm_desktop_base::format;
-use dm_desktop_base::i18n::{t, tf};
+use dm_desktop_base::i18n::t;
 use gpui::{div, prelude::*, Context, Div, SharedString};
 
 use super::Downloads;
@@ -40,24 +40,11 @@ impl Downloads {
     }
 }
 
-/// How far, how fast, how long: the figure the progress window leads with (gaps row E9).
+/// How far, how fast, how long: the progress window's own figure (gaps rows E8, E9), the
+/// status while its parts are joined.
 fn figure(row: &Entry) -> String {
-    let p = &row.progress;
-    let mut parts = Vec::new();
-    if let Some(f) = p.fraction() {
-        parts.push(format!("{}%", (f * 100.0).floor() as u32));
-    }
-    if row.state == State::Running {
-        if p.speed > 1.0 {
-            parts.push(format::rate(p.speed));
-        }
-        if let Some(eta) = p.eta {
-            parts.push(tf("{} left", &[&format::span(eta)]));
-        }
-    } else {
-        parts.push(dm_desktop_base::rows::status_of(row));
-    }
-    parts.join(" · ")
+    let joining = row.state == State::Running && dm_shell::app::rules::fetched_all(row);
+    crate::dialogs::progress::figure_words(row, joining)
 }
 
 /// A fact: its name in the hint's colour over its value, cut with "…" where it is long.

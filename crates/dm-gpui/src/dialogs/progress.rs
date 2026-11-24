@@ -34,6 +34,7 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 mod sections;
+pub(crate) use sections::figure_words;
 
 use sections::{connection_lines, facts, figure_line, networks_line, speed_line, whole_bar, Look};
 

@@ -203,6 +203,16 @@ pub(super) fn facts(
 /// the download is, its speed and the time left, in one line of larger type ("7% · 380 KB/s ·
 /// 2 min left"); the status where it is not running.
 pub(super) fn figure_line(look: &Look, row: &dm_core::Entry, joining: bool) -> gpui::Div {
+    div()
+        .text_size(px(native::TEXT * 1.4))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .child(look.screen.label(figure_words(row, joining)))
+}
+
+/// The figure's words: how far, how fast, how long ("7% · 380 KB/s · 2 min left"); the
+/// status where it is not running or its parts are being joined. The one wording the progress
+/// window, View › Details and a phone's detail all lead with (gaps row E8).
+pub(crate) fn figure_words(row: &dm_core::Entry, joining: bool) -> String {
     let p = &row.progress;
     let mut parts: Vec<String> = Vec::new();
     if let Some(f) = p.fraction() {
@@ -218,10 +228,7 @@ pub(super) fn figure_line(look: &Look, row: &dm_core::Entry, joining: bool) -> g
     } else {
         parts.push(dm_desktop_base::rows::status_of(row));
     }
-    div()
-        .text_size(px(native::TEXT * 1.4))
-        .font_weight(gpui::FontWeight::SEMIBOLD)
-        .child(look.screen.label(parts.join(" · ")))
+    parts.join(" · ")
 }
 
 /// How much each network brings (gaps row K4): the computer's own connection and the second
@@ -667,5 +674,40 @@ mod network_tests {
             "{said}"
         );
         assert!(said.contains("Ethernet") && said.contains("20%"), "{said}");
+    }
+}
+
+#[cfg(test)]
+mod figure_tests {
+    use super::*;
+
+    fn row(state: State, speed: f64, eta: Option<u64>) -> dm_core::Entry {
+        serde_json::from_value(serde_json::json!({
+            "id": 1,
+            "url": "http://e.com/f",
+            "state": serde_json::to_value(state).unwrap(),
+            "progress": {
+                "downloaded": 70, "total": 1000, "speed": speed,
+                "eta": eta.map(|s| serde_json::json!({"secs": s, "nanos": 0})),
+            },
+            "filename": "f",
+        }))
+        .unwrap()
+    }
+
+    /// The one figure the progress window and View › Details lead with: how far, how fast and
+    /// how long while it runs; its status while its parts are joined or it is not running
+    /// (gaps rows E8, E9).
+    #[test]
+    fn the_figure_says_how_far_how_fast_and_how_long() {
+        let running = row(State::Running, 389_120.0, Some(120));
+        let said = figure_words(&running, false);
+        assert_eq!(said, "7% · 389.1 KB/s · 2m 0s left");
+        assert!(said.ends_with("left"), "{said}");
+        let joining = figure_words(&running, true);
+        assert!(!joining.contains("left"), "{joining}");
+        let paused = figure_words(&row(State::Paused, 0.0, None), false);
+        assert!(paused.starts_with("7% · "), "{paused}");
+        assert!(!paused.contains("left"), "{paused}");
     }
 }
