@@ -501,7 +501,8 @@ impl Progress {
         };
         let settled = row.state.settled();
         native::buttons(
-            Vec::new(),
+            // Its page of the guide, at the leading end as each dialog's (gaps row E11).
+            vec![native::help_button("download-window", theme, screen).into_any_element()],
             [
                 matches!(row.state, State::Running | State::Queued).then(|| {
                     // The window's main action while it runs, filled (gaps row E9).

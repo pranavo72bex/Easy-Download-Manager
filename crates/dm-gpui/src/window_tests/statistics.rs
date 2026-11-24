@@ -62,3 +62,25 @@ fn a_progress_window_has_its_speed_line() {
     h.update(|view, cx| view.show_progress(id, cx));
     h.until_shown("Speed over the last 5 minutes");
 }
+
+/// The progress window's "?" opens its page of the guide (gaps row E11).
+#[test]
+fn the_progress_windows_help_opens_its_page_of_the_guide() {
+    let world = world();
+    let mut h = world.harness();
+    h.view(|view| view.backend.add(&world.url("stalled.bin")).unwrap());
+    h.until("it to run", |h| {
+        h.rows().iter().any(|r| r.state == State::Running)
+    });
+    let id = h.rows()[0].id;
+    h.update(|view, cx| view.show_progress(id, cx));
+    h.until_shown("Speed over the last 5 minutes");
+    let page = dm_shell::settings::home()
+        .join("help")
+        .join("download-window.html");
+    let _ = std::fs::remove_file(&page);
+    h.click_as_person("?", 0);
+    h.until("the page written", |_| page.exists());
+    let html = std::fs::read_to_string(&page).unwrap();
+    assert!(html.contains("<h1>"), "{html}");
+}

@@ -14,7 +14,7 @@ the browser extension (`v*` tags) are versioned separately.
 - New help page: how to use a phone as a second network for faster downloads, and which setups help.
 - After the computer wakes from sleep, running downloads reconnect at once and go on from where they were, instead of waiting a minute or more for their old connections to time out.
 - Progress bars glide smoothly instead of jumping each second; with your system's "reduce motion" on, they don't move.
-- Download details, the Scheduler and Options have a "?" that opens their help page, even offline.
+- Download details, the Scheduler, Options and the progress window have a "?" that opens their help page, even offline.
 - View › Details shows the chosen download under the list: how far it is, where it is saved, where it came from, and why it failed with what to do.
 - The list's queue column says the queue's name under the heading "Queue", where it showed a dot.
 - Download details: the queue is a line of the form (Queue), and the buttons read Cancel, Add for later, Start now.
