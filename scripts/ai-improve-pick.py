@@ -14,6 +14,9 @@ and that needs nothing only a person can give:
   still to come, the "Waiting for the maintainer" section);
 - not one that needs a machine or a thing a runner does not have (a real phone, the Mac or
   the Windows laptop, a USB disk, the bench, a store's account, a certificate, signing);
+- not one that needs a measurement on the bench, or a change to CI, a workflow or the release
+  job (the bots may not edit those);
+- not one marked `· person` in its state; one marked `· bot` is taken before the rest;
 - not one in SKIP (tried in the last fortnight, or with its issue still open).
 
 Prints `ID<TAB>the row's problem<TAB>its state<TAB>what is done and left`, the smallest of the
@@ -27,7 +30,8 @@ WAITS = re.compile(r"decide|maintainer'?s? (word|approval|call|choice)|needs? th
 NEEDS = re.compile(
     r"real phone|on a phone \(|the mac\b|on the mac|windows laptop|usb (hard )?disk|on the bench|bench first|"
     r"store account|developer id|certificate|signing|signed by|notari[sz]|buy|paid|hardware|a person|by hand|"
-    r"real torrent|real site|in sight|visible window",
+    r"real torrent|real site|in sight|visible window|benchmark|bench/|cpu use|built by ci|release job|workflow|"
+    r"the readme table|comparison table|picture of|screenshot|not compiled|written on the mac",
     re.I,
 )
 SIZE = {"S": 0, "S–M": 1, "S-M": 1, "M": 2, "M–L": 3, "M-L": 3, "L": 4}
@@ -56,15 +60,16 @@ def main(skip):
         detail = cells[2] if len(cells) > 2 else ""
         if not re.match(r"(OPEN|PARTIAL)\b", state):
             continue
-        if WAITS.search(state) or WAITS.search(problem):
+        if WAITS.search(state) or WAITS.search(problem) or re.search(r"·\s*person\b", state):
             continue
         # What is left is what the bot would do: it must need nothing a runner lacks.
         left = detail.split("Left:", 1)[1] if "Left:" in detail else detail
-        if NEEDS.search(left) or NEEDS.search(problem):
+        if NEEDS.search(left) or NEEDS.search(problem) or NEEDS.search(state):
             continue
         size_m = re.search(r"·\s*(S–M|S-M|M–L|M-L|S|M|L)\b", state)
         size = SIZE.get(size_m.group(1), 2) if size_m else 2
-        key = (rank, size)
+        # The maintainer's "· bot" first, whatever its section.
+        key = (0 if re.search(r"·\s*bot\b", state) else 1, rank, size)
         if best is None or key < best[0]:
             best = (key, row, problem, state, detail)
     if best:

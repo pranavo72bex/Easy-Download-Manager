@@ -426,7 +426,9 @@ needs nothing only a person can give (`scripts/ai-improve-pick.py`: no "decide",
 maintainer's word or approval still to come, no real phone, Mac, Windows laptop, USB disk,
 bench, store, certificate or signing), opens an issue for it (`bot:improve`) and gives it
 to the fixer as `improve`: the next complete step, its tests, the row updated. Three in
-flight at most, one new every six hours at most, no row again within a fortnight. A bot
+flight at most, one new every six hours at most, no row again within a fortnight. A row's
+state can steer it: `· person` keeps it from the bots, `· bot` hands it to them first; the
+section "Taken by the free-model bots" in `docs/gaps.md` lists the order they take. A bot
 branch that changes code also runs "Android, the engine built", and ai-merge waits for it.
 
 What any change is held to (`ai_check`): no edit to the guardrails (the workflows,

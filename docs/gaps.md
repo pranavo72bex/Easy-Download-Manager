@@ -37,6 +37,34 @@ passed, 0 failed.
    `server_dates`, `shutdown`, `hls_memory`, and the window test
    `a_file_starts_while_download_details_asks_and_lands_where_chosen`; each passes alone.
 
+## Taken by the free-model bots (the maintainer, 2026-11-24)
+
+The bots in GitHub Actions (`docs/testing.md`, "The bots") take rows from this list by
+themselves when nothing more urgent waits: `scripts/ai-improve-pick.py` picks the next OPEN or
+PARTIAL row, in this file's order, that needs nothing only a person can give, and
+`ai-worker.yml` opens an issue for it (label `bot:improve`, title "Improvement: gaps row …"),
+three in flight at most, one new every six hours at most, none again within a fortnight.
+Each becomes a pull request that merges itself once CI, Desktop and Android pass on Linux,
+Windows and macOS and a review finds nothing; the row here is brought up to date in it.
+
+**In the order the bots take them now:** K5, K3, C5, C6, C8, C4, C2, C3, C7, C11, C16, Y8,
+S5, S6, S11, U16 (each the next complete step of what the row leaves, not the whole row).
+
+**Not theirs:** a row that waits for the maintainer (a "decide", their word or approval to
+come), or needs a real phone, the Mac, the Windows laptop, a USB disk, the bench or a
+measurement on it, a store, a certificate or signing, a screenshot, a change to CI, a
+workflow or the release job, or code written on the Mac and not yet compiled on Windows.
+The E rows wait for the maintainer, so the bots start at K.
+
+**Steering them:** write `· person` in a row's state to keep it from the bots, `· bot` to
+hand it to them first. Before taking a row by hand, see whether a bot has it:
+`gh issue list --label bot:improve` (an open issue for the row means a bot is on it).
+
+**Also theirs:** main's red runs (#57, the Windows-only test failures, tried again a week
+after each attempt), the site watch's reports (#56), a person's bug with enough to act on,
+a feature with three thumbs-up, and each night tests for the file with the most lines no
+test runs (#58 is their log).
+
 ## First priority: the window's design (rows E, the maintainer, 2026-11-23)
 
 The maintainer, 2026-11-23, of rows E ("A window read at a glance, on desktop and phone", further
@@ -1044,6 +1072,38 @@ English and German (`window_tests/layout/language.rs`).
 |-----|-----|--------|------|
 | E10 | A form's hint does not yet sit directly under its field everywhere,  | PARTIAL · M, with V11 | Done 2026-11-24 at the maintainer's word (2026-11-24): one measured label column for a form's group (E2); Download details' queue a Queue line of its form and its foot Cancel, Add for later, Start now (filled), where it mixed a button, the word "to" and a pop-up. Then the same day: the Scheduler's hint directly under its hours; then Options' pop-ups and number boxes at the trailing edge, in one column with the switches, their words at the leading one, as a phone's were (`Page::setting`; seen on General, Downloads and Advanced in `ui-shot.py` pictures of the dialog's own window), each hint under its setting; then words measured as the system shapes them (macOS tracks its small type, which the font's advances left out: labels a twentieth wider than measured), and Properties' User-Agent and Request headers in its column, so every label of Properties and the speed limiter ends at one edge (`the_labels_of_properties_and_the_limiter_end_at_one_edge`). Seen in pictures 2026-11-24: Add URL and the Scheduler as they should be. The 40% rule left out where it would part one sentence: the speed limiter's "Download at most … MB" and "in each period of … hours" (41% of its width) read as one across their two lines (`docs/decisions.md`). Left: B02's and B25's pictures of Download details taken again at the next `human-qa.py` |
 | E11 | The progress window, V2's "Learn more" and the guides' pictures are owed | PARTIAL · S | Done 2026-11-24 at the maintainer's word (2026-11-24): a "?" at the leading end of the foot opens that dialog's page of `docs/guide/` (Options: the page shown), built into dm and written into its home as a plain web page by dm's own reader of the guide's Markdown, so it opens offline (`dm_desktop_base::help`, `the_schedulers_help_opens_its_page_of_the_guide`). On desktop a dialog's title row is the system's, so the foot holds it. Then the same day: Properties, the Grabber, the speed limiter and Add URL, then the progress window (`the_progress_windows_help_opens_its_page_of_the_guide`). Left: "Learn more"; C16's pictures |
+
+### E, fourth part: what the interface review of 2026-11-24 left
+
+The main window reviewed with the `better-interface` skill (`.claude/skills/`, through `dm-design`)
+on 2026-11-24: pictures from `ui-shot.py` in light, dark, 120% text and Arabic, the source for
+the phone's layout. Its HIGH findings were fixed the same day at the maintainer's word ("fix the
+HIGH findings and add the rest to gaps.md"): words and marks in the accent read at 4.5 to 1
+(`Theme::accent_text`; macOS's and GNOME's fill and GNOME's selection darker), "+N more" a
+named button reached by Tab, the side panel's places reached by Tab, the search box ringed while
+it has the keys, the keyboard's row said to a screen reader, Remove animations read on Android
+and less motion asked again as the window comes in front, columns as wide as their heading and
+figures, the sideways bar and the side panel's bar shown where there is more, cut words offered
+whole on hover by measure, and the card's figures cut before its name. The rest:
+
+| #   | Gap | Status | Next |
+|-----|-----|--------|------|
+| E13 | Words: Title Case where the rule is sentence case ("Stop All", "Delete Completed", "Start Queue", "Stop Queue", "File Name", "Last Try Date", "All Downloads"; `dm-shell/src/app/commands.rs`, `places.rs`, `dm-desktop-base/src/view/columns.rs`), and the row's "Error: this link no…", whose "Error:" repeats its mark and takes a third of the cell (`view/rows.rs`; contract B14 already says "This link no longer works") | OPEN · S, with V3 and V4 | The catalog's keys and all 14 languages; contract rows B14, B19, B24, B25, B64 (the maintainer's word) |
+| E14 | The failure dialog repeats its title in its body ("The file doesn't exist" / "The requested file doesn't exist."), shows "Details:" over a raw "HTTP/1.1 404 Not Found", and fills OK while "Update download link", the step that mends it, is plain (`view/asks.rs:190`) | OPEN · S | Title as the row says it, the next step as its body, the server's answer as a hint; "Update download link" filled, "Close" plain (rule 1); contract B41 |
+| E15 | More than one filled button in the window: the empty list's "Add a download" (the same command as Add URL under a second name) and the stall bar's "Choose another folder…" beside the toolbar's Add URL (`table.rs` empty, `bars.rs`) | OPEN · S, with U20 | Plain buttons, one word for the command; contract B25's empty-window picture |
+| E16 | The kinds' colours are fixed hues the same in light and dark (`theme.rs` `KIND_*`): Audio 2.9 and Archives 2.9 to 1 on white, Videos 2.6 on Windows' dark list, under 3 to 1 for a picture; under High Contrast they keep their hues | OPEN · S | Roles of `Theme` with a light and a dark value at 3 to 1 on the list and a stripe, High Contrast's text colour; a `theme/tests.rs` case; contract B45 |
+| E17 | The side panel draws every place's picture in the accent (the maintainer's "monocolor", `sidebar.rs`), which rule 2 forbids ("not a picture"); the card's quick button's glyph is in the accent too | decide | Either rule 2 names the side panel's pictures, or they take `muted` with the accent on the chosen place only (the review's recommendation: keep the maintainer's look and write it into rule 2); the card's glyph `text` either way |
+| E18 | The name is cut in two boxes (stem with "…", extension apart), which leaves a stray gap ("Ubuntu-24.04-d…  .iso") or reads as four dots ("slow-archi….zip"); the phone's card cuts the extension off ("…amd6…") (`table/cells.rs` `name_drawn`, `narrow/cards.rs`) | OPEN · S | One text run with GPUI's `text_ellipsis_middle()` in both; `name_parts` deleted |
+| E19 | Right to left: the message bar is not mirrored (its "!" at the far end from its sentence, `bars.rs` `framed` and `body`), nor is the phone's layout (the card's row, the snackbar, the floating Add button, `narrow/`) | OPEN · S, with U35 | `.map(mirror::row)` on those rows, the floating button at the left under `rtl()`; a picture in Arabic at 360 points |
+| E20 | Figures that change every second (speed, time left, a percentage, the status bar's) are set with proportional digits, so they shift as they change | OPEN · S | One `tnum` feature set in `widgets/native.rs` applied to the numeric cells, the Status percentage, the status bar and the card's figures |
+| E21 | Motion: a running bar's glide (300 ms, ease in and out) restarts at every 250 ms tick from the old target, so it speeds up and slows four times a second; row fades ease in and out, the same length in and out (`table/cells.rs`) | OPEN · S | The glide the tick's length and linear; fades ease out, out shorter than in |
+| E22 | Hit areas on the phone under dm's 48 points: the card's quick button (40, `QUICK`) and its "⋮" (42 wide); "Row menu" names no download | OPEN · S, with V12 | The 48-point box with the 40-point ring drawn inside; the menu's name with the file's |
+| E23 | One detail drawn two ways: a button's hover by `stripe` (row buttons, the queue arrow, Undo) where the rest use `answering`; two scrims (`0x40`, `0x52` black) with no role; GPUI's `rounded_md`/`rounded_sm` beside `native::RADIUS`; literal sizes (`px(26.0)` place rows, icon sizes 12 to 24); icon strokes from 1.6 to 2.5 (`assets/icons/`) | OPEN · S, with V25 and V26 | `answering` for every button face; `Theme::scrim`; named sizes in `native`/`space`; one stroke for the interface's glyphs |
+
+Owed for the fixes above: the pictures of contract B25 taken again at the next `human-qa.py`
+(the accent's shade changed on macOS and GNOME); a walk with VoiceOver over the list's arrow
+keys and the side panel; the window at 360 and 700 points wide (`ui-shot.py` pictures one size
+only); the phone on the emulator with Remove animations on.
 
 **Order to take them** (first priority, the top of this file): E1 with V1 (the rules, a day) and
 E2 (two defects) first. Then each with its part, the part built for it: E3 with Commands (V9,
