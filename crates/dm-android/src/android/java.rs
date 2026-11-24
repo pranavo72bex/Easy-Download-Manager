@@ -160,6 +160,14 @@ impl Java for Jni {
         .map_err(|why| no_app(why, &format!("no app on this phone takes {name}")))
     }
 
+    fn share_many(&self, paths: &[String]) -> Result<(), String> {
+        jvm::with("share the files", |env, context| {
+            let intent = open::share_many(env, context, paths)?;
+            start(env, context, &intent)
+        })
+        .map_err(|why| no_app(why, "no app on this phone takes these files together"))
+    }
+
     fn reveal(&self, _path: &str) -> Result<(), String> {
         // A phone shows no one folder of a file: its Downloads app lists what was downloaded.
         jvm::with("show the phone's Downloads", |env, context| {

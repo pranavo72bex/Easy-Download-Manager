@@ -104,6 +104,15 @@ pub trait PhoneServices: Send + Sync {
         Err(NOT_YET.into())
     }
 
+    /// Offers the files at `paths` to another app together (gaps row N23); one alone as
+    /// [`PhoneServices::share`] offers it.
+    fn share_many(&self, paths: &[String]) -> Result<(), String> {
+        match paths {
+            [one] => self.share(one),
+            _ => Err(NOT_YET.into()),
+        }
+    }
+
     /// Takes the file at `path` away where it can be put back; a phone has no Trash dm can
     /// reach, so by default it is refused and the file kept.
     fn trash(&self, path: &str) -> Result<(), String> {
@@ -287,6 +296,11 @@ pub fn open_with(path: &str) -> Result<(), String> {
 /// Offers `path` to the phone's other apps through its share sheet, or says it cannot.
 pub fn share(path: &str) -> Result<(), String> {
     phone().map_or_else(|| Err(NOT_YET.into()), |phone| phone.share(path))
+}
+
+/// Offers the files at `paths` to another app together, or says it cannot (gaps row N23).
+pub fn share_many(paths: &[String]) -> Result<(), String> {
+    phone().map_or_else(|| Err(NOT_YET.into()), |phone| phone.share_many(paths))
 }
 
 /// How many long presses were felt this run: the window's tests read it, which have no phone.

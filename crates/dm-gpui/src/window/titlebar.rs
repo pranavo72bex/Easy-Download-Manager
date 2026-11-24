@@ -343,12 +343,13 @@ fn choosing_bar(
     let share = t("Share");
     let delete = t("Delete");
     let count = dm_desktop_base::i18n::tf("{} selected", &[&view.list.selected.len()]);
-    // One finished file can go to another app; Android's share of several is not yet dm's.
-    let one_file = view.list.selected.len() == 1
-        && view
-            .chosen()
+    // Finished files go to another app, one or several together (gaps row N23): Share where
+    // every download chosen is one.
+    let chosen = view.chosen();
+    let one_file = !chosen.is_empty()
+        && chosen
             .iter()
-            .any(|r| r.state == dm_core::State::Completed && !r.path.is_empty());
+            .all(|r| r.state == dm_core::State::Completed && !r.path.is_empty());
     bar.child(
         button("choosing-close", close)
             .on_click(cx.listener(|view, _, _, cx| {

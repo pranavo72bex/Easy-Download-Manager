@@ -256,15 +256,19 @@ impl Downloads {
     /// A phone card menu's Share: the first finished file chosen offered to the phone's other
     /// apps through its share sheet, or why it could not be said.
     pub(crate) fn share_chosen(&mut self, cx: &mut Context<Self>) {
-        let Some(path) = self
+        // Every finished file chosen, together (gaps row N23).
+        let paths: Vec<String> = self
             .chosen()
             .iter()
-            .find(|r| r.state == dm_core::State::Completed && !r.path.is_empty())
+            .filter(|r| r.state == dm_core::State::Completed && !r.path.is_empty())
             .map(|r| r.path.clone())
-        else {
-            return;
+            .collect();
+        let shared = match paths.as_slice() {
+            [] => return,
+            [one] => dm_desktop_base::phone::share(one),
+            several => dm_desktop_base::phone::share_many(several),
         };
-        if let Err(why) = dm_desktop_base::phone::share(&path) {
+        if let Err(why) = shared {
             self.say(why);
         }
         cx.notify();

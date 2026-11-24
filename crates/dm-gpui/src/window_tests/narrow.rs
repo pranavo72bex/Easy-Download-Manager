@@ -481,3 +481,55 @@ fn a_long_press_on_a_card_opens_its_menu_and_is_felt() {
         h.view(|view| view.layout.narrow.held_open.is_some())
     });
 }
+
+/// Several finished files chosen go to another app together: the choosing bar offers Share
+/// for any number of them, and not while a download chosen has no file yet (gaps row N23).
+#[test]
+fn share_is_offered_for_several_finished_files_chosen() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.call(
+        "downloads.add",
+        serde_json::json!({ "urls": [world.url("file.zip"), world.url("file.zip")], "again": true }),
+    )
+    .unwrap();
+    h.until("both finished", |h| {
+        h.rows().len() == 2
+            && h.rows()
+                .iter()
+                .all(|r| r.state == dm_core::State::Completed)
+    });
+    h.call(
+        "downloads.add",
+        serde_json::json!({ "urls": [world.url("stalled.bin")], "later": true }),
+    )
+    .unwrap();
+    h.until("three rows", |h| h.rows().len() == 3);
+    let rows = h.rows();
+    let done: Vec<_> = rows
+        .iter()
+        .filter(|r| r.state == dm_core::State::Completed)
+        .map(|r| r.id)
+        .collect();
+    let waiting = rows
+        .iter()
+        .find(|r| r.state != dm_core::State::Completed)
+        .map(|r| r.id)
+        .unwrap();
+    h.update(|view, cx| {
+        view.list.selected = done.iter().copied().collect();
+        view.layout.narrow.choosing = true;
+        cx.notify();
+    });
+    h.until("Share for two files", |h| {
+        h.shows("2 selected") && h.shows("Share")
+    });
+    h.update(|view, cx| {
+        view.list.selected.insert(waiting);
+        cx.notify();
+    });
+    h.until("no Share with a download unfinished", |h| {
+        h.shows("3 selected") && !h.shows("Share")
+    });
+}

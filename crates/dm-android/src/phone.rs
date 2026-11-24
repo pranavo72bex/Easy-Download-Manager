@@ -42,6 +42,11 @@ pub trait Java: Send + Sync + 'static {
         let _ = path;
         Err("this phone cannot share files from dm".into())
     }
+    /// Offers the files at `paths` to another app together (`SEND_MULTIPLE`, gaps row N23).
+    fn share_many(&self, paths: &[String]) -> Result<(), String> {
+        let _ = paths;
+        Err("this phone cannot share files from dm".into())
+    }
     /// Open with…: the file at `path` in the system's chooser of the apps that open it.
     fn open_with(&self, path: &str) -> Result<(), String> {
         self.open(path)
@@ -246,6 +251,10 @@ impl<J: Java> PhoneServices for Phone<J> {
 
     fn share(&self, path: &str) -> Result<(), String> {
         self.java.share(path)
+    }
+
+    fn share_many(&self, paths: &[String]) -> Result<(), String> {
+        self.java.share_many(paths)
     }
 
     fn open_with(&self, path: &str) -> Result<(), String> {
