@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Fixed: a download begun while Download details asked could stay "Queued" after Start now, with nothing downloading.
 - An address that imitates a real site with letters from another alphabet is shown in its true `xn--` form, and Add URL and Download details warn about it.
 - A proxy configuration script or a video site's player code that writes a date in its UTC or day-only form, rounds a number with `toFixed`, reads `Number.parseInt`, or waits on `Promise.any` now gets what a browser gives.
 - In a language read right to left, widening the window no longer leaves the file names scrolled out of sight.

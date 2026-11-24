@@ -362,3 +362,35 @@ fn a_sign_in_cookie_and_header_reach_no_file_but_the_secrets_one() {
         "the queue file was not among those looked in: {looked:?}"
     );
 }
+
+/// A download placed by Download details' Start now when the queue's runner has stopped (it was
+/// paused, nothing else running) starts and finishes under the name chosen: the runner is
+/// started again, not only woken (gaps row N33; it stood "Queued" with nothing downloading).
+#[test]
+fn a_download_settled_after_the_runner_stopped_still_starts() {
+    let _one = one_at_a_time();
+    let world = world();
+    let backend = world.backend();
+    let id = backend
+        .add_with(
+            &world.url("file.zip"),
+            AddOptions {
+                later: true,
+                ..AddOptions::default()
+            },
+        )
+        .unwrap();
+    until_state(&backend, id, State::Paused, "not added for later");
+    // Long enough for a runner with nothing to run to end.
+    std::thread::sleep(Duration::from_millis(300));
+    backend
+        .settle_early(id, None, Some("chosen.zip".into()), "", "", false)
+        .unwrap();
+    until_state(
+        &backend,
+        id,
+        State::Completed,
+        "never started after Start now",
+    );
+    assert!(backend.row(id).unwrap().path.ends_with("chosen.zip"));
+}

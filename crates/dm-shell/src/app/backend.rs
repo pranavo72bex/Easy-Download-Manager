@@ -177,10 +177,17 @@ impl Backend {
         queue: &str,
         later: bool,
     ) -> Result<(), String> {
-        self.block_on(
-            self.queue
-                .settle_early(id, dir, name, description, queue, later),
-        )
+        self.block_on(async {
+            let settled = self
+                .queue
+                .settle_early(id, dir, name, description, queue, later)
+                .await;
+            // Put back in line, the queue's runner is started: the pause that let it be placed
+            // may have left nothing to run, and the runner then ended; without this the row
+            // stood "Queued" with nothing downloading (gaps row N33, seen under load).
+            shell::wake(&self.queue);
+            settled
+        })
     }
 
     fn block_on<T>(&self, work: impl std::future::Future<Output = T>) -> T {
