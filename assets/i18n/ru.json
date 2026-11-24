@@ -1008,7 +1008,6 @@
  "Download anyway": "Всё равно загрузить",
  "Only through": "Только через",
  "Any network": "Любая сеть",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Все загрузки идут только через эту сеть, например через VPN. Пока она не подключена, загрузки ждут, сообщая об этом, и сами продолжаются, когда она вернётся. Торренты и прямые трансляции не запускаются, пока сеть выбрана, а вторая сеть не используется.",
  "Waiting for the network": "Ожидание сети",
  "the network downloads go only through is not connected. dm goes on when it is back": "сеть, через которую идут загрузки, не подключена. dm продолжит, когда она вернётся",
  "the premiere starts in {} hours": "премьера начнётся через {} ч",
@@ -1042,5 +1041,6 @@
  "a macOS program": "программа для macOS",
  "an Android app's code": "код приложения Android",
  "a script": "скрипт",
- "a program": "программа"
+ "a program": "программа",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Каждая загрузка идёт только через эту сеть, например через ваш VPN. Пока она не подключена, загрузки ждут, сообщают об этом и сами продолжаются, когда она вернётся. Прямые трансляции не начинаются, пока сеть выбрана (в Windows и торренты), а вторая сеть не используется."
 }

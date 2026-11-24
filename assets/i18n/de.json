@@ -1008,7 +1008,6 @@
  "Download anyway": "Trotzdem herunterladen",
  "Only through": "Nur über",
  "Any network": "Beliebiges Netzwerk",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Jeder Download geht nur über dieses Netzwerk, etwa das Ihres VPN. Solange es nicht verbunden ist, warten Downloads, sagen es und machen von selbst weiter, wenn es zurück ist. Torrents und Livestreams starten nicht, solange eines gewählt ist, und das zweite Netzwerk wird nicht verwendet.",
  "Waiting for the network": "Warte auf das Netzwerk",
  "the network downloads go only through is not connected. dm goes on when it is back": "das Netzwerk, über das allein heruntergeladen wird, ist nicht verbunden. dm macht weiter, sobald es zurück ist",
  "the premiere starts in {} hours": "die Premiere beginnt in {} Stunden",
@@ -1042,5 +1041,6 @@
  "a macOS program": "ein macOS-Programm",
  "an Android app's code": "Code einer Android-App",
  "a script": "ein Skript",
- "a program": "ein Programm"
+ "a program": "ein Programm",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Jeder Download geht nur über dieses Netzwerk, etwa das deines VPN. Solange es nicht verbunden ist, warten Downloads, sagen das und machen von selbst weiter, wenn es zurück ist. Livestreams starten nicht, solange eines gewählt ist (unter Windows auch Torrents), und das zweite Netzwerk wird nicht genutzt."
 }

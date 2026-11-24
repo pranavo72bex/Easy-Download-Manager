@@ -1008,7 +1008,6 @@
  "Download anyway": "それでもダウンロード",
  "Only through": "使用するネットワーク",
  "Any network": "任意のネットワーク",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "すべてのダウンロードはこのネットワーク (VPN など) だけを通ります。接続されていない間はダウンロードが理由を示して待機し、戻ると自動で再開します。選択中はトレントとライブ配信は開始せず、2つ目のネットワークも使いません。",
  "Waiting for the network": "ネットワーク待機中",
  "the network downloads go only through is not connected. dm goes on when it is back": "ダウンロードに使うネットワークが接続されていません。戻ると dm が再開します",
  "the premiere starts in {} hours": "プレミア公開は{}時間後に始まります",
@@ -1042,5 +1041,6 @@
  "a macOS program": "macOS のプログラム",
  "an Android app's code": "Android アプリのコード",
  "a script": "スクリプト",
- "a program": "プログラム"
+ "a program": "プログラム",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "すべてのダウンロードはこのネットワーク(VPN など)だけを通ります。つながっていない間、ダウンロードは待機してそう表示し、戻ると自動で再開します。選んでいる間はライブ配信は開始されず(Windows ではトレントも)、2 つ目のネットワークは使われません。"
 }

@@ -18,17 +18,18 @@ BitTorrent. See [Options](options.md) for how the window works.
   above.
 - **Only through:** "Every download goes out over this network alone, such
   as your VPN's. While it is not connected, downloads wait and say so, and go
-  on by themselves when it is back. Torrents and live streams do not start
-  while one is chosen, and the second network is not used." The pop-up lists
+  on by themselves when it is back. Live streams do not start while one is
+  chosen (on Windows, torrents too), and the second network is not used." The pop-up lists
   the computer's networks, as **Second network** does; **Any network**, the
   first, lets downloads go out however the computer sends them. With one
   chosen, every connection a download makes (and dm's own fetches, such as a
   video page's) goes out from that network's address, so when a VPN drops
   nothing goes over the plain line: running downloads stop and wait, their
   rows saying **Waiting for the network**, and go on by themselves within a
-  few seconds of it coming back. A torrent or a live stream (RTMP, RTSP, MMS)
+  few seconds of it coming back. A torrent's every connection goes over that
+  network too. A live stream (RTMP, RTSP, MMS), and on Windows a torrent,
   fails saying why instead, since dm cannot hold its connections to one
-  network. While one is chosen, **Second network** is greyed and not used.
+  network there. While one is chosen, **Second network** is greyed and not used.
 - **Second network:** "Use a second connection too, such as your phone over
   USB or its hotspot. Half of each download's connections go over it. Not
   used while a proxy is on." **None** uses only the computer's usual
@@ -40,6 +41,8 @@ BitTorrent. See [Options](options.md) for how the window works.
     Android, USB tethering."
   - "3. Choose it above. Keep Wi-Fi as this computer's own connection, so
     only downloads use the phone's data."
+- Which setups make downloads faster, and the steps for each kind of phone
+  and computer: [A second network for faster downloads](second-network.md).
 
 ## Sites with rules of their own
 

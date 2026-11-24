@@ -1008,7 +1008,6 @@
  "Download anyway": "التنزيل على أي حال",
  "Only through": "عبر هذه فقط",
  "Any network": "أي شبكة",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "يمر كل تنزيل عبر هذه الشبكة وحدها، مثل شبكة VPN الخاصة بك. وما دامت غير متصلة، تنتظر التنزيلات وتوضح ذلك، وتستأنف من تلقاء نفسها عند عودتها. لا تبدأ التورنتات والبث المباشر ما دامت شبكة مختارة، ولا تُستخدم الشبكة الثانية.",
  "Waiting for the network": "في انتظار الشبكة",
  "the network downloads go only through is not connected. dm goes on when it is back": "الشبكة التي تمر عبرها التنزيلات وحدها غير متصلة. يستأنف dm عند عودتها",
  "the premiere starts in {} hours": "يبدأ العرض الأول خلال {} ساعة",
@@ -1042,5 +1041,6 @@
  "a macOS program": "برنامج macOS",
  "an Android app's code": "شيفرة تطبيق Android",
  "a script": "نص برمجي",
- "a program": "برنامج"
+ "a program": "برنامج",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "كل تنزيل يخرج عبر هذه الشبكة وحدها، مثل شبكة VPN لديك. وحين لا تكون متصلة، تنتظر التنزيلات وتقول ذلك، وتتابع من تلقاء نفسها حين تعود. لا يبدأ البث المباشر ما دامت مختارة (وعلى Windows التورنت أيضًا)، ولا تُستخدم الشبكة الثانية."
 }

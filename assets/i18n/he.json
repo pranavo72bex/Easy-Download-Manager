@@ -1008,7 +1008,6 @@
  "Download anyway": "להוריד בכל זאת",
  "Only through": "רק דרך",
  "Any network": "כל רשת",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "כל הורדה יוצאת דרך הרשת הזו בלבד, כמו זו של ה-VPN שלך. כל עוד היא אינה מחוברת, הורדות ממתינות ומציינות זאת, וממשיכות מעצמן כשהיא חוזרת. טורנטים ושידורים חיים אינם מתחילים כל עוד נבחרה רשת, והרשת השנייה אינה בשימוש.",
  "Waiting for the network": "ממתין לרשת",
  "the network downloads go only through is not connected. dm goes on when it is back": "הרשת שדרכה בלבד יוצאות ההורדות אינה מחוברת. dm ימשיך כשהיא תחזור",
  "the premiere starts in {} hours": "הבכורה מתחילה בעוד {} שעות",
@@ -1042,5 +1041,6 @@
  "a macOS program": "תוכנת macOS",
  "an Android app's code": "קוד של אפליקציית Android",
  "a script": "סקריפט",
- "a program": "תוכנה"
+ "a program": "תוכנה",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "כל הורדה יוצאת דרך הרשת הזו בלבד, כמו זו של ה-VPN שלך. כל עוד היא לא מחוברת, ההורדות ממתינות, אומרות זאת וממשיכות מעצמן כשהיא חוזרת. שידורים חיים לא מתחילים כל עוד רשת נבחרה (ב-Windows גם טורנטים), והרשת השנייה לא בשימוש."
 }

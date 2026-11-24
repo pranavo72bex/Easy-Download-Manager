@@ -1008,7 +1008,6 @@
  "Download anyway": "仍然下载",
  "Only through": "仅通过",
  "Any network": "任意网络",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "每个下载只通过这个网络发出，例如你的 VPN。它未连接时，下载会等待并说明原因，回来后自动继续。选定后不会开始种子和直播，也不使用第二网络。",
  "Waiting for the network": "正在等待网络",
  "the network downloads go only through is not connected. dm goes on when it is back": "下载所走的网络未连接。网络恢复后 dm 会继续",
  "the premiere starts in {} hours": "首映将在 {} 小时后开始",
@@ -1042,5 +1041,6 @@
  "a macOS program": "macOS 程序",
  "an Android app's code": "Android 应用的代码",
  "a script": "脚本",
- "a program": "程序"
+ "a program": "程序",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "每个下载只通过这个网络发出,例如你的 VPN。未连接时,下载会等待并说明原因,连接恢复后自动继续。选中时不会开始直播(在 Windows 上种子也不会),也不使用第二个网络。"
 }

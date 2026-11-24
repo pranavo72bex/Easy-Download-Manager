@@ -1008,7 +1008,6 @@
  "Download anyway": "Yine de indir",
  "Only through": "Yalnızca şunun üzerinden",
  "Any network": "Herhangi bir ağ",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Torrents and live streams do not start while one is chosen, and the second network is not used.": "Her indirme yalnızca bu ağ üzerinden çıkar, örneğin VPN'inizinki. Bağlı değilken indirmeler bunu söyleyerek bekler ve ağ geri geldiğinde kendiliğinden devam eder. Bir ağ seçiliyken torrentler ve canlı yayınlar başlamaz, ikinci ağ da kullanılmaz.",
  "Waiting for the network": "Ağ bekleniyor",
  "the network downloads go only through is not connected. dm goes on when it is back": "indirmelerin yalnızca üzerinden gittiği ağ bağlı değil. dm, ağ geri gelince devam eder",
  "the premiere starts in {} hours": "prömiyer {} saat sonra başlıyor",
@@ -1042,5 +1041,6 @@
  "a macOS program": "bir macOS programı",
  "an Android app's code": "bir Android uygulamasının kodu",
  "a script": "bir betik",
- "a program": "bir program"
+ "a program": "bir program",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Her indirme yalnızca bu ağdan çıkar, örneğin VPN'inizinkinden. Bağlı değilken indirmeler bekler, bunu söyler ve geri geldiğinde kendiliğinden sürer. Biri seçiliyken canlı yayınlar başlamaz (Windows'ta torrentler de) ve ikinci ağ kullanılmaz."
 }
