@@ -259,13 +259,22 @@ mod limit_tests {
     #[tokio::test]
     async fn the_second_networks_limit_is_its_connections_alone() {
         set_second_limit(64 * 1024);
-        let over_second = ON_SECOND_TASK.scope(true, async { task_limit().is_some() }).await;
-        let over_first = ON_SECOND_TASK.scope(false, async { task_limit().is_some() }).await;
+        let over_second = ON_SECOND_TASK
+            .scope(true, async { task_limit().is_some() })
+            .await;
+        let over_first = ON_SECOND_TASK
+            .scope(false, async { task_limit().is_some() })
+            .await;
         let outside = task_limit().is_some();
         set_second_limit(0);
-        let unset = ON_SECOND_TASK.scope(true, async { task_limit().is_some() }).await;
+        let unset = ON_SECOND_TASK
+            .scope(true, async { task_limit().is_some() })
+            .await;
         assert!(over_second, "the second network's connection took no limit");
-        assert!(!over_first && !outside, "a connection over the first took the second's limit");
+        assert!(
+            !over_first && !outside,
+            "a connection over the first took the second's limit"
+        );
         assert!(!unset, "a limit of 0 still limited");
     }
 }

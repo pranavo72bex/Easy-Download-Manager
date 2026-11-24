@@ -61,7 +61,7 @@ pub(super) fn cards(
             let _drawing = dm_shell::app::costs::drawing();
             this.laid_out(range.clone(), cx);
             let categories = this.known.drawn.categories();
-            range
+            let drawn = range
                 .filter_map(|i| {
                     this.list
                         .shown
@@ -72,9 +72,16 @@ pub(super) fn cards(
                 .map(|(i, row)| {
                     let kind = this.list.places.placed(row, &categories).0;
                     let chosen = this.list.selected.contains(&row.id);
-                    card(this, row, i, kind, chosen, theme, &screen, cx)
+                    // A card just added fades in, as a list's row does (gaps row K7).
+                    crate::window::table::arriving(
+                        row.id,
+                        div().child(card(this, row, i, kind, chosen, theme, &screen, cx)),
+                    )
                 })
-                .collect()
+                .collect::<Vec<_>>();
+            // Cards drawn from now on, but the window's first, are ones just added.
+            crate::window::table::list_drawn();
+            drawn
         }),
     )
     .track_scroll(&view.list.scroll)
