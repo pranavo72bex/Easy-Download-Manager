@@ -854,7 +854,7 @@ and only the needed components exported on the phone; `SECURITY.md`.
 | #   | Gap | Status | Next |
 |-----|-----|--------|------|
 | H23 | "Only through" (a VPN's adapter, W12) refuses torrents and leaves name lookups on the system's route, so a torrent cannot be held to a VPN and a lookup leaks around it | OPEN · M | Bind peers, trackers, the DHT and name lookups to the adapter; on Android bind to the VPN network the system reports; when it drops everything waits. The switch people ask torrent apps for most |
-| H24 | No test proves that with a proxy or "Only through" set, nothing leaves another way | OPEN · M | A leak test: two local addresses and a proxy, every kind of download plus the update check; any packet on the wrong path fails |
+| H24 | No test proves that with "Only through" set, or for torrents and the update check, nothing leaves another way | PARTIAL · M | Done 2026-11-24: `dm-core/tests/proxy.rs` `with_a_proxy_set_no_kind_of_download_reaches_the_site_another_way`: a plain file (probe and ranges), HLS, DASH, a Metalink, a page and an archive, each with a digest to check, reach a counting site only through an HTTP proxy, the site seeing no connection. Left: "Only through" with two local addresses (W12), a torrent's peers and trackers under a proxy (H23), and the update check |
 | H25 | dm says it contacts nobody but the sites a person downloads from; a person cannot see that for themselves | OPEN · M · the maintainer's word | View › "What dm connected to": the hosts of this session and why (download, tracker, update check), kept in memory only; nothing written |
 | H26 | A torrent tells peers and trackers the client's name and version, and opens a port on the router by itself | OPEN · S · decide | Options › BitTorrent: "Tell peers as little as possible" (a plain peer id, no version) and the router port asked before it is opened; decide the defaults |
 
@@ -867,7 +867,7 @@ and only the needed components exported on the phone; `SECURITY.md`.
 | H31 | Linux and macOS installs run with the person's full rights; no sandboxed package exists | OPEN · M to L · decide | A Flatpak with file access through portals and the download folder alone; then the same question for a sandboxed macOS build. Decide whether the browser hand-off can work from inside |
 
 **Order to take them:** what costs a day and stops real harm first (H1, H21, H22; H2, H12,
-H14, H16 and H17 done 2026-11-24), then the proof (H10, H11, H24; H13 and H15 coded, H29 and H30 done 2026-11-24, H29 owed its first run at a tag), then the features no other
+H14, H16 and H17 done 2026-11-24), then the proof (H10, H11; H13, H15 and H24 coded, H29 and H30 done 2026-11-24, H29 owed its first run at a tag), then the features no other
 manager has together (H3 to H6, H19, H20, H23, H25, H27), then the boxes (H9, H31). These rows
 come before every other row in this file, the Android rows N included (the maintainer,
 2026-11-23: "give highest priority to security"; the top of this file).

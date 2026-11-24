@@ -451,3 +451,72 @@ async fn a_proxy_for_one_scheme_carries_its_requests_and_the_bypass_list_still_h
     );
     assert_eq!(asked.lock().unwrap().len(), before, "the proxy was asked");
 }
+
+/// A server that takes connections and counts them, answering none: any connection it sees
+/// went around the proxy.
+async fn counting_server() -> (std::net::SocketAddr, Arc<std::sync::atomic::AtomicUsize>) {
+    let seen = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let counted = Arc::clone(&seen);
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            drop(stream);
+        }
+    });
+    (addr, seen)
+}
+
+/// With a proxy set, nothing leaves another way (gaps row H24): a plain file (its probe and
+/// its ranges), an HLS and a DASH stream, a Metalink, a page and an archive, each with a digest
+/// to check (so the checksum files beside it are asked for), reach the site only through the
+/// proxy; the site itself sees no connection at all.
+#[tokio::test]
+async fn with_a_proxy_set_no_kind_of_download_reaches_the_site_another_way() {
+    let _one = ONE_AT_A_TIME.lock().await;
+    let (site, direct) = counting_server().await;
+    let (proxy, asked) = answering_proxy().await;
+    let (host, port) = proxy.split_once(':').unwrap();
+    let settings = Proxy {
+        enabled: true,
+        kind: Kind::Http,
+        host: host.into(),
+        port: port.parse().unwrap(),
+        ..Default::default()
+    };
+    let client = client_with(&settings).unwrap();
+    let kinds = [
+        "file.bin",
+        "film.m3u8",
+        "film.mpd",
+        "release.meta4",
+        "page.html",
+        "archive.zip",
+    ];
+    for name in kinds {
+        let dir = tempdir();
+        let mut with = options(dir.path());
+        // A digest to check, so the checksum files beside it are looked for too.
+        with.checksum = dm_core::Checksum::parse(&format!("sha256:{}", "0".repeat(64)));
+        assert!(with.checksum.is_some());
+        let url = format!("http://{site}/{name}");
+        // Whatever each makes of the proxy's answer, it is the proxy that was asked.
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            download(&client, &url, &with),
+        )
+        .await;
+        assert!(
+            asked.lock().unwrap().iter().any(|l| l.contains(name)),
+            "{name} never went to the proxy: {:?}",
+            asked.lock().unwrap()
+        );
+    }
+    assert_eq!(
+        direct.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "the site was reached around the proxy; the proxy was asked {:?}",
+        asked.lock().unwrap()
+    );
+}
