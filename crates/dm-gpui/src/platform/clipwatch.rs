@@ -194,8 +194,8 @@ impl Downloads {
 
 /// The least width the offered link is given before Download and Dismiss go under it: 160
 /// points less the room the bar's mark and "+N more" now take in the bar (gaps row E5), so a
-/// phone's 412 points still keep the link on its words' line.
-const LINK_AT_LEAST: f32 = 112.0;
+/// phone's 412 points still keep the link on its words' line, in Windows' wider type too.
+const LINK_AT_LEAST: f32 = 96.0;
 
 /// Whether the clipboard can be read now: always on a desktop; on a phone
 /// only while dm's window is in front.

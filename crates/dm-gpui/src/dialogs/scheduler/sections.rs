@@ -319,9 +319,11 @@ impl Scheduler {
                     .flex_wrap()
                     .items_center()
                     .gap(px(native::LABEL_GAP))
-                    .child(screen.label(t(
+                    // Its words wrap within the window: as an item of their own width they ran
+                    // past its edge in Windows' wider type (gaps row E2).
+                    .child(div().flex_1().min_w_0().child(screen.label(t(
                         "Try a failed download again this many times (0 for none)",
-                    )))
+                    ))))
                     .child(field(
                         &self.retries,
                         "Try a failed download again this many times (0 for none)",

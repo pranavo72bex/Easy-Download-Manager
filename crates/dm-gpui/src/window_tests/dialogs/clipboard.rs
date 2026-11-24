@@ -207,7 +207,7 @@ fn at_a_phones_width_the_clipboard_bar_shows_the_link_with_its_buttons_under_it(
     let (_, label, _) = one_line(&mut h);
     let link_at = h.bounds_of(&shown);
     assert!(
-        f32::from(link_at.size.width) >= 100.0,
+        f32::from(link_at.size.width) >= 90.0,
         "the link is {:?} wide: {:?}",
         link_at.size.width,
         h.texts()
