@@ -759,7 +759,7 @@ mod measure;
 pub use help::help_button;
 mod path;
 mod switch;
-pub use measure::{label_width, measure_with};
+pub use measure::{label_width, measure_with, small_width};
 pub use switch::{switch, switch_inline};
 mod phone;
 pub use path::path_field;

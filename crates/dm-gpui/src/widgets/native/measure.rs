@@ -22,6 +22,12 @@ pub fn label_width(labels: &[&str]) -> f32 {
         .ceil()
 }
 
+/// How wide `words` are set in the system's small size (a toolbar button's word), in points
+/// at 100%.
+pub fn small_width(words: &str) -> f32 {
+    words_width(words, super::SMALL_TEXT)
+}
+
 thread_local! {
     /// The text system and the font the window's words are set in, as `measure_with` kept
     /// them: one for each thread an application runs on (a test's own).

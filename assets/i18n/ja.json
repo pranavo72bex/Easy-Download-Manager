@@ -1049,5 +1049,6 @@
  "Second network's speed limit, KB/s (0 for none)": "2 つ目のネットワークの速度制限、KB/s(0 で制限なし)",
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "2 つ目のネットワーク(電話のデータ通信など)を、もう一方の接続に関係なくこの速度に抑えます。",
  "Third network": "3 つ目のネットワーク",
- "Each download's connections are shared among all the networks chosen.": "各ダウンロードの接続は、選んだすべてのネットワークに分けられます。"
+ "Each download's connections are shared among all the networks chosen.": "各ダウンロードの接続は、選んだすべてのネットワークに分けられます。",
+ "More": "その他"
 }

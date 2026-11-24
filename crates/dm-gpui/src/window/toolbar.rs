@@ -20,6 +20,8 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
+mod more;
+
 /// The toolbar's height.
 pub const HEIGHT: f32 = 50.0;
 
@@ -71,7 +73,7 @@ pub fn toolbar(
     view: &Downloads,
     theme: Theme,
     screen: &Screen,
-    _window: &mut Window,
+    window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
     let settings = &view.known.drawn;
@@ -84,15 +86,39 @@ pub fn toolbar(
     // Resume says what it will do for the rows chosen (Retry, Start now), as
     // the menus do.
     let resume = dm_desktop_base::rows::resume_word(&view.chosen());
+    // As many as fit across the window; the rest under More (gaps row E3).
+    let widths: Vec<f32> = buttons
+        .iter()
+        .map(|&(command, words)| more::button_width(command, t(words), picture, worded))
+        .collect();
+    let room = f32::from(window.viewport_size().width) / crate::window::zoom::factor();
+    let mut buttons = buttons;
+    let rest = buttons.split_off(more::fitting(
+        &widths,
+        room,
+        more::more_width(picture, worded),
+    ));
     let rest_after = rest_after(&buttons);
+    // More stands at the end, after the room, where the room is not already before it.
+    let more = (!rest.is_empty()).then(|| {
+        div()
+            .flex()
+            .when(rest_after.is_none(), |d| d.ml_auto())
+            .child(more::more_button(
+                rest,
+                view,
+                theme,
+                (picture, worded),
+                screen,
+            ))
+    });
     div()
         .id("toolbar")
         .role(Role::Toolbar)
         .aria_label(t("Toolbar"))
-        // A row as tall as a button; where the buttons do not fit across
-        // the window (a narrow one, a larger text size), the rest go on to
-        // a second row rather than past
-        // the right edge.
+        // A row as tall as a button; where the buttons do not fit across the window (a narrow
+        // one, a larger text size), those at the end go under More (`more.rs`). Wrapped to a
+        // second row only where the measure falls short.
         .min_h(px(HEIGHT))
         .flex_none()
         .flex()
@@ -109,110 +135,136 @@ pub fn toolbar(
                 .into_iter()
                 .enumerate()
                 .map(|(at, (command, words))| {
-                    // The window's main action, filled with the accent, the one filled button there
-                    // (`docs/ui-design.md`, rule 1).
-                    let main = command == Command::AddUrl;
-                    let enabled = view.enabled(command);
-                    let why_off = view.why_off(command);
-                    let words = if command == dm_shell::app::commands::Command::DownloadNow
-                        && matches!(resume, "Retry" | "Start now")
-                    {
-                        t(resume)
-                    } else {
-                        t(words)
-                    };
-                    // Start Queue and Stop Queue have an arrow beside them that
-                    // lists the queues; the one chosen is started or stopped,
-                    // whatever the list shows (B64).
-                    let queues = matches!(command, Command::StartQueue | Command::StopQueue)
-                        .then(|| view.known.queue_list.clone());
-                    let arrow = queues.map(|queues| queue_arrow(command, queues, theme));
-                    let button = div()
-                        .id(command.id())
-                        .role(Role::Button)
-                        .aria_label(words)
-                        // Greyed, told off to a screen reader too (gaps row U23).
-                        .off_if(!enabled)
-                        // Dragged onto another button, it takes that one's place, as
-                        // a column's heading does (View › Customize toolbar shows or
-                        // hides each).
-                        .on_drag(
-                            DraggedButton {
-                                command,
-                                words,
-                                theme,
-                            },
-                            |dragged, _, _, cx| cx.new(|_| dragged.clone()),
-                        )
-                        .drag_over::<DraggedButton>(move |style, _, _, _| style.bg(theme.stripe))
-                        .on_drop(cx.listener(move |view, dragged: &DraggedButton, _, cx| {
-                            view.move_toolbar_button(dragged.command, command, cx)
-                        }))
-                        .flex()
-                        .flex_col()
-                        .items_center()
-                        .gap(px(space::LINE))
-                        .px_2()
-                        .py_1()
-                        .rounded_md()
-                        // A toolbar item's label: the system's small size.
-                        .text_size(px(crate::widgets::native::SMALL_TEXT))
-                        .when(main, |b| b.bg(theme.accent).text_color(theme.on_accent))
-                        .when(!enabled, |b| b.opacity(0.4))
-                        .when(enabled, |b| {
-                            b.hover(move |s| s.bg(hovered(main, theme)))
-                                .on_click(cx.listener(move |_, _, window, cx| {
-                                    window.dispatch_action(Box::new(Run(command)), cx);
-                                }))
-                        })
-                        .when(picture, |b| {
-                            b.child(
-                                svg()
-                                    .path(icon(command))
-                                    .size(px(18.0))
-                                    .text_color(if main { theme.on_accent } else { theme.text }),
-                            )
-                        })
-                        .when(worded, |b| b.child(screen.label(words)))
-                        // As wide as the widest of its words, so the buttons after it stay put when
-                        // Resume becomes Retry or Start now: the others
-                        // take room under it, unseen and unread.
-                        .when(
-                            worded && command == dm_shell::app::commands::Command::DownloadNow,
-                            |b| {
-                                b.child(
-                                    div().h(px(0.0)).overflow_hidden().invisible().children(
-                                        ["Resume", "Retry", "Start now"]
-                                            .into_iter()
-                                            .map(|word| div().whitespace_nowrap().child(t(word))),
-                                    ),
-                                )
-                            },
-                        )
-                        // Its words on hover where the button shows none, and why it is greyed where
-                        // it is (gaps row U5).
-                        .when(!worded || why_off.is_some(), |b| {
-                            let said = match why_off {
-                                Some(why) => format!("{words}: {why}"),
-                                None => words.to_string(),
-                            };
-                            b.tooltip(move |window, cx| {
-                                gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(
-                                    said.clone(),
-                                ))
-                                .build(window, cx)
-                            })
-                        });
-                    div()
-                        .flex()
-                        .map(crate::window::mirror::row)
-                        .items_center()
-                        // Room before the rest, which stand at the end (gaps row E3).
-                        .when(rest_after == Some(at), |d| d.ml_auto())
-                        .child(button)
-                        .children(arrow)
+                    button(
+                        view,
+                        (at, command, words),
+                        rest_after,
+                        resume,
+                        (picture, worded),
+                        theme,
+                        screen,
+                        cx,
+                    )
                 }),
         )
+        .children(more)
+}
+
+/// One toolbar button, `at` its place among those drawn: its picture and word as the style has
+/// them, greyed where it cannot act, dragged to a new place, and the room before it where the
+/// rest begin (`rest_after`).
+#[allow(clippy::too_many_arguments)]
+fn button(
+    view: &Downloads,
+    (at, command, words): (usize, Command, &'static str),
+    rest_after: Option<usize>,
+    resume: &'static str,
+    (picture, worded): (bool, bool),
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> gpui::AnyElement {
+    // The window's main action, filled with the accent, the one filled button there
+    // (`docs/ui-design.md`, rule 1).
+    let main = command == Command::AddUrl;
+    let enabled = view.enabled(command);
+    let why_off = view.why_off(command);
+    let words = if command == dm_shell::app::commands::Command::DownloadNow
+        && matches!(resume, "Retry" | "Start now")
+    {
+        t(resume)
+    } else {
+        t(words)
+    };
+    // Start Queue and Stop Queue have an arrow beside them that
+    // lists the queues; the one chosen is started or stopped,
+    // whatever the list shows (B64).
+    let queues = matches!(command, Command::StartQueue | Command::StopQueue)
+        .then(|| view.known.queue_list.clone());
+    let arrow = queues.map(|queues| queue_arrow(command, queues, theme));
+    let button = div()
+        .id(command.id())
+        .role(Role::Button)
+        .aria_label(words)
+        // Greyed, told off to a screen reader too (gaps row U23).
+        .off_if(!enabled)
+        // Dragged onto another button, it takes that one's place, as
+        // a column's heading does (View › Customize toolbar shows or
+        // hides each).
+        .on_drag(
+            DraggedButton {
+                command,
+                words,
+                theme,
+            },
+            |dragged, _, _, cx| cx.new(|_| dragged.clone()),
+        )
+        .drag_over::<DraggedButton>(move |style, _, _, _| style.bg(theme.stripe))
+        .on_drop(cx.listener(move |view, dragged: &DraggedButton, _, cx| {
+            view.move_toolbar_button(dragged.command, command, cx)
+        }))
+        .flex()
+        .flex_col()
+        .items_center()
+        .gap(px(space::LINE))
+        .px_2()
+        .py_1()
+        .rounded_md()
+        // A toolbar item's label: the system's small size.
+        .text_size(px(crate::widgets::native::SMALL_TEXT))
+        .when(main, |b| b.bg(theme.accent).text_color(theme.on_accent))
+        .when(!enabled, |b| b.opacity(0.4))
+        .when(enabled, |b| {
+            b.hover(move |s| s.bg(hovered(main, theme)))
+                .on_click(cx.listener(move |_, _, window, cx| {
+                    window.dispatch_action(Box::new(Run(command)), cx);
+                }))
+        })
+        .when(picture, |b| {
+            b.child(
+                svg()
+                    .path(icon(command))
+                    .size(px(18.0))
+                    .text_color(if main { theme.on_accent } else { theme.text }),
+            )
+        })
+        .when(worded, |b| b.child(screen.label(words)))
+        // As wide as the widest of its words, so the buttons after it stay put when
+        // Resume becomes Retry or Start now: the others
+        // take room under it, unseen and unread.
+        .when(
+            worded && command == dm_shell::app::commands::Command::DownloadNow,
+            |b| {
+                b.child(
+                    div().h(px(0.0)).overflow_hidden().invisible().children(
+                        ["Resume", "Retry", "Start now"]
+                            .into_iter()
+                            .map(|word| div().whitespace_nowrap().child(t(word))),
+                    ),
+                )
+            },
+        )
+        // Its words on hover where the button shows none, and why it is greyed where
+        // it is (gaps row U5).
+        .when(!worded || why_off.is_some(), |b| {
+            let said = match why_off {
+                Some(why) => format!("{words}: {why}"),
+                None => words.to_string(),
+            };
+            b.tooltip(move |window, cx| {
+                gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(said.clone()))
+                    .build(window, cx)
+            })
+        });
+    div()
+        .flex()
+        .map(crate::window::mirror::row)
+        .items_center()
+        // Room before the rest, which stand at the end (gaps row E3).
+        .when(rest_after == Some(at), |d| d.ml_auto())
+        .child(button)
+        .children(arrow)
+        .into_any_element()
 }
 
 /// The arrow beside Start Queue or Stop Queue (`command`) that lists the `queues`; the one

@@ -92,6 +92,8 @@ def main():
         "theme": os.environ.get("DM_SHOT_THEME", "system"),
         # DM_SHOT_LANG=de|fr|... photographs it in that language.
         "language": os.environ.get("DM_SHOT_LANG", ""),
+        # DM_SHOT_TEXT_SIZE=1.5|2.0 photographs it at a larger text size.
+        "text_size": float(os.environ.get("DM_SHOT_TEXT_SIZE", "1.0")),
     }), encoding="utf-8")
     env = dict(os.environ, DM_HOME=str(home))
     app = subprocess.Popen([BINARY, "--control", "0"], env=env,

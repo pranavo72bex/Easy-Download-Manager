@@ -1049,5 +1049,6 @@
  "Second network's speed limit, KB/s (0 for none)": "حد سرعة الشبكة الثانية، كيلوبايت/ث (0 بلا حد)",
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "يُبقي الشبكة الثانية، مثل بيانات الهاتف، عند هذه السرعة، أيًا كان ما يفعله الاتصال الآخر.",
  "Third network": "الشبكة الثالثة",
- "Each download's connections are shared among all the networks chosen.": "تتوزع اتصالات كل تنزيل على كل الشبكات المختارة."
+ "Each download's connections are shared among all the networks chosen.": "تتوزع اتصالات كل تنزيل على كل الشبكات المختارة.",
+ "More": "المزيد"
 }

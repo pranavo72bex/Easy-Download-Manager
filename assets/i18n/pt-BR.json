@@ -1049,5 +1049,6 @@
  "Second network's speed limit, KB/s (0 for none)": "Limite de velocidade da segunda rede, KB/s (0 para nenhum)",
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Mantém a segunda rede, como os dados de um celular, nesta velocidade, faça o que fizer a outra conexão.",
  "Third network": "Terceira rede",
- "Each download's connections are shared among all the networks chosen.": "As conexões de cada download são divididas entre todas as redes escolhidas."
+ "Each download's connections are shared among all the networks chosen.": "As conexões de cada download são divididas entre todas as redes escolhidas.",
+ "More": "Mais"
 }

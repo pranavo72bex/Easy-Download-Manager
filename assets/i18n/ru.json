@@ -1049,5 +1049,6 @@
  "Second network's speed limit, KB/s (0 for none)": "Ограничение скорости второй сети, КБ/с (0 — без ограничения)",
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Держит вторую сеть, например мобильные данные телефона, на этой скорости, что бы ни делало другое подключение.",
  "Third network": "Третья сеть",
- "Each download's connections are shared among all the networks chosen.": "Подключения каждой загрузки делятся между всеми выбранными сетями."
+ "Each download's connections are shared among all the networks chosen.": "Подключения каждой загрузки делятся между всеми выбранными сетями.",
+ "More": "Ещё"
 }

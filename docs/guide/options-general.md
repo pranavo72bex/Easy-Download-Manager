@@ -11,9 +11,11 @@ the window works.
   setting; **Light** and **Dark** keep one. On a phone the first is called
   **As the phone is** and follows the phone's dark theme.
 - **Text size:** how large everything in dm's windows is drawn: 60%, 80%,
-  100% or 120%. Drag the slider or click a percentage. It is used at once,
+  100%, 120%, 150% or 200%. Drag the slider or click a percentage. It is used at once,
   in every window, and kept even if you then click Cancel. **View › Larger**
-  and **Smaller**, and Ctrl with + and −, step through the same sizes.
+  and **Smaller**, and Ctrl with + and −, step through the same sizes. Where the
+  toolbar's buttons no longer fit across the window, those at its end go under
+  **More** (three dots) at the right.
 
 ## Starting and updating
 

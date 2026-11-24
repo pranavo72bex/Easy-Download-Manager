@@ -44,6 +44,8 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     "start-queue",
     "stop-queue",
     "grabber",
+    // The toolbar's More, where the buttons do not fit (gaps row E3).
+    "more",
     // Each file kind's, before a row's name (B45).
     "kind-videos",
     "kind-audio",
