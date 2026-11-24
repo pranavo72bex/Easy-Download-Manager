@@ -7,6 +7,11 @@ one (`crates/dm-gpui`), one code for desktop and phone. Its colours are in
 (contract row B25). A rule below that the window does not yet follow names the gaps row that
 brings it there.
 
+An AI agent working on the window starts from the `dm-design` skill
+(`.claude/skills/dm-design/SKILL.md`): it maps the general interface skills beside it
+(`better-interface`, `better-ui`, …, written for web pages) onto these rules and tokens, and
+these rules win where they differ.
+
 ## The rules
 
 The eye must have somewhere to start. Every window is checked against these, at 360, 700 and

@@ -5,7 +5,9 @@ target/
 pkg/
 __pycache__/
 .DS_Store
-.claude/
+# Claude Code's own files stay local; its project skills are shared.
+.claude/*
+!.claude/skills/
 human-shots/
 
 # Local test logins and secrets (crates/dm-test-support/src/secrets.rs); never pushed.
