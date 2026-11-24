@@ -2266,8 +2266,15 @@ def main():
         tab = open_tab(base, f"{origin}/page.html")
         loaded(tab, "/page.html")
         wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 15)
-        tab.evaluate("document.getElementById('alt.bin').dispatchEvent(new MouseEvent('click',"
-                     " {bubbles: true, cancelable: true, altKey: true}))", gesture=True)
+        # A person's click with Alt held, through the browser's own input: a click a page
+        # makes up is not trusted, and the extension leaves it alone (gaps row H10).
+        at = tab.evaluate("(() => { const r = document.getElementById('alt.bin')"
+                          ".getBoundingClientRect(); return [r.left + 4, r.top + r.height / 2]; })()")
+        for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
+            params = {"type": kind, "x": at[0], "y": at[1], "button": "left", "modifiers": 1}
+            if kind != "mouseMoved":
+                params["clickCount"] = 1
+            tab.call("Input.dispatchMouseEvent", **params)
         kept = wait_for(lambda: whole(browser_dl, "alt.bin"), 60)
         check("an Alt-clicked link is left with the browser",
               kept and not (engine_dl / "alt.bin").exists())
