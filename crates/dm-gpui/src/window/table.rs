@@ -559,7 +559,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
             // Whether a chosen row is finished, asked once, the first time a
             // chosen row that is not needs to know: it carries the others.
             let chosen_finished = std::cell::OnceCell::new();
-            range
+            let drawn = range
                 .filter_map(|i| {
                     this.list
                         .shown
@@ -638,8 +638,13 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             )
                             .into_any_element(),
                         ))
+                        // A row just added fades in (gaps row K7).
+                        .map(|row| cells::arriving(id, row))
                 })
-                .collect()
+                .collect::<Vec<_>>();
+            // Rows drawn from now on, but for the window's first, are ones just added.
+            cells::list_drawn();
+            drawn
         }),
     )
     .track_scroll(&view.list.scroll)

@@ -105,6 +105,58 @@ fn glided(id: u64, target: f32, fill: gpui::Div) -> AnyElement {
     .into_any_element()
 }
 
+/// Whether the list has been drawn yet, and for each download's row when it was first drawn
+/// and whether the list had been drawn before then.
+type Arrived = (
+    bool,
+    std::collections::HashMap<u64, (std::time::Instant, bool)>,
+);
+
+thread_local! {
+    /// When each download's row was first drawn: a row the window opened with does not fade in.
+    static ARRIVED: std::cell::RefCell<Arrived> =
+        std::cell::RefCell::new((false, std::collections::HashMap::new()));
+}
+
+/// How long a row just added takes to fade in.
+const ARRIVING: std::time::Duration = std::time::Duration::from_millis(150);
+
+/// Marks the list as drawn once: rows first drawn after this are ones just added.
+pub(crate) fn list_drawn() {
+    ARRIVED.with(|a| a.borrow_mut().0 = true);
+}
+
+/// Whether row `id` was added moments ago (and so fades in): its first drawing, after the
+/// list's first, less than [`ARRIVING`] ago. A row scrolled into sight later does not fade.
+pub(crate) fn just_added(id: u64) -> bool {
+    if STILL.load(std::sync::atomic::Ordering::Relaxed) {
+        return false;
+    }
+    ARRIVED.with(|a| {
+        let mut a = a.borrow_mut();
+        let listed_before = a.0;
+        // When it was first drawn, and whether the list had been drawn before then.
+        let (first, added) =
+            *a.1.entry(id)
+                .or_insert_with(|| (std::time::Instant::now(), listed_before));
+        added && first.elapsed() < ARRIVING
+    })
+}
+
+/// `row`, faded in over [`ARRIVING`] where it was just added (gaps row K7); as it is otherwise.
+pub(crate) fn arriving<E: IntoElement + gpui::Styled + 'static>(id: u64, row: E) -> AnyElement {
+    use gpui::{Animation, AnimationExt};
+    if !just_added(id) {
+        return row.into_any_element();
+    }
+    row.with_animation(
+        gpui::ElementId::Name(format!("arrive-{id}").into()),
+        Animation::new(ARRIVING).with_easing(gpui::ease_in_out),
+        |row, delta| row.opacity(delta),
+    )
+    .into_any_element()
+}
+
 /// A download's state as a mark told by its shape (gaps row E4): a play mark while it runs,
 /// pause bars when paused, a clock while it waits, a tick once done, a ring with "!" when it
 /// failed; none for one cancelled. In the colour the row's words take.
@@ -172,5 +224,17 @@ mod glide_tests {
         assert_eq!(glide(7_000_001), Some((0.2, 0.5)));
         let _ = glided(7_000_001, 0.9, fill());
         assert_eq!(glide(7_000_001), Some((0.5, 0.9)));
+    }
+
+    /// A row fades in only where it was added after the list was first drawn, and only for a
+    /// moment: one the window opened with, or one scrolled into sight later, does not (K7).
+    #[test]
+    fn only_a_row_just_added_fades_in() {
+        assert!(!just_added(8_000_001), "a row the window opened with");
+        list_drawn();
+        assert!(!just_added(8_000_001), "the same row drawn again");
+        assert!(just_added(8_000_002), "a row added since");
+        std::thread::sleep(ARRIVING + std::time::Duration::from_millis(50));
+        assert!(!just_added(8_000_002), "drawn again once it has faded in");
     }
 }
