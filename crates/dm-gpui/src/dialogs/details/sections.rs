@@ -733,7 +733,8 @@ impl Details {
     pub(super) fn buttons(&self, look: &Look, cx: &mut Context<Self>) -> gpui::Div {
         let (theme, screen) = (look.theme, &look.screen);
         native::buttons(
-            Vec::new(),
+            // Its page of the guide (gaps row E11).
+            vec![native::help_button("download-details", theme, screen).into_any_element()],
             vec![
                 native::button("cancel", t("Cancel").into(), false, theme, screen)
                     .on_click(cx.listener(|this, _, window, cx| this.cancel(window, cx)))

@@ -13,6 +13,9 @@
 
 /// What is typed in its fields put into the draft.
 mod draft;
+/// A phone's Options in force as it changes, and each page's help (gaps rows C21, E11).
+mod instant;
+pub(crate) use instant::help_page;
 mod pagelist;
 /// Its six pages (B43).
 pub(crate) mod pages;
@@ -356,37 +359,6 @@ impl Options {
         }
     }
 
-    /// On a phone, what the draft says put in force now, where it passes OK's checks and
-    /// differs from what was last put in force; a change that does not pass yet (a number half
-    /// typed, a proxy with no address) waits, and Done says why (gaps row C21).
-    pub(crate) fn apply_now(&mut self, cx: &mut Context<Self>) {
-        if !self.instant || self.done {
-            return;
-        }
-        let Some(view) = self.view.upgrade() else {
-            return;
-        };
-        let now = view.read(cx).backend.settings();
-        let Ok(wanted) = options::ok(&self.opened, &self.draft, &self.typed, &now) else {
-            return;
-        };
-        let text = serde_json::to_string(&wanted).ok();
-        // The first look is of the settings as Options opened, in force already: kept as
-        // what is in force, nothing put in force again.
-        let first = self.applied.is_none();
-        if text == self.applied {
-            return;
-        }
-        self.applied = text;
-        if first {
-            return;
-        }
-        match view.update(cx, |view, cx| view.apply_settings(wanted, cx)) {
-            Ok(()) => self.says = None,
-            Err(e) => self.says = Some(e.into()),
-        }
-    }
-
     fn cancel(&mut self, window: &mut Window) {
         self.done = true;
         window.remove_window();
@@ -570,20 +542,22 @@ impl Options {
                     .child(native::note(says, theme.warning, screen))
             })
             .child(native::buttons(
-                restore
-                    .then(|| {
-                        native::button(
-                            "restore",
-                            t("Restore defaults").into(),
-                            false,
-                            theme,
-                            screen,
-                        )
-                        .on_click(cx.listener(|this, _, _, cx| this.restore_defaults(cx)))
-                        .into_any_element()
-                    })
-                    .into_iter()
-                    .collect(),
+                // The page's own page of the guide (gaps row E11), then Restore defaults.
+                std::iter::once(
+                    native::help_button(help_page(self.tab), theme, screen).into_any_element(),
+                )
+                .chain(restore.then(|| {
+                    native::button(
+                        "restore",
+                        t("Restore defaults").into(),
+                        false,
+                        theme,
+                        screen,
+                    )
+                    .on_click(cx.listener(|this, _, _, cx| this.restore_defaults(cx)))
+                    .into_any_element()
+                }))
+                .collect(),
                 if self.instant {
                     // Each change in force already: Done closes, saying first what does not
                     // pass (gaps row C21).

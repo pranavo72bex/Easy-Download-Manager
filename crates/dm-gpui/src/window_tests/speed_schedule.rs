@@ -693,3 +693,21 @@ fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
         );
     }
 }
+
+/// The Scheduler's "?" opens its page of the guide, built into dm and written for the browser
+/// offline (gaps row E11).
+#[test]
+fn the_schedulers_help_opens_its_page_of_the_guide() {
+    let world = world();
+    let mut h = world.harness();
+    h.command("downloads.scheduler");
+    h.until_shown("Stop at");
+    let page = dm_shell::settings::home()
+        .join("help")
+        .join("scheduler.html");
+    let _ = std::fs::remove_file(&page);
+    h.click_as_person("?", 0);
+    h.until("the page written", |_| page.exists());
+    let html = std::fs::read_to_string(&page).unwrap();
+    assert!(html.contains("<h1>"), "{html}");
+}

@@ -25,6 +25,7 @@ pub mod find;
 pub mod format;
 pub mod grabber;
 pub mod held;
+pub mod help;
 pub mod i18n;
 pub mod links_import;
 pub mod options;
