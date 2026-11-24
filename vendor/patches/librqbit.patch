@@ -988,8 +988,34 @@ src/session.rs:
      other trackers found no peers either (2026-11-22, an emulator and a
      phone).
 
+diff --git a/src/peer_info_reader/mod.rs b/src/peer_info_reader/mod.rs
+index 94fcb87..377fb19 100644
+--- a/src/peer_info_reader/mod.rs
++++ b/src/peer_info_reader/mod.rs
+@@ -184,14 +184,19 @@ impl PeerConnectionHandler for Handler {
+         trace!("{}: received message: {:?}", self.addr, msg);
+ 
+         if let Message::Extended(ExtendedMessage::UtMetadata(UtMetadata::Data(utdata))) = msg {
++            // dm(checks): metadata before the peer's extended handshake, or after the whole
++            // has been taken, is the peer's error, not a panic (`unwrap` was).
+             let piece_ready = self
+                 .locked
+                 .write()
+                 .as_mut()
+-                .unwrap()
++                .ok_or_else(|| anyhow::anyhow!("metadata sent before its handshake"))?
+                 .record_piece(&utdata, &self.info_hash)?;
+             if piece_ready {
+-                let buf = Bytes::from(self.locked.write().take().unwrap().buffer);
++                let Some(whole) = self.locked.write().take() else {
++                    anyhow::bail!("metadata sent after it was whole");
++                };
++                let buf = Bytes::from(whole.buffer);
+                 let info = from_bytes::<TorrentMetaV1Info<ByteBuf>>(&buf)
+                     .map(|i| {
+                         use clone_to_owned::CloneToOwned;
 diff --git a/src/session.rs b/src/session.rs
-index 5e02415..2e2f806 100644
+index 5e02415..07408a3 100644
 --- a/src/session.rs
 +++ b/src/session.rs
 @@ -710,6 +710,16 @@ impl Session {
@@ -1086,7 +1112,18 @@ index 5e02415..2e2f806 100644
          }
      }
  
-@@ -1364,6 +1412,7 @@ impl Session {
+@@ -1166,7 +1214,9 @@ impl Session {
+                     InternalAddResult {
+                         info_hash: torrent.meta.info_hash,
+                         metadata: Some(TorrentMetadata::new(
+-                            torrent.meta.info.data.validate()?,
++                            // dm(checks): what validate() leaves unchecked, refused first.
++                            dm_checked(&torrent.meta.info.data)
++                                .and_then(|()| Ok(torrent.meta.info.data.validate()?))?,
+                             torrent.torrent_bytes,
+                             torrent.meta.info.raw_bytes.0,
+                         )?),
+@@ -1364,6 +1414,7 @@ impl Session {
                      peer_connect_timeout: peer_opts.connect_timeout,
                      peer_read_write_timeout: peer_opts.read_write_timeout,
                      peer_max_request_window: peer_opts.max_request_window,
@@ -1094,7 +1131,16 @@ index 5e02415..2e2f806 100644
                      allow_overwrite: opts.overwrite,
                      output_folder,
                      ratelimits: opts.ratelimits,
-@@ -1818,13 +1867,25 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
+@@ -1671,6 +1722,8 @@ impl Session {
+                 seen,
+             } => {
+                 trace!(?info, "received result from DHT");
++                // dm(checks): what validate() leaves unchecked, refused first.
++                dm_checked(&info)?;
+                 let info = info.validate()?;
+                 Ok(ResolveMagnetResult {
+                     metadata: TorrentMetadata::new(
+@@ -1818,13 +1871,25 @@ impl tracker_comms::TorrentStatsProvider for PeerRxTorrentInfo {
      }
  }
  
@@ -1125,7 +1171,7 @@ index 5e02415..2e2f806 100644
  
      #[test]
      fn test_is_bare_info_hash() {
-@@ -1843,25 +1904,7 @@ mod tests {
+@@ -1843,25 +1908,42 @@ mod tests {
          ));
      }
  
@@ -1137,7 +1183,11 @@ index 5e02415..2e2f806 100644
 -                .filter_map(|t| t.parse().ok())
 -                .collect_vec()
 -        }
--
++    // dm(trim): upstream's test_torrent_file_from_info_and_bytes reads
++    // resources/ubuntu-21.04-desktop-amd64.iso.torrent, and resources/ is not
++    // vendored (desktop/vendor/README.md).
++}
+ 
 -        let orig_full_torrent =
 -            include_bytes!("../resources/ubuntu-21.04-desktop-amd64.iso.torrent");
 -        let parsed = torrent_from_bytes(&orig_full_torrent[..]).unwrap();
@@ -1149,18 +1199,40 @@ index 5e02415..2e2f806 100644
 -        assert_eq!(parsed.info_hash, generated_parsed.info_hash);
 -        assert_eq!(parsed.info, generated_parsed.info);
 -        assert_eq!(parsed_trackers, get_trackers(&generated_parsed));
--    }
-+    // dm(trim): upstream's test_torrent_file_from_info_and_bytes reads
-+    // resources/ubuntu-21.04-desktop-amd64.iso.torrent, and resources/ is not
-+    // vendored (desktop/vendor/README.md).
++/// dm(checks): what a torrent's info says, refused before the library works from it (gaps rows
++/// H10, H32): a piece length of 0 (`Lengths` divides by it: a panic), fewer than 20 bytes of
++/// hash for each piece, more than 2^22 pieces (a lock and two bits each, made at once: a
++/// 200-byte file claimed 4 GiB of one-byte pieces), and lengths whose sum overflows.
++fn dm_checked<B: AsRef<[u8]>>(
++    info: &librqbit_core::torrent_metainfo::TorrentMetaV1Info<B>,
++) -> anyhow::Result<()> {
++    const MOST_PIECES: u64 = 1 << 22;
++    let piece = u64::from(info.piece_length);
++    if piece == 0 {
++        bail!("the torrent says its pieces are of no length");
++    }
++    let total = match (&info.length, &info.files) {
++        (Some(length), _) => Some(*length),
++        (None, Some(files)) => files
++            .iter()
++            .try_fold(0u64, |sum, file| sum.checked_add(file.length)),
++        (None, None) => Some(0),
++    };
++    let Some(total) = total else {
++        bail!("the torrent's files add up to more than any disk holds");
++    };
++    let pieces = total.div_ceil(piece);
++    if pieces > MOST_PIECES {
++        bail!("the torrent claims {pieces} pieces, more than any torrent has");
++    }
++    // At least a hash for each piece, whole hashes: librqbit's own `create_torrent` writes one
++    // more than a file of whole pieces needs, so more is not refused.
++    let hashes = info.pieces.as_ref().len() as u64;
++    if hashes % 20 != 0 || hashes / 20 < pieces {
++        bail!("the torrent's piece hashes do not match its size");
+     }
++    Ok(())
  }
-src/storage/filesystem/fs.rs:
-  1. Every file name of a torrent is checked before any file is made.
-  2. `plain_relative`: plain parts only, no root, no `..`, no drive and, on
-     Windows, no `:` (a name such as `D:x` made `PathBuf::push` start again on
-     drive D:, so files were made outside the torrent's folder; gaps row
-     159 b), with its tests (`cargo test --lib dm_tests`).
-
 diff --git a/src/storage/filesystem/fs.rs b/src/storage/filesystem/fs.rs
 index 749e6af..6e0844b 100644
 --- a/src/storage/filesystem/fs.rs

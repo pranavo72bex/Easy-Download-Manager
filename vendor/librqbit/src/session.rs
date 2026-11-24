@@ -1214,7 +1214,9 @@ impl Session {
                     InternalAddResult {
                         info_hash: torrent.meta.info_hash,
                         metadata: Some(TorrentMetadata::new(
-                            torrent.meta.info.data.validate()?,
+                            // dm(checks): what validate() leaves unchecked, refused first.
+                            dm_checked(&torrent.meta.info.data)
+                                .and_then(|()| Ok(torrent.meta.info.data.validate()?))?,
                             torrent.torrent_bytes,
                             torrent.meta.info.raw_bytes.0,
                         )?),
@@ -1720,6 +1722,8 @@ impl Session {
                 seen,
             } => {
                 trace!(?info, "received result from DHT");
+                // dm(checks): what validate() leaves unchecked, refused first.
+                dm_checked(&info)?;
                 let info = info.validate()?;
                 Ok(ResolveMagnetResult {
                     metadata: TorrentMetadata::new(
@@ -1907,4 +1911,39 @@ mod tests {
     // dm(trim): upstream's test_torrent_file_from_info_and_bytes reads
     // resources/ubuntu-21.04-desktop-amd64.iso.torrent, and resources/ is not
     // vendored (desktop/vendor/README.md).
+}
+
+/// dm(checks): what a torrent's info says, refused before the library works from it (gaps rows
+/// H10, H32): a piece length of 0 (`Lengths` divides by it: a panic), fewer than 20 bytes of
+/// hash for each piece, more than 2^22 pieces (a lock and two bits each, made at once: a
+/// 200-byte file claimed 4 GiB of one-byte pieces), and lengths whose sum overflows.
+fn dm_checked<B: AsRef<[u8]>>(
+    info: &librqbit_core::torrent_metainfo::TorrentMetaV1Info<B>,
+) -> anyhow::Result<()> {
+    const MOST_PIECES: u64 = 1 << 22;
+    let piece = u64::from(info.piece_length);
+    if piece == 0 {
+        bail!("the torrent says its pieces are of no length");
+    }
+    let total = match (&info.length, &info.files) {
+        (Some(length), _) => Some(*length),
+        (None, Some(files)) => files
+            .iter()
+            .try_fold(0u64, |sum, file| sum.checked_add(file.length)),
+        (None, None) => Some(0),
+    };
+    let Some(total) = total else {
+        bail!("the torrent's files add up to more than any disk holds");
+    };
+    let pieces = total.div_ceil(piece);
+    if pieces > MOST_PIECES {
+        bail!("the torrent claims {pieces} pieces, more than any torrent has");
+    }
+    // At least a hash for each piece, whole hashes: librqbit's own `create_torrent` writes one
+    // more than a file of whole pieces needs, so more is not refused.
+    let hashes = info.pieces.as_ref().len() as u64;
+    if hashes % 20 != 0 || hashes / 20 < pieces {
+        bail!("the torrent's piece hashes do not match its size");
+    }
+    Ok(())
 }

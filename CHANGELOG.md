@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Security: a `.torrent` or magnet whose info cannot be true (pieces of no length, a few hundred bytes claiming gigabytes of pieces) is refused with a reason before the torrent engine works from it; a peer that sends a torrent's metadata out of turn is dropped rather than stopping the download.
 - Security: RTMP and RTSP streams, and FTP, look a server's name up under the same rule as web downloads (a name a public page led to that turns out to be inside your network is refused); an RTMP server's error text is shortened and cleaned before it is shown.
 - Fixed (Windows): "When a download finishes, run this command" kept a path's backslashes (`C:\Tools\scan.exe` was read as `C:Toolsscan.exe`); the file is also in `DM_FILE`, and a name that `cmd` or PowerShell would run part of is not added to their line.
 - Fixed: a download that met something its reader did not expect (a `.torrent` with a piece length of 0, for one) stayed "running" for good and held its place in the queue; it now fails and says why.

@@ -184,14 +184,19 @@ impl PeerConnectionHandler for Handler {
         trace!("{}: received message: {:?}", self.addr, msg);
 
         if let Message::Extended(ExtendedMessage::UtMetadata(UtMetadata::Data(utdata))) = msg {
+            // dm(checks): metadata before the peer's extended handshake, or after the whole
+            // has been taken, is the peer's error, not a panic (`unwrap` was).
             let piece_ready = self
                 .locked
                 .write()
                 .as_mut()
-                .unwrap()
+                .ok_or_else(|| anyhow::anyhow!("metadata sent before its handshake"))?
                 .record_piece(&utdata, &self.info_hash)?;
             if piece_ready {
-                let buf = Bytes::from(self.locked.write().take().unwrap().buffer);
+                let Some(whole) = self.locked.write().take() else {
+                    anyhow::bail!("metadata sent after it was whole");
+                };
+                let buf = Bytes::from(whole.buffer);
                 let info = from_bytes::<TorrentMetaV1Info<ByteBuf>>(&buf)
                     .map(|i| {
                         use clone_to_owned::CloneToOwned;

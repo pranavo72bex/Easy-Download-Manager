@@ -310,17 +310,11 @@ async fn a_magnet_with_no_peers_stops_when_paused() {
     );
 }
 
-/// A `.torrent` whose piece length is 0 made the torrent library divide by zero: the download's
-/// task panicked, and its row stayed "running" for good, holding its place in the queue. It is
-/// now a failed row that says why (gaps row H10, audit of the BitTorrent code).
-#[tokio::test(flavor = "multi_thread")]
-async fn a_torrent_that_panics_the_library_fails_its_row_rather_than_hanging_it() {
+/// Runs `bytes` as a `.torrent` through a queue, giving the words its row failed with.
+async fn failed_with(bytes: &[u8]) -> String {
     let dir = tempdir();
-    let file = dir.path().join("zero.torrent");
-    let mut bytes = b"d4:infod6:lengthi10e4:name4:zero12:piece lengthi0e6:pieces20:".to_vec();
-    bytes.extend_from_slice(&[0u8; 20]);
-    bytes.extend_from_slice(b"ee");
-    std::fs::write(&file, &bytes).unwrap();
+    let file = dir.path().join("crafted.torrent");
+    std::fs::write(&file, bytes).unwrap();
     let options = Options {
         connections: 1,
         ..common::options(dir.path())
@@ -332,12 +326,8 @@ async fn a_torrent_that_panics_the_library_fails_its_row_rather_than_hanging_it(
     tokio::spawn(async move { running.run().await });
     let deadline = std::time::Instant::now() + Duration::from_secs(20);
     loop {
-        let state = queue.get(id).await.unwrap().state;
-        match state {
-            dm_core::State::Failed(why) => {
-                assert!(why.contains("did not expect"), "{why}");
-                break;
-            }
+        match queue.get(id).await.unwrap().state {
+            dm_core::State::Failed(why) => return why,
             other => assert!(
                 std::time::Instant::now() < deadline,
                 "still {other:?} after twenty seconds"
@@ -345,4 +335,23 @@ async fn a_torrent_that_panics_the_library_fails_its_row_rather_than_hanging_it(
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+/// What a torrent's info says is refused before the torrent library works from it (gaps rows
+/// H10, H32): a piece length of 0 divided by zero (the row then stayed "running" for good),
+/// and a 200-byte file claiming 4 GiB of one-byte pieces asked for some 34 GB of locks.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_torrent_whose_info_cannot_be_true_fails_its_row_with_why() {
+    let mut zero = b"d4:infod6:lengthi10e4:name4:zero12:piece lengthi0e6:pieces20:".to_vec();
+    zero.extend_from_slice(&[0u8; 20]);
+    zero.extend_from_slice(b"ee");
+    let why = failed_with(&zero).await;
+    assert!(why.contains("no length"), "{why}");
+
+    let mut huge =
+        b"d4:infod6:lengthi4294967295e4:name4:huge12:piece lengthi1e6:pieces20:".to_vec();
+    huge.extend_from_slice(&[0u8; 20]);
+    huge.extend_from_slice(b"ee");
+    let why = failed_with(&huge).await;
+    assert!(why.contains("pieces"), "{why}");
 }
