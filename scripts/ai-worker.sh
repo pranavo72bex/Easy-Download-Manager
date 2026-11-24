@@ -29,6 +29,15 @@ run() {
     [ "$DRY" = 1 ] || "$@" || true
 }
 
+# Every label the bots use, there before any is put on (an edit naming a missing label fails
+# whole: the site watch's #56 was not queued so).
+for l in bot-fix bot:queue bot:working bot:pr bot:merged bot:no-fix bot:green-since \
+    bot:not-reproduced bot:needs-votes bot:needs-info bot:needs-maintainer bot:reverted \
+    bot:closed bot:automerge bot:round-1 bot:round-2 bot:improve bot:already-done \
+    bot-task:ci bot-task:bug bot-task:feature bot-task:improve bot-task:revise; do
+    [ "$DRY" = 1 ] || gh label create "$l" --color ededed --description "dm's bot" 2>/dev/null || true
+done
+
 # Kept alive.
 last=$(gh api "repos/$GH_REPO/commits/main" --jq .commit.committer.date)
 if [ $(($(date -u +%s) - $(date -u -d "$last" +%s 2>/dev/null || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$last" +%s))) -gt $((45 * 86400)) ]; then
