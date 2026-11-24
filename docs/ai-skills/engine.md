@@ -32,3 +32,4 @@ application's rules around them. Read `AGENTS.md` ("Rules for a change", "Glossa
 
 ## Lessons
 
+- 2026-11-24: watch_estimating takes 5 arguments including downloaded_per_network: Option[ArcAtomicU64; 3], and Progress struct requires the per_network field.
