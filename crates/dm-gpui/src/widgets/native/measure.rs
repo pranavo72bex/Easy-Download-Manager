@@ -44,22 +44,44 @@ pub fn measure_with(cx: &gpui::App) {
     MEASURE.with(|m| *m.borrow_mut() = Some((system, font)));
 }
 
-/// How wide `words` are set at `size` points, at 100%: each letter's advance in the
-/// interface font, and a point over for what rounding gives back; guessed where nothing is
-/// kept yet (`measure_with`).
+/// How wide `words` are set at `size` points, at 100%: each letter as the system shapes it in
+/// the interface font, and a point over for what rounding gives back; guessed where nothing is
+/// kept yet (`measure_with`). Shaped rather than read from the font's advances: macOS sets its
+/// system font with tracking at small sizes the advances leave out, and labels came out a
+/// twentieth wider than measured ("Delete file after" stood out of its column, gaps row E10).
+/// Kept once measured, as a form's labels are measured at each frame.
 fn words_width(words: &str, size: f32) -> f32 {
     let guess = || words.chars().count() as f32 * size * 0.6;
-    MEASURE.with(|m| match &*m.borrow() {
-        Some((system, font)) => {
-            let mut width = 0.0;
-            for ch in words.chars() {
-                match system.advance(*font, gpui::px(size), ch) {
-                    Ok(advance) => width += f32::from(advance.width),
-                    Err(_) => return guess(),
-                }
-            }
-            width + 1.0
+    if let Some(known) = MEASURED.with(|m| {
+        m.borrow()
+            .get(&(words.to_string(), size.to_bits()))
+            .copied()
+    }) {
+        return known;
+    }
+    let measured = MEASURE.with(|m| {
+        m.borrow().as_ref().map(|(system, font)| {
+            words
+                .chars()
+                .map(|ch| f32::from(system.layout_width(*font, gpui::px(size), ch)))
+                .sum::<f32>()
+                + 1.0
+        })
+    });
+    match measured {
+        Some(width) => {
+            MEASURED.with(|m| {
+                m.borrow_mut()
+                    .insert((words.to_string(), size.to_bits()), width)
+            });
+            width
         }
         None => guess(),
-    })
+    }
+}
+
+thread_local! {
+    /// Words measured, by their size: a form's labels at each frame cost one look each.
+    static MEASURED: std::cell::RefCell<std::collections::HashMap<(String, u32), f32>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
 }

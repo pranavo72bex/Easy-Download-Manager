@@ -246,3 +246,55 @@ fn a_torrents_file_is_given_a_priority_in_properties() {
             ]
     });
 }
+
+/// Every label of Properties' form, and of the speed limiter's, ends at one edge, the column's:
+/// none longer than measured pushes its field along (gaps row E10: "Request headers" and
+/// "Delete file after" stood out of the column, and the limiter's "Download at most…").
+#[test]
+fn the_labels_of_properties_and_the_limiter_end_at_one_edge() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("stalled.bin"), "Start now");
+    h.until("the row", |h| h.rows().len() == 1);
+    h.select("stalled.bin");
+    h.command("file.properties");
+    h.until("File properties", |h| h.dialog_open("File properties"));
+    let ends = |h: &mut Harness, labels: &[&str]| -> Vec<(String, f32)> {
+        labels
+            .iter()
+            .map(|l| {
+                let at = h.dialog_words(l).unwrap_or_else(|| panic!("{l} not shown"));
+                (l.to_string(), f32::from(at.right()))
+            })
+            .collect()
+    };
+    let one_edge = |ends: Vec<(String, f32)>| {
+        let first = ends[0].1;
+        assert!(
+            ends.iter().all(|(_, end)| (end - first).abs() < 1.5),
+            "labels end at different places: {ends:?}"
+        );
+    };
+    one_edge(ends(
+        &mut h,
+        &[
+            "File name",
+            "Address",
+            "Request headers",
+            "Note",
+            "Delete file after",
+        ],
+    ));
+    h.key("escape", &[]);
+    h.until("Properties to close", |h| h.dialogs().is_empty());
+    h.command("downloads.speed_limiter.settings");
+    h.until("the limiter", |h| !h.dialogs().is_empty());
+    one_edge(ends(
+        &mut h,
+        &[
+            "Speed limit (KB/s, 0 for none)",
+            "Download at most this many MB (0 for no limit)",
+            "in each period of this many hours",
+        ],
+    ));
+}

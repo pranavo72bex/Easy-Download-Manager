@@ -8880,3 +8880,13 @@ and asking for its range again (`helping::holds_the_end`) took the case from 23.
 one more request and no bytes fetched twice, so the race, with its two writers on one range and
 its counting of bytes twice, was not built. It stays the next step if a server is seen that
 answers a range again just as slowly.
+
+## Words measured as the system shapes them (gaps row E10), 2026-11-24
+
+A form's label column was measured by adding each letter's advance from the font. macOS sets
+its system font with tracking at small sizes that the advances leave out, so labels came out
+about a twentieth wider than measured, and the longest pushed its field out of line ("Delete
+file after", the speed limiter's "Download at most…"). Each letter is now measured through the
+system's own shaping (GPUI's `TextSystem::layout_width`), kept once measured. Shaping the whole
+label in one go would add kerning too, but needs a window's text system; the letter-by-letter
+sum is within a point of what is drawn here.

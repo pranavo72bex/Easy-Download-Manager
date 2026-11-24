@@ -33,6 +33,8 @@ impl Look {
             t("Address"),
             t("Login"),
             t("Password"),
+            "User-Agent",
+            t("Request headers"),
             t("Note"),
             t("Delete file after"),
             t("Files"),

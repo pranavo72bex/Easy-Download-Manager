@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Properties and the speed limiter line up: every label ends at one edge and every box starts at one place.
 - Options lines up: every pop-up and number box stands at the right edge with the switches, instead of just after its words.
 - The progress window is calmer: no figure is said twice, and Speed limit, When done and Connections are lines you click to open, each saying how it is set.
 - A download removed from the list fades out instead of vanishing at once.
