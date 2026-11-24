@@ -141,6 +141,13 @@ impl WindowProbe for Probe<'_, '_> {
         // double).
         self.cx.defer(move |cx| {
             let _ = in_window.update(cx, |_, window, cx| {
+                // Drawn first, as what the script asked before (a row chosen) is on screen by
+                // the time a person's pointer reaches it: a click is hit against the last frame
+                // drawn, and one given at once after `ui.select` met the toolbar as it was with
+                // nothing chosen, Stop and Delete greyed, and did nothing (human-qa B38). The
+                // window drawn again after, so the frame the screen shows is a presented one.
+                window.draw(cx).clear(cx);
+                window.refresh();
                 crate::widgets::popup::scripted(|| {
                     let none = Modifiers::default();
                     window.dispatch_event(
