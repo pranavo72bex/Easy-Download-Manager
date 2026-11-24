@@ -22,3 +22,4 @@
 
 ## Lessons
 
+- 2026-11-24: Headless tests in dm-desktop-base enforce strict lints like -D warnings, failing on unused variables, unnecessary mut keywords, and len()  0 comparisons.
