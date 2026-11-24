@@ -119,6 +119,11 @@ ai_guard() {
         echo breaks-a-rule
         return
     fi
+    # The work list keeps its shape, as the bots read it by program (scripts/gaps-check.py).
+    if git diff --name-only HEAD | grep -qx docs/gaps.md && ! python3 -I scripts/gaps-check.py >>.bot/check.log 2>&1; then
+        echo breaks-a-rule
+        return
+    fi
     echo ok
 }
 

@@ -9030,15 +9030,16 @@ worker now makes every label first.
 ## docs/gaps.md's rows broken into steps a free model can take, 2026-11-24
 
 The maintainer: break the work list into smaller tasks, so a free model can do them. Of the
-rows the picker offered, 28 are now split into 110 steps (the row's id and a letter), each
+rows the picker offered, 26 are now split into 102 steps (the row's id and a letter), each
 one small change in one place with its files, the test to write and when it is done, read
 from the code by four read-only agents and checked before they were taken: every file they
 name exists (or is said to be new where its crate is), every step has the table's four
-cells. 71 steps are the bots' (`· bot`); the other 39 a person's (`· person`): the maintainer's
+cells. 66 steps are the bots' (`· bot`); the other 36 a person's (`· person`): the maintainer's
 word or a contract row, a device or a bench, a workflow or `scripts/` (which the bots may
 not edit), vendored code, `unsafe`, or security-critical code (RAR decryption). A step that
 needs another first is marked `· after K3a` and waits until that row is deleted, as a done
 step's row is. Found on the way: the picker had been offering every V row and E3 to E12,
 which the file's own sections say wait for the maintainer's word; a section's rule now holds
 for all its rows, and the rows needing only a person (S5, S6, S11, U16, A6, W23, N3, H13,
-H21, H22) are marked so. The picker's rules are in the guardrail self-test.
+H21, H22) are marked so. The picker's rules are in the guardrail self-test. (E13 and E14 were split too, but the
+maintainer's session closed both the same day, so their steps were dropped.)

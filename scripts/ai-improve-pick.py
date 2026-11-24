@@ -23,7 +23,8 @@ and that needs nothing only a person can give:
 - not one in SKIP (tried in the last fortnight, or with its issue still open).
 
 Prints `ID<TAB>the row's problem<TAB>its state<TAB>what is done and left`, the smallest of the
-first section that has one, or nothing.
+first section that has one, or nothing. `--all` prints every row a bot can take now, in the
+order they would be taken, one `ID  the problem` a line.
 """
 
 import re
@@ -100,5 +101,25 @@ def main(skip):
         print(f"{row}\t{problem}\t{state}\t{detail}")
 
 
+def every(skip):
+    """Every row a bot can take now, in order: the picker asked again with each one skipped."""
+    import contextlib
+    import io
+    taken = []
+    while True:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            main(skip | set(taken))
+        line = out.getvalue().strip()
+        if not line:
+            return
+        rid, problem = line.split("\t")[:2]
+        taken.append(rid)
+        print(f"{rid:6} {problem[:110]}")
+
+
 if __name__ == "__main__":
-    main(set(sys.argv[1:]))
+    if "--all" in sys.argv:
+        every({a for a in sys.argv[1:] if a != "--all"})
+    else:
+        main(set(sys.argv[1:]))

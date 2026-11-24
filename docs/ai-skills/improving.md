@@ -23,7 +23,8 @@ nearest problem (`.bot/context.md` names the files) and copy that:
 ## The smallest complete step
 
 Most rows a bot takes are steps already: an id ending in a letter (K3a) under a row marked
-`· split`, each saying what to do, where, the test to write and when it is done. Do exactly
+`· split`, each saying what to do, where, the test to write, when it is done and the skill
+pages to read (`docs/gaps.md`, "How to read this file"). Do exactly
 that step. When it is done, delete its row from `docs/gaps.md` (a closed row is deleted; git
 keeps it): the steps marked `· after` it become free to take. If it was the last step of its
 row, bring that row up to date too.

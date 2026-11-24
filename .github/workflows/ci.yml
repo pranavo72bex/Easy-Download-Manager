@@ -33,6 +33,10 @@ jobs:
         run: python3 -I scripts/ai-skills-check.py
       - name: Try each guardrail
         run: bash scripts/ai-selftest.sh
+      # The work list the bots read by program keeps its shape (docs/gaps.md, "How to read
+      # this file").
+      - name: docs/gaps.md is well formed
+        run: python3 -I scripts/gaps-check.py
 
   extension:
     name: Extension (Rust, WebAssembly)
