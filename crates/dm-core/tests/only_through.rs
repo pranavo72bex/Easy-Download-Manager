@@ -218,3 +218,42 @@ async fn the_network_taken_away_holds_the_row_saying_why_and_back_it_goes_on() {
         "a request came from another address"
     );
 }
+
+/// Woken from sleep, a running download asks its server again at once and goes on from what it
+/// has, rather than waiting for its dead connection's time-out (gaps row K6).
+#[tokio::test]
+async fn woken_from_sleep_a_running_download_reconnects_at_once() {
+    let _turn = TURN.lock().await;
+    let (addr, seen) = serve().await;
+    let dir = tempdir();
+    let q = queue(dir.path());
+    let id = q.add(&format!("http://{addr}/woke.bin")).await.unwrap();
+    let running = {
+        let q = q.clone();
+        tokio::spawn(async move { q.run().await })
+    };
+    for _ in 0..100 {
+        if q.get(id).await.unwrap().progress.downloaded > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let asked = seen.asked.load(Ordering::SeqCst);
+    assert!(asked >= 1, "it never started");
+    seen.fast.store(true, Ordering::SeqCst);
+    dm_core::woke();
+    let mut whole = false;
+    for _ in 0..200 {
+        if q.get(id).await.unwrap().state == Row::Completed {
+            whole = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    running.abort();
+    assert!(
+        seen.asked.load(Ordering::SeqCst) > asked,
+        "it did not ask again on waking"
+    );
+    assert!(whole, "it did not finish once it asked again");
+}

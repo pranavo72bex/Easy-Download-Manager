@@ -152,6 +152,44 @@ pub fn network_changed() {
     MOVES.fetch_add(1, Ordering::SeqCst);
 }
 
+/// Says the computer woke from sleep (gaps row K6): every running download's connections died
+/// while it slept and would be found dead only by their time-outs, so what runs is stopped and
+/// put back in line at once, each to go on from its ledger, as a new network's restart does.
+pub fn woke() {
+    MOVES.fetch_add(1, Ordering::SeqCst);
+    RESTARTS.fetch_add(1, Ordering::SeqCst);
+}
+
+/// How much more wall-clock time than a 5 s wait may pass before it counts as a sleep.
+const SLEPT_PAST: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Whether a wait of `waited` by the monotonic clock took `passed` by the wall clock long
+/// enough that the computer slept between (the monotonic clock stops while it sleeps).
+pub fn slept(waited: std::time::Duration, passed: std::time::Duration) -> bool {
+    passed > waited + SLEPT_PAST
+}
+
+/// Watches for the computer's sleep from a thread of its own, once a process (gaps row K6):
+/// it waits 5 s at a time and calls [`woke`] where far more wall time passed. The same on
+/// every system, with no system notice to subscribe to.
+pub fn watch_sleep() {
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    STARTED.call_once(|| {
+        let _ = std::thread::Builder::new()
+            .name("dm-sleep-watch".into())
+            .spawn(|| loop {
+                let wait = std::time::Duration::from_secs(5);
+                let (began, wall) = (Instant::now(), std::time::SystemTime::now());
+                std::thread::sleep(wait);
+                let waited = began.elapsed();
+                let passed = wall.elapsed().unwrap_or_default();
+                if slept(waited, passed) {
+                    woke();
+                }
+            });
+    });
+}
+
 /// Changes each time the computer's network does (gaps row N8): an adapter's address came,
 /// went or changed (looked at, at most every [`LOOK_EVERY`]), the system said so
 /// ([`network_changed`]), or the adapter downloads are held to was chosen anew or has a new
@@ -294,4 +332,18 @@ pub async fn connect_tcp(host: &str, port: u16) -> std::io::Result<tokio::net::T
             format!("{host} has no address the network chosen can reach"),
         )
     }))
+}
+
+#[cfg(test)]
+mod sleep_tests {
+    use std::time::Duration;
+
+    /// A 5 s wait that took the wall clock minutes was a sleep; one a little late was not.
+    #[test]
+    fn a_wait_the_wall_clock_overran_by_far_was_a_sleep() {
+        let waited = Duration::from_secs(5);
+        assert!(super::slept(waited, Duration::from_secs(600)));
+        assert!(!super::slept(waited, Duration::from_secs(6)));
+        assert!(!super::slept(waited, Duration::from_secs(34)));
+    }
 }

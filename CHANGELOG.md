@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- After the computer wakes from sleep, running downloads reconnect at once and go on from where they were, instead of waiting a minute or more for their old connections to time out.
 - Progress bars glide smoothly instead of jumping each second; with your system's "reduce motion" on, they don't move.
 - Download details, the Scheduler and Options have a "?" that opens their help page, even offline.
 - View › Details shows the chosen download under the list: how far it is, where it is saved, where it came from, and why it failed with what to do.

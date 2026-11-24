@@ -10,6 +10,8 @@ use super::*;
 impl DownloadList {
     /// A queue that downloads with `client` and `options`, `concurrency` files at a time.
     pub fn new(client: reqwest::Client, options: Options, concurrency: usize) -> Self {
+        // Downloads reconnect at once after the computer sleeps (gaps row K6).
+        crate::only_through::watch_sleep();
         DownloadList {
             inner: Arc::new(Inner {
                 slots: Mutex::new(HashMap::new()),

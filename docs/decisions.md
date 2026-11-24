@@ -8850,3 +8850,14 @@ own clock on macOS and Linux), and how late a 2 ms sleep is woken; at least 1, a
 test's limit is multiplied by it, the worse of the load as the timed work began and at the
 check. Tried and dropped: the sleep alone, which read no load on macOS with every core busy
 (the scheduler still woke sleepers promptly) while the download beside it was slowed.
+
+## 2026-11-24: Sleep is noticed by the wall clock (gaps row K6)
+
+A thread waits 5 s at a time by the monotonic clock; where the wall clock passed more than
+30 s beyond that, the computer slept (the monotonic clock stops while it sleeps on macOS and
+Linux), and every running download is stopped and put back in line to go on from its ledger,
+as a network change's restart does (`only_through::woke`). Chosen over each system's own notice
+(`NSWorkspaceDidWakeNotification`, `PBT_APMRESUMEAUTOMATIC`, logind's `PrepareForSleep`): one
+way on every system, no window message or D-Bus connection, and a sleep the notice misses (a
+lid closed while the app was busy) is still seen. On Windows, where the monotonic clock may go
+on during sleep, the notice may be owed; seen on the Windows laptop.
