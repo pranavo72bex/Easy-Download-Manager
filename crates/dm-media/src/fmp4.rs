@@ -20,6 +20,15 @@ use std::path::Path;
 
 use crate::mp4mux::{boxed, full, MATRIX};
 
+/// The most bytes of samples held before they are written as a fragment, key frame or not.
+const MOST_HELD: usize = 8 << 20;
+
+/// `dts` in milliseconds at `timescale` ticks a second, held to `i64`'s line.
+fn millis(dts: i64, timescale: u32) -> i64 {
+    let ms = i128::from(dts) * 1000 / i128::from(timescale.max(1));
+    i64::try_from(ms).unwrap_or(if ms < 0 { i64::MIN } else { i64::MAX })
+}
+
 /// What a track is, for its index entry.
 #[derive(Debug, Clone)]
 pub struct Spec {
@@ -111,8 +120,9 @@ impl Writer {
         let Some(state) = self.tracks.get_mut(track) else {
             return Ok(());
         };
-        // In milliseconds, to compare across timescales.
-        let ms = dts * 1000 / i64::from(state.spec.timescale.max(1));
+        // In milliseconds, to compare across timescales: in 128 bits, as a stream whose
+        // timestamps jump made `dts * 1000` overflow (gaps rows H10, H34).
+        let ms = millis(dts, state.spec.timescale);
         self.origin = Some(self.origin.map_or(ms, |o| o.min(ms)));
         state.pending.push(Pending {
             data,
@@ -126,7 +136,9 @@ impl Writer {
         let video = self.tracks.iter().any(|t| t.spec.video);
         let due = self.tracks.iter().any(|t| {
             let span = match (t.pending.first(), t.pending.last()) {
-                (Some(a), Some(b)) => (b.dts - a.dts) * 1000 / i64::from(t.spec.timescale.max(1)),
+                (Some(a), Some(b)) => {
+                    millis(b.dts, t.spec.timescale).saturating_sub(millis(a.dts, t.spec.timescale))
+                }
                 _ => 0,
             };
             if video {
@@ -135,6 +147,15 @@ impl Writer {
                 span >= 1000
             }
         });
+        // And whatever the frames say, once a fragment's worth is held: a stream with no key
+        // frame, or one timestamp for all, was held in memory whole (gaps rows H10, H34).
+        let held: usize = self
+            .tracks
+            .iter()
+            .flat_map(|t| t.pending.iter())
+            .map(|p| p.data.len())
+            .sum();
+        let due = due || held >= MOST_HELD;
         if due {
             self.fragment(false)?;
         }
@@ -399,4 +420,46 @@ pub fn aac_shape(config: &[u8]) -> (u32, u16) {
     let index = usize::from(((a & 0x07) << 1) | (b >> 7));
     let channels = u16::from((b >> 3) & 0x0f);
     (RATES.get(index).copied().unwrap_or(44100), channels.max(1))
+}
+
+#[cfg(test)]
+mod held_tests {
+    use super::*;
+
+    /// A picture that never has a key frame, and timestamps that leap, still go out in
+    /// fragments as they come, a few MiB at a time: held whole, a live stream filled memory,
+    /// and `dts * 1000` overflowed (gaps rows H10, H34).
+    #[test]
+    fn a_stream_with_no_key_frame_is_written_as_it_comes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("live.mp4");
+        let spec = Spec {
+            entry: avc1(&[1, 0x64, 0, 0x1f, 0xff, 0xe0, 0, 0], 640, 360),
+            timescale: 90_000,
+            video: true,
+            width: 640,
+            height: 360,
+        };
+        let mut writer = Writer::create(&path, vec![spec]).unwrap();
+        let frame = vec![0u8; 64 * 1024];
+        for n in 0..400i64 {
+            // The same time for every frame, then a leap near the end of the line.
+            let dts = if n < 300 { 0 } else { i64::MAX / 2 + n };
+            writer
+                .push(0, frame.clone(), dts, 0, false, Some(3000))
+                .unwrap();
+        }
+        let held: usize = writer
+            .tracks
+            .iter()
+            .flat_map(|t| t.pending.iter())
+            .map(|p| p.data.len())
+            .sum();
+        assert!(held <= MOST_HELD, "{held} bytes held");
+        assert!(
+            writer.written > 16 << 20,
+            "only {} bytes written",
+            writer.written
+        );
+    }
 }
