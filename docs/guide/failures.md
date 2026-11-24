@@ -185,6 +185,13 @@ it made of a finished archive:
 
 ## The connection
 
+- `dm met something in this download it did not expect and stopped it (…)`
+  What the server, the file or a peer sent made dm's reader stop, rather
+  than go on with something it could not read (a `.torrent` that claims
+  pieces of no length, for one). The words in brackets say where. Nothing
+  else is affected. It is not something you did: report it with **Copy
+  details** (Help › Contact support), and try the download from another
+  source.
 - `the connection ended after … of … bytes`
   The connection dropped before its part was complete. dm tries again by
   itself, from where it stopped; you see this when the attempts ran out.
