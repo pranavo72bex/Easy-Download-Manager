@@ -8869,3 +8869,14 @@ K7 asked for "the speed eased". The figure is already smoothed where it is count
 second. Rolling its digits between those steps as well was dropped: a number whose digits change
 many times a second is harder to read than one that changes once, and it would draw frames for
 every running row. The bar's glide carries the sense of motion instead.
+
+## The end of a download: asked again, not raced (gaps row K1), 2026-11-24
+
+The row proposed a race: an idle connection asking for the same bytes as a slow last range, the
+first to finish written. Measured first (`bench/` `tailstall`), the cost was a stalled range the
+others waited out whole, because their tasks end once nothing is left to halve and the stall
+window judges a connection only beside others still fetching. Dropping the quiet last connection
+and asking for its range again (`helping::holds_the_end`) took the case from 23.5 s to 5.0 s with
+one more request and no bytes fetched twice, so the race, with its two writers on one range and
+its counting of bytes twice, was not built. It stays the next step if a server is seen that
+answers a range again just as slowly.

@@ -20,6 +20,7 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use axum::routing::get;
 use dm_core::{client, download};
+use futures_util::StreamExt;
 
 use common::{options, serve, tempdir};
 
@@ -150,4 +151,75 @@ async fn a_range_whose_answer_is_on_its_way_is_not_halved_for_it() {
         "a range waiting for its answer was halved: {fetched:?}"
     );
     assert!(fetched.contains(&(third, 3 * MB - 1)), "{fetched:?}");
+}
+
+/// A server of `data` whose first answer to reach the file's last byte sends its first 16 KiB,
+/// then nothing for 20 s, its connection left open; every other answer at once.
+async fn stalling_at_the_end(data: Arc<Vec<u8>>) -> String {
+    let stalled = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |headers: HeaderMap| {
+            let (data, stalled) = (data.clone(), stalled.clone());
+            async move {
+                let total = data.len();
+                let (a, b) = closed(&headers, total).unwrap_or((0, total - 1));
+                let stall = a > 0
+                    && b == total - 1
+                    && !stalled.swap(true, std::sync::atomic::Ordering::SeqCst);
+                let chunks: Vec<bytes::Bytes> = data[a..=b]
+                    .chunks(16 * 1024)
+                    .map(bytes::Bytes::copy_from_slice)
+                    .collect();
+                let sent = std::sync::atomic::AtomicUsize::new(a);
+                let stream = futures_util::stream::iter(chunks).then(move |chunk| {
+                    let at = sent.fetch_add(chunk.len(), std::sync::atomic::Ordering::SeqCst);
+                    async move {
+                        if stall && at > a {
+                            tokio::time::sleep(Duration::from_secs(20)).await;
+                        }
+                        Ok::<_, std::io::Error>(chunk)
+                    }
+                });
+                Response::builder()
+                    .status(206)
+                    .header("accept-ranges", "bytes")
+                    .header("etag", "\"h\"")
+                    .header("content-range", format!("bytes {a}-{b}/{total}"))
+                    .header("content-length", b - a + 1)
+                    .body(Body::from_stream(stream))
+                    .unwrap()
+            }
+        }),
+    );
+    format!("http://{}/f.bin", serve(app).await)
+}
+
+/// The last connection still fetching goes quiet while the others have ended: it is dropped
+/// and its range asked again within moments, not waited on for the stall window's 5 s or the
+/// server's 20 (gaps row K1).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_range_stalled_at_the_end_is_asked_again_within_moments() {
+    let data = body(4 * MB);
+    let url = stalling_at_the_end(data.clone()).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let began = std::time::Instant::now();
+    let done = download(&client(), &url, &opts)
+        .await
+        .expect("the download failed");
+    let took = began.elapsed();
+    assert!(
+        std::fs::read(&done.path).unwrap() == *data,
+        "not the file served"
+    );
+    // It stalled: the others did wait on it, a moment.
+    assert!(took > Duration::from_secs(1), "nothing stalled: {took:?}");
+    assert!(
+        took < dm_test_support::load::allowing_for_load(Duration::from_millis(4_000)),
+        "the others waited on the stalled range: {took:?}"
+    );
 }

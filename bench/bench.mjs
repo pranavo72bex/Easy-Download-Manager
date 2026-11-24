@@ -233,6 +233,11 @@ const handle = (req, res) => {
       }
       want = Math.min(want, conn.pieceLeft);
     }
+    // `tailstall`: the first answer to send once `at` of the file is served stops for `ms`.
+    if (sc.tailStall && !run.tailStalled && entry.sent > 0 && run.served >= sc.tailStall.at * size) {
+      run.tailStalled = true;
+      return setTimeout(send, sc.tailStall.ms);
+    }
     const k = take(want);
     if (k === 0) return setTimeout(send, 4);
     const ok = res.write(file.data.subarray(at, at + k));
@@ -657,6 +662,10 @@ const SC = {
   slowconn:  { size: 32 * MiB, crawl: [3, 128000], label: '32 MiB, one connection in three crawls at 128 KB/s', reps: REFC_REPS, timeoutMs: 300000 },
   maxconns:  { size: 50 * MiB, perConn: 2000000, maxConns: 2, label: '50 MiB, the server allows 2 connections (503 past them), 2 MB/s each', reps: REFC_REPS, timeoutMs: 300000 },
   drops:     { size: 50 * MiB, perConn: 4000000, cutEvery: [2, 2 * MiB], label: '50 MiB, every 2nd connection cut after 2 MiB, 4 MB/s each', reps: REFC_REPS, timeoutMs: 300000 },
+  // Added for gaps row K1, dm alone, no baseline: once nine tenths of the file is served, one
+  // answer under way stops sending for 20 s, its connection left open, as a server that stalls one
+  // range near the end. What it measures is how long the others wait on it.
+  tailstall: { size: 64 * MiB, perConn: 2 * MiB, tailStall: { at: 0.9, ms: 20000 }, label: '64 MiB, each connection 2 MiB/s, one answer stalled 20 s once 90% is served', reps: Number(process.env.BENCH_REPS || 3), timeoutMs: 120000 },
   small256k: { size: 256 * 1024, label: '256 KiB file over a fast local link', reps: REFC_REPS, timeoutMs: 60000 },
 };
 const REFC = ['fast1g', 'capped', 'latency', 'slowconn', 'maxconns', 'drops', 'small256k'];

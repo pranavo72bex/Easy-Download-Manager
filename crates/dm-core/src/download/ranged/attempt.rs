@@ -99,6 +99,8 @@ struct Reading<'a> {
     /// Counted among the requests bringing bytes in from its first byte.
     flowing: Option<retry::Bringing<'a>>,
     window: Window,
+    /// When it last brought bytes, or began (`helping::holds_the_end`).
+    quiet_since: tokio::time::Instant,
     reader: Reader,
     lead_buf: Vec<u8>,
     want_lead: bool,
@@ -212,6 +214,7 @@ pub(in crate::download) async fn attempt_segment(
         draining,
         flowing,
         window,
+        quiet_since: tokio::time::Instant::now(),
         reader,
         lead_buf,
         want_lead,

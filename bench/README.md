@@ -106,6 +106,7 @@ baseline's `harness` and `scenarios`.
 | `wan` | 32 MiB over an 80 ms line, 20 Mbit/s in all, over TLS | the line | 13.4 s; no baseline yet |
 | `lossy` | 32 MiB over the same line (plain HTTP), 1% of 16 KiB pieces stalled 250 ms | the line | 13.4 s; no baseline yet |
 | `slowname` | 64 MiB, each connection 1 MiB/s and cut after 1 to 4 MiB, under a name each lookup of which takes 300 ms | the caps and the name | 8.3 s; no baseline yet |
+| `tailstall` | 64 MiB, each connection 2 MiB/s; once 90% is served, one answer under way sends nothing for 20 s, its connection left open (gaps row K1) | the caps, and how soon the stall is seen | 4 s on 8 connections; no baseline yet. dm on the M1, 2026-11-24: 23.5 s before K1, 5.0 s after |
 
 ## The line cases: `wan` and `lossy`
 

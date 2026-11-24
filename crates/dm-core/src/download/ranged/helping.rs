@@ -245,6 +245,26 @@ impl Window {
     }
 }
 
+/// How long the last connection still fetching may bring nothing, once another range ended
+/// after its last byte, before it is dropped and its range asked again (gaps row K1).
+pub(in crate::download) const END_QUIET: Duration = Duration::from_millis(1500);
+
+/// How often a quiet connection looks again whether it holds the end.
+pub(in crate::download) const END_LOOK: Duration = Duration::from_millis(500);
+
+/// Whether a connection quiet since `quiet_since` holds up the end of the download: it is the
+/// only one with bytes still to come, another range ended while it brought nothing, and it has
+/// been quiet for [`END_QUIET`]. The others' tasks have ended with nothing left to halve, so
+/// without this they waited the whole [`STALL_WINDOW`] on it. Never under a limit of dm's own,
+/// nor for a download of one connection (no other range ends).
+pub(in crate::download) fn holds_the_end(quiet_since: tokio::time::Instant, job: &Job) -> bool {
+    if job.limiter.is_limited() || quiet_since.elapsed() < END_QUIET {
+        return false;
+    }
+    let ended_since = crate::lock(&job.last_ended).is_some_and(|ended| ended > quiet_since);
+    ended_since && fetching(job) == 1
+}
+
 /// How many ranges have a connection on them with bytes still to come.
 fn fetching(job: &Job) -> usize {
     job.live

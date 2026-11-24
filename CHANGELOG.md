@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A download whose last part stalls on the server no longer waits it out: that part is asked for again within moments (one test case went from 23.5 s to 5 s).
 - A download that finishes fills its bar and lets it fade, instead of the bar vanishing at once.
 - Options › Advanced › Network: a third network can be chosen beside the second; each download's connections are shared among all of them.
 - Options › Advanced › Network: the second network (a phone's data, say) can have a speed limit of its own.

@@ -117,6 +117,18 @@ impl Reading<'_> {
     /// A connection far slower than the rest dropped, to be asked again.
     async fn judge_window(&mut self) -> Result<(), Error> {
         let (job, index) = (self.job, self.index);
+        // The last one still fetching, quiet while the others ended: dropped and asked again
+        // at once, rather than the others waiting out the window on it (gaps row K1).
+        if job.attempts[index].load(Ordering::Relaxed) <= 2
+            && super::helping::holds_the_end(self.quiet_since, job)
+        {
+            self.file.flush().await?;
+            put(&mut self.ledger, self.written).await?;
+            return Err(Error::Incomplete {
+                got: self.written,
+                expected: self.span_now,
+            });
+        }
         // A connection far slower than the rest is dropped and asked again,
         // rather than held to the read timeout while the others finish.
         if self.window.over() {
@@ -150,12 +162,18 @@ impl Reading<'_> {
                 // ledger's quarter second: a server that goes quiet does not
                 // keep what it sent in the write buffer, off the disk a preview
                 // reads and past the ledger a crash goes back to.
+                // Woken once it has been quiet long enough to be judged as holding the end,
+                // then twice a second while it stays quiet, as the others may end meanwhile.
+                let now = tokio::time::Instant::now();
+                let judged_at = (self.quiet_since + super::helping::END_QUIET)
+                    .max(now + super::helping::END_LOOK);
+                let ends = self.window.ends().min(judged_at);
                 let until = if self.written > self.recorded {
-                    self.window.ends().min(tokio::time::Instant::from_std(
+                    ends.min(tokio::time::Instant::from_std(
                         self.recorded_at + LEDGER_EVERY_TIME,
                     ))
                 } else {
-                    self.window.ends()
+                    ends
                 };
                 match tokio::time::timeout_at(
                     until,
@@ -285,6 +303,7 @@ impl Reading<'_> {
         as_slow_as_the_disk(chunk.len() as u64).await;
         self.file.write_all(&chunk).await?;
         self.written += chunk.len() as u64;
+        self.quiet_since = tokio::time::Instant::now();
         if self.draining.is_some() {
             self.drained += chunk.len() as u64;
         }
