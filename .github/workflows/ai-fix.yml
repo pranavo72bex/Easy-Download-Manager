@@ -108,7 +108,8 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           KILO_MODEL: ${{ vars.KILO_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free' }}
         run: |
-          set -uo pipefail
+          # Not -e (GitHub's default): an agent that fails must not stop the next one.
+          set +e -uo pipefail
           prompt=$(cat .bot/prompt.md)
           base_env=(env -i "HOME=$HOME" "PATH=$PATH" TERM=dumb CI=true CARGO_TERM_COLOR=never)
 
@@ -156,7 +157,8 @@ jobs:
                 if [ -z "$GEMINI_API_KEY" ]; then report+="- gemini: no GEMINI_API_KEY secret, skipped"$'\n'; continue; fi
                 model_args=()
                 if [ -n "$GEMINI_MODEL" ]; then model_args=(--model "$GEMINI_MODEL"); fi
-                run=("${base_env[@]}" "GEMINI_API_KEY=$GEMINI_API_KEY" gemini --yolo "${model_args[@]}" --prompt "$prompt") ;;
+                # A headless run trusts the checkout only when told to.
+                run=("${base_env[@]}" "GEMINI_API_KEY=$GEMINI_API_KEY" GEMINI_CLI_TRUST_WORKSPACE=true gemini --yolo "${model_args[@]}" --prompt "$prompt") ;;
               kilo)
                 run=("${base_env[@]}" "OPENCODE_CONFIG_CONTENT=$kilo_config"
                      opencode run --print-logs --auto --model "kilo/$KILO_MODEL" "$prompt") ;;
