@@ -150,7 +150,7 @@ fn tab_drawn(
         )
         .child(
             div()
-                .text_size(px(12.0))
+                .text_size(px(crate::widgets::native::CAPTION_TEXT))
                 .text_color(colour)
                 .when(lit, |d| d.font_weight(gpui::FontWeight::SEMIBOLD))
                 .child(screen.label(SharedString::from(words))),

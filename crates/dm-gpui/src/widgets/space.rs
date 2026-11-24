@@ -30,6 +30,9 @@ pub const XXL: f32 = 20.0;
 /// Twenty-four points.
 pub const XXXL: f32 = 24.0;
 
+/// Forty points: room above an empty list's words, a section set apart.
+pub const SECTION: f32 = 40.0;
+
 /// Forty-eight points: a finger's least target at a phone's width (gaps row N7), as phones'
 /// own guidelines ask (44 to 48).
 pub const TOUCH: f32 = 48.0;
@@ -43,3 +46,79 @@ pub const CORNER_S: f32 = 4.0;
 pub const CORNER_M: f32 = 6.0;
 /// A popup's corners.
 pub const CORNER_L: f32 = 8.0;
+
+#[cfg(test)]
+mod tests {
+    /// No text size, gap, padding or margin is written as a bare number outside `widgets/` and
+    /// the theme: each is a step of this scale or of the type ramp (`native::TEXT` and the
+    /// sizes beside it), so a step changed there moves every place (gaps row V13). A control's
+    /// own width or height may stay beside it.
+    #[test]
+    fn no_bare_size_outside_the_widgets() {
+        let sizes = [
+            "text_size",
+            "gap",
+            "gap_x",
+            "gap_y",
+            "p",
+            "px",
+            "py",
+            "pt",
+            "pb",
+            "pl",
+            "pr",
+            "m",
+            "mx",
+            "my",
+            "mt",
+            "mb",
+            "ml",
+            "mr",
+        ];
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut bare = Vec::new();
+        let mut folders = vec![src.clone()];
+        while let Some(folder) = folders.pop() {
+            for entry in std::fs::read_dir(&folder).unwrap().flatten() {
+                let path = entry.path();
+                let rel = path
+                    .strip_prefix(&src)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if rel.starts_with("widgets") || rel.starts_with("window/theme") {
+                    continue;
+                }
+                if path.is_dir() {
+                    folders.push(path);
+                    continue;
+                }
+                if path.extension().is_none_or(|e| e != "rs") {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).unwrap();
+                for (n, line) in text.lines().enumerate() {
+                    for size in sizes {
+                        let call = format!(".{size}(px(");
+                        let Some(at) = line.find(&call) else { continue };
+                        let rest = &line[at + call.len()..];
+                        let number: String = rest
+                            .chars()
+                            .take_while(|c| c.is_ascii_digit() || *c == '.')
+                            .collect();
+                        let bare_number =
+                            !number.is_empty() && rest[number.len()..].starts_with(')');
+                        if bare_number && !number.trim_end_matches(['0', '.']).is_empty() {
+                            bare.push(format!("{rel}:{}: {}", n + 1, line.trim()));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            bare.is_empty(),
+            "bare sizes; name them in space.rs or native.rs:\n{}",
+            bare.join("\n")
+        );
+    }
+}

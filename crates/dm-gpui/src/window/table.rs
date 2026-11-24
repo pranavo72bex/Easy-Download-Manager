@@ -490,12 +490,12 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
         .flex()
         .flex_col()
         .items_center()
-        .pt(px(40.0))
+        .pt(px(space::SECTION))
         .px(px(crate::widgets::native::MARGIN))
         .gap(px(space::XS))
         .child(
             div()
-                .text_size(px(16.0))
+                .text_size(px(crate::widgets::native::SUBTITLE_TEXT))
                 .child(screen.label(SharedString::from(heading))),
         )
         .child(

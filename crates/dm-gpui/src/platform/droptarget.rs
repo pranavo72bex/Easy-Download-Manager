@@ -104,7 +104,7 @@ impl Render for DropTarget {
             .aria_label(SharedString::from(t("Drop target")))
             .track_focus(&self.focus)
             .size_full()
-            .p(px(3.0))
+            .p(px(crate::widgets::space::XS))
             .on_action(cx.listener(|this, _: &ShowDm, _, cx| this.show_dm(cx)))
             .on_action(cx.listener(|this, _: &HideDropTarget, _, cx| this.hide(cx)))
             // Dragged by any part of it, as a person moves a small window.

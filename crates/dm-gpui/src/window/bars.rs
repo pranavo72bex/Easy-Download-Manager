@@ -86,7 +86,7 @@ fn mark(tone: Tone, theme: Theme) -> gpui::Div {
         .flex()
         .items_center()
         .justify_center()
-        .text_size(px(11.0))
+        .text_size(px(crate::widgets::native::MARK_TEXT))
         .font_weight(gpui::FontWeight::BOLD)
         .text_color(colour)
         .child(tone.letter())

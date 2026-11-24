@@ -161,6 +161,15 @@ pub const TEXT: f32 = on_a_phone(15.0, pick(13.0, 14.0, 14.0));
 /// The small system font's size: what is said under a control, a dialog's
 /// informative text (macOS's `smallSystemFontSize`, WinUI's caption).
 pub const SMALL_TEXT: f32 = on_a_phone(13.0, pick(11.0, 12.0, 12.0));
+/// The type ramp beyond the body and small sizes (gaps row V13), named once so a size changed
+/// here moves every place that uses it: a letter or mark inside a small round badge,
+pub const MARK_TEXT: f32 = 10.0;
+/// a label under a phone's navigation icon (Material's label size),
+pub const CAPTION_TEXT: f32 = 12.0;
+/// a heading of its own over a few lines (an empty list's),
+pub const SUBTITLE_TEXT: f32 = 16.0;
+/// and a window's one title (About's name).
+pub const TITLE_TEXT: f32 = 20.0;
 /// A regular control's height: a text field, a push button, a pop-up.
 pub const CONTROL: f32 = on_a_phone(44.0, pick(24.0, 32.0, 34.0));
 /// From the window's edges to what it holds.

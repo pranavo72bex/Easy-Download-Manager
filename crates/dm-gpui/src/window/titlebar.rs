@@ -488,7 +488,7 @@ fn search_box(
                     .justify_center()
                     .bg(theme.muted)
                     .text_color(theme.window)
-                    .text_size(px(10.0))
+                    .text_size(px(native::MARK_TEXT))
                     .child(screen.label("✕"))
                     .on_click(cx.listener(|view, _, window, cx| {
                         view.clear_filter(window, cx);
@@ -512,7 +512,7 @@ fn menu_title(
         .role(Role::MenuItem)
         .aria_label(name.clone())
         .h(px(24.0))
-        .px(px(7.0))
+        .px(px(space::M))
         .flex()
         .items_center()
         .rounded(px(native::RADIUS))

@@ -102,7 +102,7 @@ impl Render for About {
                     .items_center()
                     .child(
                         div()
-                            .text_size(px(20.0))
+                            .text_size(px(crate::widgets::native::TITLE_TEXT))
                             .font_weight(gpui::FontWeight::BOLD)
                             .child(screen.label("dm")),
                     )
