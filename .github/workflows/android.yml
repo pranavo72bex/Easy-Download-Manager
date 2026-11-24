@@ -204,6 +204,9 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: write
+      # Build attestations (gaps row H29).
+      id-token: write
+      attestations: write
     env:
       DM_ANDROID_KEYSTORE: ${{ secrets.DM_ANDROID_KEYSTORE }}
       DM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.DM_ANDROID_KEYSTORE_PASSWORD }}
@@ -257,6 +260,9 @@ jobs:
         run: |
           export RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/dm --remap-path-prefix=$HOME/.cargo=/cargo"
           cargo ndk --platform 29 -t arm64-v8a -t armeabi-v7a -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
+      # Each library with the system's protections, read from its headers (gaps row H13).
+      - name: The libraries' protections
+        run: cargo xtask hardening-check crates/dm-android/android/app/src/main/jniLibs/*/libdm_android.so
       - name: Android 15's platform and build tools
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
@@ -292,6 +298,10 @@ jobs:
       - name: The release APK
         working-directory: crates/dm-android/android
         run: gradle --no-daemon assembleRelease -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION" "-Pdm.abis=arm64-v8a,armeabi-v7a,x86_64"
+      # The release's merged manifest asks for and opens nothing the kept list does not say,
+      # and is not debuggable (gaps row H17, tooling/xtask/src/android_manifest.rs).
+      - name: The release manifest is the kept one
+        run: cargo xtask android-manifest crates/dm-android/android/app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml
       # Signed, apksigner checks the signature and prints the key's digest, the one people
       # compare (docs/android.md). The APK's SHA-256 goes beside it.
       - name: Named, checked, its SHA-256
@@ -309,6 +319,13 @@ jobs:
               *-unsigned.apk) name="dm-$VERSION-$abi-unsigned.apk" ;;
               *)
                 apksigner verify --verbose --print-certs "$apk"
+                # dm's key and no other (gaps row H22): the digest the README gives people.
+                digest="$(apksigner verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+                if ! grep -q "$digest" "$GITHUB_WORKSPACE/README.md" || [ -z "$digest" ]; then
+                  echo "::error::$apk is signed by a certificate whose SHA-256 ($digest) is not the README's"
+                  exit 1
+                fi
+                echo "DM_CERT_SHA256=$digest" >> "$GITHUB_ENV"
                 name="dm-$VERSION-$abi.apk"
                 ;;
             esac
@@ -319,6 +336,14 @@ jobs:
             sha256sum "$apk" > "$apk.sha256"
             cat "$apk.sha256"
           done
+      # A signed record of which commit and workflow built each file (gaps row H29), kept by
+      # GitHub: `gh attestation verify <file> --repo pranavo72bex/Easy-Download-Manager`
+      # (docs/RELEASING.md).
+      - name: Attest how each file was built
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*.apk
+
       - name: Publish
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
@@ -332,6 +357,10 @@ jobs:
             Android 10 (API 29) and up. Check it with
             `sha256sum -c dm-${{ env.VERSION }}.apk.sha256`, then open it on the phone and allow
             installing from this source.
+
+            Signed with dm's key, whose certificate's SHA-256 is
+            `${{ env.DM_CERT_SHA256 }}`: check it with `apksigner verify --print-certs` before
+            installing (the README's "Is this APK dm's own?").
 
             An APK named `-unsigned` is not signed with dm's key yet; Android will not install
             it as it is.

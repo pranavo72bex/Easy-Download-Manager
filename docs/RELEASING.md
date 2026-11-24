@@ -169,6 +169,21 @@ openssl pkeyutl -verify -pubin -keyform DER -inkey dm-key.der -rawin   -in SHA25
 (the hex is the fixed DER prefix of an Ed25519 public key; the 32 bytes of
 the key follow it).
 
+### Which commit and workflow built a file
+
+Each release job (`desktop.yml`'s installers, `release.yml`'s extension zips and signed
+Firefox file, `android.yml`'s APKs) records a build attestation for every file it publishes
+(gaps row H29): GitHub signs a statement of the file's SHA-256, the commit and the workflow
+run that made it, and keeps it with the repository. To check one, with the GitHub CLI:
+
+```sh
+gh attestation verify dm-0.10.4-arm64-v8a.apk --repo pranavo72bex/Easy-Download-Manager
+```
+
+It fails for a file no release job of this repository built. Together with `crates.txt`
+(what the build was made from) and `SHA256SUMS.sig` (that the files are the ones published),
+this says where a download came from, without trusting the page it was downloaded from.
+
 ### Building the same bytes
 
 What fixes a build, and how to repeat the release job's:

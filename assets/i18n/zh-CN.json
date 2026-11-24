@@ -1035,5 +1035,12 @@
  "Tapping a download": "点按下载项时",
  "Folders by kind": "按类型分的文件夹",
  "Kept in dm's settings file on this phone, where only dm can read it.": "保存在此手机上 dm 的设置文件中，只有 dm 能读取。",
- "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "手机电量低于此水平时下载会等待，充电或电量回到此水平以上后继续。"
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "手机电量低于此水平时下载会等待，充电或电量回到此水平以上后继续。",
+ "Complete · not what its name says: {}": "完成 · 与文件名不符：{}",
+ "a Windows program": "Windows 程序",
+ "a Linux program": "Linux 程序",
+ "a macOS program": "macOS 程序",
+ "an Android app's code": "Android 应用的代码",
+ "a script": "脚本",
+ "a program": "程序"
 }

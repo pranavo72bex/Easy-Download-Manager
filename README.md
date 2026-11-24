@@ -216,6 +216,17 @@ allow it, and tap **Install**.
 Each APK has a `.sha256` file beside it with its checksum, and every APK is
 signed with the same key, so a new version installs over the old one and keeps
 your list. Building it yourself: [docs/android.md](docs/android.md).
+
+**Is this APK dm's own?** Its signing certificate's SHA-256 is
+
+```
+f8:ad:24:17:39:50:d8:8c:bf:1c:df:83:05:f0:44:9f:ed:53:f3:ed:94:e9:0a:ed:8e:b8:56:0e:26:28:29:9f
+```
+
+Check it with Android's `apksigner` (in the SDK's build tools) before installing:
+`apksigner verify --print-certs dm-….apk`, whose "certificate SHA-256 digest" must
+read `f8ad24173950d88cbf1cdf8305f0449fed53f3ed94e90aed8eb8560e2628299f`. Any other
+value is not dm's.
 <br clear="right">
 
 ## Install
@@ -797,6 +808,7 @@ for the ones carried here with changes.
 - [Translating dm](docs/guide/translating.md): mend a language, read one, or start a new one
 - [The open work list](docs/gaps.md)
 - [Privacy](PRIVACY.md)
+- [What dm protects you from](docs/guide/security.md): each guard and the test that holds it
 
 ## For developers
 

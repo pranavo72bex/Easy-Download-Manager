@@ -127,6 +127,7 @@ pub async fn download_ftp(
     let (path, bytes, category) = crate::download::finish(&name, None, &parts, options).await?;
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: workers,
@@ -143,6 +144,7 @@ async fn placed_empty(name: &str, options: &Options) -> Result<Finished, Error> 
     let (path, bytes, category) = crate::download::finish(name, None, &[part], options).await?;
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: 1,

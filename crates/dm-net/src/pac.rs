@@ -17,6 +17,9 @@
 
 use crate::proxy::Kind;
 
+/// The most a proxy script fetched from an address may be: far above a real one.
+const PAC_MOST: usize = 4 * 1024 * 1024;
+
 /// One way a script says a download may go.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Hop {
@@ -342,11 +345,10 @@ async fn text_of(address: &str) -> Result<String, String> {
                     crate::error::network(&e)
                 )
             })?;
-        reply
-            .bytes()
+        // A proxy script is a few kilobytes; one without end is not read whole (gaps row H14).
+        crate::body::at_most(reply, PAC_MOST)
             .await
             .map_err(|e| format!("the proxy script could not be fetched: {e}"))?
-            .to_vec()
     } else {
         let path = match url::Url::parse(trimmed) {
             Ok(u) if u.scheme() == "file" => u

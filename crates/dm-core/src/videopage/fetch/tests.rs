@@ -186,3 +186,25 @@ fn an_agent_is_kept_once() {
     let b = interned(&String::from("Agent/7 (test)"));
     assert!(std::ptr::eq(a, b));
 }
+
+/// A file name that steps out of the staging folder (`..`) is not a plan, though it begins
+/// with the folder (gaps row H14: `starts_with` let it through).
+#[test]
+fn a_name_that_steps_out_of_the_staging_folder_is_not_a_plan() {
+    let formats = r#""requested_formats": [
+              {"format_id": "137", "ext": "mp4", "protocol": "https",
+               "url": "https://cdn.example/v?itag=137", "http_headers": {}}]"#;
+    for name in ["/s/../etc/Talk [abc].mp4", "/s/a/../../Talk [abc].mp4"] {
+        let r = read(&format!(
+            r#"{{"filename": "{name}", "ext": "mp4", {formats}}}"#
+        ));
+        assert!(r.plan(Path::new("/s")).is_none(), "{name} was planned");
+    }
+    let r = read(&format!(
+        r#"{{"filename": "/s/sub/Talk.mp4", "ext": "mp4", {formats}}}"#
+    ));
+    assert!(
+        r.plan(Path::new("/s")).is_some(),
+        "a name in a folder under it was refused"
+    );
+}

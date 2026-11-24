@@ -196,14 +196,20 @@ impl DownloadList {
         // computer (2026-11-03), during which the lock would hold every
         // other look at the queue, the window's included. Still before the row
         // says Completed, so a file is never opened unmarked.
-        if let Ok(finished) = &outcome {
+        // Its first bytes read on the same thread: a program named as a picture or a document
+        // is said on its row (gaps row H2).
+        let mut outcome = outcome;
+        if let Ok(finished) = &mut outcome {
             let path = finished.path.clone();
             let from = url.to_owned();
             let referrer = options.referrer.clone().unwrap_or_default();
-            let _ = tokio::task::spawn_blocking(move || {
+            finished.disguised = tokio::task::spawn_blocking(move || {
                 crate::motw::mark(&path, &from, &referrer);
+                crate::disguise::of_file(&path)
             })
-            .await;
+            .await
+            .ok()
+            .flatten();
         }
         // On a phone, a file finished in the app's own folder is put in the shared Download
         // folder (gaps row N9), before the row says Completed, so the row names it there.
@@ -305,6 +311,7 @@ impl DownloadList {
                 slot.entry_mut().path = finished.path.to_string_lossy().into_owned();
                 slot.entry_mut().category = Some(finished.category);
                 slot.entry_mut().verified = finished.verified;
+                slot.entry_mut().disguised = finished.disguised.map(str::to_string);
                 slot.entry_mut().mirrors = finished.mirrors;
                 slot.entry_mut().replaces = None;
                 if std::mem::take(&mut slot.entry_mut().cookies_once) {

@@ -13,6 +13,9 @@ on:
 
 permissions:
   contents: write
+  # Build attestations (gaps row H29).
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -88,6 +91,20 @@ jobs:
           # Mozilla names the file after the add-on; named as the README says.
           for x in dist/signed/*.xpi; do mv "$x" "dist/signed/dm-firefox-${GITHUB_REF_NAME#v}.xpi"; done
           ls dist/signed
+
+      # A signed record of which commit and workflow built each file (gaps row H29), kept by
+      # GitHub: `gh attestation verify <file> --repo pranavo72bex/Easy-Download-Manager`
+      # (docs/RELEASING.md).
+      - name: Attest how each file was built
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*.zip
+      # Mozilla's signing may have failed without stopping the release: only a file it made.
+      - name: Attest how the Firefox file was built
+        if: hashFiles('dist/signed/*.xpi') != ''
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/signed/*.xpi
 
       - name: Publish
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4

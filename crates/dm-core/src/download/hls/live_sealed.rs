@@ -102,6 +102,7 @@ pub(super) async fn place(
     let (path, bytes, category) = finish(&name, None, &[out], &placing).await?;
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: 1,

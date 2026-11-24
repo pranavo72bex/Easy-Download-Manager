@@ -36,7 +36,6 @@ impl Downloads {
         let menu = gpui::Menu {
             // Headed by the place's name, as a card's sheet by the download's.
             name: crate::window::sidebar::place_name(self)
-                .map(Into::into)
                 .unwrap_or_else(|| t("Place menu").into()),
             items,
             disabled: false,

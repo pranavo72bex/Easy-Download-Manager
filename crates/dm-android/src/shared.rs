@@ -17,8 +17,8 @@ pub(crate) const VIEW: &str = "android.intent.action.VIEW";
 pub(crate) enum Handed {
     /// Text whose links are added (the window finds them in it, as in a dropped link).
     Text(String),
-    /// A file's `content://` or `file://` address: a `.torrent`, copied into dm's folder and
-    /// added as `file://`.
+    /// A file's `content://` address from another app: a `.torrent`, copied into dm's folder
+    /// and added as `file://`.
     File(String),
     /// Nothing for dm: the launcher's start, or an intent already taken.
     Nothing,
@@ -40,13 +40,33 @@ pub(crate) fn handed(action: Option<&str>, text: Option<&str>, data: Option<&str
                 .map(|(scheme, _)| scheme.to_ascii_lowercase())
                 .unwrap_or_default();
             match scheme.as_str() {
-                "content" | "file" => Handed::File(data.to_owned()),
+                // Never a file of dm's own: another app's `content://` alone (gaps row H16).
+                "content" if !own_provider(data) => Handed::File(data.to_owned()),
                 "magnet" | "http" | "https" | "ftp" => Handed::Text(data.to_owned()),
+                // Not a `file://` address (gaps row H16): Android 7 and up refuse to hand one
+                // between apps, so only an app reaching for a path in dm's own folders, to be
+                // read with dm's rights, would send it.
                 _ => Handed::Nothing,
             }
         }
         _ => Handed::Nothing,
     }
+}
+
+/// dm's own package, the start of any content authority of its own.
+const OWN_PACKAGE: &str = "com.dm.android";
+
+/// Whether `content` names a provider of dm's own (`content://com.dm.android…/`): what dm
+/// keeps for itself is not read back as something another app shared.
+fn own_provider(content: &str) -> bool {
+    let rest = content
+        .split_once("://")
+        .map_or("", |(_, rest)| rest)
+        .to_ascii_lowercase();
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    // An authority may carry a user part (`x@host`); the host is what names the provider.
+    let host = authority.rsplit('@').next().unwrap_or("");
+    host == OWN_PACKAGE || host.starts_with(&format!("{OWN_PACKAGE}."))
 }
 
 /// The name a shared `.torrent` is kept under in dm's folder: the name the sending app gave
@@ -99,9 +119,27 @@ mod tests {
             handed(Some(VIEW), None, Some("content://downloads/1")),
             Handed::File("content://downloads/1".into())
         );
+        // Not a `file://` address, nor a provider of dm's own (gaps row H16).
+        for refused in [
+            "FILE:///sdcard/a.torrent",
+            "file:///data/data/com.dm.android/files/settings.json",
+            "content://com.dm.android.files/home/settings.json",
+            "content://COM.DM.ANDROID/x.torrent",
+            "content://evil@com.dm.android.provider/x.torrent",
+        ] {
+            assert_eq!(
+                handed(Some(VIEW), None, Some(refused)),
+                Handed::Nothing,
+                "{refused}"
+            );
+        }
         assert_eq!(
-            handed(Some(VIEW), None, Some("FILE:///sdcard/a.torrent")),
-            Handed::File("FILE:///sdcard/a.torrent".into())
+            handed(
+                Some(VIEW),
+                None,
+                Some("content://com.dm.androidx.files/a.torrent")
+            ),
+            Handed::File("content://com.dm.androidx.files/a.torrent".into())
         );
         assert_eq!(handed(Some(VIEW), None, Some("tel:123")), Handed::Nothing);
         assert_eq!(

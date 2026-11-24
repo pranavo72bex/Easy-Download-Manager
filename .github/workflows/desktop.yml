@@ -366,6 +366,16 @@ jobs:
           # A cross build is held to its own system's size, not the runner's.
           "$py" scripts/binary-size.py "$binary" ${{ matrix.size-key && format('--as={0}', matrix.size-key) || '' }} | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # The system's protections, read from the binary's own headers (gaps row H13):
+      # position-independent, read-only relocations, nothing writable and runnable,
+      # Control Flow Guard on Windows, the hardened runtime where macOS signs by identity.
+      - name: The binary's protections
+        shell: bash
+        run: |
+          binary="$OUT/${{ matrix.crate }}"
+          if [ "$RUNNER_OS" = Windows ]; then binary="$binary.exe"; fi
+          cargo xtask hardening-check "$binary"
+
       # Fedora, openSUSE and their kin: the same binary, laid out as the
       # Arch package is (packaging/nfpm.yaml).
       - name: The rpm
@@ -592,6 +602,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/desktop-v')
     permissions:
       contents: write
+      # Build attestations (gaps row H29).
+      id-token: write
+      attestations: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -667,6 +680,14 @@ jobs:
           fi
           cargo xtask sign-release installers
           cargo xtask verify-release installers
+
+      # A signed record of which commit and workflow built each file (gaps row H29), kept by
+      # GitHub: `gh attestation verify <file> --repo pranavo72bex/Easy-Download-Manager`
+      # (docs/RELEASING.md).
+      - name: Attest how each file was built
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: installers/*
 
       - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:

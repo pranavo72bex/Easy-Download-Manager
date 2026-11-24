@@ -78,13 +78,13 @@
                 <data android:scheme="magnet" />
             </intent-filter>
 
-            <!-- A .torrent opened from Files, a browser's downloads or a mail, by its type. -->
+            <!-- A .torrent opened from Files, a browser's downloads or a mail, by its type. Only
+                 content:// (gaps row H16): Android 7 and up hand no file:// between apps. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" android:mimeType="application/x-bittorrent" />
-                <data android:scheme="file" android:mimeType="application/x-bittorrent" />
             </intent-filter>
 
             <!-- A .torrent whose type the sender did not give, by its name. A path pattern is
@@ -96,8 +96,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.torrent" />
                 <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\..*\\.torrent" />
-                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.torrent" />
-                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\..*\\.torrent" />
             </intent-filter>
         </activity>
 

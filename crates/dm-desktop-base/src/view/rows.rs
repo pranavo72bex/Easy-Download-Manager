@@ -376,6 +376,18 @@ fn paused_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
     }
 }
 
+/// `disguise::program_in`'s words, as English keys the translations know.
+fn disguise_words(kind: Option<&str>) -> &'static str {
+    match kind {
+        Some("a Windows program") => "a Windows program",
+        Some("a Linux program") => "a Linux program",
+        Some("a macOS program") => "a macOS program",
+        Some("an Android app's code") => "an Android app's code",
+        Some("a script") => "a script",
+        _ => "a program",
+    }
+}
+
 /// A finished download in words: its file missing, its time left, or its sharing; empty for
 /// one that is not finished.
 fn completed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
@@ -387,6 +399,12 @@ fn completed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String 
         State::Completed if gone(row) && row.said != dm_core::UNPACKED_AND_TRASHED => {
             words("File missing").into()
         }
+        // A program named as a picture or a document (gaps row H2): said before anything else
+        // of a finished file, as it is what to know before opening it.
+        State::Completed if row.disguised.is_some() => crate::i18n::fill(
+            words("Complete · not what its name says: {}"),
+            &[&words(disguise_words(row.disguised.as_deref()))],
+        ),
         // "Delete file after": how long the file has left before it goes
         // to the Trash, the row with it.
         State::Completed if row.delete_after.is_some() => {

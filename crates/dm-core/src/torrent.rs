@@ -467,6 +467,7 @@ pub async fn download_torrent(
 
     Ok(Finished {
         left_behind,
+        disguised: None,
         path,
         bytes,
         // A torrent has no fixed connection count; it is however many peers

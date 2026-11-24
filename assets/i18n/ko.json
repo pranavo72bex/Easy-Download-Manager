@@ -1035,5 +1035,12 @@
  "Tapping a download": "다운로드를 탭하면",
  "Folders by kind": "종류별 폴더",
  "Kept in dm's settings file on this phone, where only dm can read it.": "이 휴대전화의 dm 설정 파일에 저장되며 dm만 읽을 수 있습니다.",
- "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "휴대전화 배터리가 이 수준보다 낮으면 다운로드가 대기하고, 충전되거나 다시 이 수준을 넘으면 계속됩니다."
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "휴대전화 배터리가 이 수준보다 낮으면 다운로드가 대기하고, 충전되거나 다시 이 수준을 넘으면 계속됩니다.",
+ "Complete · not what its name says: {}": "완료 · 이름과 다른 파일: {}",
+ "a Windows program": "Windows 프로그램",
+ "a Linux program": "Linux 프로그램",
+ "a macOS program": "macOS 프로그램",
+ "an Android app's code": "Android 앱 코드",
+ "a script": "스크립트",
+ "a program": "프로그램"
 }

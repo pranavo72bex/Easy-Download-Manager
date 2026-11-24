@@ -12,7 +12,9 @@ xtask = "run --quiet -p xtask --"
 # VCRUNTIME140.dll, which a clean Windows does not have and the installer
 # does not bring: without it dm would not start there at all. The same on
 # Windows on Arm (gaps row R3), whose installer brings no runtime either.
+# Control Flow Guard (gaps row H13): an indirect call may only land where a function begins;
+# Rust leaves it off unless asked, and `cargo xtask hardening-check` fails a binary without it.
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=+crt-static", "-C", "control-flow-guard"]
 [target.aarch64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = ["-C", "target-feature=+crt-static", "-C", "control-flow-guard"]

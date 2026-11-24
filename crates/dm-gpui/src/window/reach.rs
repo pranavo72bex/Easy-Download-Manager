@@ -202,6 +202,9 @@ impl Act {
 
 /// Whether a phone has an action.
 #[cfg_attr(not(test), allow(dead_code))]
+// `PhoneOnly` says what it means beside `Shown`, `Greyed` and `Left`; the lint's rename to
+// `Only` would not.
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Phone {
     /// Drawn there, and does there what it does on a computer.

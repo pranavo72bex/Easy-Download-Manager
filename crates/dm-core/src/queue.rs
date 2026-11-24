@@ -137,6 +137,10 @@ pub struct Entry {
     /// Whether that digest was checked and matched.
     #[serde(default)]
     pub verified: bool,
+    /// What the finished file really is where its name says otherwise ("a Windows program"
+    /// for a `.jpg` that is one, gaps row H2); `None` where they agree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disguised: Option<String>,
     /// How many mirrors the bytes came from. More than one only where a
     /// Metalink named others that agreed about the file.
     #[serde(default)]

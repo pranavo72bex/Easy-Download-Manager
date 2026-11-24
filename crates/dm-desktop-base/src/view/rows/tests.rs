@@ -341,3 +341,17 @@ fn a_row_held_for_a_metered_connection_or_a_low_battery_says_why() {
     set_held_by(None);
     assert_eq!(status_in_english(&held), "Waiting for the schedule");
 }
+
+/// A finished file whose contents are a program while its name says otherwise says so on its
+/// row (gaps row H2).
+#[test]
+fn a_program_in_disguise_is_said_on_its_row() {
+    let mut done = row(State::Completed, false);
+    done.disguised = Some("a Windows program".into());
+    assert_eq!(
+        status_in_english(&done),
+        "Complete · not what its name says: a Windows program"
+    );
+    done.disguised = None;
+    assert_eq!(status_in_english(&done), "Complete");
+}

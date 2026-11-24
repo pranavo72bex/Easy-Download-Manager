@@ -8787,3 +8787,48 @@ not actions and stay with N24 and N31. Nothing was added to the phone: the audit
 - `screen::Drawn` keeps `laid` (where words were laid out) beside `bounds` (what is seen), so a
   test can tell words cut by a window's edge or a column; `words_past_the_edges` and
   `words_cut_unseen` in the harness use it.
+
+## 2026-11-24: Security's first day: overflow checks kept, bounded bodies, the phone's door (gaps rows H12, H14, H16, H17, H21, H22)
+
+- **Overflow checks in the release** for dm-core, dm-net, dm-media, dm-torrent, dm-js,
+  dm-protocol, dm-catcher and librqbit (H12): an overflowing length now stops a download with an
+  error instead of wrapping. Measured on the M1 with `bench/` (ceiling, fast, big40, per_conn,
+  flaky), the same commit built both ways: no change beyond run-to-run noise (CPU −8.6% on fast,
+  +7.2% on big40, the steady scenarios' times unchanged), so every crate that reads outside input
+  keeps them, not only the parsers. The window and dm-shell, which read dm's own state, do not.
+- **A body is read to a limit** (`dm_net::body::at_most`, H14): a stated length over the limit is
+  refused unread, an unstated one cut as it passes. The ZIP listing's and the seam check's ranges
+  are held to the bytes asked for, an MMS description and a proxy script to 4 MiB. A timer alone
+  had let a fast server fill memory before it ran out.
+- **A path judged under a folder** strips the folder and accepts only plain names after it (the
+  video page's staging check): `Path::starts_with` compares parts, so `staging/../x` passed.
+- **The phone's door** (H16): `file://` is no longer taken (Android 7 and up hand none between
+  apps; only an app pointing dm at its own files would send one), nor a `content://` address of
+  dm's own package. A burst of shares was already one add: the window takes all that arrived
+  since its last frame together. The `.torrent` read stays capped at 32 MiB.
+- **The manifest held by a check** (H17): `cargo xtask android-manifest` compares the
+  permissions, the components other apps may reach (an intent filter without `exported` counts
+  as reachable), `allowBackup` and `debuggable` with `crates/dm-android/android/manifest-kept.txt`;
+  the release job runs it on the merged release manifest. An xtask, not a dm-android test, so the
+  release job needs no Linux window libraries to run it.
+- **The lock screen** (H21): Android's own way, a public version and private visibility, so the
+  person's "hide sensitive content" is followed. Overriding a person who chose to see everything
+  is left for the maintainer's word.
+- **The APK's key** (H22): its certificate's SHA-256 in the README; the release job compares each
+  signed APK's with it and fails on a different key, so a key change cannot ship unnoticed.
+- **A program in disguise** (H2): `dm_core::disguise` reads a finished file's first 64 bytes,
+  on the thread that marks it as from the internet, and a file whose name ends as a picture,
+  sound, film, document or archive but begins as a Windows, Linux or macOS program, an Android
+  app's code or a script is kept on its row (`Entry::disguised`) and said in its status
+  ("Complete · not what its name says: a Windows program"). A name that claims nothing (no
+  ending, `.exe`, `.sh`) is left alone: it says what it is. Open's question waits for H1's word.
+- **The release's protections checked from its headers** (H13): `cargo xtask hardening-check`,
+  dm's own readers of a few ELF, PE and Mach-O fields (no third-party crate). macOS's hardened
+  runtime is asked only of a binary signed by an identity: Rust's linker signs every build ad
+  hoc, and desktop signing is set aside (the maintainer, 2026-11-21). Windows builds now carry
+  Control Flow Guard (`-C control-flow-guard`).
+- **Build attestations** (H29): `actions/attest-build-provenance`, pinned by commit, in the three
+  release jobs; checked with `gh attestation verify`. `crates.txt` stays the list of what a
+  build is made from.
+- **The security page** (H30): `docs/guide/security.md`, every guard beside the test that
+  holds it, and what dm does not guard against.

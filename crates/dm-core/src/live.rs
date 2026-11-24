@@ -218,6 +218,7 @@ async fn placed(name: &str, part: &std::path::Path, options: &Options) -> Result
         verified: options.checksum.is_some(),
         mirrors: 1,
         left_behind: None,
+        disguised: None,
     })
 }
 

@@ -1035,5 +1035,12 @@
  "Tapping a download": "Tocar una descarga",
  "Folders by kind": "Carpetas por tipo",
  "Kept in dm's settings file on this phone, where only dm can read it.": "Guardado en el archivo de configuración de dm en este teléfono, donde solo dm puede leerlo.",
- "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "Las descargas esperan mientras la batería del teléfono esté por debajo de este nivel y continúan cuando se carga o vuelve a superarlo."
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "Las descargas esperan mientras la batería del teléfono esté por debajo de este nivel y continúan cuando se carga o vuelve a superarlo.",
+ "Complete · not what its name says: {}": "Completado · no es lo que dice su nombre: {}",
+ "a Windows program": "un programa de Windows",
+ "a Linux program": "un programa de Linux",
+ "a macOS program": "un programa de macOS",
+ "an Android app's code": "código de una app de Android",
+ "a script": "un script",
+ "a program": "un programa"
 }

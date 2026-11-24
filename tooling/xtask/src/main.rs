@@ -39,11 +39,13 @@
 //!   `scripts/human-qa.py`, the same on every system, as `package` makes the installers
 //!   (`tasks.rs`, gaps row X7).
 
+mod android_manifest;
 #[cfg(test)]
 mod baseline;
 mod check;
 mod doubles;
 mod env_check;
+mod hardening;
 mod headers;
 mod help;
 mod i18n;
@@ -61,6 +63,8 @@ fn main() {
     let job = std::env::args().nth(1).unwrap_or_default();
     let result = match job.as_str() {
         "check" => check::run(&root()),
+        "hardening-check" => hardening::run(&std::env::args().skip(2).collect::<Vec<_>>()),
+        "android-manifest" => android_manifest::run(&root(), std::env::args().nth(2).as_deref()),
         "help-check" => help::run(&root()),
         "i18n" => i18n::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),
         "package" => package::run(&root(), &std::env::args().skip(2).collect::<Vec<_>>()),

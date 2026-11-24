@@ -353,7 +353,63 @@ fn builder<'local>(
         jni_sig!("(Ljava/lang/CharSequence;)Landroid/app/Notification$Builder;"),
         &[JValue::Object(&body)],
     )?;
+    hidden_when_locked(env, context, &builder, &channel, icon)?;
     Ok(builder)
+}
+
+/// `Notification.VISIBILITY_PRIVATE`: on a secure lock screen, the public version in its place.
+const VISIBILITY_PRIVATE: i32 = 0;
+
+/// What a locked screen shows of `builder`'s notification (gaps row H21): its public version,
+/// "dm" with Android's own picture and no file name, where the phone hides what notifications
+/// say on a locked screen. Without one Android said "Contents hidden" there, or, set by the
+/// person to show everything, the whole notification: that is the person's choice to make.
+fn hidden_when_locked(
+    env: &mut Env<'_>,
+    context: &JObject<'_>,
+    builder: &JObject<'_>,
+    channel: &JObject<'_>,
+    icon: i32,
+) -> jni::errors::Result<()> {
+    let public = env.new_object(
+        jni_str!("android/app/Notification$Builder"),
+        jni_sig!("(Landroid/content/Context;Ljava/lang/String;)V"),
+        &[JValue::Object(context), JValue::Object(channel)],
+    )?;
+    env.call_method(
+        &public,
+        jni_str!("setSmallIcon"),
+        jni_sig!("(I)Landroid/app/Notification$Builder;"),
+        &[JValue::Int(icon)],
+    )?;
+    let named = env.new_string("dm")?;
+    env.call_method(
+        &public,
+        jni_str!("setContentTitle"),
+        jni_sig!("(Ljava/lang/CharSequence;)Landroid/app/Notification$Builder;"),
+        &[JValue::Object(&named)],
+    )?;
+    let public = env
+        .call_method(
+            &public,
+            jni_str!("build"),
+            jni_sig!("()Landroid/app/Notification;"),
+            &[],
+        )?
+        .l()?;
+    env.call_method(
+        builder,
+        jni_str!("setPublicVersion"),
+        jni_sig!("(Landroid/app/Notification;)Landroid/app/Notification$Builder;"),
+        &[JValue::Object(&public)],
+    )?;
+    env.call_method(
+        builder,
+        jni_str!("setVisibility"),
+        jni_sig!("(I)Landroid/app/Notification$Builder;"),
+        &[JValue::Int(VISIBILITY_PRIVATE)],
+    )?;
+    Ok(())
 }
 
 /// One of the builder's `(Z)Builder` setters.

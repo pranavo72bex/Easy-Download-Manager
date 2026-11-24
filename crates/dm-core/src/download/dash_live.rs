@@ -482,6 +482,7 @@ async fn join_recorded(
     let (path, bytes, category) = finish(filename, None, &[joined], &placing).await?;
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: 1,

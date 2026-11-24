@@ -61,6 +61,7 @@ pub(super) async fn remuxed_before(
         }
         return Ok(Some(Finished {
             left_behind: None,
+            disguised: None,
             path,
             bytes,
             connections: 1,
@@ -241,6 +242,7 @@ pub(super) async fn place_live(
     let (path, bytes, category) = finish(&filename, None, &parts, &placing).await?;
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: 1,

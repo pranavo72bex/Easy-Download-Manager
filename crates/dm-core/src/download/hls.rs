@@ -142,6 +142,7 @@ pub(super) async fn download_stream(
 
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: 1,

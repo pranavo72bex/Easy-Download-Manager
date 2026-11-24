@@ -577,6 +577,7 @@ async fn fetch_found(
 
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: workers,

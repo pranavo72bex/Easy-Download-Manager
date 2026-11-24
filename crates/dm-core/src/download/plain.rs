@@ -136,6 +136,7 @@ pub(super) async fn download_mp4_part(
         finish(&name, info.content_type.as_deref(), &[made], options).await?;
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: 1,

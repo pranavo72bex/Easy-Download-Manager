@@ -388,6 +388,7 @@ pub(super) async fn download_numbered(
     let (path, bytes, category) = finish(&name, None, &files, options).await?;
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: 1,
@@ -646,6 +647,7 @@ async fn join_tracks(
     let (path, bytes, category) = finish(&filename, None, &[joined], options).await?;
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path,
         bytes,
         connections: 1,

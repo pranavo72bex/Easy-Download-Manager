@@ -13,6 +13,9 @@ something it should not. A proof of concept helps but is not required.
 You will get an answer within a week. Once a fix is released, the advisory
 is published with credit to you, unless you would rather not be named.
 
+What dm guards against, what it does not, and the test that holds each guard:
+[docs/guide/security.md](docs/guide/security.md).
+
 ## What is supported
 
 Only the latest release. dm has no long-term branches; a fix ships as a new

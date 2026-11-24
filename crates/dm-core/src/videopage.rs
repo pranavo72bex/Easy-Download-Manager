@@ -267,6 +267,7 @@ async fn place(produced: &Path, options: &Options) -> Result<Finished, Error> {
 
     Ok(Finished {
         left_behind: None,
+        disguised: None,
         path: dest,
         bytes,
         // The streams manage their own connections; the column would be guessing.

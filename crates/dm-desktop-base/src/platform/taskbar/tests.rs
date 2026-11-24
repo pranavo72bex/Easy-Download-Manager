@@ -23,6 +23,7 @@ fn row(state: State, downloaded: u64, total: Option<u64>, finished_at: Option<u6
         category: None,
         checksum: None,
         verified: false,
+        disguised: None,
         mirrors: 0,
         path: String::new(),
         referrer: String::new(),

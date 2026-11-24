@@ -319,7 +319,12 @@ async fn span_agrees(
     if res.content_length().is_some_and(|n| n != wanted) {
         return unproven;
     }
-    let Ok(Ok(there)) = tokio::time::timeout(SPAN_WITHIN, res.bytes()).await else {
+    // No more than was asked for, whatever the server says of its length (gaps row H14).
+    let Ok(most) = usize::try_from(wanted) else {
+        return unproven;
+    };
+    let Ok(Ok(there)) = tokio::time::timeout(SPAN_WITHIN, dm_net::body::at_most(res, most)).await
+    else {
         return unproven;
     };
     if there.len() as u64 != wanted {

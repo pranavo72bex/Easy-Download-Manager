@@ -32,6 +32,7 @@ fn entry(state: State) -> Entry {
         category: None,
         checksum: None,
         verified: false,
+        disguised: None,
         mirrors: 0,
         path: String::new(),
         referrer: String::new(),

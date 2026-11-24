@@ -228,6 +228,9 @@ pub struct Finished {
     /// download itself is whole: a torrent's staged copy that could not be
     /// removed after it was copied across disks.
     pub left_behind: Option<String>,
+    /// What the file is where its name says otherwise: a program named as a picture or a
+    /// document (`disguise`, gaps row H2). Read once the file is in place.
+    pub disguised: Option<&'static str>,
 }
 
 /// One place the same bytes can be fetched from.

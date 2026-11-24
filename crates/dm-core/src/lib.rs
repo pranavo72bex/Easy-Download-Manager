@@ -103,6 +103,7 @@ pub mod mkvmux;
 
 pub mod mms;
 
+pub mod disguise;
 pub mod motw;
 
 pub mod mp3;

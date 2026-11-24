@@ -1035,5 +1035,12 @@
  "Tapping a download": "ダウンロードをタップすると",
  "Folders by kind": "種類ごとのフォルダー",
  "Kept in dm's settings file on this phone, where only dm can read it.": "この電話の dm の設定ファイルに保存され、dm だけが読み取れます。",
- "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "電話のバッテリーがこの残量を下回っている間はダウンロードを待機し、充電されるか残量が戻ると再開します。"
+ "Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.": "電話のバッテリーがこの残量を下回っている間はダウンロードを待機し、充電されるか残量が戻ると再開します。",
+ "Complete · not what its name says: {}": "完了 · 名前と中身が違います: {}",
+ "a Windows program": "Windows のプログラム",
+ "a Linux program": "Linux のプログラム",
+ "a macOS program": "macOS のプログラム",
+ "an Android app's code": "Android アプリのコード",
+ "a script": "スクリプト",
+ "a program": "プログラム"
 }

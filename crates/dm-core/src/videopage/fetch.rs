@@ -529,8 +529,14 @@ impl Read {
     fn planned(&self, staging: &Path) -> Option<Plan> {
         let info = &self.info;
         let produced = unnumbered(PathBuf::from(info.filename.as_deref()?), info);
-        // Only under the staging folder it was told to use.
-        if !produced.starts_with(staging) || produced.file_stem().is_none() {
+        // Only under the staging folder it was told to use: a path compared part by part
+        // takes `staging/../elsewhere` as under it, so no part after it may step out (gaps
+        // row H14).
+        let under = produced.strip_prefix(staging).is_ok_and(|rest| {
+            rest.components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)))
+        });
+        if !under || produced.file_stem().is_none() {
             return None;
         }
         let formats: Vec<&Format> = match &info.requested_formats {

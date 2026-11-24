@@ -160,8 +160,10 @@ strip = true
 # docs/decisions.md, 2026-11-06 and 2026-11-12 (gaps row S12).
 [profile.release.package.dm-core]
 opt-level = 3
+overflow-checks = true
 [profile.release.package.dm-media]
 opt-level = 3
+overflow-checks = true
 [profile.release.package.symphonia-codec-aac]
 opt-level = 3
 [profile.release.package.symphonia-core]
@@ -232,6 +234,24 @@ opt-level = 2
 # dm up, past what a person (and B72's check) waits for.
 [profile.dev.package.sha2]
 opt-level = 3
+
+# Overflow checks kept in the release (dm-core and dm-media in their sections above) for the crates that read what a server, a page, a file
+# or a peer sends (gaps row H12): a length that overflows stops that download with an error
+# rather than wrapping to a wrong size and reading or writing in the wrong place. Measured
+# with `bench/` before and after (docs/decisions.md, 2026-11-24). Package overrides are
+# taken by the profiles that inherit the release (extension, profiling).
+[profile.release.package.dm-net]
+overflow-checks = true
+[profile.release.package.dm-torrent]
+overflow-checks = true
+[profile.release.package.dm-js]
+overflow-checks = true
+[profile.release.package.dm-protocol]
+overflow-checks = true
+[profile.release.package.dm-catcher]
+overflow-checks = true
+[profile.release.package.librqbit]
+overflow-checks = true
 
 # The extension's WebAssembly (scripts/package.sh: `cargo build --profile extension --target
 # wasm32-unknown-unknown`), as crates/dm-catcher/ built it as a workspace of its own: for size, and a

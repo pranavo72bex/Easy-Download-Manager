@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Release builds are checked for the system's protections before they are published (address randomisation, no writable-and-runnable memory, read-only relocations); Windows builds now have Control Flow Guard.
+- Every release file (installers, extension, APKs) now carries a build attestation: `gh attestation verify <file> --repo pranavo72bex/Easy-Download-Manager` says which commit and workflow built it. A new page, [What dm protects you from](docs/guide/security.md), lists each guard and the test that holds it.
+- A finished file that is really a program while its name says a picture, film, document or archive (`invoice.pdf` that is a Windows program) says so on its row: "Complete · not what its name says: a Windows program".
+- Security: a number that overflows while reading what a server or file sends now stops that download with an error, in release builds too; replies are read only up to what was asked for; a page's video file name cannot point outside dm's working folder.
+- Android: dm no longer takes `file://` addresses from other apps, nor its own files handed back to it; on a locked screen whose settings hide sensitive content, dm's notifications show "dm" without file names.
+- Android: the README gives the APK's signing certificate fingerprint and the command to check it, and each release's notes carry it.
 - A download's own buttons (Resume, Details, Delete…) no longer cover its name: on the chosen row and under the pointer the name ends in "…" before them.
 - The message above the list is one bar: a mark says whether something failed (!) or is a note (i), the sentence is in plain text colour, and "+1 more" sits at the bar's end instead of on a line of its own.
 - Fixed: a label longer than its dialog guessed (the progress window's "When this download is done", and others in a longer language) began outside the window's left edge; labels are now measured as they are drawn. A column's heading or value longer than its column (German's "Übertragungsrate") ends in "…" inside it instead of starting outside it.

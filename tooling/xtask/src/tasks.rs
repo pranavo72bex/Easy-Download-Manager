@@ -44,6 +44,8 @@ usage: cargo xtask <job>, from the repository's root or desktop/
   doubles-baseline [--grow]   shortens the crates-in-two-versions baseline to Cargo.lock now
   headers [fix] | update-key | sign-manifest <latest.json> | crates-list <file>
   sign-release <dir> | verify-release <dir>
+  hardening-check <program>...  each program built with the system's protections (PIE, NX, CFG...)
+  android-manifest [merged.xml]  the APK's permissions and open components against the kept list
   vendor [--version <v>] [<crate>...]  vendor's copies, made again from crates.io
 build, test, package and qa do the same on Windows, macOS and Linux (xtask/src/tasks.rs).";
 

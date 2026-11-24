@@ -138,6 +138,7 @@ impl DownloadList {
                 category: None,
                 checksum: None,
                 verified: false,
+                disguised: None,
                 mirrors: 0,
                 path: String::new(),
                 referrer,

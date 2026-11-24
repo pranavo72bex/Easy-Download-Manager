@@ -207,6 +207,10 @@ pub async fn record(
     record_within(url, part, control, downloaded, SILENT_FOR).await
 }
 
+/// The most an MMS server's description (its stream header) may be: far above a real one,
+/// which is a few kilobytes.
+const DESCRIPTION_MOST: usize = 4 * 1024 * 1024;
+
 /// [`record`], with the stream counted as gone quiet after `silent_for` without bytes (a
 /// test's stand-in server is given less than [`SILENT_FOR`]).
 async fn record_within(
@@ -229,11 +233,11 @@ async fn record_within(
     if !described.status().is_success() {
         return Err(refused(described.status()));
     }
-    let mut buffer = described
-        .bytes()
+    // The description is a header and little else: a server that sends on past it is not
+    // read into memory whole (gaps row H14).
+    let mut buffer = dm_net::body::at_most(described, DESCRIPTION_MOST)
         .await
-        .map_err(|e| Error::Internal(e.to_string()))?
-        .to_vec();
+        .map_err(|e| Error::Internal(format!("the MMS server: {e}")))?;
     let header = take_chunks(&mut buffer)
         .into_iter()
         .find(|c| c.kind == b'H')

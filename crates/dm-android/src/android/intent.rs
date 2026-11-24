@@ -118,8 +118,8 @@ fn string_call(
 /// Copies the file at `uri` (a `.torrent` from Files, a browser or a mail) into `torrents`,
 /// giving the copy's path, which dm adds as `file://`.
 fn copy(uri: &str, torrents: &Path) -> Result<std::path::PathBuf, String> {
-    // The name first, in a call of its own: a sender that does not answer the question (a
-    // `file://` address has no provider to ask) still lets the file be read.
+    // The name first, in a call of its own: a sender that does not answer the question still
+    // lets the file be read.
     let display = jvm::with("read the file's name", |env, context| {
         display_name(env, context, uri)
     })
