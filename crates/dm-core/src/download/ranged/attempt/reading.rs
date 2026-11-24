@@ -341,6 +341,11 @@ impl Reading<'_> {
                 job.limiter
                     .take_counting(chunk.len() as u64, &job.downloaded, &mut through)
                     .await;
+                // And the second network's own limit, where this connection goes over it
+                // (gaps row K5).
+                if let Some(network) = crate::second_path::task_limit() {
+                    network.take(chunk.len() as u64).await;
+                }
                 Ok(())
             })
             .await

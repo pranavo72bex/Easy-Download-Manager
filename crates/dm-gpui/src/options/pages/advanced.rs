@@ -16,7 +16,7 @@ pub(super) fn advanced(
 ) {
     network(o, p, window, cx);
     only_through(o, p);
-    second_network(o, p, cx);
+    second_network(o, p, window, cx);
     site_limits(o, p, window, cx);
     site_rules(o, p, window, cx);
     cookies(o, p, window, cx);
@@ -87,7 +87,7 @@ fn network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
 }
 
 /// A second network beside the system's, and how to use a phone as one.
-fn second_network(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
+fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
     let (theme, screen) = (p.theme, p.screen.clone());
     // A second network beside the one the system routes by, from the networks `only_through`
     // listed.
@@ -130,6 +130,21 @@ fn second_network(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
         ),
     );
     p.note(t("Use a second connection too, such as your phone over USB or its hotspot. Half of each download's connections go over it. Not used while a proxy is on."));
+    // Its own speed limit, shared by its connections (gaps row K5).
+    let words = "Second network's speed limit, KB/s (0 for none)";
+    let field = input(
+        o,
+        window,
+        cx,
+        "second_limit_kb",
+        words,
+        NUMBER,
+        true,
+        false,
+        |o| o.draft.second_limit_kb.to_string(),
+    );
+    p.setting(t(words), true, field);
+    p.note(t("Holds the second network, such as a phone's data, to this speed, whatever the other connection does."));
     // How to have a phone there, step by step, shown on a click.
     let phone = o.phone;
     p.add(

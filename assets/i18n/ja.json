@@ -1045,5 +1045,7 @@
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "すべてのダウンロードはこのネットワーク(VPN など)だけを通ります。つながっていない間、ダウンロードは待機してそう表示し、戻ると自動で再開します。選んでいる間はライブ配信は開始されず(Windows ではトレントも)、2 つ目のネットワークは使われません。",
  "Networks": "ネットワーク",
  "This computer's connection": "このコンピュータの接続",
- "the second network brings nothing now": "2 つ目のネットワークは今は何も運んでいません"
+ "the second network brings nothing now": "2 つ目のネットワークは今は何も運んでいません",
+ "Second network's speed limit, KB/s (0 for none)": "2 つ目のネットワークの速度制限、KB/s(0 で制限なし)",
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "2 つ目のネットワーク(電話のデータ通信など)を、もう一方の接続に関係なくこの速度に抑えます。"
 }

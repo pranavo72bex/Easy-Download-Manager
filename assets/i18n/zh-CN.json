@@ -1045,5 +1045,7 @@
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "每个下载只通过这个网络发出,例如你的 VPN。未连接时,下载会等待并说明原因,连接恢复后自动继续。选中时不会开始直播(在 Windows 上种子也不会),也不使用第二个网络。",
  "Networks": "网络",
  "This computer's connection": "本机的连接",
- "the second network brings nothing now": "第二个网络目前没有带来任何数据"
+ "the second network brings nothing now": "第二个网络目前没有带来任何数据",
+ "Second network's speed limit, KB/s (0 for none)": "第二个网络的速度限制,KB/s(0 为不限)",
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "将第二个网络(例如手机流量)限制在此速度,无论另一个连接如何。"
 }

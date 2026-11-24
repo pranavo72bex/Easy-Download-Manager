@@ -34,6 +34,9 @@ BitTorrent. See [Options](options.md) for how the window works.
   USB or its hotspot. Half of each download's connections go over it. Not
   used while a proxy is on." **None** uses only the computer's usual
   connection.
+- "Second network's speed limit, KB/s (0 for none)": "Holds the second
+  network, such as a phone's data, to this speed, whatever the other
+  connection does." Its connections share it, beside the speed limit above.
 - **How to use your phone** shows the steps:
   - "1. Connect your phone to this computer with its USB cable. If it asks
     whether to trust this computer, say yes."

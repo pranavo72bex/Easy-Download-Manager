@@ -224,3 +224,48 @@ mod tests {
         assert!(second_client().is_none());
     }
 }
+
+tokio::task_local! {
+    /// Whether the connection running in this task goes out over the second network (gaps row
+    /// K5): its reads then take from that network's own limit too.
+    pub static ON_SECOND_TASK: bool;
+}
+
+/// The second network's own speed limit, shared by every connection over it (gaps row K5);
+/// none while it has none.
+static SECOND_LIMIT: std::sync::Mutex<Option<crate::limit::Limiter>> = std::sync::Mutex::new(None);
+
+/// Sets the second network's own limit, in bytes a second; 0 is none.
+pub fn set_second_limit(bytes_per_second: u64) {
+    let mut held = crate::lock(&SECOND_LIMIT);
+    *held = (bytes_per_second > 0).then(|| crate::limit::Limiter::new(bytes_per_second));
+}
+
+/// The limit this task's reads take from beside the download's own: the second network's,
+/// where this task's connection goes out over it and it has one.
+pub fn task_limit() -> Option<crate::limit::Limiter> {
+    if !ON_SECOND_TASK.try_with(|on| *on).unwrap_or(false) {
+        return None;
+    }
+    crate::lock(&SECOND_LIMIT).clone()
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+
+    /// A connection over the second network takes from its own limit where one is set; one
+    /// over the system's route, or any while none is set, does not (gaps row K5).
+    #[tokio::test]
+    async fn the_second_networks_limit_is_its_connections_alone() {
+        set_second_limit(64 * 1024);
+        let over_second = ON_SECOND_TASK.scope(true, async { task_limit().is_some() }).await;
+        let over_first = ON_SECOND_TASK.scope(false, async { task_limit().is_some() }).await;
+        let outside = task_limit().is_some();
+        set_second_limit(0);
+        let unset = ON_SECOND_TASK.scope(true, async { task_limit().is_some() }).await;
+        assert!(over_second, "the second network's connection took no limit");
+        assert!(!over_first && !outside, "a connection over the first took the second's limit");
+        assert!(!unset, "a limit of 0 still limited");
+    }
+}

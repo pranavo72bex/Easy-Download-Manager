@@ -33,6 +33,9 @@ pub struct EngineConfig {
     /// The second network downloads may also go out on, by its interface's name; `None`, or an
     /// empty name, for none.
     pub second_path: Option<String>,
+    /// The second network's own speed limit, in bytes a second, shared by its connections; 0
+    /// for none (gaps row K5).
+    pub second_limit: u64,
     /// The folder YouTube's cut players are kept in between sessions (gaps row Y13); `None` keeps
     /// them in memory only.
     pub kept_players: Option<PathBuf>,
@@ -51,6 +54,7 @@ impl std::fmt::Debug for EngineConfig {
             .field("second_path", &self.second_path)
             .field("kept_players", &self.kept_players)
             .field("only_through", &self.only_through)
+            .field("second_limit", &self.second_limit)
             .finish()
     }
 }
@@ -68,6 +72,7 @@ pub fn configure(config: &EngineConfig) -> Result<(), String> {
     let only = config.only_through.trim();
     crate::only_through::set_only_through(Some(only));
     let second = config.second_path.as_deref().filter(|_| only.is_empty());
+    crate::second_path::set_second_limit(config.second_limit);
     crate::second_path::set_second_path(second)
 }
 

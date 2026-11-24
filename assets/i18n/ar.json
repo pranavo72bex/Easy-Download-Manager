@@ -1045,5 +1045,7 @@
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "كل تنزيل يخرج عبر هذه الشبكة وحدها، مثل شبكة VPN لديك. وحين لا تكون متصلة، تنتظر التنزيلات وتقول ذلك، وتتابع من تلقاء نفسها حين تعود. لا يبدأ البث المباشر ما دامت مختارة (وعلى Windows التورنت أيضًا)، ولا تُستخدم الشبكة الثانية.",
  "Networks": "الشبكات",
  "This computer's connection": "اتصال هذا الحاسوب",
- "the second network brings nothing now": "الشبكة الثانية لا تجلب شيئًا الآن"
+ "the second network brings nothing now": "الشبكة الثانية لا تجلب شيئًا الآن",
+ "Second network's speed limit, KB/s (0 for none)": "حد سرعة الشبكة الثانية، كيلوبايت/ث (0 بلا حد)",
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "يُبقي الشبكة الثانية، مثل بيانات الهاتف، عند هذه السرعة، أيًا كان ما يفعله الاتصال الآخر."
 }

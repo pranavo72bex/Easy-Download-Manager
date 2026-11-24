@@ -1045,5 +1045,7 @@
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Cada descarga sale solo por esta red, como la de tu VPN. Mientras no está conectada, las descargas esperan, lo dicen y siguen solas cuando vuelve. Las emisiones en directo no empiezan mientras hay una elegida (en Windows, tampoco los torrents) y no se usa la segunda red.",
  "Networks": "Redes",
  "This computer's connection": "Conexión de este equipo",
- "the second network brings nothing now": "la segunda red no aporta nada ahora"
+ "the second network brings nothing now": "la segunda red no aporta nada ahora",
+ "Second network's speed limit, KB/s (0 for none)": "Límite de velocidad de la segunda red, KB/s (0 sin límite)",
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Mantiene la segunda red, como los datos de un teléfono, a esta velocidad, haga lo que haga la otra conexión."
 }

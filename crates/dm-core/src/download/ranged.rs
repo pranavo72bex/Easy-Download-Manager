@@ -352,28 +352,33 @@ pub(super) async fn run(
             Some(second) if on_second => second.clone(),
             _ => client.clone(),
         };
+        // Its reads take from the second network's own limit where it goes out over it (gaps
+        // row K5).
         running.spawn(
-            Connection {
-                client,
-                job: Arc::clone(job),
-                probe: Arc::clone(&probe),
-                next: Arc::clone(&next),
-                orphans: Arc::clone(&orphans),
-                active: Arc::clone(&active),
-                first_wave: Arc::clone(&first_wave),
-                wave_over: wave_over.clone(),
-                wave_over_seen: wave_over_seen.clone(),
-                gate_seen: gate_seen.clone(),
-                planned,
-                resumable,
-                started,
-                helper,
-                grown_as,
+            crate::second_path::ON_SECOND_TASK.scope(
                 on_second,
-                counted: !helper,
-                alone_again: false,
-            }
-            .work(),
+                Connection {
+                    client,
+                    job: Arc::clone(job),
+                    probe: Arc::clone(&probe),
+                    next: Arc::clone(&next),
+                    orphans: Arc::clone(&orphans),
+                    active: Arc::clone(&active),
+                    first_wave: Arc::clone(&first_wave),
+                    wave_over: wave_over.clone(),
+                    wave_over_seen: wave_over_seen.clone(),
+                    gate_seen: gate_seen.clone(),
+                    planned,
+                    resumable,
+                    started,
+                    helper,
+                    grown_as,
+                    on_second,
+                    counted: !helper,
+                    alone_again: false,
+                }
+                .work(),
+            ),
         );
     }
 

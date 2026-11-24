@@ -142,6 +142,7 @@ fn engine_config(settings: &Settings) -> dm_core::EngineConfig {
         // The one network every download is held to; the second network is then off
         // (`dm_core::configure`, gaps row W12).
         only_through: settings.advanced.only_through.clone(),
+        second_limit: settings.second_limit_kb.saturating_mul(1024),
     }
 }
 

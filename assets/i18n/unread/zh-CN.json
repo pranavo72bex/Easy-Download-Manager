@@ -216,5 +216,7 @@
  "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.",
  "Networks",
  "This computer's connection",
- "the second network brings nothing now"
+ "the second network brings nothing now",
+ "Second network's speed limit, KB/s (0 for none)",
+ "Holds the second network, such as a phone's data, to this speed, whatever the other connection does."
 ]

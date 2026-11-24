@@ -55,6 +55,7 @@ async fn configure_puts_each_part_in_force_and_the_default_takes_it_back() {
         second_path: Some("dm-no-such-network0".into()),
         kept_players: Some(dir.path().join("players")),
         only_through: String::new(),
+        second_limit: 0,
     };
 
     // A second network that is not there is refused in words, and left off; the rest is in force.

@@ -210,6 +210,10 @@ pub struct Settings {
     /// empty for none. Not used while a proxy is on: the proxy is the path.
     #[serde(default)]
     pub second_path: String,
+    /// The second network's own speed limit in KB/s, shared by its connections; 0 for none
+    /// (gaps row K5): a phone's metered data held to a rate whatever the line beside it does.
+    #[serde(default, skip_serializing_if = "none_set")]
+    pub second_limit_kb: u64,
     /// A sound file of the person's own for an event (`complete`, `failed`, `queue_started`,
     /// `queue_done`); an event with no entry, or an empty one, keeps the system's sound. Only `.wav`
     /// is promised. The switches above still decide whether the finish and failure sounds play.
@@ -491,6 +495,7 @@ impl Default for Settings {
             downloads: DownloadSettings::default(),
             advanced: AdvancedSettings::default(),
             second_path: String::new(),
+            second_limit_kb: 0,
             sounds: Default::default(),
             site_searches: Vec::new(),
             follows: Vec::new(),
@@ -552,3 +557,8 @@ mod restore;
 
 #[cfg(test)]
 mod tests;
+
+/// Whether a limit is none (0), to leave it out of the file (gaps row K5).
+fn none_set(limit: &u64) -> bool {
+    *limit == 0
+}

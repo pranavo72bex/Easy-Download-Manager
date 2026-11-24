@@ -135,6 +135,11 @@ impl Options {
                     s.advanced.retry_wait = n;
                 }
             }
+            ["second_limit_kb"] => {
+                if let Some(n) = n(0, 10_000_000) {
+                    s.second_limit_kb = n;
+                }
+            }
             ["read_timeout"] => {
                 if let Some(n) = n(5, 600) {
                     s.advanced.read_timeout = n;
