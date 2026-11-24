@@ -1,0 +1,218 @@
+name: AI tests
+
+# Each night, the file with the most lines no test runs is given to the free AI models
+# (scripts/ai-agent.sh: Gemini, then Kilo Code's keyless models) to write tests for. A
+# change is kept only when, besides every check the AI fixer holds a change to (no test
+# taken away or ignored, format, clippy, layering, headers, the whole test run, the
+# coverage floor), that file has fewer lines untested and the workspace's coverage has
+# not gone down. It becomes a *draft* pull request, with the coverage floor raised to
+# the new whole percent when it has passed one, and CI and Desktop started on its branch
+# (Linux, Windows, macOS). A model that finds a bug may fix it, and says so: the pull
+# request lists every file changed, for a person to read before merging.
+#
+# Each night's file and how it ended are a comment on the issue "Nightly AI tests
+# (log)"; a file tried in the last fortnight, or with its pull request still open, is
+# not picked again. Files a Linux runner cannot run (each system's own code) are left
+# out (scripts/coverage-table.py).
+on:
+  schedule:
+    - cron: '41 1 * * *'
+  workflow_dispatch:
+    inputs:
+      file:
+        description: 'A file to write tests for (else the least covered)'
+        required: false
+      providers:
+        description: 'Providers to try, in order (gemini kilo)'
+        required: false
+        default: 'gemini kilo'
+
+permissions:
+  actions: write # to start CI and Desktop on the pull request's branch
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: ai-tests
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      LOG_TITLE: 'Nightly AI tests (log)'
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false # the models never hold a GitHub token
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: 1.98.1 # as rust-toolchain.toml
+          components: clippy, rustfmt, llvm-tools-preview
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          save-if: false
+      - name: GPUI's Linux libraries and a CJK font
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+
+      - name: Coverage now
+        run: |
+          set -o pipefail
+          mkdir -p .bot
+          printf '.bot/\n.gemini/\nopencode.json\n' >> .git/info/exclude
+          cargo llvm-cov --workspace --locked --summary-only | tee .bot/coverage-before.txt
+          # The lines no test runs, file by file, from the same run.
+          cargo llvm-cov report --summary-only --show-missing-lines > .bot/missing.txt 2>/dev/null || true
+
+      - name: The file for tonight
+        id: pick
+        env:
+          FILE: ${{ inputs.file }}
+        run: |
+          set -euo pipefail
+          gh label create bot-tests --color 0e8a16 --description 'The nightly AI tests' 2>/dev/null || true
+          log=$(gh issue list --state open --label bot-tests --search "\"$LOG_TITLE\" in:title" \
+            --json number,title --jq ".[] | select(.title == \"$LOG_TITLE\") | .number" | head -n1)
+          if [ -z "$log" ]; then
+            url=$(gh issue create --title "$LOG_TITLE" --label bot-tests \
+              --body "Each night's file and how it ended (.github/workflows/ai-tests.yml).")
+            log=${url##*/}
+          fi
+          echo "log=$log" >> "$GITHUB_OUTPUT"
+          # Tried in the last fortnight, or with a pull request still open: not again.
+          since=$(date -u -d '14 days ago' +%FT%TZ)
+          gh issue view "$log" --json comments \
+            --jq ".comments[] | select(.createdAt > \"$since\") | .body" \
+            | grep -oE '^file: [^ ]+' | cut -d' ' -f2 > .bot/skip.txt || true
+          gh pr list --state open --search 'head:bot/tests-' --json body --jq '.[].body' \
+            | grep -oE '^file: [^ ]+' | cut -d' ' -f2 >> .bot/skip.txt || true
+          if [ -n "$FILE" ]; then
+            missed=$(python3 scripts/coverage-table.py missed .bot/coverage-before.txt "$FILE")
+            picked="$FILE ? $missed"
+          else
+            mapfile -t skip < .bot/skip.txt
+            picked=$(python3 scripts/coverage-table.py pick .bot/coverage-before.txt "${skip[@]}")
+          fi
+          if [ -z "$picked" ]; then echo "No file left to pick."; exit 0; fi
+          read -r file lines missed <<<"$picked"
+          echo "Tonight: $file ($missed of $lines lines untested)"
+          { echo "file=$file"; echo "missed=$missed"; echo "lines=$lines"; } >> "$GITHUB_OUTPUT"
+          echo "total=$(python3 scripts/coverage-table.py total .bot/coverage-before.txt)" >> "$GITHUB_OUTPUT"
+          grep -F "$file" .bot/missing.txt > .bot/missing-lines.txt || true
+
+      - name: The agents
+        if: steps.pick.outputs.file != ''
+        run: npm install -g @google/gemini-cli@0.68.0 opencode-ai@1.19.5
+
+      - name: The task
+        if: steps.pick.outputs.file != ''
+        env:
+          FILE: ${{ steps.pick.outputs.file }}
+          MISSED: ${{ steps.pick.outputs.missed }}
+        run: |
+          cat > .bot/prompt.md <<EOF
+          You are writing tests for one file of this repository (a Rust download manager, Cargo workspace at the root, crates in crates/): $FILE, where $MISSED lines are run by no test.
+
+          1. Read CLAUDE.md, AGENTS.md and docs/behaviour-contract.md first and follow them.
+          2. The lines no test runs are listed in .bot/missing-lines.txt (it may be empty; then read the file and its existing tests to see what is untested).
+          3. Write tests that run those lines, in the style the crate already uses: the file's own #[cfg(test)] module or its tests/ module, the crate's tests/ directory, and the helpers the crate's tests already have.
+          4. Test what the code is meant to do (its doc comments, docs/, the behaviour contract), not just what it happens to return. If a test shows the code is wrong, fix the code with the smallest change and say so in the summary.
+          5. Do not change any behaviour listed in docs/behaviour-contract.md, the window's layout, dialogs or wording. Do not edit .github/, scripts/, tooling/xtask/, .config/, .cargo/, Cargo.lock or the coverage floors. Do not remove, weaken or ignore a test.
+          6. Check your work: \`cargo fmt --all\`, \`cargo clippy --workspace --all-targets --locked -- -D warnings\`, the crate's tests (\`cargo nextest run -p CRATE\`), then \`cargo xtask test --profile ci\`.
+          7. Do not commit. Write a short summary to .bot/summary.md: what the tests cover, and any bug found and fixed.
+          EOF
+
+      - name: Ask the models
+        id: try
+        if: steps.pick.outputs.file != ''
+        env:
+          PROVIDERS: ${{ inputs.providers || 'gemini kilo' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          KILO_MODEL: ${{ vars.KILO_MODEL }}
+          FILE: ${{ steps.pick.outputs.file }}
+          MISSED: ${{ steps.pick.outputs.missed }}
+          TOTAL_BEFORE: ${{ steps.pick.outputs.total }}
+        run: |
+          # Not -e (GitHub's default): a model that fails must not stop the next one.
+          set +e -uo pipefail
+          # shellcheck source=/dev/null
+          . scripts/ai-agent.sh
+          # Kept only when the file has fewer lines untested and the whole has not gone down.
+          # shellcheck disable=SC2329 # called by ai_check
+          ai_extra_check() {
+            local after total
+            after=$(python3 scripts/coverage-table.py missed .bot/coverage.txt "$FILE" 2>/dev/null)
+            total=$(python3 scripts/coverage-table.py total .bot/coverage.txt 2>/dev/null)
+            echo "$FILE: $MISSED lines untested before, ${after:-?} after; the workspace $TOTAL_BEFORE% before, ${total:-?}% after" >> .bot/check.log
+            if [ -n "$after" ] && [ "$after" -lt "$MISSED" ] && \
+               python3 -c "import sys; sys.exit(0 if float('$total') >= float('$TOTAL_BEFORE') else 1)"; then
+              echo pass
+            else
+              echo no-coverage-gain
+            fi
+          }
+          ai_setup
+          ai_try .bot/prompt.md
+          exit 0
+
+      - name: Open a draft pull request, and test it on every system
+        if: steps.try.outputs.provider != ''
+        env:
+          PROVIDER: ${{ steps.try.outputs.provider }}
+          REPORT: ${{ steps.try.outputs.report }}
+          FILE: ${{ steps.pick.outputs.file }}
+          MISSED: ${{ steps.pick.outputs.missed }}
+          TOTAL_BEFORE: ${{ steps.pick.outputs.total }}
+          LOG: ${{ steps.pick.outputs.log }}
+        run: |
+          set -euo pipefail
+          after=$(python3 scripts/coverage-table.py missed .bot/coverage.txt "$FILE")
+          total=$(python3 scripts/coverage-table.py total .bot/coverage.txt)
+          # The floor goes up to each whole percent passed; never down.
+          floor=$(cat docs/coverage-floor.txt)
+          raised=$(python3 -c "import math; print(max($floor, math.floor($total)))")
+          floor_note="The coverage floor stays at $floor%."
+          if [ "$raised" -gt "$floor" ]; then
+            echo "$raised" > docs/coverage-floor.txt
+            floor_note="The coverage floor is raised from $floor% to $raised%."
+          fi
+          slug=$(echo "$FILE" | tr '/.' '--' | tr -cd 'A-Za-z0-9-' | tail -c 60)
+          branch="bot/tests-$slug"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git add -A -- . ':!.bot'
+          changed=$(git diff --cached --name-only | sed 's/^/- /')
+          git commit -m "Tests for $FILE ($PROVIDER, draft)"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git" "HEAD:$branch"
+          gh workflow run ci.yml --ref "$branch" || true
+          gh workflow run desktop.yml --ref "$branch" -f bundles=false || true
+          summary=$(cat .bot/summary.md 2>/dev/null || echo 'No summary written.')
+          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+          body=$(printf 'file: %s\n\nTests by **%s**: %s lines of this file untested before, %s after; the workspace %s%% of lines before, %s%% after. %s\n\n%s\n\nFiles changed (a file other than tests is a fix the tests led to: read it):\n%s\n\nTried:\n%s\nOn Linux in the run: no test removed or ignored, format, clippy, layering, headers, `cargo xtask test --profile ci` and the coverage floor passed. CI and Desktop (Linux, Windows, macOS) were started on this branch: their checks are below. Before merging: run `python3 scripts/human-qa.py` in a visible window.\n' \
+            "$FILE" "$PROVIDER" "$MISSED" "$after" "$TOTAL_BEFORE" "$total" "$floor_note" "$summary" "$changed" "$REPORT")
+          url=$(gh pr create --draft --head "$branch" --title "Tests for $FILE ($PROVIDER, needs review)" --body "$body")
+          gh issue comment "$LOG" --body "$(printf 'file: %s\n\n%s: pull request %s (%s → %s lines untested; %s%% → %s%%) ([run](%s))\n' \
+            "$FILE" "$PROVIDER" "$url" "$MISSED" "$after" "$TOTAL_BEFORE" "$total" "$RUN_URL")"
+
+      - name: Say how the night ended
+        if: always() && steps.pick.outputs.file != '' && steps.try.outputs.provider == ''
+        env:
+          FILE: ${{ steps.pick.outputs.file }}
+          REPORT: ${{ steps.try.outputs.report }}
+          LOG: ${{ steps.pick.outputs.log }}
+        run: |
+          gh issue comment "$LOG" --body "$(printf 'file: %s\n\nNo model wrote tests that pass the checks and raise its coverage ([run](%s)).\n\n%s\n' \
+            "$FILE" "$RUN_URL" "${REPORT:-Stopped before asking a model.}")"

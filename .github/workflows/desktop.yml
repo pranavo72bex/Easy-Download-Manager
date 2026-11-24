@@ -16,6 +16,12 @@ on:
   pull_request:
     paths: ["crates/**", "tooling/**", "assets/**", "vendor/**", "packaging/**", "Cargo.toml", "Cargo.lock", ".cargo/**", 'scripts/**', '.github/workflows/desktop.yml']
   workflow_dispatch:
+    inputs:
+      bundles:
+        # The AI fixer starts this on its branch for the tests alone (ai-fix.yml).
+        description: 'Build and try the installers too'
+        type: boolean
+        default: true
 
 # Read-only by default: builds and tests run on pull requests too. Only the
 # release job, on a tag, writes (it drafts the release).
@@ -163,7 +169,7 @@ jobs:
     needs: [test, packaging-lint]
     # Every platform's installers are minutes of compute; an ordinary push
     # wants to know the tests still pass, not to be handed an installer.
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.bundles)
     strategy:
       fail-fast: false
       matrix:

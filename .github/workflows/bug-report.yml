@@ -2,10 +2,11 @@ name: Bug report
 
 # Turns a red run on main into an issue, so no failure goes unread: one open
 # issue per workflow (a later failure of the same workflow is a comment on it,
-# not a second issue). A new issue is labelled `bot-fix` and handed to the
-# AI fixer (ai-fix.yml: Gemini's free tier, then Kilo Code's keyless free
-# models), which opens a draft pull request for the maintainer to QA and
-# merge. GitHub's free runners and free models only; nothing to pay for.
+# not a second issue), closed by the workflow's next green run on main. A new
+# issue is labelled `bot-fix` and handed to the AI fixer (ai-fix.yml: Gemini's
+# free tier, then Kilo Code's keyless free models), which opens a draft pull
+# request for the maintainer to QA and merge. GitHub's free runners and free
+# models only; nothing to pay for.
 on:
   workflow_run:
     workflows: [CI, Desktop, Deep fuzz, Audit]
@@ -23,7 +24,7 @@ permissions:
 
 jobs:
   report:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure'
+    if: github.event_name == 'workflow_dispatch' || contains(fromJSON('["failure", "success"]'), github.event.workflow_run.conclusion)
     runs-on: ubuntu-latest
     steps:
       - name: Open or update the issue
@@ -36,20 +37,34 @@ jobs:
           gh label create bot-fix --color 5319e7 \
             --description 'A failure the AI fixer is asked to fix' 2>/dev/null || true
 
-          run_json=$(gh run view "$RUN_ID" --json workflowName,headSha,url,displayTitle,jobs)
+          run_json=$(gh run view "$RUN_ID" --json workflowName,headSha,url,displayTitle,jobs,conclusion)
           workflow=$(jq -r .workflowName <<<"$run_json")
           url=$(jq -r .url <<<"$run_json")
           sha=$(jq -r .headSha <<<"$run_json")
           failed_jobs=$(jq -r '.jobs[] | select(.conclusion == "failure") | "- " + .name' <<<"$run_json")
           title="CI failure on main: $workflow"
+          open_issue() {
+            gh issue list --state open --label bot-fix --search "\"$title\" in:title" \
+              --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n1
+          }
+
+          # Green again: the workflow's open issue, if any, is closed.
+          if [ "$(jq -r .conclusion <<<"$run_json")" = success ]; then
+            existing=$(open_issue)
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "[$workflow]($url) passed on main at $sha: closed."
+              gh issue close "$existing" --reason completed
+              echo "Closed #$existing"
+            fi
+            exit 0
+          fi
 
           body=$(printf '%s\n\n%s\n\n%s\n%s\n' \
             "[$workflow]($url) failed on main at $sha." \
             "run_id: $RUN_ID" \
             "Failed jobs:" "$failed_jobs")
 
-          existing=$(gh issue list --state open --label bot-fix --search "\"$title\" in:title" \
-            --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n1)
+          existing=$(open_issue)
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
             echo "Commented on #$existing"

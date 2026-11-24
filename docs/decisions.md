@@ -8918,3 +8918,21 @@ the floor is 89, what Linux measures, so that main is not red on the day the gat
 working; it is raised again as tests are added, and is only ever raised from here. The same
 masking was in the release build's binary-size check and the benchmark run, both now under
 `pipefail`. The AI fixer (`ai-fix.yml`) holds a model's change to the same floor.
+
+## Free AI models work on main's failures and on coverage, never on behaviour, 2026-11-24
+
+The maintainer asked for bugs to be found and fixed automatically, at no cost. Two
+workflows give the work to free models (Gemini's free tier; Kilo Code's keyless free
+models when Gemini's change fails), described in `docs/testing.md`. What decided their
+shape: a model is never trusted to say its change works, so the workflow runs every
+check main is held to, and refuses a change to the checks themselves or one that removes
+or ignores a test (a model told "make the tests pass" will otherwise delete the test);
+it never merges, and never touches a contract row, since those need the maintainer's
+words; and a failure is looked at before a model is asked (green since, or not failing
+on Linux where it failed), because the free tiers allow one or two runs a day. The
+nightly test writer was chosen over taking `docs/gaps.md` rows because its result can be
+checked by a number (fewer untested lines, coverage not down) and changes no behaviour.
+Tried and dropped: the OpenRouter, Cerebras and NVIDIA free tiers (each needs a sign-up
+the maintainer could not complete), GitHub Models (8k tokens of input, too few for an
+agent), and a router stacking free providers behind one address (it installs from a
+repository's moving branch, and adds nothing without more keys).

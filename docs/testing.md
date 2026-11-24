@@ -390,6 +390,33 @@ can break it. The pre-commit hook (`scripts/pre-commit`; install with
 `ln -sf ../../scripts/pre-commit .git/hooks/pre-commit`) refuses a commit that
 writes a credential into a tracked file.
 
+## Free AI models: fixing CI's failures, and writing tests each night
+
+Two workflows give work to free AI models (Gemini on Google AI Studio's free tier, the
+`GEMINI_API_KEY` secret; then Kilo Code's free models, which need no key). Each model
+runs with no GitHub token and only edits the tree; `scripts/ai-agent.sh` checks the
+change as CI checks main and refuses one that touches the checks themselves (the
+workflows, `scripts/`, `tooling/xtask/`, the floors, `.config/`, `Cargo.lock`) or that
+removes or ignores a test. A change that fails goes back to the same model once, with
+what failed. What passes becomes a *draft* pull request, with CI and Desktop started on
+its branch so it is tested on Linux, Windows and macOS. A person runs
+`scripts/human-qa.py` before marking it ready.
+
+- **AI fix** (`ai-fix.yml`). A red run on main opens one issue per workflow
+  (`bug-report.yml`, which also closes it at the workflow's next green run) and starts
+  the fixer. Before any model is asked, `scripts/ai-fix-context.sh` closes the issue
+  if the workflow has passed since, leaves it for a person when every failing test
+  passes when run alone on Linux where it failed, and gathers the failing tests by
+  name, what changed since the last green run and each test run on Linux. Each issue
+  ends labelled `bot:pr`, `bot:no-fix`, `bot:green-since` or `bot:not-reproduced`.
+  Add the `bot-fix` label to any issue to hand it over.
+- **AI tests** (`ai-tests.yml`, each night). The file with the most lines no test runs
+  (`scripts/coverage-table.py pick`) is given to the models to test; the change is kept
+  only when that file has fewer untested lines and the workspace's coverage has not gone
+  down, and the coverage floor is raised to each whole percent passed. The issue
+  "Nightly AI tests (log)" records each night; a file tried in the last fortnight is not
+  picked again.
+
 ## Memory at rest (Windows)
 
 `python scripts/memory-check.py` starts the release build (`DM_BINARY` for another) with a home of its own, waits for its window to settle, samples it for twenty seconds and prints the working set, private bytes, threads and handles; it fails over `DM_MEMORY_BUDGET_MB` (100) or `DM_PRIVATE_BUDGET_MB` (60). Nothing of the person's is read or written: a dm with its own `DM_HOME` claims no browser and no file type.

@@ -1,23 +1,24 @@
 name: AI fix
 
-# An issue labelled `bot-fix` (or one named by hand) is handed to free AI
-# models, one after another, until one makes a change that passes the checks:
+# An issue labelled `bot-fix` (or one named by hand) is handed to free AI models until
+# one makes a change that passes the checks (scripts/ai-agent.sh: Gemini on Google AI
+# Studio's free tier, GEMINI_API_KEY; then Kilo Code's keyless free models; each gets
+# two tries, the second told what failed). Before any model is asked
+# (scripts/ai-fix-context.sh): an issue whose workflow has passed on main since is
+# closed, and one whose failing tests all pass here on Linux, where they failed, is
+# labelled and left for a person. What the model is given: the issue, the failed log,
+# the failing tests by name, what changed since the last green run, and each test run
+# here.
 #
-#   gemini  Gemini CLI, Google AI Studio's free tier: the GEMINI_API_KEY secret;
-#           the GEMINI_MODEL variable picks a model, else the CLI's default.
-#   kilo    opencode on Kilo Code's gateway, whose free models need no key
-#           (200 requests an hour per address); the KILO_MODEL variable picks
-#           one, else nvidia/nemotron-3-ultra-550b-a55b:free. Kilo says its
-#           free pool may log prompts: this repository is public, so nothing
-#           is sent that is not already published.
+# The models see no GitHub token and edit the tree only. A change that passes becomes a
+# *draft* pull request, and CI and Desktop are started on its branch, so it is tested on
+# Linux, Windows and macOS and held to the coverage floor before anyone reads it. The
+# window's QA (scripts/human-qa.py) needs a visible window: a person runs it before
+# marking the pull request ready and merging. Only someone with triage rights can add a
+# label, so a stranger's issue never starts this.
 #
-# The models see no GitHub token and edit the tree only; this workflow checks
-# each change (no test taken away or ignored, format, clippy, layering,
-# headers, the whole test run, line coverage at docs/coverage-floor.txt) and
-# opens a *draft* pull request. The window's QA (scripts/human-qa.py) needs a
-# visible window, so a person runs it before marking the pull request ready
-# and merging. Only someone with triage rights can add a label, so a
-# stranger's issue never starts this.
+# Each issue ends with one label saying how: bot:pr, bot:no-fix, bot:green-since,
+# bot:not-reproduced.
 on:
   issues:
     types: [labeled]
@@ -32,6 +33,7 @@ on:
         default: 'gemini kilo'
 
 permissions:
+  actions: write # to start CI and Desktop on the pull request's branch
   contents: write
   issues: write
   pull-requests: write
@@ -44,14 +46,16 @@ jobs:
   fix:
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'bot-fix'
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 340
     env:
       ISSUE: ${{ github.event.issue.number || inputs.issue }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
+          fetch-depth: 0 # what changed since the last green run
           persist-credentials: false # the models never hold a GitHub token
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
@@ -68,127 +72,89 @@ jobs:
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: cargo-nextest,cargo-llvm-cov
+      - name: Labels
+        run: |
+          for l in bot:pr bot:no-fix bot:green-since bot:not-reproduced; do
+            gh label create "$l" --color ededed --description 'How the AI fixer ended' 2>/dev/null || true
+          done
+
+      - name: What is known before a model is asked
+        id: context
+        run: |
+          printf '.bot/\n.gemini/\nopencode.json\n' >> .git/info/exclude
+          bash scripts/ai-fix-context.sh
+
+      - name: Green since, so closed
+        if: steps.context.outputs.skip == 'green'
+        env:
+          GREEN_URL: ${{ steps.context.outputs.green_url }}
+        run: |
+          gh issue comment "$ISSUE" --body "The workflow has passed on main since ([run]($GREEN_URL)): nothing left to fix. Closed by the AI fixer ([run]($RUN_URL))."
+          gh issue edit "$ISSUE" --add-label bot:green-since
+          gh issue close "$ISSUE" --reason completed
+
+      - name: Not failing here, so left for a person
+        if: steps.context.outputs.skip == 'not-reproduced'
+        run: |
+          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+          body=$(printf 'Every failing test passes when run alone here on Linux, where it failed: likely flaky, or depending on what ran before it. Left for a person; no model asked ([run](%s)).\n\n```\n%s\n```\n' \
+            "$RUN_URL" "$(grep -E '^(##|=>)' .bot/reproduce.log | head -n 40)")
+          gh issue comment "$ISSUE" --body "$body"
+          gh issue edit "$ISSUE" --add-label bot:not-reproduced
+
       - name: The agents
+        if: steps.context.outputs.skip == ''
         run: npm install -g @google/gemini-cli@0.68.0 opencode-ai@1.19.5
 
-      # The issue and, when it names a failed run, that run's log, as files the
-      # models read. The log stays in this job; it is not posted anywhere.
-      - name: Gather the issue and the failure
+      - name: The task
+        if: steps.context.outputs.skip == ''
+        env:
+          OS_ONLY: ${{ steps.context.outputs.os_only }}
         run: |
-          set -euo pipefail
-          mkdir -p .bot
-          printf '.bot/\n.gemini/\nopencode.json\n' >> .git/info/exclude
-          gh issue view "$ISSUE" --json title,body,comments > .bot/issue.json
-          run_id=$(jq -r '[.body, (.comments[].body)] | join("\n")' .bot/issue.json \
-            | grep -oE 'run_id: [0-9]+' | tail -n1 | cut -d' ' -f2 || true)
-          if [ -n "${run_id:-}" ]; then
-            gh run view "$run_id" --log-failed 2>/dev/null | tail -n 600 > .bot/failure.log || true
-          fi
-          touch .bot/failure.log
-          cat > .bot/prompt.md <<'EOF'
+          {
+            cat <<'EOF'
           You are fixing one bug in this repository (a Rust download manager, Cargo workspace at the root, crates in crates/).
 
           1. Read CLAUDE.md, AGENTS.md and docs/behaviour-contract.md first and follow them.
-          2. The issue is in .bot/issue.json. If it came from a failed CI run, the run's failed log is in .bot/failure.log.
-          3. Find the root cause by reading the code. Reproduce it with a test where you can (`cargo test -p <crate> <name>`).
+          2. The issue is in .bot/issue.json. When it came from a failed CI run:
+             - .bot/failing-tests.txt names each failing test (job, test binary, test, its first words);
+             - .bot/failure.log is the end of the failed run's log;
+             - .bot/breaking.diff is what changed between the last green run and the failed one: the cause is usually there;
+             - .bot/reproduce.log is each failing test run here, on Linux.
+             Run one test with: cargo nextest run --workspace -E 'binary_id(=BINARY) & test(=TEST)'
+          3. Find the root cause by reading the code. Reproduce it with a test where you can.
           4. Make the smallest change that fixes the root cause, and add or adjust a test that fails without the fix.
-          5. Do not change any behaviour listed in docs/behaviour-contract.md, the window's layout, dialogs or wording, and do not edit anything under .github/. Do not weaken, skip or delete a test to make it pass.
-          6. Check your work: `cargo fmt --all`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, then the failing crate's tests, then `cargo xtask test --profile ci`.
+          5. Do not change any behaviour listed in docs/behaviour-contract.md, the window's layout, dialogs or wording. Do not edit .github/, scripts/, tooling/xtask/, .config/, .cargo/, Cargo.lock or the coverage floors. Do not weaken, skip, ignore or delete a test to make it pass.
+          6. Check your work: `cargo fmt --all`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, then the failing tests, then `cargo xtask test --profile ci`.
           7. Do not commit. Write a short summary of the cause and the fix to .bot/summary.md.
           8. If you cannot find or fix the cause, change no source file and write what you found to .bot/summary.md.
           EOF
+            if [ "$OS_ONLY" = true ]; then
+              cat <<'EOF'
 
-      # Each provider in turn, from a clean tree, until a change passes. The
-      # models' word is not taken: the change is checked here as CI checks it.
-      # Each agent runs with only a home, a path and its own key.
-      - name: Try each provider
+          This failure happened only on Windows or macOS (see the job names in .bot/failing-tests.txt). You are on Linux, so the failing tests may pass here; reason from the log and the code (`cfg(windows)`, `cfg(target_os = "macos")`, paths, line endings, fonts, timing). The pull request is then tested on Windows and macOS.
+          EOF
+            fi
+          } > .bot/prompt.md
+
+      - name: Ask the models
         id: try
+        if: steps.context.outputs.skip == ''
         env:
           PROVIDERS: ${{ inputs.providers || 'gemini kilo' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
-          KILO_MODEL: ${{ vars.KILO_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free' }}
+          KILO_MODEL: ${{ vars.KILO_MODEL }}
         run: |
-          # Not -e (GitHub's default): an agent that fails must not stop the next one.
+          # Not -e (GitHub's default): a model that fails must not stop the next one.
           set +e -uo pipefail
-          prompt=$(cat .bot/prompt.md)
-          base_env=(env -i "HOME=$HOME" "PATH=$PATH" TERM=dumb CI=true CARGO_TERM_COLOR=never)
+          # shellcheck source=/dev/null
+          . scripts/ai-agent.sh
+          ai_setup
+          ai_try .bot/prompt.md
+          exit 0
 
-          # Gemini CLI's tools: read, search, edit, and cargo and read-only git in the shell.
-          mkdir -p "$HOME/.gemini"
-          cat > "$HOME/.gemini/settings.json" <<'EOF'
-          { "model": { "maxSessionTurns": 120 },
-            "tools": { "core": [ "list_directory", "read_file", "glob", "grep_search", "search_file_content",
-              "replace", "write_file", "run_shell_command(cargo)", "run_shell_command(git diff)",
-              "run_shell_command(git status)", "run_shell_command(git log)" ] } }
-          EOF
-          # opencode's: the same, Kilo's gateway as an OpenAI-compatible provider, the web denied.
-          kilo_config=$(jq -n --arg m "$KILO_MODEL" '{
-            "$schema": "https://opencode.ai/config.json",
-            provider: { kilo: { npm: "@ai-sdk/openai-compatible", name: "Kilo Gateway",
-              options: { baseURL: "https://api.kilo.ai/api/gateway" },
-              models: { ($m): { name: $m } } } },
-            permission: { "*": "allow", webfetch: "deny", websearch: "deny", question: "deny",
-              bash: { "*": "deny", "cargo *": "allow", "git diff*": "allow",
-                      "git status*": "allow", "git log*": "allow" } } }')
-
-          check() {
-            local changed
-            changed=$(git status --porcelain)
-            if [ -z "$changed" ]; then echo none; return; fi
-            if grep -qE ' (\.github/|docs/behaviour-contract\.md|docs/behaviour-baseline/|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|\.config/nextest\.toml)' <<<"$changed"; then
-              echo forbidden; return
-            fi
-            # A test may be added or changed, never taken away or switched off.
-            git add -N . 2>/dev/null
-            if git diff -U0 -- '*.rs' | grep -qE '^-[[:space:]]*#\[(tokio::)?test\]|^\+[[:space:]]*#\[ignore'; then
-              echo removes-a-test; return
-            fi
-            cargo fmt --all >&2
-            if cargo clippy --workspace --all-targets --locked -- -D warnings >&2 \
-               && cargo xtask layers >&2 && cargo xtask headers >&2 \
-               && cargo xtask test --profile ci >&2 \
-               && cargo llvm-cov --workspace --locked --summary-only \
-                    --fail-under-lines "$(cat docs/coverage-floor.txt)" >&2; then
-              echo pass
-            else
-              echo fail
-            fi
-          }
-
-          report=""
-          for provider in $PROVIDERS; do
-            git reset -q && git checkout -q -- . && git clean -qfd
-            rm -f .bot/summary.md
-            case "$provider" in
-              gemini)
-                if [ -z "$GEMINI_API_KEY" ]; then report+="- gemini: no GEMINI_API_KEY secret, skipped"$'\n'; continue; fi
-                model_args=()
-                if [ -n "$GEMINI_MODEL" ]; then model_args=(--model "$GEMINI_MODEL"); fi
-                # A headless run trusts the checkout only when told to.
-                run=("${base_env[@]}" "GEMINI_API_KEY=$GEMINI_API_KEY" GEMINI_CLI_TRUST_WORKSPACE=true gemini --yolo "${model_args[@]}" --prompt "$prompt") ;;
-              kilo)
-                run=("${base_env[@]}" "OPENCODE_CONFIG_CONTENT=$kilo_config"
-                     opencode run --print-logs --auto --model "kilo/$KILO_MODEL" "$prompt") ;;
-              *) report+="- $provider: unknown, skipped"$'\n'; continue ;;
-            esac
-
-            echo "::group::$provider"
-            timeout 90m "${run[@]}"; status=$?
-            echo "::endgroup::"
-            echo "::group::$provider: checking the change"
-            git status --porcelain
-            result=$(check)
-            echo "::endgroup::"
-            report+="- $provider: agent exit $status, change: $result"$'\n'
-            if [ "$result" = pass ]; then
-              echo "provider=$provider" >> "$GITHUB_OUTPUT"
-              break
-            fi
-          done
-          { echo 'report<<REPORT_END'; printf '%s' "$report"; echo 'REPORT_END'; } >> "$GITHUB_OUTPUT"
-
-      - name: Open a draft pull request
+      - name: Open a draft pull request, and test it on every system
         if: steps.try.outputs.provider != ''
         env:
           PROVIDER: ${{ steps.try.outputs.provider }}
@@ -202,22 +168,27 @@ jobs:
           git add -A -- . ':!.bot'
           git commit -m "Fix #$ISSUE ($PROVIDER, draft)"
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git" "HEAD:$branch"
+          # A pull request opened with this token starts no workflow: they are started here,
+          # and their checks show on the pull request.
+          gh workflow run ci.yml --ref "$branch" || true
+          gh workflow run desktop.yml --ref "$branch" -f bundles=false || true
           summary=$(cat .bot/summary.md 2>/dev/null || echo 'No summary written.')
           # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-          body=$(printf 'Fixes #%s\n\nMade by **%s**.\n\n%s\n\nTried:\n%s\nNo test removed or ignored; format, clippy, layering, headers, `cargo xtask test --profile ci` and the coverage floor passed on Linux in the fixer run. Before merging: run `python3 scripts/human-qa.py` in a visible window, and close and reopen this pull request so CI runs on it.\n' \
+          body=$(printf 'Fixes #%s\n\nMade by **%s**.\n\n%s\n\nTried:\n%s\nOn Linux in the fixer run: no test removed or ignored, format, clippy, layering, headers, `cargo xtask test --profile ci` and the coverage floor passed. CI and Desktop (Linux, Windows, macOS) were started on this branch: their checks are below. Before merging: run `python3 scripts/human-qa.py` in a visible window.\n' \
             "$ISSUE" "$PROVIDER" "$summary" "$REPORT")
           if gh pr view "$branch" --json number >/dev/null 2>&1; then
             gh pr comment "$branch" --body "$body"
           else
             gh pr create --draft --head "$branch" --title "Fix #$ISSUE ($PROVIDER, needs QA)" --body "$body"
           fi
+          gh issue edit "$ISSUE" --add-label bot:pr --remove-label bot:no-fix || true
 
       - name: Say why there is no pull request
-        if: always() && steps.try.outputs.provider == ''
+        if: always() && steps.context.outputs.skip == '' && steps.try.outputs.provider == ''
         env:
           REPORT: ${{ steps.try.outputs.report }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           summary=$(cat .bot/summary.md 2>/dev/null || true)
-          gh issue comment "$ISSUE" --body "$(printf 'No provider made a change that passes the checks ([run](%s)).\n\n%s\n%s\n' \
-            "$RUN_URL" "${REPORT:-The fixer stopped before trying a provider.}" "$summary")"
+          gh issue comment "$ISSUE" --body "$(printf 'No model made a change that passes the checks ([run](%s)).\n\n%s\n%s\n' \
+            "$RUN_URL" "${REPORT:-The fixer stopped before asking a model.}" "$summary")"
+          gh issue edit "$ISSUE" --add-label bot:no-fix || true
