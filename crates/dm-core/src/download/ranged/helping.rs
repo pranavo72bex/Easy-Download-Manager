@@ -271,9 +271,17 @@ fn fetching(job: &Job) -> usize {
         .iter()
         .filter(|slot| {
             let l = crate::lock(slot);
-            l.taken && (l.end - l.start + 1) > l.reserved
+            l.taken && still_to_come(l.start, l.end, l.reserved)
         })
         .count()
+}
+
+/// Whether a range from `start` to `end` (inclusive) has bytes still to come beyond the
+/// `reserved` already in. A download of no stated length has its one range end at
+/// `u64::MAX`, where `end - start + 1` overflowed: a panic in a test build, and a range
+/// counted as empty in a release one.
+fn still_to_come(start: u64, end: u64, reserved: u64) -> bool {
+    end.saturating_sub(start).saturating_add(1) > reserved
 }
 
 /// The share of the other connections' average rate under which a connection
@@ -304,7 +312,7 @@ fn behind(all: u64, mine: u64, connections: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{behind, raised};
+    use super::{behind, raised, still_to_come};
 
     const MB: u64 = 1024 * 1024;
 
@@ -331,6 +339,19 @@ mod tests {
         assert!(behind(71 * MB, MB, 8));
         // Nothing at all from it.
         assert!(behind(10 * MB, 0, 4));
+    }
+
+    #[test]
+    fn a_range_of_no_stated_end_still_has_bytes_to_come() {
+        // A chunked download, no length: its one range runs to u64::MAX (the zoo's
+        // "chunked" case panicked here, adding one to it).
+        assert!(still_to_come(0, u64::MAX, 0));
+        assert!(still_to_come(0, u64::MAX, 5 * MB));
+        assert!(still_to_come(7, u64::MAX, u64::MAX - 8));
+        // A range of ten bytes, as many in or not.
+        assert!(still_to_come(10, 19, 9));
+        assert!(!still_to_come(10, 19, 10));
+        assert!(!still_to_come(0, 0, 1));
     }
 
     #[test]
