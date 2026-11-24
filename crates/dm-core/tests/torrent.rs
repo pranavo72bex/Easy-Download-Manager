@@ -309,3 +309,40 @@ async fn a_magnet_with_no_peers_stops_when_paused() {
         ended.err()
     );
 }
+
+/// A `.torrent` whose piece length is 0 made the torrent library divide by zero: the download's
+/// task panicked, and its row stayed "running" for good, holding its place in the queue. It is
+/// now a failed row that says why (gaps row H10, audit of the BitTorrent code).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_torrent_that_panics_the_library_fails_its_row_rather_than_hanging_it() {
+    let dir = tempdir();
+    let file = dir.path().join("zero.torrent");
+    let mut bytes = b"d4:infod6:lengthi10e4:name4:zero12:piece lengthi0e6:pieces20:".to_vec();
+    bytes.extend_from_slice(&[0u8; 20]);
+    bytes.extend_from_slice(b"ee");
+    std::fs::write(&file, &bytes).unwrap();
+    let options = Options {
+        connections: 1,
+        ..common::options(dir.path())
+    };
+    let queue = dm_core::DownloadList::new(client(), options, 1);
+    let url = url::Url::from_file_path(&file).unwrap().to_string();
+    let id = queue.add(&url).await.expect("the row");
+    let running = queue.clone();
+    tokio::spawn(async move { running.run().await });
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let state = queue.get(id).await.unwrap().state;
+        match state {
+            dm_core::State::Failed(why) => {
+                assert!(why.contains("did not expect"), "{why}");
+                break;
+            }
+            other => assert!(
+                std::time::Instant::now() < deadline,
+                "still {other:?} after twenty seconds"
+            ),
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}

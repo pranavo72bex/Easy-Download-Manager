@@ -342,7 +342,13 @@ impl DownloadList {
                 drop(tx);
                 Err(not_connected)
             } else {
-                sent(download_reporting(&client, &url, &options, Some(tx))).await
+                sent(guarded(download_reporting(
+                    &client,
+                    &url,
+                    &options,
+                    Some(tx),
+                )))
+                .await
             };
             let reported = watcher.await.ok().flatten();
             if !sent(queue.finish_run(id, &url, &options, &ran_with, outcome, reported)).await {
@@ -590,6 +596,30 @@ async fn network_first(
         });
     })
     .await
+}
+
+/// A download's run, with a panic inside it (a reader of what a server, a file or a peer sent,
+/// meeting what it did not expect: a torrent library's divide by zero on a piece length of 0)
+/// turned into a failure of that download. Unguarded, the panic ended the spawned task before
+/// its outcome was recorded, and the row stayed "running" for good, holding its place in the
+/// queue (gaps row H10, the audit of 2026-11-24).
+async fn guarded(
+    run: impl std::future::Future<Output = Result<crate::download::Finished, Error>>,
+) -> Result<crate::download::Finished, Error> {
+    use futures_util::FutureExt;
+    match std::panic::AssertUnwindSafe(run).catch_unwind().await {
+        Ok(outcome) => outcome,
+        Err(panic) => {
+            let what = panic
+                .downcast_ref::<&str>()
+                .map(|s| (*s).to_string())
+                .or_else(|| panic.downcast_ref::<String>().cloned())
+                .unwrap_or_default();
+            Err(Error::Internal(format!(
+                "dm met something in this download it did not expect and stopped it ({what})"
+            )))
+        }
+    }
 }
 
 /// `future`, boxed with `Send` named where it is made: awaited inside `tokio::spawn`, an async
