@@ -587,8 +587,10 @@ pub const TOOLBAR: [(Command, &str); 11] = [
     (Command::AddUrl, "Add URL"),
     (Command::DownloadNow, "Resume"),
     (Command::StopDownload, "Stop"),
-    (Command::StopAll, "Stop All"),
+    // What acts on the chosen rows together, then the rest (gaps row E3, the maintainer's word
+    // of 2026-11-24): Delete beside Stop, Stop All after them.
     (Command::Remove, "Delete"),
+    (Command::StopAll, "Stop All"),
     (Command::DeleteCompleted, "Delete Completed"),
     (Command::Options, "Options"),
     (Command::Scheduler, "Scheduler"),

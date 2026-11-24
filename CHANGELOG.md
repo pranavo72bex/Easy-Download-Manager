@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The toolbar is ranked: Add URL stands out at the start, Resume, Stop and Delete beside it, and the rest at the end.
 - Android: several finished downloads chosen can be shared together, to one app in one go.
 - Android: a change in Options takes effect as you make it, as the phone's own settings do; Done closes Options.
 - Android: holding a download's card (or a place) is felt, as the phone's own apps' long presses are; it follows the phone's touch-feedback setting.
