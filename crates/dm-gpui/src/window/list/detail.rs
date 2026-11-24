@@ -101,6 +101,7 @@ fn pane(row: &Entry, theme: Theme, screen: &Screen) -> gpui::Stateful<Div> {
             div()
                 .text_size(px(native::TEXT * 1.3))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
+                .font_features(crate::widgets::native::figures())
                 .whitespace_nowrap()
                 .overflow_hidden()
                 .text_ellipsis()

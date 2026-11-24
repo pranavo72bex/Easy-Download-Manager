@@ -128,19 +128,6 @@ fn width_of(column: Column, widths: &Widths) -> Option<f32> {
 /// The most Status grows to, as a share of its least width.
 const STATUS_GROWS_TO: f32 = 2.0;
 
-/// A file's name split where a long one is cut: what goes before its extension, and the
-/// extension with its dot. The extension is kept whole, so a long name reads
-/// "A very long name of a fi….mp4" rather than losing what kind of file it is (gaps row U3).
-fn name_parts(name: &str) -> (&str, &str) {
-    match name.rfind('.') {
-        // Not a leading dot (".bashrc"), and an extension of a few letters, not a sentence.
-        Some(dot) if dot > 0 && name.len() - dot <= 8 && !name[dot..].contains(' ') => {
-            name.split_at(dot)
-        }
-        _ => (name, ""),
-    }
-}
-
 /// The file name's column never narrower than this: the other columns
 /// scroll sideways first, as a macOS list does.
 const NAME_AT_LEAST: f32 = 180.0;
@@ -237,6 +224,7 @@ fn cell(column: Column, widths: &Widths) -> gpui::Div {
     };
     if numeric(column) {
         cell.justify_end()
+            .font_features(crate::widgets::native::figures())
     } else {
         cell
     }
@@ -538,6 +526,7 @@ fn status_cell(
         ..
     } = layout;
     let column = Column::Status;
+    // Its percentage in figures of one width, as the other figures are (gaps row E20).
     let said = words(column, row, whens);
     let fraction = (row.state == State::Running)
         .then(|| row.progress.fraction())
@@ -549,6 +538,7 @@ fn status_cell(
         None => said.clone(),
     };
     cell(column, widths)
+        .font_features(crate::widgets::native::figures())
         .id(("status", row.id))
         .when(told, |c| told_cell(c, place, said.clone()))
         .flex_col()

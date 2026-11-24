@@ -48,6 +48,8 @@ const BAR_BUTTON_MIN: f32 = if crate::platform::ON_A_PHONE {
 pub(crate) fn body() -> gpui::Div {
     div()
         .flex()
+        // Its words, then its buttons, from the right where the window is mirrored (E19).
+        .map(crate::window::mirror::row)
         .flex_wrap()
         .items_center()
         .gap(px(native::LABEL_GAP))
@@ -108,6 +110,9 @@ pub(crate) fn framed(
 ) -> gpui::AnyElement {
     div()
         .flex()
+        // Its mark first, at the right where the window is mirrored, beside its sentence: it
+        // stood at the far end, across the bar (gaps row E19).
+        .map(crate::window::mirror::row)
         .items_center()
         .gap(px(native::LABEL_GAP))
         .px(px(space::L))

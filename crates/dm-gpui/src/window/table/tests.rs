@@ -55,15 +55,6 @@ fn a_rows_buttons_follow_its_state() {
 }
 
 #[test]
-fn a_names_extension_is_kept_apart_to_stay_whole() {
-    assert_eq!(name_parts("A long film.mp4"), ("A long film", ".mp4"));
-    assert_eq!(name_parts("archive.tar.gz"), ("archive.tar", ".gz"));
-    assert_eq!(name_parts(".bashrc"), (".bashrc", ""));
-    assert_eq!(name_parts("no extension"), ("no extension", ""));
-    assert_eq!(name_parts("v1.2 of the talk"), ("v1.2 of the talk", ""));
-}
-
-#[test]
 fn a_heading_dropped_on_another_takes_its_place() {
     use Column::{Name, Queue, Size, Status};
     let order = vec![Name, Queue, Size, Status];

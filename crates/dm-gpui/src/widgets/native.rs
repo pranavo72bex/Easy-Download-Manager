@@ -187,6 +187,13 @@ pub const BUTTON_MIN: f32 = on_a_phone(64.0, pick(80.0, 120.0, 80.0));
 /// A control's corners.
 pub const RADIUS: f32 = on_a_phone(10.0, pick(5.0, 4.0, 6.0));
 
+/// The font's figures all one width ("tnum"), for figures that change as they are read: a
+/// speed, the time left, a percentage. Proportional figures shifted the words after them at
+/// every tick (gaps row E20).
+pub fn figures() -> gpui::FontFeatures {
+    gpui::FontFeatures(std::sync::Arc::new(vec![("tnum".into(), 1)]))
+}
+
 /// A dialog's body: the margins, the system's text, its rows apart.
 pub fn body(theme: Theme) -> Div {
     div()

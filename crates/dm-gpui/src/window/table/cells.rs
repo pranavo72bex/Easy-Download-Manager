@@ -10,34 +10,16 @@ use gpui::relative;
 use super::*;
 use crate::window::a11y::Told;
 
-/// A row's name as drawn: its stem, cut short where it must be, then its extension whole; read
-/// as the whole name, as it was one label.
-pub(super) fn name_drawn(name: &SharedString, screen: &Screen) -> impl IntoElement {
-    let (stem, extension) = name_parts(name);
-    let drawn = div()
-        .flex()
-        .min_w_0()
-        .overflow_hidden()
-        .child(
-            div()
-                .min_w_0()
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_ellipsis()
-                .child(SharedString::from(stem.to_string())),
-        )
-        .child(
-            div()
-                .flex_none()
-                .whitespace_nowrap()
-                .child(SharedString::from(extension.to_string())),
-        );
-    // Read as the whole name, as it was one label; in a box that can be narrower than the name,
-    // so the name ends in "…" where its cell is narrow, recorded or not (gaps row E7).
+/// A row's name as drawn: one run of words cut in its middle where it must be, so its start
+/// and its extension both stay ("Ubuntu-24.04-de…amd64.iso"). It was two boxes, the stem cut
+/// and the extension apart, which left a gap or read as four dots (gaps row E18).
+pub(crate) fn name_drawn(name: &SharedString, screen: &Screen) -> impl IntoElement {
     div()
         .min_w_0()
         .overflow_hidden()
-        .child(screen.mark(name.clone(), drawn))
+        .whitespace_nowrap()
+        .text_ellipsis_middle()
+        .child(screen.label(name.clone()))
 }
 
 /// The bar under a running row's status, `f` of the way along.
@@ -76,30 +58,47 @@ pub(crate) fn set_still(still: bool) {
 }
 
 thread_local! {
-    /// Each bar's glide, by download: the width it glides from and the one it glides to.
-    static GLIDES: std::cell::RefCell<std::collections::HashMap<u64, (f32, f32)>> =
-        std::cell::RefCell::new(std::collections::HashMap::new());
+    /// Each bar's glide, by download: the width it glides from, the one it glides to, and when
+    /// it set out.
+    static GLIDES: std::cell::RefCell<
+        std::collections::HashMap<u64, (f32, f32, std::time::Instant)>,
+    > = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-/// A bar's fill at `target` of its track, gliding there over 300 ms from where it last stood
-/// rather than jumping at each tick (gaps row K7). An animation of GPUI's own, drawn only
-/// while it moves; none where the system asks for less motion.
+/// How long a bar's glide takes: the list's tick while a download runs, so each glide ends as
+/// the next figure comes and the bar moves at one pace (gaps row E21: a 300 ms glide begun
+/// again every 250 ms sped up and slowed down four times a second).
+const GLIDE: std::time::Duration = crate::window::list::RUNNING;
+
+/// Where a glide from `from` to `to`, set out `elapsed` ago, stands now: linear, as continuous
+/// progress moves.
+fn glide_at(from: f32, to: f32, elapsed: std::time::Duration) -> f32 {
+    let done = (elapsed.as_secs_f32() / GLIDE.as_secs_f32()).min(1.0);
+    from + (to - from) * done
+}
+
+/// A bar's fill at `target` of its track, gliding there from where it is drawn now rather than
+/// jumping at each tick (gaps row K7). An animation of GPUI's own, drawn only while it moves;
+/// none where the system asks for less motion.
 fn glided(id: u64, target: f32, fill: gpui::Div) -> AnyElement {
     use gpui::{Animation, AnimationExt};
     let (from, to) = GLIDES.with(|g| {
         let mut g = g.borrow_mut();
-        let entry = g.entry(id).or_insert((target, target));
+        let now = std::time::Instant::now();
+        let entry = g.entry(id).or_insert((target, target, now));
         if (entry.1 - target).abs() > 0.0005 {
-            *entry = (entry.1, target);
+            // From where the bar stands, not from the last figure: no jump back at a tick.
+            let here = glide_at(entry.0, entry.1, now - entry.2);
+            *entry = (here, target, now);
         }
-        *entry
+        (entry.0, entry.1)
     });
     if STILL.load(std::sync::atomic::Ordering::Relaxed) || (to - from).abs() < 0.0005 {
         return fill.w(relative(to)).into_any_element();
     }
     fill.with_animation(
         gpui::ElementId::Name(format!("glide-{id}-{}", (to * 10_000.0) as u32).into()),
-        Animation::new(std::time::Duration::from_millis(300)).with_easing(gpui::ease_in_out),
+        Animation::new(GLIDE).with_easing(gpui::linear),
         move |fill, delta| fill.w(relative(from + (to - from) * delta)),
     )
     .into_any_element()
@@ -155,7 +154,8 @@ pub(crate) fn arriving<E: IntoElement + gpui::Styled + 'static>(id: u64, row: E)
     }
     row.with_animation(
         gpui::ElementId::Name(format!("arrive-{id}").into()),
-        Animation::new(ARRIVING).with_easing(gpui::ease_in_out),
+        // An enter eases out (gaps row E21).
+        Animation::new(ARRIVING).with_easing(gpui::ease_out_quint()),
         |row, delta| row.opacity(delta),
     )
     .into_any_element()
@@ -230,8 +230,9 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-/// How long a row taken off the list takes to fade out.
-const LEAVING_FOR: std::time::Duration = std::time::Duration::from_millis(150);
+/// How long a row taken off the list takes to fade out: shorter than it took to come in
+/// (`ARRIVING`), as an exit is (gaps row E21).
+const LEAVING_FOR: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// Rows `ids` begin to fade out (gaps row K7); when they will have. Now, where the system asks
 /// for less motion: nothing fades and nothing waits.
@@ -278,7 +279,7 @@ fn leaving<E: IntoElement + gpui::Styled + 'static>(id: u64, row: E) -> AnyEleme
         Some(done) => row
             .with_animation(
                 gpui::ElementId::Name(format!("leave-{id}").into()),
-                Animation::new(LEAVING_FOR.mul_f32(1.0 - done)).with_easing(gpui::ease_in_out),
+                Animation::new(LEAVING_FOR.mul_f32(1.0 - done)).with_easing(gpui::ease_out_quint()),
                 move |row, delta| row.opacity((1.0 - done) * (1.0 - delta)),
             )
             .into_any_element(),
@@ -342,7 +343,7 @@ mod glide_tests {
     #[test]
     fn a_bar_glides_from_its_last_width_to_its_new_one() {
         let fill = || div();
-        let glide = |id| GLIDES.with(|g| g.borrow().get(&id).copied());
+        let glide = |id| GLIDES.with(|g| g.borrow().get(&id).map(|&(from, to, _)| (from, to)));
         let _ = glided(7_000_001, 0.2, fill());
         assert_eq!(glide(7_000_001), Some((0.2, 0.2)), "a first width stands");
         let _ = glided(7_000_001, 0.5, fill());
@@ -350,8 +351,22 @@ mod glide_tests {
         // Drawn again with the same width (a hover, a tick with no news): the same glide.
         let _ = glided(7_000_001, 0.5, fill());
         assert_eq!(glide(7_000_001), Some((0.2, 0.5)));
+        // A new width at once: from where the bar stands (hardly moved), not from 0.5, where
+        // it has not got to (gaps row E21).
         let _ = glided(7_000_001, 0.9, fill());
-        assert_eq!(glide(7_000_001), Some((0.5, 0.9)));
+        let (from, to) = glide(7_000_001).unwrap();
+        assert!((0.2..0.3).contains(&from) && to == 0.9, "{from} to {to}");
+    }
+
+    /// A glide moves at one pace and is done in one tick of a running list.
+    #[test]
+    fn a_glide_is_linear_and_lasts_one_tick() {
+        use std::time::Duration;
+        assert_eq!(glide_at(0.2, 0.6, Duration::ZERO), 0.2);
+        assert!((glide_at(0.2, 0.6, GLIDE / 2) - 0.4).abs() < 1e-4);
+        assert_eq!(glide_at(0.2, 0.6, GLIDE), 0.6);
+        assert_eq!(glide_at(0.2, 0.6, GLIDE * 3), 0.6);
+        assert!(LEAVING_FOR < ARRIVING, "an exit is shorter than its enter");
     }
 
     /// A row fades in only where it was added after the list was first drawn, and only for a

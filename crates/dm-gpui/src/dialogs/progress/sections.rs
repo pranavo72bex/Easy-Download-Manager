@@ -206,6 +206,7 @@ pub(super) fn figure_line(look: &Look, row: &dm_core::Entry, joining: bool) -> g
     div()
         .text_size(px(native::TEXT * 1.4))
         .font_weight(gpui::FontWeight::SEMIBOLD)
+        .font_features(native::figures())
         .child(look.screen.label(figure_words(row, joining)))
 }
 

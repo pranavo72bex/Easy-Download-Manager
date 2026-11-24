@@ -94,7 +94,7 @@ pub(crate) const ROW_HEIGHT: f32 = 24.0;
 const IDLE: Duration = Duration::from_secs(30);
 
 /// How often the window reads and draws the list while a download runs.
-const RUNNING: Duration = Duration::from_millis(250);
+pub(crate) const RUNNING: Duration = Duration::from_millis(250);
 
 /// How often the window wakes while a clock ticks: When done's countdown, the clipboard
 /// watched.

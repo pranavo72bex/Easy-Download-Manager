@@ -185,6 +185,34 @@ fn figures(row: &Entry, status: &str, speed: String) -> (String, String) {
     (left, right)
 }
 
+/// A card's first line: its name, cut in its middle, and the time left beside it.
+fn name_line(name: SharedString, left: String, card_theme: Theme, screen: &Screen) -> gpui::Div {
+    div()
+        .flex()
+        .map(crate::window::mirror::row)
+        .items_center()
+        .gap(px(space::M))
+        .child(
+            div()
+                .flex_1()
+                // A few letters of the name stay, whatever the figures beside
+                // it: they give up their room first.
+                .min_w(px(NAME_LEAST))
+                .overflow_hidden()
+                .whitespace_nowrap()
+                // Cut in its middle, as the list's is: its extension stays.
+                .text_ellipsis_middle()
+                .text_size(px(NAME_TEXT))
+                .font_weight(gpui::FontWeight::MEDIUM)
+                .child(screen.label(name)),
+        )
+        .when(!left.trim().is_empty(), |line| {
+            // Able to be cut, as `small` is: at 360 points and a larger
+            // text size a fixed "Calculating…" left the name a few letters.
+            line.child(small(left, card_theme.muted, screen))
+        })
+}
+
 /// The least a card's name is drawn, in points: its first letters beside any figures.
 const NAME_LEAST: f32 = 64.0;
 
@@ -197,6 +225,8 @@ fn small(words: String, colour: gpui::Rgba, screen: &Screen) -> gpui::Div {
         .text_ellipsis()
         .text_size(px(META_TEXT))
         .text_color(colour)
+        // Its figures one width, as the list's are (gaps row E20).
+        .font_features(crate::widgets::native::figures())
         .child(screen.label(SharedString::from(words)))
 }
 
@@ -251,9 +281,17 @@ fn card(
         .aria_row_index(i + 1)
         .w_full()
         .h(px(CARD_HEIGHT))
-        .pl(px(space::L))
-        .pr(px(space::XS))
+        // Its tile at the right, its buttons at the left, where the window is mirrored (gaps
+        // row E19): the phone's layout was not mirrored.
+        .map(|card| {
+            if crate::window::mirror::rtl() {
+                card.pr(px(space::L)).pl(px(space::XS))
+            } else {
+                card.pl(px(space::L)).pr(px(space::XS))
+            }
+        })
         .flex()
+        .map(crate::window::mirror::row)
         .items_center()
         .gap(px(space::M))
         .border_b_1()
@@ -298,30 +336,7 @@ fn card(
                 .flex()
                 .flex_col()
                 .gap(px(space::S))
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(space::M))
-                        .child(
-                            div()
-                                .flex_1()
-                                // A few letters of the name stay, whatever the figures beside
-                                // it: they give up their room first.
-                                .min_w(px(NAME_LEAST))
-                                .overflow_hidden()
-                                .whitespace_nowrap()
-                                .text_ellipsis()
-                                .text_size(px(NAME_TEXT))
-                                .font_weight(gpui::FontWeight::MEDIUM)
-                                .child(screen.label(name)),
-                        )
-                        .when(!left.trim().is_empty(), |line| {
-                            // Able to be cut, as `small` is: at 360 points and a larger
-                            // text size a fixed "Calculating…" left the name a few letters.
-                            line.child(small(left, card_theme.muted, screen))
-                        }),
-                )
+                .child(name_line(name, left, card_theme, screen))
                 // No bar on a finished card: its tick says it (gaps row E4).
                 // One just finished fills and fades rather than vanishing (gaps row K7).
                 .children(crate::window::table::finishing_bar(row, card_theme))
@@ -336,12 +351,14 @@ fn card(
                 .child(
                     div()
                         .flex()
+                        .map(crate::window::mirror::row)
                         .justify_between()
                         .gap(px(space::M))
                         // A mark told by its shape, then the words (gaps row E4).
                         .child(
                             div()
                                 .flex()
+                                .map(crate::window::mirror::row)
                                 .items_center()
                                 .gap(px(space::XS))
                                 .min_w_0()

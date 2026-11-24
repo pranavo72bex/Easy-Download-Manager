@@ -188,7 +188,14 @@ impl Downloads {
                         .aria_label(add)
                         .absolute()
                         .bottom(px(lifted))
-                        .right(px(space::XL))
+                        // Where the thumb is in a language read right to left, too (E19).
+                        .map(|button| {
+                            if crate::window::mirror::rtl() {
+                                button.left(px(space::XL))
+                            } else {
+                                button.right(px(space::XL))
+                            }
+                        })
                         .size(px(FLOATING))
                         .rounded_full()
                         .flex()
@@ -343,8 +350,16 @@ fn snackbar(n: usize, theme: Theme, screen: &Screen, cx: &mut Context<Downloads>
         .left(px(space::L))
         .right(px(space::L))
         .min_h(px(space::TOUCH))
-        .pl(px(space::L))
+        .map(|bar| {
+            if crate::window::mirror::rtl() {
+                bar.pr(px(space::L))
+            } else {
+                bar.pl(px(space::L))
+            }
+        })
         .flex()
+        // Its sentence, then Undo, from the right where the window is mirrored (E19).
+        .map(crate::window::mirror::row)
         .items_center()
         .gap(px(space::S))
         .rounded(px(crate::widgets::native::RADIUS))

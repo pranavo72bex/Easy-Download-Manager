@@ -5,6 +5,11 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A long file name is shortened in its middle, so its start and its extension both stay ("Ubuntu-24.04-de…amd64.iso"), on the phone too.
+- Speeds, times and percentages keep still as they change: every digit is the same width.
+- Progress bars move at an even pace; rows fade in a little more gently and out a little quicker.
+- In Arabic and Hebrew, the message bar and the phone's cards, Undo bar and Add button are laid out from the right.
+
 - Easier to read: words drawn in the accent colour (a running download's state, "+1 more", links) and the words on blue buttons and chosen rows now read clearly on macOS and Linux, in light and dark.
 - The keyboard reaches more of the window: the side panel's places and group headings, "+1 more" in the message bar, and the search box shows a ring while you type in it. A screen reader now says the row the arrow keys move to.
 - On Android, "Remove animations" is followed; on every system, turning "reduce motion" on or off while dm runs is followed when you come back to dm.

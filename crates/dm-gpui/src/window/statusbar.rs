@@ -178,6 +178,7 @@ pub fn statusbar(
         .bg(crate::window::theme::frame(theme.sidebar))
         .text_size(px(crate::widgets::native::SMALL_TEXT))
         .text_color(theme.muted)
+        .font_features(crate::widgets::native::figures())
         // Each part cut with "…" where the bar is narrower than they are, never cut off unseen
         // at its edge (gaps row V15).
         .children(said.into_iter().map(|part| {
