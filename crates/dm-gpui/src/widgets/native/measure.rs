@@ -22,6 +22,11 @@ pub fn label_width(labels: &[&str]) -> f32 {
         .ceil()
 }
 
+/// How wide `words` are set in the system's size for controls and labels, in points at 100%.
+pub fn text_width(words: &str) -> f32 {
+    words_width(words, TEXT)
+}
+
 /// How wide `words` are set in the system's small size (a toolbar button's word), in points
 /// at 100%.
 pub fn small_width(words: &str) -> f32 {

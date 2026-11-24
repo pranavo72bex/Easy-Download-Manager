@@ -17,6 +17,7 @@ use crate::harness::world::{world, World};
 use crate::harness::{settings_file, Harness};
 
 mod language;
+mod sweep;
 
 fn finished(h: &mut Harness) -> bool {
     h.rows().iter().any(|r| r.state == State::Completed)

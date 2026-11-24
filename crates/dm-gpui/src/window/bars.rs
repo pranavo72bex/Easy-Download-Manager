@@ -31,6 +31,9 @@ const BROWSER_HINT_HIDDEN: &str = dm_core::paths::BROWSER_HINT_HIDDEN;
 /// bar looks into it again.
 const BROWSER_LOOKED_FOR: Duration = Duration::from_secs(3);
 
+/// The least width of a bar's words beside its buttons.
+const BAR_WORDS_MIN: f32 = 150.0;
+
 /// The browser bar's buttons at their words' width with the macOS and Linux least width,
 /// not Windows' dialog width (`native::BUTTON_MIN`, 120): four of those left its words no
 /// room in Windows' first window.
@@ -308,15 +311,17 @@ impl Downloads {
                     .on_click(cx.listener(move |view, _, _, _| view.open_path(page)))
             });
         Some(
-            // On one line (gaps row U26): its "Not now" went to a second.
+            // On one line where it fits (gaps row U26); where the window is narrower, the
+            // browsers' buttons go on to a second line, "Not now" at its end, rather than being
+            // cut off at the window's edge (gaps row V15).
             body()
-                .flex_nowrap()
-                .overflow_hidden()
                 .child(
                     div()
                         .id("add-to-browser")
                         .flex_shrink(1.0)
-                        .min_w_0()
+                        // Room enough that, in a narrow window, the browsers' buttons go to the
+                        // next line rather than squeeze beside it (gaps row V15).
+                        .min_w(px(BAR_WORDS_MIN))
                         .overflow_hidden()
                         // Whole on a second line where the window is too narrow for one,
                         // as Windows' first window is (840 wide), never cut to "Add dm…".

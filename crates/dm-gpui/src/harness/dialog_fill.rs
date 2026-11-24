@@ -71,6 +71,34 @@ impl Harness {
             .collect()
     }
 
+    /// The main window's words that are laid out past the edges of what shows them, each with
+    /// where it was laid and where it is seen (gaps row V15).
+    pub(crate) fn words_cut(
+        &mut self,
+    ) -> Vec<(
+        String,
+        gpui::Bounds<gpui::Pixels>,
+        gpui::Bounds<gpui::Pixels>,
+    )> {
+        self.step();
+        let drawn = self.cx.update(|cx| {
+            crate::window::screen::Screens::all(cx)
+                .into_iter()
+                .filter(|(_, _, dialog)| !*dialog)
+                .flat_map(|(_, screen, _)| screen.drawn())
+                .collect::<Vec<_>>()
+        });
+        let half = gpui::px(0.5);
+        drawn
+            .iter()
+            .filter(|d| !d.text.trim().is_empty())
+            .filter(|d| {
+                d.laid.left() < d.bounds.left() - half || d.laid.right() > d.bounds.right() + half
+            })
+            .map(|d| (d.text.to_string(), d.laid, d.bounds))
+            .collect()
+    }
+
     /// The main window's words that are laid out past the edges of what shows them: the part
     /// cut off is hidden with no "…" to say so (gaps row E2).
     pub(crate) fn words_cut_unseen(&mut self) -> Vec<String> {

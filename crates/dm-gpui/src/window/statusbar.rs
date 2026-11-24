@@ -125,6 +125,10 @@ pub fn statusbar(
         .aria_label(named)
         .cursor_pointer()
         .hover(|s| s.text_color(theme.selection))
+        .min_w_0()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_ellipsis()
         .on_click(cx.listener(|view, event: &gpui::ClickEvent, window, cx| {
             let speed_limit = view.backend.settings().advanced.speed_limit;
             crate::window::menus::speed_limiter_popup(speed_limit).show(
@@ -174,7 +178,16 @@ pub fn statusbar(
         .bg(crate::window::theme::frame(theme.sidebar))
         .text_size(px(crate::widgets::native::SMALL_TEXT))
         .text_color(theme.muted)
-        .children(said.into_iter().map(|part| screen.label(part)))
+        // Each part cut with "…" where the bar is narrower than they are, never cut off unseen
+        // at its edge (gaps row V15).
+        .children(said.into_iter().map(|part| {
+            div()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .child(screen.label(part))
+        }))
         .child(limiter)
         .when(undo, |bar| {
             bar.child(

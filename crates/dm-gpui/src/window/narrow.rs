@@ -51,9 +51,11 @@ pub fn narrow_at(width: f32) -> bool {
     width < NARROW_BELOW
 }
 
-/// Whether `window` is laid out as a phone's.
+/// Whether `window` is laid out as a phone's: its width in points of dm's design, at the text
+/// size in force. At 200% a window 600 points wide holds what 300 would at 100%, so it takes
+/// the phone's layout rather than a list squeezed beside the side panel (gaps row V15).
 pub fn is_narrow(window: &Window) -> bool {
-    narrow_at(f32::from(window.viewport_size().width))
+    narrow_at(f32::from(window.viewport_size().width) / crate::window::zoom::factor())
 }
 
 /// What the phone's layout keeps between frames.

@@ -8898,3 +8898,12 @@ one over it is the speed limiter's "Download at most this many MB (0 for no limi
 English; with the line under it, "in each period of this many hours", it reads as one sentence
 across two lines, and above their fields the two would part. Kept beside its field; a shorter
 wording (rule V2, under 40 characters) is the way to bring it under, with the V rows.
+
+## The compact layout is chosen by the room at the text size (gaps row V15), 2026-11-24
+
+`is_narrow` took the window's width in points whatever the text size, so at 200% a 900-point
+window kept the side panel, the toolbar and the table in what 450 points hold at 100%: the list
+was a sliver and words were cut. The width is now divided by the text size first: under 600
+points of design, the phone's layout, as a 360-point window at 100% has had since N7. A person
+at 200% who wants the desktop's layout widens the window to 1200 points. The sweep's widths start
+at the least width at the size in force; narrower is large text on a phone (V14).
