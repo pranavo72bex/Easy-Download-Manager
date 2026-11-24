@@ -20,13 +20,10 @@ impl Look {
     /// The sections' look, with `screen` to record their words on.
     pub(super) fn new(theme: Theme, screen: Screen) -> Self {
         let width = native::label_width(&[
-            t("Status"),
             t("File size"),
             t("Downloaded"),
             t("Can resume"),
             t("Networks"),
-            t("Speed"),
-            t("Time left"),
             t("When this download is done"),
         ]);
         Self {
@@ -157,19 +154,16 @@ pub(super) fn connection_lines(
     lines
 }
 
-/// The address, the status (and under a failure its next step), the sizes, the speed,
-/// the time left, and whether it can resume.
+/// The address (and under a failure its next step), the sizes, and whether it can resume. Not
+/// the status, the speed nor the time left: the figure line above says them (gaps row E9).
 pub(super) fn facts(
     look: &Look,
     row: &dm_core::Entry,
-    joining: bool,
     resumable: Option<bool>,
     body: gpui::Div,
 ) -> gpui::Div {
     let (theme, screen) = (look.theme, &look.screen);
     let p = &row.progress;
-    let running = row.state == State::Running;
-    let status = dm_desktop_base::rows::status_of(row);
     let next_step = match &row.state {
         State::Failed(why) => format::next_step(why).map(t),
         _ => None,
@@ -183,7 +177,6 @@ pub(super) fn facts(
             .text_ellipsis()
             .child(screen.label(format::shown_url(&row.url))),
     )
-    .child(look.line("Status", status))
     .when_some(next_step, |d, step| {
         d.child(native::row(
             None,
@@ -201,22 +194,6 @@ pub(super) fn facts(
         ),
     )
     .child(look.line("Downloaded", format::bytes(p.downloaded)))
-    .child(look.line(
-        "Speed",
-        if running && !joining {
-            format::rate(p.speed)
-        } else {
-            String::new()
-        },
-    ))
-    .child(look.line(
-        "Time left",
-        if running {
-            p.eta.map(format::span).unwrap_or_default()
-        } else {
-            String::new()
-        },
-    ))
     .when_some(can_resume_words(row, resumable), |d, words| {
         d.child(look.line("Can resume", words.to_string()))
     })
@@ -382,8 +359,43 @@ pub(super) fn whole_bar(
     }
 }
 
+/// A line that opens (gaps row E9): its arrow, its `label`, and how it is set (`said`) in the
+/// muted colour; told to a screen reader as a button, open or shut as its arrow shows.
+fn opener(
+    id: &'static str,
+    label: &'static str,
+    said: Option<String>,
+    open: bool,
+    look: &Look,
+) -> gpui::Stateful<gpui::Div> {
+    let (theme, screen) = (look.theme, &look.screen);
+    div()
+        .id(id)
+        .role(Role::Button)
+        .aria_label(t(label))
+        // Open or shut, as its arrow shows (gaps row U23).
+        .aria_expanded(open)
+        .flex()
+        .items_center()
+        .gap(px(space::XS))
+        .child(
+            div()
+                .w(px(space::M))
+                .text_color(theme.muted)
+                .child(if open { "▾" } else { "▸" }),
+        )
+        .child(screen.label(t(label)))
+        .children(said.map(|said| {
+            div()
+                .ml(px(space::S))
+                .text_color(theme.muted)
+                .child(screen.label(said))
+        }))
+}
+
 impl Progress {
-    /// This download's own limit, and what dm does when it is done.
+    /// This download's own limit, and what dm does when it is done: each a line that says how
+    /// it is set and opens to its control (gaps row E9).
     pub(super) fn limits(
         &self,
         look: &Look,
@@ -394,13 +406,36 @@ impl Progress {
     ) -> gpui::Div {
         let (theme, screen) = (look.theme, &look.screen);
         let own_on = row.speed_limit > 0;
-        let settled = row.state.settled();
-        body.when(!settled, |d| {
+        if row.state.settled() {
+            return body;
+        }
+        let limit_said = if own_on {
+            format!("{} {}", row.speed_limit, t("KB/s"))
+        } else {
+            t("No limit").to_string()
+        };
+        let limit_open = self.opened.limit;
+        let done_open = self.opened.done;
+        body.child(
+            opener(
+                "own-limit-line",
+                "Speed limit",
+                Some(limit_said),
+                limit_open,
+                look,
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.opened.limit = !this.opened.limit;
+                cx.notify();
+            })),
+        )
+        .when(limit_open, |d| {
             d.child(
                 div()
                     .flex()
                     .items_center()
                     .gap(px(native::LABEL_GAP))
+                    .pl(px(space::L))
                     .child(
                         native::switch_inline(
                             "own-limit",
@@ -420,23 +455,38 @@ impl Progress {
             )
         })
         // What dm does when this download is done (gaps row U36).
-        .when(!settled, |d| {
-            d.child(native::row(
-                Some(t("When this download is done")),
-                look.width,
-                screen,
-                crate::widgets::popup::button(
-                    THIS_DONE,
-                    t(this_done.english()).into(),
-                    this_done_choices()
-                        .iter()
-                        .map(|c| t(c.english()).into())
-                        .collect(),
-                    this_done_choices().iter().position(|c| *c == this_done),
-                    theme,
+        .child(
+            opener(
+                "this-done-line",
+                "When done",
+                Some(t(this_done.english()).to_string()),
+                done_open,
+                look,
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.opened.done = !this.opened.done;
+                cx.notify();
+            })),
+        )
+        .when(done_open, |d| {
+            d.child(
+                div().pl(px(space::L)).child(native::row(
+                    Some(t("When this download is done")),
+                    look.width,
                     screen,
-                ),
-            ))
+                    crate::widgets::popup::button(
+                        THIS_DONE,
+                        t(this_done.english()).into(),
+                        this_done_choices()
+                            .iter()
+                            .map(|c| t(c.english()).into())
+                            .collect(),
+                        this_done_choices().iter().position(|c| *c == this_done),
+                        theme,
+                        screen,
+                    ),
+                )),
+            )
         })
     }
 
@@ -454,25 +504,12 @@ impl Progress {
         body.when(!torrent, |d| {
             let open = self.connections;
             d.child(
-                div()
-                    .id("connections")
-                    .role(Role::Button)
-                    .aria_label(t("Connections"))
-                    // Open or shut, as its arrow shows (gaps row U23).
-                    .aria_expanded(open)
-                    .flex()
-                    .items_center()
-                    .gap(px(space::XS))
-                    .child(
-                        div()
-                            .text_color(theme.muted)
-                            .child(if open { "▾" } else { "▸" }),
-                    )
-                    .child(screen.label(t("Connections")))
-                    .on_click(cx.listener(|this, _, _, cx| {
+                opener("connections", "Connections", None, open, look).on_click(cx.listener(
+                    |this, _, _, cx| {
                         this.connections = !this.connections;
                         cx.notify();
-                    })),
+                    },
+                )),
             )
             .children(conn_rows.into_iter().flatten())
         })

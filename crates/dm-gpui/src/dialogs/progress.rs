@@ -67,6 +67,8 @@ pub struct Progress {
     inspecting: bool,
     /// Connections is open.
     connections: bool,
+    /// Which of the lines that open are open: the limit and When done (gaps row E9).
+    opened: Opened,
     /// Its speed once a second over the last five minutes, while this window is open (gaps
     /// row W15).
     line: dm_desktop_base::statistics::SpeedLine,
@@ -349,7 +351,7 @@ impl Render for Progress {
         let body = native::body(theme)
             .child(figure_line(&look, &row, joining))
             .child(whole_bar(&look, &row, &pieces, multi));
-        let body = facts(&look, &row, joining, resumable, body);
+        let body = facts(&look, &row, resumable, body);
         // How much each network brings, where the second carries part of it (gaps row K4).
         let settings = view.read(cx).backend.settings();
         let body = body.children(networks_line(
@@ -393,6 +395,13 @@ impl Render for Progress {
             .child(crate::widgets::fit::fitted(body));
         crate::window::safe::kept_clear(root, window).into_any_element()
     }
+}
+
+/// The progress window's lines that open, and whether each is (gaps row E9).
+#[derive(Default)]
+struct Opened {
+    limit: bool,
+    done: bool,
 }
 
 /// Opens the progress window of `id`, `nth` of those open (each a step down
@@ -481,6 +490,7 @@ pub fn open(
                     inspected: None,
                     inspecting: false,
                     connections: false,
+                    opened: Opened::default(),
                     line: Default::default(),
                     own_limit,
                     focus,

@@ -236,6 +236,7 @@ and is not carried over.
       `shared/naming-cases.json`. The extension names nothing any more
 
 ## UI
+- [x] The progress window ranked (gaps row E9, closed 2026-11-24, the maintainer's word): how far, how fast and how long in one line of larger type over the bar; then the address, File size, Downloaded and Can resume, no fact repeated; Speed limit, When done and Connections as lines that open, each saying how it is set (`dialogs/progress/sections.rs` `opener`; `the_progress_window_limits_its_own_download`, `when_this_download_is_done_opens_it`; contract B53); seen in a picture of the window itself (`ui-shot.py` now pictures a dialog's own window)
 - [x] Motion, dm's own (gaps row K7, closed 2026-11-24, the maintainer's word): a progress bar glides to its new width over 300 ms; a row or a phone's card just added fades in over 150 ms; one deleted or removed fades out over 150 ms before the list is read again (Undo offered then; contract B23); a finished bar fills and fades over 600 ms. GPUI's own animations, frames only while one runs, none where the system asks for less motion (`table/cells.rs` `glided`, `arriving`, `leave`, `settling`; four tests). The speed figure is not animated (`docs/decisions.md`)
 - [x] Download manager — the client's. Its window is drawn in Rust with
       GPUI (`crates/dm-gpui`), no web view: the one built and

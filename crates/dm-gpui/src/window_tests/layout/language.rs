@@ -202,7 +202,12 @@ fn the_progress_window_and_the_scheduler_keep_their_words_inside_in_english_and_
         h.until("the row", |h| h.rows().len() == 1);
         let id = h.rows()[0].id;
         h.update(|view, cx| view.show_progress(id, cx));
+        // Its lines opened (gaps row E9), so every word is drawn.
+        h.until_shown(t("When done"));
+        h.click(t("When done"));
+        h.click(t("Speed limit"));
         h.until_shown(t("When this download is done"));
+        h.until_shown(t("Limit this download to"));
         let past = h.words_past_the_edges();
         assert!(past.is_empty(), "progress window, {language}: {past:#?}");
         h.key("escape", &[]);

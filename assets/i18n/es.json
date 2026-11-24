@@ -1050,5 +1050,7 @@
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Mantiene la segunda red, como los datos de un teléfono, a esta velocidad, haga lo que haga la otra conexión.",
  "Third network": "Tercera red",
  "Each download's connections are shared among all the networks chosen.": "Las conexiones de cada descarga se reparten entre todas las redes elegidas.",
- "More": "Más"
+ "More": "Más",
+ "Speed limit": "Límite de velocidad",
+ "No limit": "Sin límite"
 }

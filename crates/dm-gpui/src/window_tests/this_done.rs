@@ -24,9 +24,13 @@ fn when_this_download_is_done_opens_it() {
     h.until("the row", |h| h.rows().len() == 1);
     let id = h.rows()[0].id;
     h.update(|view, cx| view.show_progress(id, cx));
+    // Its line opens to the pop-up (gaps row E9), the line saying the choice too.
+    h.until_shown("When done");
+    h.click("When done");
     h.until_shown("When this download is done");
     // A script cannot choose to open a downloaded file, as it cannot open one itself.
-    h.click("Do nothing");
+    h.call("ui.click", json!({ "text": "Do nothing", "nth": 1 }))
+        .unwrap();
     assert!(h.call("ui.click", json!({ "text": "Open" })).is_err());
     // A person's pick of it in the pop-up's menu.
     let dialog = h.cx.update(|cx| {

@@ -17,9 +17,13 @@ fn the_progress_window_limits_its_own_download() {
     h.until("the row", |h| h.rows().len() == 1);
     let id = h.rows()[0].id;
     h.update(|view, cx| view.show_progress(id, cx));
+    // Its line opens to the switch (gaps row E9).
+    h.until_shown("No limit");
+    h.click("Speed limit");
     h.until_shown("Limit this download to");
     h.click("Limit this download to");
     h.until("the limit", |h| h.rows()[0].speed_limit == 500);
+    h.until_shown("500 KB/s");
     h.click("Limit this download to");
     h.until("the limit to go", |h| h.rows()[0].speed_limit == 0);
 }

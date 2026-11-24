@@ -1050,5 +1050,7 @@
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Menahan jaringan kedua, misalnya data ponsel, pada kecepatan ini, apa pun yang dilakukan koneksi lainnya.",
  "Third network": "Jaringan ketiga",
  "Each download's connections are shared among all the networks chosen.": "Koneksi setiap unduhan dibagi ke semua jaringan yang dipilih.",
- "More": "Lainnya"
+ "More": "Lainnya",
+ "Speed limit": "Batas kecepatan",
+ "No limit": "Tanpa batas"
 }

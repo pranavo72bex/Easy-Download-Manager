@@ -19,12 +19,13 @@ right of the last. A window you closed is not opened again by itself;
 
 ## What it shows
 
-- The download's address, at the top.
-- **Status:** as the list says it. Under a failure dm adds one plain next
-  step where it knows one (see [What dm's messages mean](failures.md)).
+- First, in larger type, how far it is, its speed and the time left
+  ("54% · 300 KB/s · 3s left"); where it is not running, its status as the
+  list says it. Under it the bar.
+- The download's address. Under a failure dm adds one plain next step where
+  it knows one (see [What dm's messages mean](failures.md)).
 - **File size:** "unknown" until the server says.
 - **Downloaded:** how much has come.
-- **Speed** and **Time left:** while it runs.
 - **Networks:** where a second network is chosen (Options › Advanced ›
   Network) and carries part of the download, how fast each network brings it
   and its share of what is done: **This computer's connection** and the second
@@ -46,14 +47,17 @@ right of the last. A window you closed is not opened again by itself;
 
 ## Choices
 
-The first two show only while the download has not finished, failed or
-been cancelled.
+Each is a line that says how it is set; click it to open it, and again to
+close it. The first two show only while the download has not finished,
+failed or been cancelled.
 
-- **Limit this download to** … **KB/s:** tick it to hold this one download
+- **Speed limit** ("No limit", or the speed): opens to **Limit this download
+  to** … **KB/s:** tick it to hold this one download
   to the speed typed (500 at first). It works beside the limit every
   download shares (see [Speed limiter](speed-limiter.md)). While it is
   ticked, a new number takes effect as you type it.
-- **When this download is done:** what dm does when this download finishes:
+- **When done** (the choice): opens to **When this download is done**, what
+  dm does when this download finishes:
   **Do nothing**, **Open**, **Open folder**, **Exit dm**, **Sleep**,
   **Hibernate** or **Turn off computer**. A choice this computer cannot do
   is not offered. Exit, sleep, hibernate and turning off go through the

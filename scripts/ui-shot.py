@@ -135,6 +135,20 @@ def main():
             else:
                 print(f"{name}: {shot.get('error')}")
 
+        def shoot_dialog(name):
+            # A dialog is a window of its own: pictured from the screen, over the rectangle
+            # dm says the last one opened stands on (macOS; as human-qa.py does).
+            info = call("ui.windows").get("result", {}) or {}
+            shown = [d["outer"] for d in info.get("dialogs", []) if d.get("outer")]
+            if not shown or sys.platform != "darwin":
+                return
+            x0, y0, x1, y1 = shown[-1]
+            target = out / f"{name}-dialog.png"
+            subprocess.run(["screencapture", "-x", f"-R{round(x0)},{round(y0)},{round(x1 - x0)},{round(y1 - y0)}",
+                            str(target)], capture_output=True)
+            if target.is_file():
+                print(target)
+
         shoot("window")
         for command in commands:
             reply = call("command.run", id=command)
@@ -142,6 +156,7 @@ def main():
                 print(f"{command}: {reply.get('error')}")
             time.sleep(0.6)
             shoot(command.replace(".", "-"))
+            shoot_dialog(command.replace(".", "-"))
     finally:
         app.terminate()
         try:

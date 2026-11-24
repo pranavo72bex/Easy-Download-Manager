@@ -1050,5 +1050,7 @@
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "Houdt het tweede netwerk, zoals de data van een telefoon, op deze snelheid, wat de andere verbinding ook doet.",
  "Third network": "Derde netwerk",
  "Each download's connections are shared among all the networks chosen.": "De verbindingen van elke download worden over alle gekozen netwerken verdeeld.",
- "More": "Meer"
+ "More": "Meer",
+ "Speed limit": "Snelheidslimiet",
+ "No limit": "Geen limiet"
 }

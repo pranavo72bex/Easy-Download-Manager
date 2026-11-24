@@ -1050,5 +1050,7 @@
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "İkinci ağı, örneğin bir telefonun verisini, diğer bağlantı ne yaparsa yapsın bu hızda tutar.",
  "Third network": "Üçüncü ağ",
  "Each download's connections are shared among all the networks chosen.": "Her indirmenin bağlantıları seçilen tüm ağlar arasında paylaştırılır.",
- "More": "Daha fazla"
+ "More": "Daha fazla",
+ "Speed limit": "Hız sınırı",
+ "No limit": "Sınır yok"
 }

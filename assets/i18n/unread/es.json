@@ -221,5 +221,7 @@
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.",
  "Third network",
  "Each download's connections are shared among all the networks chosen.",
- "More"
+ "More",
+ "Speed limit",
+ "No limit"
 ]

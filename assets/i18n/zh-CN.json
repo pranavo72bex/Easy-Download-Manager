@@ -1050,5 +1050,7 @@
  "Holds the second network, such as a phone's data, to this speed, whatever the other connection does.": "将第二个网络(例如手机流量)限制在此速度,无论另一个连接如何。",
  "Third network": "第三个网络",
  "Each download's connections are shared among all the networks chosen.": "每个下载的连接会分配到所有选中的网络。",
- "More": "更多"
+ "More": "更多",
+ "Speed limit": "速度限制",
+ "No limit": "不限速"
 }
