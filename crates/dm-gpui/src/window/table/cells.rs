@@ -143,9 +143,13 @@ pub(crate) fn just_added(id: u64) -> bool {
     })
 }
 
-/// `row`, faded in over [`ARRIVING`] where it was just added (gaps row K7); as it is otherwise.
+/// `row`, faded in over [`ARRIVING`] where it was just added, and out where it is being taken
+/// off the list ([`leaving`]) (gaps row K7); as it is otherwise.
 pub(crate) fn arriving<E: IntoElement + gpui::Styled + 'static>(id: u64, row: E) -> AnyElement {
     use gpui::{Animation, AnimationExt};
+    if left(id).is_some() {
+        return leaving(id, row);
+    }
     if !just_added(id) {
         return row.into_any_element();
     }
@@ -218,6 +222,67 @@ pub(crate) fn settled_track(id: u64, theme: Theme) -> AnyElement {
             },
         )
         .into_any_element()
+}
+
+thread_local! {
+    /// The rows being taken off the list, and when each began to fade out.
+    static LEAVING: std::cell::RefCell<std::collections::HashMap<u64, std::time::Instant>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// How long a row taken off the list takes to fade out.
+const LEAVING_FOR: std::time::Duration = std::time::Duration::from_millis(150);
+
+/// Rows `ids` begin to fade out (gaps row K7); when they will have. Now, where the system asks
+/// for less motion: nothing fades and nothing waits.
+pub(crate) fn leave(ids: &[u64]) -> std::time::Instant {
+    let now = std::time::Instant::now();
+    if STILL.load(std::sync::atomic::Ordering::Relaxed) {
+        return now;
+    }
+    LEAVING.with(|l| {
+        let mut l = l.borrow_mut();
+        for &id in ids {
+            l.insert(id, now);
+        }
+    });
+    now + LEAVING_FOR
+}
+
+/// Rows `ids` read off the list: forgotten as leaving, so one put back (Undo) is seen again.
+pub(crate) fn gone(ids: &[u64]) {
+    LEAVING.with(|l| {
+        let mut l = l.borrow_mut();
+        for id in ids {
+            l.remove(id);
+        }
+    });
+}
+
+/// How far row `id` has faded out, from 0 to 1, where it is leaving.
+fn left(id: u64) -> Option<f32> {
+    LEAVING.with(|l| {
+        l.borrow()
+            .get(&id)
+            .map(|at| (at.elapsed().as_secs_f32() / LEAVING_FOR.as_secs_f32()).min(1.0))
+    })
+}
+
+/// `row` fading out where it is being taken off the list, and gone from sight once it has
+/// until the list is read again; as it is otherwise (gaps row K7).
+fn leaving<E: IntoElement + gpui::Styled + 'static>(id: u64, row: E) -> AnyElement {
+    use gpui::{Animation, AnimationExt};
+    match left(id) {
+        None => row.into_any_element(),
+        Some(done) if done >= 1.0 => row.opacity(0.0).into_any_element(),
+        Some(done) => row
+            .with_animation(
+                gpui::ElementId::Name(format!("leave-{id}").into()),
+                Animation::new(LEAVING_FOR.mul_f32(1.0 - done)).with_easing(gpui::ease_in_out),
+                move |row, delta| row.opacity((1.0 - done) * (1.0 - delta)),
+            )
+            .into_any_element(),
+    }
 }
 
 /// A download's state as a mark told by its shape (gaps row E4): a play mark while it runs,
@@ -299,6 +364,22 @@ mod glide_tests {
         assert!(just_added(8_000_002), "a row added since");
         std::thread::sleep(ARRIVING + std::time::Duration::from_millis(50));
         assert!(!just_added(8_000_002), "drawn again once it has faded in");
+    }
+
+    /// Rows taken off the list fade out for a moment, and the list is read again after it
+    /// (K7); others are as they were.
+    #[test]
+    fn rows_taken_off_fade_out_for_a_moment() {
+        let began = std::time::Instant::now();
+        let until = leave(&[9_100_001]);
+        assert!(until >= began + LEAVING_FOR);
+        assert!(left(9_100_001).is_some_and(|done| done < 1.0));
+        assert_eq!(left(9_100_002), None);
+        std::thread::sleep(LEAVING_FOR);
+        assert_eq!(left(9_100_001), Some(1.0));
+        // Read off the list, then put back by Undo: seen again.
+        gone(&[9_100_001]);
+        assert_eq!(left(9_100_001), None);
     }
 
     /// A bar settles only where its download was seen running and has just finished: not one

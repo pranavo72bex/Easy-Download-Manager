@@ -35,7 +35,7 @@ mod pointer;
 mod rowbuttons;
 use rowbuttons::{buttons_width, row_actions, row_buttons, ROW_GROUP};
 
-pub(crate) use cells::{finishing_bar, progress_track};
+pub(crate) use cells::{finishing_bar, gone, leave, progress_track};
 pub(crate) use heading::moved_onto;
 #[cfg(test)]
 use heading::{as_table, told_heading};
@@ -640,7 +640,7 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             )
                             .into_any_element(),
                         ))
-                        // A row just added fades in (gaps row K7).
+                        // A row just added fades in, one taken off fades out (gaps row K7).
                         .map(|row| cells::arriving(id, row))
                 })
                 .collect::<Vec<_>>();

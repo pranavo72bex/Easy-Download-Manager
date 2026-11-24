@@ -545,6 +545,8 @@ fn the_delete_key_asks_and_the_limiter_takes_enter() {
     h.key("delete", &[]);
     h.until("the row gone", |h| h.rows().is_empty());
     assert!(h.dialogs().is_empty(), "Delete asked first");
+    // Offered once the row has faded out (gaps row K7).
+    h.until_shown("Undo");
     h.click("Undo");
     h.until("Undo to put it back", |h| h.rows().len() == 1);
     h.select("file.zip");

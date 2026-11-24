@@ -42,7 +42,9 @@ impl Downloads {
         if !deleting_files && chosen.iter().all(|r| r.state == State::Completed) {
             // Off the window's thread, as the rows asked about below are:
             // taking them out writes the queue file.
-            self.later(
+            let leaving = ids.clone();
+            self.later_leaving(
+                &leaving,
                 move |backend| {
                     let rows = backend.finished_rows(&ids);
                     backend.remove_many(&ids);
@@ -131,7 +133,9 @@ impl Downloads {
                     .copied()
             });
         let (ids, files) = (ids.to_vec(), files.to_vec());
-        self.later(
+        let leaving = ids.clone();
+        self.later_leaving(
+            &leaving,
             move |backend| {
                 let mut failed: Vec<String> = Vec::new();
                 if delete {

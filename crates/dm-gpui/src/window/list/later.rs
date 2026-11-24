@@ -56,6 +56,40 @@ impl Downloads {
         .detach();
     }
 
+    /// [`later`](Self::later) for work that takes rows `leaving` off the list: they fade out
+    /// meanwhile, and `then` (which reads the list again) waits until they have (gaps row K7).
+    /// The work itself starts at once, after what was asked before it, as any other.
+    pub(crate) fn later_leaving<R: Send + 'static>(
+        &mut self,
+        leaving: &[dm_core::Id],
+        work: impl FnOnce(&Backend) -> R + Send + 'static,
+        then: impl FnOnce(&mut Self, R, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        let fade = crate::window::table::leave(leaving);
+        let leaving = leaving.to_vec();
+        self.threads.errands.count += 1;
+        let answer = self.backend.later(work);
+        cx.notify();
+        cx.spawn(async move |this, cx| {
+            let answer = answer.await;
+            if let Some(left) = fade.checked_duration_since(std::time::Instant::now()) {
+                cx.background_executor().timer(left).await;
+            }
+            let _ = this.update(cx, |this, cx| {
+                this.threads.errands.count -= 1;
+                if let Some(answer) = answer {
+                    then(this, answer, cx);
+                }
+                // Read off the list by now: one put back later is drawn as any other.
+                crate::window::table::gone(&leaving);
+                this.release_replies();
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     /// A command on a row (Resume, Retry, another folder, its queue)
     /// carried out off the window's thread, after the work asked for
     /// before it, and the list read again once it is done: each waits on

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A download removed from the list fades out instead of vanishing at once.
 - Where the toolbar's buttons don't fit across the window (a narrow window, a large text size), those at the end go under More instead of onto a second row.
 - A download whose last part stalls on the server no longer waits it out: that part is asked for again within moments (one test case went from 23.5 s to 5 s).
 - A download that finishes fills its bar and lets it fade, instead of the bar vanishing at once.

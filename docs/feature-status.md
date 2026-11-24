@@ -236,6 +236,7 @@ and is not carried over.
       `shared/naming-cases.json`. The extension names nothing any more
 
 ## UI
+- [x] Motion, dm's own (gaps row K7, closed 2026-11-24, the maintainer's word): a progress bar glides to its new width over 300 ms; a row or a phone's card just added fades in over 150 ms; one deleted or removed fades out over 150 ms before the list is read again (Undo offered then; contract B23); a finished bar fills and fades over 600 ms. GPUI's own animations, frames only while one runs, none where the system asks for less motion (`table/cells.rs` `glided`, `arriving`, `leave`, `settling`; four tests). The speed figure is not animated (`docs/decisions.md`)
 - [x] Download manager — the client's. Its window is drawn in Rust with
       GPUI (`crates/dm-gpui`), no web view: the one built and
       shipped on macOS since its .dmg held the behaviour contract
