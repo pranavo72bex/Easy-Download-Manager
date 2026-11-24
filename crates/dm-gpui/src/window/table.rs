@@ -29,6 +29,7 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 mod cells;
+pub(crate) use cells::state_mark;
 mod heading;
 mod pointer;
 mod rowbuttons;

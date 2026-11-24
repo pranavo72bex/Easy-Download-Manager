@@ -74,7 +74,7 @@ pub(crate) fn progress_track(f: f64, told: bool, theme: Theme) -> AnyElement {
 /// A download's state as a mark told by its shape (gaps row E4): a play mark while it runs,
 /// pause bars when paused, a clock while it waits, a tick once done, a ring with "!" when it
 /// failed; none for one cancelled. In the colour the row's words take.
-pub(super) fn state_mark(state: &dm_core::State, theme: Theme) -> Option<AnyElement> {
+pub(crate) fn state_mark(state: &dm_core::State, theme: Theme) -> Option<AnyElement> {
     use dm_core::State;
     let colour = if theme.is_chosen() {
         theme.text

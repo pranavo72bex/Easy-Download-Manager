@@ -310,20 +310,29 @@ fn card(
                             )))
                         }),
                 )
-                .child(div().w_full().child(crate::window::table::progress_track(
-                    match row.state {
-                        State::Completed => 1.0,
-                        _ => row.progress.fraction().unwrap_or(0.0),
-                    },
-                    false,
-                    card_theme,
-                )))
+                // No bar on a finished card: its tick says it (gaps row E4).
+                .when(row.state != State::Completed, |card| {
+                    card.child(div().w_full().child(crate::window::table::progress_track(
+                        row.progress.fraction().unwrap_or(0.0),
+                        false,
+                        card_theme,
+                    )))
+                })
                 .child(
                     div()
                         .flex()
                         .justify_between()
                         .gap(px(space::M))
-                        .child(small(left_words, state_colour(row, chosen, theme), screen))
+                        // A mark told by its shape, then the words (gaps row E4).
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(space::XS))
+                                .min_w_0()
+                                .children(crate::window::table::state_mark(&row.state, card_theme))
+                                .child(small(left_words, state_colour(row, chosen, theme), screen)),
+                        )
                         .child(div().flex_none().child(small(
                             right_words,
                             card_theme.muted,
