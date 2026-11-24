@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The side panel is quieter: the place you are in is marked with a soft fill and a bar at its edge, and places with nothing in them show no "0".
 - Each download's Status starts with a mark you can tell by its shape (running, paused, waiting, done, failed), and its progress bar is easier to see.
 - The toolbar is ranked: Add URL stands out at the start, Resume, Stop and Delete beside it, and the rest at the end.
 - Android: several finished downloads chosen can be shared together, to one app in one go.

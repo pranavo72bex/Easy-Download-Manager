@@ -404,8 +404,30 @@ fn place_row(
             // Between a long name's ellipsis and the count; unseen while the name fits.
             .gap_2()
             .text_size(px(crate::widgets::native::TEXT))
+            // The chosen place a soft fill with the accent's bar at its edge, quieter than the
+            // chosen row of the list (gaps row E6).
             .when(chosen, |d| {
-                d.bg(theme.selection).text_color(theme.on_selection)
+                d.relative()
+                    .bg(gpui::Rgba {
+                        a: 0.16,
+                        ..theme.accent
+                    })
+                    .child(
+                        div()
+                            .absolute()
+                            .top(px(5.0))
+                            .bottom(px(5.0))
+                            .map(|bar| {
+                                if crate::window::mirror::rtl() {
+                                    bar.right_0()
+                                } else {
+                                    bar.left_0()
+                                }
+                            })
+                            .w(px(3.0))
+                            .rounded_full()
+                            .bg(theme.accent),
+                    )
             })
             .when(!chosen, |d| d.hover(|s| s.bg(theme.stripe)))
             // A name the panel cuts, read whole on hover.
@@ -454,11 +476,7 @@ fn place_row(
                             .flex_none()
                             // In the selection's own colour where chosen, as
                             // the words are.
-                            .text_color(if chosen {
-                                theme.on_selection
-                            } else {
-                                theme.accent
-                            }),
+                            .text_color(theme.accent),
                     )
                     // One line, cut with an ellipsis where the panel is too narrow for it.
                     .child(
@@ -474,8 +492,9 @@ fn place_row(
                 div()
                     .flex_none()
                     .text_size(px(crate::widgets::native::SMALL_TEXT))
-                    .when(!chosen, |d| d.text_color(theme.muted))
-                    .child(screen.label(count.to_string())),
+                    .text_color(theme.muted)
+                    // No number beside an empty place (gaps row E6).
+                    .when(count > 0, |d| d.child(screen.label(count.to_string()))),
             ),
     )
 }
