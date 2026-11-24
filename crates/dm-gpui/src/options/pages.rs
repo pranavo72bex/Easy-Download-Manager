@@ -182,14 +182,12 @@ impl Page {
 }
 
 impl Page {
-    /// Words, then a small control (a number's box, a drop-down): on a phone in one row, the
-    /// words at the left and the control at the right edge, as its switches are; elsewhere as
-    /// [`Self::labelled`]. A wide control (a folder, a list of sites) stays `labelled`, on a
-    /// line of its own under its words.
+    /// Words, then a small control (a number's box, a drop-down): in one row, the words at the
+    /// leading edge and the control at the trailing one, as the switches are, so a page's
+    /// controls stand in one column whatever their words (gaps row E10; on a phone since N7).
+    /// A wide control (a folder, a list of sites) stays `labelled`, on a line of its own under
+    /// its words.
     fn setting(&mut self, words: &str, on: bool, control: impl IntoElement) {
-        if !crate::platform::ON_A_PHONE {
-            return self.labelled(words, on, control);
-        }
         self.says(words);
         let row = div()
             .flex()

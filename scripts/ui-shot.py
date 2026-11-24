@@ -14,7 +14,9 @@ PNGs:
     python3 scripts/ui-shot.py out-dir [command-id ...]
 
 With command ids (as `commands.list` names them), each is run and the window
-is photographed after it as well, so a dialog can be looked at.
+is photographed after it as well, so a dialog can be looked at; `click:Words`
+clicks those words instead (a tab of the dialog open). A dialog's own window
+is pictured beside the main one (`-dialog.png`, macOS).
 Nothing outside the temporary home and the given folder is touched.
 """
 import http.server
@@ -151,7 +153,11 @@ def main():
 
         shoot("window")
         for command in commands:
-            reply = call("command.run", id=command)
+            # click:Words clicks those words (a tab in the dialog open), then pictures it.
+            if command.startswith("click:"):
+                reply = call("ui.click", text=command[len("click:"):])
+            else:
+                reply = call("command.run", id=command)
             if not reply.get("ok"):
                 print(f"{command}: {reply.get('error')}")
             time.sleep(0.6)

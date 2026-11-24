@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options lines up: every pop-up and number box stands at the right edge with the switches, instead of just after its words.
 - The progress window is calmer: no figure is said twice, and Speed limit, When done and Connections are lines you click to open, each saying how it is set.
 - A download removed from the list fades out instead of vanishing at once.
 - Where the toolbar's buttons don't fit across the window (a narrow window, a large text size), those at the end go under More instead of onto a second row.
