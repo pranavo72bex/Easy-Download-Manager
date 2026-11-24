@@ -35,7 +35,7 @@ use crate::window::zoom::px;
 
 mod sections;
 
-use sections::{connection_lines, facts, speed_line, whole_bar, Look};
+use sections::{connection_lines, facts, figure_line, speed_line, whole_bar, Look};
 
 /// The progress window's view.
 /// The pop-up "When this download is done" (gaps row U36).
@@ -344,11 +344,14 @@ impl Render for Progress {
 
         let conn_rows = (self.connections && !torrent)
             .then(|| connection_lines(&look, &row, &connections, &pieces, &speeds, joining));
-        let body = facts(&look, &row, joining, resumable, native::body(theme))
-            .child(whole_bar(&look, &row, &pieces, multi))
-            .when(!row.state.settled(), |d| {
-                d.child(speed_line(&look, &self.line))
-            });
+        // Ranked (gaps row E9): how far, how fast and how long in one line of larger type
+        // over the whole file's bar, then the facts.
+        let body = native::body(theme)
+            .child(figure_line(&look, &row, joining))
+            .child(whole_bar(&look, &row, &pieces, multi));
+        let body = facts(&look, &row, joining, resumable, body).when(!row.state.settled(), |d| {
+            d.child(speed_line(&look, &self.line))
+        });
         let body = self.limits(&look, &row, this_done, cx, body);
         let body = self.connections_or_swarm(&look, torrent, conn_rows, cx, body);
         let body = body.child(self.buttons(&look, &row, cx));

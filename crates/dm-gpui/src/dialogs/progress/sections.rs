@@ -221,6 +221,31 @@ pub(super) fn facts(
     })
 }
 
+/// The figure the window is for, read first (gaps row E9, `docs/ui-design.md` rule 4): how far
+/// the download is, its speed and the time left, in one line of larger type ("7% · 380 KB/s ·
+/// 2 min left"); the status where it is not running.
+pub(super) fn figure_line(look: &Look, row: &dm_core::Entry, joining: bool) -> gpui::Div {
+    let p = &row.progress;
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(f) = p.fraction() {
+        parts.push(format!("{}%", (f * 100.0).floor() as u32));
+    }
+    if row.state == State::Running && !joining {
+        if p.speed > 1.0 {
+            parts.push(format::rate(p.speed));
+        }
+        if let Some(eta) = p.eta {
+            parts.push(dm_desktop_base::i18n::tf("{} left", &[&format::span(eta)]));
+        }
+    } else {
+        parts.push(dm_desktop_base::rows::status_of(row));
+    }
+    div()
+        .text_size(px(native::TEXT * 1.4))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .child(look.screen.label(parts.join(" · ")))
+}
+
 /// How many bars the speed line is drawn as: one for each five seconds of its five minutes.
 const LINE_BARS: usize = 60;
 
@@ -416,7 +441,8 @@ impl Progress {
             Vec::new(),
             [
                 matches!(row.state, State::Running | State::Queued).then(|| {
-                    native::button("stop", t("Stop download").into(), false, theme, screen)
+                    // The window's main action while it runs, filled (gaps row E9).
+                    native::button("stop", t("Stop download").into(), true, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| this.go(true, cx)))
                         .into_any_element()
                 }),
@@ -452,7 +478,7 @@ impl Progress {
                         .into_any_element()
                 }),
                 matches!(row.state, State::Failed(_)).then(|| {
-                    native::button("retry", t("Retry").into(), false, theme, screen)
+                    native::button("retry", t("Retry").into(), true, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| this.go(false, cx)))
                         .into_any_element()
                 }),
@@ -462,12 +488,15 @@ impl Progress {
                     } else {
                         "Resume"
                     };
-                    native::button("resume", t(word).into(), false, theme, screen)
+                    native::button("resume", t(word).into(), true, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| this.go(false, cx)))
                         .into_any_element()
                 }),
                 (!settled).then(|| {
+                    // It destroys what was fetched: plain, its words in the error colour
+                    // (gaps row E9, `docs/ui-design.md` rule 3).
                     native::button("cancel", t("Cancel download").into(), false, theme, screen)
+                        .text_color(theme.warning)
                         .on_click(cx.listener(|this, _, _, cx| this.cancel(cx)))
                         .into_any_element()
                 }),
