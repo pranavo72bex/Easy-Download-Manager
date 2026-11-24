@@ -1073,5 +1073,7 @@
  "this video isn't available": "Deze video is niet beschikbaar: hij is misschien privé, verwijderd of niet te zien in je land",
  "It may be private, removed, or not shown in your country": "Hij is misschien privé, verwijderd of niet beschikbaar in jouw land",
  "the server couldn't be reached": "de server was niet bereikbaar",
- "Check that you're online": "Controleer of je online bent"
+ "Check that you're online": "Controleer of je online bent",
+ "Deleted the search {}.": "Zoekopdracht {} verwijderd.",
+ "History cleared.": "Geschiedenis gewist."
 }

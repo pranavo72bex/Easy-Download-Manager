@@ -373,6 +373,12 @@ fn add_url_remembers_addresses_without_their_login_and_clears_them() {
             .recent_urls
             .is_empty()
     });
+    // Not for good: it says so, and Undo remembers them again.
+    h.until_shown("History cleared.");
+    h.click("Undo");
+    h.until("the history back", |h| {
+        h.view(|view| view.backend.settings()).recent_urls.len() == 1
+    });
 }
 
 /// Options › General saves the settings to a file without any password, and loads them back

@@ -104,6 +104,7 @@ impl Downloads {
             buttons: vec![ask.start.into(), ask.wait.into()],
             default: 0,
             escape: 1,
+            destroys: None,
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
@@ -192,6 +193,7 @@ impl Downloads {
             ],
             default: 0,
             escape: 1,
+            destroys: None,
         };
         let site = site.to_string();
         let view = cx.entity().downgrade();

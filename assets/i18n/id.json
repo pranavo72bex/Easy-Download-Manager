@@ -1073,5 +1073,7 @@
  "this video isn't available": "Video ini tidak tersedia: mungkin pribadi, dihapus, atau tidak ditampilkan di negara Anda",
  "It may be private, removed, or not shown in your country": "Video itu mungkin privat, dihapus, atau tidak tersedia di negara Anda",
  "the server couldn't be reached": "server tidak dapat dijangkau",
- "Check that you're online": "Pastikan Anda online"
+ "Check that you're online": "Pastikan Anda online",
+ "Deleted the search {}.": "Pencarian {} dihapus.",
+ "History cleared.": "Riwayat dihapus."
 }

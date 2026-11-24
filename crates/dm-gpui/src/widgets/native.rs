@@ -779,11 +779,13 @@ pub fn time_picked(time: &mut String, hour: bool, to: usize) {
     *time = if hour { time_of(to, m) } else { time_of(h, to) };
 }
 
+mod destroy;
 mod help;
 mod measure;
 pub use help::help_button;
 mod path;
 mod switch;
+pub use destroy::{destructive, undo_line};
 pub use measure::{label_width, measure_with, small_width, text_width};
 pub use switch::{switch, switch_inline};
 mod phone;

@@ -37,6 +37,8 @@ pub struct AddUrl {
     says: Option<SharedString>,
     /// Addresses added here before, to pick again.
     recent: Vec<String>,
+    /// What Clear history forgot, for Undo.
+    forgotten: Vec<String>,
     /// Answered: a second Return in the same moment adds nothing.
     done: bool,
     screen: Screen,
@@ -100,7 +102,20 @@ impl AddUrl {
             return;
         };
         match view.read(cx).backend.remember_urls(Vec::new()) {
-            Ok(_) => self.recent.clear(),
+            Ok(_) => self.forgotten = std::mem::take(&mut self.recent),
+            Err(e) => self.says = Some(e.into()),
+        }
+        cx.notify();
+    }
+
+    /// Undo after Clear history: the addresses remembered again.
+    fn unforget(&mut self, cx: &mut Context<Self>) {
+        let Some(view) = self.view.upgrade() else {
+            return;
+        };
+        let back = std::mem::take(&mut self.forgotten);
+        match view.read(cx).backend.remember_urls(back.clone()) {
+            Ok(_) => self.recent = back,
             Err(e) => self.says = Some(e.into()),
         }
         cx.notify();
@@ -142,9 +157,19 @@ impl Render for AddUrl {
                         &screen,
                     ))
                     .child(
-                        native::button("forget", t("Clear history").into(), false, theme, &screen)
+                        native::destructive("forget", t("Clear history").into(), theme, &screen)
                             .on_click(cx.listener(|this, _, _, cx| this.forget(cx))),
                     ),
+            )
+        });
+        // What Clear history forgot, and Undo (it was for good at once).
+        let unforget = (!self.forgotten.is_empty()).then(|| {
+            native::undo_line(
+                "unforget",
+                t("History cleared.").to_string(),
+                theme,
+                &screen,
+                cx.listener(|this, _, _, cx| this.unforget(cx)),
             )
         });
         let root = crate::widgets::native::dialog("add-url", t("Add URL"), theme, cx)
@@ -163,6 +188,7 @@ impl Render for AddUrl {
                         native::field(&self.address, "Address", theme),
                     ))
                     .children(recent)
+                    .children(unforget)
                     .child(native::row(
                         None,
                         width,
@@ -316,6 +342,7 @@ fn open_now(view: WeakEntity<Downloads>, cx: &mut App) {
                     authorize: false,
                     says: None,
                     recent,
+                    forgotten: Vec::new(),
                     done: false,
                     screen,
                 }

@@ -65,6 +65,10 @@ fn a_grabber_search_is_saved_only_whole_and_once_under_its_name() {
     assert_eq!(again[0].last_run, ran);
     h.click("Delete search");
     h.until("the search deleted", |h| saved(h).is_empty());
+    // Not for good: it says so, and Undo keeps it again.
+    h.until_shown("Deleted the search Weekly.");
+    h.click("Undo");
+    h.until("the search kept again", |h| saved(h).len() == 1);
     h.close_dialogs();
 }
 

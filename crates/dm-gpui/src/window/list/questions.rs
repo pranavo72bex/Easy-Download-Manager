@@ -34,6 +34,7 @@ pub(super) fn countdown_question(view: &Downloads) -> Option<crate::dialogs::que
         buttons: vec![t("Cancel").into(), t("Now").into()],
         default: 0,
         escape: 0,
+        destroys: None,
     })
 }
 
@@ -57,6 +58,7 @@ pub(super) fn exit_question(view: &Downloads) -> crate::dialogs::question::Asked
         buttons: vec![ask.keep.into(), ask.exit.into()],
         default: if ask.finished { EXIT } else { 0 },
         escape: 0,
+        destroys: None,
     }
 }
 
@@ -92,6 +94,7 @@ impl Downloads {
             buttons: vec![t("Keep downloading").into(), t("Yes, cancel").into()],
             default: 0,
             escape: 0,
+            destroys: None,
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
@@ -192,6 +195,7 @@ impl Downloads {
             buttons: choices.iter().map(|(w, _)| (*w).into()).collect(),
             default: 0,
             escape: choices.len() - 1,
+            destroys: None,
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, remember, cx| {
@@ -318,6 +322,7 @@ impl Downloads {
             // (a fresh link for a link that no longer works), Escape is Close, which does not.
             default: 0,
             escape: usize::from(matches!(question, Question::NotFound(_))),
+            destroys: None,
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {

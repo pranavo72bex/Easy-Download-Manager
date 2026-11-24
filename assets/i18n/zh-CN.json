@@ -1073,5 +1073,7 @@
  "this video isn't available": "此视频不可用：可能是私密视频、已删除，或在你所在的国家/地区不可见",
  "It may be private, removed, or not shown in your country": "该视频可能是私享视频、已被删除，或在你所在的国家/地区不可用",
  "the server couldn't be reached": "无法连接服务器",
- "Check that you're online": "请确认已联网"
+ "Check that you're online": "请确认已联网",
+ "Deleted the search {}.": "已删除搜索 {}。",
+ "History cleared.": "已清除历史记录。"
 }

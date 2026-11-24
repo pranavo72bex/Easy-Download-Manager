@@ -76,7 +76,8 @@ fn options_are_put_into_force_on_ok_and_written_down() {
 }
 
 /// On a phone each change is in force as it is made, as a phone's own settings are, and Done
-/// stands where OK and Cancel were (gaps row C21). Here as a phone's Options is made.
+/// stands where OK was, Cancel beside it putting back what was changed (gaps row C21). Here as
+/// a phone's Options is made.
 #[test]
 fn on_a_phone_a_change_is_in_force_at_once_and_done_closes() {
     let _file = settings_file();
@@ -88,7 +89,6 @@ fn on_a_phone_a_change_is_in_force_at_once_and_done_closes() {
         cx.notify();
     });
     h.until_shown("Done");
-    assert!(!h.shows("Cancel"), "{:?}", h.texts());
     tab(&mut h, "Folders");
     let before = kept(&mut h).folders.categorize;
     h.click_as_person("Sort finished files into folders by kind", 0);
@@ -98,6 +98,24 @@ fn on_a_phone_a_change_is_in_force_at_once_and_done_closes() {
     assert_eq!(saved_settings()["categorize"], !before);
     h.click_as_person("Done", 0);
     h.until("Options to close", |h| !h.dialog_open("Options"));
+
+    // Cancel beside Done puts back what was changed, so a tap by mistake is not for good.
+    open_options(&mut h);
+    h.dialog(|o: &mut Options, _, cx| {
+        o.instant = true;
+        cx.notify();
+    });
+    h.until_shown("Cancel");
+    tab(&mut h, "Folders");
+    h.click_as_person("Sort finished files into folders by kind", 0);
+    h.until("the change in force", |h| {
+        kept(h).folders.categorize == before
+    });
+    h.click_as_person("Cancel", 0);
+    h.until("Options to close", |h| !h.dialog_open("Options"));
+    h.until("the change put back", |h| {
+        kept(h).folders.categorize != before
+    });
 }
 
 #[test]

@@ -1073,5 +1073,7 @@
  "this video isn't available": "この動画は利用できません",
  "It may be private, removed, or not shown in your country": "非公開か削除済み、またはお住まいの国では表示されない可能性があります",
  "the server couldn't be reached": "サーバーに接続できませんでした",
- "Check that you're online": "オンラインかどうか確認してください"
+ "Check that you're online": "オンラインかどうか確認してください",
+ "Deleted the search {}.": "検索「{}」を削除しました。",
+ "History cleared.": "履歴を消去しました。"
 }

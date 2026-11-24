@@ -46,6 +46,7 @@ impl Downloads {
             // Show it, which fetches nothing, is Return's and Escape's.
             default: 0,
             escape: 0,
+            destroys: None,
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, remember, cx| {

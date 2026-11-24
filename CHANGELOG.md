@@ -5,6 +5,11 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options: the page you are on is easy to read again (its name was white on light grey after a click), and the results of Find a setting are readable in dark looks.
+- Delete search in the Grabber and Clear history in Add URL can be undone. On a phone, Options has Cancel beside Done, which puts back what you changed.
+- Buttons that delete something have red words, the same in every dialog; each window has one blue button, its main action (the Grabber, Statistics and Download complete had two or a blue Close).
+- An off switch has a visible outline.
+
 - Every failure is told the same way: a few words on the row say what happened ("The server took too long to answer"), and the download's details and window say what to do ("Try again in a moment"). A drive that isn't connected, a file too big for the drive and a folder dm may not save in now offer Choose another folder… beside Retry.
 - Messages say "couldn't" and "can't" throughout, instead of a mix with "could not" and "cannot".
 

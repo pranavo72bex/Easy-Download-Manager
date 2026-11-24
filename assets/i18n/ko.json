@@ -1073,5 +1073,7 @@
  "this video isn't available": "이 동영상을 볼 수 없습니다",
  "It may be private, removed, or not shown in your country": "비공개이거나 삭제되었거나 해당 국가에서 볼 수 없는 동영상일 수 있습니다",
  "the server couldn't be reached": "서버에 연결할 수 없습니다",
- "Check that you're online": "인터넷 연결을 확인하세요"
+ "Check that you're online": "인터넷 연결을 확인하세요",
+ "Deleted the search {}.": "검색 {}을(를) 삭제했습니다.",
+ "History cleared.": "기록을 지웠습니다."
 }

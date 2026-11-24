@@ -359,6 +359,22 @@ impl Options {
         }
     }
 
+    /// On a phone, where each change was put in force as it was made: the settings as Options
+    /// opened with them, in force again; nothing where nothing was changed.
+    fn put_back(&mut self, cx: &mut Context<Self>) {
+        let changed = self
+            .applied
+            .as_ref()
+            .is_some_and(|now| serde_json::to_string(&self.opened).ok().as_ref() != Some(now));
+        if !self.instant || !changed {
+            return;
+        }
+        let opened = self.opened.clone();
+        if let Some(view) = self.view.upgrade() {
+            let _ = view.update(cx, |view, cx| view.apply_settings(opened, cx));
+        }
+    }
+
     fn cancel(&mut self, window: &mut Window) {
         self.done = true;
         window.remove_window();
@@ -560,10 +576,19 @@ impl Options {
                 .collect(),
                 if self.instant {
                     // Each change in force already: Done closes, saying first what does not
-                    // pass (gaps row C21).
-                    vec![native::button("ok", t("Done").into(), true, theme, screen)
-                        .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
-                        .into_any_element()]
+                    // pass (gaps row C21); Cancel puts back what Options opened with, so a
+                    // Restore defaults or a Delete tapped by mistake is not for good.
+                    vec![
+                        native::button("cancel", t("Cancel").into(), false, theme, screen)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.put_back(cx);
+                                this.cancel(window)
+                            }))
+                            .into_any_element(),
+                        native::button("ok", t("Done").into(), true, theme, screen)
+                            .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
+                            .into_any_element(),
+                    ]
                 } else {
                     vec![
                         native::button("cancel", t("Cancel").into(), false, theme, screen)

@@ -233,7 +233,7 @@ impl Render for Complete {
                         }))
                         .into_any_element()],
                         vec![
-                            native::button("close", t("Close").into(), true, theme, &screen)
+                            native::button("close", t("Close").into(), false, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, cx| this.close(window, cx)))
                                 .into_any_element(),
                         ],

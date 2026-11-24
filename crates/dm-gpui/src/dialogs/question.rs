@@ -44,6 +44,9 @@ pub struct Asked {
     pub default: usize,
     /// Which button Escape and the close button press.
     pub escape: usize,
+    /// The button that destroys something, where there is one: its words in the error colour,
+    /// as every destroying button is drawn (`native::destructive`, rule 3).
+    pub destroys: Option<usize>,
 }
 
 /// How it was answered: the button pressed (its place in
@@ -164,6 +167,9 @@ impl Render for Question {
                 theme,
                 &screen,
             )
+            .when(self.asked.destroys == Some(i) && i != default, |b| {
+                b.text_color(theme.warning)
+            })
             // Its padding and border beside its widest words.
             .when_some(widest.get(i), |b, wide| {
                 b.min_w(px((wide + 30.0).max(native::BUTTON_MIN)))

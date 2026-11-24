@@ -412,6 +412,7 @@ impl Downloads {
             buttons: vec![t("Exit").into(), t("Keep running").into()],
             default: 1,
             escape: 1,
+            destroys: None,
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {

@@ -1052,5 +1052,7 @@
  "this video isn't available",
  "It may be private, removed, or not shown in your country",
  "the server couldn't be reached",
- "Check that you're online"
+ "Check that you're online",
+ "Deleted the search {}.",
+ "History cleared."
 ]

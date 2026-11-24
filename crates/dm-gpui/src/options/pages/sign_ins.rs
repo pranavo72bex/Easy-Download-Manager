@@ -54,7 +54,7 @@ pub(super) fn sign_ins(
             true,
             move |o| o.draft.site_logins[i].password.clone(),
         );
-        let delete = button(p, ("delete-login", i), t("Delete")).on_click(cx.listener(
+        let delete = destructive(p, ("delete-login", i), t("Delete")).on_click(cx.listener(
             move |o, _, _, cx| {
                 if i < o.draft.site_logins.len() {
                     o.draft.site_logins.remove(i);

@@ -124,7 +124,7 @@ pub fn statusbar(
         .role(Role::Button)
         .aria_label(named)
         .cursor_pointer()
-        .hover(|s| s.text_color(theme.selection))
+        .hover(|s| s.text_color(theme.accent_text))
         .min_w_0()
         .overflow_hidden()
         .whitespace_nowrap()
@@ -210,7 +210,7 @@ pub fn statusbar(
                     .border_color(theme.separator)
                     .cursor_pointer()
                     .hover(|s| s.bg(theme.stripe))
-                    .text_color(theme.selection)
+                    .text_color(theme.accent_text)
                     .on_click(cx.listener(|view, _, _, cx| {
                         view.undo_remove(cx);
                         cx.notify();

@@ -28,7 +28,9 @@ The eye must have somewhere to start. Every window is checked against these, at 
    2026-11-24, gaps row E17). A button's picture is in its words' colour.
 3. **The error colour marks two things only:** a failure (a row, a field, a message) and a
    button that destroys (Delete, Cancel download), which is plain with its words in that
-   colour. Never a filled red button.
+   colour (`native::destructive`). Never a filled red button. What a destroying button does
+   at once can be undone: the dialog says what it did, with Undo beside it
+   (`native::undo_line`), as the list's Remove does in the status bar.
 4. **Three ranks of text, no more:**
    - *Figure*: what a window is for, read first: the progress window's "7% · 380 KB/s · 2 min
      left", a dialog's title. Larger type (`native::TEXT` × 1.3 or more), semibold.

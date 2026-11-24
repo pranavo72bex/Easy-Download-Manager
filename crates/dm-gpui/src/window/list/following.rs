@@ -144,6 +144,7 @@ impl Downloads {
             ],
             default: 0,
             escape: 2,
+            destroys: None,
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {

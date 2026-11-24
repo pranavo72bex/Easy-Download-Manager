@@ -1073,5 +1073,7 @@
  "this video isn't available": "Это видео недоступно: возможно, оно закрыто, удалено или не показывается в вашей стране",
  "It may be private, removed, or not shown in your country": "Возможно, оно закрыто, удалено или недоступно в вашей стране",
  "the server couldn't be reached": "не удалось связаться с сервером",
- "Check that you're online": "Проверьте подключение к интернету"
+ "Check that you're online": "Проверьте подключение к интернету",
+ "Deleted the search {}.": "Поиск {} удалён.",
+ "History cleared.": "История очищена."
 }

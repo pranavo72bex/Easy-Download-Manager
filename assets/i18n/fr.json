@@ -1073,5 +1073,7 @@
  "this video isn't available": "Cette vidéo n'est pas disponible : elle est peut-être privée, supprimée ou non visible dans votre pays",
  "It may be private, removed, or not shown in your country": "Elle est peut-être privée, supprimée ou indisponible dans votre pays",
  "the server couldn't be reached": "le serveur est injoignable",
- "Check that you're online": "Vérifiez que vous êtes en ligne"
+ "Check that you're online": "Vérifiez que vous êtes en ligne",
+ "Deleted the search {}.": "Recherche {} supprimée.",
+ "History cleared.": "Historique effacé."
 }

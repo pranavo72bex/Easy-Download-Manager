@@ -170,10 +170,9 @@ fn archive_passwords(
         "Passwords tried on an archive that has one, in turn; the one that opens it goes first.",
     ));
     for i in 0..o.archive_passwords.len() {
-        let delete = native::button(
+        let delete = native::destructive(
             SharedString::from(format!("archive-password-delete-{i}")),
             t("Delete").into(),
-            false,
             theme,
             &screen,
         )
@@ -287,15 +286,15 @@ fn custom_categories(
             false,
             move |o| o.typed.custom[i][2].clone(),
         );
-        let delete = button(p, ("delete-category", i), t("Delete category")).on_click(cx.listener(
-            move |o, _, _, cx| {
+        let delete = destructive(p, ("delete-category", i), t("Delete category")).on_click(
+            cx.listener(move |o, _, _, cx| {
                 if i < o.typed.custom.len() {
                     o.typed.custom.remove(i);
                     o.forget("custom");
                 }
                 cx.notify();
-            },
-        ));
+            }),
+        );
         p.add(native::enabled(
             on,
             div()

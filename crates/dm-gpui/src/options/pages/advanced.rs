@@ -272,7 +272,7 @@ fn site_limits(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
             false,
             move |o| o.draft.advanced.host_limits[i].connections.to_string(),
         );
-        let delete = button(p, ("delete-site-limit", i), t("Delete site limit")).on_click(
+        let delete = destructive(p, ("delete-site-limit", i), t("Delete site limit")).on_click(
             cx.listener(move |o, _, _, cx| {
                 if i < o.draft.advanced.host_limits.len() {
                     o.draft.advanced.host_limits.remove(i);
@@ -378,7 +378,7 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
             false,
             move |o| o.draft.advanced.site_rules[i].headers.clone(),
         );
-        let delete = button(p, ("delete-site-rule", i), t("Delete site rule")).on_click(
+        let delete = destructive(p, ("delete-site-rule", i), t("Delete site rule")).on_click(
             cx.listener(move |o, _, _, cx| {
                 if i < o.draft.advanced.site_rules.len() {
                     o.draft.advanced.site_rules.remove(i);
@@ -457,7 +457,7 @@ fn cookies(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
         );
     }));
     let has_cookies = !o.draft.advanced.cookies_file.is_empty();
-    let clear = button(p, "cookies-clear", t("Clear")).on_click(cx.listener(|o, _, _, cx| {
+    let clear = destructive(p, "cookies-clear", t("Clear")).on_click(cx.listener(|o, _, _, cx| {
         o.put("cookies_file", "");
         o.forget_field("cookies_file");
         cx.notify();

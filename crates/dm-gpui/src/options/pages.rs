@@ -281,6 +281,11 @@ fn button(p: &Page, id: impl Into<gpui::ElementId>, words: &str) -> gpui::Statef
     native::button(id, words.to_string().into(), false, p.theme, &p.screen)
 }
 
+/// A button that destroys (Delete, Clear), its words in the error colour (rule 3).
+fn destructive(p: &Page, id: impl Into<gpui::ElementId>, words: &str) -> gpui::Stateful<gpui::Div> {
+    native::destructive(id, words.to_string().into(), p.theme, &p.screen)
+}
+
 /// The page `o` shows, a row of settings each: laid out as a column by the view that scrolls
 /// them, whose children they are, so it can scroll to one of them (`Options::to_proxy`).
 pub(crate) fn page(
@@ -382,7 +387,9 @@ pub(crate) fn search(
                 .id(SharedString::from(format!("found-{name}")))
                 .mt(px(space::M_L))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
-                .text_color(theme.selection)
+                // A link to its page, in the accent's text shade: the selection's fill read 2.4
+                // to 1 on a dark dialog.
+                .text_color(theme.accent_text)
                 .cursor_pointer()
                 .child(o.screen.label(t(name).to_string()))
                 .on_click(cx.listener(move |o, _, window, cx| {

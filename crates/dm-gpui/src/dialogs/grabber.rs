@@ -61,6 +61,8 @@ pub struct Grabber {
     scroll: UniformListScrollHandle,
     /// The crawl under way, its pages and files so far, and its Stop (gaps row U25).
     watch: std::sync::Arc<dm_shell::lists::CrawlWatch>,
+    /// The saved search last deleted, for Undo: Delete search took it for good at once.
+    deleted: Option<dm_shell::lists::Search>,
 }
 
 /// A whole number as typed, within its bounds; what is not one is 0.
@@ -206,9 +208,33 @@ impl Grabber {
             }
             return;
         }
+        self.deleted = settings
+            .site_searches
+            .iter()
+            .find(|s| s.name == name)
+            .cloned();
         settings.site_searches.retain(|s| s.name != name);
         if let Err(e) = backend.set_settings(settings) {
             self.d.says = e;
+        }
+        cx.notify();
+    }
+
+    /// Undo after Delete search: the search kept again, where it was not saved anew since.
+    fn undelete(&mut self, cx: &mut Context<Self>) {
+        let Some(search) = self.deleted.take() else {
+            return;
+        };
+        let Some(view) = self.view.upgrade() else {
+            return;
+        };
+        let backend = view.read(cx).backend.clone();
+        let mut settings = backend.settings();
+        if !settings.site_searches.iter().any(|s| s.name == search.name) {
+            settings.site_searches.push(search);
+            if let Err(e) = backend.set_settings(settings) {
+                self.d.says = e;
+            }
         }
         cx.notify();
     }
@@ -350,7 +376,8 @@ impl Render for Grabber {
                 None,
                 width,
                 &screen,
-                native::button("find", t("Find files").into(), true, theme, &screen)
+                // Filled until files are found: then Start now is the main action (rule 1).
+                native::button("find", t("Find files").into(), !found_any, theme, &screen)
                     .on_click(cx.listener(|this, _, window, cx| this.look(window, cx))),
             ))
             .child(
@@ -474,6 +501,7 @@ fn open_now(view: WeakEntity<Downloads>, filled: SiteFiles, cx: &mut App) {
                     screen,
                     scroll: UniformListScrollHandle::new(),
                     watch: Default::default(),
+                    deleted: None,
                 }
             });
             cx.new(|cx| gpui_component::Root::new(grabber, window, cx))

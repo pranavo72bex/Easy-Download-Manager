@@ -37,15 +37,10 @@ impl Options {
             .role(Role::Tab)
             // Reached by Tab, chosen by Space or Return (gaps row U2).
             .tab_index(0)
-            // A phone's chip chosen by a tap keeps its colour: the focus a tap leaves it was
-            // drawn over it, and no page looked chosen.
-            .focus(move |s| {
-                if on && crate::platform::ON_A_PHONE {
-                    s.bg(theme.accent)
-                } else {
-                    s.bg(theme.stripe)
-                }
-            })
+            // Focus draws a ring, never a fill: a fill drawn over the chosen page's left its white
+            // words on a light grey after every click (1.3 to 1), and a phone's chip lost its
+            // colour (gaps row C21).
+            .focus(move |s| s.border_2().border_color(theme.ring(on)))
             .aria_label(SharedString::from(t(words)))
             .aria_selected(on)
             .w_full()
@@ -62,6 +57,8 @@ impl Options {
                     .rounded_none()
             })
             .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
+            // The others answer the pointer as a faceless row does (`docs/ui-design.md`).
+            .when(!on, |d| d.hover(move |s| s.bg(theme.stripe)))
             // Its name, and what it holds in a line under it.
             .child(
                 div()

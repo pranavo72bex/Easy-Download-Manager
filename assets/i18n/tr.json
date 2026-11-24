@@ -1073,5 +1073,7 @@
  "this video isn't available": "Bu video kullanılamıyor: özel, kaldırılmış ya da ülkenizde gösterilmiyor olabilir",
  "It may be private, removed, or not shown in your country": "Video gizli, kaldırılmış veya ülkenizde gösterilmiyor olabilir",
  "the server couldn't be reached": "sunucuya ulaşılamadı",
- "Check that you're online": "Çevrimiçi olduğunuzu kontrol edin"
+ "Check that you're online": "Çevrimiçi olduğunuzu kontrol edin",
+ "Deleted the search {}.": "{} araması silindi.",
+ "History cleared.": "Geçmiş temizlendi."
 }

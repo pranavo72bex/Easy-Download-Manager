@@ -209,7 +209,7 @@ impl Render for StatisticsWindow {
             .child(native::buttons(
                 Vec::new(),
                 vec![
-                    native::button("close", t("Close").into(), true, theme, &screen)
+                    native::button("close", t("Close").into(), false, theme, &screen)
                         .on_click(|_, window, _| window.remove_window())
                         .into_any_element(),
                 ],

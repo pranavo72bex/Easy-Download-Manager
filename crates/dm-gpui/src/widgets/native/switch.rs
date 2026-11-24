@@ -102,7 +102,14 @@ pub fn switch_track(on: bool, theme: Theme) -> Div {
         .flex()
         .items_center()
         .when(on, |t| t.justify_end().bg(theme.accent))
-        .when(!on, |t| t.justify_start().bg(theme.separator))
+        // Off: the track's edge in the tick box's colour, at 3 to 1 as a control's outline is
+        // read; the separator's grey alone read 1.2 to 1 on a dialog.
+        .when(!on, |t| {
+            t.justify_start()
+                .bg(theme.separator)
+                .border_1()
+                .border_color(theme.muted)
+        })
         .child(
             div()
                 .size(px(knob))

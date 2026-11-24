@@ -238,7 +238,7 @@ fn queue_limits(
             false,
             move |o| o.draft.downloads.queue_limits[i].files.to_string(),
         );
-        let delete = button(p, ("delete-queue-limit", i), t("Delete queue limit")).on_click(
+        let delete = destructive(p, ("delete-queue-limit", i), t("Delete queue limit")).on_click(
             cx.listener(move |o, _, _, cx| {
                 if i < o.draft.downloads.queue_limits.len() {
                     o.draft.downloads.queue_limits.remove(i);
@@ -312,15 +312,15 @@ fn queue_starts(o: &mut Options, p: &mut Page, cx: &mut Context<Options>, s: &Se
             theme,
             &screen,
         );
-        let delete = button(p, ("delete-start", i), t("Delete start time")).on_click(cx.listener(
-            move |o, _, _, cx| {
+        let delete = destructive(p, ("delete-start", i), t("Delete start time")).on_click(
+            cx.listener(move |o, _, _, cx| {
                 if i < o.draft.downloads.queue_starts.len() {
                     o.draft.downloads.queue_starts.remove(i);
                     o.forget("queue_starts");
                 }
                 cx.notify();
-            },
-        ));
+            }),
+        );
         p.add(
             div()
                 .flex()

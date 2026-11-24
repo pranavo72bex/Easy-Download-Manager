@@ -38,15 +38,19 @@ impl Grabber {
                         )))
                         .when(pages > 0, |d| {
                             d.child(
-                                native::button(
-                                    "stop-reading",
-                                    t("Stop").into(),
-                                    false,
-                                    theme,
-                                    screen,
-                                )
-                                .when(stopping, |b| b.opacity(0.5))
-                                .on_click(cx.listener(|this, _, _, cx| this.stop(cx))),
+                                // Greyed, told off and not pressed again while it stops (it
+                                // looked greyed but was read and pressed as live).
+                                native::enabled(
+                                    !stopping,
+                                    native::button(
+                                        "stop-reading",
+                                        t("Stop").into(),
+                                        false,
+                                        theme,
+                                        screen,
+                                    )
+                                    .on_click(cx.listener(|this, _, _, cx| this.stop(cx))),
+                                ),
                             )
                         })
                         .into_any_element(),
@@ -239,6 +243,16 @@ impl Grabber {
         body.when(!self.d.says.is_empty(), |d| {
             d.child(native::note(self.d.says.clone(), theme.warning, screen))
         })
+        // What Delete search took, and Undo, as the list's Remove has.
+        .when_some(self.deleted.as_ref().map(|s| s.name.clone()), |d, name| {
+            d.child(native::undo_line(
+                "undelete-search",
+                tf("Deleted the search {}.", &[&name]),
+                theme,
+                screen,
+                cx.listener(|this, _, _, cx| this.undelete(cx)),
+            ))
+        })
         .when(!saved.is_empty(), |d| {
             d.child(screen.label(t("Saved searches")))
                 .children(saved.iter().enumerate().map(|(i, search)| {
@@ -263,10 +277,9 @@ impl Grabber {
                                 })),
                         )
                         .child(
-                            native::button(
+                            native::destructive(
                                 ("delete", i),
                                 t("Delete search").into(),
-                                false,
                                 theme,
                                 screen,
                             )
@@ -289,7 +302,7 @@ impl Grabber {
             // Its page of the guide (gaps row E11).
             vec![native::help_button("grabber", theme, screen).into_any_element()],
             std::iter::once(
-                native::button("close", t("Close").into(), !found_any, theme, screen)
+                native::button("close", t("Close").into(), false, theme, screen)
                     .on_click(cx.listener(|_, _, window, _| window.remove_window()))
                     .into_any_element(),
             )

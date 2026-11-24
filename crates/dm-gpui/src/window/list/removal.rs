@@ -89,6 +89,7 @@ impl Downloads {
                 buttons: vec![ask.keep.into(), ask.go.into()],
                 default: 0,
                 escape: 0,
+                destroys: Some(1),
             }
         };
         // Delete file starts with its file ticked to go too; Remove never does.
