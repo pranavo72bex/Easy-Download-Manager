@@ -223,8 +223,7 @@ async fn on_message(
                     let why = values
                         .iter()
                         .find_map(|v| v.field("description").and_then(Amf::text))
-                        .unwrap_or("the server refused")
-                        .to_string();
+                        .map_or_else(|| "the server refused".to_string(), said);
                     return Ok(Some(Ended::Stopped(Error::Internal(why))));
                 }
                 ("onStatus", _) => {
@@ -247,7 +246,8 @@ async fn on_message(
                                 .and_then(Amf::text)
                                 .unwrap_or(code);
                             return Ok(Some(Ended::Stopped(Error::Internal(format!(
-                                "the server would not play it: {why}"
+                                "the server would not play it: {}",
+                                said(why)
                             )))));
                         }
                         _ => {}
@@ -284,4 +284,37 @@ async fn on_message(
         _ => {}
     }
     Ok(None)
+}
+
+/// The most of a server's own words a row shows.
+const SAID_MOST: usize = 200;
+
+/// A server's text as a row shows it: control characters gone and cut to [`SAID_MOST`]
+/// characters. Shown whole, a description of up to 16 MiB with line breaks and terminal codes
+/// in it became the row's words (gaps row H38).
+fn said(text: &str) -> String {
+    let clean: String = text
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    let clean = clean.split_whitespace().collect::<Vec<_>>().join(" ");
+    match clean.char_indices().nth(SAID_MOST) {
+        Some((cut, _)) => format!("{}…", &clean[..cut]),
+        None => clean,
+    }
+}
+
+#[cfg(test)]
+mod said_tests {
+    #[test]
+    fn a_servers_words_are_cut_and_cleaned() {
+        assert_eq!(
+            super::said("Stream\nnot\x1b[31m found"),
+            "Stream not [31m found"
+        );
+        let long = "x".repeat(5000);
+        let shown = super::said(&long);
+        assert_eq!(shown.chars().count(), super::SAID_MOST + 1);
+        assert!(shown.ends_with('…'));
+    }
 }

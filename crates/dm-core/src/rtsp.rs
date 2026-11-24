@@ -94,7 +94,7 @@ pub(crate) async fn bridge(
     let port = address.port().unwrap_or(322);
     let tcp = tokio::time::timeout(
         CONNECT_WITHIN,
-        tokio::net::TcpStream::connect((host.as_str(), port)),
+        crate::only_through::connect_tcp(&host, port),
     )
     .await
     .map_err(|_| Error::Internal(format!("{host} did not answer")))??;

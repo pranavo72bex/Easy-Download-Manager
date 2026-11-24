@@ -290,3 +290,28 @@ fn a_name_that_cannot_be_held_is_not_let_through() {
     held.insert("n3.example".into(), run_out.unwrap());
     assert!(hold(&mut held, "one-more.example".into()));
 }
+
+/// The sockets dm opens itself (FTP, RTMP, RTSP) look a name up as the HTTP clients do: one a
+/// public page led to that resolves inside is refused, the port given set on each address, an
+/// address written as one taken as it is (gaps row H38).
+#[tokio::test]
+async fn a_socket_of_dms_own_judges_the_name_as_a_client_does() {
+    let loopback: SocketAddr = "127.0.0.1:0".parse().unwrap();
+    keep("own-socket-inside.example", &[loopback]);
+    keep("own-socket-typed.example", &[loopback]);
+    led_from_public("own-socket-inside.example");
+    let refused = super::addresses("own-socket-inside.example", 1935)
+        .await
+        .unwrap_err();
+    assert_eq!(refused.kind(), std::io::ErrorKind::PermissionDenied);
+    assert_eq!(
+        super::addresses("own-socket-typed.example", 1935)
+            .await
+            .unwrap(),
+        ["127.0.0.1:1935".parse::<SocketAddr>().unwrap()]
+    );
+    assert_eq!(
+        super::addresses("[::1]", 554).await.unwrap(),
+        ["[::1]:554".parse::<SocketAddr>().unwrap()]
+    );
+}

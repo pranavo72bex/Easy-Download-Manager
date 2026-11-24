@@ -259,14 +259,16 @@ pub async fn before_download(
 }
 
 /// A TCP connection to `host:port` from the adapter downloads are held to, where they are;
-/// otherwise as `TcpStream::connect` makes one. For the sockets dm opens itself (FTP's, and a
-/// proxy's for FTP).
+/// otherwise from any. For the sockets dm opens itself (FTP's and a proxy's for FTP, RTMP's,
+/// RTSP's), the name looked up and judged as an HTTP client's is (`dns::addresses`, gaps row
+/// H38).
 pub async fn connect_tcp(host: &str, port: u16) -> std::io::Result<tokio::net::TcpStream> {
+    let to = crate::dns::addresses(host, port).await?;
     let Some(from) = bound_to() else {
-        return tokio::net::TcpStream::connect((host, port)).await;
+        return tokio::net::TcpStream::connect(to.as_slice()).await;
     };
     let mut last = None;
-    for to in tokio::net::lookup_host((host, port)).await? {
+    for to in to {
         // From the adapter's own address only: one of the other family cannot be reached
         // from it, and is not tried by another route.
         if to.is_ipv4() != from.is_ipv4() {

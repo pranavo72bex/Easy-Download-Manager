@@ -195,6 +195,37 @@ impl Resolve for Kept {
     }
 }
 
+/// `host`'s addresses at `port` for a socket dm opens itself (FTP's, RTMP's, RTSP's), looked up
+/// and judged as every HTTP client's are: a name a public page led to that resolves inside is
+/// refused, where those sockets went through the system's resolver unjudged (gaps row H38). An
+/// address written as one is taken as it is.
+pub async fn addresses(host: &str, port: u16) -> std::io::Result<Vec<SocketAddr>> {
+    if let Ok(ip) = host
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .parse::<std::net::IpAddr>()
+    {
+        return Ok(vec![SocketAddr::new(ip, port)]);
+    }
+    let name = host.to_ascii_lowercase();
+    let found = match kept(&name) {
+        Some(addrs) => addrs,
+        None => {
+            let found = look_up(&name).await?;
+            if !found.is_empty() {
+                keep(&name, &found);
+            }
+            found
+        }
+    };
+    let judged = judged(&name, found)
+        .map_err(|led| std::io::Error::new(std::io::ErrorKind::PermissionDenied, led))?;
+    Ok(judged
+        .into_iter()
+        .map(|a| SocketAddr::new(a.ip(), port))
+        .collect())
+}
+
 /// Why a lookup failed, as reqwest takes it.
 type Failure = Box<dyn std::error::Error + Send + Sync>;
 

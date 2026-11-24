@@ -35,7 +35,7 @@ async fn open_with(
     }
     let tcp = tokio::time::timeout(
         CONNECT_WITHIN,
-        tokio::net::TcpStream::connect((target.host.as_str(), target.port)),
+        crate::only_through::connect_tcp(&target.host, target.port),
     )
     .await
     .map_err(|_| Error::Internal(format!("{} did not answer", target.host)))??;

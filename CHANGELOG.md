@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Security: RTMP and RTSP streams, and FTP, look a server's name up under the same rule as web downloads (a name a public page led to that turns out to be inside your network is refused); an RTMP server's error text is shortened and cleaned before it is shown.
 - Fixed (Windows): "When a download finishes, run this command" kept a path's backslashes (`C:\Tools\scan.exe` was read as `C:Toolsscan.exe`); the file is also in `DM_FILE`, and a name that `cmd` or PowerShell would run part of is not added to their line.
 - Fixed: a download that met something its reader did not expect (a `.torrent` with a piece length of 0, for one) stayed "running" for good and held its place in the queue; it now fails and says why.
 - Fixed: unpacking a `.tar` whose entries carry extended headers (what most tar tools write for long names) could stop with a crash, leaving the unpack unanswered.
