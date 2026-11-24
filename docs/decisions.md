@@ -8994,3 +8994,19 @@ commits and its tests. `scripts/ai-skills-check.py` stands between every page an
 by the trusted job only, from machine output or the maintainer. Continuous improvement is
 the maintainer's own work list: the next row of `docs/gaps.md` that needs nothing only a
 person can give, three in flight at most, and Android's workflow now gates a bot's merge.
+
+## More of jakubkrehel's skills: three taken, four not, every copied file pinned, 2026-11-24
+
+The maintainer asked for jakubkrehel/skills (skills.sh) as well. Its nine interface skills
+were already in `.claude/skills/` from the same commit (672ae44a), and were found
+byte-identical to it. Of the other seven, all read and clean (no hidden characters, no line
+addressed to a model, no script in the repository): `break`, `afk` and `upskill` are taken,
+unchanged but for their `agents/` files. `break`'s scenarios become the worst cases a
+window test covers (dm's harness is `window_tests/` and the layout sweep, not a web page);
+`afk`'s method (better for someone, match the repository, the smallest complete step, try
+to reject it) becomes `docs/ai-skills/improving.md` for the bots' `improve` task; `upskill`
+stays a session's tool, as what it would build is the bots' guardrails. Not taken:
+`explain-interface` (it fetches pages with `curl`), `build-design` (Figma), `state-machine`
+and `variant` (web harness pages). Every file copied into `.claude/skills/` from outside is
+now pinned by SHA-256 in `.claude/skills/UPSTREAM.tsv`, and `scripts/ai-skills-check.py`
+fails a changed one, or an unnamed file inside a copied skill, as it does for `vendor/`.
