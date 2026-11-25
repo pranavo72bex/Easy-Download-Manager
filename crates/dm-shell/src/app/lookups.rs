@@ -39,6 +39,9 @@ pub struct Probed {
     /// A web page rather than a file (a video site's watch page): dm finds
     /// the video in it when it starts, so nothing is wrong to say.
     pub page: bool,
+    /// The `https://` address taken in place of the `http://` one typed, where it answered
+    /// (gaps row H6).
+    pub upgraded: Option<String>,
 }
 
 /// The name an HLS stream at `url` is saved under: the engine's own naming
@@ -87,6 +90,82 @@ pub fn probe_later(
             dm_core::probe(&client, &url, referrer_of(&referrer), sign_in.as_ref()),
         )
         .await;
+        if let Some(found) = probed_of(&url, asked, remux) {
+            done(found);
+        }
+    });
+}
+
+/// [`probe_later`] for an address a person typed: where it is a plain `http://` one to a server
+/// on the internet, its `https://` form asked first, within [`SECURE_WITHIN`], and taken where it
+/// answers (`Probed::upgraded`); the address as typed otherwise (gaps row H6).
+pub fn probe_upgrading(
+    backend: &Backend,
+    url: String,
+    referrer: String,
+    sign_in: Option<dm_core::cookies::SignIn>,
+    remux: bool,
+    done: impl FnOnce(Probed) + Send + 'static,
+) {
+    let Some(secure) = secure_form(&url) else {
+        return probe_later(backend, url, referrer, sign_in, remux, done);
+    };
+    let client = backend.client();
+    backend.runtime.spawn(async move {
+        let first = tokio::time::timeout(
+            SECURE_WITHIN,
+            dm_core::probe(&client, &secure, referrer_of(&referrer), sign_in.as_ref()),
+        )
+        .await;
+        if let Ok(Ok(_)) = &first {
+            if let Some(mut found) = probed_of(&secure, first, remux) {
+                found.upgraded = Some(secure);
+                done(found);
+            }
+            return;
+        }
+        let asked = tokio::time::timeout(
+            PROBE_WITHIN,
+            dm_core::probe(&client, &url, referrer_of(&referrer), sign_in.as_ref()),
+        )
+        .await;
+        if let Some(found) = probed_of(&url, asked, remux) {
+            done(found);
+        }
+    });
+}
+
+/// How long an address's `https://` form is given to answer before the `http://` one typed is
+/// asked instead.
+pub const SECURE_WITHIN: Duration = Duration::from_secs(5);
+
+/// The `https://` form of a plain `http://` address to a server on the internet; `None` for any
+/// other address, and for one to this computer or the local network (an address written as
+/// numbers, `localhost`, a `.local` name), whose servers seldom speak HTTPS.
+pub fn secure_form(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("http://")?;
+    let host = url::Url::parse(url).ok()?.host()?.to_owned();
+    match host {
+        url::Host::Domain(name) => {
+            let name = name.to_ascii_lowercase();
+            let local = name == "localhost" || name.ends_with(".local") || !name.contains('.');
+            (!local).then(|| format!("https://{rest}"))
+        }
+        url::Host::Ipv4(_) | url::Host::Ipv6(_) => None,
+    }
+}
+
+/// What Download details shows of a probe's `asked` answer for `url`; `None` where the server
+/// did not answer in time.
+fn probed_of(
+    url: &str,
+    asked: Result<Result<dm_core::Probe, dm_core::Error>, tokio::time::error::Elapsed>,
+    remux: bool,
+) -> Option<Probed> {
+    let mut answer = None;
+    {
+        let mut done = |found: Probed| answer = Some(found);
+        let url = url.to_string();
         match asked {
             Ok(Ok(probe)) => {
                 let kind = probe.content_type.as_deref();
@@ -130,7 +209,8 @@ pub fn probe_later(
             }
             Err(_) => {}
         }
-    });
+    }
+    answer
 }
 
 /// What one of a page's links turned out to be, as its server said.

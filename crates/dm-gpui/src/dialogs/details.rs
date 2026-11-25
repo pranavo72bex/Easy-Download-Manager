@@ -190,6 +190,10 @@ impl Details {
     /// What the server said: its name put in Save as where nothing is
     /// typed, and a video's qualities asked for once it is one.
     fn probed(&mut self, mut found: Probed, window: &mut Window, cx: &mut Context<Self>) {
+        // Its https:// form answered: that is the address downloaded (gaps row H6).
+        if let (Some(secure), [only]) = (found.upgraded.clone(), self.urls.as_mut_slice()) {
+            *only = secure;
+        }
         // A stream is named after the page's title, as the engine names it (gaps row 214): the
         // server's name for it here, so Save as is not taken for a name typed.
         let stream = dm_shell::app::lookups::stream_name(&self.first(), None, false).is_some();

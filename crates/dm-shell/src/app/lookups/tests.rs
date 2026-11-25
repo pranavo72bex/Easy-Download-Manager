@@ -146,3 +146,24 @@ fn a_stream_a_turned_away_page_and_a_missing_file_are_each_told_as_such() {
     assert!(!gone.page);
     assert!(gone.problem.is_some_and(|why| why.contains("404")));
 }
+
+/// A plain `http://` address to a server on the internet has an `https://` form to try first;
+/// one to this computer or the local network, or one already secure, has none (gaps row H6).
+#[test]
+fn a_typed_http_address_to_the_internet_is_tried_over_https_first() {
+    assert_eq!(
+        secure_form("http://example.com/files/a.zip?x=1").as_deref(),
+        Some("https://example.com/files/a.zip?x=1")
+    );
+    for none in [
+        "https://example.com/a.zip",
+        "http://127.0.0.1:8080/a.zip",
+        "http://[::1]/a.zip",
+        "http://localhost/a.zip",
+        "http://nas.local/a.zip",
+        "http://printer/a.zip",
+        "ftp://example.com/a.zip",
+    ] {
+        assert_eq!(secure_form(none), None, "{none}");
+    }
+}

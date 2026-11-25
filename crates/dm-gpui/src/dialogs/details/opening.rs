@@ -119,7 +119,14 @@ pub(super) fn ask_server(
         return None;
     }
     let (tell, told) = async_channel::bounded(1);
-    dm_shell::app::lookups::probe_later(
+    // A typed address tries its https:// form first (gaps row H6); one a browser handed over
+    // is the browser's, as it was sent.
+    let probe = if handed.handed {
+        dm_shell::app::lookups::probe_later
+    } else {
+        dm_shell::app::lookups::probe_upgrading
+    };
+    probe(
         backend,
         url.to_string(),
         handed.referrer.clone(),

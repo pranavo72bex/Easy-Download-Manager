@@ -14,7 +14,11 @@ again while it is open, Add URL comes to the front as it stands.
   `http://`, `https://`, `ftp://`, `magnet:?`, and the stream addresses
   `rtmp://`, `rtmps://`, `rtmpe://`, `rtmpt://`, `rtsp://`, `rtsps://`,
   `mms://`, `mmsh://` and `mmst://`. The path of a `.torrent` file on this
-  computer is taken too.
+  computer is taken too. A plain `http://` address to a site on the internet is tried as
+  `https://` first, so the file comes encrypted where the site offers it;
+  dm keeps `http://` only when the secure address does not answer within
+  five seconds (an address on this computer or your local network is taken
+  as typed).
 - **Recent:** the addresses you added here before, newest first, to pick
   again. Shown only when there are some. An address whose query holds a
   password, token, key, signature or session is never kept here.
