@@ -226,6 +226,8 @@ fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
     h.fill("User name", "me");
     h.fill("Redial attempts (zero if endlessly)", "3");
     h.fill("Time between redial attempts (seconds)", "10");
+    // Scrolled below it by the fields filled: brought up again.
+    h.reveal("Use Windows Dial Up / VPN Networking");
     h.click("Use Windows Dial Up / VPN Networking");
     ok(&mut h);
     let s = kept(&mut h);
