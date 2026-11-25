@@ -243,6 +243,12 @@ fn spoken_name(field: &str) -> Option<SharedString> {
     })
 }
 
+/// The title of a phone's sheet of `field`'s choices: what it sets, as a screen reader names
+/// the pop-up (gaps row E42); "Choose…" only where nothing names it. Every sheet said "Choose…".
+fn sheet_title(field: &str) -> SharedString {
+    spoken_name(field).unwrap_or_else(|| dm_desktop_base::i18n::t("Choose…").into())
+}
+
 /// Closes a pop-up's sheet where one is open, as a phone's Back closes the top layer only:
 /// true where one was. Back with a pop-up's choices open closed the whole dialog, and what was
 /// typed in it went.
@@ -282,7 +288,7 @@ fn phone_hooks() -> crate::widgets::bottomsheet::Hooks {
 fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoElement {
     use crate::widgets::bottomsheet;
     let hooks = phone_hooks();
-    let title: SharedString = dm_desktop_base::i18n::t("Choose…").into();
+    let title = sheet_title(open.field);
     let items: Vec<gpui::AnyElement> = open
         .choices
         .iter()
@@ -420,6 +426,15 @@ mod tests {
         assert_eq!(spoken_name("to-minute").as_deref(), Some("Stop at, Minute"));
         assert_eq!(spoken_name("priority").as_deref(), Some("Priority"));
         assert_eq!(spoken_name("no-such-field"), None);
+    }
+
+    /// A phone's sheet of a pop-up's choices is titled by what it sets, as a screen reader
+    /// names the pop-up (gaps row E42); "Choose…" only where nothing names it.
+    #[test]
+    fn a_popups_sheet_is_titled_by_what_it_sets() {
+        assert_eq!(sheet_title("priority").as_ref(), "Priority");
+        assert_eq!(sheet_title("from-hour").as_ref(), "Start at, Hour");
+        assert_eq!(sheet_title("no-such-field").as_ref(), "Choose…");
     }
 
     /// Back with a pop-up's sheet open closes the sheet alone, once: the next Back is the

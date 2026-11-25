@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a phone, the list of a pop-up's choices is titled by what it sets ("Start at, Hour", "Priority") instead of "Choose…".
 - Ticks, chevrons and a sheet's Close are drawn icons of one weight, not characters of the font, and the chevrons point the other way in Arabic and Hebrew.
 - Pop-ups, the connection presets, Download details' choices, the video quality choices and a phone sheet's big buttons light up under the pointer and when pressed, as buttons do.
 - The question before removing downloads answers with what it does: Remove download or Remove downloads, and Delete file or Delete files when the files go too.
