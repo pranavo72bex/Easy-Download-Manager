@@ -315,3 +315,50 @@ async fn held_to_an_adapter_an_rtmp_stream_goes_out_from_it_and_with_no_address_
         "the stream reached the server another way"
     );
 }
+
+/// Held to a network that has no address, no kind of download reaches the site another way: a
+/// plain file, an HLS and a DASH stream, a Metalink, a page and an archive, each through
+/// `download` with a client built after the hold, and the site is asked nothing, neither for
+/// the file nor for a checksum beside it (gaps row H24a, the "Only through" twin of the proxy
+/// test).
+#[tokio::test(flavor = "multi_thread")]
+async fn held_to_a_network_no_kind_of_download_reaches_the_site_another_way() {
+    let _turn = TURN.lock().await;
+    let (addr, seen) = serve().await;
+    let _found = adapters(None);
+    set_only_through(Some("dm-test0"));
+    let dir = tempdir();
+    let options = dm_core::Options {
+        attempts: 0,
+        ..common::options(dir.path())
+    };
+    let client = dm_core::client();
+    let mut ended = Vec::new();
+    for name in [
+        "file.bin",
+        "film.m3u8",
+        "film.mpd",
+        "release.meta4",
+        "page.html",
+        "archive.zip",
+    ] {
+        let url = format!("http://{addr}/{name}");
+        let went = tokio::time::timeout(
+            Duration::from_secs(3),
+            dm_core::download(&client, &url, &options),
+        )
+        .await;
+        ended.push((name, matches!(went, Ok(Ok(_)))));
+    }
+    let_go();
+    assert_eq!(
+        seen.asked.load(Ordering::SeqCst),
+        0,
+        "the site was reached from {:?}",
+        seen.from.lock().unwrap()
+    );
+    assert!(
+        ended.iter().all(|(_, done)| !done),
+        "finished with no network: {ended:?}"
+    );
+}

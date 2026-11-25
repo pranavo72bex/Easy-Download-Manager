@@ -79,3 +79,44 @@ fn a_version_with_a_suffix_is_compared_by_its_numbers() {
     assert!(!update::newer("not a version", "0.0.1"));
     assert!(update::newer("0.0.1", "not a version"));
 }
+
+/// Held to a network that has no address, the update check reaches nothing: the client it is
+/// made with (`Settings::client`) is bound as every other, so a VPN that dropped does not let
+/// the check go out over the plain line (gaps row H24c).
+#[tokio::test(flavor = "multi_thread")]
+async fn held_to_a_network_with_no_address_the_update_check_reaches_nothing() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let came = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&came);
+    let server = tokio::spawn(async move {
+        while listener.accept().await.is_ok() {
+            counted.fetch_add(1, Ordering::SeqCst);
+        }
+    });
+    // The adapter list holds no `dm-test0`: held to it, clients are bound to an address no
+    // computer has.
+    dm_core::set_adapter_lister(Some(Arc::new(Vec::new)));
+    dm_core::set_only_through(Some("dm-test0"));
+    let client = dm_shell::Settings::default().client().unwrap();
+    let endpoint = format!("http://{addr}/latest.json");
+    let checked = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        update::fetch_manifest(&client, &endpoint, "key"),
+    )
+    .await;
+    dm_core::set_only_through(None);
+    dm_core::set_adapter_lister(None);
+    server.abort();
+    assert!(
+        !matches!(checked, Ok(Ok(_))),
+        "the update check answered with no network"
+    );
+    assert_eq!(
+        came.load(Ordering::SeqCst),
+        0,
+        "the update check reached the server"
+    );
+}
