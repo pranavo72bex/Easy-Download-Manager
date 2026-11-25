@@ -639,3 +639,85 @@ fn an_assistant_drives_the_window_through_its_tools() {
     h.until("Add URL", |h| h.dialog_open("Add URL"));
     assert_eq!(h.rows().len(), 1);
 }
+
+/// Every file under `dir`, folders gone into.
+fn files_under(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .flat_map(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_dir() => files_under(&entry.path()),
+            Ok(kind) if kind.is_file() => vec![entry.path()],
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+/// The control token is written to its own file and to no other (gaps row H15a): the real port
+/// opened (`port::open`, which writes `control.token`), signed in to over TCP, a download added
+/// through it and finished, and then not one other file under dm's home holds the token, where
+/// a backup, a sync or another program could read it from the queue, the settings or a log.
+#[test]
+fn the_control_token_is_in_no_file_but_its_own() {
+    use std::io::{BufRead, BufReader, Write};
+    let world = world();
+    let mut h = harness(&world);
+    let backend = h.view(|view| view.backend.clone());
+    let requests = crate::port::open(0, std::sync::Arc::new(|_| {}), backend, false).unwrap();
+    let asks = h.requests();
+    std::thread::spawn(move || {
+        for request in requests {
+            if asks.send(request).is_err() {
+                break;
+            }
+        }
+    });
+    let home = dm_shell::settings::home();
+    let token = std::fs::read_to_string(home.join(dm_core::paths::CONTROL_TOKEN)).unwrap();
+    let port: u16 = std::fs::read_to_string(home.join(dm_core::paths::CONTROL_PORT))
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    let url = world.url("file.zip");
+    let signed = token.clone();
+    let client = std::thread::spawn(move || {
+        let stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let mut out = stream.try_clone().unwrap();
+        let mut replies = BufReader::new(stream);
+        let mut call = |method: &str, params: Value| -> Value {
+            let line = json!({ "id": 1, "method": method, "params": params });
+            out.write_all(format!("{line}\n").as_bytes()).unwrap();
+            let mut reply = String::new();
+            replies.read_line(&mut reply).unwrap();
+            serde_json::from_str(&reply).unwrap()
+        };
+        let auth = call("auth", json!({ "token": signed }));
+        assert_eq!(auth["ok"], true, "{auth}");
+        let added = call("downloads.add", json!({ "urls": [url] }));
+        assert_eq!(added["ok"], true, "{added}");
+    });
+    h.until("the client to be answered", |_| client.is_finished());
+    client.join().expect("the client's checks failed");
+    h.until("file.zip to finish", |h| {
+        h.rows()
+            .iter()
+            .any(|r| r.url.ends_with("file.zip") && r.state == State::Completed)
+    });
+    drop(h);
+    let own = home.join(dm_core::paths::CONTROL_TOKEN);
+    let files = files_under(&home);
+    assert!(files.len() > 1, "dm wrote nothing but the token: {files:?}");
+    for file in files.iter().filter(|file| **file != own) {
+        let Ok(bytes) = std::fs::read(file) else {
+            continue;
+        };
+        assert!(
+            !bytes.windows(token.len()).any(|w| w == token.as_bytes()),
+            "the control token is in {}",
+            file.display()
+        );
+    }
+}
