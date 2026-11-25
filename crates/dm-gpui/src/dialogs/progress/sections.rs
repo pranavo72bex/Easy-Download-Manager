@@ -133,12 +133,12 @@ pub(super) fn connection_lines(
                         .child(screen.label(format!("{}", n + 1))),
                 )
                 .when_some(fill, |d, fill| {
-                    d.child(
-                        div()
-                            .w(px(160.0))
-                            .flex()
-                            .child(bar(("piece", n), fill, theme)),
-                    )
+                    d.child(div().w(px(160.0)).flex().child(native::bar(
+                        ("piece", n),
+                        fill,
+                        6.0,
+                        theme,
+                    )))
                 })
                 .child(div().text_color(theme.muted).child(screen.label(words)))
                 .when(rate > 0.0 && done < *span && running, |d| {
@@ -379,7 +379,7 @@ pub(super) fn whole_bar(
     } else {
         div()
             .flex()
-            .child(bar("bar", fraction, theme))
+            .child(native::bar("bar", fraction, 6.0, theme))
             .into_any_element()
     }
 }

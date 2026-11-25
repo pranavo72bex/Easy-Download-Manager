@@ -99,7 +99,7 @@ fn pane(row: &Entry, theme: Theme, screen: &Screen) -> gpui::Stateful<Div> {
         .text_size(px(native::SMALL_TEXT))
         .child(
             div()
-                .text_size(px(native::TEXT * 1.3))
+                .text_size(px(native::FIGURE_TEXT))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .font_features(crate::widgets::native::figures())
                 .whitespace_nowrap()
@@ -107,14 +107,11 @@ fn pane(row: &Entry, theme: Theme, screen: &Screen) -> gpui::Stateful<Div> {
                 .text_ellipsis()
                 .child(screen.label(SharedString::from(figure(row)))),
         )
+        // The progress window's bar, drawn by the same hand (gaps row E8): mirrored and told.
         .child(
-            div().h(px(4.0)).rounded_full().bg(theme.separator).child(
-                div()
-                    .h_full()
-                    .rounded_full()
-                    .bg(theme.accent_text)
-                    .w(gpui::relative(fraction.clamp(0.0, 1.0))),
-            ),
+            div()
+                .flex()
+                .child(native::bar("detail-bar", fraction, 4.0, theme)),
         )
         .child(fact("Saved to", folder, theme, screen))
         .child(fact("Address", format::shown_url(&row.url), theme, screen))

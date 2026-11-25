@@ -739,6 +739,8 @@ mod help;
 mod keys;
 mod measure;
 pub use help::help_button;
+mod bar;
+pub use bar::bar;
 mod note;
 mod row;
 pub use row::row;
