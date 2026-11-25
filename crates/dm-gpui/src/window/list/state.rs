@@ -387,6 +387,9 @@ pub(crate) struct Threads {
     pub(crate) searches_checked: Option<Instant>,
     /// What an opener said went wrong, from its thread.
     pub(super) opener_said: Arc<Mutex<Option<String>>>,
+    /// An archive Extract here or Extract to found has a password none of the saved ones
+    /// opens, from its thread: its password is asked for (gaps row C2b).
+    pub(crate) password_asked: Arc<Mutex<Option<crate::dialogs::password::Asked>>>,
     /// What Scheduler › Hang up modem when done came to, from its thread.
     pub(crate) hung_up: Arc<Mutex<Option<dm_shell::dialup::HungUp>>>,
     /// What the update check has found.
@@ -406,6 +409,7 @@ impl Default for Threads {
             search_results: Default::default(),
             searches_checked: None,
             opener_said: Default::default(),
+            password_asked: Default::default(),
             hung_up: Default::default(),
             checked: Arc::new(Mutex::new(dm_shell::app::update::Update::NotAsked)),
             update_row: None,

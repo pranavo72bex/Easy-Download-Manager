@@ -826,8 +826,21 @@ removed, and the archive stays where it was.
 - `the archive is password-protected, which dm does not extract: …`
   The archive is locked with a password, and none of the passwords saved in
   Options › Folders › Archive passwords opens it (Unpack when done, Extract
-  here and Extract to try each). Add its password there and extract it again,
-  or unpack it with another program that asks.
+  here and Extract to try each). Unpack when done leaves it packed; add its
+  password there and extract it again.
+
+**Extract here** and **Extract to…** then ask for it in a small window,
+**Archive password**: "… has a password, and none of the saved ones opens
+it." Type it under **Password** and click **Extract**. With **Keep this
+password** on, it is added to the saved ones once it has opened the archive,
+so the next archive that has it opens without asking.
+
+- `Type the archive's password.`
+  **Extract** was clicked with the field empty.
+- `That password does not open it.`
+  The password typed is not the archive's (or the locked part is damaged,
+  which looks the same). Nothing was written; the window stays open for
+  another try.
 - `wrong password for …`
   The password given does not open the archive (or the locked part of it is
   damaged, which looks the same). Nothing was written. Check the password,

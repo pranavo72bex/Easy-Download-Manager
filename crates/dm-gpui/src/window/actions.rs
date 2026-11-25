@@ -90,6 +90,13 @@ impl Downloads {
         // one that opens it goes to the top of the list (gaps row C2a).
         let home = dm_shell::settings::home();
         let passwords = dm_core::extract::passwords::load(&home);
+        // One none of them opens: its password is asked for (gaps row C2b).
+        let asks = self.threads.password_asked.clone();
+        let asked = crate::dialogs::password::Asked {
+            path: std::path::PathBuf::from(path),
+            url: url.to_string(),
+            into: into.clone(),
+        };
         let started = dm_shell::app::files::extract_later_trying(
             std::path::PathBuf::from(path),
             url.to_string(),
@@ -99,6 +106,12 @@ impl Downloads {
                 dm_desktop_base::i18n::set(language);
                 if let Some(password) = opened_with {
                     dm_core::extract::passwords::used(&home, &password);
+                }
+                use dm_core::extract::Error;
+                if let Err(Error::Encrypted(_) | Error::WrongPassword(_)) = answer {
+                    *dm_core::lock(&asks) = Some(asked);
+                    *dm_core::lock(&said) = Some(String::new());
+                    return;
                 }
                 let answer = match answer {
                     Ok(done) => tn(

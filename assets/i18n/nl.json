@@ -1092,5 +1092,11 @@
  "Unchanged since it finished.": "Ongewijzigd sinds het klaar was.",
  "Changed since it finished: its SHA-256 then was another.": "Gewijzigd sinds het klaar was: de SHA-256 was toen een andere.",
  "Open a program?": "Een programma openen?",
- "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} is een programma: het draait met alles wat u op deze computer kunt doen. Open het alleen als u de site waar het vandaan kwam vertrouwt."
+ "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} is een programma: het draait met alles wat u op deze computer kunt doen. Open het alleen als u de site waar het vandaan kwam vertrouwt.",
+ "Archive password": "Wachtwoord van archief",
+ "Keep this password": "Dit wachtwoord bewaren",
+ "Extract": "Uitpakken",
+ "{} has a password, and none of the saved ones opens it.": "{} heeft een wachtwoord, en geen van de bewaarde opent het.",
+ "Type the archive's password.": "Typ het wachtwoord van het archief.",
+ "That password does not open it.": "Dat wachtwoord opent het niet."
 }

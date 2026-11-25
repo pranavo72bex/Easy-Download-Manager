@@ -123,6 +123,7 @@ impl Downloads {
             Effect::Telling { expired } => {
                 self.prune_progress(cx);
                 self.say_opener();
+                self.ask_archive_password(cx);
                 self.offer_new_link(expired, cx);
             }
             // Told as a finish is, with why in plain words, and a Retry.

@@ -1071,5 +1071,11 @@
  "Changed since it finished: its SHA-256 then was another.",
  "Open a program?",
  "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.",
- "Sort finished files into folders by category"
+ "Sort finished files into folders by category",
+ "Archive password",
+ "Keep this password",
+ "Extract",
+ "{} has a password, and none of the saved ones opens it.",
+ "Type the archive's password.",
+ "That password does not open it."
 ]

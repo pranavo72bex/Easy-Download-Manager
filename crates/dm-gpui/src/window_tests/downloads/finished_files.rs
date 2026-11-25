@@ -327,3 +327,51 @@ fn extract_here_opens_an_archive_with_a_saved_password() {
         "the password that opened it is not first"
     );
 }
+
+/// Extract here on an archive none of the saved passwords opens asks for its password: a
+/// wrong one is said in the dialog, which stays open, and the right one, with "Keep this
+/// password" on, extracts it and is saved first (gaps row C2b). It said "Not extracted" before.
+#[test]
+fn extract_here_asks_for_a_password_when_no_saved_one_fits() {
+    let _file = crate::harness::settings_file();
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("file.zip"), "Start now");
+    h.until("file.zip to finish", |h| completed(h) == 1);
+    h.select("file.zip");
+    let path = std::path::PathBuf::from(h.row("file.zip").path);
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../dm-core/tests/fixtures/archives/zip/aes256.zip");
+    std::fs::copy(&fixture, &path).unwrap();
+    let home = dm_shell::settings::home();
+    dm_core::extract::passwords::save(&home, &["not this one".to_string()]).unwrap();
+    h.run(Command::ExtractHere);
+    h.until("the password to be asked for", |h| {
+        h.dialog_open("Archive password")
+    });
+    h.fill("Password", "wrong");
+    h.click("Extract");
+    h.until_shown("That password does not open it.");
+    assert!(
+        h.dialog_open("Archive password"),
+        "a wrong password closed the dialog"
+    );
+    h.fill("Password", "dm secret");
+    h.click("Keep this password");
+    h.click("Extract");
+    h.until("the extraction", |h| {
+        h.said().starts_with("Extracted 4 files")
+    });
+    let first = dm_core::extract::passwords::load(&home).first().cloned();
+    dm_core::extract::passwords::save(&home, &[]).unwrap();
+    assert!(!h.dialog_open("Archive password"), "the dialog stayed open");
+    assert_eq!(
+        std::fs::read(path.with_extension("").join("docs/a.txt")).unwrap(),
+        b"hello, zip\n"
+    );
+    assert_eq!(
+        first.as_deref(),
+        Some("dm secret"),
+        "the password was not kept"
+    );
+}

@@ -1092,5 +1092,11 @@
  "Unchanged since it finished.": "Bittiğinden beri değişmedi.",
  "Changed since it finished: its SHA-256 then was another.": "Bittiğinden beri değişti: SHA-256 değeri o zaman farklıydı.",
  "Open a program?": "Bir program açılsın mı?",
- "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} bir programdır: bu bilgisayarda yapabildiğiniz her şeyle çalışır. Yalnızca geldiği siteye güveniyorsanız açın."
+ "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} bir programdır: bu bilgisayarda yapabildiğiniz her şeyle çalışır. Yalnızca geldiği siteye güveniyorsanız açın.",
+ "Archive password": "Arşiv parolası",
+ "Keep this password": "Bu parolayı sakla",
+ "Extract": "Çıkar",
+ "{} has a password, and none of the saved ones opens it.": "{} parolalı ve kayıtlı parolaların hiçbiri onu açmıyor.",
+ "Type the archive's password.": "Arşivin parolasını yazın.",
+ "That password does not open it.": "Bu parola onu açmıyor."
 }

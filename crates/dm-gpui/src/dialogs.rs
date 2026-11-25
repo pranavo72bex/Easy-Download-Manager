@@ -16,6 +16,7 @@ pub(crate) mod grabber;
 pub(crate) mod limiter;
 pub(crate) mod links;
 pub(crate) mod listfile;
+pub(crate) mod password;
 pub(crate) mod playlist;
 pub(crate) mod progress;
 pub(crate) mod properties;

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Extract here and Extract to ask for an archive's password when none of the saved ones opens it, in a small "Archive password" window that says a wrong one and stays open; "Keep this password" saves it once it has worked.
 - `--queue NAME` on the command line adds the next link to the queue of that name without starting it; `--help` and the README name it.
 - A 7z in parts (`.7z.001`, `.7z.002`…) is extracted from its first part, the parts read in order as one file and never joined on disk, into a folder of the archive's name.
 - Unpack when done takes an archive in parts (`.part1.rar`, `.7z.001`, `.zip.001`) as one: it waits until every part in the list has finished, unpacks once from the first part, and sends the parts to the Trash together.

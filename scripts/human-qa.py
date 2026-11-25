@@ -2503,6 +2503,65 @@ def metered_waits(origin):
             dm.proc.kill()
 
 
+def archive_password(origin):
+    """B78 (gaps row C2b): Extract here on an archive none of the saved passwords opens asks
+    for its password in "Archive password"; a wrong one is said there and the window stays
+    open, and the right one, with "Keep this password" on, extracts it and closes the window.
+    The archive is the AES ZIP of dm-core's fixtures, its password "dm secret"."""
+    home = WORK / "archive-password"
+    saved = home / "downloads"
+    saved.mkdir(parents=True)
+    locked = (ROOT / "crates" / "dm-core" / "tests" / "fixtures" / "archives" / "zip"
+              / "aes256.zip").read_bytes()
+    FILES["locked.zip"] = (len(locked), 0, "plain")
+    DATA["locked.zip"] = locked
+    (home / "settings.json").write_text(json.dumps({
+        "download_dir": str(saved), "theme": "dark", "popups_version": 2,
+        "show_progress": False, "show_complete": False}), encoding="utf-8")
+    dm = Dm(home)
+    dm.start()
+    try:
+        dm.call("ui.window", to="shown")
+        dm.call("downloads.add", urls=[f"{origin}/files/locked.zip"])
+        r = dm.wait("locked.zip", {"completed", "failed"}, 60) or {}
+        dm.call("ui.select", ids=[r.get("id")])
+        pause(0.6)
+        dm.call("command.run", id="file.extract_here")
+        asked = False
+        for _ in range(60):
+            if "Archive password" in dm.dialogs():
+                asked = True
+                break
+            time.sleep(0.25)
+        pause(0.8)
+        check("B78", "Extract here on a ZIP no saved password opens asks for it in \"Archive password\", with Password, Keep this password and Extract",
+              asked and all(w in dm.dialog_texts() for w in ("Password", "Keep this password", "Extract")),
+              f"dialogs {dm.dialogs()}, words {dm.dialog_texts()[:12]}")
+        dm.call("ui.type", text="wrong")
+        pause(0.4)
+        dm.click("Extract")
+        wrong = dm.wait_for_text("That password does not open it.", 15)
+        check("B78", "a wrong password is said in the window, which stays open",
+              wrong and "Archive password" in dm.dialogs(), f"dialogs {dm.dialogs()}")
+        dm.call("ui.type", text="dm secret")
+        pause(0.4)
+        dm.click("Keep this password")
+        dm.click("Extract")
+        folder = pathlib.Path(r.get("path", "")).with_suffix("")
+        end = time.time() + 30
+        while time.time() < end and not (folder / "docs" / "a.txt").is_file():
+            time.sleep(0.25)
+        pause(0.8)
+        check("B78", "the right password extracts it and the window closes",
+              (folder / "docs" / "a.txt").is_file() and "Archive password" not in dm.dialogs(),
+              f"folder {folder}, dialogs {dm.dialogs()}")
+    finally:
+        try:
+            dm.quit()
+        except Exception:
+            dm.proc.kill()
+
+
 # The main window's title while a download runs (gaps row U16).
 TITLED = re.compile(r"\d{1,3}% · .+/s — dm")
 
@@ -2680,6 +2739,7 @@ def main():
     backing_up()
     statistics(origin)
     metered_waits(origin)
+    archive_password(origin)
     told_and_titled(origin)
     browser()
 

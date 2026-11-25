@@ -76,6 +76,15 @@ impl Downloads {
         }
     }
 
+    /// An archive's password asked for, where Extract here or Extract to found none of the
+    /// saved ones opens it (gaps row C2b).
+    pub(crate) fn ask_archive_password(&mut self, cx: &mut gpui::Context<Self>) {
+        let asked = dm_core::lock(&self.threads.password_asked).take();
+        if let Some(asked) = asked {
+            crate::dialogs::password::open(cx.entity().downgrade(), asked, cx);
+        }
+    }
+
     /// Whether a dialog stands in front of the list: a question, or a
     /// dialog's window. Progress windows and "Download complete" stand
     /// beside it, not in front.
