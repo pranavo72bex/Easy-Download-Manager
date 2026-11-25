@@ -1007,7 +1007,7 @@
  "an Android app's code": "Android 应用的代码",
  "a script": "脚本",
  "a program": "程序",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "每个下载只通过这个网络发出,例如你的 VPN。未连接时,下载会等待并说明原因,连接恢复后自动继续。选中时不会开始直播(在 Windows 上种子也不会),也不使用第二个网络。",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. RTSP streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "每个下载只通过这个网络发出,例如你的 VPN。未连接时,下载会等待并说明原因,连接恢复后自动继续。选中时不会开始 RTSP 直播(在 Windows 上种子也不会),也不使用第二个网络。",
  "Networks": "网络",
  "This computer's connection": "本机的连接",
  "the second network brings nothing now": "第二个网络目前没有带来任何数据",

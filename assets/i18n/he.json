@@ -1007,7 +1007,7 @@
  "an Android app's code": "קוד של אפליקציית Android",
  "a script": "סקריפט",
  "a program": "תוכנה",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "כל הורדה יוצאת דרך הרשת הזו בלבד, כמו זו של ה-VPN שלך. כל עוד היא לא מחוברת, ההורדות ממתינות, אומרות זאת וממשיכות מעצמן כשהיא חוזרת. שידורים חיים לא מתחילים כל עוד רשת נבחרה (ב-Windows גם טורנטים), והרשת השנייה לא בשימוש.",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. RTSP streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "כל הורדה יוצאת דרך הרשת הזו בלבד, כמו זו של ה-VPN שלך. כל עוד היא לא מחוברת, ההורדות ממתינות, אומרות זאת וממשיכות מעצמן כשהיא חוזרת. שידורי RTSP לא מתחילים כל עוד רשת נבחרה (ב-Windows גם טורנטים), והרשת השנייה לא בשימוש.",
  "Networks": "רשתות",
  "This computer's connection": "החיבור של המחשב הזה",
  "the second network brings nothing now": "הרשת השנייה לא מביאה כלום כרגע",

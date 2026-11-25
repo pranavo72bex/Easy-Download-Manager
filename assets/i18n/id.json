@@ -1007,7 +1007,7 @@
  "an Android app's code": "kode aplikasi Android",
  "a script": "skrip",
  "a program": "program",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Setiap unduhan hanya lewat jaringan ini, misalnya VPN Anda. Selama tidak tersambung, unduhan menunggu, memberi tahu, dan berlanjut sendiri saat kembali. Siaran langsung tidak dimulai selama satu dipilih (di Windows, torrent juga), dan jaringan kedua tidak dipakai.",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. RTSP streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Setiap unduhan hanya lewat jaringan ini, misalnya VPN Anda. Selama tidak tersambung, unduhan menunggu, memberi tahu, dan berlanjut sendiri saat kembali. Siaran RTSP tidak dimulai selama satu dipilih (di Windows, torrent juga), dan jaringan kedua tidak dipakai.",
  "Networks": "Jaringan",
  "This computer's connection": "Koneksi komputer ini",
  "the second network brings nothing now": "jaringan kedua tidak membawa apa pun sekarang",

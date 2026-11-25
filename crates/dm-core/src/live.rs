@@ -104,9 +104,12 @@ pub async fn download_live(
              turn the proxy off for this site (Options › Advanced) to fetch it"
         )));
     }
-    // Its sockets are partly the RTSP library's, which dm cannot bind to one network: held to
-    // one (gaps row W12), a stream is not recorded rather than sent around it.
-    if let Some(name) = crate::only_through::only_through() {
+    // An RTSP stream's sockets are partly the RTSP library's, which dm cannot bind to one
+    // network: held to one (gaps row W12), it is not recorded rather than sent around it
+    // (`rtsps` too, until its one outside socket is dm's, gaps row H23b). RTMP's are dm's own
+    // (`only_through::connect_tcp`), and RTMPT's and MMS's go through a bound client (gaps row
+    // H23a).
+    if let Some(name) = crate::only_through::only_through().filter(|_| scheme.starts_with("rtsp")) {
         let what = format!("a {scheme}:// stream");
         return Err(Error::Internal(crate::only_through::refused_words(
             &what, &name,

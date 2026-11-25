@@ -12,8 +12,9 @@
 //! path's client is (`second_path.rs`), and the sockets dm opens itself for FTP connect from
 //! it ([`connect_tcp`]); a torrent's sockets are bound to the adapter by name (librqbit's
 //! `bind_device_name`, gaps row H23) on macOS, Linux and Android, and on Windows, where the
-//! library cannot, a torrent refuses to start while it is chosen, as a live stream does
-//! everywhere (dm-core's `torrent` and `live`). Where the adapter
+//! library cannot, a torrent refuses to start while it is chosen, as an RTSP stream does
+//! everywhere (dm-core's `torrent` and `live`: RTSP's sockets are partly a library's; RTMP's
+//! connect through [`connect_tcp`], RTMPT's and MMS's through a bound client). Where the adapter
 //! has no address (the VPN is down) a client is still bound to the last address it had, or
 //! to one no computer has, so nothing can leave by another route; a download waits for it
 //! before it goes out ([`before_download`]), saying why on its row, and goes on by itself

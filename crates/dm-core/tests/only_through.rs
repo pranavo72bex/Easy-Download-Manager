@@ -22,6 +22,8 @@ use dm_core::{set_adapter_lister, set_only_through, DownloadList, Interface, Sta
 use futures_util::StreamExt;
 
 mod common;
+#[path = "common/rtmp_server.rs"]
+mod rtmp_server;
 use common::tempdir;
 
 static TURN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -256,4 +258,60 @@ async fn woken_from_sleep_a_running_download_reconnects_at_once() {
         "it did not ask again on waking"
     );
     assert!(whole, "it did not finish once it asked again");
+}
+
+/// Held to an adapter, an RTMP stream is recorded from it, as its sockets are dm's own and
+/// bound (`only_through::connect_tcp`); with the adapter's address taken away, a second try
+/// reaches the server not once, so a stream cannot slip past a VPN that dropped (gaps row
+/// H23a). It was refused outright, as plain RTSP still is.
+#[tokio::test(flavor = "multi_thread")]
+async fn held_to_an_adapter_an_rtmp_stream_goes_out_from_it_and_with_no_address_reaches_nothing() {
+    let _turn = TURN.lock().await;
+    let clip =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/media/live/clip.flv");
+    let tags = rtmp_server::flv_tags(&std::fs::read(clip).unwrap());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(rtmp_server::serve_rtmp(listener, tags));
+    let found = adapters(Some(OURS));
+    set_only_through(Some("dm-test0"));
+    let dir = tempdir();
+    let options = common::options(dir.path());
+    let url = format!("rtmp://127.0.0.1:{port}/live/show");
+    let recorded = dm_core::download(&dm_core::client(), &url, &options).await;
+    // The adapter's address one this computer does not have, held again so it is read at once
+    // (the queue looks before each download; a bare `download` does not): a listener that
+    // counts whoever comes.
+    set_only_through(None);
+    put(&found, Some(Ipv4Addr::new(192, 0, 2, 7)));
+    set_only_through(Some("dm-test0"));
+    let quiet = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let quiet_port = quiet.local_addr().unwrap().port();
+    let came = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&came);
+    let counter = tokio::spawn(async move {
+        while quiet.accept().await.is_ok() {
+            counted.fetch_add(1, Ordering::SeqCst);
+        }
+    });
+    let again = format!("rtmp://127.0.0.1:{quiet_port}/live/show");
+    let second = tokio::time::timeout(
+        Duration::from_secs(10),
+        dm_core::download(&dm_core::client(), &again, &options),
+    )
+    .await;
+    let_go();
+    counter.abort();
+    let recorded = recorded.expect("the RTMP stream held to the adapter");
+    assert_eq!(server.await.unwrap(), "show");
+    assert!(recorded.bytes > 0, "nothing recorded");
+    assert!(
+        !matches!(second, Ok(Ok(_))),
+        "recorded with the adapter's address gone"
+    );
+    assert_eq!(
+        came.load(Ordering::SeqCst),
+        0,
+        "the stream reached the server another way"
+    );
 }

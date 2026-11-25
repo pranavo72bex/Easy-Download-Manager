@@ -1007,7 +1007,7 @@
  "an Android app's code": "code van een Android-app",
  "a script": "een script",
  "a program": "een programma",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Elke download gaat alleen over dit netwerk, zoals dat van je VPN. Zolang het niet verbonden is, wachten downloads, zeggen dat en gaan vanzelf verder als het terug is. Livestreams starten niet zolang er een gekozen is (op Windows ook torrents niet), en het tweede netwerk wordt niet gebruikt.",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. RTSP streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Elke download gaat alleen over dit netwerk, zoals dat van je VPN. Zolang het niet verbonden is, wachten downloads, zeggen dat en gaan vanzelf verder als het terug is. RTSP-streams starten niet zolang er een gekozen is (op Windows ook torrents niet), en het tweede netwerk wordt niet gebruikt.",
  "Networks": "Netwerken",
  "This computer's connection": "Verbinding van deze computer",
  "the second network brings nothing now": "het tweede netwerk brengt nu niets",

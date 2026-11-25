@@ -1007,7 +1007,7 @@
  "an Android app's code": "код приложения Android",
  "a script": "скрипт",
  "a program": "программа",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Каждая загрузка идёт только через эту сеть, например через ваш VPN. Пока она не подключена, загрузки ждут, сообщают об этом и сами продолжаются, когда она вернётся. Прямые трансляции не начинаются, пока сеть выбрана (в Windows и торренты), а вторая сеть не используется.",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. RTSP streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "Каждая загрузка идёт только через эту сеть, например через ваш VPN. Пока она не подключена, загрузки ждут, сообщают об этом и сами продолжаются, когда она вернётся. RTSP-трансляции не начинаются, пока сеть выбрана (в Windows и торренты), а вторая сеть не используется.",
  "Networks": "Сети",
  "This computer's connection": "Подключение этого компьютера",
  "the second network brings nothing now": "вторая сеть сейчас ничего не приносит",

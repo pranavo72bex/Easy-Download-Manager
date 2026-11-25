@@ -264,7 +264,7 @@ fn only_through(o: &mut Options, p: &mut Page) {
         true,
         popup::button("only-through", shown.into(), words, at, theme, &screen),
     );
-    p.hint(t("Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used."));
+    p.hint(t("Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. RTSP streams do not start while one is chosen (on Windows, torrents too), and the second network is not used."));
 }
 
 /// Sites with their own connection limit, and the button adding one.
