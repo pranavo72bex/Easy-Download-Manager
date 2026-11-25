@@ -649,3 +649,59 @@ proptest::proptest! {
         let _ = r.finish();
     }
 }
+
+/// A server opening many chunk streams, each starting a large message it never finishes, is
+/// refused once what they hold together passes `MOST_HELD`, before dm reads more of it (gaps row
+/// H34a): each stream alone stays under the 16 MiB a message may be.
+#[tokio::test]
+async fn many_chunk_streams_each_holding_part_of_a_large_message_are_refused() {
+    let chunk = 4 << 20;
+    let mut wire = Vec::new();
+    for csid in 3u8..20 {
+        // Format 0 on chunk stream `csid`: a video message of 16 MiB less one, its first chunk.
+        wire.push(csid);
+        wire.extend_from_slice(&[0, 0, 0, 0xFF, 0xFF, 0xFF, 9, 1, 0, 0, 0]);
+        wire.extend(std::iter::repeat_n(0u8, chunk));
+    }
+    let mut reader = Reader {
+        io: &wire[..],
+        chunk_size: chunk,
+        streams: HashMap::new(),
+        read: 0,
+    };
+    let said = match reader.message().await {
+        Err(Error::Internal(said)) => said,
+        Err(other) => panic!("another error: {other}"),
+        Ok(_) => panic!("a message, though none was finished"),
+    };
+    assert!(said.contains("too large"), "{said}");
+    let held: usize = reader.streams.values().map(|s| s.body.len()).sum();
+    assert!(held <= wire::MOST_HELD, "{held} bytes held");
+}
+
+/// Large frames before the stream says what its picture is are held only up to
+/// `MOST_HELD_BYTES`; past it dm says why and holds no more (gaps row H34b): 20,000 frames of any
+/// size were held.
+#[test]
+fn frames_held_before_the_file_starts_are_bounded_by_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("v.mp4");
+    let mut r = Recorder::new(&path);
+    // A key frame of H.264 (codec 7, packet type 1), 8 MiB, with no configuration ever sent.
+    let mut tag = vec![0x17, 1, 0, 0, 0];
+    tag.extend(std::iter::repeat_n(0u8, 8 << 20));
+    let mut refused = None;
+    for n in 0..12 {
+        if let Err(why) = r.video(n * 40, &tag) {
+            refused = Some(why.to_string());
+            break;
+        }
+    }
+    let said = refused.expect("96 MB held with no shape");
+    assert!(said.contains("64 MB"), "{said}");
+    let held: usize = r.held.iter().map(|h| h.data.len()).sum();
+    assert!(
+        held <= super::recorder::MOST_HELD_BYTES,
+        "{held} bytes held"
+    );
+}

@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- An MP4 that claims more samples over all its tracks than any real video has is refused before dm makes room for them.
+- Recording a live RTMP or RTSP stream holds at most 32 MB of unfinished messages and 64 MB of frames before its file starts, and a stream whose times leap more than 10 seconds ahead is ended rather than written hours long.
 - A place's menu (right-click a category or queue) works from the keyboard: the arrows and Tab move through it, Return picks, Escape closes it.
 - The progress window's Networks line says how fast each network answers ("answers in 40 ms").
 - A second or third network can be given a name of your own (Options › Advanced), used in the progress window and the lists of networks.

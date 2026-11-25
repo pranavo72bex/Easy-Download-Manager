@@ -723,6 +723,10 @@ was recorded is kept.
 - `the RTSP stream never said what its picture or sound is`
   The RTSP server refused, or its stream is in a form dm cannot record.
   Check the address, and a login in it if the camera or server wants one.
+- `the RTSP stream sent too much before saying what it is`
+  The stream sent 64 MB before saying what its picture or sound is, more
+  than any camera does; dm stopped rather than hold more. Try again, or ask
+  the stream's owner.
 - `not an mms:// address`
 - `the MMS server: …`
 - `the MMS server answered …`

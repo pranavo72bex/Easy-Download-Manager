@@ -43,6 +43,11 @@ pub(super) fn command(name: &str, transaction: f64, args: &[Arg]) -> Vec<u8> {
     out
 }
 
+/// The most bytes of unfinished messages held across every chunk stream together (gaps row
+/// H34a): a server opening many streams, each starting a 16 MiB message it never finishes, could
+/// make dm hold 65,599 of them.
+pub(super) const MOST_HELD: usize = 32 << 20;
+
 #[derive(Default)]
 pub(super) struct ChunkState {
     pub(super) timestamp: u32,
@@ -156,6 +161,12 @@ impl<R: AsyncRead + Unpin> Reader<R> {
                 ));
             }
             let want = (state.length - state.body.len().min(state.length)).min(self.chunk_size);
+            let held: usize = self.streams.values().map(|s| s.body.len()).sum();
+            if held.saturating_add(want) > MOST_HELD {
+                return Err(Error::Internal(
+                    "the server sent a message too large".into(),
+                ));
+            }
             let part = {
                 let mut buf = vec![0u8; want];
                 self.io.read_exact(&mut buf).await?;

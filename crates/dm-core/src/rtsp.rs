@@ -51,6 +51,40 @@ const NEVER_SAID_AFTER: Duration = Duration::from_secs(10);
 /// the source says.
 type Frame = (usize, Vec<u8>, i64, bool, Option<u32>);
 
+/// The most bytes of frames held before the file starts, as RTMP's (gaps row H34c).
+const MOST_HELD_BYTES: usize = 64 << 20;
+
+/// The longest jump forward a stream's timestamps may make (gaps row H34d): a server whose RTP
+/// times leap hours ahead ends the recording with retina's error instead of a file hours long.
+const MOST_JUMP_SECS: u32 = 10;
+
+/// Frames held for the streams that have not yet said what they are, bounded by bytes as well
+/// as by `NEVER_SAID_AFTER`'s time (gaps row H34c).
+#[derive(Default)]
+struct HeldFrames {
+    frames: Vec<Frame>,
+    bytes: usize,
+}
+
+impl HeldFrames {
+    /// `frame` kept: false, and nothing kept, past [`MOST_HELD_BYTES`].
+    fn push(&mut self, frame: Frame) -> bool {
+        let bytes = self.bytes.saturating_add(frame.1.len());
+        if bytes > MOST_HELD_BYTES {
+            return false;
+        }
+        self.bytes = bytes;
+        self.frames.push(frame);
+        true
+    }
+
+    /// Every frame held, in the order they came; none held after.
+    fn take(&mut self) -> Vec<Frame> {
+        self.bytes = 0;
+        std::mem::take(&mut self.frames)
+    }
+}
+
 fn failed(e: impl std::fmt::Display) -> Error {
     Error::Internal(format!("the RTSP server: {e}"))
 }
@@ -123,6 +157,15 @@ pub(crate) async fn bridge(
     Ok((local, task))
 }
 
+/// How dm asks retina to play a stream: timestamps taken as they come at first, then held to
+/// jumps of [`MOST_JUMP_SECS`] at most (gaps row H34d).
+fn play_options() -> PlayOptions {
+    let most = std::num::NonZeroU32::new(MOST_JUMP_SECS).unwrap_or(std::num::NonZeroU32::MIN);
+    PlayOptions::default()
+        .initial_timestamp(InitialTimestampPolicy::Permissive)
+        .enforce_timestamps_with_max_jump_secs(most)
+}
+
 /// Records the stream at `url` into `part` until its server ends it, the
 /// connection closes, or `control` stops it. Returns the bytes written; a
 /// stop is returned after the file is closed, so what arrived plays.
@@ -158,7 +201,7 @@ async fn record_within(
 
     let mut writer: Option<fmp4::Writer> = None;
     let mut tracks: [Option<usize>; 2] = [None, None];
-    let mut held: Vec<Frame> = Vec::new();
+    let mut held = HeldFrames::default();
     let started = std::time::Instant::now();
     let mut stop = None;
     'stream: loop {
@@ -211,7 +254,12 @@ async fn record_within(
             _ => continue,
         };
         if writer.is_none() {
-            held.push(frame);
+            if !held.push(frame) {
+                stop = Some(Error::Internal(
+                    "the RTSP stream sent too much before saying what it is".into(),
+                ));
+                break;
+            }
             // Started once each stream's shape is known, or after three
             // seconds with those that are.
             let known = |i: Option<usize>| {
@@ -237,7 +285,7 @@ async fn record_within(
                 continue;
             }
             writer = Some(fmp4::Writer::create(part, specs)?);
-            for (slot, data, at, key, length) in std::mem::take(&mut held) {
+            for (slot, data, at, key, length) in held.take() {
                 if let (Some(w), Some(Some(track))) = (writer.as_mut(), tracks.get(slot)) {
                     w.push(*track, data, at, 0, key, length)?;
                 }
@@ -303,10 +351,7 @@ async fn play(
     }
     // Permissive about the PLAY reply's timing: servers (mediamtx among
     // them) leave `rtptime` out, and the first packet's time serves.
-    let playing = session
-        .play(PlayOptions::default().initial_timestamp(InitialTimestampPolicy::Permissive))
-        .await
-        .map_err(failed)?;
+    let playing = session.play(play_options()).await.map_err(failed)?;
     let frames = playing.demuxed().map_err(failed)?;
     Ok((frames, video, audio))
 }

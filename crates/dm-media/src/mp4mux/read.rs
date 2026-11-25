@@ -140,6 +140,12 @@ pub(super) fn movie_timescale(moov: &[u8]) -> u32 {
 }
 
 pub(super) fn tracks_of(moov: &[u8], input: usize) -> Result<Vec<Track>, Error> {
+    // Every track's samples together within the cap, read before any track's table is made:
+    // 64 tracks each of one size and 16M samples asked for gigabytes from a few KB (gaps row
+    // H35a).
+    if claimed_samples(moov) > MOST_SAMPLES {
+        return Err("the file's tracks claim too many samples together".into());
+    }
     let movie_scale = movie_timescale(moov);
     let mut tracks = Vec::new();
     for (kind, trak, _) in boxes(moov) {
@@ -242,6 +248,17 @@ pub(super) fn entries<T>(
 /// The most samples a table or a run may claim without a field in the file to
 /// bear it out: a ten-hour video at 60 frames a second has two million.
 const MOST_SAMPLES: usize = 1 << 24;
+
+/// The samples all of `moov`'s tracks claim together, by each one's `stsz` count.
+fn claimed_samples(moov: &[u8]) -> usize {
+    boxes(moov)
+        .filter(|(kind, _, _)| kind == b"trak")
+        .filter_map(|(_, trak, _)| {
+            let stbl = child(child(child(trak, b"mdia")?, b"minf")?, b"stbl")?;
+            u32_at(child(stbl, b"stsz")?, 8)
+        })
+        .fold(0usize, |all, count| all.saturating_add(count as usize))
+}
 
 /// A plain MP4's samples, from its `stbl`. Empty for a fragmented one,
 /// whose tables are empty and whose samples are in its fragments.
@@ -415,6 +432,13 @@ pub(super) fn read_fragment(
         if flags & 0x20 != 0 {
             d.flags = u32_at(tfhd, at).ok_or_else(short)?;
         }
+        // The other tracks' samples, which this one's are bounded together with (gaps row
+        // H35b): bounded alone, each of many tracks could claim 16M.
+        let others: usize = tracks
+            .iter()
+            .filter(|t| t.id != id)
+            .map(|t| t.samples.len())
+            .sum();
         let Some(track) = tracks.iter_mut().find(|t| t.id == id) else {
             continue;
         };
@@ -461,9 +485,13 @@ pub(super) fn read_fragment(
             }
             // With no per-sample fields nothing in the box bounds the count; and a track's
             // runs together are bounded as one box is: many runs of 16M samples each asked
-            // for tens of GB from a few KB of file (gaps rows H10, H35).
+            // for tens of GB from a few KB of file (gaps rows H10, H35); and every track's
+            // together (H35b).
             if (width == 0 && count > MOST_SAMPLES)
-                || track.samples.len().saturating_add(count) > MOST_SAMPLES
+                || others
+                    .saturating_add(track.samples.len())
+                    .saturating_add(count)
+                    > MOST_SAMPLES
             {
                 return Err(short());
             }
@@ -509,62 +537,4 @@ pub(super) fn read_fragment(
 // ---- writing ------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn a_box_size_that_wraps_the_walk_ends_it_instead_of_looping() {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&16u32.to_be_bytes());
-        bytes.extend_from_slice(b"free");
-        bytes.extend_from_slice(&[0; 8]);
-        bytes.extend_from_slice(&1u32.to_be_bytes());
-        bytes.extend_from_slice(b"free");
-        bytes.extend_from_slice(&(u64::MAX - 15).to_be_bytes());
-        let mut file = tempfile::tempfile().unwrap();
-        file.write_all(&bytes).unwrap();
-        let length = bytes.len() as u64;
-        let said = read_input(&mut file, length, 0).unwrap_err().to_string();
-        assert!(said.contains("no index"), "{said}");
-    }
-
-    #[test]
-    fn a_table_of_one_size_cannot_claim_billions_of_samples() {
-        let mut stsz = Vec::new();
-        stsz.extend_from_slice(&20u32.to_be_bytes());
-        stsz.extend_from_slice(b"stsz");
-        stsz.extend_from_slice(&0u32.to_be_bytes());
-        stsz.extend_from_slice(&1u32.to_be_bytes());
-        stsz.extend_from_slice(&u32::MAX.to_be_bytes());
-        let said = plain_samples(&stsz).unwrap_err().to_string();
-        assert!(said.contains("too many samples"), "{said}");
-    }
-
-    /// Runs of samples with no per-sample fields, each within the cap alone, are bounded
-    /// together: a hundred of them asked for some 38 GB from a few KB (gaps rows H10, H35).
-    #[test]
-    fn a_tracks_runs_together_cannot_claim_billions_of_samples() {
-        fn boxed(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
-            let mut out = ((body.len() + 8) as u32).to_be_bytes().to_vec();
-            out.extend_from_slice(kind);
-            out.extend_from_slice(body);
-            out
-        }
-        let mut tfhd = 0u32.to_be_bytes().to_vec();
-        tfhd.extend_from_slice(&1u32.to_be_bytes());
-        let mut trun = 0u32.to_be_bytes().to_vec();
-        trun.extend_from_slice(&(10_000_000u32).to_be_bytes());
-        let mut traf = boxed(b"tfhd", &tfhd);
-        for _ in 0..3 {
-            traf.extend(boxed(b"trun", &trun));
-        }
-        let moof = boxed(b"traf", &traf);
-        let mut tracks = vec![crate::mp4mux::Track {
-            id: 1,
-            ..Default::default()
-        }];
-        assert!(read_fragment(0, &moof, &[], &mut tracks).is_err());
-        assert!(tracks[0].samples.len() <= MOST_SAMPLES);
-    }
-}
+mod tests;

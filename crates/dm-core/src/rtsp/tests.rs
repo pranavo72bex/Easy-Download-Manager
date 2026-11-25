@@ -79,6 +79,8 @@ fn a_sign_in_is_taken_out_of_the_address() {
 enum After {
     HangUp,
     Silent,
+    /// Two AAC frames an hour apart in the stream's own time, then silent (gaps row H34d).
+    Jump,
 }
 
 /// A one-client RTSP server describing `sdp` (or refusing DESCRIBE when there is none),
@@ -136,12 +138,35 @@ async fn serve(sdp: Option<&'static str>, after: After) -> u16 {
                 // Kept open, sending nothing, until the client lets go.
                 while let Ok(Some(_)) = lines.next_line().await {}
             }
+            After::Jump => {
+                for (seq, at) in [(1u16, 0u32), (2, 44_100 * 3600)] {
+                    // RFC 3640's AAC-hbr: AU-headers-length (16 bits), one AU-header (a 13-bit
+                    // size and a 3-bit index), then the frame.
+                    let frame = [0x21u8; 64];
+                    let header = (frame.len() as u16) << 3;
+                    let mut rtp = vec![0x80, 0x80 | 97];
+                    rtp.extend_from_slice(&seq.to_be_bytes());
+                    rtp.extend_from_slice(&at.to_be_bytes());
+                    rtp.extend_from_slice(&[0, 0, 0xAB, 0xCD]);
+                    rtp.extend_from_slice(&16u16.to_be_bytes());
+                    rtp.extend_from_slice(&header.to_be_bytes());
+                    rtp.extend_from_slice(&frame);
+                    let mut packet = vec![b'$', 0];
+                    packet.extend_from_slice(&(rtp.len() as u16).to_be_bytes());
+                    packet.extend_from_slice(&rtp);
+                    if write.write_all(&packet).await.is_err() {
+                        return;
+                    }
+                }
+                while let Ok(Some(_)) = lines.next_line().await {}
+            }
         }
     });
     port
 }
 
 const PICTURE: &str = "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=dm test\r\nt=0 0\r\nm=video 0 RTP/AVP 96\r\nc=IN IP4 0.0.0.0\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1\r\na=control:track1\r\n";
+const AAC_SOUND: &str = "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=dm test\r\nt=0 0\r\nm=audio 0 RTP/AVP 97\r\nc=IN IP4 0.0.0.0\r\na=rtpmap:97 MPEG4-GENERIC/44100/2\r\na=fmtp:97 streamtype=5;profile-level-id=15;mode=AAC-hbr;config=1210;SizeLength=13;IndexLength=3;IndexDeltaLength=3\r\na=control:track1\r\n";
 const TELEPHONE_SOUND: &str = "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=dm test\r\nt=0 0\r\nm=audio 0 RTP/AVP 0\r\nc=IN IP4 0.0.0.0\r\na=rtpmap:0 PCMU/8000\r\na=control:track1\r\n";
 
 async fn record_from(port: u16, control: &Control) -> (Result<u64, Error>, tempfile::TempDir) {
@@ -232,4 +257,43 @@ async fn an_rtsps_server_that_does_not_answer_is_an_error() {
     .await;
     assert!(got.is_err());
     assert!(!dir.path().join("cam.part").exists());
+}
+
+/// Frames held for a stream that never says its shape are kept up to `MOST_HELD_BYTES` and no
+/// further (gaps row H34c): ten seconds of a fast stream were held whatever their size.
+#[test]
+fn frames_held_for_a_stream_that_never_says_its_shape_are_bounded_by_bytes() {
+    let mut held = HeldFrames::default();
+    let frame = || (0usize, vec![0u8; 8 << 20], 0i64, true, None);
+    let kept = (0..12).take_while(|_| held.push(frame())).count();
+    assert_eq!(kept, MOST_HELD_BYTES / (8 << 20), "frames kept");
+    assert!(held.bytes <= MOST_HELD_BYTES);
+    assert_eq!(held.take().len(), kept);
+    assert_eq!(held.bytes, 0, "the count kept after they were taken");
+    assert!(held.push(frame()), "nothing held, a frame is kept again");
+}
+
+/// A server whose stream's times leap an hour ahead ends the recording at once (gaps row H34d):
+/// retina is held to jumps of `MOST_JUMP_SECS`; unheld, the recording went on until the server
+/// was taken to have gone silent.
+#[tokio::test]
+async fn a_timestamp_jump_of_hours_ends_the_recording_with_why() {
+    let port = serve(Some(AAC_SOUND), After::Jump).await;
+    let dir = tempfile::tempdir().unwrap();
+    let part = dir.path().join("cam.part");
+    let began = std::time::Instant::now();
+    let silent_for = Duration::from_secs(20);
+    let got = record_within(
+        &format!("rtsp://127.0.0.1:{port}/cam"),
+        &part,
+        &Control::new(),
+        &Arc::new(AtomicU64::new(0)),
+        silent_for,
+    )
+    .await;
+    assert!(
+        began.elapsed() < Duration::from_secs(10),
+        "the jump did not end it: {:?} ({got:?})",
+        began.elapsed()
+    );
 }

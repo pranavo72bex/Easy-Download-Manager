@@ -27,6 +27,9 @@ pub(super) enum SoundConfig {
     },
 }
 
+/// The most bytes of frames held before the file starts (gaps row H34b).
+pub(super) const MOST_HELD_BYTES: usize = 64 << 20;
+
 pub(super) struct Held {
     pub(super) video: bool,
     pub(super) data: Vec<u8>,
@@ -196,20 +199,42 @@ impl Recorder {
         if self.writer.is_some() {
             return self.write(held);
         }
+        // Bounded by bytes as well as by count (gaps row H34b): large frames with no shape yet
+        // were held 20,000 of any size.
+        let bytes: usize = self.held.iter().map(|h| h.data.len()).sum();
+        if bytes.saturating_add(held.data.len()) > MOST_HELD_BYTES {
+            return self.start_now(ms);
+        }
         if self.held.len() < 20_000 {
             self.held.push(held);
         }
         self.start_if_ready(ms)
     }
 
+    /// Starts the file at once with what has its shape, `MOST_HELD_BYTES` being held: or says
+    /// why it cannot, where nothing has one.
+    fn start_now(&mut self, ms: u32) -> std::io::Result<()> {
+        if self.picture.is_none() && self.sound.is_none() {
+            return Err(std::io::Error::other(
+                "the stream sent 64 MB before saying what its picture or sound is",
+            ));
+        }
+        self.start_with(ms, true)
+    }
+
     /// Starts the file once every kind seen has its shape, or three
     /// seconds in with what has one.
     pub(super) fn start_if_ready(&mut self, ms: u32) -> std::io::Result<()> {
+        self.start_with(ms, false)
+    }
+
+    /// [`Recorder::start_if_ready`], or at once with what has a shape where `now`.
+    fn start_with(&mut self, ms: u32, now: bool) -> std::io::Result<()> {
         if self.writer.is_some() {
             return Ok(());
         }
         let first = *self.first_ms.get_or_insert(ms);
-        let late = ms.saturating_sub(first) >= 3000;
+        let late = now || ms.saturating_sub(first) >= 3000;
         let picture_ready = self.picture.is_some() || (!self.saw_video && late);
         let sound_ready = self.sound.is_some() || (!self.saw_audio && late);
         if !(picture_ready && sound_ready) && !late {
