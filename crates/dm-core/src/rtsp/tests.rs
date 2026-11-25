@@ -297,3 +297,14 @@ async fn a_timestamp_jump_of_hours_ends_the_recording_with_why() {
         began.elapsed()
     );
 }
+
+/// A plain `rtsp://` server's name is looked up and judged before retina opens its own socket
+/// (gaps row H38): one that cannot be found is refused in dm's words, before any connection.
+#[tokio::test]
+async fn a_plain_rtsp_servers_name_is_judged_before_retina_connects() {
+    let found = url::Url::parse("rtsp://127.0.0.1:554/cam").unwrap();
+    assert!(judged(&found).await.is_ok());
+    let nowhere = url::Url::parse("rtsp://no-such-camera.invalid/cam").unwrap();
+    let said = judged(&nowhere).await.unwrap_err().to_string();
+    assert!(said.contains("the RTSP server"), "{said}");
+}

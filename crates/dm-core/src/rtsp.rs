@@ -310,12 +310,29 @@ async fn record_within(
     }
 }
 
+/// `address`'s server looked up and judged as every socket of dm's own is, before retina opens
+/// its own to it (gaps row H38): a plain `rtsp://` went through the system's resolver unjudged,
+/// so a name a public page led to that resolves inside was reached. (An `rtsps://` stream comes
+/// here as its tunnel's own loopback address, judged where the tunnel was opened.)
+async fn judged(address: &url::Url) -> Result<(), Error> {
+    let Some(host) = address.host_str() else {
+        return Err(Error::Internal("the address names no server".into()));
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    let port = address.port().unwrap_or(554);
+    dm_net::dns::addresses(host, port)
+        .await
+        .map(|_| ())
+        .map_err(|e| Error::Internal(format!("the RTSP server: {e}")))
+}
+
 /// Describes the stream at `address`, sets up the first picture and the first sound dm can put
 /// into an MP4 and plays them: the frames, and the picture's and the sound's stream.
 async fn play(
     address: url::Url,
     creds: Option<Credentials>,
 ) -> Result<(Demuxed, Option<usize>, Option<usize>), Error> {
+    judged(&address).await?;
     let options = SessionOptions::default()
         .creds(creds)
         .user_agent("dm".into());
