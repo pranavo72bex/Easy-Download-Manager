@@ -18,7 +18,7 @@
 //! to the sites they belong to.
 
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 /// One line of a `cookies.txt`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,10 +163,12 @@ fn host_of(url: &str) -> Option<String> {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SignIn {
     host: String,
-    header: String,
+    /// The `Cookie` header, one buffer however many times the sign-in is cloned (each request
+    /// and each connection holds a clone), so there is one copy of it to wipe (gaps row H15c).
+    header: Arc<str>,
     /// Request headers the browser sent for this download (a bearer token, an
-    /// `Origin`, a site's own `X-…` header), sent to the same one server.
-    extra: Vec<(String, String)>,
+    /// `Origin`, a site's own `X-…` header), sent to the same one server; shared as `header` is.
+    extra: Arc<[(String, String)]>,
     /// The form this download is the answer to, sent again to its one address.
     post: Option<Posted>,
     /// The `User-Agent` the person gave this download (Properties, or its site's rule), sent in
@@ -322,8 +324,8 @@ impl SignIn {
         }
         Some(SignIn {
             host: host_of(url)?,
-            header: header.to_string(),
-            extra: Vec::new(),
+            header: header.into(),
+            extra: Arc::default(),
             post: None,
             agent: None,
         })
@@ -339,8 +341,8 @@ impl SignIn {
         let host = host_of(&post.url)?;
         let mut sign_in = sign_in.unwrap_or(SignIn {
             host,
-            header: String::new(),
-            extra: Vec::new(),
+            header: Arc::default(),
+            extra: Arc::default(),
             post: None,
             agent: None,
         });
@@ -365,8 +367,8 @@ impl SignIn {
         }
         Some(SignIn {
             host: host_of(url)?,
-            header: header.replace(['\r', '\n'], "").trim().to_string(),
-            extra,
+            header: header.replace(['\r', '\n'], "").trim().into(),
+            extra: extra.into(),
             post: None,
             agent,
         })
@@ -389,7 +391,7 @@ impl SignIn {
     /// The header, where `url` is on the server it is for.
     pub fn for_url(&self, url: &str) -> Option<&str> {
         (host_of(url).as_deref() == Some(self.host.as_str()) && !self.header.is_empty())
-            .then_some(self.header.as_str())
+            .then_some(&*self.header)
     }
 
     /// The cookies as `cookies.txt` lines for that server.
@@ -433,78 +435,4 @@ pub fn header(url: &str) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const FILE: &str = "# Netscape HTTP Cookie File\n\
-        .example.com\tTRUE\t/\tTRUE\t0\tsession\tabc\n\
-        #HttpOnly_files.example.com\tFALSE\t/private\tFALSE\t4102444800\tkey\tv2\n\
-        old.example.com\tFALSE\t/\tFALSE\t1\tgone\tx\n\
-        not a cookie line\n";
-
-    #[test]
-    fn a_sign_in_is_for_its_own_server_only() {
-        let s = SignIn::new("https://Files.example/a.zip", " session=1; theme=dark\r\n").unwrap();
-        assert_eq!(
-            s.for_url("https://files.example/b.zip"),
-            Some("session=1; theme=dark")
-        );
-        assert_eq!(
-            s.for_url("https://cdn.files.example/b.zip"),
-            None,
-            "another host"
-        );
-        assert_eq!(
-            s.for_url("http://files.example/b.zip"),
-            None,
-            "another port"
-        );
-        assert_eq!(s.for_url("https://other.example/"), None);
-        assert!(SignIn::new("https://e.com/", "  ").is_none());
-        assert!(SignIn::new("not a url", "a=1").is_none());
-        assert_eq!(
-            s.netscape_lines(),
-            "files.example\tFALSE\t/\tFALSE\t0\tsession\t1\nfiles.example\tFALSE\t/\tFALSE\t0\ttheme\tdark\n"
-        );
-    }
-
-    #[test]
-    fn a_cookies_txt_is_read_as_browsers_and_curl_write_it() {
-        let cookies = parse(FILE);
-        assert_eq!(cookies.len(), 3);
-        assert_eq!(cookies[0].domain, "example.com");
-        assert!(cookies[0].subdomains && cookies[0].secure);
-        assert_eq!(cookies[1].name, "key", "an HttpOnly line is a cookie");
-        assert_eq!(cookies[1].path, "/private");
-    }
-
-    #[test]
-    fn only_the_matching_unexpired_cookies_go_with_a_request() {
-        let cookies = parse(FILE);
-        let now = 1_800_000_000;
-        assert_eq!(
-            header_for(&cookies, "https://example.com/a.zip", now).as_deref(),
-            Some("session=abc")
-        );
-        assert_eq!(
-            header_for(&cookies, "https://files.example.com/private/a.zip", now).as_deref(),
-            Some("session=abc; key=v2")
-        );
-        assert_eq!(
-            header_for(&cookies, "http://example.com/a.zip", now),
-            None,
-            "a secure cookie over http"
-        );
-        assert_eq!(
-            header_for(&cookies, "https://files.example.com/privateer/a", now).as_deref(),
-            Some("session=abc"),
-            "a path is a path, not a prefix of a name"
-        );
-        assert_eq!(
-            header_for(&cookies, "https://old.example.com/", now).as_deref(),
-            Some("session=abc"),
-            "expired is not sent"
-        );
-        assert_eq!(header_for(&cookies, "https://notexample.com/", now), None);
-    }
-}
+mod tests;
