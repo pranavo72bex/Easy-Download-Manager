@@ -50,8 +50,9 @@ written outside that folder."
 - An archive in parts (`film.part1.rar`, `film.part2.rar`…, or `film.7z.001`,
   `film.zip.001`…) is unpacked once, from its first part, when every part in
   the list has finished in the same folder; until then the parts wait. Sent
-  to the Trash, the parts go together. dm cannot yet read a 7z or a RAR in
-  parts, so for now such a set's first row says it was not unpacked.
+  to the Trash, the parts go together. A 7z in parts is read from its first
+  part, its parts never joined on disk; dm cannot yet read a RAR in parts,
+  so for now such a set's first row says it was not unpacked.
 - **Once it is unpacked:** **Keep the archive** (the choice in a new
   install) leaves it where it was; **Send the archive to the Trash** moves
   it to the Recycle Bin (the Trash on macOS) once its files are out, so it

@@ -117,28 +117,6 @@ impl From<std::io::Error> for Error {
     }
 }
 
-/// The folder an archive extracts into: its name without its last extension, made
-/// unique beside it.
-pub fn destination_for(archive: &Path) -> PathBuf {
-    destination_in(archive, archive.parent().unwrap_or_else(|| Path::new(".")))
-}
-
-/// [`destination_for`] inside a chosen `parent` folder instead.
-pub fn destination_in(archive: &Path, parent: &Path) -> PathBuf {
-    let stem = archive
-        .file_stem()
-        .map(|s| s.to_string_lossy().trim().to_string())
-        .filter(|s| !s.is_empty() && s != "." && s != "..")
-        .unwrap_or_else(|| "extracted".into());
-    let mut candidate = parent.join(&stem);
-    let mut n = 1;
-    while candidate.exists() {
-        candidate = parent.join(format!("{stem} ({n})"));
-        n += 1;
-    }
-    candidate
-}
-
 /// Whether a file name is a ZIP.
 pub fn is_zip(name: &str) -> bool {
     name.to_ascii_lowercase().ends_with(".zip")
@@ -498,8 +476,10 @@ fn write_all(
     Ok(files)
 }
 
+mod destination;
 #[cfg(test)]
 mod password_tests;
+pub use destination::{destination_for, destination_in};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]

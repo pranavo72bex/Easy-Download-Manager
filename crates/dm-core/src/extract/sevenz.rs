@@ -22,9 +22,10 @@
 mod header;
 mod keys;
 mod lzma;
+mod volumes;
 
 use std::collections::HashMap;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -34,9 +35,11 @@ use self::keys::{aes_of, Keys};
 use super::crypt::CbcReader;
 use super::{plain_mode, safe_path, Error, Extracted, Job};
 
-/// Whether `name` is a 7z archive.
+/// Whether `name` is a 7z archive, or the first part of one in parts (`.7z.001`, gaps row
+/// C3b): the rest are read from beside it.
 pub fn is_7z(name: &str) -> bool {
-    name.to_ascii_lowercase().ends_with(".7z")
+    let name = name.to_ascii_lowercase();
+    name.ends_with(".7z") || name.ends_with(".7z.001")
 }
 
 /// A Windows attribute: the entry is a reparse point (a link or junction).
@@ -66,7 +69,7 @@ fn usable(folder: &Folder, keys: &Keys, shown: &str) -> Result<(), Error> {
 /// A reader of a folder's unpacked bytes, from the archive at `path`.
 fn open_folder(path: &Path, folder: &Folder, keys: &Keys) -> Result<Box<dyn Read>, Error> {
     usable(folder, keys, "the archive")?;
-    let mut file = File::open(path)?;
+    let mut file = volumes::open(path)?;
     file.seek(SeekFrom::Start(folder.pack_offset))?;
     let mut packed: Box<dyn Read> = Box::new(file.take(folder.pack_size));
     let size = folder.unpack_size;
@@ -235,7 +238,7 @@ pub(super) fn extract_into(archive: &Path, folder: &Path, job: &Job) -> Result<E
     if let Some(shown) = super::inside_a_file(plan.iter().map(|p| p.path.as_path()), &seen) {
         return Err(Error::Duplicate(shown));
     }
-    let stored = fs::metadata(archive)?.len();
+    let stored = volumes::open(archive)?.len();
     if total > limits.ratio_floor && total / stored.max(1) > limits.max_ratio {
         return Err(Error::TooBig("it compresses far beyond anything real"));
     }

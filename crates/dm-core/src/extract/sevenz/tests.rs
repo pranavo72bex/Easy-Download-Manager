@@ -848,7 +848,8 @@ fn numbers_are_read_in_every_length() {
 #[test]
 fn only_7z_names_are_offered() {
     assert!(is_7z("a.7Z") && is_7z("x.y.7z"));
-    assert!(!is_7z("a.7z.001") && !is_7z("a.zip") && !is_7z("7z"));
+    assert!(is_7z("a.7z.001") && is_7z("A.7Z.001"), "a first part");
+    assert!(!is_7z("a.7z.002") && !is_7z("a.zip") && !is_7z("7z") && !is_7z("a.001"));
     assert!(super::super::is_archive("pack.7z"));
 }
 
@@ -1179,4 +1180,35 @@ fn aes_with_a_filter_or_unknown_key_settings_is_refused_by_what_dm_does_not_read
         3,
         "only the archives"
     );
+}
+
+/// A 7z split into parts (`.7z.001`, `.002`, `.003`: the archive's bytes cut where each part
+/// ends) is extracted from its first, the parts read in order as one file and never joined on
+/// disk, into a folder of the archive's own name (gaps row C3b).
+#[test]
+fn a_7z_split_into_parts_is_extracted_from_its_first() {
+    let whole = fixture("store.7z");
+    let dir = tempfile::tempdir().unwrap();
+    let third = whole.len().div_ceil(3);
+    for (n, part) in whole.chunks(third).enumerate() {
+        std::fs::write(dir.path().join(format!("store.7z.{:03}", n + 1)), part).unwrap();
+    }
+    let first = dir.path().join("store.7z.001");
+    let got = super::super::extract(
+        &first,
+        &Limits::default(),
+        &AtomicBool::new(false),
+        None,
+        &|_, _| {},
+    )
+    .unwrap();
+    assert_eq!(got.folder, dir.path().join("store"));
+    assert_eq!(got.files, 5);
+    check_fixture_tree(&got.folder);
+    for n in 1..=3 {
+        assert!(
+            dir.path().join(format!("store.7z.{n:03}")).exists(),
+            "part {n} is kept"
+        );
+    }
 }

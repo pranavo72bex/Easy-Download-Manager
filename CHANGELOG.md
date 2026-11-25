@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A 7z in parts (`.7z.001`, `.7z.002`…) is extracted from its first part, the parts read in order as one file and never joined on disk, into a folder of the archive's name.
 - Unpack when done takes an archive in parts (`.part1.rar`, `.7z.001`, `.zip.001`) as one: it waits until every part in the list has finished, unpacks once from the first part, and sends the parts to the Trash together.
 - Extract here and Extract to try the passwords saved in Options › Folders › Archive passwords, as Unpack when done does; the one that opens an archive goes first in the list.
 - Tested: with a SOCKS5 proxy set, a torrent reaches its tracker and peers only through it; held to a network with no address, no kind of download and not the update check goes out another way.

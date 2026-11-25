@@ -12,7 +12,6 @@
 //! anything is made that size, every offset is checked against the file, and every checksum
 //! the format carries is checked.
 
-use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
@@ -628,8 +627,8 @@ pub(super) fn read(
     max_entries: usize,
     unpack: &dyn Fn(&Folder) -> Result<Vec<u8>, Error>,
 ) -> Result<Archive, Error> {
-    let mut file = File::open(path)?;
-    let file_len = file.metadata()?.len();
+    let mut file = super::volumes::open(path)?;
+    let file_len = file.len();
     let mut start = [0u8; 32];
     file.read_exact(&mut start)
         .map_err(|_| Error::Unreadable("this is not a 7z archive".into()))?;
