@@ -20,7 +20,7 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 /// A toolbar command's picture before its words, in points.
-const ICON: f32 = 20.0;
+const ICON: f32 = crate::widgets::native::ICON_LARGE;
 
 /// A sheet open: the menu it opened with, and the submenus walked into, the last shown.
 #[derive(Clone)]
@@ -172,7 +172,11 @@ pub(super) fn drawn(
                 }
                 cx.notify();
             }))
-            .child(div().flex_none().child(crate::window::mirror::back()))
+            .child(crate::widgets::native::icon(
+                crate::window::mirror::back(),
+                crate::widgets::native::ICON,
+                theme.text,
+            ))
             .child(crate::widgets::native::cut(
                 "sheet-back-name",
                 menu.name.clone(),
@@ -260,8 +264,8 @@ fn quick_row(
                     .flex_col()
                     .items_center()
                     .gap(px(space::XS))
-                    .rounded(px(space::M))
-                    .bg(theme.stripe)
+                    .map(|c| crate::widgets::native::faced(c, theme.stripe, false, theme))
+                    .rounded(px(crate::widgets::native::RADIUS))
                     .cursor_pointer()
                     .on_click(cx.listener(move |view, _, window, cx| {
                         view.sheet_action(i, window, cx);
@@ -360,12 +364,11 @@ fn item_drawn(
                     .min_w_0()
                     .child(screen.label(sub.name.clone())),
             )
-            .child(
-                div()
-                    .flex_none()
-                    .text_color(theme.muted)
-                    .child(crate::window::mirror::forward()),
-            )
+            .child(crate::widgets::native::icon(
+                crate::window::mirror::forward(),
+                crate::widgets::native::ICON_SMALL,
+                theme.muted,
+            ))
             .into_any_element(),
         OwnedMenuItem::Action {
             name,
@@ -404,12 +407,22 @@ fn item_drawn(
                                     .text_color(if disabled { theme.muted } else { theme.text }),
                             )
                         })
-                        .when(*checked && picture.is_none(), |d| d.child("✓")),
+                        .when(*checked && picture.is_none(), |d| {
+                            d.child(crate::widgets::native::icon(
+                                "icons/check.svg",
+                                ICON,
+                                theme.accent_text,
+                            ))
+                        }),
                 )
                 .child(div().flex_1().min_w_0().child(screen.label(name.clone())))
                 // Where its picture has the tick's place, the tick at the line's end.
                 .when(*checked && picture.is_some(), |l| {
-                    l.child(div().flex_none().text_color(theme.accent_text).child("✓"))
+                    l.child(crate::widgets::native::icon(
+                        "icons/check.svg",
+                        ICON,
+                        theme.accent_text,
+                    ))
                 })
                 .into_any_element()
         }

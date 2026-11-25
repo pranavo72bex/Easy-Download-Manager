@@ -388,16 +388,15 @@ fn opener(
         .flex()
         .items_center()
         .gap(px(space::XS))
-        .child(
-            div()
-                .w(px(space::M))
-                .text_color(theme.muted)
-                .child(if open {
-                    "▾"
-                } else {
-                    crate::window::mirror::shut()
-                }),
-        )
+        .child(crate::widgets::native::icon(
+            if open {
+                "icons/chevron-down.svg"
+            } else {
+                crate::window::mirror::forward()
+            },
+            native::ICON_SMALL,
+            theme.muted,
+        ))
         .child(screen.label(t(label)))
         .children(said.map(|said| {
             div()

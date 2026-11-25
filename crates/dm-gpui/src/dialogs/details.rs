@@ -599,7 +599,7 @@ fn segment(
 ) -> gpui::Stateful<gpui::Div> {
     div()
         .id(id)
-        .map(|c| crate::widgets::native::ringed(c, theme))
+        .map(|c| crate::widgets::native::faced(c, theme.control, on, theme))
         .role(Role::RadioButton)
         .aria_label(words.clone())
         .aria_toggled(if on {
@@ -612,8 +612,6 @@ fn segment(
         .flex()
         .items_center()
         .rounded(px(native::RADIUS))
-        .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
-        .when(!on, |d| d.bg(theme.control))
         .child(screen.label(words))
 }
 

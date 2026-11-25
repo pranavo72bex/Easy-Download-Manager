@@ -386,7 +386,7 @@ pub fn tick_box(ticked: bool, theme: Theme) -> Div {
     div()
         .size(px(on_a_phone(22.0, 14.0)))
         .flex_none()
-        .rounded(px(3.5))
+        .rounded(px(space::CORNER_S))
         .border_1()
         .border_color(theme.muted)
         .bg(theme.field)
@@ -399,7 +399,7 @@ pub fn tick_box(ticked: bool, theme: Theme) -> Div {
             b.bg(theme.accent)
                 .border_color(theme.accent)
                 .text_color(theme.on_accent)
-                .child("✓")
+                .child(icon("icons/check.svg", TICK_TEXT, theme.on_accent))
         })
 }
 
@@ -743,7 +743,7 @@ pub use row::row;
 mod path;
 mod switch;
 pub use destroy::{destructive, undo_line};
-pub use keys::{return_is_default, ringed};
+pub use keys::{faced, icon, return_is_default, ringed};
 pub use measure::{figures, label_width, measure_with, small_width, text_width};
 pub use note::{cut, heading, note, says};
 pub use switch::{switch, switch_inline};

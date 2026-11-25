@@ -52,7 +52,7 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
         let on = now == count as usize;
         div()
             .id(SharedString::from(format!("preset-{count}")))
-            .map(|c| crate::widgets::native::ringed(c, theme))
+            .map(|c| crate::widgets::native::faced(c, theme.control, on, theme))
             .role(gpui::Role::RadioButton)
             .aria_label(SharedString::from(t(words)))
             .aria_toggled(if on {
@@ -71,8 +71,6 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
             .items_center()
             .rounded(px(native::RADIUS))
             .text_size(px(native::SMALL_TEXT))
-            .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
-            .when(!on, |d| d.bg(theme.control))
             .child(screen.label(t(words)))
             .on_click(cx.listener(move |o, _, _, cx| {
                 o.draft.downloads.connections = count as usize;

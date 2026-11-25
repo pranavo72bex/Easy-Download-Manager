@@ -162,6 +162,9 @@ pub fn button_of(
         .border_1()
         .border_color(theme.control_border)
         .bg(theme.control)
+        // Answering the pointer and a press as a push button does (gaps row E40).
+        .hover(move |s| s.bg(theme.answering(theme.control, crate::window::theme::HOVERED)))
+        .active(move |s| s.bg(theme.answering(theme.control, crate::window::theme::PRESSED)))
         .text_size(px(TEXT))
         .whitespace_nowrap()
         .child(screen.label(words))
@@ -169,7 +172,7 @@ pub fn button_of(
         .child(
             gpui::svg()
                 .path("icons/chevron-up-down.svg")
-                .size(px(11.0))
+                .size(px(crate::widgets::native::ICON_SMALL))
                 .flex_none()
                 .text_color(theme.muted),
         )
@@ -302,8 +305,15 @@ fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoEleme
                     div()
                         .flex_none()
                         .w(px(20.0))
-                        .text_color(theme.accent_text)
-                        .when(ticked, |d| d.child("✓")),
+                        .flex()
+                        .items_center()
+                        .when(ticked, |d| {
+                            d.child(crate::widgets::native::icon(
+                                "icons/check.svg",
+                                crate::widgets::native::ICON,
+                                theme.accent_text,
+                            ))
+                        }),
                 )
                 .child(
                     div()

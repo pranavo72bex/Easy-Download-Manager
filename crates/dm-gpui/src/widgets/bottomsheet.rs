@@ -154,7 +154,10 @@ pub(crate) fn sheet(
                         .rounded_full()
                         .active(move |b| b.bg(theme.control))
                         .on_click(move |_, window, cx| close(window, cx))
-                        .child(screen.mark(close_words, div().text_color(theme.muted).child("✕"))),
+                        .child(screen.mark(
+                            close_words,
+                            native::icon("icons/close.svg", native::ICON, theme.muted),
+                        )),
                 ),
         )
         .child(drag_area(name_taps, hooks.clone()));

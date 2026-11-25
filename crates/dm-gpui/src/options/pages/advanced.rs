@@ -199,11 +199,15 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
             .items_center()
             .gap(px(space::XS))
             .text_color(theme.accent_text)
-            .child(screen.label(if phone {
-                "▾"
-            } else {
-                crate::window::mirror::shut()
-            }))
+            .child(crate::widgets::native::icon(
+                if phone {
+                    "icons/chevron-down.svg"
+                } else {
+                    crate::window::mirror::forward()
+                },
+                crate::widgets::native::ICON_SMALL,
+                theme.accent_text,
+            ))
             .child(screen.label(t("How to use your phone")))
             .on_click(cx.listener(|o, _, _, cx| {
                 o.phone = !o.phone;

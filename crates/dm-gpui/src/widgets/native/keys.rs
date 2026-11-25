@@ -46,3 +46,28 @@ pub fn ringed(control: Stateful<Div>, theme: Theme) -> Stateful<Div> {
         .rounded(px(RADIUS))
         .focus(move |s| s.border_color(theme.ring(false)))
 }
+
+/// A control with a face of its own (a chip, a segment, a preset, a sheet's quick button): the
+/// accent where it is the one chosen (`on`), `face` otherwise, answering the pointer and a
+/// press as a push button does, and ringed when it has the keys (gaps row E40). Each drew its
+/// own, or answered nothing.
+pub fn faced(control: Stateful<Div>, face: gpui::Rgba, on: bool, theme: Theme) -> Stateful<Div> {
+    use crate::window::theme::{HOVERED, PRESSED};
+    let face = if on { theme.accent } else { face };
+    ringed(control, theme)
+        .bg(face)
+        .when(on, |c| c.text_color(theme.on_accent))
+        .hover(move |s| s.bg(theme.answering(face, HOVERED)))
+        .active(move |s| s.bg(theme.answering(face, PRESSED)))
+}
+
+/// A drawn mark from `assets/icons/` (a chevron, a tick, Close), `size` points square in
+/// `color`: the font's "✓", "›" and "✕" were each drawn at another weight and height (gaps row
+/// E41).
+pub fn icon(path: &'static str, size: f32, color: gpui::Rgba) -> gpui::Svg {
+    gpui::svg()
+        .path(path)
+        .size(px(size))
+        .flex_none()
+        .text_color(color)
+}

@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Ticks, chevrons and a sheet's Close are drawn icons of one weight, not characters of the font, and the chevrons point the other way in Arabic and Hebrew.
+- Pop-ups, the connection presets, Download details' choices, the video quality choices and a phone sheet's big buttons light up under the pointer and when pressed, as buttons do.
 - The question before removing downloads answers with what it does: Remove download or Remove downloads, and Delete file or Delete files when the files go too.
 - One name for each thing: User name (not Login or Username) in Add URL, Properties and the proxy; Add a sign-in in Options › Sign-ins; Folders by category; every speed limit written "(KB/s, 0 for none)"; the welcome window's switch named as Options names it, Start dm when I sign in.
 - A dialog's main button says what it does: Next in Add URL, Update link, Move, Import or Export, and Save in the speed limiter, the Scheduler and Properties (Options keeps OK).

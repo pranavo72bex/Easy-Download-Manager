@@ -137,7 +137,7 @@ impl Details {
                             let picked_label = choice.label.clone();
                             div()
                                 .id(("quality", i))
-                                .map(|c| crate::widgets::native::ringed(c, theme))
+                                .map(|c| native::faced(c, theme.control, on, theme))
                                 .role(Role::RadioButton)
                                 .aria_label(words.replace('\n', " "))
                                 .px(px(space::M_L))
@@ -151,8 +151,6 @@ impl Details {
                                 .flex_col()
                                 .items_center()
                                 .rounded(px(native::RADIUS))
-                                .when(on, |d| d.bg(theme.accent).text_color(theme.on_accent))
-                                .when(!on, |d| d.bg(theme.control))
                                 .child(screen.label(top))
                                 .when_some(bottom, |d, b| {
                                     d.child(

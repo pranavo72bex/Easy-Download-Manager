@@ -85,12 +85,11 @@ impl Options {
                     }),
             )
             .when(narrow, |row| {
-                row.child(
-                    div()
-                        .flex_none()
-                        .text_color(theme.muted)
-                        .child(crate::window::mirror::forward()),
-                )
+                row.child(crate::widgets::native::icon(
+                    crate::window::mirror::forward(),
+                    crate::widgets::native::ICON_SMALL,
+                    theme.muted,
+                ))
             })
             .on_click(cx.listener(move |this, _, _, cx| this.show(tab, cx)))
             // On the pages' strip, the arrows move from page to page, the keyboard's

@@ -79,6 +79,12 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     // A phone's card menu: Share, and Copy link.
     "share",
     "link",
+    // Drawn marks, not the font's characters (gaps row E41): a sheet's Close, a tick, and the
+    // chevrons that lead on, back, or open what is shut below.
+    "close",
+    "check",
+    "chevron-right",
+    "chevron-left",
 );
 
 /// The picture at `path` (`icons/<name>.svg`), if dm has it.

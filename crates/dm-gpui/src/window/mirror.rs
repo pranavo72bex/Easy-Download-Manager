@@ -29,29 +29,21 @@ pub fn row<E: Styled>(row: E) -> E {
     }
 }
 
-/// The arrow that leads on (into a submenu, a page): "›", or "‹" right to left (gaps row E36).
+/// The chevron that leads on (into a submenu, a page), pointing right, or left right to left
+/// (gaps rows E36, E41); also a shut section's, which opens below it.
 pub fn forward() -> &'static str {
     if rtl() {
-        "‹"
+        "icons/chevron-left.svg"
     } else {
-        "›"
+        "icons/chevron-right.svg"
     }
 }
 
-/// The arrow that goes back: "‹", or "›" right to left.
+/// The chevron that goes back: left, or right right to left.
 pub fn back() -> &'static str {
     if rtl() {
-        "›"
+        "icons/chevron-right.svg"
     } else {
-        "‹"
-    }
-}
-
-/// The mark of something shut that opens below it: "▸", or "◂" right to left.
-pub fn shut() -> &'static str {
-    if rtl() {
-        "◂"
-    } else {
-        "▸"
+        "icons/chevron-left.svg"
     }
 }
