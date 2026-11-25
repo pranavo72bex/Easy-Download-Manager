@@ -161,6 +161,12 @@ pub const TEXT: f32 = on_a_phone(15.0, pick(13.0, 14.0, 14.0));
 /// The small system font's size: what is said under a control, a dialog's
 /// informative text (macOS's `smallSystemFontSize`, WinUI's caption).
 pub const SMALL_TEXT: f32 = on_a_phone(13.0, pick(11.0, 12.0, 12.0));
+/// A figure that leads its window (the progress window's), and a phone's dialog's and sheet's
+/// title: 1.4 times the body's (rule 4 asks 1.3 at least), the one size above the ranks (gaps
+/// row E34); made by sums at each call, they were three.
+pub const FIGURE_TEXT: f32 = TEXT * 1.4;
+/// A check box's tick.
+pub const TICK_TEXT: f32 = on_a_phone(15.0, MARK_TEXT);
 /// The type ramp beyond the body and small sizes (gaps row V13), named once so a size changed
 /// here moves every place that uses it: a letter or mark inside a small round badge,
 pub const MARK_TEXT: f32 = 10.0;
@@ -337,58 +343,6 @@ pub(super) fn field_drawn(
         )
 }
 
-/// A form's row: `label` right-aligned in a column `label_width` wide, its
-/// control beside it.
-pub fn row(
-    label: Option<&str>,
-    label_width: f32,
-    screen: &Screen,
-    control: impl IntoElement,
-) -> Div {
-    // A phone's form: the label above its control, the control from the same edge on every
-    // line, a field as wide as the line, a small control at its own size (`row_short` puts
-    // one at the right of its words). Beside one another the controls began at as many
-    // places as there were label widths, and a long label left a field a sliver (gaps N31).
-    if crate::platform::ON_A_PHONE {
-        return div()
-            .flex()
-            .flex_col()
-            .gap(px(space::XS))
-            .when_some(label.map(str::to_string), |d, label| {
-                d.child(screen.label(label))
-            })
-            // A block the line's width: a note's words wrap at the screen's edge (as flex
-            // items they kept their one line's width and ran off it).
-            .child(div().w_full().min_w_0().child(control));
-    }
-    div()
-        .flex()
-        .items_center()
-        .gap(px(LABEL_GAP))
-        .child(
-            // At least the column's width, and wider where a label is longer than measured,
-            // so its words push the control along rather than begin outside the window.
-            div()
-                .min_w(px(label_width))
-                .flex_none()
-                .flex()
-                .justify_end()
-                .whitespace_nowrap()
-                .when_some(label.map(str::to_string), |d, label| {
-                    d.child(screen.label(label))
-                }),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .flex()
-                .items_center()
-                .gap(px(LABEL_GAP))
-                .child(control),
-        )
-}
-
 /// A check box and its words, as the system draws one: ticked, in the
 /// accent colour with a white check mark.
 pub fn checkbox(
@@ -439,8 +393,8 @@ pub fn tick_box(ticked: bool, theme: Theme) -> Div {
         .flex()
         .items_center()
         .justify_center()
-        .text_size(px(on_a_phone(15.0, 10.0)))
-        .font_weight(FontWeight::BOLD)
+        .text_size(px(TICK_TEXT))
+        .font_weight(FontWeight::SEMIBOLD)
         .when(ticked, |b| {
             b.bg(theme.accent)
                 .border_color(theme.accent)
@@ -465,6 +419,7 @@ pub fn buttons(leading: Vec<gpui::AnyElement>, mut trailing: Vec<gpui::AnyElemen
         return div()
             .mt(px(FOOTER_GAP - ROW_GAP))
             .flex()
+            .map(crate::window::mirror::row)
             .flex_wrap()
             .items_center()
             .justify_end()
@@ -475,12 +430,14 @@ pub fn buttons(leading: Vec<gpui::AnyElement>, mut trailing: Vec<gpui::AnyElemen
     div()
         .mt(px(FOOTER_GAP - ROW_GAP))
         .flex()
+        .map(crate::window::mirror::row)
         .items_center()
         .gap(px(BUTTON_GAP))
         .child(
             div()
                 .flex_1()
                 .flex()
+                .map(crate::window::mirror::row)
                 .items_center()
                 .gap(px(LABEL_GAP))
                 .children(leading),
@@ -781,12 +738,14 @@ mod keys;
 mod measure;
 pub use help::help_button;
 mod note;
+mod row;
+pub use row::row;
 mod path;
 mod switch;
 pub use destroy::{destructive, undo_line};
 pub use keys::{return_is_default, ringed};
 pub use measure::{figures, label_width, measure_with, small_width, text_width};
-pub use note::{heading, note, says};
+pub use note::{cut, heading, note, says};
 pub use switch::{switch, switch_inline};
 mod phone;
 pub use path::path_field;

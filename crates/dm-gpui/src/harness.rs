@@ -579,6 +579,21 @@ impl Harness {
             at.origin.y + at.size.height / 2.0,
         );
         self.press_at(window, beside, 1);
+        // A field under its words where none is beside them (a label wider than 40% of its
+        // window stands above its field, gaps row E32).
+        let in_a_field = |cx: &mut TestAppContext| {
+            cx.update(|cx| {
+                window
+                    .update(cx, |_, window, _| {
+                        window.context_stack().iter().any(|c| c.contains("Input"))
+                    })
+                    .unwrap_or(false)
+            })
+        };
+        if !in_a_field(&mut self.cx) {
+            let under = gpui::point(at.origin.x + gpui::px(12.0), at.bottom() + gpui::px(14.0));
+            self.press_at(window, under, 1);
+        }
         self.key("a", &["cmd"]);
         if text.is_empty() {
             self.key("backspace", &[]);

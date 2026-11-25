@@ -280,7 +280,7 @@ impl Grabber {
 impl Render for Grabber {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let settings = self.settings(cx);
         // Whether Options › Sign-ins keeps a login for the start page's

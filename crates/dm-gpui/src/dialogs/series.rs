@@ -121,7 +121,7 @@ impl Series {
 impl Render for Series {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let template = self.template.read(cx).value().to_string();
         let typed = !template.trim().is_empty()

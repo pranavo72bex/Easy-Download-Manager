@@ -620,7 +620,7 @@ fn segment(
 impl Render for Details {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let look = Look::new(theme, self.screen.clone());
         let first = self.first();
         let single = self.urls.len() == 1;
@@ -635,7 +635,12 @@ impl Render for Details {
         let contents_row = self.contents_row(&look, cx);
         let part_rows = self.part_rows(&look, &first, youtube, cx);
 
-        let body = self.address(&look, &first, native::body(theme));
+        // Figures of one width each (gaps row E33).
+        let body = self.address(
+            &look,
+            &first,
+            native::body(theme).font_features(native::figures()),
+        );
         let body = self
             .place(&look, &folder, single, window, cx, body)
             .children(quality_row)

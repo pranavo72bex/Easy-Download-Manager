@@ -16,7 +16,6 @@ use gpui::{
 use gpui_component::input::{InputEvent, InputState};
 
 use crate::widgets::native;
-use crate::widgets::space;
 use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
@@ -119,7 +118,7 @@ impl Limiter {
 impl Render for Limiter {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let slow_on = self.slow.enabled;
         let labels = labels();
@@ -180,64 +179,44 @@ impl Render for Limiter {
                             cx.notify();
                         })),
                     ))
-                    .child(native::row(
-                        None,
-                        width,
-                        &screen,
-                        // Greyed and taking no clicks while slower hours are off.
-                        native::enabled(
-                            slow_on,
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap(px(native::ROW_GAP))
-                                // Each time with its words; Stop at under Start at where a
-                                // line has no room for both (a phone).
-                                .child(
-                                    div()
-                                        .flex()
-                                        .flex_wrap()
-                                        .items_center()
-                                        .gap(px(native::LABEL_GAP))
-                                        .child(
-                                            div()
-                                                .flex()
-                                                .items_center()
-                                                .gap(px(native::LABEL_GAP))
-                                                .child(screen.label(t("Start at")))
-                                                .child(native::time_picker(
-                                                    ("slow-from-hour", "slow-from-minute"),
-                                                    &self.slow.from,
-                                                    theme,
-                                                    &screen,
-                                                )),
-                                        )
-                                        .child(div().w(px(space::M)))
-                                        .child(
-                                            div()
-                                                .flex()
-                                                .items_center()
-                                                .gap(px(native::LABEL_GAP))
-                                                .child(screen.label(t("Stop at")))
-                                                .child(native::time_picker(
-                                                    ("slow-to-hour", "slow-to-minute"),
-                                                    &self.slow.to,
-                                                    theme,
-                                                    &screen,
-                                                )),
-                                        ),
-                                )
-                                .child(
-                                    div()
-                                        .flex()
-                                        .items_center()
-                                        .gap(px(native::LABEL_GAP))
-                                        .child(screen.label(t("Speed limit in those hours (KB/s)")))
-                                        .child(number_field(
-                                            &self.slow_limit,
-                                            "Speed limit in those hours (KB/s)",
-                                        )),
-                                ),
+                    // The slower hours on the form's own label column (gaps row E32), greyed
+                    // and taking no clicks while they are off: a second column of labels
+                    // nested in the first had them begin at two places.
+                    .child(native::enabled(
+                        slow_on,
+                        native::row_short(
+                            Some(labels[3]),
+                            width,
+                            &screen,
+                            native::time_picker(
+                                ("slow-from-hour", "slow-from-minute"),
+                                &self.slow.from,
+                                theme,
+                                &screen,
+                            ),
+                        ),
+                    ))
+                    .child(native::enabled(
+                        slow_on,
+                        native::row_short(
+                            Some(labels[4]),
+                            width,
+                            &screen,
+                            native::time_picker(
+                                ("slow-to-hour", "slow-to-minute"),
+                                &self.slow.to,
+                                theme,
+                                &screen,
+                            ),
+                        ),
+                    ))
+                    .child(native::enabled(
+                        slow_on,
+                        native::row_short(
+                            Some(labels[5]),
+                            width,
+                            &screen,
+                            number_field(&self.slow_limit, "Speed limit in those hours (KB/s)"),
                         ),
                     ))
                     .child(native::says(
@@ -266,11 +245,14 @@ impl Render for Limiter {
 }
 
 /// The form's labels, in the language in force.
-fn labels() -> [&'static str; 3] {
+fn labels() -> [&'static str; 6] {
     [
         t("Speed limit (KB/s, 0 for none)"),
         t("Download at most this many MB (0 for no limit)"),
         t("in each period of this many hours"),
+        t("Start at"),
+        t("Stop at"),
+        t("Speed limit in those hours (KB/s)"),
     ]
 }
 
@@ -284,11 +266,10 @@ fn width() -> f32 {
     // a letter fell short, and the speed in those hours ran past the right edge (gaps row V15).
     let words = native::text_width;
     let gap = native::LABEL_GAP;
-    let hours =
-        words(t("Start at")) + gap + 70.0 + gap + 8.0 + gap + words(t("Stop at")) + gap + 70.0;
-    let slow_speed = words(t("Speed limit in those hours (KB/s)")) + gap + 110.0;
+    // Every row's control beside the one column of labels: a time, a number, the switch.
+    let picker = 70.0 + gap + 8.0 + gap + 70.0;
     let slower = 24.0 + words(t("Slower between set hours"));
-    let controls = hours.max(slow_speed).max(slower).max(110.0);
+    let controls = picker.max(slower).max(native::NUMBER_FIELD);
     (2.0 * native::MARGIN + native::label_width(&labels()) + gap + controls)
         .max(560.0)
         .ceil()

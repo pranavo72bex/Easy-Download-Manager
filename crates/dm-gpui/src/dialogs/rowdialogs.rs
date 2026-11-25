@@ -180,7 +180,7 @@ impl UpdateLink {
 impl Render for UpdateLink {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let root =
             crate::widgets::native::dialog("update-link", t("Update download link"), theme, cx)
@@ -192,11 +192,9 @@ impl Render for UpdateLink {
                                 .child(screen.label(self.named.clone())),
                         )
                         .child(
-                            div()
-                                .whitespace_nowrap()
-                                .overflow_hidden()
-                                .text_ellipsis()
-                                .child(native::note(self.url.clone(), theme.muted, &screen)),
+                            native::cut("row-link", self.url.clone(), true, &screen)
+                                .text_size(px(native::SMALL_TEXT))
+                                .text_color(theme.muted),
                         )
                         .child(
                             screen.label(t("The download's link has expired? Paste a fresh one:")),
@@ -347,7 +345,7 @@ impl MoveToQueue {
 impl Render for MoveToQueue {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let typing = !self.new.read(cx).value().trim().is_empty();
         let labels = [t("Or a new queue")];
@@ -490,7 +488,7 @@ impl MoveRenameDialog {
 impl Render for MoveRenameDialog {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let one = self.ids.len() == 1;
         let labels = [t("New name"), t("Name pattern"), t("Folder")];

@@ -28,3 +28,30 @@ pub fn row<E: Styled>(row: E) -> E {
         row
     }
 }
+
+/// The arrow that leads on (into a submenu, a page): "›", or "‹" right to left (gaps row E36).
+pub fn forward() -> &'static str {
+    if rtl() {
+        "‹"
+    } else {
+        "›"
+    }
+}
+
+/// The arrow that goes back: "‹", or "›" right to left.
+pub fn back() -> &'static str {
+    if rtl() {
+        "›"
+    } else {
+        "‹"
+    }
+}
+
+/// The mark of something shut that opens below it: "▸", or "◂" right to left.
+pub fn shut() -> &'static str {
+    if rtl() {
+        "◂"
+    } else {
+        "▸"
+    }
+}

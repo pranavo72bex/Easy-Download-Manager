@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- In Arabic and Hebrew the dialogs and Options read from the right: labels at the right of their fields, buttons and switches in mirrored order, and arrows pointing the right way.
+- A cut name, path or address in Download complete, the progress window, a sheet's title and the row dialogs shows in full on hover. The progress window, Download details and Statistics use figures of one width, so numbers no longer jitter as they change. Text sizes and bold weights are the same everywhere.
+- A long label in a dialog (the speed limiter's "Download at most this many MB") stands above its field instead of squeezing it; the limiter's slower hours line up with its other settings.
 - Options: a setting's explanation sits just under it; number boxes are one width in every dialog; a wide field (a list of sites, a folder, file types) has its name above it and reaches the window's edge; Check now is a button of its own size.
 - A network that stops answering mid-download (a phone unplugged, Wi-Fi out of range) no longer stalls its connections: they go on over the computer's usual connection, and that network is tried again after a minute.
 - The third network has its own speed limit, and the second and third each have their own download allowance ("at most this many MB in each period of this many hours"), so a phone's data plan is never overspent; once it is used, the other networks carry the downloads.

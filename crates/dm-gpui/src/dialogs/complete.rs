@@ -103,7 +103,7 @@ impl Complete {
 impl Render for Complete {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let Some(view) = self.view.upgrade() else {
             return div().into_any_element();
@@ -153,14 +153,14 @@ impl Render for Complete {
                                             .items_center()
                                             .gap(px(space::M))
                                             .child(
-                                                div()
-                                                    .flex_1()
-                                                    .min_w_0()
-                                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                                    .whitespace_nowrap()
-                                                    .overflow_hidden()
-                                                    .text_ellipsis()
-                                                    .child(screen.label(name.clone())),
+                                                native::cut(
+                                                    ("done-name", i),
+                                                    name.clone(),
+                                                    false,
+                                                    &screen,
+                                                )
+                                                .flex_1()
+                                                .font_weight(gpui::FontWeight::SEMIBOLD),
                                             )
                                             .child(
                                                 div()
@@ -172,11 +172,14 @@ impl Render for Complete {
                                     // wrapped over five lines (Windows' C:\Users\…), and the
                                     // window showed two files where it holds three.
                                     .child(
-                                        native::note(row.path.clone(), theme.muted, &screen)
-                                            .min_w_0()
-                                            .whitespace_nowrap()
-                                            .overflow_hidden()
-                                            .text_ellipsis(),
+                                        native::cut(
+                                            ("done-path", i),
+                                            row.path.clone(),
+                                            true,
+                                            &screen,
+                                        )
+                                        .text_size(px(native::SMALL_TEXT))
+                                        .text_color(theme.muted),
                                     )
                                     .child(
                                         div()

@@ -169,13 +169,14 @@ pub(super) fn facts(
         _ => None,
     };
     body.child(
-        div()
-            .text_size(px(native::SMALL_TEXT))
-            .text_color(theme.muted)
-            .whitespace_nowrap()
-            .overflow_hidden()
-            .text_ellipsis()
-            .child(screen.label(format::shown_url(&row.url))),
+        native::cut(
+            "progress-address",
+            format::shown_url(&row.url),
+            true,
+            screen,
+        )
+        .text_size(px(native::SMALL_TEXT))
+        .text_color(theme.muted),
     )
     .when_some(next_step, |d, step| {
         d.child(native::row(
@@ -204,7 +205,7 @@ pub(super) fn facts(
 /// 2 min left"); the status where it is not running.
 pub(super) fn figure_line(look: &Look, row: &dm_core::Entry, joining: bool) -> gpui::Div {
     div()
-        .text_size(px(native::TEXT * 1.4))
+        .text_size(px(native::FIGURE_TEXT))
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .font_features(native::figures())
         .child(look.screen.label(figure_words(row, joining)))
@@ -391,7 +392,11 @@ fn opener(
             div()
                 .w(px(space::M))
                 .text_color(theme.muted)
-                .child(if open { "▾" } else { "▸" }),
+                .child(if open {
+                    "▾"
+                } else {
+                    crate::window::mirror::shut()
+                }),
         )
         .child(screen.label(t(label)))
         .children(said.map(|said| {

@@ -172,22 +172,15 @@ pub(super) fn drawn(
                 }
                 cx.notify();
             }))
-            .child(div().flex_none().child("‹"))
-            .child(
-                div()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .child(screen.label(menu.name.clone())),
-            )
+            .child(div().flex_none().child(crate::window::mirror::back()))
+            .child(crate::widgets::native::cut(
+                "sheet-back-name",
+                menu.name.clone(),
+                false,
+                screen,
+            ))
     } else {
-        div()
-            .id("sheet-name")
-            .overflow_hidden()
-            .whitespace_nowrap()
-            .text_ellipsis()
-            .child(screen.label(menu.name.clone()))
+        crate::widgets::native::cut("sheet-name", menu.name.clone(), false, screen)
     };
     let quick: &[usize] = if walked { &[] } else { &sheet.quick };
     // The line the keys are given as it opens: the first that can be picked.
@@ -367,7 +360,12 @@ fn item_drawn(
                     .min_w_0()
                     .child(screen.label(sub.name.clone())),
             )
-            .child(div().flex_none().text_color(theme.muted).child("›"))
+            .child(
+                div()
+                    .flex_none()
+                    .text_color(theme.muted)
+                    .child(crate::window::mirror::forward()),
+            )
             .into_any_element(),
         OwnedMenuItem::Action {
             name,

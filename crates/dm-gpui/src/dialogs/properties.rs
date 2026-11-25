@@ -318,7 +318,7 @@ fn said(text: &str, theme: Theme, screen: &Screen) -> AnyElement {
 impl Render for Properties {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let Some(view) = self.view.upgrade() else {
             return div().into_any_element();

@@ -230,3 +230,37 @@ fn a_downloads_dialogs_keep_their_words_inside() {
     dm_desktop_base::i18n::set("en");
     assert!(found.is_empty(), "{found:#?}");
 }
+
+/// In Hebrew a dialog reads from the right: its labels at the right of their fields and its
+/// buttons in the other order (gaps row E36).
+#[test]
+fn a_dialog_is_mirrored_right_to_left() {
+    use dm_desktop_base::i18n::t;
+    // The language is the process's.
+    let _file = settings_file();
+    let world = world();
+    let mut settings = world.settings();
+    settings.general.language = "he".into();
+    let mut h = world.harness_with(settings);
+    dm_desktop_base::i18n::set("he");
+    h.command("downloads.speed_limiter.settings");
+    h.until_shown(t("Speed limit (KB/s, 0 for none)"));
+    let label = h
+        .dialog_words(t("Speed limit in those hours (KB/s)"))
+        .unwrap();
+    let field = h.dialog_words("256").unwrap();
+    let ok = h.dialog_words(t("OK")).unwrap();
+    let cancel = h.dialog_words(t("Cancel")).unwrap();
+    dm_desktop_base::i18n::set("en");
+    // The label at the right, its field against it at its left.
+    assert!(
+        field.right() <= label.left() && label.left() - field.right() < gpui::px(24.0),
+        "the field is not at its label's left: {field:?}, {label:?}"
+    );
+    // macOS and GNOME put the default rightmost, Windows first: mirrored, the other way.
+    assert_eq!(
+        ok.left() < cancel.left(),
+        !cfg!(windows),
+        "the buttons were not mirrored: OK {ok:?}, Cancel {cancel:?}"
+    );
+}

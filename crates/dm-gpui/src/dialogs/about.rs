@@ -55,7 +55,7 @@ impl About {
 impl Render for About {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let state = dm_core::lock(&self.checked).clone();
         let notes = matches!(state, Update::Newer(..))
@@ -104,7 +104,7 @@ impl Render for About {
                     .child(
                         div()
                             .text_size(px(crate::widgets::native::TITLE_TEXT))
-                            .font_weight(gpui::FontWeight::BOLD)
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child(screen.label("dm")),
                     )
                     .child(native::note(
@@ -203,7 +203,7 @@ pub struct Tip {
 impl Render for Tip {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let tips = project::tips();
         let root = div()

@@ -56,8 +56,37 @@ pub fn heading(words: impl Into<SharedString>, theme: Theme, screen: &Screen) ->
         .when(crate::platform::ON_A_PHONE, |heading| {
             heading
                 .mt(px(space::XL))
-                .text_size(px(SMALL_TEXT + 1.0))
+                .text_size(px(SMALL_TEXT))
                 .text_color(theme.accent_text)
+        })
+        .child(screen.label(words))
+}
+
+/// `words` on one line, cut where they do not fit (in the middle for a path or an address,
+/// `middle`, so its ending stays), and read whole on hover, as the list's cells are (gaps row
+/// E35): a cut name or path had no way to be read.
+pub fn cut(
+    id: impl Into<gpui::ElementId>,
+    words: impl Into<SharedString>,
+    middle: bool,
+    screen: &Screen,
+) -> Stateful<Div> {
+    let words: SharedString = words.into();
+    let whole = words.clone();
+    div()
+        .id(id)
+        .min_w_0()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .map(|d| {
+            if middle {
+                d.text_ellipsis_middle()
+            } else {
+                d.text_ellipsis()
+            }
+        })
+        .tooltip(move |window, cx| {
+            gpui_component::tooltip::Tooltip::new(whole.clone()).build(window, cx)
         })
         .child(screen.label(words))
 }

@@ -164,11 +164,13 @@ impl StatisticsWindow {
 impl Render for StatisticsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let f = &self.figures;
         let unmeasured = || t("not measured yet").to_string();
+        // Figures of one width each, so they do not jitter as they change (gaps row E33).
         let body = native::body(theme)
+            .font_features(native::figures())
             .child(self.figure("Files finished", f.files.to_string()))
             .child(self.figure("Downloaded in all", format::bytes(f.bytes)))
             .when(f.files == 0, |d| {

@@ -289,12 +289,10 @@ fn the_labels_of_properties_and_the_limiter_end_at_one_edge() {
     h.until("Properties to close", |h| h.dialogs().is_empty());
     h.command("downloads.speed_limiter.settings");
     h.until("the limiter", |h| !h.dialogs().is_empty());
+    // Those beside their fields; a label wider than 40% of the window stands above its own
+    // (gaps row E32, `a_long_label_stands_above_its_field`).
     one_edge(ends(
         &mut h,
-        &[
-            "Speed limit (KB/s, 0 for none)",
-            "Download at most this many MB (0 for no limit)",
-            "in each period of this many hours",
-        ],
+        &["Speed limit (KB/s, 0 for none)", "Start at", "Stop at"],
     ));
 }

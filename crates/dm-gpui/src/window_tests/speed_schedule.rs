@@ -711,3 +711,34 @@ fn the_schedulers_help_opens_its_page_of_the_guide() {
     let html = std::fs::read_to_string(&page).unwrap();
     assert!(html.contains("<h1>"), "{html}");
 }
+
+/// The Speed limiter's labels pass 40% of its window, so each stands above its field (rule 6,
+/// gaps row E32), and the slower hours' labels are on the same column, not a second one.
+#[test]
+fn a_long_label_stands_above_its_field() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    h.command("downloads.speed_limiter.settings");
+    h.until("the Speed limiter", |h| h.dialog_open("Speed limiter"));
+    let speed = h.bounds_of("Speed limit (KB/s, 0 for none)");
+    let most = h.bounds_of("Download at most this many MB (0 for no limit)");
+    let period = h.bounds_of("in each period of this many hours");
+    let start = h.bounds_of("Start at");
+    // Above its field: from the window's edge, the next label a field's height and more under.
+    let control = gpui::px(crate::widgets::native::CONTROL);
+    assert!(
+        most.left() < speed.left(),
+        "the long label is in the column: {most:?} beside {speed:?}"
+    );
+    assert!(
+        period.top() - most.top() > most.size.height + control,
+        "the long label is beside its field: {most:?}, then {period:?}"
+    );
+    // A short label stays in the column, the slower hours' too.
+    assert_eq!(
+        start.right(),
+        speed.right(),
+        "the slower hours have a column of their own"
+    );
+}

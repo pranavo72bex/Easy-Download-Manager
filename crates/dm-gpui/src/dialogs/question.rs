@@ -146,7 +146,7 @@ impl Render for Question {
         let theme = Theme::of(window.appearance());
         let ticked = self.ticked;
         let steady = self.steady;
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let default = self.asked.default;
         if steady {
@@ -209,7 +209,7 @@ impl Render for Question {
                 native::body(theme)
                     .child(
                         div()
-                            .font_weight(gpui::FontWeight::BOLD)
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child(screen.label(self.asked.title.clone())),
                     )
                     .child(

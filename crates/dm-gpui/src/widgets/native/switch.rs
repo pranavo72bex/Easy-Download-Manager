@@ -69,6 +69,8 @@ pub fn switch_inline(
             gpui::Toggled::False
         })
         .flex()
+        // The switch at the right where the language reads right to left (gaps row E36).
+        .map(crate::window::mirror::row)
         .items_center()
         .gap(px(space::S))
         .cursor_pointer()

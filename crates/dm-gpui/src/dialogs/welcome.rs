@@ -97,7 +97,7 @@ impl Welcome {
 impl Render for Welcome {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let pages: Vec<(SharedString, &'static str)> = if self.found.is_empty() {
             [

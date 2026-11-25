@@ -410,7 +410,7 @@ impl Render for Options {
         // On a phone, the last change put in force before the frame is drawn (gaps row C21).
         self.apply_now(cx);
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let wanted = self.search.read(cx).value().to_string();
         let searching = !wanted.trim().is_empty();

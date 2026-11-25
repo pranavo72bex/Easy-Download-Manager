@@ -29,14 +29,29 @@ pub struct Drawn {
     pub laid: Bounds<Pixels>,
 }
 
-/// This frame's words, in the order they were laid out (back to front).
+/// This frame's words, in the order they were laid out (back to front), and the width of the
+/// window they are laid out in, in points of dm's design (0 where it was not said).
 #[derive(Clone, Default)]
-pub struct Screen(Rc<RefCell<Vec<Drawn>>>);
+pub struct Screen(Rc<RefCell<Vec<Drawn>>>, Rc<std::cell::Cell<f32>>);
 
 impl Screen {
     /// A new frame: what the last one drew is forgotten.
     pub fn begin(&self) {
         self.0.borrow_mut().clear();
+    }
+
+    /// A new frame of `window`: what the last one drew is forgotten, and the window's width
+    /// kept for a form's rows to lay their labels out by (`native::row`, gaps row E32).
+    pub fn begin_in(&self, window: &gpui::Window) {
+        self.begin();
+        let width = f32::from(window.viewport_size().width) / crate::window::zoom::factor();
+        self.1.set(width);
+    }
+
+    /// The width of the window this frame is laid out in, in points of dm's design; 0 where
+    /// it was not said.
+    pub fn width(&self) -> f32 {
+        self.1.get()
     }
 
     /// The words of the last frame drawn, back to front.

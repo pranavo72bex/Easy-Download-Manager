@@ -262,7 +262,7 @@ impl Progress {
 impl Render for Progress {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let Some(view) = self.view.upgrade() else {
             return div().into_any_element();
@@ -349,7 +349,9 @@ impl Render for Progress {
             .then(|| connection_lines(&look, &row, &connections, &pieces, &speeds, joining));
         // Ranked (gaps row E9): how far, how fast and how long in one line of larger type
         // over the whole file's bar, then the facts.
+        // Figures of one width each, so they do not jitter as they change (gaps row E33).
         let body = native::body(theme)
+            .font_features(native::figures())
             .child(figure_line(&look, &row, joining))
             .child(whole_bar(&look, &row, &pieces, multi));
         let body = facts(&look, &row, resumable, body);

@@ -325,7 +325,7 @@ pub(crate) fn state_mark(state: &dm_core::State, theme: Theme) -> Option<AnyElem
                 .items_center()
                 .justify_center()
                 .text_size(px(crate::widgets::native::MARK_TEXT - 1.0))
-                .font_weight(gpui::FontWeight::BOLD)
+                .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(colour)
                 .child("!")
                 .into_any_element(),

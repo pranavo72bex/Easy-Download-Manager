@@ -125,7 +125,7 @@ impl AddUrl {
 impl Render for AddUrl {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
-        self.screen.begin();
+        self.screen.begin_in(window);
         let screen = self.screen.clone();
         let authorize = self.authorize;
         // A form as macOS lays one out: the labels right-aligned in a

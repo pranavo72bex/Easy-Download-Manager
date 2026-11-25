@@ -182,6 +182,8 @@ impl Page {
         self.says(words);
         let row = div()
             .flex()
+            // Its words at the right and the control at the left, right to left (gaps E36).
+            .map(crate::window::mirror::row)
             .items_center()
             .gap(px(space::L))
             .child(

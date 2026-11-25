@@ -7,7 +7,6 @@
 
 use gpui::{div, prelude::*, Div, FontWeight, Role, SharedString};
 
-use super::TEXT;
 use crate::widgets::space;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
@@ -57,7 +56,7 @@ pub fn phone_bar(
                 .overflow_hidden()
                 .whitespace_nowrap()
                 .text_ellipsis()
-                .text_size(px(TEXT + 4.0))
+                .text_size(px(super::FIGURE_TEXT))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.text)
                 .child(title),

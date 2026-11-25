@@ -137,7 +137,7 @@ pub(crate) fn sheet(
                 .flex()
                 .items_center()
                 .gap(px(space::S))
-                .text_size(px(native::TEXT + 2.0))
+                .text_size(px(native::FIGURE_TEXT))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .child(name.flex_1().min_w_0())
                 .child(
