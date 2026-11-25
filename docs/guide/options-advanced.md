@@ -44,6 +44,9 @@ BitTorrent. See [Options](options.md) for how the window works.
   of this many hours" is the second network's own allowance, apart from the
   one all downloads share: once it is used, the other networks carry the
   downloads until the period ends.
+- "Second network's name" and "Third network's name": a name of your own
+  for a network chosen ("Phone"), said in the progress window and the
+  lists of networks in place of the system's; empty keeps the system's.
 - "Third network's speed limit (KB/s, 0 for none)": the third network's own,
   as the second's, with its own allowance under it; shown once a third is
   chosen.

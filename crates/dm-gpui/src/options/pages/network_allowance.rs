@@ -67,3 +67,28 @@ pub(super) fn third_limits(
         on,
     );
 }
+
+/// A name of the person's own for the network `interface`, where one is chosen (gaps row K4):
+/// said in the progress window and the pop-ups in place of the system's.
+pub(super) fn name_field(
+    o: &mut Options,
+    p: &mut Page,
+    window: &mut Window,
+    cx: &mut Context<Options>,
+    interface: &str,
+    words: &'static str,
+) {
+    if interface.is_empty() {
+        return;
+    }
+    let key = format!("network_names.{interface}");
+    let owned = interface.to_string();
+    let field = input(o, window, cx, &key, words, WIDE, true, false, move |o| {
+        o.draft
+            .network_names
+            .get(&owned)
+            .cloned()
+            .unwrap_or_default()
+    });
+    p.labelled(t(words), true, field);
+}

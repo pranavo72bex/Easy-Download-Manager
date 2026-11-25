@@ -361,7 +361,10 @@ impl Render for Progress {
             &look,
             &connections,
             &speeds,
-            [&settings.second_path, &settings.third_path],
+            [
+                settings.network_name(&settings.second_path),
+                settings.network_name(&settings.third_path),
+            ],
             row.state == State::Running && !joining,
         ));
         let body = body.when(!row.state.settled(), |d| {

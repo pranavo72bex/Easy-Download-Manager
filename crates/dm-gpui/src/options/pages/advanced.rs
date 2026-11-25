@@ -94,7 +94,8 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
     let network_words = |o: &Options| -> Vec<SharedString> {
         std::iter::once(SharedString::from(t("None")))
             .chain(o.networks.iter().map(|found| {
-                match dm_core::system_name(&found.name) {
+                let given = o.draft.network_names.get(&found.name).cloned();
+                match given.or_else(|| dm_core::system_name(&found.name)) {
                     Some(named) => format!("{named} ({})", found.name),
                     None => format!("{} ({})", found.name, found.address),
                 }
@@ -130,6 +131,7 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
         ),
     );
     p.hint(t("Use a second connection too, such as your phone over USB or its hotspot. Half of each download's connections go over it. Not used while a proxy is on."));
+    network_allowance::name_field(o, p, window, cx, &second, "Second network's name");
     // A third beside it, once a second is chosen (gaps row K3).
     if !second.is_empty() {
         let third = o.draft.third_path.clone();
@@ -158,6 +160,8 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
                 &screen,
             ),
         );
+        let third = o.draft.third_path.clone();
+        network_allowance::name_field(o, p, window, cx, &third, "Third network's name");
         network_allowance::third_limits(o, p, window, cx);
         p.note(t(
             "Each download's connections are shared among all the networks chosen.",
@@ -233,7 +237,8 @@ fn only_through(o: &mut Options, p: &mut Page) {
     let only = o.draft.advanced.only_through.clone();
     let words: Vec<SharedString> = std::iter::once(SharedString::from(t("Any network")))
         .chain(o.networks.iter().map(|found| {
-            match dm_core::system_name(&found.name) {
+            let given = o.draft.network_names.get(&found.name).cloned();
+            match given.or_else(|| dm_core::system_name(&found.name)) {
                 Some(named) => format!("{named} ({})", found.name),
                 None => format!("{} ({})", found.name, found.address),
             }

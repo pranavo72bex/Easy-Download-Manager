@@ -1084,5 +1084,7 @@
  "Remove download": "Убрать загрузку",
  "Remove downloads": "Убрать загрузки",
  "Delete files": "Удалить файлы",
- "Sites that need a sign-in": "Сайты, где нужен вход"
+ "Sites that need a sign-in": "Сайты, где нужен вход",
+ "Second network's name": "Имя второй сети",
+ "Third network's name": "Имя третьей сети"
 }

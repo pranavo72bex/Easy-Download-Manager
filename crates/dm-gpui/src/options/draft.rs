@@ -170,6 +170,16 @@ impl Options {
                     s.advanced.read_timeout = n;
                 }
             }
+            ["network_names", interface @ ..] => {
+                // An interface's name may hold a dot: the rest of the key, whole.
+                let interface = interface.join(".");
+                let name = text.trim();
+                if name.is_empty() {
+                    s.network_names.remove(&interface);
+                } else {
+                    s.network_names.insert(interface, name.to_string());
+                }
+            }
             ["host_limits", i, "host"] => {
                 if let Some(limit) = at(i).and_then(|i| s.advanced.host_limits.get_mut(i)) {
                     limit.host = text.into();

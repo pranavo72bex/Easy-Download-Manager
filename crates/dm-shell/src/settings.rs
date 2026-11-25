@@ -222,6 +222,10 @@ pub struct Settings {
     /// for none (gaps row K5b).
     #[serde(default, skip_serializing_if = "none_set")]
     pub third_limit_kb: u64,
+    /// A name a person gave a network, by its interface (gaps row K4): said where dm names it,
+    /// in place of the system's ("Phone" for "iPhone USB").
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub network_names: std::collections::BTreeMap<String, String>,
     /// The second network's own allowance: at most this many MB every `second_limit_hours`
     /// hours over it; 0 for none (gaps row K5d).
     #[serde(default, skip_serializing_if = "none_set")]
@@ -519,6 +523,7 @@ impl Default for Settings {
             third_path: String::new(),
             second_limit_kb: 0,
             third_limit_kb: 0,
+            network_names: Default::default(),
             second_limit_mb: 0,
             second_limit_hours: 0,
             third_limit_mb: 0,

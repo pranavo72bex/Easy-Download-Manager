@@ -241,10 +241,9 @@ pub(super) fn networks_line(
     look: &Look,
     connections: &[dm_core::Connection],
     speeds: &[f64],
-    chosen: [&str; 2],
+    named: [String; 2],
     running: bool,
 ) -> Option<gpui::Div> {
-    let named = chosen.map(|name| dm_core::system_name(name).unwrap_or_else(|| name.to_string()));
     networks_words(connections, speeds, [&named[0], &named[1]], running)
         .map(|said| look.line("Networks", said))
 }

@@ -150,6 +150,18 @@ impl Settings {
         }
     }
 
+    /// What dm calls the network `interface`: the name a person gave it, else the system's,
+    /// else the interface's own (gaps row K4).
+    pub fn network_name(&self, interface: &str) -> String {
+        self.network_names
+            .get(interface)
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty())
+            .map(str::to_string)
+            .or_else(|| dm_core::system_name(interface))
+            .unwrap_or_else(|| interface.to_string())
+    }
+
     /// The second network's and the third's own allowances, in the engine's units, as
     /// [`Settings::allowance`] says all downloads' (gaps row K5d).
     pub fn network_allowances(&self) -> Vec<dm_core::quota::Allowance> {

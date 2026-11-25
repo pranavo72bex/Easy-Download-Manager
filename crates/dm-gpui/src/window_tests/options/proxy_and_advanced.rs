@@ -291,3 +291,29 @@ fn the_second_networks_allowance_is_kept_from_options() {
     assert_eq!(second.bytes, 500 * dm_core::KB * dm_core::KB);
     assert_eq!(second.period, std::time::Duration::from_secs(6 * 3600));
 }
+
+/// A name given to the second network in Options is kept by its interface and is what dm calls
+/// it, the system's otherwise (gaps row K4).
+#[test]
+fn a_network_is_called_by_the_name_given_it() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    open_options(&mut h);
+    tab(&mut h, "Advanced");
+    h.dialog::<crate::options::Options, _>(|o, _, cx| {
+        o.draft.second_path = "dm-test-network0".into();
+        cx.notify();
+    });
+    h.fill("Second network's name", "Phone");
+    ok(&mut h);
+    let kept = kept(&mut h);
+    assert_eq!(
+        kept.network_names
+            .get("dm-test-network0")
+            .map(String::as_str),
+        Some("Phone")
+    );
+    assert_eq!(kept.network_name("dm-test-network0"), "Phone");
+    assert_eq!(kept.network_name("dm-no-name0"), "dm-no-name0");
+}
