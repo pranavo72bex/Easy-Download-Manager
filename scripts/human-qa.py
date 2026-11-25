@@ -786,9 +786,24 @@ def walk(dm, origin):
     dm.click("Next")
     pause(0.8)
     shown = dm.texts()
-    check("B01", "OK with nothing typed asks for an address and adds nothing",
+    check("B01", "Next with nothing typed asks for an address and adds nothing",
           "Type or paste the address of what to download." in shown and not dm.rows(),
           f"{len(dm.rows())} rows")
+    if sys.platform == "darwin":
+        # What VoiceOver is given of the refusal (gaps row E24): the note is a live region,
+        # always there, named by what it says once it says something. Read through
+        # NSAccessibility as B42's buttons are; that VoiceOver speaks it is a person's to hear.
+        refusal = "Type or paste the address of what to download."
+        told = []
+        for _ in range(30):
+            got = (dm.call("ui.accessibility").get("result") or {}).get("windows") or []
+            told = [e for w in got if w.get("title") == "Add URL" for e in w.get("elements", [])
+                    if refusal in " ".join(str(e.get(k) or "") for k in ("label", "title", "value"))]
+            if told:
+                break
+            time.sleep(0.4)
+        check("B01", "a screen reader is given the refusal in Add URL's own window",
+              bool(told), f"elements carrying it: {[(e.get('role'), e.get('label')) for e in told][:3]}")
     dm.click("Cancel")
     dm.open_add_url()
     dm.call("ui.type", text=f"{files}/big.bin")
