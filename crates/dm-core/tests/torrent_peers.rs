@@ -112,3 +112,91 @@ async fn metadata_sent_before_the_peers_handshake_closes_that_peer_and_nothing_e
         ended.err()
     );
 }
+
+/// `count` compact IPv4 addresses (BEP 23), none of them a peer: 127.`net`.x.y, port 9,
+/// numbered from `from`.
+fn addresses(net: u8, from: usize, count: usize) -> Vec<u8> {
+    (from..from + count)
+        .flat_map(|i| [127, net, (i / 250) as u8, (i % 250 + 1) as u8, 0, 9])
+        .collect()
+}
+
+/// A PEX message's dictionary naming `addresses` under `key` ("added" or "dropped").
+fn pex(key: &str, addresses: &[u8]) -> Vec<u8> {
+    let mut dictionary = format!("d{}:{key}{}:", key.len(), addresses.len()).into_bytes();
+    dictionary.extend_from_slice(addresses);
+    dictionary.push(b'e');
+    dictionary
+}
+
+/// Waits until the swarm's known peers reach `at_least`, then a little longer, and gives the
+/// count then.
+async fn known_after(known: &std::sync::atomic::AtomicU32, at_least: u32) -> u32 {
+    let began = std::time::Instant::now();
+    while known.load(std::sync::atomic::Ordering::SeqCst) < at_least {
+        assert!(
+            began.elapsed() < Duration::from_secs(60),
+            "the swarm knew {} peers, never {at_least}",
+            known.load(std::sync::atomic::Ordering::SeqCst)
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    known.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// A peer sending PEX messages of 1,000 new addresses without end cannot grow the peers a
+/// torrent knows past 5,000, and the addresses it says it dropped are never added (gaps rows
+/// H10, H33, H33a): the attack refused is PEX growing the peer table until memory runs out.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_peer_sending_endless_pex_cannot_grow_the_known_peers_past_the_cap() {
+    use sha1::Digest;
+    let mut info = b"d6:lengthi16384e4:name8:pex.data12:piece lengthi16384e6:pieces20:".to_vec();
+    info.extend_from_slice(&[0x5a; 20]);
+    info.push(b'e');
+    let hash: String = sha1::Sha1::digest(&info)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let seeder = peer::seeder(info).await;
+    let tracker = tracker_returning(seeder.addr).await;
+    let dir = common::tempdir();
+    let options = common::options(dir.path());
+    let control = options.control.clone();
+    let magnet = format!("magnet:?xt=urn:btih:{hash}&tr=http://{tracker}/announce");
+    let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+    let run =
+        tokio::spawn(async move { download_torrent(&client(), &magnet, &options, Some(tx)).await });
+    let known = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let seen = std::sync::Arc::clone(&known);
+    tokio::spawn(async move {
+        while let Some(update) = rx.recv().await {
+            if let dm_core::Update::Swarm(swarm) = update {
+                seen.store(swarm.known, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+    });
+    // A thousand dropped and a thousand added: the seeder and the thousand added are known.
+    seeder
+        .pex
+        .send(pex("dropped", &addresses(2, 0, 1000)))
+        .unwrap();
+    seeder
+        .pex
+        .send(pex("added", &addresses(1, 0, 1000)))
+        .unwrap();
+    assert_eq!(
+        known_after(&known, 1001).await,
+        1001,
+        "dropped peers were added"
+    );
+    // Five thousand more, past the cap.
+    for batch in 1..6 {
+        let message = pex("added", &addresses(1, batch * 1000, 1000));
+        seeder.pex.send(message).unwrap();
+    }
+    let most = known_after(&known, 5000).await;
+    assert_eq!(most, 5000, "the known peers grew past the cap");
+    control.pause();
+    let _ = tokio::time::timeout(Duration::from_secs(10), run).await;
+}
