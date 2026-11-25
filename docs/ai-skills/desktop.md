@@ -50,3 +50,4 @@ points wide) Android. A change to it is a change on every system.
 
 ## Lessons
 
+- 2026-11-25: Changing native window sizes in dm-gpui::widgets::native requires updating the pinned expectations in widgets::native::tests::window_sizes_are_as_they_were.
