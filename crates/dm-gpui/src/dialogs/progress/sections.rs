@@ -704,7 +704,9 @@ mod figure_tests {
     fn the_figure_says_how_far_how_fast_and_how_long() {
         let running = row(State::Running, 389_120.0, Some(120));
         let said = figure_words(&running, false);
-        assert_eq!(said, "7% · 389.1 KB/s · 2m 0s left");
+        // KB is this computer's: 1024 bytes on Windows, 1000 elsewhere (gaps row U34).
+        let speed = format::rate(389_120.0);
+        assert_eq!(said, format!("7% · {speed} · 2m 0s left"));
         assert!(said.ends_with("left"), "{said}");
         let joining = figure_words(&running, true);
         assert!(!joining.contains("left"), "{joining}");

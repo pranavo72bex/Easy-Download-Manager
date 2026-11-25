@@ -227,9 +227,12 @@ impl Render for UpdateLink {
                                     ),
                             )
                         })
-                        .when_some(self.says.clone(), |d, says| {
-                            d.child(native::note(says, theme.warning, &screen))
-                        })
+                        .child(native::says(
+                            "rowdialog-says",
+                            self.says.clone(),
+                            theme,
+                            &screen,
+                        ))
                         .child(native::buttons(
                             Vec::new(),
                             vec![

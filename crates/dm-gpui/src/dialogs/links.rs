@@ -201,7 +201,7 @@ impl Render for Links {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window.appearance());
         self.screen.begin();
-        let screen = self.screen.clone();
+        let (screen, says) = (self.screen.clone(), self.says.clone());
         self.d.types = self.types.read(cx).value().to_string();
         // The Save to column says the folder as it is typed.
         self.chosen(cx);
@@ -328,9 +328,7 @@ impl Render for Links {
             )
             // Where the ticked links go, as reference A offers it.
             .child(save_to)
-            .when_some(self.says.clone(), |d, says| {
-                d.child(native::note(says, theme.warning, &screen))
-            })
+            .child(native::says("links-says", says, theme, &screen))
             // As on a Mac: Add for later, to a queue, at the leading
             // side; Cancel, then Start now (the default) at the end.
             .child(self.buttons(theme, &screen, queues, queue_at, cx));

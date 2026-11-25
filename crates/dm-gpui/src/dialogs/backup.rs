@@ -21,7 +21,7 @@ use dm_desktop_base::i18n::{t, tf};
 use dm_shell::backup::{Backup, Refused, Restored, SUGGESTED};
 use dm_shell::settings::KeptPrograms;
 use gpui::{
-    div, prelude::*, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent, SharedString,
+    prelude::*, size, App, Bounds, Context, Entity, FocusHandle, KeyDownEvent, SharedString,
     WeakEntity, Window, WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
@@ -272,11 +272,7 @@ impl Render for BackupDialog {
                         None,
                         width,
                         &screen,
-                        div().children(
-                            self.says
-                                .clone()
-                                .map(|says| native::note(says, theme.warning, &screen)),
-                        ),
+                        native::says("backup-says", self.says.clone(), theme, &screen),
                     ))
                     .child(native::buttons(
                         Vec::new(),

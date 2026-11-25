@@ -553,10 +553,13 @@ impl Options {
             .flex()
             .flex_col()
             .gap(px(native::ROW_GAP))
-            .when_some(self.says.clone(), |d, says| {
-                d.mt(px(native::ROW_GAP))
-                    .child(native::note(says, theme.warning, screen))
-            })
+            .when(self.says.is_some(), |d| d.mt(px(native::ROW_GAP)))
+            .child(native::says(
+                "options-says",
+                self.says.clone(),
+                theme,
+                screen,
+            ))
             .child(native::buttons(
                 // The page's own page of the guide (gaps row E11), then Restore defaults.
                 std::iter::once(

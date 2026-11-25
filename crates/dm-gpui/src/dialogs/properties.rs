@@ -424,8 +424,11 @@ impl Render for Properties {
                     None,
                     width,
                     &screen,
-                    native::note(says, theme.warning, &screen),
+                    native::says("properties-says", Some(says), theme, &screen),
                 ))
+            })
+            .when(self.says.is_none(), |d| {
+                d.child(native::says("properties-says", None, theme, &screen))
             })
             .child(Self::buttons(&look, finished, failed, &row, cx));
         let root = crate::widgets::native::dialog("properties", t("File properties"), theme, cx)

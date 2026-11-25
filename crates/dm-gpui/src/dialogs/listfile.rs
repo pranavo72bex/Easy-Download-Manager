@@ -16,8 +16,8 @@ use std::path::{Path, PathBuf};
 
 use dm_desktop_base::i18n::{t, tf};
 use gpui::{
-    div, prelude::*, size, App, Bounds, Context, Entity, KeyDownEvent, SharedString, WeakEntity,
-    Window, WindowBounds, WindowOptions,
+    prelude::*, size, App, Bounds, Context, Entity, KeyDownEvent, SharedString, WeakEntity, Window,
+    WindowBounds, WindowOptions,
 };
 use gpui_component::input::{InputEvent, InputState};
 
@@ -170,11 +170,7 @@ impl Render for ListFile {
                         None,
                         width,
                         &screen,
-                        div().children(
-                            self.says
-                                .clone()
-                                .map(|says| native::note(says, theme.warning, &screen)),
-                        ),
+                        native::says("listfile-says", self.says.clone(), theme, &screen),
                     ))
                     .child(native::buttons(
                         Vec::new(),

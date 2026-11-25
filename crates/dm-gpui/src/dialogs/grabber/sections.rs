@@ -240,55 +240,60 @@ impl Grabber {
         } else {
             body.child(self.saving_line(theme, screen, cx))
         };
-        body.when(!self.d.says.is_empty(), |d| {
-            d.child(native::note(self.d.says.clone(), theme.warning, screen))
-        })
-        // What Delete search took, and Undo, as the list's Remove has.
-        .when_some(self.deleted.as_ref().map(|s| s.name.clone()), |d, name| {
-            d.child(native::undo_line(
-                "undelete-search",
-                tf("Deleted the search {}.", &[&name]),
-                theme,
-                screen,
-                cx.listener(|this, _, _, cx| this.undelete(cx)),
-            ))
-        })
-        .when(!saved.is_empty(), |d| {
-            d.child(screen.label(t("Saved searches")))
-                .children(saved.iter().enumerate().map(|(i, search)| {
-                    let (run, delete) = (search.name.clone(), search.name.clone());
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(native::LABEL_GAP))
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .whitespace_nowrap()
-                                .overflow_hidden()
-                                .text_ellipsis()
-                                .child(screen.label(format!("{} — {}", search.name, search.page))),
-                        )
-                        .child(
-                            native::button(("run", i), t("Run").into(), false, theme, screen)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.saved_search(run.clone(), true, cx)
-                                })),
-                        )
-                        .child(
-                            native::destructive(
-                                ("delete", i),
-                                t("Delete search").into(),
-                                theme,
-                                screen,
+        let says = Some(self.d.says.clone())
+            .filter(|says| !says.is_empty())
+            .map(gpui::SharedString::from);
+        body.child(native::says("grabber-says", says, theme, screen))
+            // What Delete search took, and Undo, as the list's Remove has.
+            .when_some(self.deleted.as_ref().map(|s| s.name.clone()), |d, name| {
+                d.child(native::undo_line(
+                    "undelete-search",
+                    tf("Deleted the search {}.", &[&name]),
+                    theme,
+                    screen,
+                    cx.listener(|this, _, _, cx| this.undelete(cx)),
+                ))
+            })
+            .when(!saved.is_empty(), |d| {
+                d.child(screen.label(t("Saved searches")))
+                    .children(saved.iter().enumerate().map(|(i, search)| {
+                        let (run, delete) = (search.name.clone(), search.name.clone());
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(native::LABEL_GAP))
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .whitespace_nowrap()
+                                    .overflow_hidden()
+                                    .text_ellipsis()
+                                    .child(
+                                        screen.label(format!("{} — {}", search.name, search.page)),
+                                    ),
                             )
-                            .on_click(cx.listener(
-                                move |this, _, _, cx| this.saved_search(delete.clone(), false, cx),
-                            )),
-                        )
-                }))
-        })
+                            .child(
+                                native::button(("run", i), t("Run").into(), false, theme, screen)
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.saved_search(run.clone(), true, cx)
+                                    })),
+                            )
+                            .child(
+                                native::destructive(
+                                    ("delete", i),
+                                    t("Delete search").into(),
+                                    theme,
+                                    screen,
+                                )
+                                .on_click(cx.listener(
+                                    move |this, _, _, cx| {
+                                        this.saved_search(delete.clone(), false, cx)
+                                    },
+                                )),
+                            )
+                    }))
+            })
     }
 
     /// Close, and Add for later and Start now once there are files to add.

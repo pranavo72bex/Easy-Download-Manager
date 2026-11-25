@@ -82,8 +82,10 @@ pub fn switch_inline(
                     .child(div().flex_1().min_w_0().child(screen.label(words)))
                     .child(switch_track(on, theme))
             } else {
+                // Its words wrap within the window: as an item of their own width the
+                // Scheduler's German "wake" ran past its edge in Windows' wider type.
                 row.child(switch_track(on, theme))
-                    .child(screen.label(words))
+                    .child(div().flex_1().min_w_0().child(screen.label(words)))
             }
         })
 }

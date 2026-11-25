@@ -717,7 +717,14 @@ impl Details {
             )
         })
         .when_some(self.says.clone(), |d, says| {
-            d.child(look.under(native::note(says, theme.warning, screen).into_any_element()))
+            d.child(
+                look.under(
+                    native::says("details-says", Some(says), theme, screen).into_any_element(),
+                ),
+            )
+        })
+        .when(self.says.is_none(), |d| {
+            d.child(native::says("details-says", None, theme, screen))
         })
     }
 

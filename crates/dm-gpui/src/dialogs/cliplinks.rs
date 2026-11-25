@@ -232,9 +232,12 @@ impl Render for ClipLinks {
                                 .children(rows),
                         )
                         .child(save_to)
-                        .when_some(self.says.clone(), |d, says| {
-                            d.child(native::note(says, theme.warning, &screen))
-                        })
+                        .child(native::says(
+                            "cliplinks-says",
+                            self.says.clone(),
+                            theme,
+                            &screen,
+                        ))
                         .child(native::buttons(
                             vec![native::button(
                                 "later",

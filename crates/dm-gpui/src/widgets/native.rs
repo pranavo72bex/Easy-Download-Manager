@@ -481,14 +481,6 @@ pub fn buttons(leading: Vec<gpui::AnyElement>, mut trailing: Vec<gpui::AnyElemen
         .children(trailing)
 }
 
-/// Words said under a control, or of a warning: the small system size.
-pub fn note(words: impl Into<SharedString>, color: gpui::Rgba, screen: &Screen) -> Div {
-    div()
-        .text_size(px(SMALL_TEXT))
-        .text_color(color)
-        .child(screen.label(words))
-}
-
 /// A radio button and its words, as the system draws one: chosen, in the
 /// accent colour with a white dot.
 pub fn radio(
@@ -780,11 +772,13 @@ mod help;
 mod keys;
 mod measure;
 pub use help::help_button;
+mod note;
 mod path;
 mod switch;
 pub use destroy::{destructive, undo_line};
 pub use keys::{return_is_default, ringed};
 pub use measure::{figures, label_width, measure_with, small_width, text_width};
+pub use note::{note, says};
 pub use switch::{switch, switch_inline};
 mod phone;
 pub use path::path_field;

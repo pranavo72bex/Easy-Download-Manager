@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A screen reader says a dialog's refusal as it appears (Add URL, Links, the Grabber, Properties, the speed limiter, Backup and the others): pressing OK on a dialog that refused made no sound.
+- On Windows, the Scheduler's "Wake the computer from sleep to start" wraps inside its window in German instead of running past the edge.
+
 - The keyboard reaches every control in the dialogs and Options, each showing a ring when it has the keys; Return on a focused button presses that button, not the dialog's default. A screen reader names each pop-up by what it sets ("Start at, Hour"), and Back on a phone closes an open list of choices before the dialog.
 
 - Options: the page you are on is easy to read again (its name was white on light grey after a click), and the results of Find a setting are readable in dark looks.

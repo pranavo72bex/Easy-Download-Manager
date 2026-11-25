@@ -232,7 +232,8 @@ impl Render for AddUrl {
                         div()
                             .min_h(px(WARNING_LINE))
                             .line_height(px(WARNING_LINE))
-                            .children(
+                            .child(native::says(
+                                "addurl-says",
                                 self.says
                                     .clone()
                                     // A host that copies another in another alphabet's
@@ -240,9 +241,10 @@ impl Render for AddUrl {
                                     .or_else(|| {
                                         lookalike_said(&self.address.read(cx).value())
                                             .map(Into::into)
-                                    })
-                                    .map(|says| native::note(says, theme.warning, &screen)),
-                            ),
+                                    }),
+                                theme,
+                                &screen,
+                            )),
                     ))
                     // The default rightmost, Cancel beside it, as on a Mac.
                     .child(native::buttons(

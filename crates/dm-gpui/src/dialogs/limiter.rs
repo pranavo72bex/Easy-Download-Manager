@@ -238,9 +238,12 @@ impl Render for Limiter {
                                 ),
                         ),
                     ))
-                    .when_some(self.says.clone(), |d, says| {
-                        d.child(native::note(says, theme.warning, &screen))
-                    })
+                    .child(native::says(
+                        "limiter-says",
+                        self.says.clone(),
+                        theme,
+                        &screen,
+                    ))
                     .child(native::buttons(
                         // Its page of the guide (gaps row E11).
                         vec![

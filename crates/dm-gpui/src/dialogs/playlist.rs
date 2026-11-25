@@ -223,9 +223,12 @@ impl Render for PlaylistWindow {
                             .child(screen.label(self.url.clone())),
                     )
                     .child(body)
-                    .when_some(self.says.clone(), |d, says| {
-                        d.child(native::note(says, theme.warning, &screen))
-                    })
+                    .child(native::says(
+                        "playlist-says",
+                        self.says.clone(),
+                        theme,
+                        &screen,
+                    ))
                     // As on a Mac: Add for later at the leading side, then
                     // Cancel, and Start now (the default) at the end.
                     .child(native::buttons(

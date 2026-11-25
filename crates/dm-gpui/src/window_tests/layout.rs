@@ -371,8 +371,10 @@ fn the_columns_follow_the_window_until_one_is_dragged() {
     let narrow = name_width(&mut h);
     h.resize(1600.0, 800.0);
     let wide = name_width(&mut h);
+    // Widths kept from the first draw leave it as it was. The wide window shows more columns,
+    // which take most of the new room, the more so in Windows' wider type (32 points there).
     assert!(
-        wide > narrow + px(40.0),
+        wide > narrow + px(16.0),
         "the name stayed {narrow:?} wide, now {wide:?}"
     );
 }
@@ -629,13 +631,11 @@ fn the_queue_columns_heading_is_named_and_sorts() {
     let mut h = world.harness();
     add_later(&mut h, &world, &["file.zip"]);
     assert!(!h.shows("Q"), "the heading still says Q");
-    // Its cell is just left of Size's, whose words stand at its right: Size's cell is 72
-    // points wide, the queue's 22.
-    let size = in_main(&mut h, "Size").expect("Size");
-    let at = point(
-        size.right() + px(8.0) - px(72.0) - px(11.0),
-        size.center().y,
-    );
+    // Pressed on its own words: a place worked out from Size's cell landed on Size in
+    // Windows' wider type.
+    let at = in_main(&mut h, "Queue")
+        .expect("the Queue heading")
+        .center();
     h.drag(at, at, true);
     h.until("the sort by queue", |h| {
         matches!(h.view(|view| view.list.sort), Some((Column::Queue, _)))
