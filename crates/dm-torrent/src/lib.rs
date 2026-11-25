@@ -482,6 +482,15 @@ pub fn metainfo(bytes: &[u8]) -> Result<Metainfo, Error> {
 mod tests {
     use super::*;
 
+    /// A number in a `.torrent` past its type's end is refused, not multiplied past it: the
+    /// nightly fuzz run's input, which panicked where overflow is checked (vendor/README.md,
+    /// `numbers`).
+    #[test]
+    fn a_number_too_big_for_its_type_is_refused_not_overflowed() {
+        assert!(metainfo(b"d1::166666666666661666666666613").is_err());
+        assert!(metainfo(b"d4:infod12:piece lengthi99999999999999999999999eee").is_err());
+    }
+
     #[test]
     fn a_public_session_announces_to_every_public_tracker() {
         let trackers = session_trackers(&Setup::default());

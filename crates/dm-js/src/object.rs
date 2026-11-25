@@ -7,13 +7,16 @@
 //! the rest as they were added), its prototype, and what a built-in object carries inside (an
 //! array's elements, a function's code, a map's entries).
 //!
-//! Objects are shared (`Rc`) and changed in place (`RefCell`). A cycle of objects is not freed
-//! until the interpreter that made them is dropped, which is at the end of each run: dm runs a
-//! program once and is done with it.
+//! Objects are shared (`Rc`) and changed in place (`RefCell`). `Rc` frees no cycle (a
+//! constructor and its prototype, a closure and the scope it closes over), so every object is
+//! listed as it is made ([`MADE`]), and as the last interpreter on its thread is dropped every
+//! one still alive is emptied ([`free_all`]), which breaks them all: dm runs a program once and
+//! is done with it. Each run left all its objects behind, 1.5 MB for an empty program (the
+//! nightly fuzz run's leak report).
 
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use crate::ast;
 use crate::lexer::Text;
@@ -29,15 +32,68 @@ impl std::fmt::Debug for Obj {
     }
 }
 
+/// Every object made on this thread that may still be alive, and the length past which the
+/// dead are let go of (each keeps its allocation while it is listed).
+struct Made {
+    all: Vec<Weak<RefCell<Object>>>,
+    prune_at: usize,
+}
+
+thread_local! {
+    /// The objects made on this thread, for [`free_all`].
+    static MADE: RefCell<Made> = const { RefCell::new(Made { all: Vec::new(), prune_at: 1024 }) };
+}
+
+/// Empties every object made on this thread that is still alive, breaking every cycle among
+/// them, so each is freed: called as the last interpreter on the thread is dropped. An object
+/// kept past that reads as an empty one.
+pub(crate) fn free_all() {
+    let listed = MADE.with(|made| std::mem::take(&mut made.borrow_mut().all));
+    // All held at once first, so emptying one frees nothing while the rest are emptied (one
+    // freed in the middle would free a long chain behind it recursively).
+    let alive: Vec<Rc<RefCell<Object>>> = listed.iter().filter_map(Weak::upgrade).collect();
+    drop(listed);
+    let insides: Vec<Object> = alive
+        .iter()
+        .filter_map(|object| {
+            let mut object = object.try_borrow_mut().ok()?;
+            Some(std::mem::replace(&mut *object, Object::empty()))
+        })
+        .collect();
+    drop(alive);
+    drop(insides);
+}
+
+impl Object {
+    /// An ordinary object with nothing in it.
+    fn empty() -> Object {
+        Object {
+            proto: None,
+            props: Props::default(),
+            class: Class::Ordinary,
+            extensible: true,
+        }
+    }
+}
+
 impl Obj {
     /// A new object with `proto` and inner `class`.
     pub fn new(proto: Option<Obj>, class: Class) -> Obj {
-        Obj(Rc::new(RefCell::new(Object {
+        let object = Rc::new(RefCell::new(Object {
             proto,
             props: Props::default(),
             class,
             extensible: true,
-        })))
+        }));
+        MADE.with(|made| {
+            let mut made = made.borrow_mut();
+            made.all.push(Rc::downgrade(&object));
+            if made.all.len() >= made.prune_at {
+                made.all.retain(|object| object.strong_count() > 0);
+                made.prune_at = (made.all.len() * 2).max(1024);
+            }
+        });
+        Obj(object)
     }
 
     /// The object, to read.

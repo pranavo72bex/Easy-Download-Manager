@@ -111,6 +111,7 @@ const MOST_DEPTH: usize = 400;
 impl Interp {
     /// An interpreter with the language's built-in objects and nothing else.
     pub fn new() -> Interp {
+        LIVE.with(|live| live.set(live.get() + 1));
         let (global, intrinsics) = crate::realm::make();
         let global_scope = Rc::new(RefCell::new(ScopeData {
             vars: HashMap::new(),
@@ -504,6 +505,27 @@ impl Interp {
 impl Default for Interp {
     fn default() -> Self {
         Interp::new()
+    }
+}
+
+thread_local! {
+    /// How many interpreters are alive on this thread: their objects are freed as the last goes.
+    static LIVE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+impl Drop for Interp {
+    /// The last interpreter on its thread breaks every cycle among the objects made there, so
+    /// they are freed (`object::free_all`): `Rc` frees no cycle, and each run left all its objects.
+    fn drop(&mut self) {
+        let left = LIVE.with(|live| {
+            live.set(live.get().saturating_sub(1));
+            live.get()
+        });
+        if left == 0 {
+            self.frames.clear();
+            self.jobs.clear();
+            crate::object::free_all();
+        }
     }
 }
 

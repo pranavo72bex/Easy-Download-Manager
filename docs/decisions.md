@@ -9054,3 +9054,20 @@ path: a URL, an `http`/`sse` server or a command fetched to run (`npx`, `uvx`) i
 skill from outside still comes in only as a pinned copy (`.claude/skills/UPSTREAM.tsv`).
 `scripts/ai-selftest.sh` plants a remote server and an `npx` one and expects both refused.
 
+
+## librqbit-bencode vendored for checked numbers; dm-js frees its objects, 2026-11-25
+
+The nightly fuzz run of 2026-11-25 stopped on two findings. `torrent_metainfo`: the bencode
+reader (librqbit-bencode 9.1.0) reads numbers with atoi's unchecked readers, which multiply
+past the type's end: a panic where overflow is checked (the fuzz build, on
+`d1::166666666666661666666666613`) and in a release build a wrapped number, so a `u32` piece
+length written as 2^32 + 16384 read as 16384 where another client reads it as written. A
+check before the library reads a file cannot know each field's type, so the crate is now a
+seventh patched copy (`vendor/librqbit-bencode`, change `numbers`: atoi's checked readers),
+made by `cargo xtask vendor` like the others. `javascript`: every object dm-js made was left
+behind after a run (1.5 MB for an empty program), as `Rc` frees no cycle and the built-ins
+are all cycles; its comment said the interpreter's drop freed them, and nothing did. Each
+object is now listed weakly as it is made, and the last interpreter on a thread empties every
+one still alive as it is dropped, which breaks the cycles. Tried and dropped: a mark-and-sweep
+collector (much more code for programs that run once); emptying from the global object
+outward (misses objects only a closure's scope holds).

@@ -299,3 +299,28 @@ fn a_program_that_runs_too_long_is_stopped() {
         Ok("300".into())
     );
 }
+
+/// Once its interpreter is dropped, a program's objects are freed, cycles and all: the global
+/// object names itself (`globalThis`), a constructor and its prototype name each other, and a
+/// closure keeps the scope that holds it. `Rc` frees no cycle, and each run left every object
+/// it made behind (the nightly fuzz run's leak report: 1.5 MB for an empty program).
+#[test]
+fn a_programs_objects_are_freed_with_its_interpreter() {
+    let mut i = Interp::new();
+    i.run("var kept = { name: 'a' }; kept.self = kept; function f() { return kept; }")
+        .unwrap();
+    let global = std::rc::Rc::downgrade(&i.global.0);
+    let kept = match i.run("kept").unwrap() {
+        dm_js::value::Value::Object(o) => std::rc::Rc::downgrade(&o.0),
+        other => panic!("not an object: {other:?}"),
+    };
+    drop(i);
+    assert!(
+        global.upgrade().is_none(),
+        "the global object outlived its interpreter"
+    );
+    assert!(
+        kept.upgrade().is_none(),
+        "a program's object outlived its interpreter"
+    );
+}
