@@ -9043,3 +9043,14 @@ which the file's own sections say wait for the maintainer's word; a section's ru
 for all its rows, and the rows needing only a person (S5, S6, S11, U16, A6, W23, N3, H13,
 H21, H22) are marked so. The picker's rules are in the guardrail self-test. (E13 and E14 were split too, but the
 maintainer's session closed both the same day, so their steps were dropped.)
+
+## No MCP server but the repository's own programs, 2026-11-25
+
+Gaps row H39, at the maintainer's word ("look at security before the skills"): the ui-skills
+review offered a remote MCP registry and `npx` commands, text and code that change after they
+are read. `scripts/ai-skills-check.py` now fails when `.mcp.json`, or `mcpServers` in
+`.claude/settings.json`, names a server that is not a file of this repository by a relative
+path: a URL, an `http`/`sse` server or a command fetched to run (`npx`, `uvx`) is refused. A
+skill from outside still comes in only as a pinned copy (`.claude/skills/UPSTREAM.tsv`).
+`scripts/ai-selftest.sh` plants a remote server and an `npx` one and expects both refused.
+

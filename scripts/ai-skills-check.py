@@ -21,10 +21,15 @@ CI. Fails (exit 1, each problem said) when:
 - a file is a link, executable, or of a kind a skill has no need of (only Markdown, CSV, TSV
   and licence texts);
 - one of dm's own pages (docs/ai-skills/*.md, not vendor/) holds a web address: a page tells,
-  it never sends a model somewhere.
+  it never sends a model somewhere;
+- `.mcp.json`, or `mcpServers` in `.claude/settings.json`, names a server that is not a program
+  of this repository's own (gaps row H39): a remote registry, a URL, or a command fetched to run
+  (`npx`, `uvx`, …) puts text that changes after review in front of every session and bot. A
+  skill from outside comes in as a pinned copy (UPSTREAM.tsv), never as a server.
 """
 
 import hashlib
+import json
 import os
 import re
 import stat
@@ -62,8 +67,42 @@ def pins(path, problems):
     return out
 
 
+MCP_FILES = [".mcp.json", ".claude/settings.json"]
+
+
+def mcp_servers(problems):
+    """Each MCP server the repository's own files name: only a program inside this repository,
+    by a relative path to a file that is here, with no URL (gaps row H39)."""
+    root = os.path.realpath(".")
+    for path in MCP_FILES:
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                servers = (json.load(f) or {}).get("mcpServers") or {}
+        except (OSError, ValueError) as e:
+            problems.append(f"{path}: not read as JSON: {e}")
+            continue
+        if not isinstance(servers, dict):
+            problems.append(f"{path}: mcpServers is not a table of servers")
+            continue
+        for name, server in servers.items():
+            server = server if isinstance(server, dict) else {}
+            command = str(server.get("command") or "")
+            if server.get("url") or server.get("type") in ("http", "sse", "ws") or not command:
+                problems.append(f"{path}: MCP server {name!r} is not a program of this repository")
+                continue
+            here = os.path.realpath(command)
+            inside = not os.path.isabs(command) and here.startswith(root + os.sep)
+            if not inside or not os.path.isfile(here):
+                problems.append(
+                    f"{path}: MCP server {name!r} runs {command!r}, not a file of this repository"
+                )
+
+
 def main():
     problems = []
+    mcp_servers(problems)
     seen_vendor = set()
     seen_copied = set()
     manifest = pins(os.path.join(VENDOR, "MANIFEST.tsv"), problems)
