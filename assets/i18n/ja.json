@@ -1086,5 +1086,6 @@
  "Delete files": "ファイルを削除",
  "Sites that need a sign-in": "サインインが必要なサイト",
  "Second network's name": "2 つ目のネットワークの名前",
- "Third network's name": "3 つ目のネットワークの名前"
+ "Third network's name": "3 つ目のネットワークの名前",
+ "answers in {} ms": "{} ms で応答"
 }

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The progress window's Networks line says how fast each network answers ("answers in 40 ms").
 - A second or third network can be given a name of your own (Options › Advanced), used in the progress window and the lists of networks.
 - A ZIP's files in Download details and Properties show their full name on hover; a page's line in Options' list may take two lines; the search box's clear button is a drawn icon.
 - Closing a place's menu, or a pop-up's list on a phone, puts the keyboard back where it was. A pop-up tells a screen reader whether its choices are open.

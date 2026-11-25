@@ -1086,5 +1086,6 @@
  "Delete files": "파일 삭제",
  "Sites that need a sign-in": "로그인이 필요한 사이트",
  "Second network's name": "두 번째 네트워크 이름",
- "Third network's name": "세 번째 네트워크 이름"
+ "Third network's name": "세 번째 네트워크 이름",
+ "answers in {} ms": "{}ms 안에 응답"
 }

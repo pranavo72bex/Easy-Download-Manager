@@ -46,6 +46,28 @@ static ON_SECOND: std::sync::Mutex<Option<HashMap<PathBuf, HashMap<usize, u8>>>>
 /// the next 3, and so on (gaps rows K3, K3c).
 static MORE: RwLock<Vec<reqwest::Client>> = RwLock::new(Vec::new());
 
+/// Each network's answer time (0 the system's route): how long a range's request took to be
+/// answered over it, smoothed over the last few (gaps row K4).
+static ANSWERS: std::sync::Mutex<Option<HashMap<u8, std::time::Duration>>> =
+    std::sync::Mutex::new(None);
+
+/// A request over network `network` was answered in `took`: the smoothed time moves a third of
+/// the way towards it, so one slow answer does not make a network look slow.
+pub fn answered_in(network: u8, took: std::time::Duration) {
+    let mut held = crate::lock(&ANSWERS);
+    let times = held.get_or_insert_with(HashMap::new);
+    let now = match times.get(&network) {
+        Some(before) => before.mul_f64(2.0 / 3.0) + took.mul_f64(1.0 / 3.0),
+        None => took,
+    };
+    times.insert(network, now);
+}
+
+/// How long network `network` takes to answer, where a request has gone over it.
+pub fn answer_time(network: u8) -> Option<std::time::Duration> {
+    crate::lock(&ANSWERS).as_ref()?.get(&network).copied()
+}
+
 /// How long a network marked off is passed over before it is tried again (gaps row K3a).
 pub const OFF_FOR: std::time::Duration = std::time::Duration::from_secs(60);
 
@@ -525,5 +547,23 @@ mod network_tests {
             left, 1,
             "the network not there was kept, or the others were"
         );
+    }
+}
+
+#[cfg(test)]
+mod answer_tests {
+    use super::*;
+    use std::time::Duration;
+
+    /// A network's answer time is its first answer, then moves a third of the way to each
+    /// new one; a network never asked has none (gaps row K4).
+    #[test]
+    fn a_networks_answer_time_follows_its_answers() {
+        // Network 7: a number no other test uses.
+        assert_eq!(answer_time(7), None);
+        answered_in(7, Duration::from_millis(90));
+        assert_eq!(answer_time(7), Some(Duration::from_millis(90)));
+        answered_in(7, Duration::from_millis(30));
+        assert_eq!(answer_time(7), Some(Duration::from_millis(70)));
     }
 }

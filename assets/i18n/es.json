@@ -1086,5 +1086,6 @@
  "Delete files": "Eliminar archivos",
  "Sites that need a sign-in": "Sitios que necesitan iniciar sesión",
  "Second network's name": "Nombre de la segunda red",
- "Third network's name": "Nombre de la tercera red"
+ "Third network's name": "Nombre de la tercera red",
+ "answers in {} ms": "responde en {} ms"
 }

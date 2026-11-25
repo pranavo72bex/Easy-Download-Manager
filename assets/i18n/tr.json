@@ -1086,5 +1086,6 @@
  "Delete files": "Dosyaları sil",
  "Sites that need a sign-in": "Oturum açma gerektiren siteler",
  "Second network's name": "İkinci ağın adı",
- "Third network's name": "Üçüncü ağın adı"
+ "Third network's name": "Üçüncü ağın adı",
+ "answers in {} ms": "{} ms içinde yanıtlıyor"
 }

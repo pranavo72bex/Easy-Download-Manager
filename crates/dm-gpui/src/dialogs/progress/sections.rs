@@ -244,8 +244,15 @@ pub(super) fn networks_line(
     named: [String; 2],
     running: bool,
 ) -> Option<gpui::Div> {
-    networks_words(connections, speeds, [&named[0], &named[1]], running)
-        .map(|said| look.line("Networks", said))
+    let answers = [0, 1, 2].map(dm_core::answer_time);
+    networks_words(
+        connections,
+        speeds,
+        [&named[0], &named[1]],
+        answers,
+        running,
+    )
+    .map(|said| look.line("Networks", said))
 }
 
 /// [`networks_line`]'s words: each network's speed and share, the second and third by their
@@ -255,6 +262,7 @@ pub(super) fn networks_words(
     connections: &[dm_core::Connection],
     speeds: &[f64],
     named: [&str; 2],
+    answers: [Option<std::time::Duration>; 3],
     running: bool,
 ) -> Option<String> {
     if !connections.iter().any(|c| c.network > 0) {
@@ -268,11 +276,20 @@ pub(super) fn networks_words(
     }
     let total = done.iter().sum::<u64>().max(1) as f64;
     let part = |path: usize, name: &str| {
-        format!(
+        let mut said = format!(
             "{name}: {} · {}%",
             format::rate(speed[path]),
             (done[path] as f64 * 100.0 / total).round() as u32
-        )
+        );
+        // How long it takes to answer, where a request has gone over it (gaps row K4).
+        if let Some(took) = answers[path] {
+            let ms = took.as_millis().max(1).to_string();
+            said.push_str(&format!(
+                " · {}",
+                dm_desktop_base::i18n::tf("answers in {} ms", &[&ms])
+            ));
+        }
+        said
     };
     let mut parts = vec![part(0, t("This computer's connection"))];
     for (path, name) in [(1, named[0]), (2, named[1])] {
@@ -649,9 +666,13 @@ mod network_tests {
             &both,
             &[2_000_000.0, 1_000_000.0],
             ["iPhone USB", "Ethernet"],
+            [Some(std::time::Duration::from_millis(40)), None, None],
             true,
         )
         .unwrap();
+        // How long the first takes to answer, where it is known (gaps row K4).
+        assert!(said.contains("answers in 40 ms"), "{said}");
+        assert_eq!(said.matches("answers in").count(), 1, "{said}");
         assert!(
             said.contains("This computer's connection") && said.contains("60%"),
             "{said}"
@@ -661,12 +682,24 @@ mod network_tests {
             "{said}"
         );
         assert!(!said.contains("brings nothing"), "{said}");
-        let idle =
-            networks_words(&both, &[2_000_000.0, 0.0], ["iPhone USB", "Ethernet"], true).unwrap();
+        let idle = networks_words(
+            &both,
+            &[2_000_000.0, 0.0],
+            ["iPhone USB", "Ethernet"],
+            [None; 3],
+            true,
+        )
+        .unwrap();
         assert!(idle.contains("brings nothing"), "{idle}");
         let first_only = [connection(600, 0)];
         assert_eq!(
-            networks_words(&first_only, &[1.0], ["iPhone USB", "Ethernet"], true),
+            networks_words(
+                &first_only,
+                &[1.0],
+                ["iPhone USB", "Ethernet"],
+                [None; 3],
+                true
+            ),
             None
         );
         // A third network beside the second, each by its own name and share (gaps row K3).
@@ -675,6 +708,7 @@ mod network_tests {
             &three,
             &[1.0e6, 1.0e6, 1.0e6],
             ["iPhone USB", "Ethernet"],
+            [None; 3],
             true,
         )
         .unwrap();

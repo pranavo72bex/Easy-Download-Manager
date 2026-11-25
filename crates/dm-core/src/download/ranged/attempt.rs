@@ -506,6 +506,10 @@ async fn send_range(
         .await?,
     )
     .await;
+    // How long the network this connection goes over took to answer (gaps row K4).
+    if answered.is_ok() {
+        crate::second_path::answered_in(crate::second_path::task_network(), sent.elapsed());
+    }
     // Turned away: the download's next request may wait for the server's pace.
     if let Err(Error::Refused {
         status: 429 | 503,

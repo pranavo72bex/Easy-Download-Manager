@@ -1086,5 +1086,6 @@
  "Delete files": "Supprimer les fichiers",
  "Sites that need a sign-in": "Sites qui demandent une connexion",
  "Second network's name": "Nom du second réseau",
- "Third network's name": "Nom du troisième réseau"
+ "Third network's name": "Nom du troisième réseau",
+ "answers in {} ms": "répond en {} ms"
 }
