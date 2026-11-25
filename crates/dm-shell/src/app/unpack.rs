@@ -52,14 +52,13 @@ impl Outcome {
 
 /// Whether the finished `row` is unpacked when done: an archive dm unpacks (a ZIP, a 7z, a
 /// tar plain or gzipped, a RAR) whose own box is ticked, or whose kind `settings` names.
+/// A part of an archive in parts stands for the whole archive (`film.part2.rar` for `film.rar`).
 pub fn wanted(row: &Entry, settings: &Settings) -> bool {
     if row.state != State::Completed || row.path.is_empty() {
         return false;
     }
-    let name = Path::new(&row.path)
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let name = file_name(row);
+    let name = volumes::part_of(&name).map_or(name, |(set, _)| set);
     if !dm_core::extract::is_archive(&name) {
         return false;
     }
@@ -77,23 +76,110 @@ pub fn when_done(backend: &Backend, settings: &Settings, rows: &[Arc<Entry>], fi
         return;
     }
     let trash = settings.folders.unpack_trash;
+    // The sets in parts already started in this read, by folder and archive.
+    let mut sets: Vec<(PathBuf, String)> = Vec::new();
     for row in rows
         .iter()
         .filter(|r| finished.contains(&r.id) && wanted(r, settings))
     {
-        if let Err(e) = start(backend, row, trash) {
+        let (row, parts) = match volumes::part_of(&file_name(row)) {
+            None => (row.as_ref(), vec![PathBuf::from(&row.path)]),
+            // A part: once every part of its set is a finished row in its folder, the set is
+            // unpacked once, from its first part, and its parts go to the Trash together (gaps
+            // row C3d). Each was unpacked on its own, and each but the first refused.
+            Some((set, _)) => {
+                let folder = folder_of(row);
+                if sets.contains(&(folder.clone(), set.to_ascii_lowercase())) {
+                    continue;
+                }
+                // A part's name cannot say it is the last: the set waits while any row of the
+                // list that is one of its parts is unfinished.
+                if pending_part(rows, &set) {
+                    continue;
+                }
+                let parts = parts_of(rows, &folder, &set);
+                let names: Vec<String> = parts.iter().map(|r| file_name(r)).collect();
+                let names: Vec<&str> = names.iter().map(String::as_str).collect();
+                if !volumes::all_present(&set, &names) {
+                    continue;
+                }
+                let Some(first) = parts.iter().find(|r| {
+                    volumes::part_of(&file_name(r)).is_some_and(|(_, number)| number == 1)
+                }) else {
+                    continue;
+                };
+                sets.push((folder, set.to_ascii_lowercase()));
+                let paths = parts.iter().map(|r| PathBuf::from(&r.path)).collect();
+                (*first, paths)
+            }
+        };
+        if let Err(e) = start(backend, row, &parts, trash) {
             dm_core::note!(warn, "dm: an archive could not be unpacked when done: {e}");
             backend.set_said(row.id, Outcome::Refused.note());
         }
     }
 }
 
+/// A row's file's name.
+fn file_name(row: &Entry) -> String {
+    Path::new(&row.path)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// The folder a row's file is in.
+fn folder_of(row: &Entry) -> PathBuf {
+    Path::new(&row.path)
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default()
+}
+
+/// Whether a row of the list that is a part of `set` is not finished yet: its name its file's,
+/// or before it has one the name it is to be saved under, else its address's last part (a row
+/// not started yet has no name of its own).
+fn pending_part(rows: &[Arc<Entry>], set: &str) -> bool {
+    rows.iter().any(|r| {
+        let name = if !r.path.is_empty() {
+            file_name(r)
+        } else if !r.filename.is_empty() {
+            r.filename.clone()
+        } else if let Some(name) = r.save_name.clone().filter(|n| !n.is_empty()) {
+            name
+        } else {
+            let address = r.url.split(['?', '#']).next().unwrap_or("");
+            address.rsplit('/').next().unwrap_or("").to_string()
+        };
+        r.state != State::Completed
+            && volumes::part_of(&name).is_some_and(|(of, _)| of.eq_ignore_ascii_case(set))
+    })
+}
+
+/// The finished rows in `folder` that are parts of `set`.
+fn parts_of<'a>(rows: &'a [Arc<Entry>], folder: &Path, set: &str) -> Vec<&'a Entry> {
+    rows.iter()
+        .map(Arc::as_ref)
+        .filter(|r| r.state == State::Completed && !r.path.is_empty() && folder_of(r) == folder)
+        .filter(|r| {
+            volumes::part_of(&file_name(r)).is_some_and(|(of, _)| of.eq_ignore_ascii_case(set))
+        })
+        .collect()
+}
+
 /// Unpacks the finished `row`'s archive off this thread, then keeps it or, where `trash`,
-/// sends it to the Trash (`Platform::trash`, as "Delete file after" does), and says on the row
-/// what became of it. Err where the thread could not be started.
-fn start(backend: &Backend, row: &Entry, trash: bool) -> Result<(), crate::Error> {
+/// sends it (`parts`: its file, or every part of an archive in parts) to the Trash
+/// (`Platform::trash`, as "Delete file after" does), and says on the row what became of it.
+/// Err where the thread could not be started.
+fn start(
+    backend: &Backend,
+    row: &Entry,
+    parts: &[PathBuf],
+    trash: bool,
+) -> Result<(), crate::Error> {
     let archive = PathBuf::from(&row.path);
     let kept = archive.clone();
+    let parts = parts.to_vec();
     let (id, backend) = (row.id, backend.clone());
     // The passwords a person keeps for archives, tried in turn on one that has a password, the
     // one that opens it moved to the top (gaps row C2).
@@ -109,7 +195,13 @@ fn start(backend: &Backend, row: &Entry, trash: bool) -> Result<(), crate::Error
                 dm_core::extract::passwords::used(&home, &password);
             }
             let platform = Arc::clone(&backend.platform);
-            let send = |path: &Path| platform.trash(&path.to_string_lossy());
+            // Every part, the first's failure said (the archive's own path is among them).
+            let send = |_: &Path| {
+                parts
+                    .iter()
+                    .map(|part| platform.trash(&part.to_string_lossy()))
+                    .fold(Ok(()), Result::and)
+            };
             let outcome = settle(answer, &kept, trash, &send);
             backend.set_said(id, outcome.note());
         },
@@ -145,6 +237,9 @@ pub fn settle(
         }
     }
 }
+
+/// Archives in parts, known by their names (gaps row C3a).
+pub(crate) mod volumes;
 
 #[cfg(test)]
 mod tests;

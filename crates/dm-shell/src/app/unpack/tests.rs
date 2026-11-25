@@ -293,3 +293,78 @@ fn an_archive_with_an_entry_leaving_its_folder_is_not_unpacked_and_is_kept() {
     assert!(!beside.join("evil.txt").exists());
     assert!(!beside.parent().unwrap().join("evil.txt").exists());
 }
+
+/// An archive in parts is unpacked once its last part arrives, once, from its first part: the
+/// first part finished while the second waits in the list is left as it is, and when the
+/// second finishes the set is tried from the first (here refused: no reader takes these
+/// bytes), the second's row saying nothing of its own (gaps row C3d). Each part was unpacked on
+/// its own, and each but the first refused.
+#[test]
+fn a_set_in_parts_is_unpacked_once_when_its_last_part_arrives() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut settings = Settings::default();
+    settings.folders.unpack_kinds = vec![dm_core::Category::Archives];
+    let backend = testing::backend_with(&runtime, dir.path(), settings.clone());
+    let addr = served(
+        &runtime,
+        vec![
+            ("pack.part1.rar", b"not a rar, part one".to_vec()),
+            ("pack.part2.rar", b"not a rar, part two".to_vec()),
+        ],
+    );
+    let mut session = Session::default();
+    session.read(&backend, &settings);
+    // The second part in the list first, not started, as a set added together waits its turn.
+    let later = dm_core::AddOptions {
+        later: true,
+        ..Default::default()
+    };
+    let second = backend
+        .add_with(&format!("http://{addr}/pack.part2.rar"), later)
+        .unwrap();
+    let wait_for = |session: &mut Session, id: dm_core::Id| {
+        let began = Instant::now();
+        while !session
+            .read(&backend, &settings)
+            .detected
+            .finished
+            .contains(&id)
+        {
+            assert!(
+                began.elapsed() < Duration::from_secs(60),
+                "never finished: {:?}",
+                backend.row(id)
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    let url = format!("http://{addr}/pack.part1.rar");
+    let first = backend
+        .add_with(&url, dm_core::AddOptions::default())
+        .unwrap();
+    wait_for(&mut session, first);
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        backend.row(first).unwrap().said,
+        "",
+        "the first part was unpacked before the set was whole"
+    );
+    backend.resume(second);
+    wait_for(&mut session, second);
+    let began = Instant::now();
+    while backend.row(first).unwrap().said.is_empty() {
+        assert!(
+            began.elapsed() < Duration::from_secs(60),
+            "the set was never unpacked"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(backend.row(first).unwrap().said, Outcome::Refused.note());
+    assert_eq!(
+        backend.row(second).unwrap().said,
+        "",
+        "the second part was unpacked on its own"
+    );
+}
