@@ -36,7 +36,7 @@ pub(super) fn folders(
         |o| o.draft.folders.parts_dir.clone(),
         |o, folder| o.draft.folders.parts_dir = folder,
     );
-    p.note(t("A download already begun keeps the folder it began in."));
+    p.hint(t("A download already begun keeps the folder it began in."));
     let on = o.draft.folders.categorize;
     check(
         p,
@@ -49,7 +49,7 @@ pub(super) fn folders(
     );
     // Why what follows is greyed.
     if !on {
-        p.note(t(
+        p.hint(t(
             "Turn on sorting to set the kinds' folders and your own categories.",
         ));
     }
@@ -87,7 +87,7 @@ pub(super) fn folders(
                 div().flex_1().min_w_0().child(screen.label(name))
             } else {
                 div()
-                    .w(px(90.0))
+                    .w(px(crate::widgets::native::NUMBER_FIELD))
                     .flex()
                     .justify_end()
                     .child(screen.label(name))
@@ -138,7 +138,7 @@ fn unpacking(o: &Options, p: &mut Page, cx: &mut Context<Options>) {
         ));
         p.add(check);
     }
-    p.words(t("Once it is unpacked:"));
+    p.section(t("Once it is unpacked"));
     for (trash, words) in [
         (false, t("Keep the archive")),
         (true, t("Send the archive to the Trash")),

@@ -140,6 +140,31 @@ impl Options {
                     s.second_limit_kb = n;
                 }
             }
+            ["second_limit_mb"] => {
+                if let Some(n) = n(0, 1024 * 1024 * 1024) {
+                    s.second_limit_mb = n;
+                }
+            }
+            ["second_limit_hours"] => {
+                if let Some(n) = n(0, 24 * 366) {
+                    s.second_limit_hours = n;
+                }
+            }
+            ["third_limit_mb"] => {
+                if let Some(n) = n(0, 1024 * 1024 * 1024) {
+                    s.third_limit_mb = n;
+                }
+            }
+            ["third_limit_hours"] => {
+                if let Some(n) = n(0, 24 * 366) {
+                    s.third_limit_hours = n;
+                }
+            }
+            ["third_limit_kb"] => {
+                if let Some(n) = n(0, 10_000_000) {
+                    s.third_limit_kb = n;
+                }
+            }
             ["read_timeout"] => {
                 if let Some(n) = n(5, 600) {
                     s.advanced.read_timeout = n;

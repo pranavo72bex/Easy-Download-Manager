@@ -150,6 +150,21 @@ impl Settings {
         }
     }
 
+    /// The second network's and the third's own allowances, in the engine's units, as
+    /// [`Settings::allowance`] says all downloads' (gaps row K5d).
+    pub fn network_allowances(&self) -> Vec<dm_core::quota::Allowance> {
+        [
+            (self.second_limit_mb, self.second_limit_hours),
+            (self.third_limit_mb, self.third_limit_hours),
+        ]
+        .into_iter()
+        .map(|(mb, hours)| dm_core::quota::Allowance {
+            bytes: mb.saturating_mul(dm_core::KB * dm_core::KB),
+            period: std::time::Duration::from_secs(hours.max(1) * 3600),
+        })
+        .collect()
+    }
+
     /// The speed ceiling in bytes a second, which is what the engine counts.
     pub fn speed_limit_bytes(&self) -> u64 {
         self.advanced.speed_limit.saturating_mul(dm_core::KB)

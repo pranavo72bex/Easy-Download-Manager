@@ -125,7 +125,9 @@ impl Render for Limiter {
         let labels = labels();
         let width = native::label_width(&labels);
         let number_field = |input: &Entity<InputState>, name: &'static str| {
-            div().w(px(110.0)).child(native::field(input, name, theme))
+            div()
+                .w(px(crate::widgets::native::NUMBER_FIELD))
+                .child(native::field(input, name, theme))
         };
         let root = crate::widgets::native::dialog("limiter", t("Speed limiter"), theme, cx)
             .on_action(

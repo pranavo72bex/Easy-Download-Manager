@@ -455,11 +455,15 @@ impl Progress {
                         )
                         .on_click(cx.listener(move |this, _, _, cx| this.limit(!own_on, cx))),
                     )
-                    .child(div().w(px(90.0)).child(native::field(
-                        &self.own_limit,
-                        "Limit this download to",
-                        theme,
-                    )))
+                    .child(
+                        div()
+                            .w(px(crate::widgets::native::NUMBER_FIELD))
+                            .child(native::field(
+                                &self.own_limit,
+                                "Limit this download to",
+                                theme,
+                            )),
+                    )
                     .child(screen.label(t("KB/s"))),
             )
         })

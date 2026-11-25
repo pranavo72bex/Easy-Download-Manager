@@ -82,7 +82,7 @@ fn network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
             },
         );
         p.setting(t(words), true, field);
-        p.note(t(hint));
+        p.hint(t(hint));
     }
 }
 
@@ -129,7 +129,7 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
             &screen,
         ),
     );
-    p.note(t("Use a second connection too, such as your phone over USB or its hotspot. Half of each download's connections go over it. Not used while a proxy is on."));
+    p.hint(t("Use a second connection too, such as your phone over USB or its hotspot. Half of each download's connections go over it. Not used while a proxy is on."));
     // A third beside it, once a second is chosen (gaps row K3).
     if !second.is_empty() {
         let third = o.draft.third_path.clone();
@@ -158,6 +158,7 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
                 &screen,
             ),
         );
+        network_allowance::third_limits(o, p, window, cx);
         p.note(t(
             "Each download's connections are shared among all the networks chosen.",
         ));
@@ -176,7 +177,15 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
         |o| o.draft.second_limit_kb.to_string(),
     );
     p.setting(t(words), true, field);
-    p.note(t("Holds the second network, such as a phone's data, to this speed, whatever the other connection does."));
+    p.hint(t("Holds the second network, such as a phone's data, to this speed, whatever the other connection does."));
+    network_allowance::allowance(
+        o,
+        p,
+        window,
+        cx,
+        ["second_limit_mb", "second_limit_hours"],
+        true,
+    );
     // How to have a phone there, step by step, shown on a click.
     let phone = o.phone;
     p.add(
@@ -242,14 +251,14 @@ fn only_through(o: &mut Options, p: &mut Page) {
         true,
         popup::button("only-through", shown.into(), words, at, theme, &screen),
     );
-    p.note(t("Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used."));
+    p.hint(t("Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. Live streams do not start while one is chosen (on Windows, torrents too), and the second network is not used."));
 }
 
 /// Sites with their own connection limit, and the button adding one.
 fn site_limits(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
     let screen = p.screen.clone();
     // Sites with their own connection limit (B57).
-    p.words(t("Sites with their own connection limit:"));
+    p.section(t("Sites with their own connection limit"));
     for i in 0..o.draft.advanced.host_limits.len() {
         let host = input(
             o,
@@ -311,7 +320,7 @@ fn site_limits(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
 fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Options>) {
     let screen = p.screen.clone();
     // Sites with their own folder, speed, User-Agent and request headers (gaps row F1).
-    p.words(t("Sites with their own folder, speed and headers:"));
+    p.section(t("Sites with their own folder, speed and headers"));
     for i in 0..o.draft.advanced.site_rules.len() {
         let host = input(
             o,
@@ -526,7 +535,7 @@ fn bittorrent(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
         true,
         blocklist,
     );
-    p.note(t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list can't be read."));
+    p.hint(t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list can't be read."));
     // Off unless turned on: sharing sends from the person's connection.
     let share = o.draft.torrent_share;
     check(

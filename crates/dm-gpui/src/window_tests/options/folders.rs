@@ -69,7 +69,7 @@ fn a_queues_own_file_limit_and_the_parts_folder_are_set_in_options() {
     h.reveal("Add a queue limit");
     h.click("Add a queue limit");
     // The queue's own "Files at once", under the one for every download.
-    h.fill_after("Queues with their own limit:", "Files at once", "2");
+    h.fill_after("Queues with their own limit", "Files at once", "2");
     tab(&mut h, "Folders");
     let staged = world.dir.path().join("staging");
     h.fill(
@@ -222,7 +222,7 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     h.fill("Folder", &folder.display().to_string());
     // The rule's own speed, under the page's of the same name.
     h.fill_after(
-        "Sites with their own folder, speed and headers:",
+        "Sites with their own folder, speed and headers",
         "Speed limit, KB/s (0 for none)",
         "4096",
     );

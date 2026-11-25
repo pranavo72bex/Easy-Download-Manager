@@ -40,6 +40,16 @@ BitTorrent. See [Options](options.md) for how the window works.
 - "Second network's speed limit, KB/s (0 for none)": "Holds the second
   network, such as a phone's data, to this speed, whatever the other
   connection does." Its connections share it, beside the speed limit above.
+  Under it, "Download at most this many MB (0 for no limit)" "in each period
+  of this many hours" is the second network's own allowance, apart from the
+  one all downloads share: once it is used, the other networks carry the
+  downloads until the period ends.
+- "Third network's speed limit, KB/s (0 for none)": the third network's own,
+  as the second's, with its own allowance under it; shown once a third is
+  chosen.
+- A network that stops answering mid-download (unplugged, or out of range)
+  is left for a minute; its connections go on over the computer's usual
+  connection.
 - **How to use your phone** shows the steps:
   - "1. Connect your phone to this computer with its USB cable. If it asks
     whether to trust this computer, say yes."

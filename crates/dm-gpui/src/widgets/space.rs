@@ -27,8 +27,6 @@ pub const L: f32 = 12.0;
 pub const XL: f32 = 16.0;
 /// Twenty points.
 pub const XXL: f32 = 20.0;
-/// Twenty-four points.
-pub const XXXL: f32 = 24.0;
 
 /// Forty points: room above an empty list's words, a section set apart.
 pub const SECTION: f32 = 40.0;

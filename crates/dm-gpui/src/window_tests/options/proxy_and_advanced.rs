@@ -241,3 +241,49 @@ fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
     assert_eq!(saved["dialup"]["connection"], "Office VPN");
     assert_eq!(saved["dialup"]["attempts"], 3);
 }
+
+/// With a second network chosen, the third's own speed limit is set in Options › Advanced ›
+/// Network, kept in KB/s and put in force in bytes a second (gaps row K5b).
+#[test]
+fn the_third_networks_limit_is_kept_from_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    open_options(&mut h);
+    tab(&mut h, "Advanced");
+    // A second network chosen, as its pop-up chooses one: the third's lines show under it.
+    h.dialog::<crate::options::Options, _>(|o, _, cx| {
+        o.draft.second_path = "dm-test-network0".into();
+        cx.notify();
+    });
+    h.fill("Third network's speed limit, KB/s (0 for none)", "300");
+    ok(&mut h);
+    assert_eq!(kept(&mut h).third_limit_kb, 300);
+}
+
+/// The second network's own allowance is set under its speed limit, in the speed limiter's
+/// words, kept, and put in force in the engine's units (gaps rows K5d, K5e).
+#[test]
+fn the_second_networks_allowance_is_kept_from_options() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    open_options(&mut h);
+    tab(&mut h, "Advanced");
+    h.fill_after(
+        "Second network's speed limit, KB/s (0 for none)",
+        "Download at most this many MB (0 for no limit)",
+        "500",
+    );
+    h.fill_after(
+        "Second network's speed limit, KB/s (0 for none)",
+        "in each period of this many hours",
+        "6",
+    );
+    ok(&mut h);
+    let kept = kept(&mut h);
+    assert_eq!((kept.second_limit_mb, kept.second_limit_hours), (500, 6));
+    let second = kept.network_allowances()[0];
+    assert_eq!(second.bytes, 500 * dm_core::KB * dm_core::KB);
+    assert_eq!(second.period, std::time::Duration::from_secs(6 * 3600));
+}

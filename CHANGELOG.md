@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options: a setting's explanation sits just under it; number boxes are one width in every dialog; a wide field (a list of sites, a folder, file types) has its name above it and reaches the window's edge; Check now is a button of its own size.
+- A network that stops answering mid-download (a phone unplugged, Wi-Fi out of range) no longer stalls its connections: they go on over the computer's usual connection, and that network is tried again after a minute.
+- The third network has its own speed limit, and the second and third each have their own download allowance ("at most this many MB in each period of this many hours"), so a phone's data plan is never overspent; once it is used, the other networks carry the downloads.
+- Section headings look the same in every dialog and in Options, and read as headings without a trailing colon ("Queues with their own limit").
 - The Grabber's "Save this search as" and "Run every" are rows of the form under one another, and the Links dialog's type filter and the row being edited wrap: at Windows' sizes and in German they ran past the window's edge.
 - On a phone, every button, field, pop-up, check box, radio button, the Scheduler's queues, the speed presets and the video quality choices are at least 48 points tall, easier to hit with a finger.
 - On a phone, a menu sheet that opens takes the keyboard to its first line, and its lines, Close and Back each show a ring; a screen reader hears which lines are greyed and which are ticked.

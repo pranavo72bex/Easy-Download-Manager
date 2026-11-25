@@ -227,3 +227,74 @@ async fn a_streams_pieces_alternate_onto_the_second_path() {
         "both paths were not used: {seen:?}"
     );
 }
+
+/// A second network that fails mid-download, as one unplugged does: its connections go on over
+/// the system's route, the file is whole, and that network is passed over for a while (gaps
+/// row K3b).
+#[tokio::test]
+async fn a_download_goes_on_over_the_system_route_when_the_second_network_goes() {
+    let _one = ONE.lock().await;
+    let body: Vec<u8> = (0..2 * 1024 * 1024u32).map(|i| (i % 241) as u8).collect();
+    let data = Arc::new(body.clone());
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |headers: HeaderMap| {
+            let data = data.clone();
+            async move {
+                let size = data.len();
+                let (a, b) = headers
+                    .get("range")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("bytes="))
+                    .and_then(|v| v.split_once('-'))
+                    .map(|(a, b)| {
+                        (
+                            a.parse::<usize>().unwrap(),
+                            b.parse::<usize>().unwrap_or(size - 1).min(size - 1),
+                        )
+                    })
+                    .unwrap_or((0, size - 1));
+                Response::builder()
+                    .status(206)
+                    .header("content-range", format!("bytes {a}-{b}/{size}"))
+                    .header("content-length", b - a + 1)
+                    .header("etag", "\"one\"")
+                    .body(Body::from(data[a..=b].to_vec()))
+                    .unwrap()
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    // The second network gone: every connection over it is refused at once.
+    let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let dead = closed.local_addr().unwrap().port();
+    drop(closed);
+    dm_core::set_second_client(Some(
+        dm_core::builder()
+            .proxy(reqwest::Proxy::all(format!("http://127.0.0.1:{dead}")).unwrap())
+            .build()
+            .unwrap(),
+    ));
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 4,
+        ..options(dir.path())
+    };
+    let done = dm_core::download(
+        &dm_core::client(),
+        &format!("http://127.0.0.1:{port}/f.bin"),
+        &opts,
+    )
+    .await;
+    let off = dm_core::is_off(1);
+    dm_core::set_second_client(None);
+    let done = done.unwrap();
+    assert_eq!(
+        std::fs::read(&done.path).unwrap(),
+        body,
+        "the file is not whole"
+    );
+    assert!(off, "the network that failed was not passed over");
+}

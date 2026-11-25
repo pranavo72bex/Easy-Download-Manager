@@ -16,6 +16,9 @@ use super::*;
 pub(super) struct Connection {
     /// Its client: the second network path's, where it goes out on that.
     pub(super) client: reqwest::Client,
+    /// The system's route's client: what it goes on over where its own network fails (gaps
+    /// row K3b).
+    pub(super) first: reqwest::Client,
     pub(super) job: Arc<Job>,
     /// The probe's answer, for whichever connection takes range 0.
     pub(super) probe: Arc<std::sync::Mutex<Option<First>>>,
@@ -289,6 +292,18 @@ impl Connection {
     ) -> Result<ControlFlow<Flow>, Error> {
         match fetched {
             Ok(()) => Ok(ControlFlow::Continue(())),
+            /* Its network failed, as one unplugged mid-download does: that network is passed
+             * over for a while, and this connection goes on over the system's route with the
+             * same range, rather than asking again over the network that is gone (gaps row
+             * K3b). */
+            Err(e) if crate::retry::transient(&e) && self.network != 0 => {
+                crate::second_path::set_off(self.network, true);
+                give_back(&self.job, &self.orphans, index);
+                self.client = self.first.clone();
+                self.network = 0;
+                crate::second_path::set_task_network(0);
+                Ok(ControlFlow::Break(Flow::Again))
+            }
             /* The server would not take this connection (a 429 or
              * 503 at once, a refused connect after its retries)
              * while others are working: this one steps aside and

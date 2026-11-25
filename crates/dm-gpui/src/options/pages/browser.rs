@@ -32,14 +32,15 @@ fn extensions(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
     // The extension, for someone who said not now to the bar over the list,
     // or has a second browser: each browser with whether its extension has
     // talked to dm, and Add where it has not.
-    p.words(t("Add dm to your browser:"));
+    p.section(t("Add dm to your browser"));
     // Read again on asking, as an extension added or removed meanwhile changes it.
-    p.add(
+    // Its own size, not a bar the page's width (gaps row E31).
+    p.add(div().flex().child(
         button(p, "check-browsers", t("Check now")).on_click(cx.listener(|o, _, _, cx| {
             o.heard = dm_shell::host::browsers_heard(&dm_shell::settings::home());
             cx.notify();
         })),
-    );
+    ));
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
@@ -74,14 +75,8 @@ fn extensions(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
                 .on_click(cx.listener(move |o, _, _, cx| o.open_page(page, cx)))
                 .into_any_element()
         };
-        p.add(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(space::XXXL))
-                .child(div().w(px(160.0)).child(screen.label(name)))
-                .child(state),
-        );
+        // A setting's row: the browser at the leading edge, what it says at the trailing one.
+        p.setting(name, true, state);
     }
 }
 
@@ -139,17 +134,9 @@ fn catching(
         "Off: the browser keeps every download it starts. Its right-click menu still sends links to dm.",
     ));
     let on = c.enabled;
-    let types = input(
-        o,
-        window,
-        cx,
-        "types",
-        "File types",
-        480.0,
-        on,
-        false,
-        |o| o.typed.types.clone(),
-    );
+    let types = input(o, window, cx, "types", "File types", WIDE, on, false, |o| {
+        o.typed.types.clone()
+    });
     p.labelled(t("File types"), on, types);
     p.add(native::enabled(
         on,
@@ -207,7 +194,7 @@ fn catching(
         cx,
         "skip",
         "Never take downloads from these sites",
-        480.0,
+        WIDE,
         on,
         false,
         |o| o.typed.skip.clone(),
@@ -229,7 +216,7 @@ fn catching(
         cx,
         "once",
         "Sites whose links work only once",
-        480.0,
+        WIDE,
         on,
         false,
         |o| o.typed.once.clone(),

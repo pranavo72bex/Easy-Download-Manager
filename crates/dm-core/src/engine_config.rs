@@ -35,9 +35,16 @@ pub struct EngineConfig {
     pub second_path: Option<String>,
     /// A third network beside the second, by its interface's name (gaps row K3).
     pub third_path: Option<String>,
+    /// More networks beyond the third, by name, in order (gaps row K3c).
+    pub more_paths: Vec<String>,
     /// The second network's own speed limit, in bytes a second, shared by its connections; 0
     /// for none (gaps row K5).
     pub second_limit: u64,
+    /// The third network's own speed limit, as `second_limit` is the second's (gaps row K5b).
+    pub third_limit: u64,
+    /// Each network's own allowance, the second's first, then the third's (gaps row K5d); one
+    /// of no bytes, or none given, is none.
+    pub network_allowances: Vec<crate::quota::Allowance>,
     /// The folder YouTube's cut players are kept in between sessions (gaps row Y13); `None` keeps
     /// them in memory only.
     pub kept_players: Option<PathBuf>,
@@ -57,7 +64,10 @@ impl std::fmt::Debug for EngineConfig {
             .field("kept_players", &self.kept_players)
             .field("only_through", &self.only_through)
             .field("second_limit", &self.second_limit)
+            .field("third_limit", &self.third_limit)
+            .field("network_allowances", &self.network_allowances)
             .field("third_path", &self.third_path)
+            .field("more_paths", &self.more_paths)
             .finish()
     }
 }
@@ -76,9 +86,21 @@ pub fn configure(config: &EngineConfig) -> Result<(), String> {
     crate::only_through::set_only_through(Some(only));
     let second = config.second_path.as_deref().filter(|_| only.is_empty());
     crate::second_path::set_second_limit(config.second_limit);
-    let third = config.third_path.as_deref().filter(|_| only.is_empty());
-    // The third's failure is said after the second's own: the second is in force either way.
-    let set_third = crate::second_path::set_third_path(third);
+    crate::second_path::set_third_limit(config.third_limit);
+    for network in 1..=2u8 {
+        let given = config.network_allowances.get(usize::from(network) - 1);
+        crate::network_allowance::set_allowance(network, given.copied().unwrap_or_default());
+    }
+    // The third and any more, in order (gaps row K3c), none while held to one network.
+    let extra: Vec<String> = config
+        .third_path
+        .iter()
+        .chain(&config.more_paths)
+        .filter(|_| only.is_empty())
+        .cloned()
+        .collect();
+    // Their failure is said after the second's own: the second is in force either way.
+    let set_third = crate::second_path::set_extra_paths(&extra);
     crate::second_path::set_second_path(second).and(set_third)
 }
 

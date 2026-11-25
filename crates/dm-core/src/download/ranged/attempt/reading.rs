@@ -365,6 +365,12 @@ impl Reading<'_> {
                 if let Some(network) = crate::second_path::task_limit() {
                     network.take(chunk.len() as u64).await;
                 }
+                // And counted to that network's own allowance (gaps row K5c).
+                crate::network_allowance::count(
+                    crate::second_path::task_network(),
+                    chunk.len() as u64,
+                    std::time::SystemTime::now(),
+                );
                 Ok(())
             })
             .await

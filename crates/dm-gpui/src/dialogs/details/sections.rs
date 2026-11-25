@@ -346,17 +346,17 @@ impl Details {
                         d.child(
                             screen.label(t("part:from").trim_start_matches("part:").to_string()),
                         )
-                        .child(div().w(px(64.0)).child(native::field(
-                            &self.part_from,
-                            "part:from",
-                            theme,
-                        )))
+                        .child(
+                            div()
+                                .w(px(crate::widgets::native::NUMBER_FIELD))
+                                .child(native::field(&self.part_from, "part:from", theme)),
+                        )
                         .child(screen.label(t("part:to").trim_start_matches("part:").to_string()))
-                        .child(div().w(px(64.0)).child(native::field(
-                            &self.part_to,
-                            "part:to",
-                            theme,
-                        )))
+                        .child(
+                            div()
+                                .w(px(crate::widgets::native::NUMBER_FIELD))
+                                .child(native::field(&self.part_to, "part:to", theme)),
+                        )
                     })
                     .into_any_element(),
             )];

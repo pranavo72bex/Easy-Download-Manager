@@ -174,11 +174,8 @@ pub fn section<T: Saves>(
         .flex()
         .flex_col()
         .gap(px(native::ROW_GAP))
-        .child(
-            div()
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .child(screen.label(t("Save to"))),
-        )
+        // At its box's top: no gap above it.
+        .child(native::heading(t("Save to"), theme, screen).mt_0())
         .child(
             radio(
                 "by-category",

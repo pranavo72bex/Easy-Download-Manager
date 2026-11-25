@@ -44,7 +44,7 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
         |o| o.draft.downloads.connections.to_string(),
     );
     p.setting(t("Connections per file"), true, connections);
-    p.note(t("How many parts of a file dm fetches at once. More is faster on most sites, but some limit it."));
+    p.hint(t("How many parts of a file dm fetches at once. More is faster on most sites, but some limit it."));
     // The presets (B56): one sets the box; the one matching it is chosen.
     let now = o.draft.downloads.connections;
     let presets = options::CONNECTION_PRESETS.iter().map(|(words, count)| {
@@ -111,7 +111,7 @@ fn files_and_quality(
         |o| o.draft.downloads.concurrency.to_string(),
     );
     p.setting(t("Files at once"), true, files);
-    p.note(t("How many files download at the same time."));
+    p.hint(t("How many files download at the same time."));
     let qualities = dm_desktop_base::file_info::QUALITIES;
     let quality_at = qualities
         .iter()
@@ -163,7 +163,7 @@ fn sound_language(o: &Options, p: &mut Page) {
         true,
         popup::button("sound-language", words, choices, at, theme, &screen),
     );
-    p.note(t("Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own."));
+    p.hint(t("Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own."));
 }
 
 /// The switches: the Main queue at launch, subtitles and streams as MP4.
@@ -216,7 +216,7 @@ fn queue_limits(
 ) {
     let (theme, screen) = (p.theme, p.screen.clone());
     // Queues with their own limit, one limit a queue.
-    p.words(t("Queues with their own limit:"));
+    p.section(t("Queues with their own limit"));
     for i in 0..s.downloads.queue_limits.len() {
         let offered = limit_queues(&o.queues, s, i);
         let queue = s.downloads.queue_limits[i].queue.clone();
@@ -294,7 +294,7 @@ fn queue_limits(
 fn queue_starts(o: &mut Options, p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
     let (theme, screen) = (p.theme, p.screen.clone());
     // Queues that start on their own, each at its own time.
-    p.words(t("Queues that start at a set time:"));
+    p.section(t("Queues that start at a set time"));
     for i in 0..s.downloads.queue_starts.len() {
         let queue = s.downloads.queue_starts[i].queue.clone();
         let pick = popup::button_of(
@@ -443,7 +443,7 @@ fn forgetting(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
         true,
         days,
     );
-    p.note(t("A finished download leaves the list once it is that many days old. Its file stays where it was saved."));
+    p.hint(t("A finished download leaves the list once it is that many days old. Its file stays where it was saved."));
 }
 
 /// Every download waits on a metered connection or a low battery, as chosen here (gaps row W11):
@@ -472,7 +472,7 @@ fn metered_and_battery(
             &screen,
         ),
     );
-    p.note(t("Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not."));
+    p.hint(t("Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not."));
     let level = input(
         o,
         window,
@@ -485,7 +485,7 @@ fn metered_and_battery(
         |o| o.draft.downloads.battery_below.to_string(),
     );
     p.setting(t("On battery: wait below (%, 0 for never)"), true, level);
-    p.note(if crate::platform::ON_A_PHONE {
+    p.hint(if crate::platform::ON_A_PHONE {
         t("Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.")
     } else {
         t("Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.")

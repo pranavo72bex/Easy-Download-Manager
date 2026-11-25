@@ -346,14 +346,16 @@ pub(super) async fn run(
         let helper = ordinal >= workers.max(1);
         // Which of the connections `grow` lets in this one is.
         let grown_as = ordinal.checked_sub(grown_from);
+        let first = client.clone();
         let (network, client) = crate::second_path::network_for(client, ordinal);
         // Its reads take from the second network's own limit where it goes out over it (gaps
         // row K5).
         running.spawn(
             crate::second_path::ON_SECOND_TASK.scope(
-                network,
+                std::cell::Cell::new(network),
                 Connection {
                     client,
+                    first,
                     job: Arc::clone(job),
                     probe: Arc::clone(&probe),
                     next: Arc::clone(&next),

@@ -170,6 +170,9 @@ pub const CAPTION_TEXT: f32 = 12.0;
 pub const SUBTITLE_TEXT: f32 = 16.0;
 /// and a window's one title (About's name).
 pub const TITLE_TEXT: f32 = 20.0;
+/// A number's box: one width for every count, size and limit in the dialogs and Options (gaps
+/// row E31); they were 48 to 110 points, one at each call.
+pub const NUMBER_FIELD: f32 = 90.0;
 /// A regular control's height: a text field, a push button, a pop-up.
 pub const CONTROL: f32 = on_a_phone(space::TOUCH, pick(24.0, 32.0, 34.0));
 // A phone's control a finger's least (gaps row E26), held where the phone's build is made.
@@ -783,7 +786,7 @@ mod switch;
 pub use destroy::{destructive, undo_line};
 pub use keys::{return_is_default, ringed};
 pub use measure::{figures, label_width, measure_with, small_width, text_width};
-pub use note::{note, says};
+pub use note::{heading, note, says};
 pub use switch::{switch, switch_inline};
 mod phone;
 pub use path::path_field;

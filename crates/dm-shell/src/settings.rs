@@ -218,6 +218,23 @@ pub struct Settings {
     /// (gaps row K5): a phone's metered data held to a rate whatever the line beside it does.
     #[serde(default, skip_serializing_if = "none_set")]
     pub second_limit_kb: u64,
+    /// The third network's own speed limit in KB/s, as `second_limit_kb` is the second's; 0
+    /// for none (gaps row K5b).
+    #[serde(default, skip_serializing_if = "none_set")]
+    pub third_limit_kb: u64,
+    /// The second network's own allowance: at most this many MB every `second_limit_hours`
+    /// hours over it; 0 for none (gaps row K5d).
+    #[serde(default, skip_serializing_if = "none_set")]
+    pub second_limit_mb: u64,
+    /// The length of the second network's allowance period, in hours; 0 is one.
+    #[serde(default, skip_serializing_if = "none_set")]
+    pub second_limit_hours: u64,
+    /// The third network's own allowance, as the second's.
+    #[serde(default, skip_serializing_if = "none_set")]
+    pub third_limit_mb: u64,
+    /// The length of the third network's allowance period, in hours; 0 is one.
+    #[serde(default, skip_serializing_if = "none_set")]
+    pub third_limit_hours: u64,
     /// A sound file of the person's own for an event (`complete`, `failed`, `queue_started`,
     /// `queue_done`); an event with no entry, or an empty one, keeps the system's sound. Only `.wav`
     /// is promised. The switches above still decide whether the finish and failure sounds play.
@@ -501,6 +518,11 @@ impl Default for Settings {
             second_path: String::new(),
             third_path: String::new(),
             second_limit_kb: 0,
+            third_limit_kb: 0,
+            second_limit_mb: 0,
+            second_limit_hours: 0,
+            third_limit_mb: 0,
+            third_limit_hours: 0,
             sounds: Default::default(),
             site_searches: Vec::new(),
             follows: Vec::new(),

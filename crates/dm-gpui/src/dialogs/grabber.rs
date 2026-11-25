@@ -319,7 +319,7 @@ impl Render for Grabber {
         };
         let small = |input: &Entity<InputState>, name: &'static str| {
             div()
-                .w(px(90.0))
+                .w(px(crate::widgets::native::NUMBER_FIELD))
                 .child(native::field(input, name, theme))
                 .into_any_element()
         };

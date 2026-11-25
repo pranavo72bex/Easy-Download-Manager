@@ -156,11 +156,8 @@ impl StatisticsWindow {
     }
 
     /// A section's heading.
-    fn heading(&self, words: &'static str) -> gpui::Div {
-        div()
-            .mt(px(space::S))
-            .font_weight(gpui::FontWeight::SEMIBOLD)
-            .child(self.screen.label(t(words)))
+    fn heading(&self, words: &'static str, theme: Theme) -> gpui::Div {
+        native::heading(t(words), theme, &self.screen)
     }
 }
 
@@ -181,13 +178,13 @@ impl Render for StatisticsWindow {
                     &screen,
                 ))
             })
-            .child(self.heading("By day, the last 30 days"))
+            .child(self.heading("By day, the last 30 days", theme))
             .child(self.by_day(theme))
-            .child(self.heading("By site, the 10 largest"))
+            .child(self.heading("By site, the 10 largest", theme))
             .child(self.shares(&f.sites, theme))
-            .child(self.heading("By category"))
+            .child(self.heading("By category", theme))
             .child(self.shares(&f.categories, theme))
-            .child(self.heading("Speed"))
+            .child(self.heading("Speed", theme))
             .child(self.figure(
                 "Average speed",
                 f.average_speed.map(format::rate).unwrap_or_else(unmeasured),

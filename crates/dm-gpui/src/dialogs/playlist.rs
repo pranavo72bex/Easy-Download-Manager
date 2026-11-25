@@ -389,12 +389,16 @@ impl PlaylistWindow {
                     cx.notify();
                 })),
             )
-            .child(div().w(px(48.0)).child(native::field_if(
-                &self.every,
-                "Check again every",
-                follow,
-                theme,
-            )))
+            .child(
+                div()
+                    .w(px(crate::widgets::native::NUMBER_FIELD))
+                    .child(native::field_if(
+                        &self.every,
+                        "Check again every",
+                        follow,
+                        theme,
+                    )),
+            )
             .child(screen.label(t("hours, adding what is new to")))
             .child(popup::button(
                 "follow-queue",

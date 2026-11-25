@@ -173,9 +173,9 @@ impl Render for Series {
                             .flex()
                             .items_center()
                             .gap(px(native::LABEL_GAP))
-                            .child(div().w(px(70.0)).child(native::field(&self.from, "From", theme)))
+                            .child(div().w(px(crate::widgets::native::NUMBER_FIELD)).child(native::field(&self.from, "From", theme)))
                             .child(screen.label(t("To")))
-                            .child(div().w(px(70.0)).child(native::field(&self.to, "To", theme)))
+                            .child(div().w(px(crate::widgets::native::NUMBER_FIELD)).child(native::field(&self.to, "To", theme)))
                             .child(
                                 div()
                                     .id("digits-label")

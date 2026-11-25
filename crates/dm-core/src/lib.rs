@@ -130,6 +130,8 @@ pub(crate) use dm_net::proxy;
 
 mod queue;
 
+/// Each network's own allowance (gaps row K5c).
+pub mod network_allowance;
 pub mod quota;
 
 pub use dm_net::redirects;
@@ -163,11 +165,11 @@ pub use dm_media::subtitles;
 #[cfg(test)]
 pub(crate) use dm_test_support::secrets as test_secrets;
 
-pub use second_path::{interfaces, on_second, system_name, Interface};
+pub use second_path::{interfaces, is_off, on_second, system_name, Interface};
 
 // A test's own second network alone; the program's is put in force by `configure`.
 #[doc(hidden)]
-pub use second_path::{set_second_client, set_second_path, set_third_path};
+pub use second_path::{set_extra_paths, set_second_client, set_second_path, set_third_path};
 
 mod torrent;
 

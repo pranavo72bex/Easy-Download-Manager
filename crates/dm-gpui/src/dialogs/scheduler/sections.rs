@@ -29,11 +29,11 @@ impl Scheduler {
             .flex()
             .flex_col()
             .gap(px(space::XXS))
+            // The column's own heading: no gap above it at the column's top.
             .child(
-                div()
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .mb(px(space::XS))
-                    .child(screen.label(t("Queues"))),
+                native::heading(t("Queues"), theme, screen)
+                    .mt_0()
+                    .mb(px(space::XS)),
             )
             .children(self.queues.iter().enumerate().map(|(i, queue)| {
                 let chosen = *queue == self.draft.queue;
@@ -287,87 +287,88 @@ impl Scheduler {
         let field = |input: &Entity<InputState>, name: &'static str, w: f32| {
             div().w(px(w)).child(native::field(input, name, theme))
         };
-        d.child(screen.label(t("When the scheduled downloads are done")))
-            .child(
-                div().flex().flex_wrap().gap(px(space::L)).children(
-                    [
-                        (WhenDone::Nothing, Command::WhenDoneNothing),
-                        (WhenDone::Quit, Command::WhenDoneQuit),
-                        (WhenDone::Sleep, Command::WhenDoneSleep),
-                        (WhenDone::Hibernate, Command::WhenDoneHibernate),
-                        (WhenDone::ShutDown, Command::WhenDoneShutDown),
-                    ]
-                    .into_iter()
-                    // A phone cannot sleep, hibernate or turn off for dm: not shown there.
-                    .filter(|(w, _)| {
-                        !crate::platform::ON_A_PHONE
-                            || w.possible(dm_desktop_base::power::available)
-                    })
-                    .map(|(w, command)| {
-                        // As the Downloads menu greys them:
-                        // only what this computer can do.
-                        let can = w.possible(dm_desktop_base::power::available);
-                        enabled(
-                            can,
-                            native::radio(
-                                command.id(),
-                                t(command.label()).into(),
-                                when_done == w,
-                                theme,
-                                screen,
-                            )
-                            .on_click(cx.listener(
-                                move |this, _, _, cx| {
-                                    this.draft.schedule.when_done = w.word().to_string();
-                                    cx.notify();
-                                },
-                            )),
+        d.child(native::heading(
+            t("When the scheduled downloads are done"),
+            theme,
+            screen,
+        ))
+        .child(
+            div().flex().flex_wrap().gap(px(space::L)).children(
+                [
+                    (WhenDone::Nothing, Command::WhenDoneNothing),
+                    (WhenDone::Quit, Command::WhenDoneQuit),
+                    (WhenDone::Sleep, Command::WhenDoneSleep),
+                    (WhenDone::Hibernate, Command::WhenDoneHibernate),
+                    (WhenDone::ShutDown, Command::WhenDoneShutDown),
+                ]
+                .into_iter()
+                // A phone cannot sleep, hibernate or turn off for dm: not shown there.
+                .filter(|(w, _)| {
+                    !crate::platform::ON_A_PHONE || w.possible(dm_desktop_base::power::available)
+                })
+                .map(|(w, command)| {
+                    // As the Downloads menu greys them:
+                    // only what this computer can do.
+                    let can = w.possible(dm_desktop_base::power::available);
+                    enabled(
+                        can,
+                        native::radio(
+                            command.id(),
+                            t(command.label()).into(),
+                            when_done == w,
+                            theme,
+                            screen,
                         )
-                    }),
-                ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .items_center()
-                    .gap(px(native::LABEL_GAP))
-                    // Its words wrap within the window: as an item of their own width they ran
-                    // past its edge in Windows' wider type (gaps row E2).
-                    .child(div().flex_1().min_w_0().child(screen.label(t(
-                        "Try a failed download again this many times (0 for none)",
-                    ))))
-                    .child(field(
-                        &self.retries,
-                        "Try a failed download again this many times (0 for none)",
-                        50.0,
-                    )),
-            )
-            // A program run once when they are done, as
-            // Options' command is after each file: no shell. A phone runs no programs.
-            .when(!crate::platform::ON_A_PHONE, |d| {
-                d.child(screen.label(t("Run this program when they are done (optional)")))
-                    .child(native::field(
-                        &self.run,
-                        "Run this program when they are done (optional)",
-                        theme,
-                    ))
-            })
-            .when(cfg!(windows), |d| {
-                let hang = self.draft.schedule.hang_up;
-                d.child(
-                    native::switch_inline(
-                        "hang-up",
-                        t("Hang up modem when done").into(),
-                        hang,
-                        theme,
-                        screen,
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.draft.schedule.when_done = w.word().to_string();
+                            cx.notify();
+                        })),
                     )
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.draft.schedule.hang_up = !this.draft.schedule.hang_up;
-                        cx.notify();
-                    })),
+                }),
+            ),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_wrap()
+                .items_center()
+                .gap(px(native::LABEL_GAP))
+                // Its words wrap within the window: as an item of their own width they ran
+                // past its edge in Windows' wider type (gaps row E2).
+                .child(div().flex_1().min_w_0().child(screen.label(t(
+                    "Try a failed download again this many times (0 for none)",
+                ))))
+                .child(field(
+                    &self.retries,
+                    "Try a failed download again this many times (0 for none)",
+                    50.0,
+                )),
+        )
+        // A program run once when they are done, as
+        // Options' command is after each file: no shell. A phone runs no programs.
+        .when(!crate::platform::ON_A_PHONE, |d| {
+            d.child(screen.label(t("Run this program when they are done (optional)")))
+                .child(native::field(
+                    &self.run,
+                    "Run this program when they are done (optional)",
+                    theme,
+                ))
+        })
+        .when(cfg!(windows), |d| {
+            let hang = self.draft.schedule.hang_up;
+            d.child(
+                native::switch_inline(
+                    "hang-up",
+                    t("Hang up modem when done").into(),
+                    hang,
+                    theme,
+                    screen,
                 )
-            })
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.draft.schedule.hang_up = !this.draft.schedule.hang_up;
+                    cx.notify();
+                })),
+            )
+        })
     }
 }

@@ -205,11 +205,13 @@ impl Grabber {
                 Some(t("Run every (hours, 0 for manual)")),
                 width,
                 screen,
-                div().w(px(90.0)).child(native::field(
-                    &self.every,
-                    "Run every (hours, 0 for manual)",
-                    theme,
-                )),
+                div()
+                    .w(px(crate::widgets::native::NUMBER_FIELD))
+                    .child(native::field(
+                        &self.every,
+                        "Run every (hours, 0 for manual)",
+                        theme,
+                    )),
             ))
             .child(
                 div().flex().justify_end().child(

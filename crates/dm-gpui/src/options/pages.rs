@@ -29,12 +29,13 @@ mod dialup;
 mod downloads;
 mod folders;
 mod general;
+mod network_allowance;
 #[cfg(target_os = "android")]
 mod phone_rules;
 mod sign_ins;
 
 /// A field for a number.
-const NUMBER: f32 = 90.0;
+const NUMBER: f32 = native::NUMBER_FIELD;
 /// A field for a name or an address.
 const WIDE: f32 = 300.0;
 /// The scale slider's width, its stops' percentages under it, each in a
@@ -121,17 +122,7 @@ impl Page {
     fn section(&mut self, words: &str) {
         self.headings.push(words.to_string());
         self.says(words);
-        let heading = div()
-            .mt(px(space::M_L))
-            .font_weight(gpui::FontWeight::SEMIBOLD)
-            // A phone's settings head each group in the accent colour, set apart above.
-            .when(crate::platform::ON_A_PHONE, |heading| {
-                heading
-                    .mt(px(space::XL))
-                    .text_size(px(native::SMALL_TEXT + 1.0))
-                    .text_color(self.theme.accent_text)
-            })
-            .child(self.screen.label(words.to_string()));
+        let heading = native::heading(words.to_string(), self.theme, &self.screen);
         self.add(heading);
     }
 
@@ -169,12 +160,12 @@ impl Page {
             .flex_wrap()
             .items_center()
             .gap(px(native::LABEL_GAP))
-            // A phone's: the words above their control, every setting alike, as a phone's
-            // own settings are; beside it where it fitted and under it where not read as
-            // two layouts on one page.
-            .when(crate::platform::ON_A_PHONE, |row| {
-                row.flex_col().items_start().gap(px(space::S))
-            })
+            // The words above their wide control, on every page and every system: beside it
+            // where it fitted and under it where not read as two layouts on one page (gaps
+            // rows N7, E31).
+            .flex_col()
+            .items_stretch()
+            .gap(px(space::S))
             .child(self.screen.label(words.to_string()))
             .child(control);
         self.add(native::enabled(on, row));
@@ -249,10 +240,10 @@ fn input(
         .when(crate::platform::ON_A_PHONE, |d| {
             d.flex_shrink(1.0).min_w_0().max_w_full()
         })
-        // A phone's text field (a host, a name, a list of sites) the line's whole width; a
-        // number's box stays small, beside its words.
-        .when(crate::platform::ON_A_PHONE && width >= 200.0, |d| {
-            d.flex_1().w_full()
+        // A text field (a host, a name, a list of sites) to the line's trailing edge, under
+        // its words; a number's box stays small, beside its words (gaps row E31).
+        .when(width >= WIDE, |d| {
+            d.flex_1().w_full().flex_shrink(1.0).min_w_0()
         })
         .child(native::field_if(&field, name, on, theme))
         .when(not_a_number, |d| {
