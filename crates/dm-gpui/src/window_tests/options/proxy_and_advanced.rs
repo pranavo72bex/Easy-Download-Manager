@@ -219,6 +219,8 @@ fn advanced_has_the_dial_up_section_of_reference_a_on_windows() {
     // Its fields wait for the switch and a connection, as a person finds them: switched on, a
     // connection Windows knows chosen (as its pop-up gives it: this computer may know none),
     // filled in, and switched off again, which keeps what was typed.
+    // Low on a page grown by its labels above their fields (gaps row E31): brought up first.
+    h.reveal("Use Windows Dial Up / VPN Networking");
     h.click("Use Windows Dial Up / VPN Networking");
     h.dialog(|o: &mut Options, _, _| o.draft.advanced.dialup.connection = "Office VPN".into());
     h.fill("User name", "me");

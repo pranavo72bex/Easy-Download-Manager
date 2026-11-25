@@ -52,6 +52,9 @@ struct Picking {
     choices: Vec<SharedString>,
     chosen: Option<usize>,
     drag: crate::widgets::bottomsheet::Drag,
+    /// The keys' place on the chosen line (the first where none is), given as the sheet
+    /// opens (gaps row E25): they stayed on the pop-up behind it.
+    keys: Option<gpui::FocusHandle>,
 }
 
 thread_local! {
@@ -187,6 +190,7 @@ pub fn button_of(
                 return;
             }
             if crate::platform::ON_A_PHONE {
+                let keys = cx.focus_handle();
                 PICKING.with(|p| {
                     *p.borrow_mut() = Some(Picking {
                         field,
@@ -194,8 +198,10 @@ pub fn button_of(
                         choices: choices.clone(),
                         chosen,
                         drag: Default::default(),
+                        keys: Some(keys.clone()),
                     })
                 });
+                window.focus(&keys, cx);
                 window.refresh();
                 return;
             }
@@ -297,7 +303,11 @@ fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoEleme
             let field = open.field;
             let item = open.item;
             let ticked = open.chosen == Some(index);
+            let has_keys = index == open.chosen.unwrap_or(0);
             bottomsheet::line(("pick", index), theme)
+                .when_some(open.keys.clone().filter(|_| has_keys), |l, keys| {
+                    l.track_focus(&keys)
+                })
                 .role(Role::MenuItem)
                 .aria_label(words.clone())
                 // The tick told, as it is drawn (gaps row E25).
@@ -449,6 +459,7 @@ mod tests {
                 choices: vec!["Low".into(), "High".into()],
                 chosen: Some(0),
                 drag: Default::default(),
+                keys: None,
             })
         });
         assert!(close_picking(), "the sheet was open");
