@@ -291,18 +291,23 @@ before a Web Store upload (the store assigns its own id, which is then
 registered with `dm-desktop --register <id>`). Chrome's needs uploading to the
 Web Store.
 
-Microsoft Edge Add-ons: Actions › "Edge Add-ons, upload and submit" ›
-Run workflow builds the Chromium zip, takes out the manifest's `key`,
-uploads it to the existing listing as a draft and submits it for review
-(untick "Submit" to upload the draft only). It needs the repository
+Microsoft Edge Add-ons: each `v*` tag's Release run ends with an `edge`
+job that builds the Chromium zip, takes out the manifest's `key`, uploads
+it to the existing listing as a draft and submits it for review, as the
+Firefox build goes to addons.mozilla.org in the same run. Microsoft refuses
+the upload while an earlier version is still in review; then, once that
+review ends, rerun the failed `edge` job or start Actions › "Edge Add-ons,
+upload and submit" › Run workflow by hand (untick "Submit" to upload the
+draft only). It needs the repository
 secrets `EDGE_CLIENT_ID` and `EDGE_API_KEY` (Partner Center › Microsoft
 Edge › Publish API) and `EDGE_PRODUCT_ID` (the listing's Product ID, a GUID
 on its Overview page). The version must be above the listing's. A copy
 installed from the store has the store's own id (the listing's CRX ID):
 until dm knows it, people run `dm-desktop --register <that id>`.
 
-A `v*` tag (`git tag v3.3.0 && git push origin v3.3.0`) builds both store zips and opens a
-**draft** GitHub release with them, as the app's tag does; publish it once looked at.
+A `v*` tag (`git tag v3.3.0 && git push origin v3.3.0`) builds both store zips, opens a
+**draft** GitHub release with them, as the app's tag does (publish it once looked at), and
+submits the extension to addons.mozilla.org and Edge Add-ons for review.
 
 Firefox installs only add-ons Mozilla has signed. A `v*` tag submits the
 Firefox build to AMO as a listed add-on and includes the source archive for

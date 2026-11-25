@@ -1,13 +1,15 @@
 name: Edge Add-ons, upload and submit
 
-# Started by hand (Actions › this workflow › Run workflow). Builds the
-# Chromium extension, takes out the manifest's `key` (the store gives the
+# Run by the Release workflow on every `v*` tag (after the release is
+# drafted), and by hand from Actions › this workflow › Run workflow. Builds
+# the Chromium extension, takes out the manifest's `key` (the store gives the
 # add-on its own id, and refuses a package that names one), uploads it to
 # the existing Microsoft Edge Add-ons listing as a new draft and submits
 # that draft for review, through the Edge Add-ons publish API.
 #
 # Each submission needs a version above the listing's: bump the extension's
 # version (both manifests and crates/dm-catcher/Cargo.toml) before running it again.
+# Microsoft refuses a new upload while an earlier submission is still in review.
 #
 # Secrets, from Partner Center › Microsoft Edge › Publish API:
 #   EDGE_CLIENT_ID, EDGE_API_KEY  the API credentials
@@ -24,6 +26,23 @@ on:
         description: 'Submit for review after uploading (off: upload the draft only)'
         type: boolean
         default: true
+  workflow_call:
+    inputs:
+      notes:
+        type: string
+        required: false
+        default: 'Bug fixes and small improvements.'
+      submit:
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      EDGE_CLIENT_ID:
+        required: true
+      EDGE_API_KEY:
+        required: true
+      EDGE_PRODUCT_ID:
+        required: true
 
 permissions:
   contents: read

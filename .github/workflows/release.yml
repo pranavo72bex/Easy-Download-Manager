@@ -1,6 +1,9 @@
 name: Release
 
-# Tag a commit to draft the extension's release:  git tag v2.0.0 && git push --tags
+# Tag a commit to draft the extension's release and send it to the stores:
+#   git tag v2.0.0 && git push --tags
+# Firefox: signed and submitted to addons.mozilla.org (listed) below.
+# Edge: the `edge` job submits it to Edge Add-ons (edge-store.yml).
 on:
   push:
     tags: ['v*']
@@ -131,3 +134,22 @@ jobs:
             **Firefox** — open the `.xpi` with Firefox and choose *Add*. It
             is signed by Mozilla and stays installed. (If a release has no
             `.xpi`, `about:debugging` loads the zip for the session only.)
+
+  # The Chromium build goes to Microsoft Edge Add-ons for review, as the
+  # Firefox build goes to addons.mozilla.org above. Its own job, with only
+  # the Edge secrets and read access to the repository; only for a tag, never
+  # for a hand-started test build.
+  edge:
+    name: Submit to Edge Add-ons
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/edge-store.yml
+    with:
+      notes: dm extension ${{ github.ref_name }}. Changes are listed at https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+      submit: true
+    secrets:
+      EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+      EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+      EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
