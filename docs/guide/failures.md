@@ -824,8 +824,10 @@ removed, and the archive stays where it was.
   archive; it may be made to do harm.
 - `the archive holds a link or special file, which dm does not extract: …`
 - `the archive is password-protected, which dm does not extract: …`
-  The archive is locked with a password. The window does not ask for one
-  yet; unpack it with another program that asks.
+  The archive is locked with a password, and none of the passwords saved in
+  Options › Folders › Archive passwords opens it (Unpack when done, Extract
+  here and Extract to try each). Add its password there and extract it again,
+  or unpack it with another program that asks.
 - `wrong password for …`
   The password given does not open the archive (or the locked part of it is
   damaged, which looks the same). Nothing was written. Check the password,

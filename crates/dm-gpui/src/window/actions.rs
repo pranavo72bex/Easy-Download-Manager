@@ -86,12 +86,20 @@ impl Downloads {
         // The answer is worded on the extracting thread, which has no
         // language of its own: it is given the window's.
         let language = dm_desktop_base::i18n::code();
-        let started = dm_shell::app::files::extract_later(
+        // An archive with a password is tried with each saved one (Options › Passwords), and the
+        // one that opens it goes to the top of the list (gaps row C2a).
+        let home = dm_shell::settings::home();
+        let passwords = dm_core::extract::passwords::load(&home);
+        let started = dm_shell::app::files::extract_later_trying(
             std::path::PathBuf::from(path),
             url.to_string(),
             into,
-            move |answer| {
+            passwords,
+            move |answer, opened_with| {
                 dm_desktop_base::i18n::set(language);
+                if let Some(password) = opened_with {
+                    dm_core::extract::passwords::used(&home, &password);
+                }
                 let answer = match answer {
                     Ok(done) => tn(
                         "Extracted {} file to {}||Extracted {} files to {}",

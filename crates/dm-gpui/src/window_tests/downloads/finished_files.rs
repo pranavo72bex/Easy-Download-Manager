@@ -290,3 +290,40 @@ fn a_finished_program_asks_once_before_it_opens() {
     h.until("opened again", |h| opened(h).len() == 2);
     assert!(!h.shows("Open a program?"), "asked a second time");
 }
+
+/// Extract here opens an archive with a password saved in Options › Passwords: each saved one
+/// is tried, and the one that opened it goes to the top of the list (gaps row C2a). It said
+/// "Not extracted" for every archive with a password before.
+#[test]
+fn extract_here_opens_an_archive_with_a_saved_password() {
+    let _file = crate::harness::settings_file();
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("file.zip"), "Start now");
+    h.until("file.zip to finish", |h| completed(h) == 1);
+    h.select("file.zip");
+    let path = std::path::PathBuf::from(h.row("file.zip").path);
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../dm-core/tests/fixtures/archives/zip/aes256.zip");
+    std::fs::copy(&fixture, &path).unwrap();
+    let home = dm_shell::settings::home();
+    let saved = ["not this one".to_string(), "dm secret".to_string()];
+    dm_core::extract::passwords::save(&home, &saved).unwrap();
+    h.run(Command::ExtractHere);
+    h.until("the extraction", |h| {
+        h.said().starts_with("Extracted 4 files") || h.said().starts_with("Not extracted")
+    });
+    let said = h.said();
+    let first = dm_core::extract::passwords::load(&home).first().cloned();
+    dm_core::extract::passwords::save(&home, &[]).unwrap();
+    assert!(said.starts_with("Extracted 4 files"), "{said}");
+    assert_eq!(
+        std::fs::read(path.with_extension("").join("docs/a.txt")).unwrap(),
+        b"hello, zip\n"
+    );
+    assert_eq!(
+        first.as_deref(),
+        Some("dm secret"),
+        "the password that opened it is not first"
+    );
+}
