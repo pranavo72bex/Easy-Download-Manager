@@ -248,6 +248,11 @@ jobs:
           sudo chmod a+x "$HOME" "$HOME/work"
           sudo chmod -R a+rwX "$HOME/.cargo" "$HOME/.rustup"
           sudo chown -R dmbot "$GITHUB_WORKSPACE"
+          # The disk, watched: below its floor every dmbot process is killed, so this step
+          # ends and the next ones still have room to upload what there is (on #60 the disk
+          # filled and the runner died with every log). The log is the runner user's.
+          sudo mkdir -p /opt/dm-bot && sudo install -m 0644 -o "$(id -u)" /dev/null /opt/dm-bot/disk.log
+          watch=$(bash scripts/ai-disk-watch.sh start /opt/dm-bot/disk.log)
           kind=$TASK
           if [ "$kind" = revise ]; then kind=$REVISING; fi
           contract=0
@@ -260,7 +265,7 @@ jobs:
             GEMINI_API_KEY="$GEMINI_API_KEY" GEMINI_MODEL="$GEMINI_MODEL" KILO_MODEL="$KILO_MODEL" \
             PROVIDERS="$PROVIDERS" TASK="$TASK" AI_CONTRACT_ADD="$contract" GITHUB_OUTPUT=.bot/outputs \
             AI_BASELINE=/opt/dm-bot/baseline.txt AI_REQUIRE_FEWER="$fewer" \
-            CI=true TERM=dumb CARGO_TERM_COLOR=never \
+            CI=true TERM=dumb CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 \
             bash -c '
               set +e -uo pipefail
               cd "$0"
@@ -277,7 +282,12 @@ jobs:
           sudo pkill -9 -u dmbot || true
           sleep 2
           sudo pkill -9 -u dmbot || true
+          kill "$watch" 2>/dev/null || true
           sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
+          echo "::group::The disk after the models"
+          cat /opt/dm-bot/disk.log
+          bash scripts/ai-disk-watch.sh report
+          echo "::endgroup::"
           # Only the outputs this step means, checked: what the models wrote is data.
           provider=$(grep -oxE 'provider=(gemini|kilo)' .bot/outputs 2>/dev/null | head -n1 | cut -d= -f2 || true)
           echo "provider=$provider" >> "$GITHUB_OUTPUT"
@@ -291,6 +301,7 @@ jobs:
           for f in result.patch summary.md check.log failing-tests.txt reproduce.log; do
             if [ -f ".bot/$f" ] && [ ! -L ".bot/$f" ]; then tail -c 400000 ".bot/$f" > ".bot/out/$f"; fi
           done
+          if [ -s /opt/dm-bot/disk.log ]; then tail -c 20000 /opt/dm-bot/disk.log > .bot/out/disk.log; fi
           true
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
@@ -426,6 +437,7 @@ jobs:
           why='No model made a change that passes the checks.'
           if [ -n "$REFUSED" ]; then why="A change passed in the work job but broke a rule when checked again ($REFUSED): refused."; fi
           if [ "$WORKED" != success ]; then why="The work job did not finish ($WORKED)."; fi
+          if [ -s .bot/disk.log ]; then why="The runner's disk filled while the models worked, so they were stopped: $(head -n1 .bot/disk.log | head -c 300)"; fi
           summary=$(head -c 3000 .bot/summary.md 2>/dev/null || true)
           gh issue comment "$ISSUE" --body "$(printf '<!-- dm-bot -->\n%s ([run](%s)) The queue tries again in a week, with whatever free models answer then.\n\n%s\n' \
             "$why" "$RUN_URL" "$summary")"
