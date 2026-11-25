@@ -120,3 +120,23 @@ mod tests {
         );
     }
 }
+
+/// The window's layers, back to front (gaps row E48): a layer drawn over the window takes its
+/// place from here, not a number guessed beside another one's.
+pub mod layer {
+    /// A menu over the window (the place menu).
+    pub const MENU: usize = 1;
+    /// A bottom sheet over the window and its menus (a pop-up's choices on a phone).
+    pub const SHEET: usize = 10;
+}
+
+#[cfg(test)]
+mod layer_tests {
+    use super::layer;
+
+    /// A sheet is drawn over a menu (gaps row E48).
+    #[test]
+    fn layers_stack_in_their_named_order() {
+        const { assert!(layer::MENU < layer::SHEET) };
+    }
+}

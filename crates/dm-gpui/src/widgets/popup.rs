@@ -55,6 +55,9 @@ struct Picking {
     /// The keys' place on the chosen line (the first where none is), given as the sheet
     /// opens (gaps row E25): they stayed on the pop-up behind it.
     keys: Option<gpui::FocusHandle>,
+    /// What had the keys as it opened (the pop-up button): given them back as it closes (gaps
+    /// row E46).
+    opener: Option<gpui::FocusHandle>,
 }
 
 thread_local! {
@@ -135,11 +138,14 @@ pub fn button_of(
             })
         })
         .flatten();
+    let expanded = picking.is_some();
     let picker = picking.map(|open| phone_choices(open, theme, screen));
     div()
         .id((field, item))
         .when_some(picker, |button, picker| button.child(picker))
         .role(Role::ComboBox)
+        // Says whether its choices are open, as the side panel and Advanced do (gaps row E47).
+        .aria_expanded(expanded)
         // Told off to a screen reader where it is greyed (gaps row U23).
         .off_where_greyed()
         // Reached by Tab, opened by Space or Return (gaps row U2).
@@ -191,6 +197,7 @@ pub fn button_of(
             }
             if crate::platform::ON_A_PHONE {
                 let keys = cx.focus_handle();
+                let opener = window.focused(cx);
                 PICKING.with(|p| {
                     *p.borrow_mut() = Some(Picking {
                         field,
@@ -199,6 +206,7 @@ pub fn button_of(
                         chosen,
                         drag: Default::default(),
                         keys: Some(keys.clone()),
+                        opener,
                     })
                 });
                 window.focus(&keys, cx);
@@ -258,17 +266,30 @@ fn sheet_title(field: &str) -> SharedString {
 /// Closes a pop-up's sheet where one is open, as a phone's Back closes the top layer only:
 /// true where one was. Back with a pop-up's choices open closed the whole dialog, and what was
 /// typed in it went.
-pub fn close_picking() -> bool {
+#[cfg(test)]
+fn close_picking() -> bool {
     PICKING.with(|p| p.borrow_mut().take().is_some())
+}
+
+/// Closes a pop-up's sheet (a choice, Close, Back) and gives the keys back to what had them as
+/// it opened, the pop-up button (gaps row E46): true where one was open.
+pub fn close_picking_in(window: &mut gpui::Window, cx: &mut gpui::App) -> bool {
+    let Some(open) = PICKING.with(|p| p.borrow_mut().take()) else {
+        return false;
+    };
+    if let Some(opener) = open.opener {
+        window.focus(&opener, cx);
+    }
+    window.refresh();
+    true
 }
 
 /// The hooks a pop-up's sheet answers through: its state is [`PICKING`].
 fn phone_hooks() -> crate::widgets::bottomsheet::Hooks {
     use std::rc::Rc;
     crate::widgets::bottomsheet::Hooks {
-        close: Rc::new(|window, _| {
-            PICKING.with(|p| *p.borrow_mut() = None);
-            window.refresh();
+        close: Rc::new(|window, cx| {
+            close_picking_in(window, cx);
         }),
         drag: Rc::new(|_| {
             PICKING.with(|p| {
@@ -313,7 +334,7 @@ fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoEleme
                 // The tick told, as it is drawn (gaps row E25).
                 .when(ticked, |l| l.aria_toggled(gpui::Toggled::True))
                 .on_click(move |_, window, cx| {
-                    PICKING.with(|p| *p.borrow_mut() = None);
+                    close_picking_in(window, cx);
                     window.dispatch_action(Box::new(Pick { field, item, index }), cx);
                     window.refresh();
                 })
@@ -357,7 +378,7 @@ fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoEleme
                 screen,
             }),
     )
-    .with_priority(10)
+    .with_priority(crate::widgets::space::layer::SHEET)
 }
 
 /// The layer a pop-up's sheet stands on: the window's size, dimmed, the sheet at its foot.
@@ -460,6 +481,7 @@ mod tests {
                 chosen: Some(0),
                 drag: Default::default(),
                 keys: None,
+                opener: None,
             })
         });
         assert!(close_picking(), "the sheet was open");

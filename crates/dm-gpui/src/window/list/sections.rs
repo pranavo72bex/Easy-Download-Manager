@@ -282,7 +282,7 @@ impl Downloads {
                     return;
                 }
                 if this.menus.place_menu.is_some() {
-                    this.close_place_menu();
+                    this.close_place_menu(window, cx);
                     cx.notify();
                 } else if cfg!(target_os = "android") {
                     // Nothing to close: passed on, so the phone's platform, told no one used

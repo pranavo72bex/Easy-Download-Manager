@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Closing a place's menu, or a pop-up's list on a phone, puts the keyboard back where it was. A pop-up tells a screen reader whether its choices are open.
 - On a phone with a keyboard, a pop-up's list of choices takes the keyboard to the chosen one as it opens.
 - Options › Sign-ins says what it holds in the list of pages: Sites that need a sign-in.
 - On a phone, the list of a pop-up's choices is titled by what it sets ("Start at, Hour", "Priority") instead of "Choose…".

@@ -56,8 +56,12 @@ impl Downloads {
     }
 
     /// Closes the place menu.
-    pub fn close_place_menu(&mut self) {
+    pub fn close_place_menu(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
         self.menus.place_menu = None;
+        // The keys back where they were as it opened (gaps row E45).
+        if let Some(opener) = self.menus.place_menu_opener.take() {
+            window.focus(&opener, cx);
+        }
     }
 
     /// Carries out what the place menu asked for.
@@ -68,7 +72,7 @@ impl Downloads {
         window: &mut gpui::Window,
         cx: &mut Context<Self>,
     ) {
-        self.close_place_menu();
+        self.close_place_menu(window, cx);
         match action {
             PlaceAction::Run(command) => window.dispatch_action(Box::new(Run(command)), cx),
             PlaceAction::EditCategories => {
@@ -140,14 +144,14 @@ pub fn menu(
                 .text_color(theme.text)
                 // The menu takes its own clicks: else a place or row under it would take them too.
                 .occlude()
-                .on_mouse_down_out(cx.listener(|view, _, _, cx| {
-                    view.close_place_menu();
+                .on_mouse_down_out(cx.listener(|view, _, window, cx| {
+                    view.close_place_menu(window, cx);
                     cx.notify();
                 }))
                 .children(items),
         ),
     )
-    .with_priority(1)
+    .with_priority(crate::widgets::space::layer::MENU)
 }
 
 /// One item of the menu: its words, in the selection colour under the pointer. The caller adds

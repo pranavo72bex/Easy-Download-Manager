@@ -32,3 +32,27 @@ fn return_on_another_control_does_not_press_the_default() {
     h.key("enter", &[]);
     h.until("Download details", |h| h.dialog_open("Download details"));
 }
+
+/// Closing a place's menu (Escape here) gives the keys back to what had them as it opened, the
+/// search box here, rather than leaving a keyboard user nowhere (gaps row E45).
+#[test]
+fn the_place_menu_gives_the_keys_back_as_it_closes() {
+    let world = world();
+    let mut h = world.harness();
+    let search_has_keys = |h: &mut crate::harness::Harness| {
+        h.dialog(|view: &mut crate::window::list::Downloads, window, cx| {
+            gpui::Focusable::focus_handle(view.list.filter.read(cx), cx).is_focused(window)
+        })
+    };
+    h.key("f", &["cmd"]);
+    h.until("the search box has the keys", search_has_keys);
+    h.right_click("Main queue");
+    h.until("the place menu", |h| {
+        h.view(|view| view.menus.place_menu.is_some())
+    });
+    h.key("escape", &[]);
+    h.until("the menu closed", |h| {
+        h.view(|view| view.menus.place_menu.is_none())
+    });
+    assert!(search_has_keys(&mut h), "the keys were not given back");
+}

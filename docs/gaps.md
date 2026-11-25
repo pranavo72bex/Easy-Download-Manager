@@ -76,26 +76,35 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
-## Next session (written 2026-11-24, end of day)
+## Next session (written 2026-11-25, end of day)
 
-**Done today (2026-11-24, all pushed to main):** the `better-*` interface skills in
-`.claude/skills/` with `dm-design` mapping them onto dm; the main window reviewed with them and
-every finding fixed (contrast `Theme::accent_text`, keyboard and screen reader, columns, cut
-text, middle-cut names, even figures, the kinds' colours, sentence case, failures in one
-shape: V3, V4, E13 to E23); then the dialogs, Options and the phone's sheets reviewed the same
-way: their colour and button findings fixed (1d4c22fd), and the keyboard ones started (below).
+**Done today (2026-11-25, all pushed to main):** main's Windows Desktop run green again (U34's
+1024-byte KB in a test, the Scheduler's German switch, two layout tests, then a part's time boxes
+and the dial-up test); rows K3a to K5e (a network off when it fails, any number of networks,
+each its own speed limit and allowance); H39 (no MCP server but the repository's own programs);
+E24 to E49 of the ui reviews, the most of them closed. `cargo test --workspace`: 3251 passed,
+0 failed (before E45 to E51's run).
 
-**Start with, in this order** (the maintainer, 2026-11-24: "write it down for tomorrow; we will
-continue tomorrow"):
-1. Rows E24 to E44 (E24 coded 2026-11-25, waits for a VoiceOver walk) below, in their order (section "E, fifth part"; the keyboard work before
-   them is in fa09b82b), each with its test, then `cargo test --workspace`, then push. Every word added goes into all 15
-   catalogs and `assets/i18n/unread/` (`docs/ui-design.md`, "Words").
-2. Owed checks: `python3 scripts/human-qa.py` in a visible window (B25's pictures change: the
-   accent's shade, the empty list's button, sentence case, the kinds' colours); a reader for
-   `assets/i18n/unread/` (many new and derived lines today); a VoiceOver walk of the list,
-   the side panel and a dialog; the phone on the emulator (Remove animations, Cancel in
-   Options, the sheets); the window at 360 and 700 points wide.
-3. Then the order below: rows K, rows H, the phone leftovers.
+**Start with, in this order:**
+1. `python3 scripts/ai-health.py`; then the Windows Desktop job on main's last push (it was red
+   from 1777b62f to 176f3b01: a part's From and to, and the dial-up test; fixed in 176f3b01,
+   to be seen green).
+2. The emulator (the maintainer, 2026-11-25: "only test on android emulator", never a phone):
+   the debug APK for arm64 (`cargo ndk --platform 29 -t arm64-v8a -o
+   crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release`, then
+   `./gradlew assembleDebug -Pdm.skipCargo=true` in `crates/dm-android/android` with JDK 17),
+   the `dmci` emulator booted, `bash scripts/android-emulator-check.sh app-debug.apk out/`; then
+   with a keyboard, E25's and E46's keys in a pop-up's sheet and E47's open state.
+3. The rows still partly done, each with what is left in its row: E24 (heard in VoiceOver and
+   Narrator), E25, E35, E37 (B25's pictures), E41, E46, E47, and E50 (the rules that need a
+   picture or a walk).
+4. Owed checks: `python3 scripts/human-qa.py` in a visible window (B01's new screen reader
+   check, B25's pictures); a reader for the many lines added to `assets/i18n/unread/` today.
+5. Then rows K left for a person (K2's disk, K3d, K3e, K4), then rows H.
+
+**Disk:** `target/debug/deps` keeps every test binary each rebuild makes (78 GB today); the
+stale ones were deleted keeping the newest of each, and runs used `CARGO_INCREMENTAL=0`. Under
+20 GB free, do the same before a run.
 
 ## Next session (written 2026-11-23, end of day)
 
@@ -186,13 +195,9 @@ React, `h-dvh`, metadata) do not apply to GPUI.
 
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
-| E45 | Closing the place menu (a choice, Escape, a click outside) does not give the keys back to the sidebar place or row that opened it: `close_place_menu` only sets `menus.place_menu = None`, so a keyboard user starts again from nowhere (`fixing-accessibility`: "restore focus to the trigger on close") | OPEN · S | Do: keep the opener's `FocusHandle` in the place menu's state when it opens, and focus it in `close_place_menu`. Where: `crates/dm-gpui/src/window/placemenu.rs` (`close_place_menu`, the opening path), `window/list/sections.rs` (the Escape handler). Test: `the_place_menu_gives_the_keys_back_as_it_closes` in `crates/dm-gpui/src/window_tests/keyboard.rs`: open it from a place with the keyboard, press Escape, and the place has the keys. Done when: that test and `cargo xtask test --profile ci` pass. Skill: `docs/ai-skills/ui-ux.md` |
-| E46 | A pop-up's sheet on the phone closing (a choice, Close, Back) does not give the keys back to the pop-up button: `phone_hooks().close` and `close_picking` only clear `PICKING` | OPEN · S · after E25 | Do: when the sheet closes, focus the pop-up button's handle, kept in `Picking` beside `keys`. Where: `crates/dm-gpui/src/widgets/popup.rs` (`phone_hooks`, `close_picking`). Test: `a_pop_up_s_sheet_gives_the_keys_back_as_it_closes` in `crates/dm-gpui/src/window_tests/narrow.rs` (phone width: open, Escape, and the button has the keys). Done when: that test passes, built for Android as CI does (`cargo ndk --platform 29 -t arm64-v8a clippy -p dm-android`). Skill: `docs/ai-skills/ui-ux.md` |
-| E47 | A pop-up button (`Role::ComboBox`, `widgets/popup.rs:142`) never says whether its choices are open, so a screen reader cannot tell the sheet has opened (`fixing-accessibility`: expandable controls say whether they are expanded; the sidebar, Advanced and the progress window's sections already do) | OPEN · S | Do: `.aria_expanded(open)`, where `open` means `PICKING` holds this button's id. Where: `crates/dm-gpui/src/widgets/popup.rs` (the button's builder). Test: `a_pop_up_says_when_its_choices_are_open` in `crates/dm-gpui/src/window_tests/reach.rs`, read off the element's accessibility state before and after a press. Done when: that test passes. Skill: `docs/ai-skills/ui-ux.md` |
-| E48 | The window's layers are stacked by bare numbers: the pop-up's sheet `with_priority(10)` (`widgets/popup.rs`) and the place menu's `with_priority(1)` (`window/placemenu.rs`), so a new layer is guessed into place (`baseline-ui`: one fixed scale of layers) | OPEN · S · bot | Do: one `layer` list of named constants (for example MENU, SHEET, DIALOG) in `crates/dm-gpui/src/widgets/space.rs`, used by both callers; no number changes. Where: `widgets/space.rs`, `widgets/popup.rs`, `window/placemenu.rs`. Test: `layers_stack_in_their_named_order` in `widgets/space.rs`'s tests (MENU < SHEET < DIALOG). Done when: that test and `cargo xtask test --profile ci` pass. Skill: `docs/ai-skills/ui-ux.md` |
-| E49 | The progress bars' glide and settle state (`GLIDES`, `SETTLING` in `window/table/cells.rs`) keeps an entry for every download ever drawn and never drops one (only `LEAVING` removes its entries), so a long session's maps only grow (`fixing-motion-performance`: an animation's state ends with it) | OPEN · S · bot | Do: drop a download's entry when its glide has ended and it is not running, and when its settle time (`SETTLE`) has passed; or prune both maps to the ids drawn this frame. Where: `crates/dm-gpui/src/window/table/cells.rs` (`glided`, `settling`). Test: `settled_bars_leave_no_state` in the same file's tests: a download run, finished and settled leaves neither map holding its id. Done when: that test and `cargo xtask test --profile ci` pass. Skill: `docs/ai-skills/ui-ux.md` |
+| E46 | A pop-up's sheet giving the keys back as it closes is coded and built for Android, never seen | PARTIAL · S · person | Done 2026-11-25: `Picking::opener` (what had the keys as it opened), focused by `popup::close_picking_in` on a choice, Close, Back and Escape; phone-only, so linted for Android as CI does (`cargo ndk … clippy -p dm-android`). Left: seen on the emulator with a keyboard, with E25's check |
+| E47 | A pop-up saying whether its choices are open is never read off a tree | PARTIAL · S · person | Done 2026-11-25: `.aria_expanded(open)` on the pop-up button, open while its sheet shows (`PICKING`); a desktop pop-up's choices are the system's menu, which the system announces. Left: read off the system's tree by `human-qa.py` or the emulator (GPUI's test windows build none, so the row's window test cannot be written) |
 | E50 | Rules from the skills not yet checked against dm, as each needs a picture or a walk: a greyed button says why (97 `native::button` callers, 17 hover notes); Tab stays inside an open in-window menu or sheet; one accent colour per view; each empty state has one clear next step; an error shows beside the action that caused it | OPEN · M · person | Do: review each rule with `dm-design` and the `ui-shot.py` pictures at 360, 700 and 1280 points wide, in light and dark, keeping only findings that pass `improve-ui`'s three proofs (the rule, the code path it reaches, a single fix), at most three per surface. Each survivor becomes a row here, and a finding that changes a contract row waits for the maintainer's word. Where: `crates/dm-gpui/src/` (the main window, the dialogs, Options, the phone's sheets). Test: none; the rows it makes carry theirs. Done when: each rule is either a row or marked "held" in this row. Skill: `.claude/skills/dm-design` |
-| E51 | `dm-design` does not carry the ui-skills rules that fit GPUI (an in-window menu or sheet gives the keys back on close, an expandable control says it is open, layers come from one scale, an animation's state ends with it), so the next review has to find them again | OPEN · S · person, after H39 | Do: add those rules to `.claude/skills/dm-design`, in dm's own words with the source credited (MIT, ibelick/ui-skills at 7ef0076f), and copy no file. Where: `.claude/skills/dm-design/SKILL.md` (a skill page, so a person edits it). Test: `python3 scripts/ai-skills-check.py` passes. Done when: that check passes and E45 to E49 cite the rules. Skill: `.claude/skills/dm-design` |
 
 ## First priority: the window's design (rows E, the maintainer, 2026-11-23)
 

@@ -273,6 +273,9 @@ pub(crate) struct Menus {
     pub(crate) row_menu_opened: Option<Point<Pixels>>,
     /// A place's right-click menu, open where it was asked for (`placemenu`).
     pub(crate) place_menu: Option<(Place, Point<Pixels>)>,
+    /// What had the keys as the place menu opened: given them back as it closes (gaps row
+    /// E45), so a keyboard user goes on from there rather than from nowhere.
+    pub(crate) place_menu_opener: Option<gpui::FocusHandle>,
     /// What the menu bar was last built with (its queues and ticks); none
     /// builds it again.
     pub(crate) menu_ticks: Option<crate::window::menus::Ticks>,

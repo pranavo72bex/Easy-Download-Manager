@@ -491,6 +491,7 @@ fn place_row(
             .on_mouse_down(
                 gpui::MouseButton::Right,
                 cx.listener(move |view, event: &gpui::MouseDownEvent, window, cx| {
+                    view.menus.place_menu_opener = window.focused(cx);
                     view.open_place_menu(place.clone(), event.position);
                     // The list's keys, Escape among them, reach it.
                     window.focus(&view.focus, cx);

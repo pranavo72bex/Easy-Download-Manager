@@ -558,8 +558,7 @@ pub fn dialog<V: CloseButton>(
         .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" {
                 // A pop-up's sheet open closes first; the dialog with the next Escape.
-                if crate::widgets::popup::close_picking() {
-                    window.refresh();
+                if crate::widgets::popup::close_picking_in(window, cx) {
                     return;
                 }
                 this.close_button(window, cx);

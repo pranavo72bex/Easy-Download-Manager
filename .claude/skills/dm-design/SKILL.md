@@ -76,6 +76,22 @@ The skills speak CSS and the DOM. In dm:
 - Every state drawn: empty, loading, running, paused, waiting, done, failed, a long name, the
   longest language, right to left, Text size 120%.
 
+## Rules from the ui-skills review (2026-11-25)
+
+Ideas taken from ibelick/ui-skills (MIT, read at commit 7ef0076f), in dm's own words; none of
+its text is copied (gaps rows E45 to E51):
+
+- A menu or sheet drawn in the window gives the keys back, as it closes, to what had them as
+  it opened: keep the opener's `FocusHandle` (`window.focused(cx)` at the opening) and focus it
+  on every way out (a choice, Escape or Back, a click outside). The place menu
+  (`menus.place_menu_opener`) and a pop-up's sheet (`Picking::opener`) do.
+- A control that opens something says whether it is open: `.aria_expanded(open)` (the side
+  panel's groups, Advanced, the progress window's sections, a pop-up).
+- A layer over the window takes its place from `space::layer` (MENU, then SHEET), never a
+  number of its own.
+- An animation's state ends with it: a map keyed by download (`GLIDES`, `SETTLING`) drops an
+  entry once its motion is over, so a long session's state does not only grow.
+
 ## Finishing
 
 - `cargo test --workspace` (the privacy check reads comments: name no other download manager;
