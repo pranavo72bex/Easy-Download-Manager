@@ -1,6 +1,6 @@
 # Options › Sign-ins
 
-"A user and password used for every download from a host." See
+**Sites that need a sign-in:** "A user and password used for every download from a host." See
 [Sign-ins](sign-ins.md) for every way dm signs in, and [Options](options.md)
 for how the window works.
 

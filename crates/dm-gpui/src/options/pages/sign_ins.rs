@@ -14,6 +14,9 @@ pub(super) fn sign_ins(
     cx: &mut Context<Options>,
 ) {
     let screen = p.screen.clone();
+    // A heading, so the list of pages says what this one holds (contract B43, gaps row E43):
+    // with words and no heading its line in the list was empty.
+    p.section(t("Sites that need a sign-in"));
     p.words(t(
         "A user and password used for every download from a host.",
     ));

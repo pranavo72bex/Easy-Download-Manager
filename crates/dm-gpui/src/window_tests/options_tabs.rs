@@ -182,3 +182,19 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
     assert_eq!(types, restored.join(" "));
     h.click("Cancel");
 }
+
+/// Every page in the list of pages has a line of what it holds (contract B43), Sign-ins
+/// included, from its heading (gaps row E43): with words and no heading its line was empty.
+#[test]
+fn every_page_says_what_it_holds() {
+    use dm_desktop_base::options::Tab;
+    let _file = crate::harness::settings_file();
+    let world = crate::harness::world::world();
+    let mut h = world.harness();
+    super::options::open_options(&mut h);
+    let said = h.dialog::<crate::options::Options, _>(|o, window, cx| {
+        let theme = crate::window::theme::Theme::of(window.appearance());
+        crate::options::pages::summary(o, Tab::SiteLogins, theme, window, cx)
+    });
+    assert_eq!(said, "Sites that need a sign-in");
+}

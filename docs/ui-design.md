@@ -157,7 +157,7 @@ Pictures (`native`): `ICON_SMALL` 12 beside small words, `ICON` 16 beside body t
 about 1.2 points wide. Corners: a control's `native::RADIUS`, a small mark's `space::CORNER_S`.
 A button with a face answers the pointer by shading its face (`Theme::answering`); one with
 none (a toolbar item) by the stripe. The
-font is the system's (`.SystemUIFont`); dm ships none. Everything is multiplied by the text size setting (`zoom.rs`, B66: 60% to 120%).
+font is the system's (`.SystemUIFont`); dm ships none. Everything is multiplied by the text size setting (`zoom.rs`, B66: stops of 60%, 80%, 100%, 120%, 150% and 200%).
 Pictures are dm's own SVGs (`assets/icons/`).
 
 ## The main window
