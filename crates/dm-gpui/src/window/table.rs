@@ -374,10 +374,13 @@ pub(crate) fn shown_name(
     row: &Entry,
     names: &std::collections::HashMap<dm_core::Id, String>,
 ) -> gpui::SharedString {
-    match names.get(&row.id) {
+    // With the marks that change text's direction taken out: one hid a program's ending
+    // (gaps row H1).
+    let name: gpui::SharedString = match names.get(&row.id) {
         Some(name) => name.clone().into(),
         None => crate::window::list::line(row).0,
-    }
+    };
+    dm_desktop_base::programs::plain(&name).into()
 }
 
 /// A row as a screen reader says it: its file's name, then its status.

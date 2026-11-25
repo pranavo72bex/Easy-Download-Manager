@@ -20,13 +20,23 @@ const RUNS: [&str; 20] = [
 /// name whose ending is hidden behind a right-to-left mark (`invoice` U+202E `fdp.exe`) is read with
 /// the marks taken out, as the system reads it.
 pub fn runs(name: &str) -> bool {
-    let plain: String = name
-        .chars()
-        .filter(|c| !matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'))
-        .collect();
-    plain
+    plain(name)
         .rsplit_once('.')
         .is_some_and(|(_, ending)| RUNS.contains(&ending.to_ascii_lowercase().as_str()))
+}
+
+/// `name` with the marks that change the direction of text taken out (right-to-left overrides,
+/// embeddings and isolates): one hid a program's ending ("invoice", U+202E, "fdp.exe" reads as
+/// "invoiceexe.pdf"), and the list shows a name as the system reads it (gaps row H1).
+pub fn plain(name: &str) -> String {
+    name.chars()
+        .filter(|c| {
+            !matches!(
+                c,
+                '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
+            )
+        })
+        .collect()
 }
 
 /// What Open asks before it opens a program: its title, and its sentence naming the file.
@@ -62,5 +72,11 @@ mod tests {
             assert!(!runs(name), "{name}");
         }
         assert!(runs("invoice\u{202e}fdp.exe"), "a mark hid the ending");
+        assert_eq!(plain("invoice\u{202e}fdp.exe"), "invoicefdp.exe");
+        assert_eq!(
+            plain("שלום.pdf"),
+            "שלום.pdf",
+            "right-to-left letters themselves stay"
+        );
     }
 }
