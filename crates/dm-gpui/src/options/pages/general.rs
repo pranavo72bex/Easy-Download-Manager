@@ -144,7 +144,11 @@ fn appearance(
                     .gap(px(space::XXS))
                     .child(
                         gpui_component::slider::Slider::new(&slider)
-                            .accessibility_label(t("Text size")),
+                            .accessibility_label(t("Text size"))
+                            // dm's own colours, as its switches and buttons have them: the
+                            // component's theme drew a white bar and a black knob.
+                            .bg(theme.accent)
+                            .text_color(theme.on_accent),
                     )
                     .child(
                         div()

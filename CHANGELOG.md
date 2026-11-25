@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options' Text size slider is drawn in dm's accent colour, as its switches and buttons are.
 - About's links sit in two even rows; Properties' Delete file after is a pop-up of its own size, and its Open button appears once the file is there instead of standing greyed.
 - A plain http:// address you type is tried over https:// first, so the file comes encrypted where the site offers it.
 - Opening a finished program (an .exe, .msi, .dmg, .apk, a script, or a program disguised as another kind) asks once first: "Open a program?", with Cancel as the default.
