@@ -16,7 +16,7 @@ shared between them and dm's other downloads. 0 means no limit.
 You can set this one limit in four places, and each shows the same number:
 
 - **Speed limit (KB/s, 0 for none)** in the Speed limiter window;
-- **Options › Advanced › Speed limit, KB/s (0 for none)** ("Keeps dm from
+- **Options › Advanced › Speed limit (KB/s, 0 for none)** ("Keeps dm from
   using all of your connection.");
 - the presets in **Downloads › Speed limiter**, the status bar and the
   tray;

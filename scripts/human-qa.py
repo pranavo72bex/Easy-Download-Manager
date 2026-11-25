@@ -1414,8 +1414,8 @@ def walk(dm, origin):
     pause(0.8)
     dm.click("Advanced")
     pause(0.8)
-    words = dm.scrolled_texts("Speed limit, KB/s (0 for none)")
-    first = "Speed limit, KB/s (0 for none)"
+    words = dm.scrolled_texts("Speed limit (KB/s, 0 for none)")
+    first = "Speed limit (KB/s, 0 for none)"
     # What is drawn before the first setting: the tabs, then the page's first heading.
     before = words[:words.index(first)] if first in words else []
     tabs = ("General", "Browser", "Folders", "Downloads", "Advanced", "Sign-ins")

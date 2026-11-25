@@ -726,7 +726,7 @@ def main():
         human("ui.click", text="Add or edit categories…")
         check("a category's Add or edit categories… opens Options at Folders",
               soon(lambda: "Options" in open_dialogs()
-                   and "Sort finished files into folders by kind" in on_screen()))
+                   and "Sort finished files into folders by category" in on_screen()))
         human("ui.key", key="Escape")
         soon(lambda: "Options" not in open_dialogs())
         outside = call("downloads.add", urls=[url("outside.zip")], folder=str(home.parent / "elsewhere"))

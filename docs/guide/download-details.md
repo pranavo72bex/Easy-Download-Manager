@@ -25,7 +25,7 @@ says **From** and the browser's name. With several addresses it says **and
   kind's folder without typing its path.
 - **Save to folder:** where the file is saved. Left empty, the hint shows
   where it goes: the download folder, with "(sorted by kind)" when
-  **Options › Folders › Sort finished files into folders by kind** is on. An empty folder
+  **Options › Folders › Sort finished files into folders by category** is on. An empty folder
   means, in this order: the folder of a site rule for the address
   (**Options › Advanced**); else, where files are sorted by kind, the
   kind's folder; else the download folder. `~` is your home folder.

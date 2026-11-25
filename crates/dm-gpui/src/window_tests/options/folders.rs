@@ -14,7 +14,7 @@ fn a_category_made_in_options_takes_its_files_into_its_own_folder() {
     let mut h = world.harness();
     open_options(&mut h);
     tab(&mut h, "Folders");
-    h.click("Sort finished files into folders by kind");
+    h.click("Sort finished files into folders by category");
     // At the foot of the page, scrolled to as a person would.
     h.reveal("Add a category");
     h.click("Add a category");
@@ -122,7 +122,7 @@ fn options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_fol
     let before = kept(&mut h);
     open_options(&mut h);
     tab(&mut h, "Folders");
-    h.click("Sort finished files into folders by kind");
+    h.click("Sort finished files into folders by category");
     h.reveal("Add a category");
     h.click("Add a category");
     h.fill("Category", "Work/Docs");
@@ -223,7 +223,7 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
     // The rule's own speed, under the page's of the same name.
     h.fill_after(
         "Sites with their own folder, speed and headers",
-        "Speed limit, KB/s (0 for none)",
+        "Speed limit (KB/s, 0 for none)",
         "4096",
     );
     // Its own name and a header for its server (gaps row F1).

@@ -5,7 +5,7 @@ BitTorrent. See [Options](options.md) for how the window works.
 
 ## Network
 
-- **Speed limit, KB/s (0 for none):** "Keeps dm from using all of your
+- **Speed limit (KB/s, 0 for none):** "Keeps dm from using all of your
   connection." It is the same limit as **Downloads › Speed limiter**: see
   [Speed limiter](speed-limiter.md).
 - **Attempts per connection (0 to keep trying):** "How many times dm tries
@@ -72,7 +72,7 @@ BitTorrent. See [Options](options.md) for how the window works.
   adds a line for a **Site** (it covers its subdomains), with:
   - **Folder:** where its downloads are saved, in place of the folder their
     kind has; empty keeps that. **Browse…** picks one.
-  - **Speed limit, KB/s (0 for none):** a limit for each of its downloads.
+  - **Speed limit (KB/s, 0 for none):** a limit for each of its downloads.
   - **User-Agent:** the name its downloads are asked with, in place of the
     one dm picks; empty keeps dm's.
   - **Request headers:** headers its downloads carry, written `Name: value`,

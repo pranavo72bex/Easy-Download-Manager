@@ -69,7 +69,7 @@ fn options_are_put_into_force_on_ok_and_written_down() {
     let mut h = world.harness();
     open_options(&mut h);
     tab(&mut h, "Folders");
-    h.click("Sort finished files into folders by kind");
+    h.click("Sort finished files into folders by category");
     ok(&mut h);
     assert!(kept(&mut h).folders.categorize);
     assert_eq!(saved_settings()["categorize"], true);
@@ -91,7 +91,7 @@ fn on_a_phone_a_change_is_in_force_at_once_and_done_closes() {
     h.until_shown("Done");
     tab(&mut h, "Folders");
     let before = kept(&mut h).folders.categorize;
-    h.click_as_person("Sort finished files into folders by kind", 0);
+    h.click_as_person("Sort finished files into folders by category", 0);
     h.until("the change in force with no OK", |h| {
         kept(h).folders.categorize != before
     });
@@ -107,7 +107,7 @@ fn on_a_phone_a_change_is_in_force_at_once_and_done_closes() {
     });
     h.until_shown("Cancel");
     tab(&mut h, "Folders");
-    h.click_as_person("Sort finished files into folders by kind", 0);
+    h.click_as_person("Sort finished files into folders by category", 0);
     h.until("the change in force", |h| {
         kept(h).folders.categorize == before
     });

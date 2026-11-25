@@ -84,7 +84,9 @@ fn extensions(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
 fn menu_items(p: &mut Page, cx: &mut Context<Options>, c: &dm_protocol::CatchRules) {
     let (theme, screen) = (p.theme, p.screen.clone());
     // The items dm adds to the browser's right-click menu, each chosen.
-    p.words(t("Items dm adds to the browser's right-click menu"));
+    // A heading over its switches, as "Add dm to your browser" is over its rows (seen in
+    // ui-shot.py's picture: it stood as plain words).
+    p.section(t("Items dm adds to the browser's right-click menu"));
     for (id, _) in dm_protocol::MENU_ITEMS {
         let words = match id {
             "dm-link" => t("Download link with dm"),

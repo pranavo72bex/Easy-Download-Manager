@@ -8,7 +8,7 @@ works.
 - **Folder for unfinished downloads:** where the parts of a download wait
   until it is whole. Empty keeps them in dm's own folder. "A download
   already begun keeps the folder it began in."
-- **Sort finished files into folders by kind:** each finished file goes into
+- **Sort finished files into folders by category:** each finished file goes into
   a folder for its kind inside the download folder: Videos, Audio,
   Documents, Apps, Archives, Pictures and Other. Under **Folders by category**, beside each kind is its
   folder's name, which you can change; an empty name leaves that kind

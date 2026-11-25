@@ -42,7 +42,7 @@ pub(super) fn folders(
         p,
         cx,
         "categorize",
-        t("Sort finished files into folders by kind"),
+        t("Sort finished files into folders by category"),
         on,
         true,
         |s| s.folders.categorize = !s.folders.categorize,

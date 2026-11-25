@@ -122,7 +122,7 @@ fn advanced_holds_the_connection_and_the_proxy_settings_on_one_page() {
     open_options(&mut h);
     tab(&mut h, "Advanced");
     for name in [
-        "Speed limit, KB/s (0 for none)",
+        "Speed limit (KB/s, 0 for none)",
         "Attempts per connection (0 to keep trying)",
         "Wait between attempts (seconds, 0 for automatic)",
         "Time out a silent connection after (seconds)",
@@ -166,7 +166,7 @@ fn ok_keeps_every_setting_of_the_advanced_page() {
     let mut h = world.harness();
     open_options(&mut h);
     tab(&mut h, "Advanced");
-    h.fill("Speed limit, KB/s (0 for none)", "321");
+    h.fill("Speed limit (KB/s, 0 for none)", "321");
     h.fill("Attempts per connection (0 to keep trying)", "7");
     h.fill("Wait between attempts (seconds, 0 for automatic)", "9");
     h.fill("Time out a silent connection after (seconds)", "45");

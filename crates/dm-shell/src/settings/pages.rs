@@ -138,7 +138,7 @@ pub struct BrowserSettings {
 pub struct FolderSettings {
     /// Where finished files land.
     pub download_dir: PathBuf,
-    /// Sort finished files into folders by kind. On for a new install.
+    /// Sort finished files into folders by category. On for a new install.
     pub categorize: bool,
     /// What each of those folders is called, in `Category::ALL` order. An
     /// empty name leaves that kind unsorted.

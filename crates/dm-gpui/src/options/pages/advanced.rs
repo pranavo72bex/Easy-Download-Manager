@@ -46,7 +46,7 @@ fn network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<
     for (key, words, hint) in [
         (
             "speed_limit",
-            "Speed limit, KB/s (0 for none)",
+            "Speed limit (KB/s, 0 for none)",
             "Keeps dm from using all of your connection.",
         ),
         (
@@ -373,7 +373,7 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
             window,
             cx,
             &format!("site_rules.{i}.speed"),
-            "Speed limit, KB/s (0 for none)",
+            "Speed limit (KB/s, 0 for none)",
             NUMBER,
             true,
             false,
@@ -421,7 +421,7 @@ fn site_rules(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
                 .child(screen.label(t("Folder")))
                 .child(rule_folder)
                 .child(browse)
-                .child(screen.label(t("Speed limit, KB/s (0 for none)")))
+                .child(screen.label(t("Speed limit (KB/s, 0 for none)")))
                 .child(speed)
                 .child(delete),
         );
