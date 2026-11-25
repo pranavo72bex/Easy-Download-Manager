@@ -45,6 +45,10 @@ pub struct Request {
     /// `--later`: into the main queue, not started.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub later: bool,
+    /// `--queue NAME`: into that queue (made where there is none of that name), not started
+    /// (gaps row C7a).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue: Option<String>,
     /// `--quiet`: started with nothing asked, whatever Options says about showing Download
     /// details first (gaps row F3).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

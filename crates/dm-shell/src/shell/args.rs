@@ -167,11 +167,12 @@ fn local_torrent(arg: &str) -> Option<String> {
 /// and `--start-queue`:
 ///
 /// ```text
-/// dm [--quiet] [--save-to FOLDER] [--name NAME] [--later] LINK … [--start-queue]
+/// dm [--quiet] [--save-to FOLDER] [--name NAME] [--later | --queue NAME] LINK … [--start-queue]
 /// ```
 ///
 /// `--save-to` and `--name` say where and as what the next link is saved,
-/// `--later` adds it to the main queue without starting it, `--quiet` has
+/// `--later` adds it to the main queue without starting it, `--queue NAME` to the queue of
+/// that name (made where there is none) without starting it, `--quiet` has
 /// every link after it added with nothing asked (no Download details), and
 /// `--start-queue` starts the main queue. A bare link (a `.desktop` entry's
 /// `%u`, a shell) is a download with no options. Anything else is left to
@@ -237,6 +238,14 @@ pub fn orders(args: &[String]) -> Orders {
                 i += 1;
             }
             "--later" => next.later = true,
+            // The next link into the queue of that name, not started (gaps row C7a).
+            "--queue" => {
+                next.queue = args
+                    .get(i + 1)
+                    .map(|name| name.trim().to_string())
+                    .filter(|name| !name.is_empty());
+                i += 1;
+            }
             // Every link after it: no dialog, whatever Options says.
             "--quiet" => quiet = true,
             "--start-queue" => orders.start_queue = true,
@@ -318,7 +327,8 @@ pub fn unrecognised(args: &[String]) -> Vec<String> {
     let mut i = 0;
     while let Some(arg) = args.get(i) {
         match arg.as_str() {
-            "--save-to" | "--name" | "--when-done" | "--control" | "/d" | "/p" | "/f" => i += 1,
+            "--save-to" | "--name" | "--queue" | "--when-done" | "--control" | "/d" | "/p"
+            | "/f" => i += 1,
             a if a.starts_with('-') || a.contains(':') || is_link(a) || Path::new(a).exists() => {}
             a => words.push(a.to_string()),
         }

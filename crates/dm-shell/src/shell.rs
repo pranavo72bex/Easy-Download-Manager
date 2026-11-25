@@ -83,7 +83,7 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         referrer: request.referrer.clone(),
         save_dir: request.save_dir.clone(),
         save_name: request.save_name.clone(),
-        later: request.later,
+        later: request.later || request.queue.is_some(),
         quality: request.quality.clone(),
         sound: request.sound.clone(),
         cookies: request.cookies.clone(),
@@ -92,10 +92,10 @@ pub fn add_options(request: &host::Request) -> dm_core::AddOptions {
         keep_no_record: request.keep_no_record,
         post: posted(&request.url, request.post.as_ref()),
         title_hint: Some(request.title.clone()).filter(|t| !t.is_empty()),
-        queue: if request.later {
-            dm_core::MAIN_QUEUE.to_string()
-        } else {
-            String::new()
+        queue: match &request.queue {
+            Some(queue) => queue.clone(),
+            None if request.later => dm_core::MAIN_QUEUE.to_string(),
+            None => String::new(),
         },
         ..dm_core::AddOptions::default()
     }

@@ -27,6 +27,7 @@ follows them:
   --save-to FOLDER   save the next link into FOLDER
   --name NAME        save the next link as NAME
   --later            add the next link to the queue without starting it
+  --queue NAME       add the next link to the queue NAME without starting it
   --quiet            ask nothing (no Download details) for every link after it
   --start-queue      start the main queue
   --new-download     open Add URL (what the taskbar's jump list does)
@@ -49,6 +50,7 @@ Examples:
   dm-desktop https://example.com/file.zip
   dm-desktop --save-to ~/Videos --name talk.mp4 https://example.com/v.mp4
   dm-desktop --later https://example.com/a.iso --later https://example.com/b.iso
+  dm-desktop --queue Nightly https://example.com/c.iso
   dm-desktop --start-queue --when-done shutdown
 
 Portable: an empty file named \"portable\" beside the program keeps dm's

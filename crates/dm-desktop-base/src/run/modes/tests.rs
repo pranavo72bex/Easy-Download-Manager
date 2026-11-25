@@ -86,3 +86,26 @@ fn the_window_and_headless_are_left_to_main() {
     assert_eq!(Mode::Window.run(&[]), None);
     assert_eq!(Mode::Headless.run(&words("--headless")), None);
 }
+
+/// Every switch the command line's `orders` reads is named in `--help`: read off `orders`'s
+/// own code, so a switch added there without a line here fails (gaps row C7b, `--queue`).
+#[test]
+fn the_usage_names_every_switch_orders_reads() {
+    let source = include_str!("../../../../dm-shell/src/shell/args.rs");
+    let start = source.find("pub fn orders(").expect("orders is in args.rs");
+    let body = &source[start..];
+    let body = &body[..body.find("\n}\n").expect("orders ends")];
+    let switches: Vec<&str> = body
+        .split('"')
+        .skip(1)
+        .step_by(2)
+        .filter(|word| word.starts_with("--") && word.len() > 2)
+        .collect();
+    assert!(switches.contains(&"--queue"), "{switches:?}");
+    for switch in switches {
+        assert!(
+            super::USAGE.contains(switch),
+            "--help does not name {switch}"
+        );
+    }
+}

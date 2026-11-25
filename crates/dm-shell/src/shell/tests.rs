@@ -750,3 +750,31 @@ fn reference_as_switches_add_each_link_with_its_own_folder_and_name() {
     // A path that starts with a slash is no switch.
     assert!(unrecognised(&argv(&["/data"])).is_empty() || !orders(&argv(&["/data"])).start_queue);
 }
+
+/// `--queue NAME` puts the next link into that queue, not started, as `--later` does the main
+/// queue; the link after it is plain again, and the name is no word left unread (gaps row C7a).
+#[test]
+fn a_link_after_queue_name_goes_into_that_queue() {
+    let args: Vec<String> = [
+        "--queue",
+        "Nightly",
+        "https://a.example/x.zip",
+        "https://a.example/y.zip",
+    ]
+    .iter()
+    .map(|a| a.to_string())
+    .collect();
+    let orders = super::orders(&args);
+    assert_eq!(orders.downloads.len(), 2);
+    let into = super::add_options(&orders.downloads[0]);
+    assert_eq!(into.queue, "Nightly");
+    assert!(into.later, "a link put into a queue was started");
+    let plain = super::add_options(&orders.downloads[1]);
+    assert_eq!(plain.queue, "", "the queue was kept for the next link");
+    assert!(!plain.later);
+    assert!(
+        super::unrecognised(&args).is_empty(),
+        "{:?}",
+        super::unrecognised(&args)
+    );
+}
