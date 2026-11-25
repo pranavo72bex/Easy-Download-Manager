@@ -114,7 +114,9 @@ impl Drop for Aborted {
 /// The address retina is to use for an `rtsps://` one, and the task that
 /// carries it: one connection taken on a loopback port, relayed over TLS
 /// (checked against `config`) to the server, by default on port 322. The
-/// server is asked for the loopback address; servers go by its path.
+/// server is asked for the loopback address; servers go by its path. The connection out is
+/// dm's own (`only_through::connect_tcp`), so under "Only through" it is bound to the network
+/// chosen, and retina reaches nothing but the loopback (gaps row H23b).
 pub(crate) async fn bridge(
     address: &url::Url,
     config: std::sync::Arc<tokio_rustls::rustls::ClientConfig>,

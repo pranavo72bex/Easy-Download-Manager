@@ -8,7 +8,7 @@ the browser extension (`v*` tags) are versioned separately.
 - Tested: with a SOCKS5 proxy set, a torrent reaches its tracker and peers only through it; held to a network with no address, no kind of download and not the update check goes out another way.
 - A `.torrent` file with a number too big for its field is refused rather than read as another number (the torrent library's bencode reader now checks; found by the nightly fuzz run).
 - Each page script dm runs to read a video's formats frees its memory when it ends; every run left all its objects behind before (1.5 MB even for an empty script).
-- Under Options › Advanced › Network › "Only through", an RTMP, RTMPT or MMS stream is recorded over the chosen network rather than refused: its connections are dm's own and held to it. An RTSP stream is still refused there.
+- Under Options › Advanced › Network › "Only through", an RTMP, RTMPT, RTSPS or MMS stream is recorded over the chosen network rather than refused: its connections are dm's own and held to it. A plain rtsp:// stream is still refused there.
 - Options › Folders' switch says "Sort finished files into folders by category", as its heading below does; Options › Advanced's speed limit is written as the speed limiter writes it; Options › Browser's right-click menu items stand under a heading.
 - Options' Text size slider is drawn in dm's accent colour, as its switches and buttons are.
 - About's links sit in two even rows; Properties' Delete file after is a pop-up of its own size, and its Open button appears once the file is there instead of standing greyed.

@@ -2087,7 +2087,7 @@ def only_through(dm, files):
         return saved.get("only_through", "")
 
     note = ("Every download goes out over this network alone, such as your VPN's. While it is not "
-            "connected, downloads wait and say so, and go on by themselves when it is back. RTSP "
+            "connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// "
             "streams do not start while one is chosen (on Windows, torrents too), and the second "
             "network is not used.")
     words = advanced_page()

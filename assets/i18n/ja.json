@@ -1007,7 +1007,7 @@
  "an Android app's code": "Android アプリのコード",
  "a script": "スクリプト",
  "a program": "プログラム",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. RTSP streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "すべてのダウンロードはこのネットワーク(VPN など)だけを通ります。つながっていない間、ダウンロードは待機してそう表示し、戻ると自動で再開します。選んでいる間はRTSP 配信は開始されず(Windows ではトレントも)、2 つ目のネットワークは使われません。",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "すべてのダウンロードはこのネットワーク(VPN など)だけを通ります。つながっていない間、ダウンロードは待機してそう表示し、戻ると自動で再開します。選んでいる間はrtsp:// 配信は開始されず(Windows ではトレントも)、2 つ目のネットワークは使われません。",
  "Networks": "ネットワーク",
  "This computer's connection": "このコンピュータの接続",
  "the second network brings nothing now": "2 つ目のネットワークは今は何も運んでいません",

@@ -1007,7 +1007,7 @@
  "an Android app's code": "شيفرة تطبيق Android",
  "a script": "نص برمجي",
  "a program": "برنامج",
- "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. RTSP streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "كل تنزيل يخرج عبر هذه الشبكة وحدها، مثل شبكة VPN لديك. وحين لا تكون متصلة، تنتظر التنزيلات وتقول ذلك، وتتابع من تلقاء نفسها حين تعود. لا يبدأ بث RTSP ما دامت مختارة (وعلى Windows التورنت أيضًا)، ولا تُستخدم الشبكة الثانية.",
+ "Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used.": "كل تنزيل يخرج عبر هذه الشبكة وحدها، مثل شبكة VPN لديك. وحين لا تكون متصلة، تنتظر التنزيلات وتقول ذلك، وتتابع من تلقاء نفسها حين تعود. لا يبدأ بث rtsp:// ما دامت مختارة (وعلى Windows التورنت أيضًا)، ولا تُستخدم الشبكة الثانية.",
  "Networks": "الشبكات",
  "This computer's connection": "اتصال هذا الحاسوب",
  "the second network brings nothing now": "الشبكة الثانية لا تجلب شيئًا الآن",

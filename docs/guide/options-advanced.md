@@ -18,7 +18,7 @@ BitTorrent. See [Options](options.md) for how the window works.
   above.
 - **Only through:** "Every download goes out over this network alone, such
   as your VPN's. While it is not connected, downloads wait and say so, and go
-  on by themselves when it is back. RTSP streams do not start while one is
+  on by themselves when it is back. rtsp:// streams do not start while one is
   chosen (on Windows, torrents too), and the second network is not used." The pop-up lists
   the computer's networks, as **Second network** does; **Any network**, the
   first, lets downloads go out however the computer sends them. With one
@@ -27,9 +27,9 @@ BitTorrent. See [Options](options.md) for how the window works.
   nothing goes over the plain line: running downloads stop and wait, their
   rows saying **Waiting for the network**, and go on by themselves within a
   few seconds of it coming back. A torrent's every connection goes over that
-  network too, as does an RTMP or MMS stream's. An RTSP stream, and on Windows
-  a torrent, fails saying why instead, since dm cannot hold its connections
-  to one network there. While one is chosen, **Second network** is greyed and not used.
+  network too, as does an RTMP, RTSPS or MMS stream's. A plain `rtsp://`
+  stream, and on Windows a torrent, fails saying why instead, since dm cannot
+  hold its connections to one network there. While one is chosen, **Second network** is greyed and not used.
 - **Second network:** "Use a second connection too, such as your phone over
   USB or its hotspot. Half of each download's connections go over it. Not
   used while a proxy is on." **None** uses only the computer's usual

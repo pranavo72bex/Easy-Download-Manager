@@ -362,3 +362,58 @@ async fn held_to_a_network_no_kind_of_download_reaches_the_site_another_way() {
         "finished with no network: {ended:?}"
     );
 }
+
+/// Held to an adapter, an `rtsps://` stream goes out from it (its one outside socket is dm's
+/// bridge's, bound), and with the adapter's address one this computer does not have it reaches
+/// nothing; a plain `rtsp://` stream, whose sockets are the RTSP library's, is still refused
+/// in words, reaching nothing (gaps row H23b).
+#[tokio::test(flavor = "multi_thread")]
+async fn held_to_an_adapter_rtsps_goes_out_from_it_and_plain_rtsp_is_still_refused() {
+    let _turn = TURN.lock().await;
+    // A server that counts the connections it takes and closes each: the TLS handshake fails,
+    // which is enough to show the stream went out.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let came = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&came);
+    let counter = tokio::spawn(async move {
+        while listener.accept().await.is_ok() {
+            counted.fetch_add(1, Ordering::SeqCst);
+        }
+    });
+    let found = adapters(Some(OURS));
+    set_only_through(Some("dm-test0"));
+    let dir = tempdir();
+    let options = common::options(dir.path());
+    let client = dm_core::client();
+    let within = Duration::from_secs(10);
+    let secure = format!("rtsps://127.0.0.1:{port}/cam");
+    let _ = tokio::time::timeout(within, dm_core::download(&client, &secure, &options)).await;
+    let went_out = came.load(Ordering::SeqCst);
+    let plain = format!("rtsp://127.0.0.1:{port}/cam");
+    let refused = tokio::time::timeout(within, dm_core::download(&client, &plain, &options)).await;
+    set_only_through(None);
+    put(&found, Some(Ipv4Addr::new(192, 0, 2, 7)));
+    set_only_through(Some("dm-test0"));
+    let _ = tokio::time::timeout(within, dm_core::download(&client, &secure, &options)).await;
+    let_go();
+    counter.abort();
+    assert_eq!(
+        went_out, 1,
+        "the rtsps:// stream did not go out from the adapter"
+    );
+    let Ok(Err(refused)) = refused else {
+        panic!("plain rtsp:// was not refused: {refused:?}");
+    };
+    assert!(
+        refused
+            .to_string()
+            .contains("cannot be held to one network"),
+        "{refused}"
+    );
+    assert_eq!(
+        came.load(Ordering::SeqCst),
+        went_out,
+        "plain rtsp://, or rtsps:// with the address gone, reached the server"
+    );
+}
