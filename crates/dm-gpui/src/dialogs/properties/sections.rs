@@ -31,7 +31,7 @@ impl Look {
             t("Saved to"),
             t("Referrer"),
             t("Address"),
-            t("Login"),
+            t("User name"),
             t("Password"),
             "User-Agent",
             t("Request headers"),
@@ -321,7 +321,7 @@ impl Properties {
             theme,
         ))
         .child(field_line(
-            "Login",
+            "User name",
             width,
             screen,
             &self.login,

@@ -355,8 +355,8 @@ fn add_url_remembers_addresses_without_their_login_and_clears_them() {
     h.until_shown("Address");
     h.type_text(&url);
     h.click("Needs a sign-in");
-    h.until_shown("Login");
-    h.click("Login");
+    h.until_shown("User name");
+    h.click("User name");
     h.type_text("me");
     h.click("Next");
     h.until("Download details", |h| h.dialog_open("Download details"));

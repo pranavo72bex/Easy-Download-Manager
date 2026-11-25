@@ -173,7 +173,7 @@ fn ok_keeps_every_setting_of_the_advanced_page() {
     own_proxy(&mut h);
     h.fill("Host", "proxy.example");
     h.fill("Port", "3128");
-    h.fill("Username, if it needs one", "someone");
+    h.fill("User name, if it needs one", "someone");
     ok(&mut h);
     let s = kept(&mut h).advanced;
     assert_eq!(
@@ -256,7 +256,7 @@ fn the_third_networks_limit_is_kept_from_options() {
         o.draft.second_path = "dm-test-network0".into();
         cx.notify();
     });
-    h.fill("Third network's speed limit, KB/s (0 for none)", "300");
+    h.fill("Third network's speed limit (KB/s, 0 for none)", "300");
     ok(&mut h);
     assert_eq!(kept(&mut h).third_limit_kb, 300);
 }
@@ -271,12 +271,12 @@ fn the_second_networks_allowance_is_kept_from_options() {
     open_options(&mut h);
     tab(&mut h, "Advanced");
     h.fill_after(
-        "Second network's speed limit, KB/s (0 for none)",
+        "Second network's speed limit (KB/s, 0 for none)",
         "Download at most this many MB (0 for no limit)",
         "500",
     );
     h.fill_after(
-        "Second network's speed limit, KB/s (0 for none)",
+        "Second network's speed limit (KB/s, 0 for none)",
         "in each period of this many hours",
         "6",
     );

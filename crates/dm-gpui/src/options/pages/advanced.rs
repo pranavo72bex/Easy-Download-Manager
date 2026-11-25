@@ -164,7 +164,7 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
         ));
     }
     // Its own speed limit, shared by its connections (gaps row K5).
-    let words = "Second network's speed limit, KB/s (0 for none)";
+    let words = "Second network's speed limit (KB/s, 0 for none)";
     let field = input(
         o,
         window,
@@ -622,7 +622,7 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
     for (key, words, width, masked) in [
         ("proxy.host", "Host", 260.0, false),
         ("proxy.port", "Port", NUMBER, false),
-        ("proxy.username", "Username, if it needs one", 200.0, false),
+        ("proxy.username", "User name, if it needs one", 200.0, false),
         ("proxy.password", "Password", 200.0, true),
     ] {
         let field = input(o, window, cx, key, words, width, own, masked, move |o| {

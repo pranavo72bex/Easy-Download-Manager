@@ -4,7 +4,7 @@
 [Sign-ins](sign-ins.md) for every way dm signs in, and [Options](options.md)
 for how the window works.
 
-- **Add a login** adds a line with **Host**, **User** and **Password**.
+- **Add a sign-in** adds a line with **Host**, **User** and **Password**.
   **Delete** takes it away.
 - **Host:** the site's name, such as `files.example.com`. An address pasted
   whole is read for its host. Begin it with a dot (`.example.com`) to cover

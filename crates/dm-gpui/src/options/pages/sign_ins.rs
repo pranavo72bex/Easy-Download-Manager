@@ -78,7 +78,7 @@ pub(super) fn sign_ins(
                 .child(delete),
         );
     }
-    let add = button(p, "add-login", t("Add a login")).on_click(cx.listener(|o, _, _, cx| {
+    let add = button(p, "add-login", t("Add a sign-in")).on_click(cx.listener(|o, _, _, cx| {
         o.draft
             .site_logins
             .push(dm_shell::settings::SiteLogin::default());

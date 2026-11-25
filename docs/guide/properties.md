@@ -22,7 +22,7 @@ An empty value shows "—".
 
 ## What you can change
 
-- **Address**, **Login** and **Password:** the link, and the sign-in that
+- **Address**, **User name** and **Password:** the link, and the sign-in that
   goes with it.
 - **User-Agent:** the browser name dm gives the server for this download.
 - **Request headers:** other headers to send, written `Name: value | Name:
@@ -33,7 +33,7 @@ An empty value shows "—".
   and the row leaves the list. Not shown for a failed or cancelled
   download.
 
-**Address**, **Login**, **Password**, **User-Agent** and **Request
+**Address**, **User name**, **Password**, **User-Agent** and **Request
 headers** are greyed while the download runs and once it has finished,
 except while it waits to try again after a failure. **Note** can always be
 changed.
@@ -72,7 +72,7 @@ changed.
 ## Good to know
 
 - When a download failed because it needs a sign-in, the window opens with
-  the keyboard in **Login**. Changing the address (a login and password
+  the keyboard in **User name**. Changing the address (a login and password
   count) and clicking **OK** tries the download again, and the status bar
   says "Trying … again with the sign-in."
 - **Return** in a field is **OK**; **Escape**, Ctrl+W (⌘W on macOS) and

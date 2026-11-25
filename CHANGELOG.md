@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- One name for each thing: User name (not Login or Username) in Add URL, Properties and the proxy; Add a sign-in in Options › Sign-ins; Folders by category; every speed limit written "(KB/s, 0 for none)"; the welcome window's switch named as Options names it, Start dm when I sign in.
 - A dialog's main button says what it does: Next in Add URL, Update link, Move, Import or Export, and Save in the speed limiter, the Scheduler and Properties (Options keeps OK).
 - In Arabic and Hebrew the dialogs and Options read from the right: labels at the right of their fields, buttons and switches in mirrored order, and arrows pointing the right way.
 - A cut name, path or address in Download complete, the progress window, a sheet's title and the row dialogs shows in full on hover. The progress window, Download details and Statistics use figures of one width, so numbers no longer jitter as they change. Text sizes and bold weights are the same everywhere.

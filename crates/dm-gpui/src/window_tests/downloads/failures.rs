@@ -40,7 +40,7 @@ fn a_refused_sign_in_says_where_to_give_one() {
         panic!("not failed: {:?}", row.state)
     };
     let step = dm_desktop_base::format::next_step(raw).unwrap_or_default();
-    assert!(step.contains("Properties › Login"), "{step}");
+    assert!(step.contains("Properties › User name"), "{step}");
     h.select("secret.zip");
     // Retry, not Resume, on the toolbar.
     h.until_shown("Retry");

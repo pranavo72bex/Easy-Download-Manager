@@ -398,7 +398,7 @@ pub const NEXT_STEPS: [(&str, &str); 30] = [
     ),
     (
         "the server wants you to sign in",
-        "Add the login in Properties › Login, or in Options › Sign-ins for the whole site",
+        "Add the login in Properties › User name, or in Options › Sign-ins for the whole site",
     ),
     (
         "the proxy couldn't be reached",
@@ -414,7 +414,7 @@ pub const NEXT_STEPS: [(&str, &str); 30] = [
     ),
     (
         "the site wouldn't give dm the file",
-        "It may need you to sign in (Properties › Login)",
+        "It may need you to sign in (Properties › User name)",
     ),
     (
         "dm couldn't get ready for videos",

@@ -19,7 +19,7 @@ again while it is open, Add URL comes to the front as it stands.
   again. Shown only when there are some. An address whose query holds a
   password, token, key, signature or session is never kept here.
 - **Clear history:** forgets the Recent list.
-- **Needs a sign-in:** tick it to show **Login** and **Password**. The
+- **Needs a sign-in:** tick it to show **User name** and **Password**. The
   login and password go into the address dm downloads.
 - **Cancel:** closes Add URL and adds nothing.
 - **OK:** sends the address on (see below).

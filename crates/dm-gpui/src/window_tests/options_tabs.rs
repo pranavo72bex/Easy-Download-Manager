@@ -111,7 +111,7 @@ fn sign_ins_add_and_delete_a_login() {
     let world = world();
     let mut h = world.harness();
     options_at(&mut h, "Sign-ins");
-    h.click("Add a login");
+    h.click("Add a sign-in");
     h.until("a login", |h| {
         h.dialog(|o: &mut Options, _, _| o.draft.site_logins.len() == 1)
     });

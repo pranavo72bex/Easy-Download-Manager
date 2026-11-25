@@ -36,7 +36,7 @@ pub struct Welcome {
     /// The browsers on this computer.
     found: Vec<Installed>,
     folder: Entity<InputState>,
-    /// "Start dm with the computer, in the tray".
+    /// "Start dm when I sign in".
     at_login: bool,
     focus: gpui::FocusHandle,
     done: bool,
@@ -171,7 +171,7 @@ impl Render for Welcome {
                     .child(
                         native::switch_inline(
                             "at-login",
-                            t("Start dm with the computer, in the tray").into(),
+                            t("Start dm when I sign in").into(),
                             self.at_login,
                             theme,
                             &screen,

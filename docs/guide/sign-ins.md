@@ -44,7 +44,7 @@ An FTP server's login goes in the address: `ftp://` followed by
 
 ## The proxy's login
 
-A proxy that needs a login has its own **Username, if it needs one** and
+A proxy that needs a login has its own **User name, if it needs one** and
 **Password**: see [Proxies](proxies.md).
 
 ## When the sign-in fails

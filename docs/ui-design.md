@@ -63,7 +63,7 @@ The eye must have somewhere to start. Every window is checked against these, at 
     hard-coded colour in a widget.
 11. **Check by a picture, not by reading code.** `python3 scripts/ui-shot.py out-dir
     [command …]` starts the real binary on a throwaway home with rows in every state and saves
-    a PNG of the window and of each dialog a command opens. Look at it in each look.
+    a PNG of the window and of each dialog a command opens. Look at it in each theme.
 
 ## Words
 
@@ -79,25 +79,37 @@ The words are part of the design: short words rank themselves.
 - **A failure in one shape:** what happened, in a few words, on the row ("Server refused the
   sign-in"); what to do, in the details ("Check the user name and password in Properties").
   *(V4.)*
-- **One word per thing.** One name for each thing across the window, the menus and the docs;
-  the list is kept here once U20 is decided (gaps row U20).
+- **One word per thing.** One name for each thing across the window, the menus and the docs
+  (gaps rows U20, E38):
+
+  | Say | Not |
+  |---|---|
+  | sign-in (what a site asks for); **User name** and **Password** (its fields) | login, username |
+  | address (a download's link, in a field) | URL, beyond the command Add URL |
+  | category (a kind of file and its folder) | kind |
+  | Theme (Options › General) | look |
+  | "… (KB/s, 0 for none)" for a speed | "…, KB/s (0 for none)" |
+  | Start dm when I sign in | start with the computer |
+
+  Check all and Uncheck all tick a list's boxes; Select all chooses rows: two things, two
+  names.
 - **A translation fits the same room:** it is checked at the dialog's least width, and one
   over 1.4 times its English is cut back. *(V6.)*
 - **No other download manager is named** (`CLAUDE.md`): "reference A", "reference B",
   "reference C".
 
-## Looks
+## Themes
 
-| Look | Setting word | What it is |
+| Theme | Setting word | What it is |
 |---|---|---|
 | As the computer is | `system` | The default: light or dark as the system is set, followed as it changes |
 | Light | `light` | The system's light colours |
 | Dark | `dark` | The system's dark colours |
 
-Chosen in Options › General › Look and kept as `theme` in the settings; an older `classic` is
-read as `system`. On top of the look, the window follows the system: its accent colour (where
+Chosen in Options › General › Theme and kept as `theme` in the settings; an older `classic` is
+read as `system`. On top of the theme, the window follows the system: its accent colour (where
 the words on it stay at 4.5 to 1), Windows' Mica under the frame, and Windows' High Contrast,
-whose colours replace dm's whatever the look.
+whose colours replace dm's whatever the theme.
 
 ## Colours (`window/theme.rs`)
 

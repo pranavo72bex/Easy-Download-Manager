@@ -448,7 +448,7 @@ fn failed_in(row: &Entry, words: fn(&'static str) -> &'static str) -> String {
             format!(
                 "{} — {}",
                 sentence(reason),
-                words("it needs a sign-in: Properties › Login")
+                words("it needs a sign-in: Properties › User name")
             )
         }
         // In plain words where dm knows them; the engine's own on hover.

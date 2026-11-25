@@ -18,10 +18,10 @@ It says "Add the extension so downloads from your browser come to dm."
 - **Download folder:** where downloads go. It starts with the download
   folder dm uses now.
 - **Browse…:** chooses the folder in the system's folder panel.
-- **Start dm with the computer, in the tray:** "So browser downloads always
+- **Start dm when I sign in:** "So browser downloads always
   reach dm. Change this later in Options › General."
 - **Later** and **Done:** both close the window and keep the **Download
-  folder** and **Start dm with the computer, in the tray** as they stand.
+  folder** and **Start dm when I sign in** as they stand.
 
 **Escape**, Ctrl+W (⌘W on macOS) and the close button do the same as
 **Done**.

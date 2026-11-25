@@ -37,14 +37,14 @@ BitTorrent. See [Options](options.md) for how the window works.
 - **Third network:** once a second is chosen, a third beside it: "Each
   download's connections are shared among all the networks chosen." **None**
   uses the two.
-- "Second network's speed limit, KB/s (0 for none)": "Holds the second
+- "Second network's speed limit (KB/s, 0 for none)": "Holds the second
   network, such as a phone's data, to this speed, whatever the other
   connection does." Its connections share it, beside the speed limit above.
   Under it, "Download at most this many MB (0 for no limit)" "in each period
   of this many hours" is the second network's own allowance, apart from the
   one all downloads share: once it is used, the other networks carry the
   downloads until the period ends.
-- "Third network's speed limit, KB/s (0 for none)": the third network's own,
+- "Third network's speed limit (KB/s, 0 for none)": the third network's own,
   as the second's, with its own allowance under it; shown once a third is
   chosen.
 - A network that stops answering mid-download (unplugged, or out of range)

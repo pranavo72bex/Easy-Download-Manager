@@ -130,7 +130,7 @@ impl Render for AddUrl {
         let authorize = self.authorize;
         // A form as macOS lays one out: the labels right-aligned in a
         // column of their own, every control in a second.
-        let labels = [t("Address"), t("Recent"), t("Login"), t("Password")];
+        let labels = [t("Address"), t("Recent"), t("User name"), t("Password")];
         let width = native::label_width(&labels);
         let recent = (!self.recent.is_empty()).then(|| {
             let shown: Vec<SharedString> = self
@@ -209,10 +209,10 @@ impl Render for AddUrl {
                     ))
                     .when(authorize, |d| {
                         d.child(native::row(
-                            Some(t("Login")),
+                            Some(t("User name")),
                             width,
                             &screen,
-                            native::field(&self.login, "Login", theme),
+                            native::field(&self.login, "User name", theme),
                         ))
                         .child(native::row(
                             Some(t("Password")),

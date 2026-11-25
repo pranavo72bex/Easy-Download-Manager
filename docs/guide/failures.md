@@ -135,14 +135,14 @@ it made of a finished archive:
   dash, the server's own words where they say something. What the common
   codes mean:
   - **401 Unauthorized:** the server wants a sign-in. Add the name and
-    password in **Properties › Login**, or in **Options › Sign-ins** for the
+    password in **Properties › User name**, or in **Options › Sign-ins** for the
     whole site, then click **Retry**.
   - **403 Forbidden** and **410 Gone:** the server will not give out the
     file at that address. A link from your browser is often signed and
     stops working after a while. If the download came from the browser, dm
     keeps what it has and the row waits for a new link (see "Web pages
     instead of files, and links that expired" below). A 403 can also mean
-    the site wants you to sign in (**Properties › Login**).
+    the site wants you to sign in (**Properties › User name**).
   - **404 Not Found:** there is no file at that address now. The Status
     says "this link no longer works". Open the page the file came from in
     your browser and download it from there, or use **Update download link**
@@ -426,7 +426,7 @@ row's right-click menu takes a new address by hand.
   The address looks like a file, but the server sent a web page, usually a
   sign-in page or one saying the link has expired. Open the page the file
   came from in your browser, sign in if it asks, and download again. A
-  login for the site can also go in **Properties › Login**.
+  login for the site can also go in **Properties › User name**.
 - `the stream answered with a web page rather than the file`
   A video stream's address sent a web page instead. The address has
   usually expired. Play the video again in your browser and click

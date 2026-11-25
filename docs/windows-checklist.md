@@ -21,7 +21,7 @@ release.
    *Expect:* the installer opens. Note the exact wording SmartScreen showed.
 2. **Install and first window.** Finish the installer. *Expect:* dm opens with a
    welcome that offers "Add dm to your browser", with a button for each browser
-   you have, and a ticked box "Start dm with the computer, in the tray".
+   you have, and a ticked box "Start dm when I sign in".
 3. **The window draws.** *Expect:* sharp text in Segoe UI Variable, no black or
    flickering areas, and a title bar in the window's colour. Try each choice in
    Options › General › Look: the title bar follows.

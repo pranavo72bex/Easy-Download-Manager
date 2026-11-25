@@ -55,7 +55,7 @@ pub(super) fn folders(
     }
     // Each kind's folder: the kind in the window's language, the folder a
     // name on disk, as it is; under a heading that says the boxes hold folders' names.
-    p.section(t("Folders by kind"));
+    p.section(t("Folders by category"));
     let kinds = dm_core::Category::ALL;
     for pair in kinds.chunks(2) {
         // Two kinds a line on a computer; one a line on a phone, which has room for one.

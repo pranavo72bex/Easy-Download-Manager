@@ -18,7 +18,7 @@ network can give you its address. The settings are in **Options › Advanced
 - **Host:** the proxy's name or address alone, such as `proxy.example.com`;
   no `http://`, no path.
 - **Port:** its port, from 1 to 65535.
-- **Username, if it needs one** and **Password:** the proxy's own login.
+- **User name, if it needs one** and **Password:** the proxy's own login.
   The password is kept in the system's password store where it works.
 - **Not for these sites (fetched directly):** sites that do not go through
   the proxy, separated by spaces or commas: a host, a domain (covering its
