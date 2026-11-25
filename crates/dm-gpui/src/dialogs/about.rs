@@ -113,14 +113,9 @@ impl Render for About {
                         &screen,
                     ))
                     .child(screen.label(t("A free download manager, written in Rust.")))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_wrap()
-                            .justify_center()
-                            .gap(px(native::BUTTON_GAP))
-                            .children(links),
-                    )
+                    .child(link_rows(
+                        links.map(IntoElement::into_any_element).collect(),
+                    ))
                     .child(
                         div()
                             .w_full()
@@ -489,4 +484,25 @@ impl Downloads {
             let _ = me.update(cx, |me, _| me.windows.tip_window = handle);
         });
     }
+}
+
+/// About's links in two rows, balanced: wrapped as they came, the fourth stood alone on a line
+/// of its own (seen in ui-shot.py's picture).
+fn link_rows(mut links: Vec<gpui::AnyElement>) -> gpui::Div {
+    let second = links.split_off(links.len().div_ceil(2));
+    let row = |links: Vec<gpui::AnyElement>| {
+        div()
+            .flex()
+            .flex_wrap()
+            .justify_center()
+            .gap(px(native::BUTTON_GAP))
+            .children(links)
+    };
+    div()
+        .flex()
+        .flex_col()
+        .items_center()
+        .gap(px(space::XS))
+        .child(row(links))
+        .child(row(second))
 }

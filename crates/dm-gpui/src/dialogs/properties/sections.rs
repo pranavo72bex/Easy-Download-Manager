@@ -363,12 +363,9 @@ impl Properties {
             theme,
             screen,
         );
-        // A control, so on a phone named as the fields above it are, not as a detail.
-        if crate::platform::ON_A_PHONE {
-            native::row(Some(t("Delete file after")), width, screen, picker)
-        } else {
-            line(t("Delete file after"), width, screen, picker)
-        }
+        // A control, named as the fields above it are, not as a detail, and its own width: as a
+        // detail's value it stretched across the window (seen in ui-shot.py's picture).
+        native::row(Some(t("Delete file after")), width, screen, picker)
     }
 
     /// Open and Copy details at the leading side; Cancel, and OK rightmost,
@@ -385,31 +382,31 @@ impl Properties {
         let row_for_details = row.clone();
         native::buttons(
             // Its page of the guide first (gaps row E11).
-            vec![
-                native::help_button("properties", theme, screen).into_any_element(),
-                native::enabled(
-                    finished,
-                    native::button("open", t("Open").into(), false, theme, screen).on_click(
-                        cx.listener(move |this, _, _, cx| this.open_file(path.clone(), cx)),
-                    ),
-                )
-                .into_any_element(),
-            ]
-            .into_iter()
-            .chain(failed.then(|| {
-                native::button(
-                    "copy-details",
-                    t("Copy details").into(),
-                    false,
-                    theme,
-                    screen,
-                )
-                .on_click(
-                    cx.listener(move |this, _, _, cx| this.copy_details(&row_for_details, cx)),
-                )
-                .into_any_element()
-            }))
-            .collect(),
+            vec![native::help_button("properties", theme, screen).into_any_element()]
+                .into_iter()
+                // Open once the file is there: greyed before, it said nothing of why, and a greyed
+                // button takes no pointer to say it on (the ui-skills rule, gaps row E50).
+                .chain(finished.then(|| {
+                    native::button("open", t("Open").into(), false, theme, screen)
+                        .on_click(
+                            cx.listener(move |this, _, _, cx| this.open_file(path.clone(), cx)),
+                        )
+                        .into_any_element()
+                }))
+                .chain(failed.then(|| {
+                    native::button(
+                        "copy-details",
+                        t("Copy details").into(),
+                        false,
+                        theme,
+                        screen,
+                    )
+                    .on_click(
+                        cx.listener(move |this, _, _, cx| this.copy_details(&row_for_details, cx)),
+                    )
+                    .into_any_element()
+                }))
+                .collect(),
             vec![
                 native::button("cancel", t("Cancel").into(), false, theme, screen)
                     .on_click(cx.listener(|this, _, window, _| this.cancel(window)))

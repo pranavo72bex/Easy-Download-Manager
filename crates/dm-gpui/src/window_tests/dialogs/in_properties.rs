@@ -36,11 +36,10 @@ fn a_double_click_opens_properties_and_open_runs_a_finished_file() {
     // Its Properties are still there from the menu, with nothing yet to open.
     h.command("file.properties");
     h.until("File properties", |h| h.dialog_open("File properties"));
-    h.until_a_persons_moment();
-    h.person_click("Open", 1);
+    // No Open until there is a file to open: a greyed one said nothing of why.
     assert!(
-        h.fake.opened.lock().unwrap().is_empty(),
-        "nothing to open yet"
+        h.dialog_words("Open").is_none(),
+        "Open offered before the file is there"
     );
     h.close_dialogs();
 
