@@ -555,6 +555,25 @@ fn an_opened_sheet_has_the_keys() {
         })
     };
     h.until("the sheet's first line has the keys", has_keys);
+    // The keys stay in the sheet: Shift+Tab from the first line goes round to its last, and
+    // Tab from there back to the first (gaps row E50).
+    h.key("tab", &["shift"]);
+    assert!(!has_keys(&mut h), "Shift+Tab did not move");
+    let in_sheet = |h: &mut Harness| {
+        h.dialog(|view: &mut Downloads, window, _| {
+            view.layout
+                .narrow
+                .sheet
+                .as_ref()
+                .is_some_and(|sheet| sheet.keys_inside(window))
+        })
+    };
+    assert!(in_sheet(&mut h), "Shift+Tab left the sheet");
+    h.key("tab", &[]);
+    assert!(
+        has_keys(&mut h),
+        "Tab from the last line did not go round to the first"
+    );
     h.person_click("Downloads", 1);
     h.until_shown("Resume all");
     assert!(has_keys(&mut h), "the submenu's first line lost the keys");

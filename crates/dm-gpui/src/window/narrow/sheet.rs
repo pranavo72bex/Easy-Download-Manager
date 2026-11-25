@@ -31,9 +31,10 @@ pub(crate) struct Sheet {
     /// Items of the first menu drawn as big buttons in a row above the others, and left out of
     /// the list (a card's Open, Share, Delete and Pause or Resume, gaps row C22).
     quick: Vec<usize>,
-    /// The keys' place on its first line, moved there as it opens and as a submenu is walked
-    /// into (gaps row E25): the keys stayed on the window behind it.
-    first: Option<gpui::FocusHandle>,
+    /// The keys' place on each line that can be picked, by the item's place in the menu shown:
+    /// the first given them as it opens and as a submenu is walked into (gaps row E25), the
+    /// arrows and Tab moving among them and never out of the sheet (gaps row E50).
+    keys: Vec<(usize, gpui::FocusHandle)>,
     /// How many pages were shown when the first line was last given the keys.
     focused_for: usize,
 }
@@ -45,7 +46,7 @@ impl Sheet {
             pages: vec![menu],
             drag: bottomsheet::Drag::default(),
             quick: Vec::new(),
-            first: None,
+            keys: Vec::new(),
             focused_for: 0,
         }
     }
@@ -75,19 +76,66 @@ impl Sheet {
 
     /// The keys given to its first line where the page shown is new to them.
     pub(crate) fn focus_first(&mut self, window: &mut Window, cx: &mut gpui::App) {
-        let first = self.first.get_or_insert_with(|| cx.focus_handle()).clone();
-        if self.focused_for != self.pages.len() {
-            self.focused_for = self.pages.len();
-            window.focus(&first, cx);
+        if self.focused_for == self.pages.len() {
+            return;
         }
+        self.focused_for = self.pages.len();
+        let quick: &[usize] = if self.pages.len() > 1 {
+            &[]
+        } else {
+            &self.quick
+        };
+        let pickable: Vec<usize> = self
+            .shown()
+            .map(|menu| {
+                menu.items
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, item)| !quick.contains(i) && pickable(item))
+                    .map(|(i, _)| i)
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.keys = pickable
+            .into_iter()
+            .map(|i| (i, cx.focus_handle()))
+            .collect();
+        if let Some((_, first)) = self.keys.first() {
+            window.focus(first, cx);
+        }
+    }
+
+    /// The keys moved `by` lines, round from the last to the first: they stay in the sheet.
+    pub(crate) fn step(&self, by: isize, window: &mut Window, cx: &mut gpui::App) {
+        if self.keys.is_empty() {
+            return;
+        }
+        let at = self
+            .keys
+            .iter()
+            .position(|(_, k)| k.is_focused(window))
+            .unwrap_or(0) as isize;
+        let next = (at + by).rem_euclid(self.keys.len() as isize) as usize;
+        window.focus(&self.keys[next].1, cx);
+    }
+
+    /// The keys' place on item `i` of the menu shown, where it can be picked.
+    fn key_of(&self, i: usize) -> Option<&gpui::FocusHandle> {
+        self.keys.iter().find(|(at, _)| *at == i).map(|(_, k)| k)
+    }
+
+    /// Whether one of its lines has the keys.
+    #[cfg(test)]
+    pub(crate) fn keys_inside(&self, window: &Window) -> bool {
+        self.keys.iter().any(|(_, k)| k.is_focused(window))
     }
 
     /// Whether its first line has the keys.
     #[cfg(test)]
     pub(crate) fn has_keys(&self, window: &Window) -> bool {
-        self.first
-            .as_ref()
-            .is_some_and(|first| first.is_focused(window))
+        self.keys
+            .first()
+            .is_some_and(|(_, first)| first.is_focused(window))
     }
 
     /// How many of its items are big buttons above the list.
@@ -187,18 +235,6 @@ pub(super) fn drawn(
         crate::widgets::native::cut("sheet-name", menu.name.clone(), false, screen)
     };
     let quick: &[usize] = if walked { &[] } else { &sheet.quick };
-    // The line the keys are given as it opens: the first that can be picked.
-    let first_line = menu.items.iter().enumerate().position(|(i, item)| {
-        !quick.contains(&i)
-            && matches!(
-                item,
-                OwnedMenuItem::Submenu(_)
-                    | OwnedMenuItem::Action {
-                        disabled: false,
-                        ..
-                    }
-            )
-    });
     let mut items: Vec<gpui::AnyElement> = Vec::new();
     if !quick.is_empty() {
         items.push(quick_row(menu, quick, theme, screen, cx));
@@ -209,12 +245,7 @@ pub(super) fn drawn(
             .enumerate()
             // What the row above holds is not listed again; nor a separator it leaves first.
             .filter(|(i, _)| !quick.contains(i))
-            .map(|(i, item)| {
-                let first = (Some(i) == first_line)
-                    .then_some(sheet.first.as_ref())
-                    .flatten();
-                item_drawn(i, item, first, theme, screen, cx)
-            }),
+            .map(|(i, item)| item_drawn(i, item, sheet.key_of(i), theme, screen, cx)),
     );
     bottomsheet::sheet(
         "sheet",
@@ -324,7 +355,7 @@ pub(super) fn hooks(cx: &mut Context<Downloads>) -> bottomsheet::Hooks {
 fn item_drawn(
     i: usize,
     item: &OwnedMenuItem,
-    first: Option<&gpui::FocusHandle>,
+    key: Option<&gpui::FocusHandle>,
     theme: Theme,
     screen: &Screen,
     cx: &mut Context<Downloads>,
@@ -337,7 +368,7 @@ fn item_drawn(
             .bg(theme.separator)
             .into_any_element(),
         OwnedMenuItem::Submenu(sub) => bottomsheet::line(("sheet-item", i), theme)
-            .when_some(first, |l, first| l.track_focus(first))
+            .when_some(key, |l, key| keyed(l, key, cx))
             .role(Role::MenuItem)
             .aria_label(sub.name.clone())
             .on_click(cx.listener(move |view, _, _, cx| {
@@ -382,7 +413,7 @@ fn item_drawn(
             // A command's picture, as its toolbar button has it on a desktop.
             let picture = picture_of(action.as_ref());
             bottomsheet::line(("sheet-item", i), theme)
-                .when_some(first, |l, first| l.track_focus(first))
+                .when_some(key, |l, key| keyed(l, key, cx))
                 .role(Role::MenuItem)
                 .aria_label(gpui::SharedString::from(name.clone()))
                 // Told off and ticked, as it is drawn (gaps row E25).
@@ -518,4 +549,39 @@ impl Downloads {
         });
         cx.notify();
     }
+}
+
+/// Whether `item` is a line that can be picked: a submenu or an action not greyed.
+fn pickable(item: &OwnedMenuItem) -> bool {
+    matches!(
+        item,
+        OwnedMenuItem::Submenu(_)
+            | OwnedMenuItem::Action {
+                disabled: false,
+                ..
+            }
+    )
+}
+
+/// A sheet's line given its place for the keys, its arrows and Tab moving among the sheet's
+/// lines round, never out of the sheet (gaps row E50): their actions, on the line with the keys.
+fn keyed(
+    line: gpui::Stateful<Div>,
+    key: &gpui::FocusHandle,
+    cx: &mut Context<Downloads>,
+) -> gpui::Stateful<Div> {
+    use crate::window::menus::{FocusNext, FocusPrevious, SelectNext, SelectPrevious};
+    let step = |by: isize| {
+        move |view: &mut Downloads, window: &mut Window, cx: &mut Context<Downloads>| {
+            if let Some(sheet) = view.layout.narrow.sheet.as_ref() {
+                sheet.step(by, window, cx);
+            }
+        }
+    };
+    let (down, up, tab, back) = (step(1), step(-1), step(1), step(-1));
+    line.track_focus(key)
+        .on_action(cx.listener(move |view, _: &SelectNext, window, cx| down(view, window, cx)))
+        .on_action(cx.listener(move |view, _: &SelectPrevious, window, cx| up(view, window, cx)))
+        .on_action(cx.listener(move |view, _: &FocusNext, window, cx| tab(view, window, cx)))
+        .on_action(cx.listener(move |view, _: &FocusPrevious, window, cx| back(view, window, cx)))
 }

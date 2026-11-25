@@ -52,9 +52,10 @@ struct Picking {
     choices: Vec<SharedString>,
     chosen: Option<usize>,
     drag: crate::widgets::bottomsheet::Drag,
-    /// The keys' place on the chosen line (the first where none is), given as the sheet
-    /// opens (gaps row E25): they stayed on the pop-up behind it.
-    keys: Option<gpui::FocusHandle>,
+    /// The keys' place on each line, the chosen one (the first where none is) given them as
+    /// the sheet opens (gaps row E25), the arrows and Tab moving among them round and never out
+    /// of the sheet (gaps row E50).
+    keys: Vec<gpui::FocusHandle>,
     /// What had the keys as it opened (the pop-up button): given them back as it closes (gaps
     /// row E46).
     opener: Option<gpui::FocusHandle>,
@@ -196,7 +197,8 @@ pub fn button_of(
                 return;
             }
             if crate::platform::ON_A_PHONE {
-                let keys = cx.focus_handle();
+                let keys: Vec<gpui::FocusHandle> =
+                    choices.iter().map(|_| cx.focus_handle()).collect();
                 let opener = window.focused(cx);
                 PICKING.with(|p| {
                     *p.borrow_mut() = Some(Picking {
@@ -205,11 +207,13 @@ pub fn button_of(
                         choices: choices.clone(),
                         chosen,
                         drag: Default::default(),
-                        keys: Some(keys.clone()),
+                        keys: keys.clone(),
                         opener,
                     })
                 });
-                window.focus(&keys, cx);
+                if let Some(first) = keys.get(chosen.unwrap_or(0)).or(keys.first()) {
+                    window.focus(first, cx);
+                }
                 window.refresh();
                 return;
             }
@@ -271,6 +275,17 @@ fn close_picking() -> bool {
     PICKING.with(|p| p.borrow_mut().take().is_some())
 }
 
+/// The keys moved `by` lines in a pop-up's open sheet, round from the last to the first.
+fn step_picking(by: isize, window: &mut gpui::Window, cx: &mut gpui::App) {
+    let keys = PICKING.with(|p| p.borrow().as_ref().map(|open| open.keys.clone()));
+    let Some(keys) = keys.filter(|k| !k.is_empty()) else {
+        return;
+    };
+    let at = keys.iter().position(|k| k.is_focused(window)).unwrap_or(0) as isize;
+    let next = (at + by).rem_euclid(keys.len() as isize) as usize;
+    window.focus(&keys[next], cx);
+}
+
 /// Closes a pop-up's sheet (a choice, Close, Back) and gives the keys back to what had them as
 /// it opened, the pop-up button (gaps row E46): true where one was open.
 pub fn close_picking_in(window: &mut gpui::Window, cx: &mut gpui::App) -> bool {
@@ -324,10 +339,16 @@ fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoEleme
             let field = open.field;
             let item = open.item;
             let ticked = open.chosen == Some(index);
-            let has_keys = index == open.chosen.unwrap_or(0);
             bottomsheet::line(("pick", index), theme)
-                .when_some(open.keys.clone().filter(|_| has_keys), |l, keys| {
-                    l.track_focus(&keys)
+                .when_some(open.keys.get(index).cloned(), |l, key| {
+                    use crate::window::menus::{
+                        FocusNext, FocusPrevious, SelectNext, SelectPrevious,
+                    };
+                    l.track_focus(&key)
+                        .on_action(|_: &SelectNext, window, cx| step_picking(1, window, cx))
+                        .on_action(|_: &SelectPrevious, window, cx| step_picking(-1, window, cx))
+                        .on_action(|_: &FocusNext, window, cx| step_picking(1, window, cx))
+                        .on_action(|_: &FocusPrevious, window, cx| step_picking(-1, window, cx))
                 })
                 .role(Role::MenuItem)
                 .aria_label(words.clone())
@@ -480,7 +501,7 @@ mod tests {
                 choices: vec!["Low".into(), "High".into()],
                 chosen: Some(0),
                 drag: Default::default(),
-                keys: None,
+                keys: Vec::new(),
                 opener: None,
             })
         });
