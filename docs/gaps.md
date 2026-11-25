@@ -89,14 +89,19 @@ E24 to E49 of the ui reviews, the most of them closed. `cargo test --workspace`:
 1. `python3 scripts/ai-health.py`; then the Windows Desktop job on main's last push (it was red
    from 1777b62f to 176f3b01: a part's From and to, and the dial-up test; fixed in 176f3b01,
    to be seen green).
-2. The emulator (the maintainer, 2026-11-25: "only test on android emulator", never a phone):
+2. Done 2026-11-25 on the `dmci` emulator (arm64, Android 15; a phone plugged in was left
+   alone, every `adb` call by `ANDROID_SERIAL=emulator-5554`): `android-emulator-check.sh`
+   passed (dm drew, a shared link downloaded whole) with one warning, no "dm added a download"
+   notification seen; Options › General › Theme's sheet titled "Theme", its chosen line ringed
+   as it opened (E25), Escape closing the sheet alone and the Theme button ringed again (E46).
+   To do it again (the maintainer, 2026-11-25: "only test on android emulator", never a phone):
    the debug APK for arm64 (`cargo ndk --platform 29 -t arm64-v8a -o
    crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release`, then
    `./gradlew assembleDebug -Pdm.skipCargo=true` in `crates/dm-android/android` with JDK 17),
    the `dmci` emulator booted, `bash scripts/android-emulator-check.sh app-debug.apk out/`; then
    with a keyboard, E25's and E46's keys in a pop-up's sheet and E47's open state.
 3. The rows still partly done, each with what is left in its row: E24 (heard in VoiceOver and
-   Narrator), E25, E35, E37 (B25's pictures), E41, E46, E47, and E50 (the rules that need a
+   Narrator), E35, E37 (B25's pictures), E41, E47, and E50 (the rules that need a
    picture or a walk).
 4. Owed checks: `python3 scripts/human-qa.py` in a visible window (B01's new screen reader
    check, B25's pictures); a reader for the many lines added to `assets/i18n/unread/` today.
@@ -195,7 +200,6 @@ React, `h-dvh`, metadata) do not apply to GPUI.
 
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
-| E46 | A pop-up's sheet giving the keys back as it closes is coded and built for Android, never seen | PARTIAL · S · person | Done 2026-11-25: `Picking::opener` (what had the keys as it opened), focused by `popup::close_picking_in` on a choice, Close, Back and Escape; phone-only, so linted for Android as CI does (`cargo ndk … clippy -p dm-android`). Left: seen on the emulator with a keyboard, with E25's check |
 | E47 | A pop-up saying whether its choices are open is never read off a tree | PARTIAL · S · person | Done 2026-11-25: `.aria_expanded(open)` on the pop-up button, open while its sheet shows (`PICKING`); a desktop pop-up's choices are the system's menu, which the system announces. Left: read off the system's tree by `human-qa.py` or the emulator (GPUI's test windows build none, so the row's window test cannot be written) |
 | E50 | Rules from the skills not yet checked against dm, as each needs a picture or a walk: a greyed button says why (97 `native::button` callers, 17 hover notes); Tab stays inside an open in-window menu or sheet; one accent colour per view; each empty state has one clear next step; an error shows beside the action that caused it | OPEN · M · person | Do: review each rule with `dm-design` and the `ui-shot.py` pictures at 360, 700 and 1280 points wide, in light and dark, keeping only findings that pass `improve-ui`'s three proofs (the rule, the code path it reaches, a single fix), at most three per surface. Each survivor becomes a row here, and a finding that changes a contract row waits for the maintainer's word. Where: `crates/dm-gpui/src/` (the main window, the dialogs, Options, the phone's sheets). Test: none; the rows it makes carry theirs. Done when: each rule is either a row or marked "held" in this row. Skill: `.claude/skills/dm-design` |
 
@@ -1345,7 +1349,6 @@ before its dialog (`popup::close_picking`).
 | #   | Gap | Status | Next |
 |-----|-----|--------|------|
 | E24 | A dialog's refusal is said to a screen reader only by its live region: never yet heard in VoiceOver or Narrator, nor read off the system's tree | PARTIAL · S · person | Done 2026-11-25: `native::says(id, Option<SharedString>, theme, screen)` (`widgets/native/note.rs`), a polite live region always there, of no room while empty, in every dialog; `scripts/human-qa.py`'s B01 now reads the refusal off Add URL's own window through NSAccessibility (GPUI's test windows build no tree, so no window test can). Left: `python3 scripts/human-qa.py` in a visible window (that check's first run), and the refusal heard: VoiceOver on macOS (Add URL, Next with nothing typed), Narrator on Windows |
-| E25 | The phone's sheets taking the keys is coded and built for Android, never seen on a phone | PARTIAL · S · person | Done 2026-11-25: a sheet's lines, Close and Back are tab stops with their ring; a greyed line told off, a ticked one ticked; the lines answer the pointer by `theme.answering`; the menu sheet gives its first line the keys as it opens and as a submenu is walked into (`an_opened_sheet_has_the_keys`); a pop-up's sheet gives its chosen line (the first where none is) the keys as it opens (`Picking::keys`, phone-only, so built and linted for Android as CI does: `cargo ndk --platform 29 -t arm64-v8a clippy -p dm-android`). Left: on the emulator with a keyboard, a pop-up's sheet opened in Options and its chosen line ringed |
 | E35 | Cut words with no way to read them whole: Options' page summaries (cut with room below them), a card's name in its sheet, and the zip lists of Download details and Properties (one list drawn twice) | PARTIAL · S, with E2 | Done 2026-11-25: `native::cut(id, words, middle, screen)`, one line cut (in the middle for paths and addresses) and whole on hover, for Download complete's name and path, the row dialogs' link, the progress window's address and a sheet's title. Left: page summaries on two lines; the card's name in its sheet through `cut`; one zip list helper |
 | E37 | Contract row B25's pictures still show OK where the dialogs now say Next and Save | PARTIAL · S · person | Done 2026-11-25: Next (Add URL), Update link, Move (Move to queue, Move/Rename), Import or Export (the list file), Save (the speed limiter, the Scheduler, Properties); Options keeps OK; the harness, the window tests and `human-qa.py` press the new words; contract rows B01, B02, B65 say them (and B51, B57, B71 E29's headings without a colon). Left: B25's pictures retaken by `python3 scripts/human-qa.py` in a visible window |
 | E41 | The search box's clear button and the title bar's window buttons still type "✕"; the scheduler's queue rows are 24 high and the presets 20 off a phone | PARTIAL · S, with V11, V17 | Done 2026-11-25: `assets/icons/` close, check, chevron-right and chevron-left (stroke 1.75), drawn by `native::icon` for the check box's tick, a sheet's and a pop-up's ticks, a sheet's Close, the chevrons that lead on, back, or open what is shut (mirrored right to left, `mirror::forward`/`back`); the check box's corner `space::CORNER_S`, a quick button's `native::RADIUS`, the pop-up's chevron `ICON_SMALL`, the sheet's `ICON` from `ICON_LARGE`. Left: the clear button (the tests press it by its "✕": by its name then) and the title bar's buttons (the system's own glyphs on Windows); the 24 and 20 off a phone at `CONTROL` would grow those rows |
