@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Tested: with a SOCKS5 proxy set, a torrent reaches its tracker and peers only through it; held to a network with no address, no kind of download and not the update check goes out another way.
 - A `.torrent` file with a number too big for its field is refused rather than read as another number (the torrent library's bencode reader now checks; found by the nightly fuzz run).
 - Each page script dm runs to read a video's formats frees its memory when it ends; every run left all its objects behind before (1.5 MB even for an empty script).
 - Under Options › Advanced › Network › "Only through", an RTMP, RTMPT or MMS stream is recorded over the chosen network rather than refused: its connections are dm's own and held to it. An RTSP stream is still refused there.

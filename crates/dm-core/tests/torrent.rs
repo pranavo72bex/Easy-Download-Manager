@@ -355,3 +355,161 @@ async fn a_torrent_whose_info_cannot_be_true_fails_its_row_with_why() {
     let why = failed_with(&huge).await;
     assert!(why.contains("pieces"), "{why}");
 }
+
+/// A SOCKS5 server (RFC 1928, no sign-in) on the loopback that relays each CONNECT and keeps
+/// where each went.
+async fn socks5_relay() -> (
+    SocketAddr,
+    std::sync::Arc<std::sync::Mutex<Vec<SocketAddr>>>,
+) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let went = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let kept = std::sync::Arc::clone(&went);
+    tokio::spawn(async move {
+        while let Ok((mut client, _)) = listener.accept().await {
+            let kept = std::sync::Arc::clone(&kept);
+            tokio::spawn(async move {
+                let mut head = [0u8; 2];
+                client.read_exact(&mut head).await?;
+                let mut methods = vec![0u8; usize::from(head[1])];
+                client.read_exact(&mut methods).await?;
+                client.write_all(&[5, 0]).await?;
+                let mut asked = [0u8; 4];
+                client.read_exact(&mut asked).await?;
+                let target = match asked[3] {
+                    1 => {
+                        let mut to = [0u8; 6];
+                        client.read_exact(&mut to).await?;
+                        let ip = Ipv4Addr::new(to[0], to[1], to[2], to[3]);
+                        SocketAddr::from((ip, u16::from_be_bytes([to[4], to[5]])))
+                    }
+                    3 => {
+                        let mut length = [0u8; 1];
+                        client.read_exact(&mut length).await?;
+                        let mut name = vec![0u8; usize::from(length[0])];
+                        client.read_exact(&mut name).await?;
+                        let mut port = [0u8; 2];
+                        client.read_exact(&mut port).await?;
+                        let name = String::from_utf8_lossy(&name).into_owned();
+                        tokio::net::lookup_host((name, u16::from_be_bytes(port)))
+                            .await?
+                            .find(SocketAddr::is_ipv4)
+                            .ok_or_else(|| std::io::Error::other("no IPv4 address"))?
+                    }
+                    _ => return Err(std::io::Error::other("an address kind not relayed")),
+                };
+                kept.lock().unwrap().push(target);
+                let mut server = tokio::net::TcpStream::connect(target).await?;
+                client.write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0]).await?;
+                tokio::io::copy_bidirectional(&mut client, &mut server).await?;
+                Ok::<_, std::io::Error>(())
+            });
+        }
+    });
+    (addr, went)
+}
+
+/// A listener on the loopback that counts the connections it takes: each is answered with
+/// `answer` (an HTTP response) where there is one, and otherwise held until it closes.
+async fn counting(
+    answer: Option<Vec<u8>>,
+) -> (SocketAddr, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+    let came = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = std::sync::Arc::clone(&came);
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let answer = answer.clone();
+            tokio::spawn(async move {
+                let mut read = Vec::new();
+                let mut buf = [0u8; 1024];
+                while let Ok(n) = socket.read(&mut buf).await {
+                    if n == 0 {
+                        return;
+                    }
+                    read.extend_from_slice(&buf[..n]);
+                    if let Some(answer) = &answer {
+                        if read.windows(4).any(|w| w == b"\r\n\r\n") {
+                            let _ = socket.write_all(answer).await;
+                            return;
+                        }
+                    }
+                }
+            });
+        }
+    });
+    (addr, came)
+}
+
+/// A torrent behind a SOCKS5 proxy reaches its tracker and its peer only through it: every
+/// connection either saw is one the proxy relayed, so a torrent cannot slip around the proxy
+/// a person set (gaps row H24b).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_torrent_behind_a_socks5_proxy_reaches_its_tracker_and_peer_only_through_it() {
+    use std::sync::atomic::Ordering;
+    let (peer, peer_saw) = counting(None).await;
+    let std::net::IpAddr::V4(ip) = peer.ip() else {
+        unreachable!("the test binds v4");
+    };
+    let mut body = b"d8:completei1e10:incompletei0e8:intervali60e5:peers6:".to_vec();
+    body.extend_from_slice(&ip.octets());
+    body.extend_from_slice(&peer.port().to_be_bytes());
+    body.push(b'e');
+    let mut answer = format!(
+        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    )
+    .into_bytes();
+    answer.extend_from_slice(&body);
+    let (tracker, tracker_saw) = counting(Some(answer)).await;
+    let (proxy, went) = socks5_relay().await;
+    let out = tempdir();
+    let options = Options {
+        proxy: Some(format!("socks5://{proxy}")),
+        ..common::options(out.path())
+    };
+    let control = options.control.clone();
+    let magnet = format!(
+        "magnet:?xt=urn:btih:2123456789abcdef0123456789abcdef01234567&tr=http://{tracker}/announce"
+    );
+    let run =
+        tokio::spawn(async move { download_torrent(&client(), &magnet, &options, None).await });
+    let began = std::time::Instant::now();
+    while peer_saw.load(Ordering::SeqCst) == 0 {
+        assert!(
+            began.elapsed() < Duration::from_secs(30),
+            "the peer was never reached (the tracker saw {}, the proxy relayed to {:?})",
+            tracker_saw.load(Ordering::SeqCst),
+            went.lock().unwrap()
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    control.pause();
+    let _ = tokio::time::timeout(Duration::from_secs(10), run).await;
+    let went = went.lock().unwrap().clone();
+    let relayed = |to: SocketAddr| went.iter().filter(|w| **w == to).count();
+    let (to_tracker, to_peer) = (
+        tracker_saw.load(Ordering::SeqCst),
+        peer_saw.load(Ordering::SeqCst),
+    );
+    assert!(to_tracker > 0, "the tracker was never asked");
+    assert!(
+        to_tracker <= relayed(tracker),
+        "the tracker saw {to_tracker} connections, the proxy relayed {}",
+        relayed(tracker)
+    );
+    assert!(
+        to_peer <= relayed(peer),
+        "the peer saw {to_peer} connections, the proxy relayed {}",
+        relayed(peer)
+    );
+}
