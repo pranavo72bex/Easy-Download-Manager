@@ -23,3 +23,4 @@
 ## Lessons
 
 - 2026-11-24: Headless tests in dm-desktop-base enforce strict lints like -D warnings, failing on unused variables, unnecessary mut keywords, and len()  0 comparisons.
+- 2026-11-25: Comparing GPUI SharedString in assert_eq! using .into() causes type inference errors (E0283); use explicit SharedString::from(...) instead.
