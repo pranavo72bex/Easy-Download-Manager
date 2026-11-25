@@ -101,6 +101,8 @@ pub struct Interp {
     uses_arguments: HashMap<*const Function, bool>,
     /// The program's text (for a function's `toString`).
     pub source: Rc<str>,
+    /// The parsed program (kept alive so functions can point into it).
+    pub program: Vec<Stmt>,
     /// What a promise's settling runs, in turn, once the program's own code has run.
     pub jobs: std::collections::VecDeque<(Obj, Value)>,
 }
@@ -127,6 +129,7 @@ impl Interp {
             steps: 0,
             uses_arguments: HashMap::new(),
             source: "".into(),
+            program: Vec::new(),
             jobs: Default::default(),
         };
         crate::realm::fill(&mut interp);
@@ -137,12 +140,11 @@ impl Interp {
     pub fn run(&mut self, src: &str) -> Res<Value> {
         let body = crate::parser::parse(src).map_err(|e| self.syntax_error(&e.to_string()))?;
         self.source = src.into();
-        // The program's tree lives as long as the interpreter: its functions point into it.
-        let body: &'static [Stmt] = Box::leak(body.into_boxed_slice());
         let strict = body.first().is_some_and(
             |s| matches!(s, Stmt::Expr(Expr::String(t)) if **t == *text("use strict")),
         );
         let _ = strict;
+        self.program = body;
         self.frames.push(Frame {
             this: Some(Value::Object(self.global.clone())),
             function: None,
@@ -150,10 +152,11 @@ impl Interp {
             home: None,
         });
         let scope = self.global_scope.clone();
-        self.hoist(body, &scope, true)?;
+        let program = std::mem::take(&mut self.program);
+        self.hoist(&program, &scope, true)?;
         let mut last = Value::Undefined;
         let mut result = Ok(());
-        for st in body {
+        for st in &program {
             if let Stmt::Expr(e) = st {
                 match self.eval(e, &scope) {
                     Ok(v) => last = v,
@@ -172,6 +175,7 @@ impl Interp {
                 }
             }
         }
+        self.program = program;
         self.frames.pop();
         result?;
         self.run_jobs()?;
