@@ -197,73 +197,33 @@ impl Details {
                             .flex()
                             .flex_col()
                             .gap(px(space::XS))
-                            .child(
-                                div()
-                                    .id("zip-contents")
-                                    .max_h(px(140.0))
-                                    .overflow_y_scroll()
-                                    .rounded(px(native::RADIUS))
-                                    .border_1()
-                                    .border_color(theme.separator)
-                                    .bg(theme.background)
-                                    .p(px(space::XS))
-                                    .children(files.into_iter().enumerate().map(|(i, file)| {
-                                        let takeable = !file.is_folder()
-                                            && file.packed <= dm_core::ZIP_MOST_TAKEN;
-                                        let size =
-                                            (!file.is_folder()).then(|| format::bytes(file.size));
-                                        div()
-                                            .flex()
-                                            .items_center()
-                                            .gap(px(space::M))
-                                            .h(px(20.0))
-                                            .child(
+                            .child(crate::widgets::ziplist::zip_box(
+                                files.into_iter().enumerate().map(|(i, file)| {
+                                    let takeable =
+                                        !file.is_folder() && file.packed <= dm_core::ZIP_MOST_TAKEN;
+                                    crate::widgets::ziplist::zip_line(i, &file, theme, screen)
+                                        .when(takeable, |d| {
+                                            d.child(
                                                 div()
-                                                    .flex_1()
-                                                    .min_w_0()
-                                                    .overflow_hidden()
-                                                    .whitespace_nowrap()
-                                                    .text_ellipsis()
-                                                    .child(screen.label(file.name.clone())),
+                                                    .id(("take", i))
+                                                    .map(|c| native::ringed(c, theme))
+                                                    .role(Role::Button)
+                                                    .aria_label(t("Take out"))
+                                                    .text_color(theme.accent_text)
+                                                    .child(screen.label(t("Take out")))
+                                                    .on_click(cx.listener(
+                                                        move |this, _, window, cx| {
+                                                            this.take_out(file.clone(), window, cx)
+                                                        },
+                                                    )),
                                             )
-                                            .when_some(size, |d, size| {
-                                                d.child(
-                                                    div()
-                                                        .text_color(theme.muted)
-                                                        .child(screen.label(size)),
-                                                )
-                                            })
-                                            .when(takeable, |d| {
-                                                d.child(
-                                                    div()
-                                                        .id(("take", i))
-                                                        .map(|c| {
-                                                            crate::widgets::native::ringed(c, theme)
-                                                        })
-                                                        .role(Role::Button)
-                                                        .aria_label(t("Take out"))
-                                                        .text_color(theme.accent_text)
-                                                        .child(screen.label(t("Take out")))
-                                                        .on_click(cx.listener(
-                                                            move |this, _, window, cx| {
-                                                                this.take_out(
-                                                                    file.clone(),
-                                                                    window,
-                                                                    cx,
-                                                                )
-                                                            },
-                                                        )),
-                                                )
-                                            })
-                                    }))
-                                    .when(more > 0, |d| {
-                                        d.child(native::note(
-                                            tf("and {} more", &[&more.to_string()]),
-                                            theme.muted,
-                                            screen,
-                                        ))
-                                    }),
-                            )
+                                        })
+                                        .into_any_element()
+                                }),
+                                more,
+                                theme,
+                                screen,
+                            ))
                             .when_some(taken, |d, words| {
                                 d.child(native::note(words, theme.muted, screen))
                             })

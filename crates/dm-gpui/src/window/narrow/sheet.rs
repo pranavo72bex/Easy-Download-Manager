@@ -279,12 +279,13 @@ fn quick_row(
                         )
                     })
                     .child(
-                        div()
-                            .max_w_full()
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .text_ellipsis()
-                            .child(screen.label(gpui::SharedString::from(words))),
+                        crate::widgets::native::cut(
+                            ("quick-words", i),
+                            gpui::SharedString::from(words),
+                            false,
+                            screen,
+                        )
+                        .max_w_full(),
                     ),
             )
         }))

@@ -132,7 +132,7 @@ fn the_list_narrows_as_a_filter_is_typed() {
     h.until("nothing shown", |h| shown(h).is_empty());
     h.until_shown("No download here matches the filter.");
     // The box's clear button.
-    h.click("✕");
+    h.click("Clear");
     h.until("all twelve again", |h| shown(h).len() == 12);
 }
 

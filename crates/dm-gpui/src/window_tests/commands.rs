@@ -406,7 +406,7 @@ fn downloads_items(h: &mut Harness, done: &dm_core::Entry) {
         h.view(|v| v.list.selected.contains(&done.id))
     });
     // The box emptied by its ✕, and every row shown again.
-    h.click("✕");
+    h.click("Clear");
     h.until("the search box emptied", |h| {
         h.view(|v| v.list.shown.len()) == 3
     });

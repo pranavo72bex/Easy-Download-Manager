@@ -493,15 +493,17 @@ fn search_box(
                     .role(Role::Button)
                     .aria_label(t("Clear"))
                     .flex_none()
-                    .size(px(16.0))
+                    .size(px(native::ICON))
                     .rounded_full()
                     .flex()
                     .items_center()
                     .justify_center()
                     .bg(theme.muted)
-                    .text_color(theme.window)
-                    .text_size(px(native::MARK_TEXT))
-                    .child(screen.label("✕"))
+                    // A drawn mark named by what it does, not the font's "✕" (gaps row E41).
+                    .child(screen.mark(
+                        t("Clear"),
+                        native::icon("icons/close.svg", native::MARK_TEXT, theme.window),
+                    ))
                     .on_click(cx.listener(|view, _, window, cx| {
                         view.clear_filter(window, cx);
                     })),

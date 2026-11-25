@@ -77,9 +77,9 @@ impl Options {
                             div()
                                 .text_size(px(native::SMALL_TEXT))
                                 .when(!on, |s| s.text_color(theme.muted))
-                                .overflow_hidden()
-                                .whitespace_nowrap()
-                                .text_ellipsis()
+                                // Two lines where it needs them, as the room below allows (gaps
+                                // row E35): cut at one, "Once it is unpacked" was lost.
+                                .line_clamp(2)
                                 .child(screen.label(summary)),
                         )
                     }),

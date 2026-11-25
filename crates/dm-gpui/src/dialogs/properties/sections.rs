@@ -269,42 +269,14 @@ impl Properties {
                 t("Contents"),
                 width,
                 screen,
-                div()
-                    .id("zip-contents")
-                    .max_h(px(140.0))
-                    .overflow_y_scroll()
-                    .rounded(px(native::RADIUS))
-                    .border_1()
-                    .border_color(theme.separator)
-                    .bg(theme.background)
-                    .p(px(space::XS))
-                    .children(files.into_iter().map(|file| {
-                        let size = (!file.is_folder()).then(|| format::bytes(file.size));
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap(px(space::M))
-                            .h(px(20.0))
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .overflow_hidden()
-                                    .whitespace_nowrap()
-                                    .text_ellipsis()
-                                    .child(screen.label(file.name.clone())),
-                            )
-                            .when_some(size, |d, size| {
-                                d.child(div().text_color(theme.muted).child(screen.label(size)))
-                            })
-                    }))
-                    .when(more > 0, |d| {
-                        d.child(native::note(
-                            tf("and {} more", &[&more.to_string()]),
-                            theme.muted,
-                            screen,
-                        ))
+                crate::widgets::ziplist::zip_box(
+                    files.iter().enumerate().map(|(i, file)| {
+                        crate::widgets::ziplist::zip_line(i, file, theme, screen).into_any_element()
                     }),
+                    more,
+                    theme,
+                    screen,
+                ),
             )),
         }
     }
