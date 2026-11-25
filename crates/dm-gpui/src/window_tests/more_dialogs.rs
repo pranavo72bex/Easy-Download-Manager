@@ -52,7 +52,7 @@ fn a_new_address_that_is_no_link_is_said_and_cancel_closes() {
         h.dialog_open("Update download link")
     });
     h.type_text("not a link");
-    h.click("OK");
+    h.click("Update link");
     h.until("the refusal", |h| h.shows_part("dm can download"));
     assert!(h.dialog_open("Update download link"));
     h.click("Cancel");

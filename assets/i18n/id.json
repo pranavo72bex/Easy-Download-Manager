@@ -1082,5 +1082,9 @@
  "Day": "Hari",
  "Month": "Bulan",
  "Year": "Tahun",
- "Priority": "Prioritas"
+ "Priority": "Prioritas",
+ "Next": "Berikutnya",
+ "Save": "Simpan",
+ "Move": "Pindahkan",
+ "Update link": "Perbarui tautan"
 }

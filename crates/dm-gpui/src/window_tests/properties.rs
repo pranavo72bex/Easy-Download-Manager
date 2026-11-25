@@ -71,7 +71,7 @@ fn properties_refuse_an_address_dm_cannot_fetch_and_close_with_their_row() {
     let row = h.row("kept.bin");
     properties_of(&mut h, "kept.bin");
     h.type_into("Address", "nothing-to-fetch");
-    h.click("OK");
+    h.click("Save");
     h.until("the refusal", |h| h.shows_part("dm can download"));
     assert!(h.dialog_open("File properties"));
     assert_eq!(
@@ -96,7 +96,7 @@ fn properties_keep_a_downloads_own_user_agent_and_headers() {
     properties_of(&mut h, "own.bin");
     h.type_into("User-Agent", "Mine/1.0");
     h.type_into("Request headers", "X-Api-Key: k1 | Accept: */*");
-    h.click("OK");
+    h.click("Save");
     h.until("Properties to close", |h| !h.dialog_open("File properties"));
     let pair = |n: &str, v: &str| (n.to_string(), v.to_string());
     assert_eq!(

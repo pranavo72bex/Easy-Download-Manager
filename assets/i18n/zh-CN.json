@@ -1082,5 +1082,9 @@
  "Day": "日",
  "Month": "月",
  "Year": "年",
- "Priority": "优先级"
+ "Priority": "优先级",
+ "Next": "下一步",
+ "Save": "保存",
+ "Move": "移动",
+ "Update link": "更新链接"
 }

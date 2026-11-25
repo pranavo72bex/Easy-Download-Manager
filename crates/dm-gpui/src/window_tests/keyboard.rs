@@ -703,7 +703,7 @@ fn enter_shows_the_row_when_already_listed() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&url);
-    h.click("OK");
+    h.click("Next");
     h.until("Already in the list", |h| h.shows("Already in the list"));
     h.key("enter", &[]);
     h.until("the question to go", |h| !h.shows("Already in the list"));

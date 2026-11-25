@@ -505,7 +505,7 @@ fn a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&world.url("file.zip"));
-    h.click("OK");
+    h.click("Next");
     h.until("Download details' size", |h| {
         h.dialog_open("Download details")
             && h.texts()

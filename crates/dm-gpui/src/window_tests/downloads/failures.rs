@@ -47,7 +47,7 @@ fn a_refused_sign_in_says_where_to_give_one() {
     h.run(Command::Properties);
     h.until("File properties", |h| h.dialog_open("File properties"));
     h.type_text("user");
-    h.click("OK");
+    h.click("Save");
     h.until("the sign-in to be kept with the row", |h| {
         h.rows()[0].url.contains("user@")
     });
@@ -72,7 +72,7 @@ fn a_link_that_runs_out_part_way_asks_for_a_fresh_one() {
     });
     // The fresh link to the same file: it goes on, and finishes whole.
     h.type_text(&world.url("renewed.bin"));
-    h.click("OK");
+    h.click("Update link");
     h.until("the dialog to close", |h| {
         !h.dialog_open("Update download link")
     });

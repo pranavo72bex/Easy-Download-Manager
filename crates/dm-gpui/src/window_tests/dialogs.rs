@@ -214,7 +214,7 @@ fn move_rename_moves_several_finished_files_together() {
     h.until_shown("Moves 2 finished files.");
     let to = folder_in(&world, "moved");
     h.type_into("Folder", &to.display().to_string());
-    h.click("OK");
+    h.click("Move");
     h.until("the files moved", |h| {
         h.rows()
             .iter()
@@ -247,7 +247,7 @@ fn two_cancelled_hand_offs_from_a_site_offer_to_leave_it_to_the_browser() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&world.url("other.pdf"));
-    h.click("OK");
+    h.click("Next");
     h.until("Download details", |h| h.dialog_open("Download details"));
     h.click("Cancel");
     h.until("Download details to close", |h| h.dialogs().is_empty());

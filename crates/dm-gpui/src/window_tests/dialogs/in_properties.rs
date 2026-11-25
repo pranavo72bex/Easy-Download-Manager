@@ -117,7 +117,7 @@ fn properties_keep_the_login_out_of_the_address_box() {
     );
     // Changing the password changes it on the download.
     h.type_into("Password", "better");
-    h.click("OK");
+    h.click("Save");
     h.until("the new password", |h| {
         h.rows()[0].url.contains("me:better@")
     });
@@ -139,7 +139,7 @@ fn properties_change_the_description_and_refresh_an_expired_address() {
     h.until("File properties", |h| h.dialog_open("File properties"));
     h.type_into("Note", "fixed link");
     h.type_into("Address", &world.url("file.zip"));
-    h.click("OK");
+    h.click("Save");
     h.until("the row changed", |h| {
         h.rows()[0].description == "fixed link"
     });
@@ -171,7 +171,7 @@ fn a_sign_in_saved_in_properties_retries_the_download() {
     h.type_text("user");
     h.until("the login typed", |h| h.shows("user"));
     h.type_into("Password", "pass");
-    h.click("OK");
+    h.click("Save");
     h.until("Trying it again", |h| {
         h.said().contains("again with the sign-in")
     });
@@ -232,7 +232,7 @@ fn a_torrents_file_is_given_a_priority_in_properties() {
     h.click("Normal");
     h.click("High");
     h.until_shown("High");
-    h.click("OK");
+    h.click("Save");
     h.until("the priority kept", |h| {
         h.rows()[0]
             .torrent_files

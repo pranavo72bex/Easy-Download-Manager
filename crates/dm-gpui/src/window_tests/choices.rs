@@ -32,7 +32,7 @@ fn the_scheduler_keeps_what_to_do_when_done_and_the_tries_again() {
         h.texts()
     );
     h.click("Exit dm");
-    h.click("OK");
+    h.click("Save");
     h.until("the Scheduler to close", |h| !h.dialog_open("Scheduler"));
     let held = h.view(|view| view.backend.settings()).schedule;
     assert_eq!(held.when_done, "exit");
@@ -87,7 +87,7 @@ fn the_duplicate_question_can_remember_its_answer() {
         h.click("Add URL");
         h.until_shown("Address");
         h.type_text(&url);
-        h.click("OK");
+        h.click("Next");
     };
     ask(&mut h);
     h.until_shown("Already in the list");

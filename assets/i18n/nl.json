@@ -1082,5 +1082,9 @@
  "Day": "Dag",
  "Month": "Maand",
  "Year": "Jaar",
- "Priority": "Prioriteit"
+ "Priority": "Prioriteit",
+ "Next": "Volgende",
+ "Save": "Opslaan",
+ "Move": "Verplaatsen",
+ "Update link": "Link bijwerken"
 }

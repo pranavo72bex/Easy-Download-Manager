@@ -237,7 +237,7 @@ impl Render for UpdateLink {
                                 native::button("cancel", t("Cancel").into(), false, theme, &screen)
                                     .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
                                     .into_any_element(),
-                                native::button("ok", t("OK").into(), true, theme, &screen)
+                                native::button("ok", t("Update link").into(), true, theme, &screen)
                                     .on_click(
                                         cx.listener(|this, _, window, cx| this.ok(window, cx)),
                                     )
@@ -381,7 +381,7 @@ impl Render for MoveToQueue {
                             native::button("cancel", t("Cancel").into(), false, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
                                 .into_any_element(),
-                            native::button("ok", t("OK").into(), true, theme, &screen)
+                            native::button("ok", t("Move").into(), true, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
                                 .into_any_element(),
                         ],
@@ -552,7 +552,7 @@ impl Render for MoveRenameDialog {
                             native::button("cancel", t("Cancel").into(), false, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
                                 .into_any_element(),
-                            native::button("ok", t("OK").into(), true, theme, &screen)
+                            native::button("ok", t("Move").into(), true, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
                                 .into_any_element(),
                         ],

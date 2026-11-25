@@ -620,7 +620,7 @@ class Dm:
             # seconds (a loaded machine draws late).
             if self.wait_for_text(url, 2.0):
                 break
-        self.click("OK")
+        self.click("Next")
         for _ in range(40):
             if "Download details" in self.dialogs():
                 pause(0.5)
@@ -783,7 +783,7 @@ def walk(dm, origin):
             + (" Start it from PowerShell or Windows Terminal, not Git Bash." if sys.platform == "win32" else ""))
     dm.open_add_url()
     dm.picture("add-url", dialog=True)
-    dm.click("OK")
+    dm.click("Next")
     pause(0.8)
     shown = dm.texts()
     check("B01", "OK with nothing typed asks for an address and adds nothing",
@@ -793,7 +793,7 @@ def walk(dm, origin):
     dm.open_add_url()
     dm.call("ui.type", text=f"{files}/big.bin")
     pause(0.4)
-    dm.click("OK")
+    dm.click("Next")
     for _ in range(40):
         if "Download details" in dm.dialogs():
             break
@@ -917,7 +917,7 @@ def walk(dm, origin):
         dm.open_add_url()
         dm.call("ui.type", text=f"{files}/again.bin")
         pause(0.4)
-        dm.click("OK")
+        dm.click("Next")
         for _ in range(40):
             if "Already in the list" in dm.dialogs():
                 break
@@ -1022,7 +1022,7 @@ def walk(dm, origin):
     pause(0.8)
     dm.call("ui.type", text="Night")
     pause(0.4)
-    dm.click("OK")
+    dm.click("Move")
     pause(0.8)
     dm.call("ui.place", place="all")
     pause(0.5)
@@ -1064,7 +1064,7 @@ def walk(dm, origin):
         pause(0.4)
         if any(f"{files}/pack.zip" in t for t in dm.texts()):
             break
-    dm.click("OK")
+    dm.click("Next")
     for _ in range(40):
         if "Download details" in dm.dialogs():
             break
@@ -1282,7 +1282,7 @@ def walk(dm, origin):
                 and main[1] <= (box[1] + box[3]) / 2 <= main[3])
     words = [t["text"] for t in dm.call("ui.texts")["result"]["texts"] if t.get("window") == "dialog"]
     check("B42", "Add URL opens as a window of its own, over the middle of dm's window",
-          len(shown) == 1 and shown[0]["title"] == "Add URL" and over and "OK" in words,
+          len(shown) == 1 and shown[0]["title"] == "Add URL" and over and "Next" in words,
           f"dm {main}, dialog {box}, words {words[:6]}")
     if sys.platform == "darwin":
         # What VoiceOver is given of the dialog's own window (gaps row 160), read by dm itself
@@ -1294,11 +1294,11 @@ def walk(dm, origin):
             got = (dm.call("ui.accessibility").get("result") or {}).get("windows") or []
             heard = [e["title"] for w in got if w.get("title") == "Add URL" for e in w.get("elements", [])
                      if e.get("role") == "AXButton" and e.get("title")]
-            if "OK" in heard and "Cancel" in heard:
+            if "Next" in heard and "Cancel" in heard:
                 break
             time.sleep(0.4)
         check("B42", "a screen reader is given its OK and Cancel, in its own window",
-              "OK" in heard and "Cancel" in heard, f"buttons a screen reader is given there: {heard}")
+              "Next" in heard and "Cancel" in heard, f"buttons a screen reader is given there: {heard}")
     # Moved as a drag by its title bar moves it: half outside dm's window.
     if box:
         width = box[2] - box[0]
@@ -1838,7 +1838,7 @@ def unpack_when_done(dm, files):
         return path.is_file() and path.read_bytes() == data
 
     words = folders_page()
-    wanted = ("Unpack when done", "Once it is unpacked:", "Keep the archive", "Send the archive to the Trash")
+    wanted = ("Unpack when done", "Once it is unpacked", "Keep the archive", "Send the archive to the Trash")
     check("B71", "Options › Folders has Unpack when done: a box for each kind, then Keep the archive or Send it to the Trash",
           all(w in words for w in wanted + ("Archives", "Videos", "Other")), f"{words}")
     # The last "Archives" drawn is the kind's box, below the kind's folder of that name.
@@ -1873,7 +1873,7 @@ def unpack_when_done(dm, files):
     dm.open_add_url()
     dm.call("ui.type", text=f"{files}/own.zip")
     pause(0.4)
-    dm.click("OK")
+    dm.click("Next")
     for _ in range(40):
         if "Download details" in dm.dialogs():
             break
@@ -1995,7 +1995,7 @@ def follow_feed(dm, files):
     dm.open_add_url()
     dm.call("ui.type", text=address)
     pause(0.4)
-    dm.click("OK")
+    dm.click("Next")
     opened = asked("Playlist")
     words, end = [], time.time() + 30
     while time.time() < end:

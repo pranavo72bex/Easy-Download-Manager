@@ -1082,5 +1082,9 @@
  "Day": "日",
  "Month": "月",
  "Year": "年",
- "Priority": "優先度"
+ "Priority": "優先度",
+ "Next": "次へ",
+ "Save": "保存",
+ "Move": "移動",
+ "Update link": "リンクを更新"
 }

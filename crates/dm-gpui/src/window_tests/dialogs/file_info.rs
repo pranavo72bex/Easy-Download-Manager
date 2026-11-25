@@ -77,7 +77,7 @@ fn the_file_info_dialog_puts_the_file_where_and_as_what_it_says() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&world.url("file.zip"));
-    h.click("OK");
+    h.click("Next");
     h.until("Download details", |h| h.dialog_open("Download details"));
     let folder = folder_in(&world, "picked");
     h.type_into("Save to folder", &folder.to_string_lossy());
@@ -184,7 +184,7 @@ fn browse_picks_the_folder_a_download_goes_to() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&world.url("file.zip"));
-    h.click("OK");
+    h.click("Next");
     h.until("Download details", |h| h.dialog_open("Download details"));
     h.choose_ahead(&picked);
     h.click("Browse…");

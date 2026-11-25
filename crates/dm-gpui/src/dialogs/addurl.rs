@@ -254,7 +254,7 @@ impl Render for AddUrl {
                             native::button("cancel", t("Cancel").into(), false, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
                                 .into_any_element(),
-                            native::button("ok", t("OK").into(), true, theme, &screen)
+                            native::button("ok", t("Next").into(), true, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, cx| this.ok(window, cx)))
                                 .into_any_element(),
                         ],

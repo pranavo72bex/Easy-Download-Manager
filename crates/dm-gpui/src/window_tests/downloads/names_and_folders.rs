@@ -27,7 +27,7 @@ fn renaming_onto_a_taken_name_says_what_it_is_called() {
     h.run(Command::MoveRename);
     h.until("Move/Rename", |h| h.dialog_open("Move/Rename"));
     h.type_text("file");
-    h.click("OK");
+    h.click("Move");
     h.until("it to be said", |h| {
         h.said().contains("is taken in that folder")
     });
@@ -211,7 +211,7 @@ fn several_finished_files_are_named_by_a_pattern_and_keep_their_endings() {
         "several files are named by a pattern: {:?}",
         h.texts()
     );
-    h.click("OK");
+    h.click("Move");
     h.until("it to close", |h| !h.dialog_open("Move/Rename"));
     for _ in 0..3 {
         h.until("a wake", |_| true);
@@ -221,7 +221,7 @@ fn several_finished_files_are_named_by_a_pattern_and_keep_their_endings() {
     h.run(Command::MoveRename);
     h.until("Move/Rename", |h| h.dialog_open("Move/Rename"));
     h.type_text("Trip {n} ({name})");
-    h.click("OK");
+    h.click("Move");
     let now = |h: &mut Harness, id| h.rows().into_iter().find(|r| r.id == id).unwrap();
     h.until("the new names", |h| {
         now(h, zip).filename.starts_with("Trip") && now(h, pdf).filename.starts_with("Trip")

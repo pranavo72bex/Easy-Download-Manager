@@ -259,8 +259,8 @@ fn properties_fit_a_small_window_and_close_from_the_title_bar() {
     h.command("file.properties");
     h.until("Properties", |h| !h.dialogs().is_empty());
     let window = front(&mut h);
-    h.reveal("OK");
-    let ok = h.dialog_words("OK").expect("OK");
+    h.reveal("Save");
+    let ok = h.dialog_words("Save").expect("Save");
     let size = inside(&mut h, window);
     assert!(
         ok.right() <= size.width && ok.bottom() <= size.height,
@@ -341,10 +341,10 @@ fn dialogs_keep_their_place_and_show_the_size() {
     h.until_shown("Address");
     let two = format!("{}{}", world.url("a.zip"), world.url("b.zip"));
     h.type_text(&two);
-    let ok = h.bounds_of("OK");
-    h.click("OK");
+    let ok = h.bounds_of("Next");
+    h.click("Next");
     h.until("the warning", |h| h.shows_part("two links"));
-    assert_eq!(h.bounds_of("OK"), ok, "OK moved as the warning appeared");
+    assert_eq!(h.bounds_of("Next"), ok, "OK moved as the warning appeared");
     h.close_dialogs();
     let url = world.url("file.zip");
     h.act(|_, cx| crate::dialogs::details::open(cx.entity().downgrade(), vec![url], cx));

@@ -249,7 +249,7 @@ fn a_dialog_is_mirrored_right_to_left() {
         .dialog_words(t("Speed limit in those hours (KB/s)"))
         .unwrap();
     let field = h.dialog_words("256").unwrap();
-    let ok = h.dialog_words(t("OK")).unwrap();
+    let ok = h.dialog_words(t("Save")).unwrap();
     let cancel = h.dialog_words(t("Cancel")).unwrap();
     dm_desktop_base::i18n::set("en");
     // The label at the right, its field against it at its left.

@@ -1061,5 +1061,9 @@
  "Queues with their own limit",
  "Queues that start at a set time",
  "Once it is unpacked",
- "Third network's speed limit, KB/s (0 for none)"
+ "Third network's speed limit, KB/s (0 for none)",
+ "Next",
+ "Save",
+ "Move",
+ "Update link"
 ]

@@ -1082,5 +1082,9 @@
  "Day": "Dzień",
  "Month": "Miesiąc",
  "Year": "Rok",
- "Priority": "Priorytet"
+ "Priority": "Priorytet",
+ "Next": "Dalej",
+ "Save": "Zapisz",
+ "Move": "Przenieś",
+ "Update link": "Zaktualizuj link"
 }

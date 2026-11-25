@@ -224,13 +224,13 @@ fn the_scheduler_holds_only_times_that_are_times_and_says_why_otherwise() {
     for day in days {
         h.click(day);
     }
-    h.click("OK");
+    h.click("Save");
     h.until_shown("Tick at least one day.");
     assert!(!kept(&mut h).schedule.enabled);
     for day in days {
         h.click(day);
     }
-    h.click("OK");
+    h.click("Save");
     h.until("the Scheduler to close", |h| !h.dialog_open("Scheduler"));
     let held = kept(&mut h).schedule;
     assert!(held.enabled);
@@ -261,7 +261,7 @@ fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
     assert!(h.shows("in each period of this many hours"));
     h.fill("Download at most this many MB (0 for no limit)", "500");
     h.fill("in each period of this many hours", "4");
-    h.click("OK");
+    h.click("Save");
     h.until("the Speed limiter to close", |h| {
         !h.dialog_open("Speed limiter")
     });
@@ -437,7 +437,7 @@ fn the_scheduler_hangs_up_the_dial_up_connection_when_its_downloads_are_done() {
         return;
     }
     h.click("Hang up modem when done");
-    h.click("OK");
+    h.click("Save");
     h.until("the Scheduler to close", |h| !h.dialog_open("Scheduler"));
     assert!(kept(&mut h).schedule.hang_up);
     h.command("downloads.scheduler");
@@ -483,7 +483,7 @@ fn the_schedulers_program_is_kept_by_a_persons_ok_and_run_once_when_its_download
     set_time(&mut h, "Start at", "00:00");
     set_time(&mut h, "Stop at", "00:00");
     h.fill(field, &typed);
-    h.click("OK");
+    h.click("Save");
     h.until("the Scheduler to close", |h| !h.dialog_open("Scheduler"));
     assert!(kept(&mut h).schedule.enabled);
     assert_eq!(kept(&mut h).schedule.run_when_done, "");
@@ -495,7 +495,7 @@ fn the_schedulers_program_is_kept_by_a_persons_ok_and_run_once_when_its_download
     // A person's OK: kept.
     open(&mut h);
     h.fill(field, &typed);
-    h.click_as_person("OK", 0);
+    h.click_as_person("Save", 0);
     h.until("the Scheduler to close", |h| !h.dialog_open("Scheduler"));
     assert_eq!(kept(&mut h).schedule.run_when_done, typed);
 
@@ -599,7 +599,7 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     }
     set_time(&mut h, "Start at", "22:00");
     set_time(&mut h, "Stop at", "23:00");
-    h.click("OK");
+    h.click("Save");
     h.until("OK to keep them", |h| !h.dialog_open("Scheduler"));
     let settings = kept(&mut h);
     assert!(settings.schedule.enabled);
@@ -649,7 +649,7 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     h.until("Start now to say it started the Night queue", |h| {
         said(h).contains("Night")
     });
-    h.click("OK");
+    h.click("Save");
     h.until("OK to keep them", |h| !h.dialog_open("Scheduler"));
     let night = kept(&mut h).queue_schedules["Night"].clone();
     assert_eq!(night.once_at, Some(format!("{last_day} 22:00")));
@@ -660,7 +660,7 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     h.click("Night");
     h.until("Night chosen", |h| draft(h).queue == "Night");
     h.click("Hours of its own for this queue");
-    h.click("OK");
+    h.click("Save");
     h.until("OK to keep them", |h| !h.dialog_open("Scheduler"));
     assert!(!kept(&mut h).queue_schedules.contains_key("Night"));
 }
@@ -679,7 +679,7 @@ fn the_speed_limiter_keeps_slower_hours_and_puts_them_in_force() {
     set_time(&mut h, "Slow start at", "00:00");
     set_time(&mut h, "Slow stop at", "23:59");
     h.fill("Speed limit in those hours (KB/s)", "64");
-    h.click("OK");
+    h.click("Save");
     h.until("the Speed limiter to close", |h| {
         !h.dialog_open("Speed limiter")
     });

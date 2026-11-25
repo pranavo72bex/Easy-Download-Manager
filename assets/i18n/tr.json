@@ -1082,5 +1082,9 @@
  "Day": "Gün",
  "Month": "Ay",
  "Year": "Yıl",
- "Priority": "Öncelik"
+ "Priority": "Öncelik",
+ "Next": "İleri",
+ "Save": "Kaydet",
+ "Move": "Taşı",
+ "Update link": "Bağlantıyı güncelle"
 }

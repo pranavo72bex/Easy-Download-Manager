@@ -388,7 +388,7 @@ impl Harness {
         self.click("Add URL");
         self.until_shown("Address");
         self.type_text(url);
-        self.click("OK");
+        self.click("Next");
         // An address already in the list is asked about first; a test adding the same file
         // twice means it.
         self.until("Download details or Already in the list", |h| {

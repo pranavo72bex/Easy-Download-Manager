@@ -53,7 +53,7 @@ fn an_address_already_in_the_list_is_asked_about_before_it_is_added_again() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&url);
-    h.click("OK");
+    h.click("Next");
     h.until("the question", |h| h.shows("Already in the list"));
     assert!(!h.dialog_open("Download details"));
     // The row is stopped ("Add for later"), so the question offers to go on with it as well as
@@ -161,7 +161,7 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     assert!(offered.ends_with("downloads.dmlist"), "{offered}");
     let nowhere = world.dir.path().join("no such folder").join("list.dmlist");
     h.type_into("File's path", &nowhere.display().to_string());
-    h.click("OK");
+    h.click("Export");
     h.until("the write refused", |h| h.shows_part("couldn't be written"));
     assert!(
         h.dialog_open("Export the list"),
@@ -169,7 +169,7 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     );
     let file = world.dir.path().join("typed.dmlist");
     h.type_into("File's path", &file.display().to_string());
-    h.click("OK");
+    h.click("Export");
     h.until("the list written", |_| file.is_file());
     h.until("Export's dialog closed", |h| {
         !h.dialog_open("Export the list")
@@ -181,18 +181,18 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     other_h.command("program.import");
     other_h.until("Import's dialog", |h| h.dialog_open("Import a list"));
     other_h.type_into("File's path", "relative.dmlist");
-    other_h.click("OK");
+    other_h.click("Import");
     other_h.until("the path refused", |h| h.shows_part("full path"));
     let missing = other.dir.path().join("missing.dmlist");
     other_h.type_into("File's path", &missing.display().to_string());
-    other_h.click("OK");
+    other_h.click("Import");
     other_h.until("the read refused", |h| h.shows_part("couldn't be read"));
     assert!(
         other_h.dialog_open("Import a list"),
         "closed with the path lost"
     );
     other_h.type_into("File's path", &file.display().to_string());
-    other_h.click("OK");
+    other_h.click("Import");
     other_h.until("the list imported", |h| h.rows().len() == 1);
     other_h.until("Import's dialog closed", |h| {
         !h.dialog_open("Import a list")

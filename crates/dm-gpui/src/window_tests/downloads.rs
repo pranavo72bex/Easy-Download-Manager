@@ -358,7 +358,7 @@ fn add_url_remembers_addresses_without_their_login_and_clears_them() {
     h.until_shown("Login");
     h.click("Login");
     h.type_text("me");
-    h.click("OK");
+    h.click("Next");
     h.until("Download details", |h| h.dialog_open("Download details"));
     assert_eq!(h.view(|view| view.backend.settings()).recent_urls, [url]);
     h.click("Cancel");
@@ -475,7 +475,7 @@ fn add_url_takes_a_torrent_on_this_computer() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(file.to_str().unwrap());
-    h.click("OK");
+    h.click("Next");
     h.until("Download details", |h| h.dialog_open("Download details"));
     let address = dm_core::file_url(&file).unwrap();
     assert!(h.shows(&address), "{:?}", h.texts());
@@ -535,7 +535,7 @@ fn five_links_pasted_into_add_url_are_one_batch() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&links.join(" "));
-    h.click("OK");
+    h.click("Next");
     h.until("Download details", |h| h.dialog_open("Download details"));
     assert!(
         !h.texts().iter().any(|t| t.contains("looks like two links")),
@@ -660,7 +660,7 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&format!("{first}{second}"));
-    h.click("OK");
+    h.click("Next");
     h.until("the refusal", |h| {
         h.texts().iter().any(|t| t.contains("looks like two links"))
     });
@@ -668,7 +668,7 @@ fn add_url_selects_its_link_and_refuses_two_run_together() {
     assert!(h.rows().is_empty());
     // The address keeps the keyboard, chosen: what is typed next replaces it.
     h.type_text(&second);
-    h.click("OK");
+    h.click("Next");
     h.until("Download details", |h| h.dialog_open("Download details"));
     assert!(h.shows(&second), "{:?}", h.texts());
     assert!(!h.shows(&format!("{first}{second}")));
