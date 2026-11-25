@@ -158,11 +158,49 @@ after each attempt), the site watch's reports (#56), a person's bug with enough 
 a feature with three thumbs-up, and each night tests for the file with the most lines no
 test runs (#58 is their log).
 
+## Highest priority: the ui-skills review (rows H39, E45 to E51, the maintainer, 2026-11-25)
+
+The maintainer, 2026-11-25: look for interface improvements with the skills in `ibelick/ui-skills`
+(MIT, read at commit 7ef0076f), put them at the highest priority, and look at security before
+the skills. These rows come before every other row in this file, the E rows below included.
+Take them in this order: H39 first, then E45 onward.
+
+**Security, checked before the skills were read:** the repository was cloned into a scratch
+folder, outside dm, and nothing in it was run. Its ten `SKILL.md` files hold no hidden or
+direction-changing characters and nothing that tells a model to fetch or run anything, apart
+from two commands: `npx ui-skills` and `npx @google/design.md`. Those commands, and the remote
+MCP registry the repository offers (`https://www.ui-skills.com/mcp`), are third-party code and
+text that can change after it is checked. None of them was installed or connected, and none
+will be (the clean-room rule). The rules below were taken as ideas only, and none of the skills'
+text was copied in.
+
+**What was found.** dm's window was checked against `baseline-ui`, `fixing-accessibility` and
+`fixing-motion-performance`, and each finding was proved the way `improve-ui` asks: by the rule,
+the code path it reaches and a single fix. Already held, so not rows: motion follows the system's
+"reduce motion" setting (`window::follow_motion`); the pointer's animations are 100 to 150 ms
+and only fade (`table/cells.rs`); no animation repeats; every phone layer stays inside the
+safe area (`window/safe.rs`); numbers use even (tabular) figures; destructive actions use
+`native::destructive` and a question; the sidebar, Advanced and the progress window's sections
+already say whether they are open (`aria_expanded`). The skills' web-only rules (Tailwind,
+React, `h-dvh`, metadata) do not apply to GPUI.
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| H39 | Nothing keeps a remote skill or MCP registry out of the repository: an `.mcp.json`, or an `mcpServers` entry in `.claude/settings.json`, would put text that changes after review in front of every session and bot, and no check reads either file | OPEN · S · person | Do: `scripts/ai-skills-check.py` fails when `.mcp.json`, or `mcpServers` in a committed `.claude/settings*.json`, names a server that is not a local program in this repository; a skill taken from outside still comes in as `.claude/skills/UPSTREAM.tsv` copies (pinned commit, SHA-256, the hidden-character scan). Where: `scripts/ai-skills-check.py` (a guardrail, so a person edits it). Test: `bash scripts/ai-selftest.sh` with a scratch `.mcp.json` naming `https://www.ui-skills.com/mcp` fails, and passes without it. Done when: that check runs in the guardrail job. Skill: `docs/testing.md`, "Security first" |
+| E45 | Closing the place menu (a choice, Escape, a click outside) does not give the keys back to the sidebar place or row that opened it: `close_place_menu` only sets `menus.place_menu = None`, so a keyboard user starts again from nowhere (`fixing-accessibility`: "restore focus to the trigger on close") | OPEN · S | Do: keep the opener's `FocusHandle` in the place menu's state when it opens, and focus it in `close_place_menu`. Where: `crates/dm-gpui/src/window/placemenu.rs` (`close_place_menu`, the opening path), `window/list/sections.rs` (the Escape handler). Test: `the_place_menu_gives_the_keys_back_as_it_closes` in `crates/dm-gpui/src/window_tests/keyboard.rs`: open it from a place with the keyboard, press Escape, and the place has the keys. Done when: that test and `cargo xtask test --profile ci` pass. Skill: `docs/ai-skills/ui-ux.md` |
+| E46 | A pop-up's sheet on the phone closing (a choice, Close, Back) does not give the keys back to the pop-up button: `phone_hooks().close` and `close_picking` only clear `PICKING` | OPEN · S · after E25 | Do: when the sheet closes, focus the pop-up button's handle, kept in `Picking` beside `keys`. Where: `crates/dm-gpui/src/widgets/popup.rs` (`phone_hooks`, `close_picking`). Test: `a_pop_up_s_sheet_gives_the_keys_back_as_it_closes` in `crates/dm-gpui/src/window_tests/narrow.rs` (phone width: open, Escape, and the button has the keys). Done when: that test passes, built for Android as CI does (`cargo ndk --platform 29 -t arm64-v8a clippy -p dm-android`). Skill: `docs/ai-skills/ui-ux.md` |
+| E47 | A pop-up button (`Role::ComboBox`, `widgets/popup.rs:142`) never says whether its choices are open, so a screen reader cannot tell the sheet has opened (`fixing-accessibility`: expandable controls say whether they are expanded; the sidebar, Advanced and the progress window's sections already do) | OPEN · S | Do: `.aria_expanded(open)`, where `open` means `PICKING` holds this button's id. Where: `crates/dm-gpui/src/widgets/popup.rs` (the button's builder). Test: `a_pop_up_says_when_its_choices_are_open` in `crates/dm-gpui/src/window_tests/reach.rs`, read off the element's accessibility state before and after a press. Done when: that test passes. Skill: `docs/ai-skills/ui-ux.md` |
+| E48 | The window's layers are stacked by bare numbers: the pop-up's sheet `with_priority(10)` (`widgets/popup.rs`) and the place menu's `with_priority(1)` (`window/placemenu.rs`), so a new layer is guessed into place (`baseline-ui`: one fixed scale of layers) | OPEN · S · bot | Do: one `layer` list of named constants (for example MENU, SHEET, DIALOG) in `crates/dm-gpui/src/widgets/space.rs`, used by both callers; no number changes. Where: `widgets/space.rs`, `widgets/popup.rs`, `window/placemenu.rs`. Test: `layers_stack_in_their_named_order` in `widgets/space.rs`'s tests (MENU < SHEET < DIALOG). Done when: that test and `cargo xtask test --profile ci` pass. Skill: `docs/ai-skills/ui-ux.md` |
+| E49 | The progress bars' glide and settle state (`GLIDES`, `SETTLING` in `window/table/cells.rs`) keeps an entry for every download ever drawn and never drops one (only `LEAVING` removes its entries), so a long session's maps only grow (`fixing-motion-performance`: an animation's state ends with it) | OPEN · S · bot | Do: drop a download's entry when its glide has ended and it is not running, and when its settle time (`SETTLE`) has passed; or prune both maps to the ids drawn this frame. Where: `crates/dm-gpui/src/window/table/cells.rs` (`glided`, `settling`). Test: `settled_bars_leave_no_state` in the same file's tests: a download run, finished and settled leaves neither map holding its id. Done when: that test and `cargo xtask test --profile ci` pass. Skill: `docs/ai-skills/ui-ux.md` |
+| E50 | Rules from the skills not yet checked against dm, as each needs a picture or a walk: a greyed button says why (97 `native::button` callers, 17 hover notes); Tab stays inside an open in-window menu or sheet; one accent colour per view; each empty state has one clear next step; an error shows beside the action that caused it | OPEN · M · person | Do: review each rule with `dm-design` and the `ui-shot.py` pictures at 360, 700 and 1280 points wide, in light and dark, keeping only findings that pass `improve-ui`'s three proofs (the rule, the code path it reaches, a single fix), at most three per surface. Each survivor becomes a row here, and a finding that changes a contract row waits for the maintainer's word. Where: `crates/dm-gpui/src/` (the main window, the dialogs, Options, the phone's sheets). Test: none; the rows it makes carry theirs. Done when: each rule is either a row or marked "held" in this row. Skill: `.claude/skills/dm-design` |
+| E51 | `dm-design` does not carry the ui-skills rules that fit GPUI (an in-window menu or sheet gives the keys back on close, an expandable control says it is open, layers come from one scale, an animation's state ends with it), so the next review has to find them again | OPEN · S · person, after H39 | Do: add those rules to `.claude/skills/dm-design`, in dm's own words with the source credited (MIT, ibelick/ui-skills at 7ef0076f), and copy no file. Where: `.claude/skills/dm-design/SKILL.md` (a skill page, so a person edits it). Test: `python3 scripts/ai-skills-check.py` passes. Done when: that check passes and E45 to E49 cite the rules. Skill: `.claude/skills/dm-design` |
+
 ## First priority: the window's design (rows E, the maintainer, 2026-11-23)
 
 The maintainer, 2026-11-23, of rows E ("A window read at a glance, on desktop and phone", further
 down): "give it first priority". Rows E come before every other row in this file, the security
-rows H included, and ahead of the order below. Take them in their section's order: E1 and E2
+rows H included, and ahead of the order below; since 2026-11-25 only the ui-skills rows above
+(H39, E45 to E51) come before them. Take them in their section's order: E1 and E2
 first; then E3 to E12, each with the part of rows V it is built on (V9's Commands, List,
 Navigation, Form and Dialog), those parts brought forward with them, so each window is laid out
 once for both phone and desktop.
