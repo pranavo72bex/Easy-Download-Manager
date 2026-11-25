@@ -39,6 +39,17 @@ fn links_in_files(paths: &[std::path::PathBuf]) -> Vec<String> {
         .collect()
 }
 
+/// Whether links arriving by the drop path are another app's share, offered to tick: a phone's
+/// (its share sheet hands them over this way), and a test's that says so.
+fn shares_are_offered() -> bool {
+    crate::platform::ON_A_PHONE || SHARES_OFFERED.with(std::cell::Cell::get)
+}
+
+thread_local! {
+    /// A test's word that what arrives is a share, as a phone's is.
+    pub(crate) static SHARES_OFFERED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 impl Downloads {
     /// Files dropped on a window: the links they hold added, or said where
     /// there are none.
@@ -59,6 +70,13 @@ impl Downloads {
                 Dropped::Text(text) => links.extend(dm_shell::app::links::links_in(&text)),
                 Dropped::File(path) => links.extend(links_in_files(&[path])),
             }
+        }
+        // On a phone what arrives here is another app's share: more than one link is offered
+        // to tick first, as Add links from clipboard does, so no app has dm fetch any number of
+        // links unasked; one link stays one tap (gaps row H36).
+        if shares_are_offered() && links.len() > 1 {
+            self.offer_links(links, "Links shared with dm", cx);
+            return;
         }
         self.add_dropped(links, cx);
     }

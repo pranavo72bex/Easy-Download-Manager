@@ -130,83 +130,25 @@ pub(crate) fn torrent_name(display: Option<&str>, last_part: Option<&str>) -> St
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn shared_text_and_opened_addresses_are_told_apart() {
-        assert_eq!(
-            handed(
-                Some(SEND),
-                Some("  A film https://example.com/a.mp4 "),
-                None
-            ),
-            Handed::Text("A film https://example.com/a.mp4".into())
-        );
-        assert_eq!(handed(Some(SEND), Some("  "), None), Handed::Nothing);
-        assert_eq!(
-            handed(Some(VIEW), None, Some("magnet:?xt=urn:btih:abc")),
-            Handed::Text("magnet:?xt=urn:btih:abc".into())
-        );
-        assert_eq!(
-            handed(Some(VIEW), None, Some("content://downloads/1")),
-            Handed::File("content://downloads/1".into())
-        );
-        // Not a `file://` address, nor a provider of dm's own (gaps row H16).
-        for refused in [
-            "FILE:///sdcard/a.torrent",
-            "file:///data/data/com.dm.android/files/settings.json",
-            "content://com.dm.android.files/home/settings.json",
-            "content://COM.DM.ANDROID/x.torrent",
-            "content://evil@com.dm.android.provider/x.torrent",
-        ] {
-            assert_eq!(
-                handed(Some(VIEW), None, Some(refused)),
-                Handed::Nothing,
-                "{refused}"
-            );
-        }
-        assert_eq!(
-            handed(
-                Some(VIEW),
-                None,
-                Some("content://com.dm.androidx.files/a.torrent")
-            ),
-            Handed::File("content://com.dm.androidx.files/a.torrent".into())
-        );
-        assert_eq!(handed(Some(VIEW), None, Some("tel:123")), Handed::Nothing);
-        assert_eq!(
-            handed(Some("android.intent.action.MAIN"), None, None),
-            Handed::Nothing
-        );
-        assert_eq!(handed(None, None, None), Handed::Nothing);
-    }
-
-    #[test]
-    fn a_torrent_is_kept_under_a_safe_name() {
-        assert_eq!(
-            torrent_name(Some("Big Buck Bunny.torrent"), None),
-            "Big Buck Bunny.torrent"
-        );
-        assert_eq!(
-            torrent_name(None, Some("primary:Download/linux.iso.TORRENT")),
-            "linux.iso.TORRENT"
-        );
-        assert_eq!(torrent_name(Some("a/b\\c?d"), None), "c_d.torrent");
-        assert_eq!(torrent_name(Some(" .. "), None), "shared.torrent");
-        assert_eq!(torrent_name(None, None), "shared.torrent");
-        assert!(torrent_name(Some(&"x".repeat(500)), None).len() <= 128);
-    }
-
-    #[test]
-    fn a_shared_torrent_never_replaces_one_already_kept() {
-        let dir = tempfile::tempdir().unwrap();
-        let first = keep_torrent(dir.path(), "ubuntu.torrent", b"the person's").unwrap();
-        let second = keep_torrent(dir.path(), "ubuntu.torrent", b"another app's").unwrap();
-        assert_ne!(first, second);
-        assert_eq!(std::fs::read(&first).unwrap(), b"the person's");
-        assert_eq!(std::fs::read(&second).unwrap(), b"another app's");
-        assert_eq!(second.file_name().unwrap(), "ubuntu (1).torrent");
-    }
+/// `work` on a thread of its own, waited for up to `wait`: past it the work is left to its
+/// thread and `gave_up` is the answer (gaps rows H37, H37a). A sharing app's `content://` copy
+/// whose stream never ends held the share lock for good, and every later share waited behind
+/// it; built for the host too, so it is tested.
+pub(crate) fn within<T: Send + 'static>(
+    wait: std::time::Duration,
+    gave_up: &str,
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let (sent, got) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("dm-shared-copy".into())
+        .spawn(move || {
+            let _ = sent.send(work());
+        })
+        .map_err(|e| format!("dm could not read the file shared: {e}"))?;
+    got.recv_timeout(wait)
+        .unwrap_or_else(|_| Err(gave_up.to_string()))
 }
+
+#[cfg(test)]
+mod tests;

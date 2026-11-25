@@ -1088,5 +1088,6 @@
  "Second network's name": "שם הרשת השנייה",
  "Third network's name": "שם הרשת השלישית",
  "answers in {} ms": "עונה תוך {} ms",
- "A greyed choice is one this computer doesn't allow dm.": "בחירה באפור היא בחירה שהמחשב הזה לא מתיר ל-dm."
+ "A greyed choice is one this computer doesn't allow dm.": "בחירה באפור היא בחירה שהמחשב הזה לא מתיר ל-dm.",
+ "Links shared with dm": "קישורים ששותפו עם dm"
 }

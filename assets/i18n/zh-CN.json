@@ -1088,5 +1088,6 @@
  "Second network's name": "第二个网络的名称",
  "Third network's name": "第三个网络的名称",
  "answers in {} ms": "{} 毫秒内响应",
- "A greyed choice is one this computer doesn't allow dm.": "灰色的选项是这台电脑不允许 dm 执行的。"
+ "A greyed choice is one this computer doesn't allow dm.": "灰色的选项是这台电脑不允许 dm 执行的。",
+ "Links shared with dm": "分享给 dm 的链接"
 }

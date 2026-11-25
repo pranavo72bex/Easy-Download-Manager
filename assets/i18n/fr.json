@@ -1088,5 +1088,6 @@
  "Second network's name": "Nom du second réseau",
  "Third network's name": "Nom du troisième réseau",
  "answers in {} ms": "répond en {} ms",
- "A greyed choice is one this computer doesn't allow dm.": "Un choix grisé est un choix que cet ordinateur ne permet pas à dm."
+ "A greyed choice is one this computer doesn't allow dm.": "Un choix grisé est un choix que cet ordinateur ne permet pas à dm.",
+ "Links shared with dm": "Liens partagés avec dm"
 }

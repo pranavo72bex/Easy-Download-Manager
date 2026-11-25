@@ -7,6 +7,10 @@ copy several links while **Options › General › Offer to download links I
 copy** is on, and click **Download…** on the offer above the list (or at
 once, with **Take a copied link at once, without offering it first**).
 
+On a phone, sharing several links to dm from another app opens the same list
+as **Links shared with dm**, so you pick which to download; one shared link is
+added at once.
+
 If the clipboard holds no link, the window does not open and the status bar
 says "There are no links on the clipboard."
 

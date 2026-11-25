@@ -1088,5 +1088,6 @@
  "Second network's name": "Name des zweiten Netzwerks",
  "Third network's name": "Name des dritten Netzwerks",
  "answers in {} ms": "antwortet in {} ms",
- "A greyed choice is one this computer doesn't allow dm.": "Eine ausgegraute Wahl erlaubt dieser Computer dm nicht."
+ "A greyed choice is one this computer doesn't allow dm.": "Eine ausgegraute Wahl erlaubt dieser Computer dm nicht.",
+ "Links shared with dm": "Mit dm geteilte Links"
 }

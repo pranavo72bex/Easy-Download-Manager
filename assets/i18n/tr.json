@@ -1088,5 +1088,6 @@
  "Second network's name": "İkinci ağın adı",
  "Third network's name": "Üçüncü ağın adı",
  "answers in {} ms": "{} ms içinde yanıtlıyor",
- "A greyed choice is one this computer doesn't allow dm.": "Gri seçenek, bu bilgisayarın dm'ye izin vermediği seçenektir."
+ "A greyed choice is one this computer doesn't allow dm.": "Gri seçenek, bu bilgisayarın dm'ye izin vermediği seçenektir.",
+ "Links shared with dm": "dm ile paylaşılan bağlantılar"
 }

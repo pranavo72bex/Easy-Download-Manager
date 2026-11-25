@@ -1088,5 +1088,6 @@
  "Second network's name": "두 번째 네트워크 이름",
  "Third network's name": "세 번째 네트워크 이름",
  "answers in {} ms": "{}ms 안에 응답",
- "A greyed choice is one this computer doesn't allow dm.": "회색 선택지는 이 컴퓨터가 dm에 허용하지 않는 것입니다."
+ "A greyed choice is one this computer doesn't allow dm.": "회색 선택지는 이 컴퓨터가 dm에 허용하지 않는 것입니다.",
+ "Links shared with dm": "dm에 공유된 링크"
 }

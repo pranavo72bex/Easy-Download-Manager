@@ -30,6 +30,8 @@ use crate::window::zoom::px;
 
 /// The window's view.
 pub struct ClipLinks {
+    /// Its name: the clipboard's links, or those another app shared (gaps row H36).
+    title: &'static str,
     view: WeakEntity<Downloads>,
     /// Each link, whether it is ticked, and whether it is listed already.
     links: Vec<(String, bool, bool)>,
@@ -163,109 +165,98 @@ impl Render for ClipLinks {
                     }),
                 )
             });
-        let root =
-            crate::widgets::native::dialog("clip-links", t("Links on the clipboard"), theme, cx)
-                .track_focus(&self.focus)
-                .on_action(cx.listener(|this, pick: &Pick, _, cx| {
-                    let categories = savefolder::categories(cx, &this.view);
-                    if savefolder::pick(this, pick, &categories) {
-                        cx.notify();
-                    }
-                }))
-                .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-                    if event.keystroke.key == "enter"
-                        && crate::widgets::native::return_is_default(window, Some(&this.focus), cx)
-                    {
-                        this.add(false, window, cx);
-                    }
-                }))
-                .child(crate::widgets::fit::fitted(
-                    native::body(theme)
-                        // How many were found, and how many are ticked.
-                        .child(screen.label(tn(
-                            "Found {} link; {} ticked.||Found {} links; {} ticked.",
-                            found as u64,
-                            &[&found, &ticked],
-                        )))
-                        .child(
-                            div()
-                                .flex()
-                                .gap(px(native::LABEL_GAP))
-                                .child(
-                                    native::button(
-                                        "check-all",
-                                        t("Check all").into(),
-                                        false,
-                                        theme,
-                                        &screen,
-                                    )
-                                    .on_click(
-                                        cx.listener(|this, _, _, cx| this.tick_all(true, cx)),
-                                    ),
-                                )
-                                .child(
-                                    native::button(
-                                        "uncheck-all",
-                                        t("Uncheck all").into(),
-                                        false,
-                                        theme,
-                                        &screen,
-                                    )
-                                    .on_click(
-                                        cx.listener(|this, _, _, cx| this.tick_all(false, cx)),
-                                    ),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .id("links")
-                                .max_h(px(260.0))
-                                .overflow_y_scroll()
-                                .rounded(px(native::RADIUS))
-                                .border_1()
-                                .border_color(theme.separator)
-                                .bg(theme.background)
-                                .p(px(space::S))
-                                .flex()
-                                .flex_col()
-                                .gap(px(space::XS))
-                                .children(rows),
-                        )
-                        .child(save_to)
-                        .child(native::says(
-                            "cliplinks-says",
-                            self.says.clone(),
-                            theme,
-                            &screen,
-                        ))
-                        .child(native::buttons(
-                            vec![native::button(
-                                "later",
-                                t("Add for later").into(),
-                                false,
-                                theme,
-                                &screen,
-                            )
-                            .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
-                            .into_any_element()],
-                            vec![
-                                native::button("cancel", t("Cancel").into(), false, theme, &screen)
-                                    .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
-                                    .into_any_element(),
+        let root = crate::widgets::native::dialog("clip-links", t(self.title), theme, cx)
+            .track_focus(&self.focus)
+            .on_action(cx.listener(|this, pick: &Pick, _, cx| {
+                let categories = savefolder::categories(cx, &this.view);
+                if savefolder::pick(this, pick, &categories) {
+                    cx.notify();
+                }
+            }))
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if event.keystroke.key == "enter"
+                    && crate::widgets::native::return_is_default(window, Some(&this.focus), cx)
+                {
+                    this.add(false, window, cx);
+                }
+            }))
+            .child(crate::widgets::fit::fitted(
+                native::body(theme)
+                    // How many were found, and how many are ticked.
+                    .child(screen.label(tn(
+                        "Found {} link; {} ticked.||Found {} links; {} ticked.",
+                        found as u64,
+                        &[&found, &ticked],
+                    )))
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(native::LABEL_GAP))
+                            .child(
                                 native::button(
-                                    "start",
-                                    t("Start now").into(),
-                                    true,
+                                    "check-all",
+                                    t("Check all").into(),
+                                    false,
                                     theme,
                                     &screen,
                                 )
+                                .on_click(cx.listener(|this, _, _, cx| this.tick_all(true, cx))),
+                            )
+                            .child(
+                                native::button(
+                                    "uncheck-all",
+                                    t("Uncheck all").into(),
+                                    false,
+                                    theme,
+                                    &screen,
+                                )
+                                .on_click(cx.listener(|this, _, _, cx| this.tick_all(false, cx))),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("links")
+                            .max_h(px(260.0))
+                            .overflow_y_scroll()
+                            .rounded(px(native::RADIUS))
+                            .border_1()
+                            .border_color(theme.separator)
+                            .bg(theme.background)
+                            .p(px(space::S))
+                            .flex()
+                            .flex_col()
+                            .gap(px(space::XS))
+                            .children(rows),
+                    )
+                    .child(save_to)
+                    .child(native::says(
+                        "cliplinks-says",
+                        self.says.clone(),
+                        theme,
+                        &screen,
+                    ))
+                    .child(native::buttons(
+                        vec![native::button(
+                            "later",
+                            t("Add for later").into(),
+                            false,
+                            theme,
+                            &screen,
+                        )
+                        .on_click(cx.listener(|this, _, window, cx| this.add(true, window, cx)))
+                        .into_any_element()],
+                        vec![
+                            native::button("cancel", t("Cancel").into(), false, theme, &screen)
+                                .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
+                                .into_any_element(),
+                            native::button("start", t("Start now").into(), true, theme, &screen)
                                 .on_click(
                                     cx.listener(|this, _, window, cx| this.add(false, window, cx)),
                                 )
                                 .into_any_element(),
-                            ],
-                        )),
-                ));
+                        ],
+                    )),
+            ));
         crate::window::safe::kept_clear(root, window)
     }
 }
@@ -282,6 +273,16 @@ impl Downloads {
             cx.notify();
             return;
         }
+        self.offer_links(found, "Links on the clipboard", cx);
+    }
+
+    /// `found` offered to tick under `title`, one already in the list unticked and said so.
+    pub(crate) fn offer_links(
+        &mut self,
+        found: Vec<String>,
+        title: &'static str,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let listed = dm_shell::app::control_api::listed_addresses(&self.rows);
         let links = found
             .into_iter()
@@ -290,12 +291,17 @@ impl Downloads {
                 (l, !there, there)
             })
             .collect();
-        open(cx.entity().downgrade(), links, cx);
+        open(cx.entity().downgrade(), links, title, cx);
     }
 }
 
 /// Opens Links on the clipboard for `links`.
-fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut App) {
+fn open(
+    view: WeakEntity<Downloads>,
+    links: Vec<(String, bool, bool)>,
+    title: &'static str,
+    cx: &mut App,
+) {
     cx.defer(move |cx| {
         let (width, height) = crate::widgets::native::WindowSize::ClipboardLinks.here();
         let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
@@ -304,7 +310,7 @@ fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut 
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(gpui::TitlebarOptions {
-                    title: Some(t("Links on the clipboard").into()),
+                    title: Some(t(title).into()),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -320,6 +326,7 @@ fn open(view: WeakEntity<Downloads>, links: Vec<(String, bool, bool)>, cx: &mut 
                             this.add(false, window, cx)
                         });
                     ClipLinks {
+                        title,
                         view,
                         links,
                         choice: SaveChoice::default(),

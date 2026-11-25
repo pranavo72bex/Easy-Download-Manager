@@ -269,3 +269,24 @@ fn a_copied_link_is_taken_at_once_where_that_is_on() {
     h.until_shown("Link on your clipboard:");
     assert!(h.shows_part("offered.iso"));
 }
+
+/// Another app's share of several links (a phone's) offers them to tick first, adding nothing
+/// unasked; one shared link is added at once (gaps row H36).
+#[test]
+fn several_shared_links_are_offered_one_is_added() {
+    let world = world();
+    let mut h = world.harness();
+    crate::platform::drops::SHARES_OFFERED.with(|s| s.set(true));
+    let two = format!("{}\n{}", world.url("a.zip"), world.url("b.zip"));
+    dm_desktop_base::drops::arrived(dm_desktop_base::drops::Dropped::Text(two));
+    h.act(|view, cx| view.take_dropped_links(cx));
+    h.until("Links shared with dm", |h| {
+        h.dialog_open("Links shared with dm")
+    });
+    assert!(h.rows().is_empty(), "the shared links were added unasked");
+    h.close_dialogs();
+    dm_desktop_base::drops::arrived(dm_desktop_base::drops::Dropped::Text(world.url("c.zip")));
+    h.act(|view, cx| view.take_dropped_links(cx));
+    h.until("the one shared link added", |h| h.rows().len() == 1);
+    crate::platform::drops::SHARES_OFFERED.with(|s| s.set(false));
+}

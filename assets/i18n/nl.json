@@ -1088,5 +1088,6 @@
  "Second network's name": "Naam van het tweede netwerk",
  "Third network's name": "Naam van het derde netwerk",
  "answers in {} ms": "antwoordt in {} ms",
- "A greyed choice is one this computer doesn't allow dm.": "Een grijze keuze is er een die deze computer dm niet toestaat."
+ "A greyed choice is one this computer doesn't allow dm.": "Een grijze keuze is er een die deze computer dm niet toestaat.",
+ "Links shared with dm": "Met dm gedeelde links"
 }

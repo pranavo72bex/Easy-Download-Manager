@@ -1088,5 +1088,6 @@
  "Second network's name": "Nama jaringan kedua",
  "Third network's name": "Nama jaringan ketiga",
  "answers in {} ms": "menjawab dalam {} md",
- "A greyed choice is one this computer doesn't allow dm.": "Pilihan yang abu-abu tidak diizinkan komputer ini untuk dm."
+ "A greyed choice is one this computer doesn't allow dm.": "Pilihan yang abu-abu tidak diizinkan komputer ini untuk dm.",
+ "Links shared with dm": "Tautan yang dibagikan ke dm"
 }

@@ -1088,5 +1088,6 @@
  "Second network's name": "2 つ目のネットワークの名前",
  "Third network's name": "3 つ目のネットワークの名前",
  "answers in {} ms": "{} ms で応答",
- "A greyed choice is one this computer doesn't allow dm.": "グレーの選択肢は、このコンピューターが dm に許可していないものです。"
+ "A greyed choice is one this computer doesn't allow dm.": "グレーの選択肢は、このコンピューターが dm に許可していないものです。",
+ "Links shared with dm": "dm に共有されたリンク"
 }

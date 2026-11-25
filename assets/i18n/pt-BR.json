@@ -1088,5 +1088,6 @@
  "Second network's name": "Nome da segunda rede",
  "Third network's name": "Nome da terceira rede",
  "answers in {} ms": "responde em {} ms",
- "A greyed choice is one this computer doesn't allow dm.": "Uma opção acinzentada é uma que este computador não permite ao dm."
+ "A greyed choice is one this computer doesn't allow dm.": "Uma opção acinzentada é uma que este computador não permite ao dm.",
+ "Links shared with dm": "Links compartilhados com o dm"
 }
