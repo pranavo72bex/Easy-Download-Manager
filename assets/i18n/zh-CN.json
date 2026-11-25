@@ -1091,5 +1091,7 @@
  "A greyed choice is one this computer doesn't allow dm.": "灰色的选项是这台电脑不允许 dm 执行的。",
  "Links shared with dm": "分享给 dm 的链接",
  "Unchanged since it finished.": "完成后未被更改。",
- "Changed since it finished: its SHA-256 then was another.": "完成后已被更改：当时的 SHA-256 不同。"
+ "Changed since it finished: its SHA-256 then was another.": "完成后已被更改：当时的 SHA-256 不同。",
+ "Open a program?": "打开程序？",
+ "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} 是一个程序：它会以您在这台电脑上的全部权限运行。只有信任它的来源网站时才打开它。"
 }

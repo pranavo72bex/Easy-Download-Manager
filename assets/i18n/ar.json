@@ -1091,5 +1091,7 @@
  "A greyed choice is one this computer doesn't allow dm.": "الخيار الرمادي هو ما لا يسمح به هذا الكمبيوتر لـ dm.",
  "Links shared with dm": "روابط تمت مشاركتها مع dm",
  "Unchanged since it finished.": "لم يتغير منذ اكتماله.",
- "Changed since it finished: its SHA-256 then was another.": "تغيّر منذ اكتماله: كان SHA-256 الخاص به حينها مختلفًا."
+ "Changed since it finished: its SHA-256 then was another.": "تغيّر منذ اكتماله: كان SHA-256 الخاص به حينها مختلفًا.",
+ "Open a program?": "فتح برنامج؟",
+ "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} برنامج: يعمل بكل ما يمكنك فعله على هذا الكمبيوتر. افتحه فقط إن كنت تثق بالموقع الذي جاء منه."
 }

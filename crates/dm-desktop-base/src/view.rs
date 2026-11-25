@@ -29,6 +29,8 @@ pub mod help;
 pub mod i18n;
 pub mod links_import;
 pub mod options;
+/// A finished program: which files run, and what Open asks first (gaps row H1).
+pub mod programs;
 pub mod progress;
 pub mod project;
 pub mod row_edits;

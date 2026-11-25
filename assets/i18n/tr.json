@@ -1091,5 +1091,7 @@
  "A greyed choice is one this computer doesn't allow dm.": "Gri seçenek, bu bilgisayarın dm'ye izin vermediği seçenektir.",
  "Links shared with dm": "dm ile paylaşılan bağlantılar",
  "Unchanged since it finished.": "Bittiğinden beri değişmedi.",
- "Changed since it finished: its SHA-256 then was another.": "Bittiğinden beri değişti: SHA-256 değeri o zaman farklıydı."
+ "Changed since it finished: its SHA-256 then was another.": "Bittiğinden beri değişti: SHA-256 değeri o zaman farklıydı.",
+ "Open a program?": "Bir program açılsın mı?",
+ "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} bir programdır: bu bilgisayarda yapabildiğiniz her şeyle çalışır. Yalnızca geldiği siteye güveniyorsanız açın."
 }

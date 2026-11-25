@@ -55,8 +55,8 @@ pub use platform::{
 pub use run::{boot, cli, control, headless, mcp, modes, probe, session, wakes};
 pub use view::{
     add_url, asks, columns, details, file_info, find, format, grabber, held, help, i18n,
-    links_import, options, progress, project, row_edits, rows, save_to, scheduler, selection,
-    toolbar, tray, zip_list,
+    links_import, options, programs, progress, project, row_edits, rows, save_to, scheduler,
+    selection, toolbar, tray, zip_list,
 };
 // View › Statistics and a progress window's speed line (gaps row W15).
 pub use view::statistics;

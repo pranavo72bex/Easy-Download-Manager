@@ -1091,5 +1091,7 @@
  "A greyed choice is one this computer doesn't allow dm.": "회색 선택지는 이 컴퓨터가 dm에 허용하지 않는 것입니다.",
  "Links shared with dm": "dm에 공유된 링크",
  "Unchanged since it finished.": "완료된 뒤로 바뀌지 않았습니다.",
- "Changed since it finished: its SHA-256 then was another.": "완료된 뒤로 바뀌었습니다. 당시 SHA-256은 달랐습니다."
+ "Changed since it finished: its SHA-256 then was another.": "완료된 뒤로 바뀌었습니다. 당시 SHA-256은 달랐습니다.",
+ "Open a program?": "프로그램을 여시겠습니까?",
+ "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{}은(는) 프로그램입니다. 이 컴퓨터에서 할 수 있는 모든 권한으로 실행됩니다. 받은 사이트를 믿을 수 있을 때만 여세요."
 }

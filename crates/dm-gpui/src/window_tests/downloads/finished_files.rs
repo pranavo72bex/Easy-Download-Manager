@@ -265,3 +265,28 @@ fn removing_a_finished_download_is_undone_from_the_status_bar() {
     }
     assert!(!h.shows("Undo"), "Undo stayed after it was used");
 }
+
+/// A finished program asks before it opens, once: Cancel leaves it unopened, Open opens it, and
+/// the next Open opens it without asking again (gaps row H1). A document opens at once.
+#[test]
+fn a_finished_program_asks_once_before_it_opens() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("setup.exe"), "Start now");
+    h.until("the download to complete", |h| completed(h) == 1);
+    let path = h.rows()[0].path.clone();
+    h.select("setup.exe");
+    h.run(Command::OpenFile);
+    h.until_shown("Open a program?");
+    h.click("Cancel");
+    h.until("the question closed", |h| !h.shows("Open a program?"));
+    assert!(opened(&h).is_empty(), "opened though Cancel was chosen");
+    h.run(Command::OpenFile);
+    h.until_shown("Open a program?");
+    // As a person presses it: the control port does not open a file for a script.
+    h.click_as_person("Open", 0);
+    h.until("the program opened", |h| opened(h).contains(&path));
+    h.run(Command::OpenFile);
+    h.until("opened again", |h| opened(h).len() == 2);
+    assert!(!h.shows("Open a program?"), "asked a second time");
+}

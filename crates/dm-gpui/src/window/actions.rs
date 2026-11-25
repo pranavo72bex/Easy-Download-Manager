@@ -43,7 +43,7 @@ impl Downloads {
             }
         }
         match command {
-            Command::OpenFile => self.open_path(&row.path),
+            Command::OpenFile => self.open_asking(row, cx),
             Command::OpenWith => self.open_path_with(&row.path, |_, _| {}, cx),
             Command::OpenFolder => self.reveal_path(&row.path),
             // Off the window's thread: where the disk takes no hard link the
@@ -197,6 +197,47 @@ impl Downloads {
             },
             cx,
         );
+    }
+
+    /// Opens a finished file, asking first, once in this run, where it is one the system would
+    /// run or one H2 found in disguise (gaps row H1): a program opened like a picture ran with
+    /// all of a person's rights.
+    fn open_asking(&mut self, row: &dm_core::Entry, cx: &mut Context<Self>) {
+        let named = std::path::Path::new(&row.path)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| row.filename.clone());
+        let program = dm_desktop_base::programs::runs(&named) || row.disguised.is_some();
+        if !program || self.questions.programs_opened.contains(&row.path) {
+            self.open_path(&row.path);
+            return;
+        }
+        let (title, sentence) = dm_desktop_base::programs::open_question(&named);
+        let asked = crate::dialogs::question::Asked {
+            title: title.into(),
+            lines: vec![sentence.into()],
+            named: None,
+            detail: None,
+            toggle: None,
+            ticked: false,
+            // Cancel, the default, rightmost: Return and Escape both leave it unopened.
+            buttons: vec![t("Cancel").into(), t("Open").into()],
+            default: 0,
+            escape: 0,
+            destroys: None,
+        };
+        let path = row.path.clone();
+        let view = cx.entity().downgrade();
+        let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
+            if button != 1 {
+                return;
+            }
+            let _ = view.update(cx, |view, _| {
+                view.questions.programs_opened.insert(path.clone());
+                view.open_path(&path);
+            });
+        });
+        self.sheet(asked, None, None, answer, cx);
     }
 
     /// A list read for Import: added, or where `already` of its `total`

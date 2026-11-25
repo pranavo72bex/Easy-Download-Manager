@@ -78,6 +78,16 @@ the list?", or "Its file is kept." / "Its file is deleted too.".
 Return and Escape: **Keep it** (or **Keep them**). A file that cannot be
 deleted is said in the status bar: "Couldn't delete …".
 
+## Open a program?
+
+Asked when you open a finished file that would run as a program (an `.exe`,
+`.msi`, `.dmg`, `.pkg`, `.apk`, a script and the like), or one dm found is a
+program under another name: "… is a program: it runs with everything you can
+do on this computer. Open it only if you trust the site it came from."
+
+- **Cancel** (the default): it stays unopened.
+- **Open:** dm opens it, and does not ask again for that file while dm runs.
+
 ## Start outside the schedule?
 
 When you start downloads that the [Scheduler](scheduler.md) or the

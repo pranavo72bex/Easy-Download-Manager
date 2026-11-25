@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Opening a finished program (an .exe, .msi, .dmg, .apk, a script, or a program disguised as another kind) asks once first: "Open a program?", with Cancel as the default.
 - dm keeps each finished file's SHA-256; Properties says whether the file is unchanged since it finished, or has changed.
 - On a phone, another app sharing several links to dm opens a list to pick from (Links shared with dm) instead of downloading them all; one shared link is still added at once. A sharing app that never finishes handing over a file is given up after 30 seconds, so later shares go through.
 - An MP4 that claims more samples over all its tracks than any real video has is refused before dm makes room for them.

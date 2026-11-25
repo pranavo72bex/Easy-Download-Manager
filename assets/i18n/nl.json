@@ -1091,5 +1091,7 @@
  "A greyed choice is one this computer doesn't allow dm.": "Een grijze keuze is er een die deze computer dm niet toestaat.",
  "Links shared with dm": "Met dm gedeelde links",
  "Unchanged since it finished.": "Ongewijzigd sinds het klaar was.",
- "Changed since it finished: its SHA-256 then was another.": "Gewijzigd sinds het klaar was: de SHA-256 was toen een andere."
+ "Changed since it finished: its SHA-256 then was another.": "Gewijzigd sinds het klaar was: de SHA-256 was toen een andere.",
+ "Open a program?": "Een programma openen?",
+ "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} is een programma: het draait met alles wat u op deze computer kunt doen. Open het alleen als u de site waar het vandaan kwam vertrouwt."
 }

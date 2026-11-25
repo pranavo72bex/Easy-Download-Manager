@@ -1091,5 +1091,7 @@
  "A greyed choice is one this computer doesn't allow dm.": "Wyszarzona opcja to taka, na którą ten komputer nie pozwala dm.",
  "Links shared with dm": "Linki udostępnione dm",
  "Unchanged since it finished.": "Bez zmian od zakończenia.",
- "Changed since it finished: its SHA-256 then was another.": "Zmieniony od zakończenia: jego SHA-256 był wtedy inny."
+ "Changed since it finished: its SHA-256 then was another.": "Zmieniony od zakończenia: jego SHA-256 był wtedy inny.",
+ "Open a program?": "Otworzyć program?",
+ "{} is a program: it runs with everything you can do on this computer. Open it only if you trust the site it came from.": "{} to program: działa ze wszystkim, co możesz zrobić na tym komputerze. Otwórz go tylko, jeśli ufasz witrynie, z której pochodzi."
 }

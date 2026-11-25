@@ -186,6 +186,8 @@ pub(crate) struct Questions {
     /// Exit was carried out (`quit`): what the window's tests read, as GPUI's test platform
     /// ends nothing.
     pub(crate) quit_asked: bool,
+    /// The programs a person answered Open for in this run: each asked once (gaps row H1).
+    pub(crate) programs_opened: std::collections::HashSet<String>,
     /// A browser's hand-off is being asked about (Download details or
     /// Download links): the next waits for it.
     pub(crate) handed_open: bool,
@@ -209,6 +211,7 @@ impl Questions {
             question_window: None,
             exit_asked: false,
             quit_asked: false,
+            programs_opened: Default::default(),
             handed_open: false,
             cancelled_hand_offs: Default::default(),
             countdown_shown: false,

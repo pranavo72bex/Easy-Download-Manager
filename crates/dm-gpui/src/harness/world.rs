@@ -151,6 +151,11 @@ fn file_routes() -> axum::Router {
             "/deep.pdf",
             axum::routing::get(|| async { Response::new(Body::from(payload())) }),
         )
+        // A program, which Open asks before it opens (gaps row H1).
+        .route(
+            "/setup.exe",
+            axum::routing::get(|| async { Response::new(Body::from(payload())) }),
+        )
         .route(
             "/secret.zip",
             axum::routing::get(|| async {
