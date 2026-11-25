@@ -76,6 +76,37 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
+## Next session (written 2026-11-25, late; for 2026-11-26)
+
+**Done this evening (all pushed to main, last `ad558624`; `cargo test --workspace` 3290 passed,
+0 failed):**
+- UI walk by `ui-shot.py` pictures: Options' pages (one word for category, one speed-limit
+  form, a heading), Back up's opening words wrapping (`native::note` takes `min_w_0`). The walk
+  stopped there: dialogs open behind the editor on the shared screen, so their pictures caught
+  whatever was in front. Finish it with the screen left alone (Links, Download details, Move,
+  Import, the Scheduler, Site files, the phone layout at 200%).
+- H rows: H15a, H15c, H23a, H23b, H24a, H24b, H24c (H24 done), H33a. "Only through" now refuses
+  plain `rtsp://` alone (contract row B77 reworded, 15 catalogs marked unread).
+- The nightly fuzz run's two findings: librqbit-bencode vendored (change `numbers`, atoi's
+  checked readers; `cargo xtask vendor` makes seven copies), and dm-js freeing every object
+  its run made (it leaked 1.5 MB a run). See `docs/decisions.md`.
+- C rows: C2a and C2b (saved archive passwords tried by Extract here/to; "Archive password"
+  asks when none fits, new contract row B78 with its `human-qa.py` check), C3a, C3b, C3d
+  (archives in parts: named, unpacked once as a set, a 7z read across its parts), C7 done
+  (`--queue NAME`).
+
+**Start with, in this order:**
+1. `python3 scripts/ai-health.py`; then main's runs on `ad558624` (CI, Desktop on three
+   systems, Audit) and the next nightly Deep fuzz (torrent_metainfo and javascript should now
+   run their full ten minutes).
+2. Every E row left needs the maintainer's word or a person (E3, E6, E8, E10, E11, E24, E37,
+   E41's picture on Windows and Linux, E47): ask for the words, or run `human-qa.py` in a
+   visible window (it now has B78; B25's and B78's pictures are owed).
+3. Bot rows next in order: C3c (a RAR in parts), C4a to C4c (live links in the Grabber), C5b to
+   C5d, C6a to C6e (torrent rows' own commands), C8a and C8b, C11c to C11e.
+4. Owed: a reader for the lines added to `assets/i18n/unread/` (the six of Archive password,
+   "rtsp:// streams", "by category").
+
 ## Next session (written 2026-11-25, end of day)
 
 **Done today (2026-11-25, all pushed to main):** main's Windows Desktop run green again (U34's
