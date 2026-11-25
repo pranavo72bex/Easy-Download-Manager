@@ -33,3 +33,4 @@ application's rules around them. Read `AGENTS.md` ("Rules for a change", "Glossa
 ## Lessons
 
 - 2026-11-24: watch_estimating takes 5 arguments including downloaded_per_network: Option[ArcAtomicU64; 3], and Progress struct requires the per_network field.
+- 2026-11-25: In dm-js, Interp stores program: VecStmt and temporarily takes ownership via std::mem::take during evaluation to satisfy borrow checking without leaking memory via Box::leak.
