@@ -61,7 +61,12 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
                 gpui::Toggled::False
             })
             .px(px(space::M))
-            .h(px(20.0))
+            // A finger's least on a phone (gaps row E26).
+            .h(px(if crate::platform::ON_A_PHONE {
+                native::CONTROL
+            } else {
+                20.0
+            }))
             .flex()
             .items_center()
             .rounded(px(native::RADIUS))

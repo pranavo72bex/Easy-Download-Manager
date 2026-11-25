@@ -71,7 +71,11 @@ pub(crate) fn line(id: impl Into<gpui::ElementId>, theme: Theme) -> Stateful<Div
         .items_center()
         .gap(px(space::M))
         .text_size(px(native::TEXT))
-        .hover(|l| l.bg(theme.control))
+        // Reached by Tab with its ring (gaps row E25), and answering the pointer as a
+        // control's face does: `theme.control` was 1.08 to 1 on a menu.
+        .map(|l| native::ringed(l, theme))
+        .rounded_none()
+        .hover(move |l| l.bg(theme.answering(theme.menu, crate::window::theme::HOVERED)))
 }
 
 /// The dimmed layer over the whole window a sheet stands on; a tap on it, outside the sheet,
@@ -146,6 +150,7 @@ pub(crate) fn sheet(
                         .flex()
                         .items_center()
                         .justify_center()
+                        .map(|b| native::ringed(b, theme))
                         .rounded_full()
                         .active(move |b| b.bg(theme.control))
                         .on_click(move |_, window, cx| close(window, cx))

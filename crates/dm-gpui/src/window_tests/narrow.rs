@@ -12,6 +12,7 @@ use dm_shell::app::places::Place;
 
 use crate::harness::world::{world, World};
 use crate::harness::{settings_file, Harness};
+use crate::window::list::Downloads;
 
 /// A phone held upright, in points.
 const PHONE: (f32, f32) = (412.0, 915.0);
@@ -532,4 +533,29 @@ fn share_is_offered_for_several_finished_files_chosen() {
     h.until("no Share with a download unfinished", |h| {
         h.shows("3 selected") && !h.shows("Share")
     });
+}
+
+/// A sheet opened gives its first line the keys, and each of its lines is a tab stop (gaps row
+/// E25): the keys stayed on the window behind it.
+#[test]
+fn an_opened_sheet_has_the_keys() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    h.until_shown("Menu");
+    h.person_click("Menu", 1);
+    h.until_shown("Downloads");
+    let has_keys = |h: &mut Harness| {
+        h.dialog(|view: &mut Downloads, window, _| {
+            view.layout
+                .narrow
+                .sheet
+                .as_ref()
+                .is_some_and(|sheet| sheet.has_keys(window))
+        })
+    };
+    h.until("the sheet's first line has the keys", has_keys);
+    h.person_click("Downloads", 1);
+    h.until_shown("Resume all");
+    assert!(has_keys(&mut h), "the submenu's first line lost the keys");
 }

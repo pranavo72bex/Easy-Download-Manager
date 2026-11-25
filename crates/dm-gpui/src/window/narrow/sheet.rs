@@ -13,6 +13,7 @@ use dm_desktop_base::i18n::t;
 use gpui::{div, prelude::*, Context, Div, OwnedMenu, OwnedMenuItem, Role, Stateful, Window};
 
 use crate::widgets::{bottomsheet, space};
+use crate::window::a11y::Told;
 use crate::window::list::Downloads;
 use crate::window::screen::Screen;
 use crate::window::theme::Theme;
@@ -30,6 +31,11 @@ pub(crate) struct Sheet {
     /// Items of the first menu drawn as big buttons in a row above the others, and left out of
     /// the list (a card's Open, Share, Delete and Pause or Resume, gaps row C22).
     quick: Vec<usize>,
+    /// The keys' place on its first line, moved there as it opens and as a submenu is walked
+    /// into (gaps row E25): the keys stayed on the window behind it.
+    first: Option<gpui::FocusHandle>,
+    /// How many pages were shown when the first line was last given the keys.
+    focused_for: usize,
 }
 
 impl Sheet {
@@ -39,6 +45,8 @@ impl Sheet {
             pages: vec![menu],
             drag: bottomsheet::Drag::default(),
             quick: Vec::new(),
+            first: None,
+            focused_for: 0,
         }
     }
 
@@ -63,6 +71,23 @@ impl Sheet {
             quick: picked,
             ..Sheet::new(menu)
         }
+    }
+
+    /// The keys given to its first line where the page shown is new to them.
+    pub(crate) fn focus_first(&mut self, window: &mut Window, cx: &mut gpui::App) {
+        let first = self.first.get_or_insert_with(|| cx.focus_handle()).clone();
+        if self.focused_for != self.pages.len() {
+            self.focused_for = self.pages.len();
+            window.focus(&first, cx);
+        }
+    }
+
+    /// Whether its first line has the keys.
+    #[cfg(test)]
+    pub(crate) fn has_keys(&self, window: &Window) -> bool {
+        self.first
+            .as_ref()
+            .is_some_and(|first| first.is_focused(window))
     }
 
     /// How many of its items are big buttons above the list.
@@ -165,6 +190,18 @@ pub(super) fn drawn(
             .child(screen.label(menu.name.clone()))
     };
     let quick: &[usize] = if walked { &[] } else { &sheet.quick };
+    // The line the keys are given as it opens: the first that can be picked.
+    let first_line = menu.items.iter().enumerate().position(|(i, item)| {
+        !quick.contains(&i)
+            && matches!(
+                item,
+                OwnedMenuItem::Submenu(_)
+                    | OwnedMenuItem::Action {
+                        disabled: false,
+                        ..
+                    }
+            )
+    });
     let mut items: Vec<gpui::AnyElement> = Vec::new();
     if !quick.is_empty() {
         items.push(quick_row(menu, quick, theme, screen, cx));
@@ -175,7 +212,12 @@ pub(super) fn drawn(
             .enumerate()
             // What the row above holds is not listed again; nor a separator it leaves first.
             .filter(|(i, _)| !quick.contains(i))
-            .map(|(i, item)| item_drawn(i, item, theme, screen, cx)),
+            .map(|(i, item)| {
+                let first = (Some(i) == first_line)
+                    .then_some(sheet.first.as_ref())
+                    .flatten();
+                item_drawn(i, item, first, theme, screen, cx)
+            }),
     );
     bottomsheet::sheet(
         "sheet",
@@ -284,6 +326,7 @@ pub(super) fn hooks(cx: &mut Context<Downloads>) -> bottomsheet::Hooks {
 fn item_drawn(
     i: usize,
     item: &OwnedMenuItem,
+    first: Option<&gpui::FocusHandle>,
     theme: Theme,
     screen: &Screen,
     cx: &mut Context<Downloads>,
@@ -296,6 +339,7 @@ fn item_drawn(
             .bg(theme.separator)
             .into_any_element(),
         OwnedMenuItem::Submenu(sub) => bottomsheet::line(("sheet-item", i), theme)
+            .when_some(first, |l, first| l.track_focus(first))
             .role(Role::MenuItem)
             .aria_label(sub.name.clone())
             .on_click(cx.listener(move |view, _, _, cx| {
@@ -336,8 +380,12 @@ fn item_drawn(
             // A command's picture, as its toolbar button has it on a desktop.
             let picture = picture_of(action.as_ref());
             bottomsheet::line(("sheet-item", i), theme)
+                .when_some(first, |l, first| l.track_focus(first))
                 .role(Role::MenuItem)
                 .aria_label(gpui::SharedString::from(name.clone()))
+                // Told off and ticked, as it is drawn (gaps row E25).
+                .off_if(disabled)
+                .when(*checked, |l| l.aria_toggled(gpui::Toggled::True))
                 .when(disabled, |l| l.text_color(theme.muted))
                 .when(!disabled, |l| {
                     l.on_click(cx.listener(move |view, _, window, cx| {
@@ -361,6 +409,10 @@ fn item_drawn(
                         .when(*checked && picture.is_none(), |d| d.child("✓")),
                 )
                 .child(div().flex_1().min_w_0().child(screen.label(name.clone())))
+                // Where its picture has the tick's place, the tick at the line's end.
+                .when(*checked && picture.is_some(), |l| {
+                    l.child(div().flex_none().text_color(theme.accent_text).child("✓"))
+                })
                 .into_any_element()
         }
         OwnedMenuItem::SystemMenu(_) => div().into_any_element(),

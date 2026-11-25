@@ -17,6 +17,7 @@ mod find;
 mod fuzz;
 mod grabber;
 mod keyboard;
+mod keyboard_dialogs;
 mod layout;
 mod lists;
 mod more_dialogs;

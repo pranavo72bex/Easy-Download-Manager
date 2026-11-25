@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The Grabber's "Save this search as" and "Run every" are rows of the form under one another, and the Links dialog's type filter and the row being edited wrap: at Windows' sizes and in German they ran past the window's edge.
+- On a phone, every button, field, pop-up, check box, radio button, the Scheduler's queues, the speed presets and the video quality choices are at least 48 points tall, easier to hit with a finger.
+- On a phone, a menu sheet that opens takes the keyboard to its first line, and its lines, Close and Back each show a ring; a screen reader hears which lines are greyed and which are ticked.
 - A screen reader says a dialog's refusal as it appears (Add URL, Links, the Grabber, Properties, the speed limiter, Backup and the others): pressing OK on a dialog that refused made no sound.
 - On Windows, the Scheduler's "Wake the computer from sleep to start" wraps inside its window in German instead of running past the edge.
 

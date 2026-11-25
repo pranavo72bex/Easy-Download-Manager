@@ -171,7 +171,9 @@ pub const SUBTITLE_TEXT: f32 = 16.0;
 /// and a window's one title (About's name).
 pub const TITLE_TEXT: f32 = 20.0;
 /// A regular control's height: a text field, a push button, a pop-up.
-pub const CONTROL: f32 = on_a_phone(44.0, pick(24.0, 32.0, 34.0));
+pub const CONTROL: f32 = on_a_phone(space::TOUCH, pick(24.0, 32.0, 34.0));
+// A phone's control a finger's least (gaps row E26), held where the phone's build is made.
+const _: () = assert!(!crate::platform::ON_A_PHONE || CONTROL >= space::TOUCH);
 /// From the window's edges to what it holds.
 pub const MARGIN: f32 = on_a_phone(16.0, pick(20.0, 24.0, 18.0));
 /// Between one row of a form and the next.
@@ -407,6 +409,8 @@ pub fn checkbox(
         })
         .flex()
         .items_center()
+        // A finger's least on a phone (gaps row E26).
+        .min_h(px(on_a_phone(space::TOUCH, 0.0)))
         .gap(px(space::S))
         .child(tick_box(ticked, theme))
         // On a phone long words wrap under themselves rather than running off the screen.
@@ -516,6 +520,7 @@ pub fn radio(
         })
         .flex()
         .items_center()
+        .min_h(px(on_a_phone(space::TOUCH, 0.0)))
         .gap(px(space::S))
         .child(
             div()

@@ -292,28 +292,7 @@ impl Render for Links {
             .child(self.link_list(theme, &screen, rows, count, cx))
             // The row being edited: its name and its address.
             .when_some(self.editing.clone(), |d, (_, name, address)| {
-                d.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(native::LABEL_GAP))
-                        .child(screen.label(t("File name")))
-                        .child(
-                            div()
-                                .w(px(180.0))
-                                .child(native::field(&name, "File name", theme)),
-                        )
-                        .child(screen.label(t("Address")))
-                        .child(
-                            div()
-                                .flex_1()
-                                .child(native::field(&address, "Address", theme)),
-                        )
-                        .child(
-                            native::button("done", t("Done").into(), false, theme, &screen)
-                                .on_click(cx.listener(|this, _, _, cx| this.finish_editing(cx))),
-                        ),
-                )
+                d.child(self.editing_row(&name, &address, theme, &screen, cx))
             })
             .child(
                 check(

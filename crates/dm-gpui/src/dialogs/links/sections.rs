@@ -13,6 +13,40 @@ use super::*;
 pub(super) type Row = (usize, String, bool, String, String, String, String);
 
 impl Links {
+    /// The row being edited: its name and its address, wrapping where they do not fit.
+    pub(super) fn editing_row(
+        &self,
+        name: &Entity<InputState>,
+        address: &Entity<InputState>,
+        theme: Theme,
+        screen: &Screen,
+        cx: &mut Context<Self>,
+    ) -> gpui::Div {
+        div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap(px(native::LABEL_GAP))
+            .child(screen.label(t("File name")))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(120.0))
+                    .child(native::field(name, "File name", theme)),
+            )
+            .child(screen.label(t("Address")))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(160.0))
+                    .child(native::field(address, "Address", theme)),
+            )
+            .child(
+                native::button("done", t("Done").into(), false, theme, screen)
+                    .on_click(cx.listener(|this, _, _, cx| this.finish_editing(cx))),
+            )
+    }
+
     /// The types to list, Check all and Uncheck all, and what is left out.
     pub(super) fn filters(
         &self,
@@ -22,18 +56,20 @@ impl Links {
         body: gpui::Div,
         cx: &mut Context<Self>,
     ) -> gpui::Div {
+        // Each row wraps, its field taking the room: at Windows' sizes and in German a field
+        // of a fixed width and its buttons ran past the window's edge (gaps row E28).
         body.child(
             div()
                 .flex()
+                .flex_wrap()
                 .items_center()
                 .gap(px(native::LABEL_GAP))
                 .child(screen.label(t("Only these types")))
-                .child(div().w(px(200.0)).child(native::field(
+                .child(div().flex_1().min_w(px(160.0)).child(native::field(
                     &self.types,
                     "Only these types",
                     theme,
                 )))
-                .child(div().flex_1())
                 .child(
                     native::button("check-all", t("Check all").into(), false, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| this.check_all(true, cx))),
@@ -47,6 +83,7 @@ impl Links {
         .child(
             div()
                 .flex()
+                .flex_wrap()
                 .items_center()
                 .gap(px(native::BUTTON_GAP))
                 .child(

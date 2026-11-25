@@ -142,6 +142,10 @@ impl Details {
                                 .aria_label(words.replace('\n', " "))
                                 .px(px(space::M_L))
                                 .py(px(space::XS))
+                                // A finger's least on a phone (gaps row E26).
+                                .when(crate::platform::ON_A_PHONE, |d| {
+                                    d.min_h(px(native::CONTROL)).justify_center()
+                                })
                                 .min_w(px(84.0))
                                 .flex()
                                 .flex_col()
@@ -716,16 +720,12 @@ impl Details {
                 ),
             )
         })
-        .when_some(self.says.clone(), |d, says| {
-            d.child(
-                look.under(
-                    native::says("details-says", Some(says), theme, screen).into_any_element(),
-                ),
-            )
-        })
-        .when(self.says.is_none(), |d| {
-            d.child(native::says("details-says", None, theme, screen))
-        })
+        .map(
+            |d| match native::says("details-says", self.says.clone(), theme, screen) {
+                says if self.says.is_some() => d.child(look.under(says.into_any_element())),
+                says => d.child(says),
+            },
+        )
     }
 
     /// The queue Add for later puts it in, a line of the form (gaps row E10): it was a word

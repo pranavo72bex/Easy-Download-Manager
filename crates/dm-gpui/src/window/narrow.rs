@@ -111,6 +111,9 @@ impl Downloads {
         // The layers below lie over the whole window, the bars a phone draws over it included
         // (gaps row N16): the drawer keeps clear of them itself.
         let safe = crate::window::safe::edges(window);
+        if let Some(sheet) = self.layout.narrow.sheet.as_mut() {
+            sheet.focus_first(window, cx);
+        }
         let sheet = self
             .layout
             .narrow

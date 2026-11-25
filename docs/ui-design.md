@@ -133,7 +133,7 @@ Each system's own sizes, in points, macOS / Windows / Linux, and a phone's:
 |---|---|---|---|---|
 | Body text (`TEXT`) | 13 | 14 | 14 | 15 |
 | Hint text (`SMALL_TEXT`) | 11 | 12 | 12 | 13 |
-| A control's height (`CONTROL`) | 24 | 32 | 34 | 44 |
+| A control's height (`CONTROL`) | 24 | 32 | 34 | 48 |
 | A window's margin (`MARGIN`) | 20 | 24 | 18 | 16 |
 | Between rows of a form (`ROW_GAP`) | 8 | 8 | 10 | 14 |
 | A control's corners (`RADIUS`) | 5 | 4 | 6 | 10 |

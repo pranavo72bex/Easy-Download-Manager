@@ -44,7 +44,12 @@ impl Scheduler {
                     .aria_selected(chosen)
                     .role(Role::ListItem)
                     .aria_label(dm_desktop_base::i18n::name(queue))
-                    .h(px(24.0))
+                    // A finger's least on a phone (gaps row E26).
+                    .h(px(if crate::platform::ON_A_PHONE {
+                        crate::widgets::native::CONTROL
+                    } else {
+                        24.0
+                    }))
                     .px(px(space::M))
                     .flex()
                     .items_center()

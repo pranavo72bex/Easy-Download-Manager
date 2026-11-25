@@ -39,6 +39,7 @@ pub fn phone_bar(
                 .flex_none()
                 .items_center()
                 .justify_center()
+                .map(|b| super::ringed(b, theme))
                 .rounded_full()
                 .active(move |s| s.bg(theme.control))
                 .on_click(back)

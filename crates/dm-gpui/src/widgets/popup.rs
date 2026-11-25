@@ -291,6 +291,8 @@ fn phone_choices(open: Picking, theme: Theme, screen: &Screen) -> impl IntoEleme
             bottomsheet::line(("pick", index), theme)
                 .role(Role::MenuItem)
                 .aria_label(words.clone())
+                // The tick told, as it is drawn (gaps row E25).
+                .when(ticked, |l| l.aria_toggled(gpui::Toggled::True))
                 .on_click(move |_, window, cx| {
                     PICKING.with(|p| *p.borrow_mut() = None);
                     window.dispatch_action(Box::new(Pick { field, item, index }), cx);
@@ -394,4 +396,37 @@ fn open(
             )
         });
     menu.show(at, window, cx);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A pop-up is named by what it sets, an hour's and a minute's by their row too; one whose
+    /// choice says it alone has no name of its own (gaps row E27).
+    #[test]
+    fn a_popup_is_named_by_what_it_sets() {
+        assert_eq!(spoken_name("from-hour").as_deref(), Some("Start at, Hour"));
+        assert_eq!(spoken_name("to-minute").as_deref(), Some("Stop at, Minute"));
+        assert_eq!(spoken_name("priority").as_deref(), Some("Priority"));
+        assert_eq!(spoken_name("no-such-field"), None);
+    }
+
+    /// Back with a pop-up's sheet open closes the sheet alone, once: the next Back is the
+    /// dialog's (gaps row E27).
+    #[test]
+    fn back_closes_a_popups_sheet_before_its_dialog() {
+        assert!(!close_picking(), "nothing was open");
+        PICKING.with(|p| {
+            *p.borrow_mut() = Some(Picking {
+                field: "priority",
+                item: 0,
+                choices: vec!["Low".into(), "High".into()],
+                chosen: Some(0),
+                drag: Default::default(),
+            })
+        });
+        assert!(close_picking(), "the sheet was open");
+        assert!(!close_picking(), "the next Back is the dialog's");
+    }
 }

@@ -298,6 +298,9 @@ impl Render for Grabber {
             t("and at most (KB, 0 for any)"),
             t("Only paths containing"),
             t("Skip paths containing"),
+            // The saving rows', on the same column (`saving`).
+            t("Save this search as"),
+            t("Run every (hours, 0 for manual)"),
         ];
         let width = native::label_width(&labels);
         // On a phone a field under its words at the whole width, a number or a choice at the
@@ -387,7 +390,7 @@ impl Render for Grabber {
                     .bg(theme.separator),
             );
         let body = self
-            .saving(theme, &screen, &saved, body, cx)
+            .saving(theme, &screen, &saved, width, body, cx)
             .child(
                 div()
                     .h(px(space::LINE))

@@ -179,51 +179,31 @@ impl Grabber {
             .into_any_element()
     }
 
-    /// A computer's save line: the name, how often, and Save search, side by side.
-    fn saving_line(&self, theme: Theme, screen: &Screen, cx: &mut Context<Self>) -> gpui::Div {
-        div()
-            .flex()
-            .items_center()
-            .gap(px(native::LABEL_GAP))
-            .child(screen.label(t("Save this search as")))
-            .child(div().w(px(180.0)).child(native::field(
-                &self.name,
-                "Save this search as",
-                theme,
-            )))
-            .child(screen.label(t("Run every (hours, 0 for manual)")))
-            .child(div().w(px(60.0)).child(native::field(
-                &self.every,
-                "Run every (hours, 0 for manual)",
-                theme,
-            )))
-            .child(
-                native::button("save", t("Save search").into(), false, theme, screen)
-                    .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
-            )
-    }
-
     /// Saving, and the saved searches, under the rest of the form.
     pub(super) fn saving(
         &self,
         theme: Theme,
         screen: &Screen,
         saved: &[dm_shell::lists::Search],
+        width: f32,
         body: gpui::Div,
         cx: &mut Context<Self>,
     ) -> gpui::Div {
-        // A phone's: the name under its words, how often at the right of its words, then Save
-        // search; on one line they left the fields slivers and the button off the screen.
-        let body = if crate::platform::ON_A_PHONE {
-            body.child(native::row_wide(
+        // The form's rows, the name under its words on a phone, how often at their right, then
+        // Save search: on one line they left a phone's fields slivers and the button off the
+        // screen, and at Windows' sizes they needed 720 points of the window's 552 (gaps E28).
+        let body = body
+            .child(native::row_wide(
                 Some(t("Save this search as")),
-                0.0,
+                width,
                 screen,
-                native::field(&self.name, "Save this search as", theme),
+                div()
+                    .flex_1()
+                    .child(native::field(&self.name, "Save this search as", theme)),
             ))
             .child(native::row_short(
                 Some(t("Run every (hours, 0 for manual)")),
-                0.0,
+                width,
                 screen,
                 div().w(px(90.0)).child(native::field(
                     &self.every,
@@ -236,10 +216,7 @@ impl Grabber {
                     native::button("save", t("Save search").into(), false, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
                 ),
-            )
-        } else {
-            body.child(self.saving_line(theme, screen, cx))
-        };
+            );
         let says = Some(self.d.says.clone())
             .filter(|says| !says.is_empty())
             .map(gpui::SharedString::from);
