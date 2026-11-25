@@ -1087,5 +1087,6 @@
  "Sites that need a sign-in": "Websites, die eine Anmeldung brauchen",
  "Second network's name": "Name des zweiten Netzwerks",
  "Third network's name": "Name des dritten Netzwerks",
- "answers in {} ms": "antwortet in {} ms"
+ "answers in {} ms": "antwortet in {} ms",
+ "A greyed choice is one this computer doesn't allow dm.": "Eine ausgegraute Wahl erlaubt dieser Computer dm nicht."
 }

@@ -1087,5 +1087,6 @@
  "Sites that need a sign-in": "Oturum açma gerektiren siteler",
  "Second network's name": "İkinci ağın adı",
  "Third network's name": "Üçüncü ağın adı",
- "answers in {} ms": "{} ms içinde yanıtlıyor"
+ "answers in {} ms": "{} ms içinde yanıtlıyor",
+ "A greyed choice is one this computer doesn't allow dm.": "Gri seçenek, bu bilgisayarın dm'ye izin vermediği seçenektir."
 }

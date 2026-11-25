@@ -1087,5 +1087,6 @@
  "Sites that need a sign-in": "로그인이 필요한 사이트",
  "Second network's name": "두 번째 네트워크 이름",
  "Third network's name": "세 번째 네트워크 이름",
- "answers in {} ms": "{}ms 안에 응답"
+ "answers in {} ms": "{}ms 안에 응답",
+ "A greyed choice is one this computer doesn't allow dm.": "회색 선택지는 이 컴퓨터가 dm에 허용하지 않는 것입니다."
 }

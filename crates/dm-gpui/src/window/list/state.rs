@@ -276,6 +276,11 @@ pub(crate) struct Menus {
     /// What had the keys as the place menu opened: given them back as it closes (gaps row
     /// E45), so a keyboard user goes on from there rather than from nowhere.
     pub(crate) place_menu_opener: Option<gpui::FocusHandle>,
+    /// Each of the open place menu's items' keys, in order: the first given them as it opens,
+    /// the arrows and Tab moving among them and never out of the menu (gaps row E50).
+    pub(crate) place_menu_keys: Vec<gpui::FocusHandle>,
+    /// The first item is given the keys at the next drawing, once the items are there.
+    pub(crate) place_menu_keys_owed: bool,
     /// What the menu bar was last built with (its queues and ticks); none
     /// builds it again.
     pub(crate) menu_ticks: Option<crate::window::menus::Ticks>,

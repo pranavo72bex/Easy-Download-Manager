@@ -56,3 +56,42 @@ fn the_place_menu_gives_the_keys_back_as_it_closes() {
     });
     assert!(search_has_keys(&mut h), "the keys were not given back");
 }
+
+/// A place's menu is used from the keyboard: its first item has the keys as it opens, the
+/// arrows and Tab move among its items and stay in it, round from the last to the first, and
+/// Return picks one (gaps row E50).
+#[test]
+fn the_place_menu_is_used_from_the_keyboard() {
+    let world = world();
+    let mut h = world.harness();
+    h.right_click("Main queue");
+    h.until("the place menu", |h| {
+        h.view(|view| view.menus.place_menu.is_some())
+    });
+    let has_keys = |h: &mut crate::harness::Harness| {
+        h.dialog(|view: &mut crate::window::list::Downloads, window, _| {
+            view.menus
+                .place_menu_keys
+                .iter()
+                .position(|k| k.is_focused(window))
+        })
+    };
+    let count = h.view(|view| view.menus.place_menu_keys.len());
+    assert!(count >= 2, "{count} items");
+    assert_eq!(has_keys(&mut h), Some(0), "the first item has no keys");
+    h.key("down", &[]);
+    assert_eq!(has_keys(&mut h), Some(1));
+    h.key("up", &[]);
+    h.key("up", &[]);
+    assert_eq!(
+        has_keys(&mut h),
+        Some(count - 1),
+        "up from the first goes round"
+    );
+    h.key("tab", &[]);
+    assert_eq!(has_keys(&mut h), Some(0), "Tab left the menu");
+    h.key("enter", &[]);
+    h.until("the menu closed by its item", |h| {
+        h.view(|view| view.menus.place_menu.is_none())
+    });
+}

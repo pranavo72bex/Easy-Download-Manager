@@ -493,8 +493,8 @@ fn place_row(
                 cx.listener(move |view, event: &gpui::MouseDownEvent, window, cx| {
                     view.menus.place_menu_opener = window.focused(cx);
                     view.open_place_menu(place.clone(), event.position);
-                    // The list's keys, Escape among them, reach it.
-                    window.focus(&view.focus, cx);
+                    // Its first item has the keys (gaps row E50).
+                    view.place_menu_takes_keys(cx);
                     cx.notify();
                 }),
             )

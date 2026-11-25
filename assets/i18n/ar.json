@@ -1087,5 +1087,6 @@
  "Sites that need a sign-in": "المواقع التي تحتاج إلى تسجيل دخول",
  "Second network's name": "اسم الشبكة الثانية",
  "Third network's name": "اسم الشبكة الثالثة",
- "answers in {} ms": "يستجيب خلال {} مللي ثانية"
+ "answers in {} ms": "يستجيب خلال {} مللي ثانية",
+ "A greyed choice is one this computer doesn't allow dm.": "الخيار الرمادي هو ما لا يسمح به هذا الكمبيوتر لـ dm."
 }

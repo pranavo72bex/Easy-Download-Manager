@@ -284,6 +284,11 @@ impl Scheduler {
         cx: &mut Context<Self>,
     ) -> gpui::Div {
         let when_done = WhenDone::from_word(&self.draft.schedule.when_done);
+        // Why a choice is greyed, said under them where one is (gaps row E50): Hibernate stood
+        // greyed with no word of why, and a greyed choice takes no pointer to show one.
+        let any_greyed = [WhenDone::Sleep, WhenDone::Hibernate, WhenDone::ShutDown]
+            .into_iter()
+            .any(|w| !w.possible(dm_desktop_base::power::available));
         let field = |input: &Entity<InputState>, name: &'static str, w: f32| {
             div().w(px(w)).child(native::field(input, name, theme))
         };
@@ -327,6 +332,13 @@ impl Scheduler {
                 }),
             ),
         )
+        .when(any_greyed && !crate::platform::ON_A_PHONE, |d| {
+            d.child(native::note(
+                t("A greyed choice is one this computer doesn't allow dm."),
+                theme.muted,
+                screen,
+            ))
+        })
         .child(
             div()
                 .flex()

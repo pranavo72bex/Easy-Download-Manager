@@ -702,9 +702,11 @@ impl Render for Downloads {
                 self, theme, &screen, cx,
             ))
         };
+        self.place_menu_give_keys(window, cx);
+        let keys = self.menus.place_menu_keys.clone();
         root.when_some(self.menus.place_menu.clone(), |root, (place, at)| {
             root.child(crate::window::placemenu::menu(
-                &place, at, theme, &screen, cx,
+                &place, at, keys, theme, &screen, cx,
             ))
         })
         // Held by Options, the window takes no click: one brings Options

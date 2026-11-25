@@ -47,7 +47,9 @@ These two act straight away; they do not wait for **OK**.
 
 - **When the scheduled downloads are done:** **Do nothing**, **Exit dm**,
   **Sleep**, **Hibernate** or **Turn off computer**. A choice this computer
-  gives dm no way to do is greyed (macOS cannot hibernate). When the hours
+  gives dm no way to do is greyed (macOS cannot hibernate), and the window
+  says so under them: "A greyed choice is one this computer doesn't allow
+  dm." When the hours
   begin with downloads waiting, dm sets this choice as **Downloads › When
   done**, unless you chose one there yourself since dm started. Once the
   queue has nothing left to run, dm counts down 30 seconds ("Downloads are

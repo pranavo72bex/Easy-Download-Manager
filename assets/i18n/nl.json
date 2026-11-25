@@ -1087,5 +1087,6 @@
  "Sites that need a sign-in": "Sites die een aanmelding nodig hebben",
  "Second network's name": "Naam van het tweede netwerk",
  "Third network's name": "Naam van het derde netwerk",
- "answers in {} ms": "antwoordt in {} ms"
+ "answers in {} ms": "antwoordt in {} ms",
+ "A greyed choice is one this computer doesn't allow dm.": "Een grijze keuze is er een die deze computer dm niet toestaat."
 }

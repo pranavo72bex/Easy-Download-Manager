@@ -27,6 +27,43 @@ impl Downloads {
         self.menus.place_menu = Some((place, at));
     }
 
+    /// The open place menu's items each given a place for the keys, and the first the keys:
+    /// a keyboard user could open it and choose nothing in it (gaps row E50).
+    pub(crate) fn place_menu_takes_keys(&mut self, cx: &mut Context<Self>) {
+        let Some((place, _)) = self.menus.place_menu.as_ref() else {
+            return;
+        };
+        let count = place_menu(place).len();
+        self.menus.place_menu_keys = (0..count).map(|_| cx.focus_handle()).collect();
+        self.menus.place_menu_keys_owed = true;
+    }
+
+    /// The first item given the keys where they are owed, as the menu is drawn.
+    pub(crate) fn place_menu_give_keys(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !std::mem::take(&mut self.menus.place_menu_keys_owed) {
+            return;
+        }
+        if let Some(first) = self.menus.place_menu_keys.first() {
+            window.focus(first, cx);
+        }
+    }
+
+    /// The keys moved `by` items in the open place menu, round from the last to the first.
+    fn place_menu_step(&mut self, by: isize, window: &mut gpui::Window, cx: &mut Context<Self>) {
+        let keys = &self.menus.place_menu_keys;
+        if keys.is_empty() {
+            return;
+        }
+        let at = keys.iter().position(|k| k.is_focused(window)).unwrap_or(0) as isize;
+        let next = (at + by).rem_euclid(keys.len() as isize) as usize;
+        let next = keys[next].clone();
+        window.focus(&next, cx);
+    }
+
     /// A place's menu as a phone shows it, a sheet from the bottom, the place chosen (a long
     /// press on it in the drawer, gaps row N23).
     pub(crate) fn open_place_sheet(&mut self, place: Place, cx: &mut Context<Self>) {
@@ -58,6 +95,7 @@ impl Downloads {
     /// Closes the place menu.
     pub fn close_place_menu(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
         self.menus.place_menu = None;
+        self.menus.place_menu_keys.clear();
         // The keys back where they were as it opened (gaps row E45).
         if let Some(opener) = self.menus.place_menu_opener.take() {
             window.focus(&opener, cx);
@@ -111,6 +149,7 @@ pub struct OnPlace(pub Place, pub PlaceAction);
 pub fn menu(
     place: &Place,
     at: Point<Pixels>,
+    keys: Vec<gpui::FocusHandle>,
     theme: Theme,
     screen: &Screen,
     cx: &mut Context<Downloads>,
@@ -120,7 +159,48 @@ pub fn menu(
         .enumerate()
         .map(|(n, (words, action))| {
             let place = place.clone();
+            let picked = place.clone();
             item(("place-menu", n), t(words), theme)
+                .when_some(keys.get(n), |item, key| {
+                    item.track_focus(key)
+                        .focus(move |s| s.bg(theme.selection).text_color(theme.on_selection))
+                        // Its keys stay inside the menu: the arrows and Tab move among its
+                        // items, round from the last to the first; Escape closes it (gaps row
+                        // E50). Their actions, on each item, as the focused one is first to
+                        // hear them: the list's own arrows and Tab came first otherwise.
+                        .on_action(cx.listener(
+                            |view, _: &crate::window::menus::SelectNext, window, cx| {
+                                view.place_menu_step(1, window, cx);
+                            },
+                        ))
+                        .on_action(cx.listener(
+                            |view, _: &crate::window::menus::SelectPrevious, window, cx| {
+                                view.place_menu_step(-1, window, cx);
+                            },
+                        ))
+                        .on_action(cx.listener(
+                            |view, _: &crate::window::menus::FocusNext, window, cx| {
+                                view.place_menu_step(1, window, cx);
+                            },
+                        ))
+                        .on_action(cx.listener(
+                            |view, _: &crate::window::menus::FocusPrevious, window, cx| {
+                                view.place_menu_step(-1, window, cx);
+                            },
+                        ))
+                        // Return picks it, as a click does.
+                        .on_action(cx.listener(
+                            move |view, _: &crate::window::menus::Confirm, window, cx| {
+                                view.act_on_place(picked.clone(), action, window, cx);
+                            },
+                        ))
+                        .on_action(cx.listener(
+                            |view, _: &crate::window::menus::Dismiss, window, cx| {
+                                view.close_place_menu(window, cx);
+                                cx.notify();
+                            },
+                        ))
+                })
                 .on_click(cx.listener(move |view, _, window, cx| {
                     view.act_on_place(place.clone(), action, window, cx);
                 }))
