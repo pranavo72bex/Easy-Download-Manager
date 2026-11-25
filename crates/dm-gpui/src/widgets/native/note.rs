@@ -15,9 +15,12 @@ use crate::window::screen::Screen;
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
-/// Words said under a control, or of a warning: the small system size.
+/// Words said under a control, or of a warning: the small system size. Free to be narrower
+/// than its one line, so beside a form's labels it wraps at the window's edge (Back up's
+/// opening words ran off it).
 pub fn note(words: impl Into<SharedString>, color: gpui::Rgba, screen: &Screen) -> Div {
     div()
+        .min_w_0()
         .text_size(px(SMALL_TEXT))
         .text_color(color)
         .child(screen.label(words))
