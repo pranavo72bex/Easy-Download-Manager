@@ -37,7 +37,9 @@ pub fn switch(
         } else {
             gpui::Toggled::False
         })
-        .w_full()
+        // Out by its ring's border on each side, so its words and its track stand where the
+        // other rows' do (gaps row E50: they were 2 points in from the pop-ups' rows).
+        .mx(gpui::px(-2.0))
         .min_h(px(on_a_phone(space::TOUCH, CONTROL)))
         .flex()
         .items_center()
