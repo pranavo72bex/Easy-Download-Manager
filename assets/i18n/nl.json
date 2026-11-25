@@ -361,7 +361,6 @@
  "When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:": "Voer na een voltooide download uit (een virusscanner, een script); het pad van het bestand komt achteraan:",
  "When done": "Wanneer klaar",
  "Separate types with spaces, no dots. Leave empty for all.": "Scheid typen met spaties, zonder punten. Leeg laten voor alle.",
- "Yes, delete": "Ja, verwijderen",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "Je hebt twee downloads van {} geannuleerd. De downloads ervan aan de browser laten?",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "Jouw categorieën, eerst bekeken: een bestand van deze typen, van deze sites (alle als leeg), gaat in een map met de naam van de categorie.",
  "and {} more": "en nog {}",
@@ -519,9 +518,6 @@
  "Remove unfinished downloads": "Onvoltooide downloads verwijderen",
  "This download isn't finished. Removing it discards what was downloaded.": "Deze download is niet klaar. Verwijderen gooit het gedownloade weg.",
  "Some downloads aren't finished. Removing them discards what was downloaded.": "Sommige downloads zijn niet klaar. Verwijderen gooit het gedownloade weg.",
- "Yes, remove": "Ja, verwijderen",
- "Remove it": "Verwijderen",
- "Remove them": "Verwijderen",
  "Drop a link, .torrent, .url, .webloc or text file of links here.": "Zet hier een link, .torrent-, .url-, .webloc- of tekstbestand met links neer.",
  "None": "Geen",
  "unit:.": ",",
@@ -1084,5 +1080,8 @@
  "Next": "Volgende",
  "Save": "Opslaan",
  "Move": "Verplaatsen",
- "Update link": "Link bijwerken"
+ "Update link": "Link bijwerken",
+ "Remove download": "Download verwijderen",
+ "Remove downloads": "Downloads verwijderen",
+ "Delete files": "Bestanden verwijderen"
 }

@@ -71,8 +71,9 @@ the list?", or "Its file is kept." / "Its file is deleted too.".
   finished files are still on disk. Ticked, their files go to the Recycle
   Bin (the Trash on macOS) with them. It starts ticked for **Delete file**.
 - **Keep it** (or **Keep them**): changes nothing.
-- **Yes, remove**, **Remove it** or **Remove them:** takes the downloads
-  off the list. It reads **Yes, delete** while files are to be deleted too.
+- **Remove download** or **Remove downloads:** takes the downloads off the
+  list. It reads **Delete file** or **Delete files** while files are to be
+  deleted too.
 
 Return and Escape: **Keep it** (or **Keep them**). A file that cannot be
 deleted is said in the status bar: "Couldn't delete …".

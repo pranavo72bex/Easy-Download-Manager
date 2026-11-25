@@ -361,7 +361,6 @@
  "When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:": "다운로드가 끝나면 실행할 프로그램(바이러스 검사기, 스크립트 등). 파일 경로가 끝에 추가됩니다:",
  "When done": "완료 후",
  "Separate types with spaces, no dots. Leave empty for all.": "형식은 점 없이 공백으로 구분합니다. 비워 두면 모두 가져옵니다.",
- "Yes, delete": "예, 삭제",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "{}에서 넘겨받은 다운로드를 두 번 취소했습니다. 이 사이트의 다운로드를 브라우저에 맡길까요?",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "먼저 확인하는 사용자 카테고리: 이 형식의 파일이 이 사이트(비워 두면 모든 사이트)에서 오면 카테고리 이름의 폴더에 들어갑니다.",
  "and {} more": "외 {}개",
@@ -519,9 +518,6 @@
  "Remove unfinished downloads": "완료되지 않은 다운로드 제거",
  "This download isn't finished. Removing it discards what was downloaded.": "이 다운로드는 완료되지 않았습니다. 제거하면 받은 내용이 사라집니다.",
  "Some downloads aren't finished. Removing them discards what was downloaded.": "일부 다운로드가 완료되지 않았습니다. 제거하면 받은 내용이 사라집니다.",
- "Yes, remove": "예, 제거",
- "Remove it": "제거",
- "Remove them": "제거",
  "Drop a link, .torrent, .url, .webloc or text file of links here.": "링크, .torrent, .url, .webloc 또는 링크가 담긴 텍스트 파일을 여기에 놓으세요.",
  "None": "없음",
  "unit:.": ".",
@@ -1084,5 +1080,8 @@
  "Next": "다음",
  "Save": "저장",
  "Move": "이동",
- "Update link": "링크 업데이트"
+ "Update link": "링크 업데이트",
+ "Remove download": "다운로드 제거",
+ "Remove downloads": "다운로드 제거",
+ "Delete files": "파일 삭제"
 }

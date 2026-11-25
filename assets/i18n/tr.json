@@ -361,7 +361,6 @@
  "When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:": "İndirme bitince çalıştır (virüs tarayıcı, betik); dosyanın yolu sona eklenir:",
  "When done": "Bitince",
  "Separate types with spaces, no dots. Leave empty for all.": "Türleri boşlukla ayırın, nokta olmadan. Boş bırakınca hepsi.",
- "Yes, delete": "Evet, sil",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "{} sitesinden iki indirmeyi iptal ettiniz. İndirmeleri tarayıcıya bırakılsın mı?",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "Kategorileriniz önce denetlenir: bu türlerdeki, bu sitelerden (boşsa herhangi biri) gelen dosya, kategori adlı bir klasöre gider.",
  "and {} more": "ve {} tane daha",
@@ -519,9 +518,6 @@
  "Remove unfinished downloads": "Bitmemiş indirmeleri kaldır",
  "This download isn't finished. Removing it discards what was downloaded.": "Bu indirme tamamlanmadı. Kaldırmak indirileni siler.",
  "Some downloads aren't finished. Removing them discards what was downloaded.": "Bazı indirmeler tamamlanmadı. Kaldırmak indirileni siler.",
- "Yes, remove": "Evet, kaldır",
- "Remove it": "Kaldır",
- "Remove them": "Kaldır",
  "Drop a link, .torrent, .url, .webloc or text file of links here.": "Buraya bir bağlantı, .torrent, .url, .webloc veya bağlantı içeren metin dosyası bırakın.",
  "None": "Yok",
  "unit:.": ",",
@@ -1084,5 +1080,8 @@
  "Next": "İleri",
  "Save": "Kaydet",
  "Move": "Taşı",
- "Update link": "Bağlantıyı güncelle"
+ "Update link": "Bağlantıyı güncelle",
+ "Remove download": "İndirmeyi kaldır",
+ "Remove downloads": "İndirmeleri kaldır",
+ "Delete files": "Dosyaları sil"
 }

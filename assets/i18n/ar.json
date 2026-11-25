@@ -361,7 +361,6 @@
  "When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:": "عند انتهاء تنزيل، شغّل هذا الأمر (مدقق فيروسات أو برنامج نصي). يُضاف مسار الملف في النهاية:",
  "When done": "عند الانتهاء",
  "Separate types with spaces, no dots. Leave empty for all.": "افصل بين الأنواع بمسافات، بدون نقاط. اتركه فارغًا لكل الأنواع.",
- "Yes, delete": "نعم، احذف",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "ألغيت تنزيلين من {}. هل تريد ترك تنزيلاته للمتصفح؟",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "فئاتك الخاصة تأتي أولًا. الملف من هذه الأنواع، ومن هذه المواقع (أي موقع إذا كانت فارغة)، يُوضع في مجلد يحمل اسم الفئة.",
  "and {} more": "و{} أخرى",
@@ -519,9 +518,6 @@
  "Remove unfinished downloads": "إزالة التنزيلات غير المكتملة",
  "This download isn't finished. Removing it discards what was downloaded.": "هذا التنزيل غير مكتمل. إزالته تتجاهل ما تم تنزيله.",
  "Some downloads aren't finished. Removing them discards what was downloaded.": "بعض التنزيلات غير مكتملة. إزالتها تتجاهل ما تم تنزيله.",
- "Yes, remove": "نعم، أزل",
- "Remove it": "إزالته",
- "Remove them": "إزالتها",
  "Drop a link, .torrent, .url, .webloc or text file of links here.": "أفلت هنا رابطًا أو ملف .torrent أو .url أو .webloc أو ملفًا نصيًا من الروابط.",
  "None": "لا شيء",
  "unit:.": ".",
@@ -1084,5 +1080,8 @@
  "Next": "التالي",
  "Save": "حفظ",
  "Move": "نقل",
- "Update link": "تحديث الرابط"
+ "Update link": "تحديث الرابط",
+ "Remove download": "إزالة التنزيل",
+ "Remove downloads": "إزالة التنزيلات",
+ "Delete files": "حذف الملفات"
 }

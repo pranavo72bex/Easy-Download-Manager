@@ -400,9 +400,9 @@ fn select_in_a_cards_menu_chooses_several_with_taps() {
     });
     h.until("two chosen", |h| h.shows("2 selected"));
     h.person_click(dm_desktop_base::i18n::t("Delete"), 1);
-    h.until("asked", |h| h.shows("Yes, remove"));
+    h.until("asked", |h| h.shows("Remove downloads"));
     assert!(h.shows("Downloads: 2"), "{:?}", h.texts());
-    h.person_click("Yes, remove", 1);
+    h.person_click("Remove downloads", 1);
     h.until("both deleted", |h| {
         !h.shows("one.zip") && !h.shows("two.zip") && h.shows("three.zip")
     });

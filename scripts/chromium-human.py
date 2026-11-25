@@ -780,10 +780,10 @@ def main():
         check("5. the finished row from step 1, clicked, is selected",
               (dm_row("grab.zip") or {}).get("id") in picked, str(picked))
         click_control(DM_APP, "push button", "Delete")
-        # A finished row is taken off the list ("Remove it"); one still to
-        # finish has its parts deleted too ("Yes, remove"). Either asks.
-        confirm = wait_for(lambda: where(DM_APP, "push button", "Remove it")
-                           or where(DM_APP, "push button", "Yes, remove"), 5)
+        # A finished row is taken off the list ("Remove download"); one still to
+        # finish has its parts deleted too ("Remove download"). Either asks.
+        confirm = wait_for(lambda: where(DM_APP, "push button", "Remove download")
+                           or where(DM_APP, "push button", "Remove download"), 5)
         if confirm:
             press(confirm)
         gone = wait_for(lambda: dm_row("grab.zip") is None, 10)

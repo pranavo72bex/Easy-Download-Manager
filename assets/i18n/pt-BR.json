@@ -361,7 +361,6 @@
  "When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:": "Quando um download terminar, executar (um antivírus, um script); o caminho do arquivo é adicionado no fim:",
  "When done": "Ao concluir",
  "Separate types with spaces, no dots. Leave empty for all.": "Separe os tipos com espaços, sem pontos. Deixe vazio para todos.",
- "Yes, delete": "Sim, excluir",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "Você cancelou dois downloads de {}. Deixar os downloads dele para o navegador?",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "Suas categorias, verificadas primeiro: um arquivo destes tipos, destes sites (qualquer um se vazio), vai para uma pasta com o nome da categoria.",
  "and {} more": "e mais {}",
@@ -519,9 +518,6 @@
  "Remove unfinished downloads": "Remover downloads não concluídos",
  "This download isn't finished. Removing it discards what was downloaded.": "Este download não terminou. Removê-lo descarta o que foi baixado.",
  "Some downloads aren't finished. Removing them discards what was downloaded.": "Alguns downloads não terminaram. Removê-los descarta o que foi baixado.",
- "Yes, remove": "Sim, remover",
- "Remove it": "Remover",
- "Remove them": "Remover",
  "Drop a link, .torrent, .url, .webloc or text file of links here.": "Solte aqui um link, um arquivo .torrent, .url, .webloc ou de texto com links.",
  "None": "Nenhuma",
  "unit:.": ",",
@@ -1084,5 +1080,8 @@
  "Next": "Avançar",
  "Save": "Salvar",
  "Move": "Mover",
- "Update link": "Atualizar link"
+ "Update link": "Atualizar link",
+ "Remove download": "Remover download",
+ "Remove downloads": "Remover downloads",
+ "Delete files": "Excluir arquivos"
 }

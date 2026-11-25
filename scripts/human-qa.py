@@ -1250,12 +1250,12 @@ def walk(dm, origin):
     dm.call("ui.select", ids=[r["id"]])
     dm.click("Delete")
     pause(0.8)
-    dm.click("Yes, remove")
+    dm.click("Remove download")
     pause(0.8)
-    check("B38", "an unfinished download: Remove asks, Keep it keeps it, Yes, remove takes it off",
+    check("B38", "an unfinished download: Remove asks, Keep it keeps it, Remove download takes it off",
           # The title is the window's own; the sentence wraps wherever the window is wide enough.
           "Remove an unfinished download" in asked_titles and "This download isn't finished." in " ".join(asked)
-          and "Yes, remove" in asked and "Keep it" in asked and still and still["state"]["kind"] == "paused"
+          and "Remove download" in asked and "Keep it" in asked and still and still["state"]["kind"] == "paused"
           and dm.row("stopme.bin") is None,
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
     paths = [pathlib.Path(x["path"]) for x in dm.rows() if x["state"]["kind"] == "completed"]

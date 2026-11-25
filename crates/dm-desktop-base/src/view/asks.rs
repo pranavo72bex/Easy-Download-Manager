@@ -104,11 +104,11 @@ pub fn remove(
         Some(name) if count == 1 => name,
         _ => tf("Downloads: {}", &[&count]),
     };
-    let (go, keep) = match (unfinished, count) {
-        (true, 1) => (t("Yes, remove"), t("Keep it")),
-        (true, _) => (t("Yes, remove"), t("Keep them")),
-        (false, 1) => (t("Remove it"), t("Keep it")),
-        (false, _) => (t("Remove them"), t("Keep them")),
+    // The button says what it does to what (gaps row E39): "Yes, remove" was the Yes/No
+    // shape the words rule leaves out.
+    let (go, keep) = match count {
+        1 => (t("Remove download"), t("Keep it")),
+        _ => (t("Remove downloads"), t("Keep them")),
     };
     // A finished file can go with its row, if asked for; never by default.
     let toggle = (files > 0).then(|| {
@@ -118,10 +118,10 @@ pub fn remove(
             t("Also delete the files")
         }
     });
-    let go = if toggle.is_some() && remove_files {
-        t("Yes, delete")
-    } else {
-        go
+    let go = match (toggle.is_some() && remove_files, files) {
+        (true, 1) => t("Delete file"),
+        (true, _) => t("Delete files"),
+        _ => go,
     };
     RemoveAsk {
         title_english,
@@ -366,7 +366,7 @@ mod tests {
         assert_eq!(ask.title_english, "Remove an unfinished download");
         assert!(ask.sentence.starts_with("This download isn't finished"));
         assert_eq!(ask.named, "film.mp4");
-        assert_eq!((ask.go, ask.keep), ("Yes, remove", "Keep it"));
+        assert_eq!((ask.go, ask.keep), ("Remove download", "Keep it"));
         assert_eq!(ask.toggle, None);
     }
 
@@ -378,10 +378,10 @@ mod tests {
         assert_eq!(kept.sentence, "Their files are kept.");
         assert_eq!(kept.toggle, Some("Also delete the files"));
         assert_eq!(kept.named, "Downloads: 2");
-        assert_eq!(kept.go, "Remove them");
+        assert_eq!(kept.go, "Remove downloads");
         let deleted = remove(&[&a, &b], 2, true, false, None);
         assert_eq!(deleted.sentence, "Their files are deleted too.");
-        assert_eq!(deleted.go, "Yes, delete");
+        assert_eq!(deleted.go, "Delete files");
         let fresh = row(State::Queued, 0);
         let mixed = remove(&[&a, &fresh], 1, false, false, None);
         assert_eq!(mixed.files_sentence, Some("The finished file is kept."));

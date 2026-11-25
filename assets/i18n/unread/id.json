@@ -286,5 +286,8 @@
  "Second network's speed limit (KB/s, 0 for none)",
  "Third network's speed limit (KB/s, 0 for none)",
  "Folders by category",
- "it needs a sign-in: Properties › User name"
+ "it needs a sign-in: Properties › User name",
+ "Remove download",
+ "Remove downloads",
+ "Delete files"
 ]

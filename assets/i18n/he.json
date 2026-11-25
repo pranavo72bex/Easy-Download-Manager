@@ -361,7 +361,6 @@
  "When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:": "כשהורדה מסתיימת, הפעל פקודה זו (סורק וירוסים או סקריפט). נתיב הקובץ יתווסף בסוף:",
  "When done": "בסיום",
  "Separate types with spaces, no dots. Leave empty for all.": "הפרד בין הסוגים ברווחים, ללא נקודות. השאר ריק עבור כל הסוגים.",
- "Yes, delete": "כן, מחק",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "ביטלת שתי הורדות מ-{}. להשאיר את ההורדות שלו לדפדפן?",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "הקטגוריות שלך באות קודם. קובץ מהסוגים האלה, מהאתרים האלה (מכל אתר אם הרשימה ריקה), נכנס לתיקייה הנקראת על שם הקטגוריה.",
  "and {} more": "ועוד {}",
@@ -519,9 +518,6 @@
  "Remove unfinished downloads": "הסרת הורדות שלא הסתיימו",
  "This download isn't finished. Removing it discards what was downloaded.": "ההורדה הזו לא הסתיימה. הסרתה תמחק את מה שכבר הורד.",
  "Some downloads aren't finished. Removing them discards what was downloaded.": "חלק מההורדות לא הסתיימו. הסרתן תמחק את מה שכבר הורד.",
- "Yes, remove": "כן, להסיר",
- "Remove it": "הסרה",
- "Remove them": "הסרה",
  "Drop a link, .torrent, .url, .webloc or text file of links here.": "שחררו כאן קישור, קובץ .torrent, .url, .webloc או קובץ טקסט של קישורים.",
  "None": "ללא",
  "unit:.": ".",
@@ -1084,5 +1080,8 @@
  "Next": "הבא",
  "Save": "שמור",
  "Move": "העבר",
- "Update link": "עדכן קישור"
+ "Update link": "עדכן קישור",
+ "Remove download": "הסרת ההורדה",
+ "Remove downloads": "הסרת ההורדות",
+ "Delete files": "מחיקת קבצים"
 }

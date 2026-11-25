@@ -181,7 +181,7 @@ fn the_toolbar_acts_on_the_selected_row() {
     h.until("the question", |h| {
         h.dialog_open("Remove an unfinished download")
     });
-    h.click("Yes, remove");
+    h.click("Remove download");
     h.until("the row to go", |h| h.rows().is_empty());
 }
 

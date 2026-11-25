@@ -166,8 +166,8 @@ fn remove_deletes_the_file_too_only_when_asked() {
     // Delete file is the one that asks, and says what happens to the file.
     h.select("other.pdf");
     h.run(Command::DeleteFile);
-    h.until_shown("Yes, delete");
-    h.click("Yes, delete");
+    h.until_shown("Delete file");
+    h.click("Delete file");
     h.until("the row and its file to go", |h| h.rows().is_empty());
     h.until("the file to go", |_| !std::path::Path::new(&pdf).exists());
     assert!(

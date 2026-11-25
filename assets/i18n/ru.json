@@ -361,7 +361,6 @@
  "When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:": "По завершении загрузки запускать (антивирус, скрипт); путь к файлу добавляется в конце:",
  "When done": "По завершении",
  "Separate types with spaces, no dots. Leave empty for all.": "Разделяйте типы пробелами, без точек. Пусто — все.",
- "Yes, delete": "Да, удалить",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "Вы отменили две загрузки с {}. Оставить его загрузки браузеру?",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "Ваши категории проверяются первыми: файл этих типов с этих сайтов (любых, если пусто) попадает в папку с именем категории.",
  "and {} more": "и ещё {}",
@@ -519,9 +518,6 @@
  "Remove unfinished downloads": "Убрать незавершённые загрузки",
  "This download isn't finished. Removing it discards what was downloaded.": "Загрузка не завершена. При удалении загруженное будет потеряно.",
  "Some downloads aren't finished. Removing them discards what was downloaded.": "Некоторые загрузки не завершены. При удалении загруженное будет потеряно.",
- "Yes, remove": "Да, убрать",
- "Remove it": "Убрать",
- "Remove them": "Убрать",
  "Drop a link, .torrent, .url, .webloc or text file of links here.": "Перетащите сюда ссылку, файл .torrent, .url, .webloc или текстовый файл со ссылками.",
  "None": "Нет",
  "unit:.": ",",
@@ -1084,5 +1080,8 @@
  "Next": "Далее",
  "Save": "Сохранить",
  "Move": "Переместить",
- "Update link": "Обновить ссылку"
+ "Update link": "Обновить ссылку",
+ "Remove download": "Убрать загрузку",
+ "Remove downloads": "Убрать загрузки",
+ "Delete files": "Удалить файлы"
 }

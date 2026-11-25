@@ -510,8 +510,8 @@ fn last_items(h: &mut Harness, done: &dm_core::Entry, list: &std::path::Path) {
     press(h, &["File", "Stop download"]);
     h.until("it to stop", |h| is(h, "stalled.bin", State::Paused));
     press(h, &["File", "Delete"]);
-    h.until_shown("Yes, remove");
-    h.click("Yes, remove");
+    h.until_shown("Remove download");
+    h.click("Remove download");
     h.until("the row to go", |h| {
         h.rows().iter().all(|r| r.filename != "stalled.bin")
     });
@@ -597,8 +597,8 @@ fn every_toolbar_button_clicked_does_what_it_says() {
     });
     h.select_by_port("stalled.bin");
     h.click("Delete");
-    h.until_shown("Yes, remove");
-    h.click("Yes, remove");
+    h.until_shown("Remove download");
+    h.click("Remove download");
     h.until("Delete", |h| {
         h.rows().iter().all(|r| r.filename != "stalled.bin")
     });
@@ -682,8 +682,8 @@ fn every_row_menu_item_clicked_does_what_it_says() {
             .any(|r| r.id == stalled.id && r.state == State::Paused)
     });
     right(&mut h, "stalled.bin", "Delete");
-    h.until_shown("Yes, remove");
-    h.click("Yes, remove");
+    h.until_shown("Remove download");
+    h.click("Remove download");
     h.until("Delete", |h| h.rows().iter().all(|r| r.id != stalled.id));
 
     right(&mut h, "file.zip", "Redownload");

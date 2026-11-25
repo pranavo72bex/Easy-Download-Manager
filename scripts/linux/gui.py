@@ -1011,16 +1011,16 @@ def human_session(home, env, app):
         click("push button", "Delete")
         time.sleep(1)
         check("Delete on a running download is refused until it is stopped",
-              not where("push button", "Yes, remove") and row_of(home, slow) is not None)
+              not where("push button", "Remove download") and row_of(home, slow) is not None)
         # Stop it, then Delete asks and removes it with its parts.
         parts = home / "parts"
         check("Stop, clicked, stops it", click("push button", "Stop")
               and wait_for(lambda: state_of(home, slow) == "paused", 15), str(state_of(home, slow)))
         click_row(slow, seconds=5)
         check("Delete on the stopped download asks first",
-              click("push button", "Delete") and wait_for(lambda: where("push button", "Yes, remove"), 5))
-        check("Yes, delete removes the row and its parts",
-              click("push button", "Yes, remove") and wait_for(lambda: row_of(home, slow) is None, 10)
+              click("push button", "Delete") and wait_for(lambda: where("push button", "Remove download"), 5))
+        check("Remove download removes the row and its parts",
+              click("push button", "Remove download") and wait_for(lambda: row_of(home, slow) is None, 10)
               and not (parts.exists() and any(p.name.startswith("part-") for p in parts.rglob("*") if p.is_file())))
 
         print("\nthe Downloads menu, and the speed limiter")

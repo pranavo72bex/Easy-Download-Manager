@@ -361,7 +361,6 @@
  "When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:": "ダウンロード完了時に実行するもの（ウイルス チェッカー、スクリプトなど）。末尾にファイルのパスが追加されます：",
  "When done": "完了時の動作",
  "Separate types with spaces, no dots. Leave empty for all.": "種類はドットなし、スペース区切り。空欄ですべて。",
- "Yes, delete": "はい、削除します",
  "You cancelled two downloads from {}. Leave its downloads to the browser?": "{} からのダウンロードを 2 回キャンセルしました。このサイトのダウンロードはブラウザーに任せますか？",
  "Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category.": "独自のカテゴリ（最初に確認されます）：これらのサイト（空欄ならすべて）からのこれらの種類のファイルは、カテゴリ名のフォルダーに保存されます。",
  "and {} more": "ほか {} 件",
@@ -519,9 +518,6 @@
  "Remove unfinished downloads": "未完了のダウンロードを削除",
  "This download isn't finished. Removing it discards what was downloaded.": "このダウンロードは完了していません。削除すると取得済みのデータは失われます。",
  "Some downloads aren't finished. Removing them discards what was downloaded.": "未完了のダウンロードがあります。削除すると取得済みのデータは失われます。",
- "Yes, remove": "はい、削除します",
- "Remove it": "削除する",
- "Remove them": "削除する",
  "Drop a link, .torrent, .url, .webloc or text file of links here.": "リンク、.torrent、.url、.webloc、またはリンクのテキスト ファイルをここにドロップします。",
  "None": "なし",
  "unit:.": ".",
@@ -1084,5 +1080,8 @@
  "Next": "次へ",
  "Save": "保存",
  "Move": "移動",
- "Update link": "リンクを更新"
+ "Update link": "リンクを更新",
+ "Remove download": "ダウンロードを除去",
+ "Remove downloads": "ダウンロードを除去",
+ "Delete files": "ファイルを削除"
 }
