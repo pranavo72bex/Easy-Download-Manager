@@ -295,5 +295,7 @@
  "Third network's name",
  "answers in {} ms",
  "A greyed choice is one this computer doesn't allow dm.",
- "Links shared with dm"
+ "Links shared with dm",
+ "Unchanged since it finished.",
+ "Changed since it finished: its SHA-256 then was another."
 ]

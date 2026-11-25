@@ -1089,5 +1089,7 @@
  "Third network's name": "שם הרשת השלישית",
  "answers in {} ms": "עונה תוך {} ms",
  "A greyed choice is one this computer doesn't allow dm.": "בחירה באפור היא בחירה שהמחשב הזה לא מתיר ל-dm.",
- "Links shared with dm": "קישורים ששותפו עם dm"
+ "Links shared with dm": "קישורים ששותפו עם dm",
+ "Unchanged since it finished.": "לא השתנה מאז שהסתיים.",
+ "Changed since it finished: its SHA-256 then was another.": "השתנה מאז שהסתיים: ה-SHA-256 שלו היה אז אחר."
 }

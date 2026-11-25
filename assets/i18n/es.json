@@ -1089,5 +1089,7 @@
  "Third network's name": "Nombre de la tercera red",
  "answers in {} ms": "responde en {} ms",
  "A greyed choice is one this computer doesn't allow dm.": "Una opción atenuada es una que este equipo no permite a dm.",
- "Links shared with dm": "Enlaces compartidos con dm"
+ "Links shared with dm": "Enlaces compartidos con dm",
+ "Unchanged since it finished.": "Sin cambios desde que terminó.",
+ "Changed since it finished: its SHA-256 then was another.": "Cambió desde que terminó: su SHA-256 era otro entonces."
 }

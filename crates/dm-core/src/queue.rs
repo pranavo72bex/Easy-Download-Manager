@@ -141,6 +141,10 @@ pub struct Entry {
     /// for a `.jpg` that is one, gaps row H2); `None` where they agree.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disguised: Option<String>,
+    /// The finished file's SHA-256 as it was when it finished, worked out just after (gaps row
+    /// H5): what a later check compares with, so years later dm can say whether it changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kept_sha256: Option<String>,
     /// How many mirrors the bytes came from. More than one only where a
     /// Metalink named others that agreed about the file.
     #[serde(default)]

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- dm keeps each finished file's SHA-256; Properties says whether the file is unchanged since it finished, or has changed.
 - On a phone, another app sharing several links to dm opens a list to pick from (Links shared with dm) instead of downloading them all; one shared link is still added at once. A sharing app that never finishes handing over a file is given up after 30 seconds, so later shares go through.
 - An MP4 that claims more samples over all its tracks than any real video has is refused before dm makes room for them.
 - Recording a live RTMP or RTSP stream holds at most 32 MB of unfinished messages and 64 MB of frames before its file starts, and a stream whose times leap more than 10 seconds ahead is ended rather than written hours long.

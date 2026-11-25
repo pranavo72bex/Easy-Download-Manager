@@ -1089,5 +1089,7 @@
  "Third network's name": "3 つ目のネットワークの名前",
  "answers in {} ms": "{} ms で応答",
  "A greyed choice is one this computer doesn't allow dm.": "グレーの選択肢は、このコンピューターが dm に許可していないものです。",
- "Links shared with dm": "dm に共有されたリンク"
+ "Links shared with dm": "dm に共有されたリンク",
+ "Unchanged since it finished.": "完了してから変わっていません。",
+ "Changed since it finished: its SHA-256 then was another.": "完了してから変わっています。当時の SHA-256 は別の値でした。"
 }

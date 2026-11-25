@@ -51,7 +51,9 @@ changed.
 ## A finished file
 
 - **SHA-256:** the file's SHA-256 digest. It says "Working it out…" while
-  dm reads the file. You can select it and copy it.
+  dm reads the file. You can select it and copy it. dm keeps the digest a
+  file had when it finished, and says under it "Unchanged since it
+  finished." or "Changed since it finished: its SHA-256 then was another."
 - **Check against:** paste a digest you were given (CRC32, MD5, SHA-1,
   SHA-256 or SHA-512, told apart by its length; a name such as `sha256:`
   in front is allowed). dm works out the same kind and says "It matches."

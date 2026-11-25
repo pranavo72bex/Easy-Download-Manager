@@ -186,6 +186,22 @@ impl Properties {
         use dm_core::{Algorithm, Checksum};
         let (theme, screen, width) = (look.theme, &look.screen, look.width);
         dm_shell::app::files::hash_later(backend, &self.sums, &row.path, Algorithm::Sha256);
+        // The file now against its digest kept as it finished (gaps row H5).
+        let since =
+            match (
+                dm_shell::app::files::sum_of(&self.sums, Algorithm::Sha256),
+                row.kept_sha256.as_deref(),
+            ) {
+                (Some(Ok(now)), Some(kept)) if now.eq_ignore_ascii_case(kept) => Some(
+                    native::note(t("Unchanged since it finished."), theme.muted, screen),
+                ),
+                (Some(Ok(_)), Some(_)) => Some(native::note(
+                    t("Changed since it finished: its SHA-256 then was another."),
+                    theme.warning,
+                    screen,
+                )),
+                _ => None,
+            };
         let sha = match dm_shell::app::files::sum_of(&self.sums, Algorithm::Sha256) {
             None => {
                 *waiting = true;
@@ -225,6 +241,9 @@ impl Properties {
             .flex_col()
             .gap(px(native::ROW_GAP))
             .child(native::row_wide(Some("SHA-256"), width, screen, sha))
+            .when_some(since, |d, since| {
+                d.child(native::row_wide(None, width, screen, since))
+            })
             .child(native::row_wide(
                 Some(t("Check against")),
                 width,

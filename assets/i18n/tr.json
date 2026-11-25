@@ -1089,5 +1089,7 @@
  "Third network's name": "Üçüncü ağın adı",
  "answers in {} ms": "{} ms içinde yanıtlıyor",
  "A greyed choice is one this computer doesn't allow dm.": "Gri seçenek, bu bilgisayarın dm'ye izin vermediği seçenektir.",
- "Links shared with dm": "dm ile paylaşılan bağlantılar"
+ "Links shared with dm": "dm ile paylaşılan bağlantılar",
+ "Unchanged since it finished.": "Bittiğinden beri değişmedi.",
+ "Changed since it finished: its SHA-256 then was another.": "Bittiğinden beri değişti: SHA-256 değeri o zaman farklıydı."
 }

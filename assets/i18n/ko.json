@@ -1089,5 +1089,7 @@
  "Third network's name": "세 번째 네트워크 이름",
  "answers in {} ms": "{}ms 안에 응답",
  "A greyed choice is one this computer doesn't allow dm.": "회색 선택지는 이 컴퓨터가 dm에 허용하지 않는 것입니다.",
- "Links shared with dm": "dm에 공유된 링크"
+ "Links shared with dm": "dm에 공유된 링크",
+ "Unchanged since it finished.": "완료된 뒤로 바뀌지 않았습니다.",
+ "Changed since it finished: its SHA-256 then was another.": "완료된 뒤로 바뀌었습니다. 당시 SHA-256은 달랐습니다."
 }

@@ -1089,5 +1089,7 @@
  "Third network's name": "اسم الشبكة الثالثة",
  "answers in {} ms": "يستجيب خلال {} مللي ثانية",
  "A greyed choice is one this computer doesn't allow dm.": "الخيار الرمادي هو ما لا يسمح به هذا الكمبيوتر لـ dm.",
- "Links shared with dm": "روابط تمت مشاركتها مع dm"
+ "Links shared with dm": "روابط تمت مشاركتها مع dm",
+ "Unchanged since it finished.": "لم يتغير منذ اكتماله.",
+ "Changed since it finished: its SHA-256 then was another.": "تغيّر منذ اكتماله: كان SHA-256 الخاص به حينها مختلفًا."
 }

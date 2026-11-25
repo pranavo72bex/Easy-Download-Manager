@@ -141,6 +141,7 @@ impl DownloadList {
                 checksum: None,
                 verified: false,
                 disguised: None,
+                kept_sha256: None,
                 mirrors: 0,
                 path: String::new(),
                 referrer,

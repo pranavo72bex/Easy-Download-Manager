@@ -121,8 +121,44 @@ impl DownloadList {
             }
             other => (other, None),
         };
-        self.record_outcome(id, outcome, stalled, replaces.as_deref())
+        let finished_at = outcome.as_ref().ok().map(|f| f.path.clone());
+        let recorded = self
+            .record_outcome(id, outcome, stalled, replaces.as_deref())
+            .await;
+        if let (true, Some(path)) = (recorded, finished_at) {
+            self.keep_digest_later(id, path);
+        }
+        recorded
+    }
+
+    /// The finished file's SHA-256 worked out after its row says Completed, off the queue's
+    /// lock and on the heavy work's threads, and kept on the row (gaps row H5): a row is never
+    /// held back from Completed while a large file is read again.
+    fn keep_digest_later(&self, id: Id, path: std::path::PathBuf) {
+        let list = self.clone();
+        tokio::spawn(async move {
+            let Ok(hex) = crate::checksum::digest_until(
+                &path,
+                crate::checksum::Algorithm::Sha256,
+                &crate::Control::new(),
+            )
             .await
+            else {
+                return;
+            };
+            {
+                let mut slots = list.inner.slots.lock().await;
+                let Some(slot) = slots.get_mut(&id) else {
+                    return;
+                };
+                // The same file still: not one moved, renamed or downloaded again meanwhile.
+                if slot.entry.path != path.to_string_lossy() {
+                    return;
+                }
+                slot.entry_mut().kept_sha256 = Some(hex);
+            }
+            list.save().await;
+        });
     }
 
     /// A finished file under the name a person chose, in place of the old version it

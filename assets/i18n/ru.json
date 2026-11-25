@@ -1089,5 +1089,7 @@
  "Third network's name": "Имя третьей сети",
  "answers in {} ms": "отвечает за {} мс",
  "A greyed choice is one this computer doesn't allow dm.": "Серый вариант — тот, что этот компьютер не разрешает dm.",
- "Links shared with dm": "Ссылки, отправленные в dm"
+ "Links shared with dm": "Ссылки, отправленные в dm",
+ "Unchanged since it finished.": "Не менялся с момента завершения.",
+ "Changed since it finished: its SHA-256 then was another.": "Изменён после завершения: тогда его SHA-256 был другим."
 }
