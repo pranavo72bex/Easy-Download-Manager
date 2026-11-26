@@ -159,7 +159,7 @@ pub(crate) fn framed(
                     .aria_label(gpui::SharedString::from(words.clone()))
                     .tab_index(0)
                     .rounded(px(native::RADIUS))
-                    .focus(move |s| s.border_2().border_color(theme.ring(false)))
+                    .focus_visible(move |s| s.border_2().border_color(theme.ring(false)))
                     .flex_none()
                     .text_size(px(native::SMALL_TEXT))
                     .text_color(theme.accent_text)

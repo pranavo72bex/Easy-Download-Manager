@@ -76,7 +76,9 @@ The eye must have somewhere to start. Every window is checked against these, at 
 11. **Check by a picture, not by reading code.** `python3 scripts/ui-shot.py out-dir
     [command …]` starts the real binary on a throwaway home with rows in every state and saves
     a PNG of the window and of each dialog a command opens. Look at it in each theme.
-12. **Right to left is mirrored twice.** A row's order through `mirror::row`, and its words
+12. **A focus ring is for the keys.** Rings are drawn with `focus_visible`, so a control a
+    click focused shows none; Tab shows it (`native::ringed`, a button's, a pop-up's, a row's).
+13. **Right to left is mirrored twice.** A row's order through `mirror::row`, and its words
     against the right through `mirror::text` on the window's root (`native::dialog` does it for a
     dialog): GPUI lays words from the left whatever the language. Look at a change in Arabic
     (`DM_SHOT_LANG=ar`) as well as in English.
@@ -148,7 +150,7 @@ Linux, and under High Contrast the system's own. A widget reads the role, never 
 | `SCRIM` | The shade behind a sheet or a drawer |
 | `selection` / `on_selection` | What is chosen; the words on it |
 | `warning` | A failure and a destructive button's words |
-| `success` | What is in order (an extension that has spoken to dm) |
+| `success` | What is in order (an extension that has spoken to dm); a finished row's tick, its word in `muted` |
 
 Contrast is tested, not eyeballed (`theme/tests.rs`): words at 4.5 to 1 on every surface they
 sit on, in every palette.

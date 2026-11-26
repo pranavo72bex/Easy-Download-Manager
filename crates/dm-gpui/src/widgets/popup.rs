@@ -151,7 +151,7 @@ pub fn button_of(
         .off_where_greyed()
         // Reached by Tab, opened by Space or Return (gaps row U2).
         .tab_index(0)
-        .focus(move |s| s.border_2().border_color(theme.accent_text))
+        .focus_visible(move |s| s.border_2().border_color(theme.accent_text))
         // Named by what it sets, its choice as its value: named by its choice alone, a screen
         // reader said "00, pop-up button" with no way to tell start from stop or hour from
         // minute.

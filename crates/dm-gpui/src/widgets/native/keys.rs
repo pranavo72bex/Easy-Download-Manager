@@ -44,7 +44,7 @@ pub fn ringed(control: Stateful<Div>, theme: Theme) -> Stateful<Div> {
         .border_2()
         .border_color(gpui::transparent_black())
         .rounded(px(RADIUS))
-        .focus(move |s| s.border_color(theme.ring(false)))
+        .focus_visible(move |s| s.border_color(theme.ring(false)))
 }
 
 /// A control with a face of its own (a chip, a segment, a preset, a sheet's quick button): the

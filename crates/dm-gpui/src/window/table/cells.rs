@@ -395,12 +395,13 @@ pub(super) fn status_cell(
                 })
             },
         )
-        // Its state in its colour, as the phone's cards say it: a failure in the
-        // warning's, a finished download in the success colour, one going in the
-        // accent; on a chosen row, the choice's own text colour.
+        // Its state in its colour: a failure in the warning's, one going in the accent, what
+        // needs nothing more in the secondary colour, its tick in the success colour
+        // (`state_mark`): a list of finished rows was a column of green words, as loud as the
+        // failure among them. On a chosen row, the choice's own text colour.
         .when(!theme.is_chosen(), |c| match row.state {
             State::Failed(_) => c.text_color(theme.warning),
-            State::Completed => c.text_color(theme.success),
+            State::Completed => c.text_color(theme.muted),
             State::Running => c.text_color(theme.accent_text),
             _ => c,
         })

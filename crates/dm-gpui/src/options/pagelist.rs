@@ -57,7 +57,7 @@ impl Options {
     /// A page's entry in the list of pages, chosen by a click, Space or Return, the arrows
     /// moving from page to page. Beside a page, a source list's row: its picture and name on one
     /// line, as the main window's side panel draws a place, what it holds said at the top of the
-    /// page and on hover. At a phone's width, where the list is a screen of its own, a row with
+    /// page. At a phone's width, where the list is a screen of its own, a row with
     /// what it holds under its name and an arrow on (gaps row C21).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn page_tab(
@@ -108,7 +108,7 @@ impl Options {
         if narrow {
             self.phone_row(entry, words, summary, theme, screen)
         } else {
-            self.source_row(entry, tab, words, summary, theme, screen)
+            self.source_row(entry, tab, words, theme, screen)
         }
     }
 
@@ -119,18 +119,13 @@ impl Options {
         entry: gpui::Stateful<gpui::Div>,
         tab: Tab,
         words: &'static str,
-        summary: String,
         theme: Theme,
         screen: &Screen,
     ) -> gpui::Stateful<gpui::Div> {
         let on = self.tab == tab;
+        // No tooltip of what it holds: the page says it under its name, and the tooltip, shown
+        // as a click left the pointer on the row, hid the page's first heading.
         crate::window::sidebar::source_row(entry, on, picture(tab), theme)
-            .when(!summary.is_empty(), |d| {
-                let said = SharedString::from(summary);
-                d.tooltip(move |window, cx| {
-                    gpui_component::tooltip::Tooltip::new(said.clone()).build(window, cx)
-                })
-            })
             .child(crate::window::sidebar::row_words(screen.label(t(words))))
     }
 
@@ -146,7 +141,7 @@ impl Options {
     ) -> gpui::Stateful<gpui::Div> {
         entry
             .tab_index(0)
-            .focus(move |s| s.border_2().border_color(theme.ring(false)))
+            .focus_visible(move |s| s.border_2().border_color(theme.ring(false)))
             .w_full()
             .px(px(space::M))
             .py(px(space::M))

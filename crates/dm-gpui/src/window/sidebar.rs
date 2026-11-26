@@ -676,7 +676,7 @@ impl Downloads {
 /// its place ringed, as `native::button` is: choosing a place was the pointer's alone.
 pub(crate) fn reachable(row: gpui::Stateful<gpui::Div>, theme: Theme) -> gpui::Stateful<gpui::Div> {
     row.tab_index(0)
-        .focus(move |s| s.border_2().border_color(theme.ring(false)))
+        .focus_visible(move |s| s.border_2().border_color(theme.ring(false)))
 }
 
 #[cfg(test)]

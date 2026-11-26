@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A click no longer leaves a focus ring on a button, a page or a place; the ring shows when Tab moves to it.
+- Options' list of pages has no tooltip over the page, and a page's line under its name is left out where it only repeated the page's one heading.
+- A finished download's status reads in the secondary colour with its green tick, so a running or failed download stands out in the list.
 - The progress window's facts (File size, Downloaded, Can resume) stand from the window's edge, their names in the secondary colour, as View › Details shows them; they hung from a column ending mid-window.
 - Options › General › Text size: the slider's thumb stands over the percentage it picks (at 100% it stood between 80% and 100%), the arrow keys step from one size to the next, and the size in force is level with the slider's line.
 - Sections in Options, the Scheduler and the other dialogs stand apart as groups: more room above each heading, its first setting close under it; a setting's explanation sits close under its own setting with room before the next.

@@ -473,6 +473,13 @@ impl Render for Options {
         // Beside the list, the page shown opens with its name and what it holds.
         let heading = (!narrow && !searching).then(|| {
             let summary = crate::options::pages::summary(self, self.tab, theme, window, cx);
+            // Said under the page's name only where it names more than the one heading the page
+            // opens with: "Sites that need a sign-in" stood twice, one under the other.
+            let summary = if summary.contains(", ") {
+                summary
+            } else {
+                String::new()
+            };
             crate::options::pagelist::page_heading(name_of(self.tab), summary, theme, &screen)
         });
         // Beside a page, the list is the dialog's side panel, Find a setting at its top.
