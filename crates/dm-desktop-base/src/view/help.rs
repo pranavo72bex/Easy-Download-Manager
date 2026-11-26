@@ -59,6 +59,19 @@ const PAGES: &[(&str, &str)] = &[
         "failures",
         include_str!("../../../../docs/guide/failures.md"),
     ),
+    // Step-by-step guides to a first task (gaps row C16b).
+    (
+        "first-download",
+        include_str!("../../../../docs/guide/first-download.md"),
+    ),
+    (
+        "browser-downloads",
+        include_str!("../../../../docs/guide/browser-downloads.md"),
+    ),
+    (
+        "overnight-downloads",
+        include_str!("../../../../docs/guide/overnight-downloads.md"),
+    ),
 ];
 
 /// `text` with the characters HTML reads as its own escaped.
@@ -250,6 +263,25 @@ mod tests {
         assert!(html.contains("<li>one more of one"));
         assert!(html.contains("<li>two"));
         assert!(html.contains("<h2>After &lt;b&gt;</h2>"), "{html}");
+    }
+
+    /// The guides to a first download, to browser downloads and to overnight downloads are
+    /// carried in dm, written offline as numbered steps (gaps row C16b).
+    #[test]
+    fn the_first_task_guides_are_carried_offline() {
+        let home = tempfile::tempdir().unwrap();
+        for (name, title) in [
+            ("first-download", "Your first download"),
+            ("browser-downloads", "Downloads from your browser"),
+            ("overnight-downloads", "Downloads overnight"),
+        ] {
+            let page = std::fs::read_to_string(write_page(home.path(), name).unwrap()).unwrap();
+            assert!(page.contains(&format!("<h1>{title}</h1>")), "{name}");
+            assert!(
+                page.contains("<ol>\n<li>"),
+                "{name} is not in numbered steps"
+            );
+        }
     }
 
     #[test]

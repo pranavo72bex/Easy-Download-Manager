@@ -1,8 +1,8 @@
 # Options
 
 Options holds dm's settings. Open it from **Downloads › Options**, the
-toolbar's **Options** button, or Ctrl+, (comma). It has six pages, chosen by
-the tabs at its top:
+toolbar's **Options** button, or Ctrl+, (comma). It has six pages, listed at
+its left (on a phone, a list of their own):
 
 - [General](options-general.md): language, looks, starting, sounds, pop-ups
   and the list.
