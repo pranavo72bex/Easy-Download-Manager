@@ -9106,13 +9106,17 @@ split its work into subagents, each a session of its own. The maintainer dropped
 account's key (`KILO_API_KEY`) is sent when the secret is set; without it the keyless quota
 still applies.
 
-## 2026-11-26: GitGuardian scans every push, not only pull requests
+## 2026-11-26: Every push is scanned for secrets (gitleaks), not only pull requests
 
 The GitGuardian app checked pull requests only; a commit pushed straight to main had no
-secret scan on GitHub. `.github/workflows/gitguardian.yml` runs ggshield (`secret scan ci`,
-the action pinned by commit at v1.56.1, a month old) on each push to any branch, with a
-read-only token and the checkout's credentials not kept. It needs the repository secret
-`GITGUARDIAN_API_KEY` (scope `scan`) and fails, saying so, without it. Secrets resolved in
-the dashboard are not reported again. Not taken: running it on pull requests too (the app
-already does, and a fork's pull request has no secrets), and adding it to `bug-report.yml`'s
-watched runs (a missing key is not a bug a bot can fix).
+secret scan on GitHub. `.github/workflows/secret-scan.yml` runs gitleaks 8.30.1 (the release
+binary, its SHA-256 checked) on each push to any branch, over the commits the push adds, with
+a read-only token, the checkout's credentials not kept, and the secret hidden in its output
+(the repository is public). Run by hand it scans the whole history: 1,748 commits, clean.
+`.gitleaks.toml` keeps every default rule and allows one thing, an extension manifest's
+`"key"`, which is the public key that fixes the extension's ID (it was the only finding in
+the history); a token planted in a manifest is still found. Tried first and dropped: GitHub's
+ggshield action, which needs a GitGuardian API key, and the account's keys were refused
+("Invalid GitGuardian API key", 401 on the US and EU servers). Not taken: the gitleaks
+action (it wants a licence key for organisations and a token), and adding the scan to
+`bug-report.yml`'s watched runs.

@@ -1,0 +1,12 @@
+# The secret scan of each push (.github/workflows/secret-scan.yml): gitleaks' own rules,
+# all of them, with one thing allowed.
+
+[extend]
+useDefault = true
+
+# A browser extension's manifest "key" is the public half of the key that fixes the
+# extension's ID. It is published inside every copy of the extension, so it is no secret.
+[[allowlists]]
+description = "An extension manifest's public key"
+regexTarget = "line"
+regexes = ['''"key":\s*"MII[A-Za-z0-9+/=]{100,}"''']
