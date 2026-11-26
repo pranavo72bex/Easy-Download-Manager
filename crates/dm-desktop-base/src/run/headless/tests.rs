@@ -76,6 +76,21 @@ fn headless_with(
     Headless::new(backend, None, false)
 }
 
+/// An address on 127.0.0.1 whose server takes each connection and never answers, so that a
+/// download from it stays running however long a test looks at it (one from a real host
+/// finishes or fails when that host decides, sooner on some systems than others).
+fn silent_server() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        for stream in listener.incoming().flatten() {
+            held.push(stream);
+        }
+    });
+    format!("http://{address}/file.zip")
+}
+
 #[test]
 fn with_no_window_a_picture_and_a_step_are_refused_in_words() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -528,12 +543,15 @@ fn downloads_add_validates_folder_inside_download_dir() {
     let mut dm = headless(&runtime, dir.path());
     let download_dir = dir.path().join("out");
 
-    // Folder outside download dir is refused
+    // A full path outside the download folder is refused. A sibling of the download folder is
+    // a full path on every system: `/etc` is not one on Windows (no drive), and is refused there
+    // for that, in other words.
+    let outside = dir.path().join("elsewhere");
     let result = dm.answer(
         "downloads.add",
         &json!({
             "urls": ["https://example.com/file.zip"],
-            "folder": "/etc"
+            "folder": outside.to_string_lossy()
         }),
     );
     assert!(result.is_err());
@@ -743,12 +761,10 @@ fn run_verb_commands_on_chosen_rows() {
     let dir = tempfile::tempdir().unwrap();
     let mut dm = headless(&runtime, dir.path());
 
-    // Add a download
-    dm.answer(
-        "downloads.add",
-        &json!({"urls": ["https://example.com/file.zip"]}),
-    )
-    .unwrap();
+    // Add a download, from a server that never answers: it stays running, so each command
+    // below is seen to move it, not the server's own pace.
+    dm.answer("downloads.add", &json!({"urls": [silent_server()]}))
+        .unwrap();
     dm.read();
 
     // Select the download
