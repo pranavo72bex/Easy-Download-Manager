@@ -51,9 +51,13 @@ const UNDER_CHECK: f32 = if crate::platform::ON_A_PHONE {
     20.0
 };
 
-/// How much nearer its setting a hint or note stands on a phone than one setting to the next:
-/// close under what it explains, the settings apart from each other.
-const HINT_PULL: f32 = native::ROW_GAP - space::XS;
+/// How much nearer its setting a hint or note stands than one setting to the next: close under
+/// what it explains, the settings apart from each other.
+const HINT_PULL: f32 = native::ROW_GAP - space::XXS;
+
+/// The room a hint leaves after itself, past a row's gap: a setting and its hint one unit, the
+/// next setting apart from both (a hint stood midway between its switch and the next).
+const AFTER_HINT: f32 = space::XS;
 
 /// The looks this window draws: the computer's, light or dark (a `classic`
 /// kept in the settings is drawn as the computer's).
@@ -129,11 +133,14 @@ impl Page {
     /// What a switch does, close under its row (gaps row C20: a switch's words start the row).
     fn hint(&mut self, words: &str) {
         self.says(words);
-        let hint = div().mt(px(-HINT_PULL)).child(native::note(
-            words.to_string(),
-            self.theme.muted,
-            &self.screen,
-        ));
+        let hint = div()
+            .mt(px(-HINT_PULL))
+            .mb(px(AFTER_HINT))
+            .child(native::note(
+                words.to_string(),
+                self.theme.muted,
+                &self.screen,
+            ));
         self.add(hint);
     }
 

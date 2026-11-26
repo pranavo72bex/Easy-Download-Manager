@@ -54,7 +54,11 @@ pub fn says(
 /// drew their own, with four top gaps among them.
 pub fn heading(words: impl Into<SharedString>, theme: Theme, screen: &Screen) -> Div {
     div()
-        .mt(px(space::M_L))
+        // Its section a group of its own: twice a row's gap and more above it, and nearer the
+        // first row under it than the rows are to each other (`better-layout`: a group apart
+        // by space). At 10 above and the column's 8 below it stood midway between sections.
+        .mt(px(space::XXL))
+        .mb(px(-space::XS))
         .font_weight(FontWeight::SEMIBOLD)
         .when(crate::platform::ON_A_PHONE, |heading| {
             heading
