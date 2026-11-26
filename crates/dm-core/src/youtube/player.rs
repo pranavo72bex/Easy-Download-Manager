@@ -578,6 +578,72 @@ fn splits_and_joins(src: &str, st: &[Token], at: usize) -> bool {
     any(".split") && any(".join")
 }
 
+/// Whether the function whose `function` word is at `at` in `st` is the player's `inherits`:
+/// two parameters, `a` and `b`, its body starting `a.prototype=` and reading `b.prototype`
+/// (`function(a,b){a.prototype=ta(b.prototype);a.prototype.constructor=a;…}`).
+fn makes_a_subclass(src: &str, st: &[Token], at: usize) -> bool {
+    let at_ = |k: usize| st.get(at + k);
+    let named = |k: usize| {
+        at_(k)
+            .filter(|t| t.kind == Kind::Word)
+            .map(|t| text(src, t))
+    };
+    let (Some(child), Some(parent)) = (named(2), named(4)) else {
+        return false;
+    };
+    if !(is(src, at_(1), "(")
+        && is(src, at_(3), ",")
+        && is(src, at_(5), ")")
+        && is(src, at_(6), "{")
+        && named(7) == Some(child)
+        && is(src, at_(8), ".")
+        && is_word(src, at_(9), "prototype")
+        && is(src, at_(10), "="))
+    {
+        return false;
+    }
+    let end = past_group(src, st, at + 6).unwrap_or(st.len());
+    (at + 11..end.saturating_sub(2)).any(|k| {
+        st.get(k)
+            .is_some_and(|t| t.kind == Kind::Word && text(src, t) == parent)
+            && is(src, st.get(k + 1), ".")
+            && is_word(src, st.get(k + 2), "prototype")
+    })
+}
+
+/// Whether a statement is a call to one of `inherits` with two names for its classes, and
+/// nothing else: `g.z(jp,g.Q);`.
+fn inherits_call(src: &str, st: &[Token], inherits: &[String]) -> bool {
+    // A chain of names and dots from `k`: its text and the index past it.
+    let chain = |mut k: usize| {
+        let mut name = String::new();
+        while let Some(t) = st
+            .get(k)
+            .filter(|t| t.kind == Kind::Word || (t.kind == Kind::Mark && text(src, t) == "."))
+        {
+            name.push_str(text(src, t));
+            k += 1;
+        }
+        (name, k)
+    };
+    let (callee, k) = chain(0);
+    if callee.is_empty() || !inherits.contains(&callee) || !is(src, st.get(k), "(") {
+        return false;
+    }
+    let (child, k) = chain(k + 1);
+    if child.is_empty() || !is(src, st.get(k), ",") {
+        return false;
+    }
+    let (parent, k) = chain(k + 1);
+    if parent.is_empty() || !is(src, st.get(k), ")") {
+        return false;
+    }
+    match st.get(k + 1) {
+        None => true,
+        Some(_) => is(src, st.get(k + 1), ";") && st.len() == k + 2,
+    }
+}
+
 /// The most functions of the `n` function's shape the program tries (gaps row Y3).
 const MOST_N_FUNCTIONS: usize = 8;
 
@@ -688,15 +754,41 @@ pub(crate) fn program(player: &str) -> Result<String, String> {
     // Its first statement, `var window=this;`, is kept as it is: called from the program's
     // global code, `this` is the program's own window (`BEFORE`), and the player's later
     // `'use strict'` stays a plain string, as it is in a page.
-    let kept: Vec<&[Token]> = all
+    let every: Vec<&[Token]> = all
         .iter()
         .map(|range| toks.get(range.clone()).unwrap_or(&[]))
+        .collect();
+    // The player's own `inherits` (`g.z=function(a,b){a.prototype=ta(b.prototype);…}`): a
+    // player in the older JavaScript (`player_ias`) makes its classes with a call to it as it
+    // loads, `g.z(jp,g.Q);`, and without it `jp` has none of `g.Q`'s methods.
+    let inherits: Vec<String> = every
+        .iter()
         .filter(|st| !left_out(player, st))
+        .flat_map(|st| {
+            defined(player, st)
+                .into_iter()
+                .filter(|(_, at)| makes_a_subclass(player, st, *at))
+                .map(|(name, _)| name)
+        })
+        .collect();
+    // Each statement kept, and whether it is such a call, run where it fails without stopping
+    // the rest.
+    let kept: Vec<(&[Token], bool)> = every
+        .iter()
+        .filter_map(|st| {
+            if !left_out(player, st) {
+                Some((*st, false))
+            } else if inherits_call(player, st, &inherits) {
+                Some((*st, true))
+            } else {
+                None
+            }
+        })
         .collect();
     let table = string_table(player);
     let mut makers: Vec<String> = Vec::new();
     let mut nfuncs: Vec<String> = Vec::new();
-    for st in &kept {
+    for (st, _) in &kept {
         for (name, at) in defined(player, st) {
             if let Some(setup) = sets_alr_yes(player, st, at, table.as_ref()) {
                 // Called as its callers call it: what they set first, set first.
@@ -723,12 +815,17 @@ pub(crate) fn program(player: &str) -> Result<String, String> {
     let mut out = String::with_capacity(player.len());
     out.push_str(BEFORE);
     let _ = writeln!(out, "(function ({param}) {{");
-    for st in &kept {
+    for (st, guarded) in &kept {
         let (Some(first), Some(last)) = (st.first(), st.last()) else {
             continue;
         };
-        out.push_str(player.get(first.start..last.end).unwrap_or(""));
-        out.push('\n');
+        let said = player.get(first.start..last.end).unwrap_or("");
+        if *guarded {
+            let _ = writeln!(out, "try {{ {said} }} catch (__dm_e) {{}}");
+        } else {
+            out.push_str(said);
+            out.push('\n');
+        }
     }
     let _ = writeln!(out, ";__dm.makers = [{}];", makers.join(", "));
     let _ = writeln!(out, "__dm.nfuncs = [{}];", nfuncs.join(", "));

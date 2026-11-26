@@ -291,6 +291,70 @@ async fn the_tvs_player_is_cut_and_answers_too() {
     assert_eq!(got, r#"{"n":{"abc":"abc!"},"sig":{"xyz":"yz"}}"#);
 }
 
+/// A player in the older JavaScript (`player_ias`), as YouTube's of 26 November 2026
+/// (`b485e332`): its address class takes `set` and `get` from a base class through a call to
+/// its own `inherits` made as it loads, `g.z(g.ch,Q);`, which a cut that leaves out every call
+/// would drop, and the address class would have no `set`.
+const IAS_PLAYER: &str = r#"var _yt_player={};(function(g){var window=this;
+var ta=function(a){function b(){}b.prototype=a;return new b};
+g.z=function(a,b){a.prototype=ta(b.prototype);a.prototype.constructor=a;a.Wh=b.prototype};
+var Q=function(){};Q.prototype.set=function(a,b){this.p[a]=b};Q.prototype.get=function(a){return this.p[a]};
+g.ch=function(a){Q.call(this);this.url=a;this.p={}};g.z(g.ch,Q);
+g.ch.prototype.tN=function(){var a=this.get("n");a&&this.set("n",a+"?")};
+g.ch.prototype.clone=function(){return new g.ch(this.url)};
+g.z(Missing,Q);
+om=function(a,b,c){a=new g.ch(a);a.set("alr","yes");c&&a.set(b,c.slice(2));return a};
+window.document.createElement("div").appendChild(null);
+})(_yt_player);
+"#;
+
+#[tokio::test]
+async fn an_older_players_classes_keep_what_they_inherit() {
+    let program = program(IAS_PLAYER).unwrap();
+    assert!(program.contains("try { g.z(g.ch,Q); }"), "{program}");
+    assert!(!program.contains("appendChild"));
+    // A class it inherits for that is not there is passed over, the rest still run.
+    assert!(program.contains("try { g.z(Missing,Q); }"), "{program}");
+    let got = crate::javascript::run(
+        &program,
+        &call(&["abc"], &["wxyz"]),
+        std::time::Duration::from_secs(30),
+    )
+    .await
+    .unwrap();
+    assert_eq!(got, r#"{"n":{"abc":"abc?"},"sig":{"wxyz":"yz"}}"#);
+}
+
+#[test]
+fn inherits_is_found_by_its_shape_and_only_its_two_name_calls_kept() {
+    let src = "g.z=function(a,b){a.prototype=ta(b.prototype);};h=function(a,b){a.x=b.prototype};}";
+    let (toks, _) = tokens(src, 0).unwrap();
+    let found: Vec<String> = statements(src, &toks)
+        .unwrap()
+        .into_iter()
+        .flat_map(|r| {
+            let st = &toks[r];
+            defined(src, st)
+                .into_iter()
+                .filter(|(_, at)| makes_a_subclass(src, st, *at))
+                .map(|(name, _)| name)
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    assert_eq!(found, ["g.z"]);
+    let kept = |call: &str| {
+        let wrapped = format!("{call}}}");
+        let (toks, _) = tokens(&wrapped, 0).unwrap();
+        inherits_call(&wrapped, &toks, &found)
+    };
+    assert!(kept("g.z(jp,g.Q);"));
+    assert!(kept("g.z(jp,g.Q)"));
+    assert!(!kept("g.z(jp,g.Q),f();"));
+    assert!(!kept("g.z(jp(),g.Q);"));
+    assert!(!kept("g.y(jp,g.Q);"));
+    assert!(!kept("g.z(jp);"));
+}
+
 #[test]
 fn a_player_with_no_address_function_or_not_one_function_is_said_to_have_changed() {
     let none = PLAYER.replace(r#"a.set("alr","yes");"#, "");
