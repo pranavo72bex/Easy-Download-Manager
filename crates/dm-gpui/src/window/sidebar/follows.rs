@@ -50,7 +50,7 @@ pub(super) fn rows(
                 .child(
                     gpui::svg()
                         .path("icons/place-queue.svg")
-                        .size(px(crate::widgets::native::ICON))
+                        .size(px(super::PLACE_ICON))
                         .flex_none()
                         .text_color(theme.accent_text),
                 )

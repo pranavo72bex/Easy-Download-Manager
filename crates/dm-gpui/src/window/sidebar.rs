@@ -30,7 +30,7 @@ const EDGE: f32 = 5.0;
 
 /// What a place's row gives to all but its name, in points: its margins and padding (`mx_2`,
 /// `px_2`: 8 each side), its picture (16) and the gap after it (8), and a gap before its count.
-const ROW_BESIDE_NAME: f32 = 16.0 + 16.0 + 16.0 + 8.0 + 8.0;
+const ROW_BESIDE_NAME: f32 = 16.0 + 16.0 + PLACE_ICON + 8.0 + 8.0;
 
 /// Whether a name `name` pixels wide, beside a count `count` pixels wide, is cut in a panel
 /// `wide` points across (at 100%) at the scale `factor`: then it is offered whole in a tooltip.
@@ -128,8 +128,25 @@ pub(crate) fn place_picture(view: &Downloads) -> &'static str {
 }
 
 /// A place's row in the side panel, in points: a saved search's and a followed list's too.
-/// 28, as Finder's sidebar at its usual size and as the list's rows are.
-pub(crate) const PLACE_ROW: f32 = 28.0;
+/// 28, as Finder's sidebar and the list's rows, on a computer; a finger's 48 on a phone, where
+/// 28 left the drawer's places cramped at the phone's 15-point words and under a finger's size
+/// (better-accessibility, 2.5.8).
+pub(crate) const PLACE_ROW: f32 = if crate::platform::ON_A_PHONE {
+    crate::widgets::space::TOUCH
+} else {
+    28.0
+};
+
+/// A place's picture: the body's 16 on a computer, a phone's 20 beside its 15-point words.
+pub(crate) const PLACE_ICON: f32 = if crate::platform::ON_A_PHONE {
+    crate::widgets::native::ICON_LARGE
+} else {
+    crate::widgets::native::ICON
+};
+
+/// The drawer's width on a phone, in points: as a phone's navigation drawer takes, where the
+/// computer's 200-point panel stood under half the screen.
+const PHONE_DRAWER: f32 = 300.0;
 
 /// The side panel.
 pub fn sidebar(
@@ -367,7 +384,7 @@ fn projects(
                     .child(
                         gpui::svg()
                             .path("icons/place-folder.svg")
-                            .size(px(crate::widgets::native::ICON))
+                            .size(px(PLACE_ICON))
                             .flex_none()
                             .text_color(theme.accent_text),
                     )
@@ -497,7 +514,7 @@ fn place_row(
                     .child(
                         gpui::svg()
                             .path(icon)
-                            .size(px(crate::widgets::native::ICON))
+                            .size(px(PLACE_ICON))
                             .flex_none()
                             // The accent's text shade, chosen or not: the side panel's
                             // pictures are a source list's, all in one colour (the
@@ -572,7 +589,7 @@ pub(crate) fn source_row(
         .child(
             gpui::svg()
                 .path(icon)
-                .size(px(crate::widgets::native::ICON))
+                .size(px(PLACE_ICON))
                 .flex_none()
                 // The accent's text shade, as the side panel's places (`picture`).
                 .text_color(theme.accent_text),
@@ -607,6 +624,9 @@ impl Downloads {
     /// The side panel's width as drawn, in points at 100%: the one being dragged, else the one
     /// kept.
     pub(crate) fn panel_width(&self) -> f32 {
+        if crate::platform::ON_A_PHONE {
+            return PHONE_DRAWER;
+        }
         SIDEBAR_WIDTH.held(
             self.layout
                 .panel_resizing
