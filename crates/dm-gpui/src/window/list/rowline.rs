@@ -28,7 +28,10 @@ pub(crate) fn kind_picture(
     kind: Option<dm_core::Category>,
     theme: crate::window::theme::Theme,
 ) -> (&'static str, gpui::Rgba) {
-    (kind_path(kind), theme.kinds.of_kind(kind))
+    // In the accent's text shade, each kind told by its shape, as the side panel's and Options'
+    // pictures are (the maintainer, 2026-11-26: "One-colour icons"); a colour a kind was a
+    // second scheme beside theirs.
+    (kind_path(kind), theme.accent_text)
 }
 
 /// What a row's line says, in the shell: its name and its state.

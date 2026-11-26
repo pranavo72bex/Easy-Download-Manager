@@ -219,15 +219,8 @@ fn custom_categories(
     on: bool,
     screen: &Screen,
 ) {
-    p.add(native::enabled(
-        on,
-        // What the list below does, in the small grey words of an explanation.
-        native::note(
-            t("Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category."),
-            p.theme.muted,
-            screen,
-        ),
-    ));
+    // What the list below does, in the small grey words of an explanation, at a readable width.
+    p.note_when(on, t("Your own categories come first. A file of these types, from these sites (any site when empty), goes into a folder named after the category."));
     for i in 0..o.typed.custom.len() {
         let name = input(
             o,

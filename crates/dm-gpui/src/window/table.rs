@@ -16,8 +16,6 @@ use dm_core::{Entry, State};
 use dm_desktop_base::columns::Column;
 use dm_desktop_base::format;
 use dm_desktop_base::i18n::t;
-#[cfg(test)]
-use dm_shell::app::commands::Command;
 use gpui::{
     div, prelude::*, uniform_list, AnyElement, Context, Div, Role, SharedString, Stateful, Window,
 };
@@ -32,8 +30,6 @@ mod cells;
 pub(crate) use cells::{arriving, list_drawn, set_still, state_mark};
 mod heading;
 mod pointer;
-mod rowbuttons;
-use rowbuttons::{buttons_width, row_actions, row_buttons, ROW_GROUP};
 
 pub(crate) use cells::{finishing_bar, gone, leave, progress_track};
 pub(crate) use heading::moved_onto;
@@ -420,7 +416,7 @@ struct Layout<'a> {
     name_room: f32,
 }
 
-/// One row's cells, its own `buttons` at the name's right end.
+/// One row's cells.
 fn row_cells(
     row: &Entry,
     view: &Downloads,
@@ -428,7 +424,6 @@ fn row_cells(
     kind: Option<dm_core::Category>,
     theme: Theme,
     screen: &Screen,
-    buttons: AnyElement,
 ) -> Vec<AnyElement> {
     let Layout {
         columns,
@@ -437,7 +432,6 @@ fn row_cells(
         name_room,
     } = layout;
     let (names, whens) = (&view.known.shown_names, &view.known.whens);
-    let mut buttons = Some(buttons);
     let id = row.id as usize;
     columns
         .iter()
@@ -453,24 +447,8 @@ fn row_cells(
                     colour
                 };
                 let name = shown_name(row, names);
-                // Room kept for the row's own buttons where they show, so the name ends
-                // before them and not under them (gaps row E7).
-                let kept = buttons_width(row_actions(row).len());
                 let named = cell(column, widths)
                     .gap_2()
-                    .relative()
-                    // At the left where the window is mirrored, as the buttons are (U35).
-                    .map(|c| {
-                        let shown = theme.is_chosen();
-                        if crate::window::mirror::rtl() {
-                            c.when(shown, |c| c.pl(px(kept)))
-                                .group_hover(ROW_GROUP, move |s| s.pl(px(kept)))
-                        } else {
-                            c.when(shown, |c| c.pr(px(kept)))
-                                .group_hover(ROW_GROUP, move |s| s.pr(px(kept)))
-                        }
-                    })
-                    .children(buttons.take())
                     .child(
                         gpui::svg()
                             .path(picture)
@@ -479,8 +457,8 @@ fn row_cells(
                             .text_color(colour),
                     )
                     .child(cells::name_drawn(&name, screen));
-                // Its picture and the gap after it, and the row's buttons where they show.
-                let room = words_room(column, widths, name_room) - 24.0 - kept;
+                // Its picture and the gap after it.
+                let room = words_room(column, widths, name_room) - 24.0;
                 let cut = cut(&name, room);
                 whole_where_cut(named, told, ("name", id), place, name, cut)
             }
@@ -659,9 +637,8 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                 .map(|(i, row)| {
                     let kind = this.list.places.placed(row, &categories).0;
                     let chosen = this.list.selected.contains(&row.id);
-                    // A chosen row in the selection colour, its words on it,
-                    // as a macOS list draws one.
-                    let background = theme.selection;
+                    // A chosen row as Options marks its chosen page: the accent's soft tint and
+                    // its bar at the leading edge, its words in their own colour (`chosen`).
                     let original = theme;
                     let theme = if chosen { theme.chosen() } else { theme };
                     // A finished row's file dragged out; and, in the list's own order, any
@@ -704,12 +681,13 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         .flex()
                         // The columns from the right where the window is mirrored (gaps row U35).
                         .map(crate::window::mirror::row)
-                        .when(chosen, |r| r.bg(background).text_color(theme.text))
+                        .when(chosen, |r| {
+                            r.relative()
+                                .bg(original.chosen_soft())
+                                .child(crate::window::sidebar::chosen_bar(original))
+                        })
                         .when(!chosen && i % 2 == 1, |r| r.bg(theme.stripe));
                     pointer::row_handlers(drawn, id, dragged, reorders, original, cx)
-                        // Its own buttons at the name's right end, where
-                        // the pointer is on it or it is chosen (gaps row U13).
-                        .group(ROW_GROUP)
                         .children(row_cells(
                             row,
                             this,
@@ -722,19 +700,6 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             kind,
                             theme,
                             &screen,
-                            row_buttons(
-                                row,
-                                chosen,
-                                // Its row's own colour behind it, a striped row's too.
-                                match (chosen, i % 2 == 1) {
-                                    (true, _) => background,
-                                    (false, true) => theme.striped(),
-                                    (false, false) => theme.background,
-                                },
-                                original,
-                                cx,
-                            )
-                            .into_any_element(),
                         ))
                         // A row just added fades in, one taken off fades out (gaps row K7).
                         .map(|row| cells::arriving(id, row))

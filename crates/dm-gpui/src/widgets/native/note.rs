@@ -74,24 +74,21 @@ pub fn says(
     }
 }
 
-/// A section's heading, one kind in every dialog and page (gaps row E29): semibold, one gap
-/// above it; a phone's in the accent colour, smaller and set further apart, as a phone's
-/// settings head each group. Options, Statistics, the Scheduler, Save to and the playlist each
-/// drew their own, with four top gaps among them.
+/// A section's heading, one kind in every dialog and page (gaps row E29), on a phone as on a
+/// computer: semibold in the text's colour, one gap above it. Options, Statistics, the
+/// Scheduler, Save to and the playlist each drew their own, with four top gaps among them; and
+/// a phone's was smaller and in the accent's shade, which marks only the default button, what is
+/// chosen and progress (`docs/ui-design.md` rule 2), so a phone's page read as another design.
 pub fn heading(words: impl Into<SharedString>, theme: Theme, screen: &Screen) -> Div {
     div()
         // Its section a group of its own: twice a row's gap and more above it, and nearer the
         // first row under it than the rows are to each other (`better-layout`: a group apart
         // by space). At 10 above and the column's 8 below it stood midway between sections.
-        .mt(px(space::XXL))
+        // A phone's rows stand further apart already (`ROW_GAP`), so less is added above it.
+        .mt(px(super::on_a_phone(space::XL, space::XXL)))
         .mb(px(-space::XS))
         .font_weight(FontWeight::SEMIBOLD)
-        .when(crate::platform::ON_A_PHONE, |heading| {
-            heading
-                .mt(px(space::XL))
-                .text_size(px(SMALL_TEXT))
-                .text_color(theme.accent_text)
-        })
+        .text_color(theme.text)
         .child(screen.label(words))
 }
 

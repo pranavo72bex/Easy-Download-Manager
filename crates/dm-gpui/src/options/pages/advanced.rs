@@ -26,10 +26,9 @@ pub(super) fn advanced(
     p.section(t("Proxy"));
     proxy(o, p, window, cx);
     if std::mem::take(&mut o.to_proxy) {
-        // Its heading at the top of the page, its settings under it.
-        // A phone's page holds the search and the pages' strip first.
-        o.scroll
-            .scroll_to_top_of_item(proxy_at + usize::from(crate::platform::ON_A_PHONE));
+        // Its heading at the top of the page, its settings under it: one place on, past the
+        // page's own name and summary (`pagelist::page_heading`), at every width.
+        o.scroll.scroll_to_top_of_item(proxy_at + 1);
     }
     // A dial-up or VPN connection every download waits for, in reference
     // A's words and order (contract B43). Windows
@@ -751,7 +750,6 @@ fn per_scheme(
 
 /// The automatic configuration script, and what goes through the proxy.
 fn script(o: &mut Options, p: &mut Page, on: bool, window: &mut Window, cx: &mut Context<Options>) {
-    let (theme, screen) = (p.theme, p.screen.clone());
     let script = input(
         o,
         window,
@@ -763,21 +761,11 @@ fn script(o: &mut Options, p: &mut Page, on: bool, window: &mut Window, cx: &mut
         false,
         |o| o.draft.advanced.proxy.script.clone(),
     );
-    p.add(native::enabled(
+    // Its words over it, as every wide field's on the page (`Page::labelled`).
+    p.labelled(
+        t("Automatic configuration script address (it chooses each site's proxy, in place of the above)"),
         on,
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(space::XS))
-            .child(screen.label(t("Automatic configuration script address (it chooses each site's proxy, in place of the above)")))
-            .child(script),
-    ));
-    p.add(native::enabled(
-        on,
-        native::note(
-            t("Every download, the video tools and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT."),
-            theme.muted,
-            &screen,
-        ),
-    ));
+        script,
+    );
+    p.hint_when(on, t("Every download, the video tools and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT."));
 }

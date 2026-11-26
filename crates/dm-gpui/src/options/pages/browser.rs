@@ -144,14 +144,10 @@ fn catching(
         o.typed.types.clone()
     });
     p.labelled(t("File types"), on, types);
-    p.add(native::enabled(
+    p.hint_when(
         on,
-        native::note(
-            t("Separate types with spaces, no dots. Leave empty for all."),
-            theme.muted,
-            &screen,
-        ),
-    ));
+        t("Separate types with spaces, no dots. Leave empty for all."),
+    );
     let min = input(
         o,
         window,
@@ -206,14 +202,10 @@ fn catching(
         |o| o.typed.skip.clone(),
     );
     p.labelled(t("Never take downloads from these sites"), on, skip);
-    p.add(native::enabled(
+    p.hint_when(
         on,
-        native::note(
-            t("Separate sites with spaces. example.com covers its subdomains."),
-            theme.muted,
-            &screen,
-        ),
-    ));
+        t("Separate sites with spaces. example.com covers its subdomains."),
+    );
     // A link that works once was spent by dm asking about it before
     // taking it.
     let once = input(
@@ -228,14 +220,7 @@ fn catching(
         |o| o.typed.once.clone(),
     );
     p.labelled(t("Sites whose links work only once"), on, once);
-    p.add(native::enabled(
-        on,
-        native::note(
-            t("dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser."),
-            theme.muted,
-            &screen,
-        ),
-    ));
+    p.hint_when(on, t("dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser."));
 }
 
 /// The keys a click on a link can be held with, to leave it with the browser or send it to dm.
