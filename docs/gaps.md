@@ -76,6 +76,39 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
+## Next session (written 2026-11-27, for 2026-11-28)
+
+**Done 2026-11-26 and 27: the UI refinement, Finder as the reference** (all on main, last
+`41de6a72`; `cargo test -p dm-gpui` 490 passed; each change looked at in `ui-shot.py`
+pictures, light and dark, 380-point phone layout, Arabic and German; the phone on the
+emulator). Options' side panel and pages; the list as Options (one-colour pictures, the chosen
+row a soft tint and bar, no row buttons, rows and places 28 tall, secondary columns muted,
+Description, Referrer and Folder hidden at first); a lighter toolbar; short Grabber labels with
+hints; a "?" in every dialog; one hint and fact helper everywhere; icons at stroke 2.25; the
+phone's drawer and sheet sliding in, its bottom tab and chosen card a soft tint (rounded cards
+tried and dropped at the maintainer's word); on macOS Settings… in the app menu, no menu titles
+in the window, Finder's search (a magnifier opening into a 240-point field, 250/150 ms), the
+place's name as the title and the count first in the status bar. Each is in B25 and CHANGELOG.
+A before/after page: https://claude.ai/artifact/BajEPxVne6QEj7ZXwjF4Ai (not yet with the
+search, title and phone changes).
+
+**Start with, in this order:**
+1. `python3 scripts/ai-health.py`; then main's runs on `41de6a72` (CI, Desktop on three
+   systems, Android, `contract-linux.yml`: the window changed, so its look against main's is
+   expected to need the baseline taken again).
+2. The list's section headings (the maintainer's choice of 2026-11-26, the one left of "Section
+   headings, Page title and summary, One-colour icons, Chosen row like Options"): rows grouped
+   under a heading as Finder groups by date or kind. Needs care: sorting, the keys' row order,
+   the chosen row's index and the phone's cards all assume one flat list; a heading is not a row
+   for the keys, a screen reader or Select all.
+3. Keep refining the home screen and list on desktop and phone, English first (the
+   maintainer: "keep fixing and refining UI english first in a loop"), each change pictured.
+4. Known: Options in Arabic at 400 points pushes OK past the window's edge.
+5. Owed before a merge: `cargo test --workspace` and `python3 scripts/human-qa.py` in a visible
+   window (B25's pictures are owed: the window changed); readers for the new unread lines
+   ("{} download||{} downloads", the Grabber's hints, Settings…).
+6. `cargo clean` the scratch target when the disk runs low (it filled to 0 on 2026-11-26).
+
 ## Next session (written 2026-11-26)
 
 **Done today (committed on main, not pushed: another session pushes; `cargo test --workspace`
