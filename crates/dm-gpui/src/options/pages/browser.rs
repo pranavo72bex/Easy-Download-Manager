@@ -33,14 +33,6 @@ fn extensions(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
     // or has a second browser: each browser with whether its extension has
     // talked to dm, and Add where it has not.
     p.section(t("Add dm to your browser"));
-    // Read again on asking, as an extension added or removed meanwhile changes it.
-    // Its own size, not a bar the page's width (gaps row E31).
-    p.add(div().flex().child(
-        button(p, "check-browsers", t("Check now")).on_click(cx.listener(|o, _, _, cx| {
-            o.heard = dm_shell::host::browsers_heard(&dm_shell::settings::home());
-            cx.notify();
-        })),
-    ));
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
@@ -78,6 +70,15 @@ fn extensions(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
         // A setting's row: the browser at the leading edge, what it says at the trailing one.
         p.setting(name, true, state);
     }
+    // Read again on asking, as an extension added or removed meanwhile changes it: under the
+    // rows it reads again (it stood over them, before anything it acts on). Its own size, not
+    // a bar the page's width (gaps row E31).
+    p.add(div().flex().child(
+        button(p, "check-browsers", t("Check now")).on_click(cx.listener(|o, _, _, cx| {
+            o.heard = dm_shell::host::browsers_heard(&dm_shell::settings::home());
+            cx.notify();
+        })),
+    ));
 }
 
 /// The items dm adds to the browser's right-click menu, each chosen.
@@ -123,6 +124,9 @@ fn catching(
     c: &dm_protocol::CatchRules,
 ) {
     let (theme, screen) = (p.theme, p.screen.clone());
+    // Its own heading: under the right-click menu's, which downloads dm takes read as one of
+    // that menu's items. The help's guide to it has these words (translated already).
+    p.section(t("Downloads from your browser"));
     check(
         p,
         cx,
