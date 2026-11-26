@@ -112,8 +112,10 @@ if [ "$behind" -gt 0 ]; then
     exit 0
 fi
 
+# A run GitHub holds for a person's approval (a pull_request run a bot's push started:
+# "action_required") never ran: it is no result, and the runs started here are the ones read.
 runs=$(gh api "repos/$GH_REPO/actions/runs?head_sha=$sha&per_page=50" \
-    --jq "[.workflow_runs[] | select(.name == \"CI\" or .name == \"Desktop\" or .name == \"$ANDROID\" or .name == \"$CONTRACT\" or .name == \"$BENCH\" or .name == \"$CODEQL\")] | group_by(.name) | map(max_by(.created_at)) | .[] | \"\\(.name)\\t\\(.status)\\t\\(.conclusion)\\t\\(.id)\"")
+    --jq "[.workflow_runs[] | select(.conclusion != \"action_required\" and .conclusion != \"stale\") | select(.name == \"CI\" or .name == \"Desktop\" or .name == \"$ANDROID\" or .name == \"$CONTRACT\" or .name == \"$BENCH\" or .name == \"$CODEQL\")] | group_by(.name) | map(max_by(.created_at)) | .[] | \"\\(.name)\\t\\(.status)\\t\\(.conclusion)\\t\\(.id)\"")
 # Every one that has not run is started at once (they run side by side, not one by one).
 missing=0
 for w in "${needed[@]}"; do
