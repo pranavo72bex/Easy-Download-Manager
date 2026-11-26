@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The progress window's facts (File size, Downloaded, Can resume) stand from the window's edge, their names in the secondary colour, as View › Details shows them; they hung from a column ending mid-window.
 - Options › General › Text size: the slider's thumb stands over the percentage it picks (at 100% it stood between 80% and 100%), the arrow keys step from one size to the next, and the size in force is level with the slider's line.
 - Sections in Options, the Scheduler and the other dialogs stand apart as groups: more room above each heading, its first setting close under it; a setting's explanation sits close under its own setting with room before the next.
 - The Speed limiter keeps every label in one column beside its box, in English and in longer languages; "Download at most this many MB" no longer drops above its box to the window's edge.

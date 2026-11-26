@@ -14,6 +14,8 @@ pub(super) struct Look {
     theme: Theme,
     screen: Screen,
     width: f32,
+    /// The facts' names' column: as wide as the longest of them alone.
+    facts: f32,
 }
 
 impl Look {
@@ -26,22 +28,43 @@ impl Look {
             t("Networks"),
             t("When this download is done"),
         ]);
+        let facts = native::label_width(&[
+            t("File size"),
+            t("Downloaded"),
+            t("Can resume"),
+            t("Networks"),
+        ]);
         Self {
             theme,
             screen,
             width,
+            facts,
         }
     }
 
-    // A row of words: `label`'s in the labels' column, `words` beside them.
+    /// A fact: its name in the hint's colour from the window's edge, its value beside it, as
+    /// View › Details shows them. Right-aligned in a column as wide as "When this download is
+    /// done" further down, the names stood mid-window, a second edge beside the address's; a
+    /// phone's name above its value (`native::row`).
     fn line(&self, label: &'static str, words: String) -> gpui::Div {
-        native::row(
-            Some(t(label)),
-            self.width,
-            &self.screen,
-            // Wrapped at the window's edge where a fact is longer than its line (gaps row E2).
-            div().min_w_0().child(self.screen.label(words)),
-        )
+        // Wrapped at the window's edge where a fact is longer than its line (gaps row E2).
+        let value = div().flex_1().min_w_0().child(self.screen.label(words));
+        if crate::platform::ON_A_PHONE {
+            return native::row(Some(t(label)), self.width, &self.screen, value);
+        }
+        div()
+            .flex()
+            .map(crate::window::mirror::row)
+            .items_start()
+            .gap(px(native::LABEL_GAP))
+            .child(
+                div()
+                    .w(px(self.facts))
+                    .flex_none()
+                    .text_color(self.theme.muted)
+                    .child(self.screen.label(t(label))),
+            )
+            .child(value)
     }
 }
 
@@ -178,13 +201,9 @@ pub(super) fn facts(
         .text_size(px(native::SMALL_TEXT))
         .text_color(theme.muted),
     )
+    // Under the address it is about, from the same edge.
     .when_some(next_step, |d, step| {
-        d.child(native::row(
-            None,
-            look.width,
-            screen,
-            native::note(step, theme.muted, screen),
-        ))
+        d.child(native::note(step, theme.muted, screen))
     })
     .child(
         look.line(
