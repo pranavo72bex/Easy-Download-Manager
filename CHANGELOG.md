@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The download list's rows are 28 points apart (24 before), so a list reads at a glance.
+- A new dm's toolbar keeps the everyday buttons: Delete completed and the Grabber start off it (Downloads › Delete completed and Tasks › Grabber hold them; View › Customize toolbar brings them back). A toolbar already set is kept.
 - Statistics keeps Close in sight in a band of its own and shows its scroll bar while there is more below; its figures read as the progress window's do. It cut its last rows and its Close off at the window's foot with nothing to say so.
 - The arrow beside Start queue and Stop queue points down, as tall as its button, and says "Queues" on hover: it opens the list of queues.
 - An Options page's first heading stands under the page's name as a first setting does, not a section's room further down.

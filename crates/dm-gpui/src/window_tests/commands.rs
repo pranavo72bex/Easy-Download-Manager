@@ -545,7 +545,10 @@ fn last_items(h: &mut Harness, done: &dm_core::Entry, list: &std::path::Path) {
 #[test]
 fn every_toolbar_button_clicked_does_what_it_says() {
     let world = world();
-    let mut h = world.harness();
+    // Every button on: Delete completed and the Grabber are off at first.
+    let mut settings = world.settings();
+    settings.toolbar_hidden.clear();
+    let mut h = world.harness_with(settings);
     h.add_url(&world.url("file.zip"), "Start now");
     h.add_url(&world.url("stalled.bin"), "Start now");
     h.until("file.zip to finish", finished);

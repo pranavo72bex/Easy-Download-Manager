@@ -9,9 +9,9 @@
 use crate::harness::world::{world, World};
 use crate::harness::{settings_file, Harness};
 
-/// The Grabber, as its toolbar button opens it.
+/// The Grabber, as Tasks › Grabber opens it (its toolbar button is off at first).
 fn open_grabber(h: &mut Harness) {
-    h.click("Grabber");
+    h.command("program.site_files");
     h.until("the Grabber", |h| h.dialog_open("Grabber"));
     h.until_shown("Start page");
 }

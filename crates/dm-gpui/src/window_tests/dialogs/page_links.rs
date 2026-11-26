@@ -84,7 +84,7 @@ fn a_pages_links_open_the_download_links_dialog() {
 fn the_site_file_finder_finds_the_files_a_page_links_to() {
     let world = world();
     let mut h = world.harness();
-    h.click("Grabber");
+    h.command("program.site_files");
     h.until("the Grabber", |h| h.dialog_open("Grabber"));
     h.type_into("Start page", &world.url("page.html"));
     h.type_into("File types", "zip pdf");
@@ -103,7 +103,7 @@ fn the_site_file_finder_finds_the_files_a_page_links_to() {
 fn the_grabbers_start_now_starts_what_it_found() {
     let world = world();
     let mut h = world.harness();
-    h.click("Grabber");
+    h.command("program.site_files");
     h.until("the Grabber", |h| h.dialog_open("Grabber"));
     h.type_into("Start page", &world.url("page.html"));
     h.type_into("File types", "zip pdf");
@@ -123,7 +123,7 @@ fn the_grabbers_start_now_starts_what_it_found() {
 fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     let world = world();
     let mut h = world.harness();
-    h.click("Grabber");
+    h.command("program.site_files");
     h.until("the Grabber", |h| h.dialog_open("Grabber"));
     h.type_into("Start page", &world.url("page.html"));
     h.type_into("Page depth (0 for the start page only)", "1");

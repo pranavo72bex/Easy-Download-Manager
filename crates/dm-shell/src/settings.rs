@@ -199,7 +199,8 @@ pub struct Settings {
     /// View › Details: the chosen download's detail under the list (gaps row E8), off at first.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub show_details: bool,
-    /// Toolbar buttons taken off, by command id.
+    /// Toolbar buttons taken off, by command id: at first Delete completed and the Grabber,
+    /// which Downloads and Tasks hold, so the toolbar keeps the everyday ones.
     pub toolbar_hidden: Vec<String>,
     /// Sign-ins: a user and password used for downloads from a
     /// host, so a protected file need not be typed for each time.
@@ -574,7 +575,11 @@ impl Default for Settings {
             show_categories: true,
             show_toolbar: true,
             show_details: false,
-            toolbar_hidden: Vec::new(),
+            // A lighter toolbar at first (the maintainer, 2026-11-26): View › Customize
+            // toolbar brings either back.
+            toolbar_hidden: ["downloads.clear_finished", "program.site_files"]
+                .map(String::from)
+                .to_vec(),
             site_logins: Vec::new(),
         }
     }

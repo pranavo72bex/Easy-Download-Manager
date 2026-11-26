@@ -385,7 +385,10 @@ fn find_previous_selects_the_row_before_and_wraps_round() {
 fn the_toolbar_is_customized_from_the_view_menu_and_remembered() {
     let _file = settings_file();
     let world = world();
-    let mut h = world.harness();
+    // Every button on: Delete completed and the Grabber are off at first.
+    let mut settings = world.settings();
+    settings.toolbar_hidden.clear();
+    let mut h = world.harness_with(settings);
     assert!(h.shows("Grabber"));
     h.click("View");
     h.click("Customize toolbar");

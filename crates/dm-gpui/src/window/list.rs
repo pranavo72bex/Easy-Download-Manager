@@ -87,8 +87,9 @@ pub(crate) fn scrollbar_mode() -> gpui_base::ScrollbarMode {
     }
 }
 
-/// The rows' height, in points.
-pub(crate) const ROW_HEIGHT: f32 = 24.0;
+/// The rows' height, in points: 28, room around a row's words and its own buttons so a list
+/// reads at a glance (24 was close-set; the maintainer, 2026-11-26).
+pub(crate) const ROW_HEIGHT: f32 = 28.0;
 
 /// How often a window with nothing moving wakes of its own accord.
 const IDLE: Duration = Duration::from_secs(30);
