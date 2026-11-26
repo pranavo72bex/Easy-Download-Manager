@@ -1098,5 +1098,13 @@
  "Extract": "Extrair",
  "{} has a password, and none of the saved ones opens it.": "{} tem senha, e nenhuma das salvas o abre.",
  "Type the archive's password.": "Digite a senha do arquivo compactado.",
- "That password does not open it.": "Essa senha não o abre."
+ "That password does not open it.": "Essa senha não o abre.",
+ "How to…": "Como…",
+ "Your first download": "Seu primeiro download",
+ "Downloads from your browser": "Downloads do seu navegador",
+ "Downloads overnight": "Downloads durante a noite",
+ "Download a video": "Baixar um vídeo",
+ "Stop now, finish later": "Parar agora, terminar depois",
+ "Keep some speed for everything else": "Deixar velocidade para o resto",
+ "dm on a USB stick": "dm em um pendrive USB"
 }

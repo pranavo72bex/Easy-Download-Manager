@@ -1098,5 +1098,13 @@
  "Extract": "Çıkar",
  "{} has a password, and none of the saved ones opens it.": "{} parolalı ve kayıtlı parolaların hiçbiri onu açmıyor.",
  "Type the archive's password.": "Arşivin parolasını yazın.",
- "That password does not open it.": "Bu parola onu açmıyor."
+ "That password does not open it.": "Bu parola onu açmıyor.",
+ "How to…": "Nasıl…",
+ "Your first download": "İlk indirmeniz",
+ "Downloads from your browser": "Tarayıcınızdan indirmeler",
+ "Downloads overnight": "Gece boyunca indirmeler",
+ "Download a video": "Video indirme",
+ "Stop now, finish later": "Şimdi durdur, sonra bitir",
+ "Keep some speed for everything else": "Geri kalanı için hız bırak",
+ "dm on a USB stick": "USB bellekte dm"
 }

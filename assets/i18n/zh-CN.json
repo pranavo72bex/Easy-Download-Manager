@@ -1098,5 +1098,13 @@
  "Extract": "解压",
  "{} has a password, and none of the saved ones opens it.": "{} 有密码，保存的密码都打不开它。",
  "Type the archive's password.": "输入压缩包的密码。",
- "That password does not open it.": "这个密码打不开它。"
+ "That password does not open it.": "这个密码打不开它。",
+ "How to…": "如何…",
+ "Your first download": "你的第一次下载",
+ "Downloads from your browser": "来自浏览器的下载",
+ "Downloads overnight": "夜间下载",
+ "Download a video": "下载视频",
+ "Stop now, finish later": "现在暂停，稍后完成",
+ "Keep some speed for everything else": "为其他用途留出速度",
+ "dm on a USB stick": "U 盘上的 dm"
 }

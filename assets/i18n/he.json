@@ -1098,5 +1098,13 @@
  "Extract": "חילוץ",
  "{} has a password, and none of the saved ones opens it.": "ל-{} יש סיסמה, ואף אחת מהשמורות לא פותחת אותו.",
  "Type the archive's password.": "הקלד את סיסמת הארכיון.",
- "That password does not open it.": "הסיסמה הזו לא פותחת אותו."
+ "That password does not open it.": "הסיסמה הזו לא פותחת אותו.",
+ "How to…": "איך…",
+ "Your first download": "ההורדה הראשונה שלך",
+ "Downloads from your browser": "הורדות מהדפדפן שלך",
+ "Downloads overnight": "הורדות בלילה",
+ "Download a video": "הורדת סרטון",
+ "Stop now, finish later": "לעצור עכשיו, לסיים אחר כך",
+ "Keep some speed for everything else": "להשאיר מהירות לכל השאר",
+ "dm on a USB stick": "dm על החסן USB"
 }

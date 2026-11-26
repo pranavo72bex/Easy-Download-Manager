@@ -306,5 +306,13 @@
  "Extract",
  "{} has a password, and none of the saved ones opens it.",
  "Type the archive's password.",
- "That password does not open it."
+ "That password does not open it.",
+ "How to…",
+ "Your first download",
+ "Downloads from your browser",
+ "Downloads overnight",
+ "Download a video",
+ "Stop now, finish later",
+ "Keep some speed for everything else",
+ "dm on a USB stick"
 ]

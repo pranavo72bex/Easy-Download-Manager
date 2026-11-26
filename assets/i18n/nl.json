@@ -1098,5 +1098,13 @@
  "Extract": "Uitpakken",
  "{} has a password, and none of the saved ones opens it.": "{} heeft een wachtwoord, en geen van de bewaarde opent het.",
  "Type the archive's password.": "Typ het wachtwoord van het archief.",
- "That password does not open it.": "Dat wachtwoord opent het niet."
+ "That password does not open it.": "Dat wachtwoord opent het niet.",
+ "How to…": "Hoe…",
+ "Your first download": "Je eerste download",
+ "Downloads from your browser": "Downloads uit je browser",
+ "Downloads overnight": "Downloads 's nachts",
+ "Download a video": "Een video downloaden",
+ "Stop now, finish later": "Nu stoppen, later afmaken",
+ "Keep some speed for everything else": "Snelheid overlaten voor de rest",
+ "dm on a USB stick": "dm op een USB-stick"
 }

@@ -1098,5 +1098,13 @@
  "Extract": "Extraer",
  "{} has a password, and none of the saved ones opens it.": "{} tiene contraseña y ninguna de las guardadas lo abre.",
  "Type the archive's password.": "Escribe la contraseña del archivo.",
- "That password does not open it.": "Esa contraseña no lo abre."
+ "That password does not open it.": "Esa contraseña no lo abre.",
+ "How to…": "Cómo…",
+ "Your first download": "Tu primera descarga",
+ "Downloads from your browser": "Descargas desde tu navegador",
+ "Downloads overnight": "Descargas durante la noche",
+ "Download a video": "Descargar un vídeo",
+ "Stop now, finish later": "Detener ahora, terminar después",
+ "Keep some speed for everything else": "Dejar algo de velocidad para lo demás",
+ "dm on a USB stick": "dm en una memoria USB"
 }

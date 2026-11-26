@@ -1098,5 +1098,13 @@
  "Extract": "展開",
  "{} has a password, and none of the saved ones opens it.": "{} にはパスワードがあり、保存済みのどれでも開けません。",
  "Type the archive's password.": "アーカイブのパスワードを入力してください。",
- "That password does not open it.": "そのパスワードでは開けません。"
+ "That password does not open it.": "そのパスワードでは開けません。",
+ "How to…": "使い方…",
+ "Your first download": "はじめてのダウンロード",
+ "Downloads from your browser": "ブラウザーからのダウンロード",
+ "Downloads overnight": "夜間のダウンロード",
+ "Download a video": "動画をダウンロードする",
+ "Stop now, finish later": "今は止めて、あとで続ける",
+ "Keep some speed for everything else": "ほかの通信のために速度を残す",
+ "dm on a USB stick": "USBメモリーで使うdm"
 }

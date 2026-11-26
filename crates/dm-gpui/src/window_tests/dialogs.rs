@@ -671,6 +671,8 @@ fn help_has_reference_as_items_and_tip_of_the_day_shows_the_next_tip() {
         "Tutorials",
         "Queues and the Scheduler",
         "Grabber help",
+        // The step-by-step guides by task (gaps row C16d).
+        "How to…",
         "Tip of the day",
         "Home page",
         "Contact support",

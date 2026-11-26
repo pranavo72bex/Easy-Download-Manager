@@ -1098,5 +1098,13 @@
  "Extract": "압축 풀기",
  "{} has a password, and none of the saved ones opens it.": "{}에는 암호가 있으며 저장된 암호로는 열리지 않습니다.",
  "Type the archive's password.": "압축 파일의 암호를 입력하세요.",
- "That password does not open it.": "그 암호로는 열리지 않습니다."
+ "That password does not open it.": "그 암호로는 열리지 않습니다.",
+ "How to…": "방법…",
+ "Your first download": "첫 다운로드",
+ "Downloads from your browser": "브라우저에서 다운로드",
+ "Downloads overnight": "밤새 다운로드",
+ "Download a video": "동영상 다운로드",
+ "Stop now, finish later": "지금 멈추고 나중에 마치기",
+ "Keep some speed for everything else": "다른 작업을 위해 속도 남기기",
+ "dm on a USB stick": "USB 메모리의 dm"
 }

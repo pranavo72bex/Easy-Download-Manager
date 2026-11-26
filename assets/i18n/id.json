@@ -1098,5 +1098,13 @@
  "Extract": "Ekstrak",
  "{} has a password, and none of the saved ones opens it.": "{} memiliki kata sandi, dan tak satu pun yang tersimpan membukanya.",
  "Type the archive's password.": "Ketik kata sandi arsip.",
- "That password does not open it.": "Kata sandi itu tidak membukanya."
+ "That password does not open it.": "Kata sandi itu tidak membukanya.",
+ "How to…": "Cara…",
+ "Your first download": "Unduhan pertama Anda",
+ "Downloads from your browser": "Unduhan dari browser Anda",
+ "Downloads overnight": "Unduhan semalam",
+ "Download a video": "Mengunduh video",
+ "Stop now, finish later": "Hentikan sekarang, selesaikan nanti",
+ "Keep some speed for everything else": "Sisakan kecepatan untuk yang lain",
+ "dm on a USB stick": "dm di flashdisk USB"
 }

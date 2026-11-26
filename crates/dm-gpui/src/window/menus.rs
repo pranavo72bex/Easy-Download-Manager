@@ -182,6 +182,15 @@ pub struct OpenPage {
     pub address: String,
 }
 
+/// One of Help › How to…'s step-by-step guides, by its page's name (gaps row C16d): written
+/// offline under dm's home and opened by the system, as a dialog's ? button opens its page.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = dm, no_json)]
+pub struct OpenGuide {
+    /// The page's name, as `dm_desktop_base::help::write_page` knows it.
+    pub page: String,
+}
+
 /// The Dock menu's "Open download folder": the folder Options › Save to
 /// names, in Finder, whether or not dm's window is showing (gaps row U16).
 #[derive(Clone, PartialEq, Action)]
@@ -489,6 +498,13 @@ fn hear_app_actions(cx: &mut App) {
     cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
     cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
     cx.on_action(|page: &OpenPage, cx| cx.open_url(&page.address));
+    cx.on_action(|guide: &OpenGuide, cx| {
+        let home = dm_shell::settings::home();
+        match dm_desktop_base::help::write_page(&home, &guide.page) {
+            Ok(path) => cx.open_url(&format!("file://{}", path.to_string_lossy())),
+            Err(why) => dm_core::note!(warn, "{why}"),
+        }
+    });
     // ⌘W in a dialog: its own close (the main window hears it first).
     cx.on_action(|_: &CloseWindow, cx| crate::widgets::native::close_front(cx));
     // The Window menu, on the window in front.

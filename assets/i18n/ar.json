@@ -1098,5 +1098,13 @@
  "Extract": "استخراج",
  "{} has a password, and none of the saved ones opens it.": "{} محمي بكلمة مرور، ولا تفتحه أي من كلمات المرور المحفوظة.",
  "Type the archive's password.": "اكتب كلمة مرور الأرشيف.",
- "That password does not open it.": "كلمة المرور هذه لا تفتحه."
+ "That password does not open it.": "كلمة المرور هذه لا تفتحه.",
+ "How to…": "كيف…",
+ "Your first download": "تنزيلك الأول",
+ "Downloads from your browser": "التنزيلات من متصفحك",
+ "Downloads overnight": "التنزيلات ليلًا",
+ "Download a video": "تنزيل فيديو",
+ "Stop now, finish later": "أوقف الآن وأكمل لاحقًا",
+ "Keep some speed for everything else": "اترك بعض السرعة لكل شيء آخر",
+ "dm on a USB stick": "dm على ذاكرة USB"
 }

@@ -1098,5 +1098,13 @@
  "Extract": "Распаковать",
  "{} has a password, and none of the saved ones opens it.": "У {} есть пароль, и ни один из сохранённых его не открывает.",
  "Type the archive's password.": "Введите пароль архива.",
- "That password does not open it.": "Этот пароль его не открывает."
+ "That password does not open it.": "Этот пароль его не открывает.",
+ "How to…": "Как…",
+ "Your first download": "Ваша первая загрузка",
+ "Downloads from your browser": "Загрузки из браузера",
+ "Downloads overnight": "Загрузки ночью",
+ "Download a video": "Скачать видео",
+ "Stop now, finish later": "Остановить сейчас, закончить позже",
+ "Keep some speed for everything else": "Оставить скорость для остального",
+ "dm on a USB stick": "dm на USB-флешке"
 }

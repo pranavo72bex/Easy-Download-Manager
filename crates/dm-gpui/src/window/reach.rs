@@ -376,7 +376,8 @@ pub(crate) fn act_of(action: &dyn gpui::Action) -> Option<Act> {
         Act::Language
     } else if any.is::<crate::dialogs::statistics::ShowStatistics>() {
         Act::Statistics
-    } else if any.is::<menus::OpenPage>() {
+    } else if any.is::<menus::OpenPage>() || any.is::<menus::OpenGuide>() {
+        // Help's topics and its guides by task (gaps row C16d).
         Act::HelpPages
     } else if any.is::<menus::TipOfTheDay>() {
         Act::TipOfTheDay

@@ -211,6 +211,21 @@ pub(super) fn help_menu(phone: bool) -> Menu {
             .into_iter()
             .map(|(words, address)| page(words, address)),
     );
+    // The step-by-step guides by task, read offline (gaps row C16d); the portable dm on a USB
+    // stick is Windows' alone.
+    let guides = dm_desktop_base::project::task_guides()
+        .into_iter()
+        .filter(|(_, page)| cfg!(windows) || *page != "usb-stick")
+        .map(|(words, page)| {
+            MenuItem::action(
+                words.to_string(),
+                OpenGuide {
+                    page: page.to_string(),
+                },
+            )
+        });
+    help.items
+        .push(MenuItem::submenu(Menu::new(t("How to…")).items(guides)));
     help.items.extend([
         MenuItem::action(t("Tip of the day"), TipOfTheDay),
         MenuItem::separator(),

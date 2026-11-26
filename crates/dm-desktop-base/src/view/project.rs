@@ -101,6 +101,21 @@ pub fn guide_topics() -> [(&'static str, String); 3] {
     ]
 }
 
+/// The step-by-step guides by task (gaps row C16), as Help › How to… lists them: the menu's
+/// words, and the name of the page dm carries to open offline (`help::write_page`). The last,
+/// the portable dm on a USB stick, is Windows' alone.
+pub fn task_guides() -> [(&'static str, &'static str); 7] {
+    [
+        (t("Your first download"), "first-download"),
+        (t("Downloads from your browser"), "browser-downloads"),
+        (t("Downloads overnight"), "overnight-downloads"),
+        (t("Download a video"), "download-a-video"),
+        (t("Stop now, finish later"), "resuming"),
+        (t("Keep some speed for everything else"), "speed-limits"),
+        (t("dm on a USB stick"), "usb-stick"),
+    ]
+}
+
 /// Tips about dm, one shown at a time in Tip of the day (gaps row 91).
 pub fn tips() -> [&'static str; 8] {
     [
@@ -169,6 +184,25 @@ pub fn series_error(e: dm_shell::lists::SeriesError) -> &'static str {
 mod tests {
     use super::*;
     use dm_shell::lists::{series, SeriesError};
+
+    /// Each guide Help › How to… lists is a page dm carries and writes offline, named once
+    /// (gaps row C16d).
+    #[test]
+    fn every_task_guide_in_help_is_a_page_dm_carries() {
+        let home = tempfile::tempdir().unwrap();
+        let guides = task_guides();
+        let names: std::collections::HashSet<_> = guides.iter().map(|(_, page)| page).collect();
+        let words: std::collections::HashSet<_> = guides.iter().map(|(w, _)| w).collect();
+        assert_eq!((names.len(), words.len()), (guides.len(), guides.len()));
+        for (words, page) in guides {
+            let path = crate::help::write_page(home.path(), page)
+                .unwrap_or_else(|why| panic!("{words}: {why}"));
+            assert!(
+                std::fs::read_to_string(path).unwrap().contains("<ol>"),
+                "{page}"
+            );
+        }
+    }
 
     #[test]
     fn each_reason_a_series_cannot_be_made_is_said() {

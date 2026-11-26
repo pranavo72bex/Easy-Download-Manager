@@ -3,6 +3,19 @@
 The parts of dm the Help menu points to. For installing dm and its browser
 extension, see the [README](../README.md).
 
+## How to…
+
+Step by step, for the things most people do first. **Help › How to…** opens
+each one, without a connection.
+
+- [Your first download](guide/first-download.md)
+- [Downloads from your browser](guide/browser-downloads.md)
+- [Downloads overnight](guide/overnight-downloads.md)
+- [Download a video](guide/download-a-video.md)
+- [Stop now, finish later](guide/resuming.md)
+- [Keep some speed for everything else](guide/speed-limits.md)
+- [dm on a USB stick](guide/usb-stick.md) (Windows)
+
 ## Every page of the help
 
 - **When something goes wrong:** [What dm's messages mean](guide/failures.md),

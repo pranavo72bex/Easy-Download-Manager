@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Help › How to… opens step-by-step guides, read without a connection: your first download, downloads from your browser, downloads overnight, a video, stopping now and finishing later, keeping some speed for everything else, and (on Windows) dm on a USB stick.
 - A schedule set to run once wakes the computer for that date and time only, not for the weekly window's hours on the days before it, and not again once it has run.
 - A RAR archive in parts (`film.part1.rar`, `film.part2.rar`…) is extracted from its first part, the parts read where they are and never joined on disk, into a folder of the archive's name; a missing part is named, and a later part says to start from the first.
 - On a phone, dm no longer closes when the system's look changes under it (a new navigation mode, or a new wallpaper's colours on Android 12 and later): it opens again by itself, its downloads saved and resumed.
