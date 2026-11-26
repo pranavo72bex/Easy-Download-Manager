@@ -156,5 +156,23 @@ pub(crate) fn relaunch() -> Result<(), String> {
     })
 }
 
+/// Whether dm's activity is ending only to be made again at once, as Android remakes it: before
+/// Android 16 every activity is remade when a system overlay changes (a new wallpaper's colours,
+/// the navigation mode), whatever the manifest's `configChanges` says. Its window then cannot be
+/// made a second time in this process, so dm starts again in a fresh one (`relaunch`) rather than
+/// being gone (seen on Android 15's emulator, 2026-11-25: dm ended 2 s after it started).
+pub(crate) fn made_again() -> bool {
+    jvm::with("ask whether its window is made again", |env, activity| {
+        env.call_method(
+            activity,
+            jni_str!("isChangingConfigurations"),
+            jni_sig!("()Z"),
+            &[],
+        )?
+        .z()
+    })
+    .unwrap_or(false)
+}
+
 /// `Intent.FLAG_ACTIVITY_CLEAR_TASK`.
 const FLAG_ACTIVITY_CLEAR_TASK: i32 = 0x0000_8000;

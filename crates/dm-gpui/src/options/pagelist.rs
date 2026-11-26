@@ -45,7 +45,9 @@ impl Options {
             .aria_selected(on)
             .w_full()
             .px(px(space::M))
-            .py(px(if narrow { space::M } else { space::S }))
+            // Beside a page, close-set: all six pages, four with two lines, fit Windows' 520
+            // points with room for its wider text (Sign-ins fell below the list's edge there).
+            .py(px(if narrow { space::M } else { space::XS }))
             .flex()
             .items_center()
             .gap(px(space::M))
@@ -66,7 +68,7 @@ impl Options {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .gap(px(space::XS))
+                    .gap(px(if narrow { space::XS } else { space::XXS }))
                     .child(
                         div()
                             .font_weight(gpui::FontWeight::SEMIBOLD)

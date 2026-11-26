@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a phone, dm no longer closes when the system's look changes under it (a new navigation mode, or a new wallpaper's colours on Android 12 and later): it opens again by itself, its downloads saved and resumed.
+- On Windows, Options' list of pages shows Sign-ins again without scrolling the list: the pages sit closer together, so all six fit beside a page with their two-line descriptions.
 - Extract here and Extract to ask for an archive's password when none of the saved ones opens it, in a small "Archive password" window that says a wrong one and stays open; "Keep this password" saves it once it has worked.
 - `--queue NAME` on the command line adds the next link to the queue of that name without starting it; `--help` and the README name it.
 - A 7z in parts (`.7z.001`, `.7z.002`…) is extracted from its first part, the parts read in order as one file and never joined on disk, into a folder of the archive's name.

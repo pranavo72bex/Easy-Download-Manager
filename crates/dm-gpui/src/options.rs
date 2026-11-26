@@ -446,7 +446,7 @@ impl Render for Options {
                 .role(Role::TabList)
                 .flex()
                 .flex_col()
-                .gap(px(space::XS))
+                .gap(px(if narrow { space::XS } else { space::XXS }))
                 .overflow_y_scroll()
                 .when(narrow, |l| {
                     l.flex_1().min_h_0().w_full().px(px(native::MARGIN))

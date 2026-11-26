@@ -9071,3 +9071,25 @@ object is now listed weakly as it is made, and the last interpreter on a thread 
 one still alive as it is dropped, which breaks the cycles. Tried and dropped: a mark-and-sweep
 collector (much more code for programs that run once); emptying from the global object
 outward (misses objects only a closure's scope holds).
+
+## dm starts again when Android remakes its window; Options' page list close-set, 2026-11-26
+
+Main's Android run on API 35 failed with dm gone two seconds after it started. The emulator
+was still applying its first-boot overlays, and `ActivityThread.handleApplicationInfoChanged`
+remakes every activity of an app whose overlays change (a new navigation mode, a new
+wallpaper's colours on Android 12 and later) whatever the manifest's `configChanges` says.
+Only Android 16's `assetsPaths` flag opts out, and aapt2 under compileSdk 35 refuses it (by name
+and as a number). dm's window cannot be made twice in one process (gpui-android's platform is
+made once), so `android_main` used to end the process and the person saw dm close. Now, where
+the activity `isChangingConfigurations()` as it ends, dm starts itself again in a fresh process
+(`engine::relaunch`, the path a window opened over the windowless dm takes): on the `dmci`
+emulator, three-button navigation turned on brought dm back in half a second, and a task
+removed from the recent apps still ends dm. Left for when compileSdk reaches 36: declare
+`assetsPaths` too, so Android 16 keeps the window and dm does not restart at all.
+
+Main's Windows Desktop run was red from `28568498`: Options' page summaries took two lines
+(gaps row E35), and at Windows' 520 points the six pages no longer fit beside a page, so
+Sign-ins fell below the list's edge. Windows' size is the maintainer's (2026-11-12), so the list
+is close-set beside a page instead (each page's padding 4 points, not 6; 2 between pages and
+between a name and its line). `every_page_is_in_view_at_the_smallest_options` resizes Options to
+Windows' size on every system; macOS has about 50 points to spare there.

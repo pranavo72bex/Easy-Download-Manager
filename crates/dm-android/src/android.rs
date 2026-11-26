@@ -92,6 +92,15 @@ fn android_main(app: AndroidApp) {
     dm_gpui::run_app(&[], || {
         gpui::Application::with_platform(SharedPlatform::new(Arc::clone(platform)).into_rc())
     });
+    // Ended only to be made again (an overlay changed): dm comes back in a fresh process, its
+    // downloads saved by the quit and resumed there.
+    if engine::made_again() {
+        dm_core::note!(info, "Android remade dm's window: dm starts afresh");
+        if let Err(why) = engine::relaunch() {
+            dm_core::note!(warn, "{why}");
+        }
+        engine::end_process(0);
+    }
     // Closed with downloads left, where the person asked for them to go on (Options ›
     // Downloads): dm goes on with no window (`engine`), and this returns so Android lets the
     // activity go. Else the process ends, and the next start begins afresh.

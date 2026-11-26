@@ -198,3 +198,31 @@ fn every_page_says_what_it_holds() {
     });
     assert_eq!(said, "Sites that need a sign-in");
 }
+
+/// Every page in the list of pages is in view at the smallest size Options opens at,
+/// Windows' 820 by 520: with two-line summaries Sign-ins fell below the list's edge there and
+/// could only be reached by scrolling the list (gaps row E35's two lines, main's Windows run).
+#[test]
+fn every_page_is_in_view_at_the_smallest_options() {
+    let world = world();
+    let mut h = world.harness();
+    open_options(&mut h);
+    let (w, hgt) = crate::widgets::native::WindowSize::Options.each().windows;
+    let main = h.window;
+    h.cx.update(|cx| {
+        for window in cx.windows() {
+            if window != main {
+                let _ = window.update(cx, |_, window, _| {
+                    window.resize(gpui::size(gpui::px(w), gpui::px(hgt)))
+                });
+            }
+        }
+    });
+    h.until("Options at Windows' size", |h| {
+        h.dialog(|_: &mut Options, window, _| f32::from(window.viewport_size().height) <= hgt + 1.0)
+    });
+    for (_, words) in dm_desktop_base::options::TABS {
+        assert!(h.shows(words), "{words} out of view: {:?}", h.texts());
+    }
+    h.click("Cancel");
+}
