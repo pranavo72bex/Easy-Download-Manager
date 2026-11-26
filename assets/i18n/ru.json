@@ -1111,5 +1111,6 @@
  "Stop now, finish later": "Остановить сейчас, закончить позже",
  "Keep some speed for everything else": "Оставить скорость для остального",
  "dm on a USB stick": "dm на USB-флешке",
- "Settings": "Настройки"
+ "Settings": "Настройки",
+ "{} download||{} downloads": "{} загрузка||{} загрузки||{} загрузок"
 }

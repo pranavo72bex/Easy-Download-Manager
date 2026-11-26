@@ -191,6 +191,24 @@ pub fn titlebar(
         .border_color(theme.separator)
         .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none())
         .child(sidebar_button(view.layout.show_sidebar, theme, cx))
+        // On macOS, where the menus' titles are the system's bar's, the window's title is the
+        // place shown, as Finder titles its window with the folder shown (the maintainer's
+        // choice of 2026-11-26, "Page title", read as Finder reads it): "All downloads", a kind,
+        // a queue. Windows and Linux draw the menus' titles there.
+        .when(!MENU_TITLES_IN_WINDOW, |bar| {
+            let name = crate::window::sidebar::place_name(view)
+                .unwrap_or_else(|| t("All downloads").into());
+            bar.child(
+                div()
+                    .ml(px(space::S))
+                    .min_w_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .child(screen.label(name)),
+            )
+        })
         // The menus' titles in the window where the system has no menu bar of its own (Windows,
         // Linux); on macOS they are the system's menu bar's, not drawn again here (the
         // maintainer, 2026-11-27: "it is not hiding the Task File Download View Help on Macos. It

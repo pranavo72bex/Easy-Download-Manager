@@ -1111,5 +1111,6 @@
  "Stop now, finish later": "Nu stoppen, later afmaken",
  "Keep some speed for everything else": "Snelheid overlaten voor de rest",
  "dm on a USB stick": "dm op een USB-stick",
- "Settings": "Instellingen"
+ "Settings": "Instellingen",
+ "{} download||{} downloads": "{} download||{} downloads"
 }

@@ -38,7 +38,11 @@ pub fn fresh_said(view: &Downloads) -> Option<String> {
 /// What the status bar says, part by part.
 pub fn parts(view: &Downloads) -> Vec<String> {
     let tally = dm_shell::app::rules::tally(&view.rows);
-    let mut parts = vec![if tally.running == 0 && tally.finishing == 0 {
+    // How many the place shown holds, first, as Finder's status bar counts a folder's items (the
+    // maintainer's choice of 2026-11-26, "summary"); then how the downloads go.
+    let held = view.list.shown.len();
+    let mut parts = vec![tn("{} download||{} downloads", held as u64, &[&held])];
+    let going = if tally.running == 0 && tally.finishing == 0 {
         t("Nothing downloading").to_string()
     } else if tally.running == 0 {
         tn(
@@ -52,7 +56,8 @@ pub fn parts(view: &Downloads) -> Vec<String> {
             tally.running as u64,
             &[&tally.running, &rate(tally.rate)],
         )
-    }];
+    };
+    parts.push(format!("· {going}"));
     if tally.running > 0 && tally.finishing > 0 {
         parts.push(tn(
             "· {} finishing||· {} finishing",
