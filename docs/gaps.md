@@ -76,6 +76,25 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
+## Next session (written 2026-11-26)
+
+**Done today (committed on main, not pushed: another session pushes; `cargo test --workspace`
+3294 passed, 0 failed):**
+- `ai-health.py`'s FAIL: GitHub fired the worker's schedule 3 times in 26 hours; the worker
+  itself works. Started by hand; the check came back with no FAIL.
+- Main's red Windows Desktop (#62): since `28568498` Options' six pages no longer fit at
+  Windows' 520 points and Sign-ins fell out of view; the list is close-set beside a page, and
+  `every_page_is_in_view_at_the_smallest_options` checks it at Windows' size everywhere.
+- Main's red Android (API 35): an overlay change (navigation mode, a wallpaper's colours)
+  remakes every activity before Android 16 and dm closed; it now starts again in a fresh
+  process. Reproduced and checked on `dmci`. Left: `assetsPaths` in the manifest once
+  compileSdk is 36 (`docs/decisions.md`, 2026-11-26).
+- C3c (a RAR 5 set in parts, from `.part1.rar`) and C5b (`limit_only_present`, its rule).
+
+**Start with:** `ai-health.py`; the CI, Desktop (Windows above all: the first run of the new
+test there) and Android runs once main is pushed; then the rows the bots have not taken
+(`gh issue list --label bot:improve`).
+
 ## Next session (written 2026-11-25, late; for 2026-11-26)
 
 **Done this evening (all pushed to main, last `ad558624`; `cargo test --workspace` 3290 passed,
