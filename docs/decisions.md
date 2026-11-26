@@ -9126,3 +9126,8 @@ ggshield action, which needs a GitGuardian API key, and the account's keys were 
 ("Invalid GitGuardian API key", 401 on the US and EU servers). Not taken: the gitleaks
 action (it wants a licence key for organisations and a token), and adding the scan to
 `bug-report.yml`'s watched runs.
+
+The first night on these cuts (run 45751236215) finished its first try inside the keyless
+quota, but its tests were for tooling/xtask/src/tasks.rs, which `ai_guard` refuses, and the
+second try on the same file ran the quota out. `scripts/coverage-table.py pick` now leaves out
+tooling/xtask/ as it leaves out what a Linux runner cannot run.
