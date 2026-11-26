@@ -1274,6 +1274,9 @@ def walk(dm, origin):
           and dm.row("stopme.bin") is None,
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
     paths = [pathlib.Path(x["path"]) for x in dm.rows() if x["state"]["kind"] == "completed"]
+    # From the Downloads menu: a new dm's toolbar has no Delete completed (2026-11-26).
+    dm.click("Downloads")
+    pause(0.5)
     dm.click("Delete completed")
     # Its own line, not the one before it ("Put back 1 download." from the
     # Undo above), which a fixed pause sometimes read (gaps row 56).
@@ -1447,7 +1450,7 @@ def walk(dm, origin):
     pause(0.8)
     site_words = dm.dialog_texts()
     check("B60", "Site files has 'Also follow links to other sites' beside the page depth",
-          "Also follow links to other sites" in site_words and "Page depth (0 for the start page only)" in site_words,
+          "Also follow links to other sites" in site_words and "Page depth" in site_words,
           f"{site_words}")
     check("B61", "Site files has 'Keep the site's folders' under the other-sites box",
           "Keep the site's folders" in site_words, f"{site_words}")

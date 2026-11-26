@@ -135,3 +135,22 @@ pub fn fact(
         )
         .child(value)
 }
+
+/// What a field's value means, under the field in the fields' column of a form whose labels are
+/// `label_width` wide: nearer its field than the next row is (a hint stood midway between them),
+/// as Options' hints stand (`options::pages`).
+pub fn hint_under(
+    words: impl Into<gpui::SharedString>,
+    label_width: f32,
+    theme: crate::window::theme::Theme,
+    screen: &Screen,
+) -> Div {
+    row(
+        None,
+        label_width,
+        screen,
+        super::note(words, theme.muted, screen),
+    )
+    .mt(px(-(super::ROW_GAP - space::XXS)))
+    .mb(px(space::XS))
+}

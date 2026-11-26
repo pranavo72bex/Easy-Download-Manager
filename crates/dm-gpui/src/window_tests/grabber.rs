@@ -148,7 +148,7 @@ fn the_grabber_follows_links_to_other_sites_only_when_ticked_and_a_saved_search_
     let mut h = world.harness();
     open_grabber(&mut h);
     h.type_into("Start page", &start);
-    h.type_into("Page depth (0 for the start page only)", "1");
+    h.type_into("Page depth", "1");
     h.type_into("File types", "zip");
     h.click("Find files");
     h.until("the start page's own site read", |h| {

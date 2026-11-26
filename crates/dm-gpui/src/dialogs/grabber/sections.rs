@@ -202,16 +202,18 @@ impl Grabber {
                     .child(native::field(&self.name, "Save this search as", theme)),
             ))
             .child(native::row_short(
-                Some(t("Run every (hours, 0 for manual)")),
+                Some(t("Run every (hours)")),
                 width,
                 screen,
                 div()
                     .w(px(crate::widgets::native::NUMBER_FIELD))
-                    .child(native::field(
-                        &self.every,
-                        "Run every (hours, 0 for manual)",
-                        theme,
-                    )),
+                    .child(native::field(&self.every, "Run every (hours)", theme)),
+            ))
+            .child(native::hint_under(
+                t("0 runs it only when you ask."),
+                width,
+                theme,
+                screen,
             ))
             .child(
                 div().flex().justify_end().child(

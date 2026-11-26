@@ -126,7 +126,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
     h.command("program.site_files");
     h.until("the Grabber", |h| h.dialog_open("Grabber"));
     h.type_into("Start page", &world.url("page.html"));
-    h.type_into("Page depth (0 for the start page only)", "1");
+    h.type_into("Page depth", "1");
     h.type_into("File types", "zip pdf");
     h.click("Find files");
     // page.html and next.html on this site; the page elsewhere is not read.
@@ -136,7 +136,7 @@ fn a_site_search_reads_pages_deep_and_a_saved_one_runs_on_its_own() {
 
     // Saved to run every hour: not at once, its first run is an hour from saving.
     h.type_into("Save this search as", "Nightly");
-    h.type_into("Run every (hours, 0 for manual)", "1");
+    h.type_into("Run every (hours)", "1");
     h.click("Save search");
     h.until("the search saved", |h| {
         !h.view(|v| v.backend.settings().site_searches.is_empty())

@@ -744,7 +744,7 @@ mod bar;
 pub use bar::bar;
 mod note;
 mod row;
-pub use row::{fact, row};
+pub use row::{fact, hint_under, row};
 mod path;
 mod switch;
 pub use destroy::{destructive, undo_line};

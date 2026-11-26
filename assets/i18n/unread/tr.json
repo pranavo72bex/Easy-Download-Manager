@@ -11,8 +11,6 @@
  "Ignore files smaller than (KB)",
  "Check for updates once a week",
  "Speed limit (KB/s, 0 for none)",
- "Page depth (0 for the start page only)",
- "Run every (hours, 0 for manual)",
  "Show progress when a download starts",
  "Show a message when a download finishes",
  "So browser downloads always reach dm. Change this later in Options › General.",
@@ -55,7 +53,6 @@
  "Waiting for the schedule · starts {}",
  "This removes it from the list.",
  "This removes them from the list.",
- "Stop reading pages after (minutes)",
  "Sends browser downloads to dm once the extension is added.",
  "That isn't a link dm can download. Paste a web address like https://example.com/file.zip.",
  "This window won't open again. Turn it on in Options › General.",
@@ -314,5 +311,14 @@
  "Download a video",
  "Stop now, finish later",
  "Keep some speed for everything else",
- "dm on a USB stick"
+ "dm on a USB stick",
+ "Page depth",
+ "0 reads the start page alone; 1 also the pages it links to.",
+ "Time limit (minutes)",
+ "0 for no limit.",
+ "Smallest file (KB)",
+ "Largest file (KB)",
+ "0 for any size.",
+ "Run every (hours)",
+ "0 runs it only when you ask."
 ]

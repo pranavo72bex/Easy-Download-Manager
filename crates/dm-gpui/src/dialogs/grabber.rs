@@ -292,15 +292,15 @@ impl Render for Grabber {
             t("Start page"),
             t("Template"),
             t("File types"),
-            t("Page depth (0 for the start page only)"),
-            t("Stop reading pages after (minutes)"),
-            t("Files at least (KB, 0 for any)"),
-            t("and at most (KB, 0 for any)"),
+            t("Page depth"),
+            t("Time limit (minutes)"),
+            t("Smallest file (KB)"),
+            t("Largest file (KB)"),
             t("Only paths containing"),
             t("Skip paths containing"),
             // The saving rows', on the same column (`saving`).
             t("Save this search as"),
-            t("Run every (hours, 0 for manual)"),
+            t("Run every (hours)"),
         ];
         let width = native::label_width(&labels);
         // On a phone a field under its words at the whole width, a number or a choice at the
@@ -311,6 +311,9 @@ impl Render for Grabber {
         let short = |i: usize, control: gpui::AnyElement| {
             native::row_short(Some(labels[i]), width, &screen, control)
         };
+        // What a value means, under its field in the fields' column: the labels say what is
+        // asked and stay short (in brackets they made the labels' column half the window).
+        let hint = |words: &'static str| native::hint_under(t(words), width, theme, &screen);
         let field = |input: &Entity<InputState>, name: &'static str| {
             div()
                 .flex_1()
@@ -358,20 +361,16 @@ impl Render for Grabber {
                 .into_any_element(),
             ))
             .child(row(2, field(&self.types, "File types")))
-            .child(short(
-                3,
-                small(&self.depth, "Page depth (0 for the start page only)"),
+            .child(short(3, small(&self.depth, "Page depth")))
+            .child(hint(
+                "0 reads the start page alone; 1 also the pages it links to.",
             ))
             .child(Self::follow(other, keep, theme, &screen, width, cx))
-            .child(short(
-                4,
-                small(&self.minutes, "Stop reading pages after (minutes)"),
-            ))
-            .child(short(
-                5,
-                small(&self.min_kb, "Files at least (KB, 0 for any)"),
-            ))
-            .child(short(6, small(&self.max_kb, "and at most (KB, 0 for any)")))
+            .child(short(4, small(&self.minutes, "Time limit (minutes)")))
+            .child(hint("0 for no limit."))
+            .child(short(5, small(&self.min_kb, "Smallest file (KB)")))
+            .child(short(6, small(&self.max_kb, "Largest file (KB)")))
+            .child(hint("0 for any size."))
             .child(row(7, field(&self.include, "Only paths containing")))
             .child(row(8, field(&self.exclude, "Skip paths containing")))
             // The dialog's action straight after what it acts on.

@@ -17,7 +17,7 @@ open, it comes to the front as it stands.
 - **File types:** the kinds of file to find, separated by spaces or
   commas, such as `zip pdf mp4`. A new search starts with `zip rar 7z exe
   msi dmg iso mp4 mkv mp3 pdf jpg png`. Empty finds every file.
-- **Page depth (0 for the start page only):** 1 also reads the pages the
+- **Page depth:** 0 reads the start page alone; 1 also reads the pages the
   start page links to, 2 the pages those link to, and so on, up to 5. At
   most 100 pages are read in one search.
 - **Also follow links to other sites:** off, only pages on the start
@@ -25,11 +25,11 @@ open, it comes to the front as it stands.
 - **Keep the site's folders:** saves each file in folders named after its
   site and the folders of its address, instead of straight into the
   download folder.
-- **Stop reading pages after (minutes):** a search stops after this long
+- **Time limit (minutes):** a search stops after this long
   with what it has found. 0 is no limit beyond the 100 pages; the most is a
   day.
-- **Files at least (KB, 0 for any)** and **and at most (KB, 0 for any):**
-  leave files out by size. dm asks each file's server for its size. A file
+- **Smallest file (KB)** and **Largest file (KB):**
+  leave files out by size; 0 is any size. dm asks each file's server for its size. A file
   whose size the server does not say is kept.
 - **Only paths containing:** words a file's address must have, separated
   by spaces or commas; empty is any.
@@ -55,7 +55,7 @@ found". **Stop** ends the search early and lists what it found so far.
 ## Saving a search
 
 - **Save this search as:** a name for the search.
-- **Run every (hours, 0 for manual):** how often dm runs it again by itself,
+- **Run every (hours):** how often dm runs it again by itself,
   up to a month (744 hours). 0 runs it only when you ask.
 - **Save search:** keeps the search under its name; saving again under the
   same name replaces it and keeps what it found before. A search needs a
