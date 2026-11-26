@@ -89,13 +89,14 @@ def main():
     else:
         ok("every bot workflow is active")
 
-    # 2. The free model key is there (Kilo's free models need none, so the bots run without it).
+    # 2. The free Kilo key is there. Kilo's free models answer without one, but the keyless
+    # quota runs out part way through a task here ("Sign up for free to continue").
     secrets = {s["name"] for s in (gh("secret", "list", "--json", "name") or [])}
-    if "GEMINI_API_KEY" in secrets:
-        ok("GEMINI_API_KEY is set")
+    if "KILO_API_KEY" in secrets:
+        ok("KILO_API_KEY is set")
     else:
-        warn("GEMINI_API_KEY is not set: only Kilo's keyless models work",
-             "a free key at aistudio.google.com, then gh secret set GEMINI_API_KEY")
+        warn("KILO_API_KEY is not set: the keyless quota runs out before a task's change is done",
+             "a free account at app.kilo.ai (no card), then gh secret set KILO_API_KEY")
 
     # 3. A free model answers now (Kilo needs no key; scripts/ai-ask.py finds one that answers).
     r = subprocess.run([sys.executable, "-I", "scripts/ai-ask.py", "pick", "kilo"], capture_output=True, text=True)

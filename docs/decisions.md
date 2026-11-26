@@ -9071,3 +9071,15 @@ object is now listed weakly as it is made, and the last interpreter on a thread 
 one still alive as it is dropped, which breaks the cycles. Tried and dropped: a mark-and-sweep
 collector (much more code for programs that run once); emptying from the global object
 outward (misses objects only a closure's scope holds).
+
+## The bots use Kilo Code's free models only, with a free key, and no subagents, 2026-11-26
+
+No bot pull request was opened for days although every AI fix run ended green. Each run's
+log said why: Gemini's free tier (20 requests a day) was spent before the task began, and Kilo's
+keyless quota ended the model part way through ("Sign up for free to continue"). A task here
+took about 110 model calls in 11 sessions over 23 minutes, against 50 in one session for the
+smaller Tirhuta keyboard, whose bot opens pull requests on the same keyless quota: the model
+split its work into subagents, each a session of its own. The maintainer dropped Gemini
+(2026-11-26). Now Kilo is the only provider, `task` (subagents) is denied, and a free Kilo
+account's key (`KILO_API_KEY`) is sent when the secret is set; without it the keyless quota
+still applies.

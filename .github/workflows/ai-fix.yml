@@ -44,9 +44,9 @@ on:
         required: false
         default: 'ci'
       providers:
-        description: 'Providers to try, in order (gemini kilo)'
+        description: 'Providers to try, in order (kilo)'
         required: false
-        default: 'gemini kilo'
+        default: 'kilo'
 
 permissions: {}
 
@@ -127,7 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .bot
-          printf '.bot/\n.gemini/\nopencode.json\n' >> .git/info/exclude
+          printf '.bot/\nopencode.json\n' >> .git/info/exclude
           pr=$(gh pr view "$ISSUE" --json headRefName,body,comments,title,isCrossRepository)
           [ "$(jq -r .isCrossRepository <<<"$pr")" = false ] || { echo "::error::not the bot's branch"; exit 1; }
           branch=$(jq -r .headRefName <<<"$pr")
@@ -144,7 +144,7 @@ jobs:
         id: context
         if: inputs.task != 'revise'
         run: |
-          printf '.bot/\n.gemini/\nopencode.json\n' >> .git/info/exclude
+          printf '.bot/\nopencode.json\n' >> .git/info/exclude
           bash scripts/ai-fix-context.sh
 
       # Before any model: main's own tree (or the bot's branch), read, never run.
@@ -160,7 +160,7 @@ jobs:
 
       - name: The agents
         if: steps.context.outputs.skip == ''
-        run: npm install -g @google/gemini-cli@0.68.0 opencode-ai@1.19.5
+        run: npm install -g opencode-ai@1.19.5
 
       - name: The task
         if: steps.context.outputs.skip == ''
@@ -232,9 +232,8 @@ jobs:
         id: try
         if: steps.context.outputs.skip == ''
         env:
-          PROVIDERS: ${{ inputs.providers || 'gemini kilo' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          PROVIDERS: ${{ inputs.providers || 'kilo' }}
+          KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
           KILO_MODEL: ${{ vars.KILO_MODEL }}
           REVISING: ${{ steps.pr.outputs.task }}
           OS_ONLY: ${{ steps.context.outputs.os_only }}
@@ -262,7 +261,7 @@ jobs:
           fewer=0
           if [ "$TASK" = ci ] && [ "$OS_ONLY" != true ] && [ -s /opt/dm-bot/baseline.txt ]; then fewer=1; fi
           sudo -u dmbot -H env -i HOME=/home/dmbot USER=dmbot PATH="$HOME/.cargo/bin:$PATH" CARGO_HOME="$HOME/.cargo" RUSTUP_HOME="$HOME/.rustup" \
-            GEMINI_API_KEY="$GEMINI_API_KEY" GEMINI_MODEL="$GEMINI_MODEL" KILO_MODEL="$KILO_MODEL" \
+            KILO_API_KEY="$KILO_API_KEY" KILO_MODEL="$KILO_MODEL" \
             PROVIDERS="$PROVIDERS" TASK="$TASK" AI_CONTRACT_ADD="$contract" GITHUB_OUTPUT=.bot/outputs \
             AI_BASELINE=/opt/dm-bot/baseline.txt AI_REQUIRE_FEWER="$fewer" \
             CI=true TERM=dumb CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 \
@@ -289,7 +288,7 @@ jobs:
           bash scripts/ai-disk-watch.sh report
           echo "::endgroup::"
           # Only the outputs this step means, checked: what the models wrote is data.
-          provider=$(grep -oxE 'provider=(gemini|kilo)' .bot/outputs 2>/dev/null | head -n1 | cut -d= -f2 || true)
+          provider=$(grep -oxE 'provider=(kilo)' .bot/outputs 2>/dev/null | head -n1 | cut -d= -f2 || true)
           echo "provider=$provider" >> "$GITHUB_OUTPUT"
           exit 0
 
@@ -454,7 +453,7 @@ jobs:
       - name: What this run teaches
         if: always() && (inputs.task == 'ci' || inputs.task == 'improve') && env.SKIP == ''
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
         run: bash scripts/ai-lesson.sh "${PROVIDER:+fixed by $PROVIDER}" || true
 
       - name: Next in the queue
