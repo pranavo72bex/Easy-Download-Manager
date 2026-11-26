@@ -52,7 +52,9 @@ The eye must have somewhere to start. Every window is checked against these, at 
    the only sign. *(The list's Status is words alone: E4.)*
 6. **Labels in one column.** In a group of fields the labels form a column as wide as its
    longest label in the language shown, the fields start on one line after it. A label wider
-   than 40% of the window goes above its field; on a phone every label is above. A hint sits
+   than 40% of the window goes above a wide field (an address, a folder); beside a small one
+   (a number, a choice) it stays in the column while the window leaves that control room
+   (`native::row_small`), so one dialog never has two layouts; on a phone every label is above. A hint sits
    directly under the field it explains. A switch's line has its name at the start and the
    switch at the end. *(E10.)*
 7. **Nothing is cut while room stands empty.** A text is cut (with "…") only when the window

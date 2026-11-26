@@ -20,14 +20,40 @@ pub fn row(
     screen: &Screen,
     control: impl IntoElement,
 ) -> Div {
+    let long =
+        screen.width() > 0.0 && label.is_some_and(|label| text_width(label) > 0.4 * screen.width());
+    row_beside(label, label_width, screen, control, long)
+}
+
+/// [`row`] for a small control (a number's box, a choice; `phone::row_short`): its label above
+/// it only where the window leaves the control less than a number's box beside the labels'
+/// column. A label past 40% of the window put "Download at most this many MB" over its box
+/// in the Speed limiter, sized to hold it beside, its box at the left of the others' column.
+pub(crate) fn row_small(
+    label: Option<&str>,
+    label_width: f32,
+    screen: &Screen,
+    control: impl IntoElement,
+) -> Div {
+    let room = screen.width() - 2.0 * super::MARGIN - label_width - LABEL_GAP;
+    let long = screen.width() > 0.0 && label.is_some() && room < super::NUMBER_FIELD;
+    row_beside(label, label_width, screen, control, long)
+}
+
+/// A form's row, its label above its control where `long`, else beside it.
+fn row_beside(
+    label: Option<&str>,
+    label_width: f32,
+    screen: &Screen,
+    control: impl IntoElement,
+    long: bool,
+) -> Div {
     // A phone's form: the label above its control, the control from the same edge on every
     // line, a field as wide as the line, a small control at its own size (`row_short` puts
     // one at the right of its words). Beside one another the controls began at as many
     // places as there were label widths, and a long label left a field a sliver (gaps N31).
-    // And a computer's where its label passes 40% of its window (rule 6, gaps row E32): beside
-    // its field it left the field a sliver.
-    let long =
-        screen.width() > 0.0 && label.is_some_and(|label| text_width(label) > 0.4 * screen.width());
+    // And a computer's where `long` (rule 6, gaps row E32): beside its field a long label left
+    // the field a sliver.
     if crate::platform::ON_A_PHONE || long {
         return div()
             .flex()

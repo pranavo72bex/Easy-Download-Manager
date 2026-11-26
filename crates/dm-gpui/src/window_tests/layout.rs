@@ -681,23 +681,29 @@ fn the_sort_and_what_is_shown_come_back_after_a_restart() {
 }
 
 /// View › Details shows the chosen download's detail under the list (gaps row E8): off at
-/// first; on, its figure, where it is and where it came from, for one row chosen alone.
+/// first; on, its figure, where it will be saved (one not started yet) and where it came from,
+/// for one row chosen alone.
 #[test]
 fn view_details_shows_the_chosen_downloads_detail_under_the_list() {
+    use dm_desktop_base::i18n::t;
     let _file = settings_file();
     let world = world();
     let mut h = world.harness();
     add_later(&mut h, &world, &["file.zip"]);
     h.select("file.zip");
     h.until("the row chosen", |h| h.view(|v| v.list.selected.len() == 1));
-    assert!(!h.shows("Saved to"), "the pane was on at first");
+    assert!(!h.shows(t("Will be saved to")), "the pane was on at first");
     h.run(dm_shell::app::commands::Command::ToggleDetails);
-    h.until("the pane", |h| h.shows("Saved to") && h.shows("Address"));
+    h.until("the pane", |h| {
+        h.shows(t("Will be saved to")) && h.shows("Address")
+    });
     assert!(h.view(|v| v.backend.settings().show_details), "not kept");
     h.update(|view, cx| {
         view.list.selected.clear();
         cx.notify();
     });
-    h.until("no pane with none chosen", |h| !h.shows("Saved to"));
+    h.until("no pane with none chosen", |h| {
+        !h.shows(t("Will be saved to"))
+    });
     h.run(dm_shell::app::commands::Command::ToggleDetails);
 }

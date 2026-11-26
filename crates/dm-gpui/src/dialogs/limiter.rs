@@ -268,7 +268,8 @@ fn width() -> f32 {
     let gap = native::LABEL_GAP;
     // Every row's control beside the one column of labels: a time, a number, the switch.
     let picker = 70.0 + gap + 8.0 + gap + 70.0;
-    let slower = 24.0 + words(t("Slower between set hours"));
+    // The switch's own room before its words: at 24 the German ran to the window's edge.
+    let slower = native::SWITCH_INLINE_BEFORE + words(t("Slower between set hours"));
     let controls = picker.max(slower).max(native::NUMBER_FIELD);
     (2.0 * native::MARGIN + native::label_width(&labels()) + gap + controls)
         .max(560.0)

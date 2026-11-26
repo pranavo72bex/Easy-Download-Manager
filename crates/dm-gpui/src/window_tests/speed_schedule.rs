@@ -712,10 +712,12 @@ fn the_schedulers_help_opens_its_page_of_the_guide() {
     assert!(html.contains("<h1>"), "{html}");
 }
 
-/// The Speed limiter's labels pass 40% of its window, so each stands above its field (rule 6,
-/// gaps row E32), and the slower hours' labels are on the same column, not a second one.
+/// The Speed limiter's long labels stay in its one column of labels, each beside its small box,
+/// as the window is sized to hold them (rule 6): above its box, "Download at most this many MB"
+/// put that box at the window's edge, out of the others' column. The slower hours' labels are
+/// on the same column, not a second one.
 #[test]
-fn a_long_label_stands_above_its_field() {
+fn a_long_label_beside_a_small_box_stays_in_the_column() {
     let _file = settings_file();
     let world = world();
     let mut h = world.harness();
@@ -725,15 +727,16 @@ fn a_long_label_stands_above_its_field() {
     let most = h.bounds_of("Download at most this many MB (0 for no limit)");
     let period = h.bounds_of("in each period of this many hours");
     let start = h.bounds_of("Start at");
-    // Above its field: from the window's edge, the next label a field's height and more under.
+    // In the column: its words end where the others' do, its box on the line, not under it.
+    assert_eq!(
+        most.right(),
+        speed.right(),
+        "the long label left the column: {most:?}, {speed:?}"
+    );
     let control = gpui::px(crate::widgets::native::CONTROL);
     assert!(
-        most.left() < speed.left(),
-        "the long label is in the column: {most:?} beside {speed:?}"
-    );
-    assert!(
-        period.top() - most.top() > most.size.height + control,
-        "the long label is beside its field: {most:?}, then {period:?}"
+        period.top() - most.top() < most.size.height + control,
+        "the long label stands above its box: {most:?}, then {period:?}"
     );
     // A short label stays in the column, the slower hours' too.
     assert_eq!(

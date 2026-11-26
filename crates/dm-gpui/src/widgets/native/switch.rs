@@ -97,9 +97,16 @@ pub fn switch_inline(
         })
 }
 
+/// A switch's track, its width and height, in points.
+pub const SWITCH_WIDTH: f32 = on_a_phone(44.0, 32.0);
+const SWITCH_HEIGHT: f32 = on_a_phone(26.0, 18.0);
+
+/// The room [`switch_inline`] takes before its words on a computer: its track and the gap.
+pub const SWITCH_INLINE_BEFORE: f32 = SWITCH_WIDTH + space::S;
+
 /// The track and knob of a switch.
 pub fn switch_track(on: bool, theme: Theme) -> Div {
-    let (width, height) = (on_a_phone(44.0, 32.0), on_a_phone(26.0, 18.0));
+    let (width, height) = (SWITCH_WIDTH, SWITCH_HEIGHT);
     let knob = height - 2.0 * space::XXS;
     div()
         .flex_none()

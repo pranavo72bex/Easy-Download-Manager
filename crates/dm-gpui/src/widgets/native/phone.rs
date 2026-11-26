@@ -113,7 +113,7 @@ pub fn row_short(
     control: impl IntoElement,
 ) -> Div {
     if !crate::platform::ON_A_PHONE {
-        return super::row(label, label_width, screen, control);
+        return super::row::row_small(label, label_width, screen, control);
     }
     div()
         .flex()

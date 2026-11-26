@@ -36,7 +36,22 @@ impl Downloads {
         let [row] = chosen.as_slice() else {
             return None;
         };
-        Some(pane(row, theme, screen))
+        // Where it is, or for one not saved yet where it will go, as the Folder column and File
+        // properties say (`names::planned_folder`): the pane said "Saved to" over nothing.
+        let settings = &self.known.drawn;
+        let place = if !row.path.is_empty() {
+            Some(row.path.clone())
+        } else {
+            let folder = dm_desktop_base::rows::folder_of(row);
+            Some(folder).filter(|f| !f.is_empty()).or_else(|| {
+                dm_shell::app::names::planned_folder(
+                    row,
+                    &settings.folders.download_dir,
+                    &mut settings.categories(),
+                )
+            })
+        };
+        Some(pane(row, place.unwrap_or_default(), theme, screen))
     }
 }
 
@@ -47,8 +62,18 @@ fn figure(row: &Entry) -> String {
     crate::dialogs::progress::figure_words(row, joining)
 }
 
-/// A fact: its name in the hint's colour over its value, cut with "…" where it is long.
+/// The facts' names, for the column they stand in.
+const NAMES: [&str; 3] = ["Will be saved to", "Saved to", "Address"];
+
+/// A fact: its name in the hint's colour beside its value, cut with "…" where it is long.
 fn fact(name: &'static str, value: String, theme: Theme, screen: &Screen) -> Div {
+    // As wide as the longest name in the language shown, where 90 points cut "Will be saved to".
+    let names = NAMES.map(t);
+    let column = names
+        .iter()
+        .map(|n| native::small_width(n))
+        .fold(0.0, f32::max)
+        .ceil();
     div()
         .flex()
         .gap(px(space::M))
@@ -56,7 +81,7 @@ fn fact(name: &'static str, value: String, theme: Theme, screen: &Screen) -> Div
         .child(
             div()
                 .flex_none()
-                .w(px(90.0))
+                .w(px(column))
                 .text_color(theme.muted)
                 .child(screen.label(t(name))),
         )
@@ -70,7 +95,7 @@ fn fact(name: &'static str, value: String, theme: Theme, screen: &Screen) -> Div
         )
 }
 
-fn pane(row: &Entry, theme: Theme, screen: &Screen) -> gpui::Stateful<Div> {
+fn pane(row: &Entry, place: String, theme: Theme, screen: &Screen) -> gpui::Stateful<Div> {
     let fraction = row.progress.fraction().unwrap_or(0.0) as f32;
     let why = match &row.state {
         State::Failed(why) => Some((
@@ -79,10 +104,10 @@ fn pane(row: &Entry, theme: Theme, screen: &Screen) -> gpui::Stateful<Div> {
         )),
         _ => None,
     };
-    let folder = if row.path.is_empty() {
-        dm_desktop_base::rows::folder_of(row)
+    let saved = if row.path.is_empty() {
+        "Will be saved to"
     } else {
-        row.path.clone()
+        "Saved to"
     };
     div()
         .id("detail-pane")
@@ -113,7 +138,7 @@ fn pane(row: &Entry, theme: Theme, screen: &Screen) -> gpui::Stateful<Div> {
                 .flex()
                 .child(native::bar("detail-bar", fraction, 4.0, theme)),
         )
-        .child(fact("Saved to", folder, theme, screen))
+        .child(fact(saved, place, theme, screen))
         .child(fact("Address", format::shown_url(&row.url), theme, screen))
         .when_some(why, |d, (said, step)| {
             d.child(

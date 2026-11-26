@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The Speed limiter keeps every label in one column beside its box, in English and in longer languages; "Download at most this many MB" no longer drops above its box to the window's edge.
+- View › Details says where a download not saved yet will go ("Will be saved to" and its folder), as the Folder column and File properties do; it said "Saved to" over nothing.
 - In Arabic and Hebrew the dialogs read from the right throughout: a page's headings and words against the right edge, Options' switches at the left of their words, File properties' names at the right of their values, and the progress window's sections from the right.
 - A new dm's list shows its columns up to Last try date with nothing past the window's edge: Description, Referrer and Folder start unticked in View › Columns, where they can be turned on. Columns already chosen are kept.
 - The status bar's Speed limiter has a pop-up's up-and-down mark after it, so it is seen to be a control before the pointer finds it.

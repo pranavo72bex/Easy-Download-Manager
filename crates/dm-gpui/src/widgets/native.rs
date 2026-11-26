@@ -751,7 +751,7 @@ pub use destroy::{destructive, undo_line};
 pub use keys::{faced, icon, return_is_default, ringed};
 pub use measure::{figures, label_width, measure_with, small_width, text_width};
 pub use note::{cut, heading, note, says};
-pub use switch::{switch, switch_inline};
+pub use switch::{switch, switch_inline, SWITCH_INLINE_BEFORE};
 mod phone;
 pub use path::path_field;
 pub use phone::{phone_bar, phone_framed, row_short, row_wide};
