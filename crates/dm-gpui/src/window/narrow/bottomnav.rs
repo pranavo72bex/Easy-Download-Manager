@@ -141,9 +141,13 @@ fn tab_drawn(
                 .flex()
                 .items_center()
                 .justify_center()
-                .when(lit, |pill| pill.bg(theme.selection))
+                // The chosen tab a soft tint of the accent with its picture in the accent, as the
+                // computer's side panel marks its chosen place (`Theme::chosen_soft`) and as a
+                // phone's tab bar marks its own: a solid accent pill was a second filled accent
+                // beside the floating Add URL, the screen's one main action (rule 1).
+                .when(lit, |pill| pill.bg(theme.chosen_soft()))
                 .child(gpui::svg().path(picture).size(px(ICON)).text_color(if lit {
-                    theme.chosen().text
+                    theme.accent_text
                 } else {
                     colour
                 })),
