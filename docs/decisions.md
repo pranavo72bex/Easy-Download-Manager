@@ -9106,6 +9106,12 @@ split its work into subagents, each a session of its own. The maintainer dropped
 account's key (`KILO_API_KEY`) is sent when the secret is set; without it the keyless quota
 still applies.
 
+What the model reads was cut too, as each of its calls sends again all it has read: it no
+longer runs the whole suite (the workflow does, after it, and hands back what failed; a run's
+3,000 and more "PASS" lines were in the model's context), cargo and nextest print it only what
+fails, and it searches the contract and AGENTS.md for what it touches instead of reading
+90 KB whole.
+
 ## 2026-11-26: Every push is scanned for secrets (gitleaks), not only pull requests
 
 The GitGuardian app checked pull requests only; a commit pushed straight to main had no

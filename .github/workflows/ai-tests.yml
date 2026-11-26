@@ -147,13 +147,13 @@ jobs:
           cat > .bot/prompt.md <<EOF
           You are writing tests for one file of this repository (a Rust download manager, Cargo workspace at the root, crates in crates/): $FILE, where $MISSED lines are run by no test.
 
-          1. Start with .bot/context.md: the part of dm this file belongs to, the skill pages to follow (read them, in its order, and docs/ai-skills/testing.md), the files around it and how to test. Then CLAUDE.md, AGENTS.md, docs/behaviour-contract.md and docs/ai-notes.md. You are a bot working unattended: no person will answer a question.
+          1. Start with .bot/context.md: the part of dm this file belongs to, the skill pages to follow (read them, in its order, and docs/ai-skills/testing.md), the files around it and how to test. Then the rules: search docs/behaviour-contract.md (55 KB) and AGENTS.md (35 KB) for what your change touches (\`grep -n\`), and read those parts and docs/ai-notes.md, not whole files; a free model's quota ends long before it reads them twice. You are a bot working unattended: no person will answer a question.
           2. The lines no test runs are listed in .bot/missing-lines.txt (it may be empty; then read the file and its existing tests to see what is untested).
           3. Write tests that run those lines, in the style the crate already uses: the file's own #[cfg(test)] module or its tests/ module, the crate's tests/ directory, and the helpers the crate's tests already have.
           4. Test what the code is meant to do (its doc comments, docs/, the behaviour contract), not just what it happens to return. If a test shows the code is wrong, fix the code with the smallest change and say so in the summary.
           5. Security comes first: a test reaches no address but 127.0.0.1, writes only in a temporary directory, and reads no file outside the repository. Add no network access, process spawning, \`unsafe\` or dependency to the code.
           6. Do not change any behaviour listed in docs/behaviour-contract.md, the window's layout, dialogs or wording. Do not edit .github/, scripts/, tooling/xtask/, .config/, .cargo/, Cargo.lock, CLAUDE.md, AGENTS.md, docs/ai-notes.md or the coverage floors; add no symbolic link. Do not remove, weaken or ignore a test.
-          7. Check your work: \`cargo fmt --all\`, \`cargo clippy --workspace --all-targets --locked -- -D warnings\`, the crate's tests (\`cargo nextest run -p CRATE\`), then \`cargo xtask test --profile ci\`.
+          7. Check your work: \`cargo fmt --all\`, \`cargo clippy --workspace --all-targets --locked -- -D warnings\`, and the crate's tests (\`cargo nextest run -p CRATE\`). The workflow runs the whole suite (\`cargo xtask test --profile ci\`) after you and hands back only what failed: do not run it yourself, its output fills your context.
           8. Do not commit. Write a short summary to .bot/summary.md: what the tests cover, and any bug found and fixed.
           EOF
 

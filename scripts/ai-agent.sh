@@ -52,7 +52,11 @@ ai_setup() {
 # `ai_run PROVIDER PROMPT`: one turn; 3 when the provider cannot run here.
 ai_run() {
     local provider=$1 prompt=$2
-    local base=(env -i "HOME=$HOME" "PATH=$PATH" TERM=dumb CI=true CARGO_TERM_COLOR=never)
+    # Only what failed reaches the model: every line it reads is sent again with each of its
+    # later calls, and a whole run's "PASS" lines (3,000 and more) ended the free quota.
+    local base=(env -i "HOME=$HOME" "PATH=$PATH" TERM=dumb CI=true CARGO_TERM_COLOR=never
+        CARGO_TERM_QUIET=true NEXTEST_STATUS_LEVEL=fail NEXTEST_FINAL_STATUS_LEVEL=fail
+        NEXTEST_HIDE_PROGRESS_BAR=1)
     case "$provider" in
     kilo)
         timeout "$AI_TIMEOUT" "${base[@]}" "OPENCODE_CONFIG_CONTENT=$AI_KILO_CONFIG" \
