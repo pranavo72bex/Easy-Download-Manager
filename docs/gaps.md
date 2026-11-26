@@ -1364,6 +1364,17 @@ E2 (two defects) first. Then each with its part, the part built for it: E3 with 
 N20), E4 and E7 with the List (V10), E6 with Navigation, E9 and E10 with Form and Dialog (V11),
 then E8, which needs E9. E5, E11 and E12 fit anywhere after.
 
+## Last: the window's goldens (row Q1, the maintainer, 2026-11-26)
+
+The maintainer, 2026-11-26: golden tests so a free-model bot cannot break the window, on
+desktop and Android, but only once the window has been improved; until then they would only
+hold today's look in place. This is the last row in this file: take it after every other row
+that changes the window (E, V, K's motion, the ui-skills rows) is done.
+
+| #   | Gap | Status | How it closes |
+|-----|-----|--------|---------------|
+| Q1  | Nothing holds the window's layout in place: a bot's change can move, cut, add or remove words in a dialog, and the only check is `ai-looks-gate.py`, which compares three Linux screens to main's last runs (so small changes can pile up from merge to merge), with nothing for the phone | OPEN · M · person (golden files are under the bots' guardrails; last, after the window's improvements) | Started on local branch `golden-tests` (`b1894325`, not on main): `window_tests/golden.rs` draws 19 desktop scenes (the main window at 1280, 840, 600 and 360 points wide, empty and with three rows, at 200% text, in German and Hebrew; Add URL, four Options pages, the Scheduler, the speed limiter, Properties, About) and 15 phone scenes. It writes each word, its window and where it is seen to `docs/behaviour-baseline/layout/<target>/<scene>.txt`. Words are measured by GPUI's test text system, so a scene is the same on every machine of one system. The port, the folders, the scheduler's date and the version are fixed or masked. `--features phone-layout` builds the phone's layout (`ON_A_PHONE` and GNOME's measures) on a computer. Left: rebase on main and redraw the scenes after the improvements; decide where the phone's layout is judged (Android's build takes Linux's branches at 44 `cfg` sites, and macOS's differ); commit the goldens for macOS and the phone (`DM_GOLDEN=write`), and Windows' from a CI run's `target/goldens-new/`; run the phone step in `desktop.yml`; add `golden.rs` to the guardrails in `ai-merge.sh` and `ai-agent.sh`; say in `docs/testing.md` how a person rewrites them |
+
 ## Periodic
 
 - Search GitHub for copies of dm that drop `NOTICE` (`dm-engine`, `com.dm.engine.json`,
