@@ -546,6 +546,7 @@ impl Details {
         single: bool,
         video: bool,
         size: (bool, SharedString),
+        problem: Option<String>,
         body: gpui::Div,
     ) -> gpui::Div {
         let (theme, screen) = (look.theme, &look.screen);
@@ -568,6 +569,19 @@ impl Details {
                         .child(screen.label(size_words))
                         .into_any_element(),
                 ),
+            )
+        })
+        // What the server said of the address, under the size it asked it for: at the form's
+        // foot it stood under "Keep no record", as though it were that switch's.
+        .when_some(problem, |d, why| {
+            d.child(
+                look.under(
+                    native::note(file_info::problem_words(&why), theme.warning, screen)
+                        .into_any_element(),
+                )
+                // Close under the size, as a hint under its field (`native::hint_under`).
+                .mt(px(-native::HINT_PULL))
+                .mb(px(space::XS)),
             )
         })
         .child(
@@ -608,7 +622,6 @@ impl Details {
         &self,
         look: &Look,
         clash: Option<Clash>,
-        problem: Option<String>,
         cx: &mut Context<Self>,
         body: gpui::Div,
     ) -> gpui::Div {
@@ -672,20 +685,15 @@ impl Details {
                 )
             }
         })
-        .when_some(problem, |d, why| {
-            d.child(
-                look.under(
-                    native::note(file_info::problem_words(&why), theme.warning, screen)
-                        .into_any_element(),
-                ),
-            )
-        })
-        .map(
-            |d| match native::says("details-says", self.says.clone(), theme, screen) {
-                says if self.says.is_some() => d.child(look.under(says.into_any_element())),
-                says => d.child(says),
-            },
-        )
+    }
+
+    /// What OK refused, said over the buttons it is about.
+    pub(super) fn says_row(&self, look: &Look, body: gpui::Div) -> gpui::Div {
+        let (theme, screen) = (look.theme, &look.screen);
+        match native::says("details-says", self.says.clone(), theme, screen) {
+            says if self.says.is_some() => body.child(look.under(says.into_any_element())),
+            says => body.child(says),
+        }
     }
 
     /// The queue Add for later puts it in, a line of the form (gaps row E10): it was a word

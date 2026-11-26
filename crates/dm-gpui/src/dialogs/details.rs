@@ -648,14 +648,15 @@ impl Render for Details {
             .children(quality_row)
             .children(contents_row)
             .children(part_rows.into_iter().flatten());
+        // A note stands under what it is about: the link's problem under its size, a name
+        // already taken after the name's fields, before the switches below them.
+        let body = self.facts(&look, single, video, size, problem, body);
         let body = self
-            .facts(&look, single, video, size, body)
+            .warnings(&look, clash, cx, body)
             .child(self.no_record_row(&look, cx));
         let body = self.unpack_box(&look, cx, body);
-        let body = self.warnings(&look, clash, problem, cx, body);
-        let body = body
-            .child(self.queue_row(&look))
-            .child(self.buttons(&look, cx));
+        let body = self.says_row(&look, body.child(self.queue_row(&look)));
+        let body = body.child(self.buttons(&look, cx));
 
         let root =
             crate::widgets::native::dialog("download-details", t("Download details"), theme, cx)

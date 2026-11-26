@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Download details says a link that does not work under its Size, where the server's answer belongs, not under Keep no record at the form's foot; what OK refused stands over the buttons.
 - Options › Folders lists each kind's folder on a line of its own, its name at the left and its box at the right, as every other setting; the Scheduler's choices that wrap stand a row's gap apart.
 - The Scheduler's notes (local time, the Main queue's hours, a greyed choice) stand close under what they explain, as Options' and the Grabber's do.
 - The Grabber's labels are short (Page depth, Time limit, Smallest file, Largest file, Run every) and what 0 means stands under each field, so its fields start nearer the window's edge; in every language.
