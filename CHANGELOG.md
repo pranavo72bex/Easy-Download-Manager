@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The status bar's Speed limiter has a pop-up's up-and-down mark after it, so it is seen to be a control before the pointer finds it.
 - The Scheduler's queues are listed as the side panel lists them: each with the queue's picture, the chosen one a soft fill with the accent's bar rather than a solid blue block.
 - Options is laid out as a settings window: its pages in a side panel like the main window's, one line each with a picture, Find a setting at the top of that panel, and each page opening with its name and what it holds; the buttons sit in their own band below.
 - The bars above the list (a download that didn't finish, one paused for room, a problem, the update, a link awaited) keep their buttons together: where the window is narrow or the text large, the buttons go under the sentence as one, never one beside it and one under it.

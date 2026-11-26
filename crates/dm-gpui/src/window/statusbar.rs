@@ -114,8 +114,9 @@ pub fn statusbar(
     let mut said = parts(view);
     let whole = said.join(" ");
     // The last part, the speed limit, is a control (gaps row U29): the same
-    // words as the rest until the pointer is on it, then in the link's
-    // colour, as Undo; a click pops up Downloads › Speed limiter's items.
+    // words as the rest, with a pop-up button's up-and-down mark after them so it is seen to be
+    // one before the pointer finds it, then in the link's colour under the pointer, as Undo; a
+    // click pops up Downloads › Speed limiter's items.
     let limit = said.pop().unwrap_or_default();
     // Read to a screen reader as it is shown, without the dot before it.
     let named = limit.trim_start_matches('·').trim().to_string();
@@ -123,12 +124,14 @@ pub fn statusbar(
         .id("speed-limiter")
         .role(Role::Button)
         .aria_label(named)
+        .group("speed-limiter")
         .cursor_pointer()
         .hover(|s| s.text_color(theme.accent_text))
         .min_w_0()
-        .overflow_hidden()
-        .whitespace_nowrap()
-        .text_ellipsis()
+        .flex()
+        .map(crate::window::mirror::row)
+        .items_center()
+        .gap(px(crate::widgets::space::XXS))
         .on_click(cx.listener(|view, event: &gpui::ClickEvent, window, cx| {
             let speed_limit = view.backend.settings().advanced.speed_limit;
             crate::window::menus::speed_limiter_popup(speed_limit).show(
@@ -137,7 +140,22 @@ pub fn statusbar(
                 cx,
             );
         }))
-        .child(screen.label(limit));
+        .child(
+            div()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .child(screen.label(limit)),
+        )
+        .child(
+            gpui::svg()
+                .path("icons/chevron-up-down.svg")
+                .size(px(crate::widgets::native::ICON_SMALL))
+                .flex_none()
+                .text_color(theme.muted)
+                .group_hover("speed-limiter", |s| s.text_color(theme.accent_text)),
+        );
     // What finished or failed a moment ago, for a screen reader alone.
     let heard = view
         .status
