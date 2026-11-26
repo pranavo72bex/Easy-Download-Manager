@@ -40,8 +40,6 @@ pub const LINE: f32 = 1.0;
 
 /// A small part's corners (a badge, a pill, a menu's row).
 pub const CORNER_S: f32 = 4.0;
-/// A panel's corners.
-pub const CORNER_M: f32 = 6.0;
 /// A popup's corners.
 pub const CORNER_L: f32 = 8.0;
 

@@ -77,17 +77,19 @@ The eye must have somewhere to start. Every window is checked against these, at 
 11. **Check by a picture, not by reading code.** `python3 scripts/ui-shot.py out-dir
     [command …]` starts the real binary on a throwaway home with rows in every state and saves
     a PNG of the window and of each dialog a command opens. Look at it in each theme.
-12. **A fact is one helper.** A window that reports facts (the progress window, View ›
+12. **Every dialog has its "?"** at the foot's leading end, opening its page of the guide
+    (`native::help_button`, a page in `dm_desktop_base::help::PAGES`).
+13. **A fact is one helper.** A window that reports facts (the progress window, View ›
     Details, Statistics) draws each with `native::fact`: its name in `muted` from the edge, its
     value beside it.
-13. **A focus ring is for the keys.** Rings are drawn with `focus_visible`, so a control a
+14. **A focus ring is for the keys.** Rings are drawn with `focus_visible`, so a control a
     click focused shows none; Tab shows it (`native::ringed`, a button's, a pop-up's, a row's).
-14. **Right to left is mirrored twice.** A row's order through `mirror::row`, and its words
+15. **Right to left is mirrored twice.** A row's order through `mirror::row`, and its words
     against the right through `mirror::text` on the window's root (`native::dialog` does it for a
     dialog): GPUI lays words from the left whatever the language. Look at a change in Arabic
     (`DM_SHOT_LANG=ar`) as well as in English.
 
-15. **Finder is the reference on macOS** (the maintainer, 2026-11-26). The window reads as
+16. **Finder is the reference on macOS** (the maintainer, 2026-11-26). The window reads as
     Finder does: body text `TEXT` (13), secondary text `SMALL_TEXT` (11) in `muted`, a side
     panel's place and a list's row 28 points tall, a list's name in the text's colour and every
     other column in `muted`, a section's heading small, semibold and in `muted`.

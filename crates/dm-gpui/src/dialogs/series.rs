@@ -217,7 +217,11 @@ impl Render for Series {
                     // Greyed until there is an address to make a series of;
                     // with one, a press says what is wrong with the range.
                     .child(native::buttons(
-                        vec![native::enabled(
+                        // Its page of the guide first, as every dialog's foot has (gaps row E11).
+                        vec![
+                            native::help_button("numbered-series", theme, &screen)
+                                .into_any_element(),
+                            native::enabled(
                             addressed,
                             native::button(
                                 "later",

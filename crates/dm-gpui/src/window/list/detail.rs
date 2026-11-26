@@ -128,7 +128,8 @@ fn pane(row: &Entry, place: String, theme: Theme, screen: &Screen) -> gpui::Stat
         .child(
             div()
                 .flex()
-                .child(native::bar("detail-bar", fraction, 4.0, theme)),
+                // As thick as the progress window's, whose figure and bar this pane repeats.
+                .child(native::bar("detail-bar", fraction, 6.0, theme)),
         )
         .child(fact(saved, place, theme, screen))
         .child(fact("Address", format::shown_url(&row.url), theme, screen))

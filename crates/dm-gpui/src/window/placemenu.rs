@@ -216,7 +216,10 @@ pub fn menu(
                 .aria_label(t("Place menu"))
                 .min_w(px(220.0))
                 .py_1()
-                .rounded(px(space::CORNER_M))
+                // A popup's corners, its items' (`CORNER_S`) the same curve inside it: 4, 3 in and
+                // the 1 of the border (`better-ui`: outer = inner + padding + border). At 6 with
+                // items 5 in, they looked rounder than the menu holding them.
+                .rounded(px(space::CORNER_L))
                 .border_1()
                 .border_color(theme.separator)
                 .bg(theme.menu)
@@ -245,7 +248,8 @@ fn item(
         .id(id.into())
         .role(Role::MenuItem)
         .aria_label(words)
-        .mx_1()
+        // 3 in, so with the border its corners follow the menu's (`CORNER_L`).
+        .mx(px(space::XS - space::LINE))
         .px_2()
         .h(px(22.0))
         .rounded(px(space::CORNER_S))
