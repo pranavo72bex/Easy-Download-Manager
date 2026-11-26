@@ -24,9 +24,9 @@ on:
         description: 'A file to write tests for (else the least covered)'
         required: false
       providers:
-        description: 'Providers to try, in order (gemini kilo)'
+        description: 'Providers to try, in order (kilo)'
         required: false
-        default: 'gemini kilo'
+        default: 'kilo'
 
 permissions: {}
 
@@ -84,7 +84,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p .bot
-          printf '.bot/\n.gemini/\nopencode.json\n' >> .git/info/exclude
+          printf '.bot/\nopencode.json\n' >> .git/info/exclude
           # Measured whatever main's own failing tests do: a red test on main is the tests'
           # to judge, not a reason to measure nothing (the first run died here so).
           cargo llvm-cov --workspace --locked --summary-only --ignore-run-fail | tee .bot/coverage-before.txt
@@ -136,7 +136,7 @@ jobs:
 
       - name: The agents
         if: steps.pick.outputs.file != ''
-        run: npm install -g @google/gemini-cli@0.68.0 opencode-ai@1.19.5
+        run: npm install -g opencode-ai@1.19.5
 
       - name: The task
         if: steps.pick.outputs.file != ''
@@ -161,9 +161,8 @@ jobs:
         id: try
         if: steps.pick.outputs.file != ''
         env:
-          PROVIDERS: ${{ inputs.providers || 'gemini kilo' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          PROVIDERS: ${{ inputs.providers || 'kilo' }}
+          KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
           KILO_MODEL: ${{ vars.KILO_MODEL }}
           FILE: ${{ steps.pick.outputs.file }}
           MISSED: ${{ steps.pick.outputs.missed }}
@@ -181,7 +180,7 @@ jobs:
           watch=$(bash scripts/ai-disk-watch.sh start /opt/dm-bot/disk.log)
           sudo -u dmbot -H env -i HOME=/home/dmbot USER=dmbot PATH="$HOME/.cargo/bin:$PATH" \
             CARGO_HOME="$HOME/.cargo" RUSTUP_HOME="$HOME/.rustup" \
-            GEMINI_API_KEY="$GEMINI_API_KEY" GEMINI_MODEL="$GEMINI_MODEL" KILO_MODEL="$KILO_MODEL" \
+            KILO_API_KEY="$KILO_API_KEY" KILO_MODEL="$KILO_MODEL" \
             PROVIDERS="$PROVIDERS" FILE="$FILE" MISSED="$MISSED" TOTAL_BEFORE="$TOTAL_BEFORE" \
             GITHUB_OUTPUT=.bot/outputs CI=true TERM=dumb CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 \
             AI_BASELINE=/opt/dm-bot/baseline.txt \
@@ -214,7 +213,7 @@ jobs:
           cat /opt/dm-bot/disk.log
           bash scripts/ai-disk-watch.sh report
           echo "::endgroup::"
-          provider=$(grep -oxE 'provider=(gemini|kilo)' .bot/outputs 2>/dev/null | head -n1 | cut -d= -f2 || true)
+          provider=$(grep -oxE 'provider=(kilo)' .bot/outputs 2>/dev/null | head -n1 | cut -d= -f2 || true)
           echo "provider=$provider" >> "$GITHUB_OUTPUT"
           exit 0
 
@@ -345,7 +344,7 @@ jobs:
       - name: What this run teaches
         if: always() && env.WORKED == 'success'
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
         run: bash scripts/ai-lesson.sh "${PROVIDER:+tests written by $PROVIDER}" || true
 
       - name: Next in the queue

@@ -393,9 +393,11 @@ writes a credential into a tracked file.
 ## The bots: free AI models that keep dm, unattended
 
 dm is looked after by free AI models in GitHub Actions, with nobody watching (the
-maintainer, 2026-11-24). The models are Gemini on Google AI Studio's free tier (the
-`GEMINI_API_KEY` secret) and Kilo Code's free models, which need no key; which ones answer
-is found each run from the providers' own catalogues (`scripts/ai-ask.py`), so a retired
+maintainer, 2026-11-24). The models are Kilo Code's free ones only (the maintainer,
+2026-11-26: Gemini's free tier, 20 requests a day, was spent before each task began). They
+answer without a key, but the keyless quota ran out part way through every task here, so a
+free Kilo account's key (the `KILO_API_KEY` secret) is sent when set. Which model answers
+is found each run from the gateway's own catalogue (`scripts/ai-ask.py`), so a retired
 model does not stop anything. A model never holds a GitHub token: it reads and edits the
 tree, and the workflow, not the model, decides what is done.
 
@@ -492,7 +494,7 @@ assumes the one before it failed:
   network, the environment, a URL or deleted files anywhere, or changes over 600 lines.
 - *A merge that turns main red is reverted* by `bug-report.yml`.
 
-What is left: the free model key (`GEMINI_API_KEY`) is in reach of the code a model
+What is left: the free model key (`KILO_API_KEY`) is in reach of the code a model
 writes, since the agent that holds it runs that code; it is a free key, worth a day's
 quota. The agents' npm packages are pinned, their own dependencies are not; they run only
 in the `work` job. Releases are never the bots'.

@@ -38,8 +38,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+      KILO_API_KEY: ${{ secrets.KILO_API_KEY }}
       KILO_MODEL: ${{ vars.KILO_MODEL }}
       BOT_FEATURE_VOTES: ${{ vars.BOT_FEATURE_VOTES }}
     steps:

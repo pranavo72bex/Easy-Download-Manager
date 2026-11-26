@@ -6,8 +6,8 @@
 
 # The free AI models' turns, for .github/workflows/ai-fix.yml and ai-tests.yml: sourced,
 # not run. `ai_try PROMPT_FILE` gives the task to each provider in $PROVIDERS in turn
-# (gemini: Gemini CLI on Google AI Studio's free tier, GEMINI_API_KEY; kilo: opencode on
-# Kilo Code's gateway, whose free models need no key), each with two tries: a change
+# (kilo: opencode on Kilo Code's gateway, whose free models need no key; KILO_API_KEY, a
+# free Kilo account, raises the small keyless quota), each with two tries: a change
 # that fails the checks goes back to the same model with what failed. The first change
 # that passes is left in the tree and its provider written to $GITHUB_OUTPUT.
 #
@@ -20,54 +20,40 @@
 
 AI_ATTEMPTS=${AI_ATTEMPTS:-2}
 AI_TIMEOUT=${AI_TIMEOUT:-60m}
-GEMINI_MODEL=${GEMINI_MODEL:-}
 KILO_MODEL=${KILO_MODEL:-}
 # 1 (a feature's task): rows may be added to docs/behaviour-contract.md, never changed or
 # taken away.
 AI_CONTRACT_ADD=${AI_CONTRACT_ADD:-0}
 
-# Gemini CLI's tools: read, search, edit, and cargo and read-only git in the shell.
-# opencode's: the same, Kilo's gateway as an OpenAI-compatible provider, the web denied.
+# opencode's tools: read, search, edit, and cargo and read-only git in the shell; Kilo's
+# gateway as an OpenAI-compatible provider; the web denied. No subagents (`task`): each is
+# a session of its own, and a task here that split into ten ran out of the free quota
+# before its change was done (2026-11-25).
 ai_setup() {
-    mkdir -p "$HOME/.gemini" .bot
+    mkdir -p .bot
     # Free models come and go: unless one is named, the first that answers now
-    # (scripts/ai-ask.py reads each provider's own catalogue).
-    if [ -z "$GEMINI_MODEL" ] && [ -n "${GEMINI_API_KEY:-}" ]; then
-        GEMINI_MODEL=$(python3 scripts/ai-ask.py pick gemini 2>/dev/null || true)
-    fi
+    # (scripts/ai-ask.py reads the gateway's own catalogue).
     if [ -z "$KILO_MODEL" ]; then
         KILO_MODEL=$(python3 scripts/ai-ask.py pick kilo 2>/dev/null || echo nvidia/nemotron-3-ultra-550b-a55b:free)
     fi
-    echo "Models: gemini ${GEMINI_MODEL:-the default of Gemini CLI}, kilo $KILO_MODEL"
-    cat >"$HOME/.gemini/settings.json" <<'EOF'
-{ "model": { "maxSessionTurns": 120 },
-  "tools": { "core": [ "list_directory", "read_file", "glob", "grep_search", "search_file_content",
-    "replace", "write_file", "run_shell_command(cargo)", "run_shell_command(git diff)",
-    "run_shell_command(git status)", "run_shell_command(git log)" ] } }
-EOF
-    AI_KILO_CONFIG=$(jq -n --arg m "$KILO_MODEL" '{
+    echo "Model: kilo $KILO_MODEL${KILO_API_KEY:+ (with KILO_API_KEY)}"
+    AI_KILO_CONFIG=$(jq -n --arg m "$KILO_MODEL" --arg key "${KILO_API_KEY:-}" '{
       "$schema": "https://opencode.ai/config.json",
       provider: { kilo: { npm: "@ai-sdk/openai-compatible", name: "Kilo Gateway",
-        options: { baseURL: "https://api.kilo.ai/api/gateway" },
+        options: ({ baseURL: "https://api.kilo.ai/api/gateway" }
+          + (if $key == "" then {} else { apiKey: $key } end)),
         models: { ($m): { name: $m } } } },
       permission: { "*": "allow", webfetch: "deny", websearch: "deny", question: "deny",
+        task: "deny",
         bash: { "*": "deny", "cargo *": "allow", "git diff*": "allow",
                 "git status*": "allow", "git log*": "allow" } } }')
 }
 
-# `ai_run PROVIDER PROMPT`: one turn; 3 when the provider cannot run here (no key).
+# `ai_run PROVIDER PROMPT`: one turn; 3 when the provider cannot run here.
 ai_run() {
     local provider=$1 prompt=$2
     local base=(env -i "HOME=$HOME" "PATH=$PATH" TERM=dumb CI=true CARGO_TERM_COLOR=never)
     case "$provider" in
-    gemini)
-        [ -n "${GEMINI_API_KEY:-}" ] || return 3
-        local model_args=()
-        if [ -n "$GEMINI_MODEL" ]; then model_args=(--model "$GEMINI_MODEL"); fi
-        # A headless run trusts the checkout only when told to.
-        timeout "$AI_TIMEOUT" "${base[@]}" "GEMINI_API_KEY=$GEMINI_API_KEY" GEMINI_CLI_TRUST_WORKSPACE=true \
-            gemini --yolo "${model_args[@]}" --prompt "$prompt"
-        ;;
     kilo)
         timeout "$AI_TIMEOUT" "${base[@]}" "OPENCODE_CONFIG_CONTENT=$AI_KILO_CONFIG" \
             opencode run --print-logs --auto --model "kilo/$KILO_MODEL" "$prompt"
@@ -129,7 +115,7 @@ ai_guard() {
 
 # The model's code is built and run with no secret in reach: no GitHub token, no model key.
 ai_clean() {
-    env -u GH_TOKEN -u GITHUB_TOKEN -u GEMINI_API_KEY -u ACTIONS_RUNTIME_TOKEN \
+    env -u GH_TOKEN -u GITHUB_TOKEN -u KILO_API_KEY -u ACTIONS_RUNTIME_TOKEN \
         -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL "$@"
 }
 
