@@ -188,6 +188,30 @@ impl Probe<'_, '_> {
         all
     }
 
+    /// Each open dialog that has not drawn a word yet, drawn now. A dialog's words are known
+    /// once its window has painted, and a window the system has just made on a busy computer
+    /// may wait seconds for its first frame: a script's click on "Download again" or "Keep it"
+    /// then found nothing for the whole of its tries though the dialog was open (human-qa B73
+    /// and B38, 2026-11-26). After a click that found nothing, so the next try finds them.
+    fn draw_unpainted_dialogs(&mut self) {
+        let unpainted: Vec<gpui::AnyWindowHandle> = crate::window::screen::Screens::all(self.cx)
+            .into_iter()
+            .filter(|(_, screen, dialog)| *dialog && screen.drawn().is_empty())
+            .map(|(handle, _, _)| handle)
+            .collect();
+        if unpainted.is_empty() {
+            return;
+        }
+        self.cx.defer(move |cx| {
+            for handle in unpainted {
+                let _ = handle.update(cx, |_, window, cx| {
+                    window.draw(cx).clear(cx);
+                    window.refresh();
+                });
+            }
+        });
+    }
+
     /// As [`Self::find`], with the window the words are in.
     fn find_in(&self, wanted: &str, nth: usize) -> Result<(Drawn, gpui::AnyWindowHandle), String> {
         let everything = self.everything();
