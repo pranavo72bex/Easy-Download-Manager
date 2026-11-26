@@ -124,7 +124,13 @@ impl WindowProbe for Probe<'_, '_> {
         if let Some(walked) = self.walk_menus(&click.text) {
             return walked;
         }
-        let (target, in_window) = self.find_in(&click.text, click.nth)?;
+        let (target, in_window) = match self.find_in(&click.text, click.nth) {
+            Ok(found) => found,
+            Err(why) => {
+                self.draw_unpainted_dialogs();
+                return Err(why);
+            }
+        };
         if probe::is_run_a_file(&target.text) {
             return Err(format!("{} is done by a person", target.text));
         }
