@@ -121,6 +121,12 @@ pub(crate) fn place_name(view: &Downloads) -> Option<SharedString> {
         .map(|(_, _, label)| label)
 }
 
+/// The chosen place's picture, as its row in the panel draws it: for an empty place's notice
+/// in the list (`table::empty`).
+pub(crate) fn place_picture(view: &Downloads) -> &'static str {
+    picture(&view.list.place)
+}
+
 /// A place's row in the side panel, in points: a saved search's and a followed list's too.
 pub(crate) const PLACE_ROW: f32 = 26.0;
 

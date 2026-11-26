@@ -538,6 +538,14 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
     } else {
         line
     };
+    // A place with nothing in it yet says which, under its picture from the side panel:
+    // "Nothing here" over "Nothing here yet." said nothing, twice.
+    let empty_place = !next_step && !filtered;
+    let heading: SharedString = empty_place
+        .then(|| crate::window::sidebar::place_name(view))
+        .flatten()
+        .unwrap_or_else(|| heading.into());
+    let picture = empty_place.then(|| crate::window::sidebar::place_picture(view));
     div()
         .id("empty-list")
         .flex_1()
@@ -547,10 +555,17 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
         .pt(px(space::SECTION))
         .px(px(crate::widgets::native::MARGIN))
         .gap(px(space::XS))
+        .children(picture.map(|path| {
+            gpui::svg()
+                .path(path)
+                .size(px(EMPTY_PICTURE))
+                .mb(px(space::S))
+                .text_color(theme.muted)
+        }))
         .child(
             div()
                 .text_size(px(crate::widgets::native::SUBTITLE_TEXT))
-                .child(screen.label(SharedString::from(heading))),
+                .child(screen.label(heading)),
         )
         .child(
             div()
@@ -595,6 +610,9 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
                 })
         })
 }
+
+/// An empty place's picture over its notice, in points: the side panel's, large.
+const EMPTY_PICTURE: f32 = 32.0;
 
 /// What an empty list says of the next step on a phone.
 pub(crate) const PHONE_EMPTY: &str = "Share a link to dm from any app, or add one here.";

@@ -76,3 +76,28 @@ fn a_place_is_reached_by_tab_and_chosen_by_space() {
         "no place was reached by Tab and chosen by Space"
     );
 }
+
+/// A place with nothing in it says which place, under its picture, over "Nothing here yet.":
+/// "Nothing here" over "Nothing here yet." said nothing, twice.
+#[test]
+fn an_empty_place_names_itself() {
+    let world = world();
+    let mut h = world.harness();
+    let url = world.url("x.bin");
+    h.view(|view| view.backend.add(&url)).unwrap();
+    h.until("the row", |h| h.rows().len() == 1);
+    h.update(|view, cx| {
+        view.choose(dm_shell::app::places::Place::Kind(
+            dm_core::Category::Pictures,
+        ));
+        cx.notify();
+    });
+    h.until_shown("Nothing here yet.");
+    assert!(!h.shows("Nothing here"), "the empty place's old heading");
+    let named = h
+        .texts()
+        .iter()
+        .filter(|t| t.as_str() == "Pictures")
+        .count();
+    assert_eq!(named, 2, "the place's name in the panel and over the list");
+}
