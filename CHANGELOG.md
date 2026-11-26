@@ -5,6 +5,13 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- One design throughout: every dialog has its "?" to its guide page (Add numbered series, Statistics, Move to queue, Move/Rename and Update download link had none); the add-to-browser bar's sentence is in the bars' one weight; the Grabber's Save search stands on the fields' column as Find files does; View › Details draws its bar as thick as the progress window's; the side panel's menu has a popup's corners, its items' curves inside them.
+- At a phone's width a finished card says "Complete" in the secondary colour beside its green tick, as the computer's list does, and a card's round button (Retry, Resume) has a button's face, so it shows in the dark look too.
+- A download row's own buttons are 22 points, easier to hit (WCAG 2.2's target size); the status bar's words start on the side panel's edge.
+- The list's column headings stand in a row as tall as the rows under them (28 points), as Finder's do.
+- The empty list's "Nothing queued" stands under the place's picture in a title's weight, as an empty kind's or queue's notice does.
+- The Scheduler's line on what the Main queue's hours are for reads as an explanation, small and secondary, not as a setting.
+- dm's pictures are drawn with lines as heavy as the words beside them, as Finder's are: they were lighter than the text.
 - Options › Browser in three groups: adding the extension (Check now under the browsers it reads again), the right-click menu's items, and, under a heading of its own, which downloads dm takes from the browser.
 - Options' explanations wrap at a readable width (about 75 letters) instead of running across the whole page.
 - The window reads as Finder does: the side panel's places are 28 points tall, as the list's rows are, and the list's sizes, speeds and times are in the secondary colour so the file names are found first. Add numbered series counts its addresses under their list, not in an empty band above it.

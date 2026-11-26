@@ -135,8 +135,10 @@ fn quick_of(row: &Entry) -> Option<(Quick, &'static str, &'static str)> {
     }
 }
 
-/// A card's state in its colour, as a phone's torrent apps colour it: going in the accent,
-/// failed in the warning's, finished in the success colour; on a chosen card, the choice's.
+/// A card's state in its colour: going in the accent, failed in the warning's, finished in the
+/// secondary colour beside its green tick (`state_mark`), as the computer's list says it; a
+/// list of finished cards was a column of green words as loud as a failure. On a chosen card,
+/// the choice's.
 fn state_colour(row: &Entry, chosen: bool, theme: Theme) -> gpui::Rgba {
     if chosen {
         return theme.chosen().text;
@@ -144,7 +146,6 @@ fn state_colour(row: &Entry, chosen: bool, theme: Theme) -> gpui::Rgba {
     match row.state {
         State::Running => theme.accent_text,
         State::Failed(_) => theme.warning,
-        State::Completed => theme.success,
         _ => theme.muted,
     }
 }
@@ -443,6 +444,9 @@ fn quick_button(
                 } else {
                     theme.control_border
                 })
+                // A button's face, as every button has: where a look draws controls by their face
+                // and no edge (macOS's dark), an edge alone left a bare triangle, not a button.
+                .when(!chosen, |b| b.bg(theme.control))
                 .child(
                     screen.mark(
                         words,

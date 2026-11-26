@@ -190,7 +190,8 @@ pub fn statusbar(
         .map(crate::window::mirror::row)
         .items_center()
         .gap_1()
-        .px_3()
+        // From the edge the side panel's pictures stand on (16), not 4 points short of it.
+        .px(px(crate::widgets::space::XL))
         .border_t_1()
         .border_color(theme.separator)
         .bg(crate::window::theme::frame(theme.sidebar))

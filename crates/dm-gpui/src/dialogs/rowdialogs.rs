@@ -232,7 +232,9 @@ impl Render for UpdateLink {
                             &screen,
                         ))
                         .child(native::buttons(
-                            Vec::new(),
+                            // Its page of the guide, as every dialog's foot has (gaps row E11).
+                            vec![native::help_button("update-link", theme, &screen)
+                                .into_any_element()],
                             vec![
                                 native::button("cancel", t("Cancel").into(), false, theme, &screen)
                                     .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
@@ -376,7 +378,10 @@ impl Render for MoveToQueue {
                         native::field(&self.new, "Or a new queue", theme),
                     ))
                     .child(native::buttons(
-                        Vec::new(),
+                        // Its page of the guide, as every dialog's foot has (gaps row E11).
+                        vec![
+                            native::help_button("move-to-queue", theme, &screen).into_any_element()
+                        ],
                         vec![
                             native::button("cancel", t("Cancel").into(), false, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, _| this.cancel(window)))
@@ -547,7 +552,8 @@ impl Render for MoveRenameDialog {
                             ),
                     ))
                     .child(native::buttons(
-                        Vec::new(),
+                        // Its page of the guide, as every dialog's foot has (gaps row E11).
+                        vec![native::help_button("move-rename", theme, &screen).into_any_element()],
                         vec![
                             native::button("cancel", t("Cancel").into(), false, theme, &screen)
                                 .on_click(cx.listener(|this, _, window, _| this.cancel(window)))

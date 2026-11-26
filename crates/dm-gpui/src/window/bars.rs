@@ -380,7 +380,8 @@ impl Downloads {
                         // as Windows' first window is (840 wide), never cut to "Add dm…".
                         .line_clamp(2)
                         .text_ellipsis()
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        // In the bars' one weight: bold here, regular in every other bar's
+                        // sentence, it read as another kind of bar.
                         .child(screen.label(t("Add dm to your browser:")))
                         .tooltip(|window, cx| {
                             gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(t(

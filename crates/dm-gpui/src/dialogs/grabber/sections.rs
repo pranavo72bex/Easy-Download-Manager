@@ -215,12 +215,15 @@ impl Grabber {
                 theme,
                 screen,
             ))
-            .child(
-                div().flex().justify_end().child(
-                    native::button("save", t("Save search").into(), false, theme, screen)
-                        .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
-                ),
-            );
+            // On the fields' column, as Find files stands above: at the form's right it was the
+            // dialog's one action button placed otherwise.
+            .child(native::row(
+                None,
+                width,
+                screen,
+                native::button("save", t("Save search").into(), false, theme, screen)
+                    .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
+            ));
         let says = Some(self.d.says.clone())
             .filter(|says| !says.is_empty())
             .map(gpui::SharedString::from);

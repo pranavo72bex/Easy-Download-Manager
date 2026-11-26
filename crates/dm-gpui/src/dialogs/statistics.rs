@@ -221,7 +221,8 @@ impl Render for StatisticsWindow {
                     .border_color(theme.separator)
             })
             .child(native::buttons(
-                Vec::new(),
+                // Its page of the guide, as every dialog's foot has (gaps row E11).
+                vec![native::help_button("statistics", theme, &screen).into_any_element()],
                 vec![
                     native::button("close", t("Close").into(), false, theme, &screen)
                         .on_click(|_, window, _| window.remove_window())

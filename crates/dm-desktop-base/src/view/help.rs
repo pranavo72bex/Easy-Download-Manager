@@ -89,6 +89,27 @@ const PAGES: &[(&str, &str)] = &[
         "usb-stick",
         include_str!("../../../../docs/guide/usb-stick.md"),
     ),
+    // The smaller dialogs' own pages, for the "?" every dialog has at its foot.
+    (
+        "numbered-series",
+        include_str!("../../../../docs/guide/numbered-series.md"),
+    ),
+    (
+        "statistics",
+        include_str!("../../../../docs/guide/statistics.md"),
+    ),
+    (
+        "move-to-queue",
+        include_str!("../../../../docs/guide/move-to-queue.md"),
+    ),
+    (
+        "move-rename",
+        include_str!("../../../../docs/guide/move-rename.md"),
+    ),
+    (
+        "update-link",
+        include_str!("../../../../docs/guide/update-link.md"),
+    ),
 ];
 
 /// `text` with the characters HTML reads as its own escaped.
