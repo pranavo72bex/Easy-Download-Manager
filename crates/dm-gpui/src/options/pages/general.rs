@@ -128,10 +128,9 @@ fn appearance(
         true,
         div()
             .flex()
-            .items_center()
-            // A phone's: the percentage level with the slider's line, not with the middle of
-            // the line and its stops' words under it.
-            .when(crate::platform::ON_A_PHONE, |row| row.items_start())
+            // The percentage level with the slider's line, not with the middle of the line and
+            // its stops' words under it (it stood under the line), a phone's and a computer's.
+            .items_start()
             // Room for the end stops' percentages, which stand half outside
             // the track.
             .gap(px(STOP_WIDTH / 2.0))
@@ -144,7 +143,13 @@ fn appearance(
                     .gap(px(space::XXS))
                     .child(
                         gpui_component::slider::Slider::new(&slider)
-                            .accessibility_label(t("Text size"))
+                            // The size with its name: the slider's own value is its stop's
+                            // place (0 to 5), not the size.
+                            .accessibility_label(format!(
+                                "{} {}",
+                                t("Text size"),
+                                dm_desktop_base::i18n::tf("{}%", &[&sizes.percent(now)])
+                            ))
                             // dm's own colours, as its switches and buttons have them: the
                             // component's theme drew a white bar and a black knob.
                             .bg(theme.accent)
@@ -159,7 +164,12 @@ fn appearance(
             )
             .child(
                 div()
-                    .min_w(px(40.0))
+                    .min_w(px(STOP_WIDTH))
+                    // As tall as the slider's track (`Slider`'s own, in the rem its widgets
+                    // are sized in), its words in the middle: level with the line.
+                    .h(gpui::rems(SLIDER_ROW))
+                    .flex()
+                    .items_center()
                     .child(screen.label(dm_desktop_base::i18n::tf("{}%", &[&sizes.percent(now)]))),
             ),
     );

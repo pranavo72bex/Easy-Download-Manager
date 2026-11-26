@@ -42,6 +42,8 @@ const WIDE: f32 = 300.0;
 /// box this wide.
 const SCALE_WIDTH: f32 = 200.0;
 const STOP_WIDTH: f32 = 40.0;
+/// The slider's row, in rem: gpui-component's horizontal track (`h_6`).
+const SLIDER_ROW: f32 = 1.5;
 
 /// Under a check box, its explanation lines up with its words.
 const UNDER_CHECK: f32 = if crate::platform::ON_A_PHONE {

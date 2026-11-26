@@ -279,26 +279,32 @@ impl Options {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<SliderState> {
-        let percent = TEXT_SIZE.percent(crate::window::zoom::factor()) as f32;
+        // By stop, not by percent: the stops (60 to 200) are not evenly apart, and their
+        // percentages under the track are, so at 100 the thumb stood between "80%" and "100%".
+        let at = TEXT_SIZE.index(crate::window::zoom::factor()) as f32;
         if let Some(slider) = self.scale.clone() {
-            if (slider.read(cx).value().start() - percent).abs() > 0.5 {
-                slider.update(cx, |s, cx| s.set_value(percent, window, cx));
+            if (slider.read(cx).value().start() - at).abs() > 0.5 {
+                slider.update(cx, |s, cx| s.set_value(at, window, cx));
             }
             return slider;
         }
         let stops = TEXT_SIZE.stops;
         let slider = cx.new(|_| {
             SliderState::new()
-                .min(stops[0] * 100.0)
-                .max(stops[stops.len() - 1] * 100.0)
-                .step(20.0)
-                .default_value(percent)
+                .min(0.0)
+                .max((stops.len() - 1) as f32)
+                .step(1.0)
+                .default_value(at)
         });
-        cx.subscribe(&slider, |this: &mut Options, _, event: &SliderEvent, cx| {
-            if let SliderEvent::Release(value) = event {
-                this.pick_scale(TEXT_SIZE.held(value.start() / 100.0), cx);
-            }
-        })
+        cx.subscribe(
+            &slider,
+            move |this: &mut Options, _, event: &SliderEvent, cx| {
+                if let SliderEvent::Release(value) = event {
+                    let i = (value.start().round().max(0.0) as usize).min(stops.len() - 1);
+                    this.pick_scale(stops[i], cx);
+                }
+            },
+        )
         .detach();
         self.scale = Some(slider.clone());
         slider

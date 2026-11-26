@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options › General › Text size: the slider's thumb stands over the percentage it picks (at 100% it stood between 80% and 100%), the arrow keys step from one size to the next, and the size in force is level with the slider's line.
 - Sections in Options, the Scheduler and the other dialogs stand apart as groups: more room above each heading, its first setting close under it; a setting's explanation sits close under its own setting with room before the next.
 - The Speed limiter keeps every label in one column beside its box, in English and in longer languages; "Download at most this many MB" no longer drops above its box to the window's edge.
 - View › Details says where a download not saved yet will go ("Will be saved to" and its folder), as the Folder column and File properties do; it said "Saved to" over nothing.
