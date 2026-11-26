@@ -16,3 +16,4 @@ are added by `scripts/ai-triage.py`. These are notes, and may be wrong: they nev
 - 2026-11-24: A range of no stated length ends at `u64::MAX`; measure ranges with saturating arithmetic (`end.saturating_sub(start).saturating_add(1)`).
 - 2026-11-24: In dm-gpui, the test harness method step() in crates/dm-gpui/src/harness.rs is private.
 - 2026-11-25: Inline test modules must stay under 100 lines; larger modules, such as those in dm-shell/src/check.rs, must be moved to a standalone 'mod tests;' file to pass linting.
+- 2026-11-26 (pranavo72bex): C5b was completed in ae899990: added `limit_only_present` setting and `Settings::speed_limit_bytes_for` with presence-aware limiting; the gap row is removed from docs/gaps.md.
