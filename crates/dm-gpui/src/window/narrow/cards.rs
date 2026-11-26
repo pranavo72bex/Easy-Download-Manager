@@ -271,7 +271,10 @@ fn card(
     let whens = &view.known.whens;
     let speed = crate::window::table::words(Column::Rate, row, whens);
     let left = crate::window::table::words(Column::TimeLeft, row, whens);
-    let card_theme = if chosen { theme.chosen() } else { theme };
+    // Chosen, the card keeps its own colours under a soft tint of the accent, as the side panel's
+    // chosen place and the bottom bar's chosen tab: a solid accent card read as a second filled
+    // accent beside Add URL, its words all white.
+    let card_theme = theme;
     let (left_words, right_words) = figures(row, &status, speed);
     div()
         .id(("card", id as usize))
@@ -298,9 +301,7 @@ fn card(
         .gap(px(space::M))
         .border_b_1()
         .border_color(theme.separator)
-        .when(chosen, |c| {
-            c.bg(theme.selection).text_color(card_theme.text)
-        })
+        .when(chosen, |c| c.bg(theme.chosen_soft()))
         .on_mouse_down(
             gpui::MouseButton::Left,
             cx.listener(move |view, event: &gpui::MouseDownEvent, _, cx| {
@@ -329,7 +330,7 @@ fn card(
         .relative()
         // A finger held on it: GPUI's own long press, claimed so it is no tap (gaps row C22).
         .child(long_press_layer(id, cx))
-        .child(tile(kind, chosen, card_theme))
+        .child(tile(kind, false, card_theme))
         // Its name and time left, its bar, and a line of its state and figures.
         .child(
             div()
@@ -365,14 +366,14 @@ fn card(
                                 .gap(px(space::XS))
                                 .min_w_0()
                                 .children(crate::window::table::state_mark(&row.state, card_theme))
-                                .child(small(left_words, state_colour(row, chosen, theme), screen)),
+                                .child(small(left_words, state_colour(row, false, theme), screen)),
                         )
                         // Cut with "…" where the card is narrow, not run under its buttons.
                         .child(small(right_words, card_theme.muted, screen)),
                 ),
         )
         .when_some(quick_of(row), |card, quick| {
-            card.child(quick_button(id, quick, chosen, theme, screen, cx))
+            card.child(quick_button(id, quick, false, theme, screen, cx))
         })
         // Its menu.
         .child(

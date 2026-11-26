@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a phone, the chosen download is a soft tint with its words in their own colours, as the bottom bar's chosen tab and the computer's chosen place; it was a solid accent card with white words.
 - On a phone, the bottom bar's chosen tab is a soft tint with its picture in the accent, as the computer's side panel marks its chosen place; the floating Add URL is the one solid accent on the screen.
 - One design throughout: every dialog has its "?" to its guide page (Add numbered series, Statistics, Move to queue, Move/Rename and Update download link had none); the add-to-browser bar's sentence is in the bars' one weight; the Grabber's Save search stands on the fields' column as Find files does; View › Details draws its bar as thick as the progress window's; the side panel's menu has a popup's corners, its items' curves inside them.
 - At a phone's width a finished card says "Complete" in the secondary colour beside its green tick, as the computer's list does, and a card's round button (Retry, Resume) has a button's face, so it shows in the dark look too.
