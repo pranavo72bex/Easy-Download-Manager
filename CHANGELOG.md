@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- For contributors: the window's layout is held by golden files (`docs/behaviour-baseline/layout/`): 19 scenes of a computer's window and 15 of a phone's, each word with where it is drawn, so a change that moves, cuts or drops a word fails a test (`docs/testing.md`).
 - The side panel's first group is headed "Categories", no longer repeating "All downloads" from the title. In Arabic and Hebrew the top bar reads from the right, and in Arabic sizes are written short (م.ب for MB), so the list fits a new window without scrolling sideways; the Size and Transfer rate columns are as wide as their widest figure in every unit, and words that join (Arabic) are measured as drawn.
 - On a phone, the top bar says "All downloads" for every download, as the computer's title bar does, not the app's name "dm".
 - Start queue and Stop queue say which queue they act on when hovered ("Start queue: Main queue"), and the arrow beside each is easier to hit (24 points) and is named for what it does ("Choose a queue to start", "Choose a queue to stop"), where a screen reader heard "Queues" for both.

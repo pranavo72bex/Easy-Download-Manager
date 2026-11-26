@@ -1,0 +1,49 @@
+# dm's window, scene main-rows-1280-text-200 (macos, 1280x720, en, text at 200%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 1280x720]
+"Tasks" 158 16.5 236 58.5
+"File" 268 16.5 331 58.5
+"Downloads" 363 16.5 504 58.5
+"View" 536 16.5 599 58.5
+"Help" 631 16.5 694 58.5
+"Add URL" 32 126.5 125 162
+"Resume" 184.5 125.5 264.5 161
+"Stop" 324 126.5 377 162
+"Delete" 417 126.5 497 162
+"Stop all" 656 126.5 762 162
+"Scheduler" 802 126.5 921 162
+"Start queue" 961 126.5 1107 162
+"More" 1195 126.5 1248 162
+"Categories" 32 216 164 251.5
+"All" 80 266.5 127 308.5
+"3" 353 269.5 367 305
+"Videos" 80 322.5 174 364.5
+"1" 353 325.5 367 361
+"Documents" 80 378.5 221 420.5
+"1" 353 381.5 367 417
+"Archives" 80 434.5 205 476.5
+"1" 353 437.5 367 473
+"Unfinished" 80 522.5 236 564.5
+"3" 353 525.5 367 561
+"Finished" 80 578.5 205 620.5
+"Queues" 32 651.5 112 672
+"Add dm to your browser:" 472 191 831 233
+"Microsoft Edge" 876 191 1095 233
+"Firefox" 501 255 611 297
+"Chrome and others" 685 255 951 297
+"Not now" 1117 255 1227 297
+"File name" 424 322.5 543 358
+"Size" 875 322.5 928 358
+"Status" 960 322.5 1040 358
+"Time left" 1176 322.5 1280 358
+"report.pdf" 472 376 628 418
+"Waiting for Start queue" 992 376 1144 418
+"holiday.mp4" 472 432 644 474
+"Waiting for Start queue" 992 432 1144 474
+"archive.zip" 472 488 644 530
+"Waiting for Start queue" 992 488 1144 530
+"3 downloads" 32 678.5 178 714
+"· Nothing downloading" 186 678.5 464 714
+"· 3 waiting for Start queue" 472 678.5 829 714
+"· Speed limiter" 837 678.5 1035 714

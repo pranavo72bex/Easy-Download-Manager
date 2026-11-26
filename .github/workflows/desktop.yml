@@ -106,6 +106,22 @@ jobs:
       - name: Test the engine, the shell and the window, then the doctests
         run: cargo xtask test --profile ci
 
+      # The phone's layout, built on Linux as Android's build takes Linux's branches: its
+      # words held to docs/behaviour-baseline/layout/android (gaps row Q1).
+      - name: The phone's layout against its goldens
+        if: runner.os == 'Linux'
+        run: cargo test -p dm-gpui --locked --features phone-layout golden
+
+      # A system's goldens that differ or are not yet kept, for a person to read and commit
+      # (crates/dm-gpui/src/window_tests/golden.rs).
+      - name: Keep the window's new goldens
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: goldens-new-${{ matrix.os }}
+          path: target/goldens-new/
+          if-no-files-found: ignore
+
       # The log is the administrators' alone; the annotations are anyone's.
       # Run on a pass too: a test that needed a retry is named as flaky.
       - name: Name the tests that failed or needed a retry

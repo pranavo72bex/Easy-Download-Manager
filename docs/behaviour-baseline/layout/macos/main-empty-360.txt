@@ -1,0 +1,23 @@
+# dm's window, scene main-empty-360 (macos, 360x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 360x720]
+"All downloads" 94 9 256 38
+"Filter" 272 11.5 296 35.5
+"Menu" 324 11.5 348 35.5
+"Add dm to your browser:" 36 54 216 75
+"Microsoft Edge" 51 84.5 161 105.5
+"Firefox" 199 84.5 254 105.5
+"Chrome and others" 51 116.5 184 137.5
+"Not now" 278 116.5 333 137.5
+"Nothing queued" 112.5 228 247.5 254
+"Add URL, paste a link, or send one from your browser." 20 258 340 300
+"Add URL" 152.5 313.5 207.5 334.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 20 348 340 384
+"0 downloads" 16 631.5 88 649.5
+"· Nothing downloading" 92 631.5 228.5 649.5
+"· Speed limiter" 232.5 631.5 330 649.5
+"All" 34 693.5 56 713
+"Unfinished" 99 693.5 171 713
+"Places" 203 693.5 247 713
+"Options" 289.5 693.5 340.5 713

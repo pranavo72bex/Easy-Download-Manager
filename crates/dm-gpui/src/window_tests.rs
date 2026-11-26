@@ -15,6 +15,7 @@ mod dialogs;
 mod downloads;
 mod find;
 mod fuzz;
+mod golden;
 mod grabber;
 mod keyboard;
 mod keyboard_dialogs;
