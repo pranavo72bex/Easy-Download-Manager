@@ -42,7 +42,7 @@ gpui-android = { path = "vendor/gpui-android" }
 # From crates.io (or patched below).
 # The phone's NativeActivity glue (dm-android's `android_main`), the version gpui-android uses.
 android-activity = { version = "0.6", features = ["native-activity"] }
-aes = "0.9.3"
+aes = "0.9.4"
 arboard = "3"
 async-channel = "2"
 auto-launch = "0.6"
@@ -66,8 +66,8 @@ futures-lite = "2"
 futures-util = "0.3"
 getrandom = "0.4"
 gpui = { package = "gpui-pre", version = "=0.3.12" }
-gpui-base = "=0.9.1"
-gpui-component = "=0.9.1"
+gpui-base = "=0.10.0"
+gpui-component = "=0.10.0"
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
 hyper = { version = "1", features = ["server", "http2"] }
 hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service", "http2"] }
@@ -113,7 +113,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring",
 tokio-socks = "0.5"
 tokio-util = "0.7"
 toml = "1.1"
-trash = "5.2.9"
+trash = "5.3.0"
 tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
 url = "2.5.9"
 # Pinned exactly: the wasm-bindgen CLI that turns the extension's build into what its loader
