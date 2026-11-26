@@ -353,6 +353,10 @@ pub struct AdvancedSettings {
     /// Chosen, the second network is not used.
     #[serde(default)]
     pub only_through: String,
+    /// The speed limit, the slow hours' included, holds only while someone is at the computer
+    /// (gaps row C5): away, downloads go at full speed.
+    #[serde(default)]
+    pub limit_only_present: bool,
 }
 
 impl Default for AdvancedSettings {
@@ -375,6 +379,7 @@ impl Default for AdvancedSettings {
             host_limits: Vec::new(),
             site_rules: Vec::new(),
             only_through: String::new(),
+            limit_only_present: false,
         }
     }
 }

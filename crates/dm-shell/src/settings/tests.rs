@@ -1760,6 +1760,7 @@ const A_FULL_FILE: &str = r#"{
     "attempts": 7,
     "read_timeout": 45,
     "only_through": "en0",
+    "limit_only_present": true,
     "host_limits": [{"host": "slow.example", "connections": 2}],
     "site_rules": [
         {"host": "example.com", "folder": "/srv/example", "speed": 64, "agent": "", "headers": ""}
@@ -1840,6 +1841,7 @@ fn a_full_settings_file_reads_into_the_pages_and_is_written_back_the_same() {
     assert!(phone.wifi_only && phone.not_roaming && phone.data_saver_waits);
     assert!(phone.keep_after_close);
     assert_eq!(read.advanced.only_through, "en0");
+    assert!(read.advanced.limit_only_present);
     assert_eq!(read.advanced.proxy.host, "proxy.example");
     assert_eq!(read.limit_hours, 24);
     // Written back: the same keys with the same values, and no other.
@@ -1915,4 +1917,48 @@ fn a_bad_value_on_a_page_is_named_by_its_key_and_costs_only_itself() {
     assert_eq!(read.downloads.connections, fresh.downloads.connections);
     assert_eq!(read.advanced.attempts, fresh.advanced.attempts);
     assert_eq!(read.folders.categorize, fresh.folders.categorize);
+}
+
+/// With "Only while I'm at the computer" on, the speed limit and the slow hours' hold while
+/// someone is there and lift while nobody is; off, they hold either way (gaps row C5b).
+#[test]
+fn the_speed_limit_holds_only_while_someone_is_at_the_computer_when_asked() {
+    let mut s = Settings {
+        slow_hours: SlowHours {
+            enabled: true,
+            from: "22:00".into(),
+            to: "06:00".into(),
+            limit: 100,
+        },
+        advanced: AdvancedSettings {
+            speed_limit: 1000,
+            ..Default::default()
+        },
+        ..Settings::default()
+    };
+    assert!(!s.advanced.limit_only_present, "off for a new dm");
+    // Off: present or not, what the limits say.
+    assert_eq!(
+        s.speed_limit_bytes_for(2, 12 * 60, false),
+        1000 * dm_core::KB
+    );
+    assert_eq!(
+        s.speed_limit_bytes_for(1, 23 * 60, false),
+        100 * dm_core::KB
+    );
+    s.advanced.limit_only_present = true;
+    // On and someone there: the same as before.
+    assert_eq!(
+        s.speed_limit_bytes_for(2, 12 * 60, true),
+        1000 * dm_core::KB
+    );
+    assert_eq!(s.speed_limit_bytes_for(1, 23 * 60, true), 100 * dm_core::KB);
+    // On and nobody there: no limit, in the slow hours too.
+    assert_eq!(s.speed_limit_bytes_for(2, 12 * 60, false), 0);
+    assert_eq!(s.speed_limit_bytes_for(1, 23 * 60, false), 0);
+    // Kept in the settings file; a file from before it reads as off.
+    let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+    assert!(back.advanced.limit_only_present);
+    let old: AdvancedSettings = serde_json::from_str(r#"{"speed_limit": 5}"#).unwrap();
+    assert!(!old.limit_only_present);
 }

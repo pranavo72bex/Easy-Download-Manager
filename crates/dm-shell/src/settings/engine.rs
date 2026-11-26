@@ -204,6 +204,16 @@ impl Settings {
         }
     }
 
+    /// [`Self::speed_limit_bytes_at`], where `present` says whether someone is at the
+    /// computer: with "Only while I'm at the computer" on and nobody there, no limit (gaps row
+    /// C5).
+    pub fn speed_limit_bytes_for(&self, weekday: u8, minute: u32, present: bool) -> u64 {
+        if self.advanced.limit_only_present && !present {
+            return 0;
+        }
+        self.speed_limit_bytes_at(weekday, minute)
+    }
+
     /// The engine's view of the stream quality.
     ///
     /// Anything unrecognised means the best available — a typo in a settings
