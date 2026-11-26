@@ -93,6 +93,21 @@ pub fn weekday_now() -> (u8, u32) {
     (now.weekday_from_sunday() as u8, now.minute_of_day())
 }
 
+/// Today's date (year, month, day), its weekday (0 = Sunday) and the minute past local
+/// midnight: what [`minutes_until_next_start`] is asked with.
+pub fn date_now() -> ((i32, u8, u8), u8, u32) {
+    let now = clock::local_now();
+    (
+        (
+            now.date.year(),
+            now.date.month() as u8,
+            now.date.day() as u8,
+        ),
+        now.weekday_from_sunday() as u8,
+        now.minute_of_day(),
+    )
+}
+
 /// The local day (counted from the calendar's start) and the minute past
 /// its midnight, for things that happen at a time of day.
 pub fn now_local() -> (i64, u32) {
@@ -203,17 +218,30 @@ impl Schedule {
     }
 }
 
-/// Minutes from `minute_of_day` on `weekday` (0 = Sunday) until the next
+/// Minutes from `minute_of_day` on `today`, a `weekday` (0 = Sunday), until the next
 /// moment something is due to start: the schedule's window opening, where
 /// a schedule is on, or one of `starts` (minutes past midnight, every day).
-/// `None` where nothing will. For waking a sleeping computer for it.
+/// A schedule set to run once (`once_at`) opens on its date and time alone, and
+/// not again once that has passed (gaps row C8b). `None` where nothing will. For
+/// waking a sleeping computer for it.
 pub fn minutes_until_next_start(
     schedule: &Schedule,
     starts: &[u32],
+    today: (i32, u8, u8),
     weekday: u8,
     minute_of_day: u32,
 ) -> Option<u32> {
-    let window = (schedule.enabled)
+    // A once-only run: the minutes until it, where it is still to come.
+    let once = schedule
+        .enabled
+        .then(|| once_span(schedule))
+        .flatten()
+        .map(|(start, _)| {
+            since_day_one(today, minute_of_day)
+                .and_then(|now| u32::try_from(start.checked_sub(now)?).ok())
+                .filter(|until| *until > 0)
+        });
+    let window = (schedule.enabled && once.is_none())
         .then(|| (minutes(&schedule.from), minutes(&schedule.to)))
         .and_then(|times| match times {
             (Some(from), Some(to)) if from != to => Some(from),
@@ -238,7 +266,10 @@ pub fn minutes_until_next_start(
             break;
         }
     }
-    soonest
+    match once.flatten() {
+        Some(until) => Some(soonest.map_or(until, |s| s.min(until))),
+        None => soonest,
+    }
 }
 
 #[cfg(test)]

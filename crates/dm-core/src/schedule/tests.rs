@@ -5,6 +5,10 @@
 
 use super::*;
 
+/// A Monday and the Tuesday after it, as dates.
+const MONDAY: (i32, u8, u8) = (2026, 11, 23);
+const TUESDAY: (i32, u8, u8) = (2026, 11, 24);
+
 #[test]
 fn the_next_start_is_the_window_or_a_queue_whichever_comes_first() {
     let schedule = Schedule {
@@ -22,22 +26,22 @@ fn the_next_start_is_the_window_or_a_queue_whichever_comes_first() {
     };
     // Monday 08:00: Friday 23:00 is four days and fifteen hours away.
     assert_eq!(
-        minutes_until_next_start(&schedule, &[], 1, 8 * 60),
+        minutes_until_next_start(&schedule, &[], MONDAY, 1, 8 * 60),
         Some(4 * 24 * 60 + 15 * 60)
     );
     // A queue starting daily at 02:00 comes first: tomorrow 02:00.
     assert_eq!(
-        minutes_until_next_start(&schedule, &[120], 1, 8 * 60),
+        minutes_until_next_start(&schedule, &[120], MONDAY, 1, 8 * 60),
         Some(18 * 60)
     );
     // Nothing scheduled at all: nothing to wake for.
     assert_eq!(
-        minutes_until_next_start(&Schedule::default(), &[], 1, 0),
+        minutes_until_next_start(&Schedule::default(), &[], MONDAY, 1, 0),
         None
     );
     // Exactly at a start is not "next": the following one is.
     assert_eq!(
-        minutes_until_next_start(&Schedule::default(), &[60], 2, 60),
+        minutes_until_next_start(&Schedule::default(), &[60], TUESDAY, 2, 60),
         Some(24 * 60)
     );
 }
@@ -245,4 +249,55 @@ fn asking_the_clock_agrees_with_asking_directly() {
         schedule.open(),
         schedule.open_at(now.weekday_from_sunday() as u8, now.minute_of_day())
     );
+}
+
+/// A schedule set to run once wakes the computer for its date and time alone: not for the
+/// weekly window's days before it, and for nothing once it has passed; a queue's daily start
+/// still wakes it (gaps row C8b).
+#[test]
+fn a_once_only_start_wakes_the_computer_on_its_date_alone() {
+    let once = Schedule {
+        once_at: Some("2026-11-26 23:30".into()),
+        ..nightly()
+    };
+    // Monday 08:00: the weekly window would open tonight at 23:00; the once-only run is
+    // Thursday 23:30, three days and fifteen and a half hours away.
+    assert_eq!(
+        minutes_until_next_start(&once, &[], MONDAY, 1, 8 * 60),
+        Some(3 * 24 * 60 + 15 * 60 + 30)
+    );
+    // A queue's start at 09:00 every day still comes first.
+    assert_eq!(
+        minutes_until_next_start(&once, &[9 * 60], MONDAY, 1, 8 * 60),
+        Some(60)
+    );
+    // On its date, a minute before; at its moment and after, nothing.
+    let thursday = (2026, 11, 26);
+    assert_eq!(
+        minutes_until_next_start(&once, &[], thursday, 4, 23 * 60 + 29),
+        Some(1)
+    );
+    assert_eq!(
+        minutes_until_next_start(&once, &[], thursday, 4, 23 * 60 + 30),
+        None
+    );
+    assert_eq!(
+        minutes_until_next_start(&once, &[], (2026, 12, 1), 2, 0),
+        None
+    );
+    // A date that cannot be read is the weekly window, as `open_now` takes it.
+    let unread = Schedule {
+        once_at: Some("someday".into()),
+        ..nightly()
+    };
+    assert_eq!(
+        minutes_until_next_start(&unread, &[], MONDAY, 1, 8 * 60),
+        Some(15 * 60)
+    );
+    // The schedule off: the once-only date wakes nothing.
+    let off = Schedule {
+        enabled: false,
+        ..once
+    };
+    assert_eq!(minutes_until_next_start(&off, &[], MONDAY, 1, 8 * 60), None);
 }

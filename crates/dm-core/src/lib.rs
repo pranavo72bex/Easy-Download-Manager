@@ -266,7 +266,8 @@ pub use queue::{
 };
 
 pub use schedule::{
-    is_time, minutes as minutes_of, minutes_until_next_start, now_local, weekday_now, Schedule,
+    date_now, is_time, minutes as minutes_of, minutes_until_next_start, now_local, weekday_now,
+    Schedule,
 };
 
 pub use stream::{

@@ -247,8 +247,8 @@ pub fn start(
                 .into_iter()
                 .map(|(_, at)| at)
                 .collect();
-            let (weekday, minute) = dm_core::weekday_now();
-            dm_core::minutes_until_next_start(&now.schedule, &starts, weekday, minute)
+            let (today, weekday, minute) = dm_core::date_now();
+            dm_core::minutes_until_next_start(&now.schedule, &starts, today, weekday, minute)
         });
     }
     backend.handed = handed_over;
