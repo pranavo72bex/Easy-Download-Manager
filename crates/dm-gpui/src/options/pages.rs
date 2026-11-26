@@ -53,9 +53,6 @@ const UNDER_CHECK: f32 = if crate::platform::ON_A_PHONE {
     20.0
 };
 
-/// How much nearer its setting a note stands on a phone (`native::HINT_PULL`).
-const HINT_PULL: f32 = native::HINT_PULL;
-
 /// The looks this window draws: the computer's, light or dark (a `classic`
 /// kept in the settings is drawn as the computer's).
 const THEMES: [&str; 3] = ["system", "light", "dark"];
@@ -136,23 +133,36 @@ impl Page {
         self.add(heading);
     }
 
-    /// What a switch does, close under its row (gaps row C20: a switch's words start the row).
+    /// What a setting does, close under its row (gaps row C20: a switch's words start the row).
     fn hint(&mut self, words: &str) {
-        self.says(words);
-        let hint = native::hint(words.to_string(), self.theme, &self.screen);
-        self.add(hint);
+        self.hint_when(true, words);
     }
 
-    /// Small words of their own, at the page's edge.
+    /// [`Page::hint`] greyed with its setting while `on` is false: under a field the words of a
+    /// list are typed in (Browser's file types and sites, the proxy's script), as under a switch.
+    /// Those stood a row's gap under their field, midway to the next setting, as a setting of
+    /// their own.
+    fn hint_when(&mut self, on: bool, words: &str) {
+        self.says(words);
+        let hint = native::hint(words.to_string(), self.theme, &self.screen);
+        self.add(native::enabled(on, hint));
+    }
+
+    /// Small words of their own, at the page's edge, a row's gap from what is above them on a
+    /// phone as on a computer: a phone's stood nearer, under a section's heading over it.
     fn note(&mut self, words: &str) {
+        self.note_when(true, words);
+    }
+
+    /// [`Page::note`] greyed while `on` is false (what a greyed list below it is for).
+    fn note_when(&mut self, on: bool, words: &str) {
         self.says(words);
         let note = native::measured(native::note(
             words.to_string(),
             self.theme.muted,
             &self.screen,
-        ))
-        .when(crate::platform::ON_A_PHONE, |note| note.mt(px(-HINT_PULL)));
-        self.add(note);
+        ));
+        self.add(native::enabled(on, note));
     }
 
     /// Plain words.
@@ -165,19 +175,9 @@ impl Page {
     /// Words, then a control beside them; greyed while `on` is false.
     fn labelled(&mut self, words: &str, on: bool, control: impl IntoElement) {
         self.says(words);
-        let row = div()
-            .flex()
-            .flex_wrap()
-            .items_center()
-            .gap(px(native::LABEL_GAP))
-            // The words above their wide control, on every page and every system: beside it
-            // where it fitted and under it where not read as two layouts on one page (gaps
-            // rows N7, E31).
-            .flex_col()
-            .items_stretch()
-            .gap(px(space::S))
-            .child(self.screen.label(words.to_string()))
-            .child(control);
+        // The words above their wide control, on every page and every system: beside it where
+        // it fitted and under it where not read as two layouts on one page (gaps rows N7, E31).
+        let row = above(&self.screen, words, control);
         self.add(native::enabled(on, row));
     }
 }
@@ -277,6 +277,18 @@ fn sound_english(event: &str) -> &'static str {
         "queue_started" => "Queue started",
         _ => "Queue finished",
     }
+}
+
+/// `words`, then under them a wide control (a list's field, a folder and its Browse…): one room
+/// between them on every page, where the folders' stood nearer theirs than the lists' did.
+fn above(screen: &Screen, words: &str, control: impl IntoElement) -> gpui::Div {
+    div()
+        .flex()
+        .flex_col()
+        .items_stretch()
+        .gap(px(space::S))
+        .child(screen.label(words.to_string()))
+        .child(control)
 }
 
 /// A plain button.
@@ -595,21 +607,19 @@ fn folder(
             });
         }),
     );
+    p.says(t(label));
     p.add(native::enabled(
         on,
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(space::XS))
-            .child(p.screen.label(t(label)))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(native::LABEL_GAP))
-                    .child(field)
-                    .child(browse),
-            ),
+        above(
+            &p.screen,
+            t(label),
+            div()
+                .flex()
+                .items_center()
+                .gap(px(native::LABEL_GAP))
+                .child(field)
+                .child(browse),
+        ),
     ));
 }
 

@@ -62,7 +62,8 @@ The eye must have somewhere to start. Every window is checked against these, at 
    directly under the field it explains, nearer it than the next setting (`native::hint_under`
    in a form, `native::hint` in a column, `HINT_PULL`
    `AFTER_HINT`); a section's heading has twice a row's gap and more above it and joins its
-   first row (`native::heading`). A switch's line has its name at the start and the
+   first row (`native::heading`), on a phone as on a computer: semibold in the text's colour,
+   never the accent's (rule 2). A switch's line has its name at the start and the
    switch at the end. *(E10.)*
 7. **Nothing is cut while room stands empty.** A text is cut (with "…") only when the window
    has no more room to give it; the whole text is then on hover and in the detail. A column
