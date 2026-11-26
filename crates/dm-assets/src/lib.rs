@@ -70,6 +70,9 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     "place-finished",
     "place-queue",
     "place-folder",
+    // Options' pages that no other picture stands for: Advanced and Sign-ins.
+    "page-advanced",
+    "page-sign-ins",
     // A row's own Open button (gaps row U13).
     "open",
     // A phone's dialog: its top bar's Back.

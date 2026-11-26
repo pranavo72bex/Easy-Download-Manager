@@ -443,26 +443,8 @@ fn place_row(
             // chosen row of the list (gaps row E6).
             .when(chosen, |d| {
                 d.relative()
-                    .bg(gpui::Rgba {
-                        a: 0.16,
-                        ..theme.accent
-                    })
-                    .child(
-                        div()
-                            .absolute()
-                            .top(px(5.0))
-                            .bottom(px(5.0))
-                            .map(|bar| {
-                                if crate::window::mirror::rtl() {
-                                    bar.right_0()
-                                } else {
-                                    bar.left_0()
-                                }
-                            })
-                            .w(px(3.0))
-                            .rounded_full()
-                            .bg(theme.accent_text),
-                    )
+                    .bg(theme.chosen_soft())
+                    .child(chosen_bar(theme))
             })
             .when(!chosen, |d| d.hover(|s| s.bg(theme.stripe)))
             // A name the panel cuts, read whole on hover.
@@ -529,11 +511,32 @@ fn place_row(
                 div()
                     .flex_none()
                     .text_size(px(crate::widgets::native::SMALL_TEXT))
-                    .text_color(theme.muted)
+                    // On the chosen place's soft fill, in the text's colour: the secondary
+                    // one read under 4.5 to 1 there (`the_soft_choice_keeps_its_words_readable`).
+                    .text_color(if chosen { theme.text } else { theme.muted })
                     // No number beside an empty place (gaps row E6).
                     .when(count > 0, |d| d.child(screen.label(count.to_string()))),
             ),
     )
+}
+
+/// The accent's bar at a chosen entry's leading edge, over its soft fill (`Theme::chosen_soft`):
+/// the side panel's place and Options' page drawn one way. Its entry is `relative`.
+pub(crate) fn chosen_bar(theme: Theme) -> gpui::Div {
+    div()
+        .absolute()
+        .top(px(5.0))
+        .bottom(px(5.0))
+        .map(|bar| {
+            if crate::window::mirror::rtl() {
+                bar.right_0()
+            } else {
+                bar.left_0()
+            }
+        })
+        .w(px(3.0))
+        .rounded_full()
+        .bg(theme.accent_text)
 }
 
 /// The panel's edge being dragged. Nothing is drawn under the pointer but the panel itself;

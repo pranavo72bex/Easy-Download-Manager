@@ -145,6 +145,16 @@ impl Theme {
         }
     }
 
+    /// A source list's chosen entry, the side panel's place and Options' page: the accent, soft,
+    /// under the entry's own words, quieter than the list's chosen row (gaps row E6) and never
+    /// the filled accent of the one default button (`docs/ui-design.md` rule 2).
+    pub fn chosen_soft(self) -> Rgba {
+        Rgba {
+            a: 0.16,
+            ..self.accent
+        }
+    }
+
     /// The focus ring's colour round a control: the accent, and on the
     /// default button, which is filled with the accent, the words' colour
     /// on it (the accent there was a ring no one could see).

@@ -46,8 +46,10 @@ use crate::window::zoom::px;
 /// scrolls. Smaller on Windows, where 600 points stood nearly the height of
 /// a laptop's screen.
 const WIDTH: f32 = crate::widgets::native::WindowSize::Options.here().0;
-/// The list of pages beside a page at a computer's width (gaps row C21).
-const PAGES_WIDTH: f32 = 200.0;
+/// The list of pages beside a page at a computer's width (gaps row C21): room for a page's
+/// picture beside its name and for its line under the name in two lines, the page beside it
+/// still wider than its settings need.
+const PAGES_WIDTH: f32 = 224.0;
 const HEIGHT: f32 = crate::widgets::native::WindowSize::Options.here().1;
 
 /// Options' view.

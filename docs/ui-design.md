@@ -25,7 +25,11 @@ The eye must have somewhere to start. Every window is checked against these, at 
    (`accent_text`). Nothing else is drawn in it: not a heading, not a count, not a picture,
    with one exception: the side panel's place pictures, all in the accent's text shade as a
    source list's are (the maintainer: "monocolor", 2026-11-12; kept at the review of
-   2026-11-24, gaps row E17). A button's picture is in its words' colour.
+   2026-11-24, gaps row E17), and Options' page pictures, drawn as those are (the
+   maintainer, 2026-11-26). A button's picture is in its words' colour. A source list's
+   chosen entry (the side panel's place, Options' page) is a soft fill of the accent
+   (`Theme::chosen_soft`) with its bar at the leading edge (`sidebar::chosen_bar`), its
+   words all in the text's colour: never the filled accent, which is the default button's.
 3. **The error colour marks two things only:** a failure (a row, a field, a message) and a
    button that destroys (Delete, Cancel download), which is plain with its words in that
    colour (`native::destructive`). Never a filled red button. What a destroying button does

@@ -303,3 +303,20 @@ fn each_kinds_picture_reads_on_the_list_in_every_look() {
     );
     assert_eq!(black.kinds.of_kind(None), black.text);
 }
+
+/// A source list's chosen entry (the side panel's place, Options' page) keeps its words
+/// readable on its soft fill: all of them, its count and its line under the name too, drawn in
+/// the text's colour at 4.5 to 1 (the secondary colour read 4.29 there on GNOME's light side
+/// panel), and the accent's picture and bar at 3, on the side panel and on a dialog.
+#[test]
+fn the_soft_choice_keeps_its_words_readable() {
+    for (at, theme) in every_look() {
+        for (surface, back) in [("side panel", theme.sidebar), ("dialog", theme.window)] {
+            let chosen = over_rgba(theme.chosen_soft(), back);
+            let name = contrast(theme.text, chosen);
+            let mark = contrast(theme.accent_text, chosen);
+            assert!(name >= 4.5, "{at}: a name on the {surface}: {name:.2}");
+            assert!(mark >= 3.0, "{at}: a picture on the {surface}: {mark:.2}");
+        }
+    }
+}
