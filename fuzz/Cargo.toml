@@ -32,6 +32,15 @@ tempfile = "3"
 
 [workspace]
 
+# Crates built with a change of dm's own (vendor/README.md).
+[patch.crates-io]
+librqbit = { path = "../vendor/librqbit" }
+librqbit-sha1-wrapper = { path = "../vendor/librqbit-sha1-wrapper" }
+librqbit-bencode = { path = "../vendor/librqbit-bencode" }
+gpui-pre-linux = { path = "../vendor/gpui-pre-linux" }
+gpui-pre-windows = { path = "../vendor/gpui-pre-windows" }
+gpui-pre-wgpu = { path = "../vendor/gpui-pre-wgpu" }
+
 [profile.release]
 debug = 1
 
