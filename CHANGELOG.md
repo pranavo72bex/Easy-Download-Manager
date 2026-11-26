@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- At a phone's width a finished card says "Complete" in the secondary colour beside its green tick, as the computer's list does, and a card's round button (Retry, Resume) has a button's face, so it shows in the dark look too.
 - A download row's own buttons are 22 points, easier to hit (WCAG 2.2's target size); the status bar's words start on the side panel's edge.
 - The list's column headings stand in a row as tall as the rows under them (28 points), as Finder's do.
 - The empty list's "Nothing queued" stands under the place's picture in a title's weight, as an empty kind's or queue's notice does.
