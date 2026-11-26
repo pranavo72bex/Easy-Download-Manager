@@ -42,8 +42,9 @@ use heading::{as_table, told_heading};
 pub use heading::{header, told_table};
 use heading::{maybe_told, told_cell};
 
-/// The header's height, in points.
-pub const HEADER_HEIGHT: f32 = 24.0;
+/// The header's height, in points: the rows' own (28), as Finder's list heads its rows; at 24
+/// it broke the rhythm of the rows under it and of the side panel's beside it.
+pub const HEADER_HEIGHT: f32 = 28.0;
 
 /// How often a width being dragged, a column's or the side panel's, is kept in the settings
 /// while the drag goes on: a few times a second, so a drag let go anywhere is kept.
