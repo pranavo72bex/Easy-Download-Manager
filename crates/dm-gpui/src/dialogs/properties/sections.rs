@@ -303,7 +303,15 @@ impl Properties {
     /// The fields OK keeps, under the lines that say what the download is.
     pub(super) fn fields(&self, look: &Look, editable: bool, d: gpui::Div) -> gpui::Div {
         let (theme, screen, width) = (look.theme, &look.screen, look.width);
-        d.child(field_line(
+        // A line between what the download is and what may be changed, as the Grabber divides
+        // its search from its saving: the facts ran straight into the fields.
+        d.child(
+            div()
+                .h(px(crate::widgets::space::LINE))
+                .my(px(crate::widgets::space::XS))
+                .bg(theme.separator),
+        )
+        .child(field_line(
             "Address",
             width,
             screen,

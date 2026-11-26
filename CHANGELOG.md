@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- File properties divides what the download is (its name, status, size, where it goes) from the fields that may be changed with a line, as the Grabber divides its search from its saving.
 - Download details says a link that does not work under its Size, where the server's answer belongs, not under Keep no record at the form's foot; what OK refused stands over the buttons.
 - Options › Folders lists each kind's folder on a line of its own, its name at the left and its box at the right, as every other setting; the Scheduler's choices that wrap stand a row's gap apart.
 - The Scheduler's notes (local time, the Main queue's hours, a greyed choice) stand close under what they explain, as Options' and the Grabber's do.
