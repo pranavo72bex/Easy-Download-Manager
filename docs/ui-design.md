@@ -56,7 +56,7 @@ The eye must have somewhere to start. Every window is checked against these, at 
    (a number, a choice) it stays in the column while the window leaves that control room
    (`native::row_small`), so one dialog never has two layouts; on a phone every label is above. A hint sits
    directly under the field it explains, nearer it than the next setting (`native::hint_under`
-   in a form, `HINT_PULL`
+   in a form, `native::hint` in a column, `HINT_PULL`
    `AFTER_HINT`); a section's heading has twice a row's gap and more above it and joins its
    first row (`native::heading`). A switch's line has its name at the start and the
    switch at the end. *(E10.)*

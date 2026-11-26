@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The Scheduler's notes (local time, the Main queue's hours, a greyed choice) stand close under what they explain, as Options' and the Grabber's do.
 - The Grabber's labels are short (Page depth, Time limit, Smallest file, Largest file, Run every) and what 0 means stands under each field, so its fields start nearer the window's edge; in every language.
 - The download list's rows are 28 points apart (24 before), so a list reads at a glance.
 - A new dm's toolbar keeps the everyday buttons: Delete completed and the Grabber start off it (Downloads › Delete completed and Tasks › Grabber hold them; View › Customize toolbar brings them back). A toolbar already set is kept.

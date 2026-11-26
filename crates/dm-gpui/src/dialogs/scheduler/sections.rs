@@ -109,9 +109,9 @@ impl Scheduler {
                     })),
                 )
                 .when(!own, |d| {
-                    d.child(native::note(
+                    d.child(native::hint(
                         t("This queue follows the Main queue's hours."),
-                        theme.muted,
+                        theme,
                         screen,
                     ))
                 })
@@ -180,9 +180,9 @@ impl Scheduler {
                 ),
         );
         // The hint directly under the hours it explains (gaps row E10), not at the foot.
-        let d = d.child(native::note(
+        let d = d.child(native::hint(
             t("HH:MM, local time. A window ending before it starts runs overnight."),
-            theme.muted,
+            theme,
             screen,
         ));
         let d = self
@@ -330,9 +330,9 @@ impl Scheduler {
             ),
         )
         .when(any_greyed && !crate::platform::ON_A_PHONE, |d| {
-            d.child(native::note(
+            d.child(native::hint(
                 t("A greyed choice is one this computer doesn't allow dm."),
-                theme.muted,
+                theme,
                 screen,
             ))
         })

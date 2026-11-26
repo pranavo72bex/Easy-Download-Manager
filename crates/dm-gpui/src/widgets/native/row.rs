@@ -151,6 +151,6 @@ pub fn hint_under(
         screen,
         super::note(words, theme.muted, screen),
     )
-    .mt(px(-(super::ROW_GAP - space::XXS)))
-    .mb(px(space::XS))
+    .mt(px(-super::note::HINT_PULL))
+    .mb(px(super::note::AFTER_HINT))
 }

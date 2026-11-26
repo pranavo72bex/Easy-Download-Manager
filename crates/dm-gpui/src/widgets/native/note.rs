@@ -26,6 +26,20 @@ pub fn note(words: impl Into<SharedString>, color: gpui::Rgba, screen: &Screen) 
         .child(screen.label(words))
 }
 
+/// How much nearer what it explains a hint stands than one row to the next, and the room it
+/// leaves after itself: the row and its hint one unit, the next row apart from both.
+pub const HINT_PULL: f32 = super::ROW_GAP - space::XXS;
+pub(crate) const AFTER_HINT: f32 = space::XS;
+
+/// What the row above it means, in the hint's colour, close under that row in a column whose
+/// rows stand `ROW_GAP` apart (Options' pages, the Scheduler's hours): at a row's gap a hint stood
+/// midway between what it explains and the next row. Under a field in a form, `hint_under`.
+pub fn hint(words: impl Into<SharedString>, theme: Theme, screen: &Screen) -> Div {
+    note(words, theme.muted, screen)
+        .mt(px(-HINT_PULL))
+        .mb(px(AFTER_HINT))
+}
+
 /// A dialog's failure note, said to a screen reader as it appears (gaps row E24): a polite
 /// live region that is always there, nameless and of no room while there is nothing to say,
 /// so the system hears its name change rather than a node arrive. Pressing OK on a dialog that
