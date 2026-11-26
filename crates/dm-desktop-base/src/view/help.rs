@@ -72,6 +72,23 @@ const PAGES: &[(&str, &str)] = &[
         "overnight-downloads",
         include_str!("../../../../docs/guide/overnight-downloads.md"),
     ),
+    // The other task guides (gaps row C16c).
+    (
+        "download-a-video",
+        include_str!("../../../../docs/guide/download-a-video.md"),
+    ),
+    (
+        "resuming",
+        include_str!("../../../../docs/guide/resuming.md"),
+    ),
+    (
+        "speed-limits",
+        include_str!("../../../../docs/guide/speed-limits.md"),
+    ),
+    (
+        "usb-stick",
+        include_str!("../../../../docs/guide/usb-stick.md"),
+    ),
 ];
 
 /// `text` with the characters HTML reads as its own escaped.
@@ -274,6 +291,26 @@ mod tests {
             ("first-download", "Your first download"),
             ("browser-downloads", "Downloads from your browser"),
             ("overnight-downloads", "Downloads overnight"),
+        ] {
+            let page = std::fs::read_to_string(write_page(home.path(), name).unwrap()).unwrap();
+            assert!(page.contains(&format!("<h1>{title}</h1>")), "{name}");
+            assert!(
+                page.contains("<ol>\n<li>"),
+                "{name} is not in numbered steps"
+            );
+        }
+    }
+
+    /// The guides to a video, to resuming, to speed limits and to a USB stick are carried in
+    /// dm, written offline as numbered steps (gaps row C16c).
+    #[test]
+    fn the_other_task_guides_are_carried_offline() {
+        let home = tempfile::tempdir().unwrap();
+        for (name, title) in [
+            ("download-a-video", "Download a video"),
+            ("resuming", "Stop now, finish later"),
+            ("speed-limits", "Keep some speed for everything else"),
+            ("usb-stick", "dm on a USB stick (Windows)"),
         ] {
             let page = std::fs::read_to_string(write_page(home.path(), name).unwrap()).unwrap();
             assert!(page.contains(&format!("<h1>{title}</h1>")), "{name}");
