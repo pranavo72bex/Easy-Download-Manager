@@ -51,7 +51,9 @@ pub(super) fn row_actions(row: &Entry) -> Vec<(Command, &'static str, &'static s
 }
 
 /// A row's button's side, and the room between two and around them all.
-const ROW_BUTTON: f32 = 18.0;
+/// 22, so with the gap two buttons' centres stand 26 apart: WCAG 2.2's target size (2.5.8,
+/// 24 points or spaced so 24-point circles do not overlap). At 18 they stood 22 apart.
+const ROW_BUTTON: f32 = 22.0;
 const ROW_BUTTON_GAP: f32 = 4.0;
 
 /// The room `count` of a row's buttons take at the name's end: the buttons, the gaps between

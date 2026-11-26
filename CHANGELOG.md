@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A download row's own buttons are 22 points, easier to hit (WCAG 2.2's target size); the status bar's words start on the side panel's edge.
 - The list's column headings stand in a row as tall as the rows under them (28 points), as Finder's do.
 - The empty list's "Nothing queued" stands under the place's picture in a title's weight, as an empty kind's or queue's notice does.
 - The Scheduler's line on what the Main queue's hours are for reads as an explanation, small and secondary, not as a setting.
