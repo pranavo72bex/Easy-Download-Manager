@@ -24,3 +24,4 @@
 
 - 2026-11-24: Headless tests in dm-desktop-base enforce strict lints like -D warnings, failing on unused variables, unnecessary mut keywords, and len()  0 comparisons.
 - 2026-11-25: Comparing GPUI SharedString in assert_eq! using .into() causes type inference errors (E0283); use explicit SharedString::from(...) instead.
+- 2026-11-26: 104 lines remain uncovered in xtask tasks.rs — mostly in exit_with, build, test functions that call process exit or run cargo/shell; these resist in-process unit testing
