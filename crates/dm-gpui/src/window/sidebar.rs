@@ -539,6 +539,49 @@ pub(crate) fn chosen_bar(theme: Theme) -> gpui::Div {
         .bg(theme.accent_text)
 }
 
+/// A source list's row, as a dialog lists its pages or queues (Options, the Scheduler): the
+/// side panel's place height, a picture then words on one line, the chosen one the soft fill
+/// with the accent's bar, another answering the pointer; reached by Tab, its place ringed.
+pub(crate) fn source_row(
+    row: gpui::Stateful<gpui::Div>,
+    chosen: bool,
+    icon: &'static str,
+    theme: Theme,
+) -> gpui::Stateful<gpui::Div> {
+    reachable(row.aria_selected(chosen), theme)
+        .relative()
+        .h(px(PLACE_ROW))
+        .px(px(crate::widgets::space::M))
+        .rounded(px(crate::widgets::native::RADIUS))
+        .flex()
+        .map(crate::window::mirror::row)
+        .items_center()
+        .gap(px(crate::widgets::space::M))
+        .cursor_pointer()
+        .when(chosen, |d| {
+            d.bg(theme.chosen_soft()).child(chosen_bar(theme))
+        })
+        .when(!chosen, |d| d.hover(move |s| s.bg(theme.stripe)))
+        .child(
+            gpui::svg()
+                .path(icon)
+                .size(px(crate::widgets::native::ICON))
+                .flex_none()
+                // The accent's text shade, as the side panel's places (`picture`).
+                .text_color(theme.accent_text),
+        )
+}
+
+/// A source list row's words: one line, cut with an ellipsis where the list is too narrow.
+pub(crate) fn row_words(words: impl IntoElement) -> gpui::Div {
+    div()
+        .min_w_0()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_ellipsis()
+        .child(words)
+}
+
 /// The panel's edge being dragged. Nothing is drawn under the pointer but the panel itself;
 /// the left-right cursor stays on while it is, wherever the pointer goes.
 #[derive(Clone, Copy)]

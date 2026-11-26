@@ -124,44 +124,14 @@ impl Options {
         screen: &Screen,
     ) -> gpui::Stateful<gpui::Div> {
         let on = self.tab == tab;
-        crate::window::sidebar::reachable(entry.aria_selected(on), theme)
-            .relative()
-            .h(px(crate::window::sidebar::PLACE_ROW))
-            .px(px(space::M))
-            .rounded(px(native::RADIUS))
-            .flex()
-            .map(crate::window::mirror::row)
-            .items_center()
-            .gap(px(space::M))
-            .cursor_pointer()
-            .when(on, |d| {
-                d.bg(theme.chosen_soft())
-                    .child(crate::window::sidebar::chosen_bar(theme))
-            })
-            // The others answer the pointer as a faceless row does (`docs/ui-design.md`).
-            .when(!on, |d| d.hover(move |s| s.bg(theme.stripe)))
+        crate::window::sidebar::source_row(entry, on, picture(tab), theme)
             .when(!summary.is_empty(), |d| {
                 let said = SharedString::from(summary);
                 d.tooltip(move |window, cx| {
                     gpui_component::tooltip::Tooltip::new(said.clone()).build(window, cx)
                 })
             })
-            .child(
-                gpui::svg()
-                    .path(picture(tab))
-                    .size(px(native::ICON))
-                    .flex_none()
-                    // The accent's text shade, as the side panel's places.
-                    .text_color(theme.accent_text),
-            )
-            .child(
-                div()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .child(screen.label(t(words))),
-            )
+            .child(crate::window::sidebar::row_words(screen.label(t(words))))
     }
 
     /// At a phone's width, the list a screen of its own: each page's name, what it holds under

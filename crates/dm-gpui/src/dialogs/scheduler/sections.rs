@@ -38,28 +38,25 @@ impl Scheduler {
             .children(self.queues.iter().enumerate().map(|(i, queue)| {
                 let chosen = *queue == self.draft.queue;
                 let q = queue.clone();
-                div()
-                    .id(("queue", i))
-                    .map(|c| crate::widgets::native::ringed(c, theme))
-                    .aria_selected(chosen)
-                    .role(Role::ListItem)
-                    .aria_label(dm_desktop_base::i18n::name(queue))
-                    // A finger's least on a phone (gaps row E26).
-                    .h(px(if crate::platform::ON_A_PHONE {
-                        crate::widgets::native::CONTROL
-                    } else {
-                        24.0
-                    }))
-                    .px(px(space::M))
-                    .flex()
-                    .items_center()
-                    .rounded(px(native::RADIUS))
-                    .when(chosen, |d| d.bg(theme.accent).text_color(theme.on_accent))
-                    .when(!chosen, |d| d.hover(|s| s.bg(theme.stripe)))
-                    .child(screen.label(dm_desktop_base::i18n::name(queue)))
-                    .on_click(
-                        cx.listener(move |this, _, window, cx| this.choose(q.clone(), window, cx)),
-                    )
+                crate::window::sidebar::source_row(
+                    div()
+                        .id(("queue", i))
+                        .role(Role::ListItem)
+                        .aria_label(dm_desktop_base::i18n::name(queue)),
+                    chosen,
+                    "icons/place-queue.svg",
+                    theme,
+                )
+                // A finger's least on a phone (gaps row E26).
+                .when(crate::platform::ON_A_PHONE, |d| {
+                    d.h(px(crate::widgets::native::CONTROL))
+                })
+                .child(crate::window::sidebar::row_words(
+                    screen.label(dm_desktop_base::i18n::name(queue)),
+                ))
+                .on_click(
+                    cx.listener(move |this, _, window, cx| this.choose(q.clone(), window, cx)),
+                )
             }))
             .child(
                 div()

@@ -29,7 +29,8 @@ The eye must have somewhere to start. Every window is checked against these, at 
    maintainer, 2026-11-26). A button's picture is in its words' colour. A source list's
    chosen entry (the side panel's place, Options' page) is a soft fill of the accent
    (`Theme::chosen_soft`) with its bar at the leading edge (`sidebar::chosen_bar`), its
-   words all in the text's colour: never the filled accent, which is the default button's. A dialog with pages (Options) lists them as the main window's side panel lists places:
+   words all in the text's colour: never the filled accent, which is the default button's. A dialog with pages or queues (Options, the Scheduler) lists them as the main window's side
+   panel lists places, through one helper (`sidebar::source_row`):
    its colour, its row height (`sidebar::PLACE_ROW`), one line each, the page opening with its
    name. A small button on a chosen row has the selection's words, see-through, for its face
    (`Theme::on_chosen_face`), never the control's white.
