@@ -251,6 +251,25 @@ pub(super) fn choose(
     container: Option<&str>,
     frame_rate: Option<u32>,
 ) -> Option<Vec<Format>> {
+    choose_with(
+        formats,
+        quality,
+        container,
+        frame_rate,
+        crate::prefer_h264::wanted(),
+    )
+}
+
+/// [`choose`], `prefer_h264` saying whether the picture is taken in H.264 where the video has
+/// one within the quality asked (gaps row Y8c): the tallest H.264 picture then, and AV1 or VP9
+/// only where it has no H.264 at all.
+pub(super) fn choose_with(
+    formats: &[Format],
+    quality: Quality,
+    container: Option<&str>,
+    frame_rate: Option<u32>,
+    prefer_h264: bool,
+) -> Option<Vec<Format>> {
     let usable: Vec<&Format> = formats.iter().filter(|f| !f.secondary).collect();
     let audio_in = |container: &str| {
         usable
@@ -291,11 +310,16 @@ pub(super) fn choose(
             f.height
         }
     };
-    let all: Vec<&Format> = usable
+    let mut all: Vec<&Format> = usable
         .iter()
         .filter(|f| f.video && f.height > 0 && side(f) <= limit)
         .copied()
         .collect();
+    // H.264 preferred: the H.264 pictures alone, where there is one.
+    let h264 = |f: &&Format| itags::codec_rank(&f.codec) == 1;
+    if prefer_h264 && all.iter().any(h264) {
+        all.retain(h264);
+    }
     let biggest = all.iter().map(|f| side(f)).max()?;
     // The line's frame rate, where pictures that size have it; else what there is.
     let fast = |f: &Format| f.fps > 30;

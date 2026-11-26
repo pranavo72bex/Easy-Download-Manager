@@ -155,6 +155,7 @@ pub mod secretstore;
 
 pub use dm_media::shape;
 
+pub mod prefer_h264;
 pub mod sound_language;
 
 mod stream;
@@ -276,6 +277,7 @@ pub use stream::{
 };
 
 #[doc(hidden)]
+pub use prefer_h264::set_prefer_h264;
 pub use sound_language::set_sound_language;
 
 pub use torrent::{

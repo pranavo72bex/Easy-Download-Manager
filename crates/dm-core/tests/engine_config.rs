@@ -48,6 +48,7 @@ async fn configure_puts_each_part_in_force_and_the_default_takes_it_back() {
     let config = EngineConfig {
         identify_as_dm: true,
         sound_language: "pt_BR".into(),
+        prefer_h264: true,
         connect_first: Some(Arc::new(move |_, _| {
             counts.fetch_add(1, Ordering::SeqCst);
             Ok(())
@@ -67,6 +68,7 @@ async fn configure_puts_each_part_in_force_and_the_default_takes_it_back() {
     assert!(said.contains("is not connected"), "{said}");
     assert_eq!(dm_core::first_agent(), dm_core::USER_AGENT);
     assert_eq!(dm_core::sound_language::wanted().as_deref(), Some("pt-BR"));
+    assert!(dm_core::prefer_h264::wanted());
     assert_eq!(
         dm_core::youtube::kept_players(),
         Some(dir.path().join("players"))
@@ -88,6 +90,7 @@ async fn configure_puts_each_part_in_force_and_the_default_takes_it_back() {
     assert_eq!(configure(&EngineConfig::default()), Ok(()));
     assert_eq!(dm_core::first_agent(), dm_core::IE_AGENT);
     assert_eq!(dm_core::sound_language::wanted(), None);
+    assert!(!dm_core::prefer_h264::wanted());
     assert_eq!(dm_core::youtube::kept_players(), None);
     let before = waited.load(Ordering::SeqCst);
     assert_eq!(

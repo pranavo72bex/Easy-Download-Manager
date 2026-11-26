@@ -27,6 +27,9 @@ pub struct EngineConfig {
     /// The language a dubbed video's sound is taken in, as Options keeps it (`es`, `pt-BR`);
     /// empty, or `original`, for each video's own sound (gaps row Y10).
     pub sound_language: String,
+    /// A video's picture taken in H.264 where it has one within the quality asked, rather than
+    /// a taller AV1 or VP9 one (gaps row Y8c).
+    pub prefer_h264: bool,
     /// What every download waits on before it goes out (the dial-up or VPN connection a person
     /// chose); `None` for nothing.
     pub connect_first: Option<ConnectFirst>,
@@ -59,6 +62,7 @@ impl std::fmt::Debug for EngineConfig {
         f.debug_struct("EngineConfig")
             .field("identify_as_dm", &self.identify_as_dm)
             .field("sound_language", &self.sound_language)
+            .field("prefer_h264", &self.prefer_h264)
             .field("connect_first", &self.connect_first.is_some())
             .field("second_path", &self.second_path)
             .field("kept_players", &self.kept_players)
@@ -79,6 +83,7 @@ impl std::fmt::Debug for EngineConfig {
 pub fn configure(config: &EngineConfig) -> Result<(), String> {
     crate::agents::set_identify_as_dm(config.identify_as_dm);
     crate::sound_language::set_sound_language(&config.sound_language);
+    crate::prefer_h264::set_prefer_h264(config.prefer_h264);
     crate::connect_first::set_connect_first(config.connect_first.clone());
     crate::youtube::set_kept_players(config.kept_players.clone());
     // Downloads held to one network: no second one beside it (gaps row W12).

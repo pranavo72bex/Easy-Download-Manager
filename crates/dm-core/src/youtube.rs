@@ -794,4 +794,6 @@ fn safe_title(title: &str) -> String {
 }
 
 #[cfg(test)]
+mod codec_tests;
+#[cfg(test)]
 mod tests;
