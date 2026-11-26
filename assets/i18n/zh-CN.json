@@ -1111,5 +1111,6 @@
  "Stop now, finish later": "现在暂停，稍后完成",
  "Keep some speed for everything else": "为其他用途留出速度",
  "dm on a USB stick": "U 盘上的 dm",
- "Settings": "设置"
+ "Settings": "设置",
+ "{} download||{} downloads": "{} 个下载"
 }

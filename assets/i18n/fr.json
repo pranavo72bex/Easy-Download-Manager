@@ -1111,5 +1111,6 @@
  "Stop now, finish later": "Arrêter maintenant, finir plus tard",
  "Keep some speed for everything else": "Garder du débit pour le reste",
  "dm on a USB stick": "dm sur une clé USB",
- "Settings": "Réglages"
+ "Settings": "Réglages",
+ "{} download||{} downloads": "{} téléchargement||{} téléchargements"
 }

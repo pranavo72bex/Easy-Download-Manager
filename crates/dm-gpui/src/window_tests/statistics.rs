@@ -84,3 +84,25 @@ fn the_progress_windows_help_opens_its_page_of_the_guide() {
     let html = std::fs::read_to_string(&page).unwrap();
     assert!(html.contains("<h1>"), "{html}");
 }
+
+/// The control port's `ui.menu` chooses a menu item by its path, as a person does in the menu
+/// bar: on macOS the menus' titles are the system's bar's, which a script's click cannot reach.
+#[test]
+fn ui_menu_chooses_an_item_by_its_path() {
+    let world = world();
+    let mut h = world.harness();
+    h.call(
+        "ui.menu",
+        serde_json::json!({ "path": ["View", "Statistics…"] }),
+    )
+    .unwrap();
+    h.until("Statistics", |h| h.dialog_open("Statistics"));
+    assert!(
+        h.call(
+            "ui.menu",
+            serde_json::json!({ "path": ["View", "No such item"] })
+        )
+        .is_err(),
+        "an item that is not there is said, not taken for another"
+    );
+}

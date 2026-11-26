@@ -1111,5 +1111,6 @@
  "Stop now, finish later": "Hentikan sekarang, selesaikan nanti",
  "Keep some speed for everything else": "Sisakan kecepatan untuk yang lain",
  "dm on a USB stick": "dm di flashdisk USB",
- "Settings": "Pengaturan"
+ "Settings": "Pengaturan",
+ "{} download||{} downloads": "{} unduhan"
 }
