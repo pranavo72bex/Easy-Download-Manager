@@ -1,12 +1,14 @@
 name: AI merge
 
 # One of the bot's pull requests (labelled bot:automerge) is merged, sent back for a
-# revision, or left for a person: scripts/ai-merge.sh decides, once CI and Desktop have
-# both finished on its last commit. Runs when either finishes on a bot/ branch, and from
-# the queue's round (ai-worker.yml) for any that waited.
+# revision, or left for a person: scripts/ai-merge.sh decides, once CI, Desktop, Android and
+# the human QA run (Contract on Linux) have finished on its last commit. Runs when any of them
+# finishes on a bot/ branch, and from the queue's round (ai-worker.yml) for any that waited.
+# One decision at a time, for every pull request: two merged at once would each have been
+# checked against a main without the other.
 on:
   workflow_run:
-    workflows: [CI, Desktop]
+    workflows: [CI, Desktop, "Android, the engine built", Contract on Linux]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -21,7 +23,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ai-merge-${{ inputs.pr || github.event.workflow_run.head_branch }}
+  group: ai-merge
   cancel-in-progress: false
 
 jobs:

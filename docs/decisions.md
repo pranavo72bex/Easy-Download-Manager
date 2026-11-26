@@ -9135,3 +9135,23 @@ tooling/xtask/ as it leaves out what a Linux runner cannot run.
 A second try now goes on in the first try's session (`opencode run --continue`) and is sent
 only what failed: in that run the second try spent 26 calls reading again what the first had
 read, and the keyless quota is about 100 calls a run.
+
+## A bot's merge waits for the human QA run, two reviews and an up-to-date branch, 2026-11-26
+
+The maintainer asked that what the free models merge always leave the app better, never worse,
+and that it be QA-tested as a person would. A bot's pull request already had to pass CI, Desktop
+and Android on three systems and one model's review. Now, too: the behaviour contract's rows in
+dm's real window on Linux (`contract-linux.yml`, until now only reported) on its commit, held to
+main's last run row by row (`scripts/ai-contract-gate.py`): every row main holds must hold, and
+every row the change adds. Not the whole contract: rows that need a live site or a browser panel
+fail on CI's runner every time (the same 8 of 77 in each of three runs on main), and holding a
+bot to them would merge nothing. The branch must hold all of main (one behind is brought up to
+date and checked again; one that no longer merges is closed and its task queued again), and the
+merges are one at a time, so two changes each checked against an older main cannot meet there
+untested. Two reviews by two different models (never Kilo's routers, which may pass the
+question to the first), each reading the whole diff; a diff too long for that waits for a person.
+After a merge, a contract run on main that holds fewer rows than the one before it reverts the
+merge (`bug-report.yml`, `scripts/ai-revert.sh`), as a red CI or Desktop run already did.
+Checked by dry runs of `ai-merge.sh` against a stand-in `gh` (behind main, a row lost, a review
+against, all good, main with no contract run, a run that left no words) and in
+`scripts/ai-selftest.sh`.

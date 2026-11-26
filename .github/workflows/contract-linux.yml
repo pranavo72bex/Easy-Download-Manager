@@ -1,4 +1,4 @@
-name: Contract on Linux (reported, not gating)
+name: Contract on Linux
 
 # The behaviour contract's rows (docs/behaviour-contract.md) on CI's Linux runner, as
 # scripts/linux-human-qa.sh runs them in Docker on any machine (gaps row R5): a build of the
@@ -7,11 +7,16 @@ name: Contract on Linux (reported, not gating)
 # and the pictures are the run's artifact, and scripts/human-qa-report.py writes the rows held,
 # failed and not checked into the run's summary.
 #
-# REPORTED, NOT GATING. A row that fails here does not fail the workflow: the job and its QA step
-# are continue-on-error, and nothing else reads them. The contract's own QA run stays a person's:
+# For a person's change, REPORTED, NOT GATING: a row that fails here does not fail the workflow
+# (the job and its QA step are continue-on-error). The contract's own QA run stays a person's:
 # `python3 scripts/human-qa.py` in a visible window, before a merge and after any change to
 # crates/, tooling/ or extension/ (CLAUDE.md). This run neither replaces it nor changes any of
 # human-qa.py's rules.
+#
+# For a bot's change, THE HUMAN QA GATE (the maintainer, 2026-11-26): scripts/ai-merge.sh starts
+# this on the pull request's commit and on main, reads both runs' words (the small
+# `contract-words` artifact) and merges only when every row main holds holds with the change
+# (scripts/ai-contract-gate.py). bug-report.yml reverts a bot's merge after which main holds fewer.
 on:
   push:
     branches: [main]
@@ -70,6 +75,16 @@ jobs:
             --summary "$GITHUB_STEP_SUMMARY" --annotate
           echo "linux-human-qa.sh: ${{ steps.qa.outcome }} (reported, not gating; the gate is a person's run in sight)" \
             | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The words alone, for the bots' gate (ai-merge.sh, bug-report.yml): a few kilobytes, not
+      # the pictures.
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: contract-words
+          path: ${{ runner.temp }}/human-qa/human-qa.txt
+          if-no-files-found: warn
+          retention-days: 30
 
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()

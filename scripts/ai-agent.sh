@@ -215,7 +215,7 @@ ai_try() {
         for attempt in $(seq 1 "$AI_ATTEMPTS"); do
             echo "::group::$provider, try $attempt"
             ai_run "$provider" "$ask" "$session"
-            session=continue
+            session="continue"
             status=$?
             echo "::endgroup::"
             if [ "$status" = 3 ]; then

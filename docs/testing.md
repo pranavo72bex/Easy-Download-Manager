@@ -408,7 +408,7 @@ tree, and the workflow, not the model, decides what is done.
 | `ai-worker.yml` | The queue, every two hours and after each task (`scripts/ai-worker.sh`): one AI job at a time, the most urgent first (main's red runs, revisions, bugs, features, then the nightly tests); a task no model could do is tried again after a week, three times; the site watch's reports are queued as bugs; and past 45 days without a commit it writes `.github/keepalive`, as GitHub turns off a quiet public repository's schedules at 60. |
 | `ai-fix.yml` | One task (`ci`, `bug`, `feature`, `improve` or `revise`) for the models, each with two tries, the second told what failed (`scripts/ai-agent.sh`). Before a CI failure is given to a model, `scripts/ai-fix-context.sh` closes it if main went green since, leaves it when its failing tests pass alone on Linux, and gathers the failing tests, what changed since the last green run and each test run here. What passes becomes a pull request labelled `bot:automerge`, with CI and Desktop started on its branch. |
 | `ai-tests.yml` | Once a day when nothing else waits: tests for the file with the most lines no test runs (`scripts/coverage-table.py`), kept only when that file has fewer untested lines and the whole is not down; the floor is raised to each whole percent passed. |
-| `ai-merge.yml` | When CI and Desktop have finished on a bot pull request's last commit (`scripts/ai-merge.sh`): all green and a second model's review finds nothing against the rules, it is merged and CI and Desktop run on main; otherwise it goes back to the fixer, twice, then is closed. |
+| `ai-merge.yml` | When CI, Desktop, Android and the human QA run (`contract-linux.yml`) have finished on a bot pull request's last commit (`scripts/ai-merge.sh`, one decision at a time): its branch holding all of main, all green, every contract row main holds held in dm's real window (`scripts/ai-contract-gate.py`), and two models' reviews, each on its own, finding nothing against the rules, it is merged and all four run on main; otherwise it goes back to the fixer, twice, then is closed. |
 
 **What a model is handed.** Free models do better with the way pointed out, so before one
 starts, `scripts/ai-context.py` writes `.bot/context.md`: for a step of `docs/gaps.md`, the
@@ -486,13 +486,20 @@ assumes the one before it failed:
   Only the maintainer's words and the machine's own output become notes. A feature needs
   three thumbs-up from accounts at least 90 days old, the reporter's not counted.
 - *A merge is the last gate* (`scripts/ai-merge.sh`): the bot's own branch, every commit
-  the bot's; CI and Desktop green on Linux, Windows and macOS; never a change to a
-  guardrail; and a second model's review that puts security first. From an issue anyone
+  the bot's, holding all of main (a branch behind is brought up to date and checked again,
+  so what passed is what main becomes; one that no longer merges is closed and its task
+  queued again); CI, Desktop and Android green on Linux, Windows and macOS; the human QA
+  run, every behaviour contract row in dm's real window on Linux (`contract-linux.yml`),
+  holding every row main holds and every row the change adds (`scripts/ai-contract-gate.py`;
+  the maintainer, 2026-11-26: the app is never made worse by a bot); never a change to a
+  guardrail; and two reviews by two different models, each reading the whole diff, both
+  putting security first (a diff too long to read whole waits for a person). From an issue anyone
   could open, a change waits for a person (`bot:needs-maintainer`) when it touches the
   network, protocol, extension, downloads, archives, video sites, the system, the
   updater, secrets, packaging, assets or a manifest, adds `unsafe`, a process, the
   network, the environment, a URL or deleted files anywhere, or changes over 600 lines.
-- *A merge that turns main red is reverted* by `bug-report.yml`.
+- *A merge that turns main red, or after which main holds fewer contract rows, is
+  reverted* by `bug-report.yml` (`scripts/ai-revert.sh`), and its task queued again.
 
 What is left: the free model key (`KILO_API_KEY`) is in reach of the code a model
 writes, since the agent that holds it runs that code; it is a free key, worth a day's

@@ -6,8 +6,13 @@
 
 """One question to a free AI model, for the bots in .github/workflows/ai-*.yml.
 
-    python3 scripts/ai-ask.py ask [--json] < PROMPT     # the answer on stdout
-    python3 scripts/ai-ask.py pick kilo                  # a model that answers now
+    python3 scripts/ai-ask.py ask [--json] [--not MODEL]... < PROMPT   # the answer on stdout
+    python3 scripts/ai-ask.py pick kilo                                 # a model that answers now
+
+The model that answered is named on stderr ("ai-ask: answered by kilo MODEL"); `--not`
+passes a model over, so a second opinion comes from another (scripts/ai-merge.sh's two
+reviews). Kilo's routers (kilo-auto/free, openrouter/free) are never a second opinion: they
+may send the question to the model that gave the first.
 
 Free models come and go, so none is fixed here: Kilo Code's free ones are listed from
 its gateway (KILO_MODEL first), and each is tried in turn until one answers. They need
@@ -79,6 +84,10 @@ def as_json_text(text):
         return None
 
 
+# Kilo's models that pass a question on to another, of the gateway's choosing.
+ROUTERS = {"kilo-auto/free", "openrouter/free"}
+
+
 def candidates():
     for m in kilo_models():
         yield "kilo", m
@@ -98,8 +107,11 @@ def answer(provider, model, prompt, as_json):
 def main(argv):
     if len(argv) >= 2 and argv[1] == "ask":
         as_json = "--json" in argv
+        passed_over = {argv[i + 1] for i in range(2, len(argv) - 1) if argv[i] == "--not"}
         prompt = sys.stdin.read()
         for provider, model in candidates():
+            if passed_over and (model in passed_over or model in ROUTERS):
+                continue
             try:
                 text = answer(provider, model, prompt, as_json)
             except (urllib.error.URLError, OSError, ValueError, KeyError, IndexError) as e:

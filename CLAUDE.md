@@ -35,9 +35,11 @@ red runs and people's bugs, build requested features, write tests each night and
 their own pull requests (`.github/workflows/ai-*.yml`, `docs/testing.md`). A bot never
 waits for an answer. For a bot, the contract rule above reads: never change or remove a
 row; a feature adds a new row at the end; a behaviour that needs a row changed is not
-built. A bot's merge is gated by CI and Desktop passing on Linux, Windows and macOS, the
-coverage floor, the privacy check and a second model's review, in place of the visible
-QA run; a merge that turns main red is reverted by `bug-report.yml`. What the bots have
+built. A bot's merge is gated by CI, Desktop and Android passing on Linux, Windows and
+macOS, the coverage floor, the privacy check, the contract's rows in dm's real window on
+Linux (`contract-linux.yml`: every row main holds must hold) and two models' reviews, in place
+of the visible QA run; a merge that turns main red or loses a contract row is reverted by
+`bug-report.yml` (the maintainer, 2026-11-26: the app is never made worse by a bot). What the bots have
 learned is in `docs/ai-notes.md` and each skill page's Lessons (`docs/ai-skills/`, handed
 to a model by `scripts/ai-context.py`). When nothing else waits, the bots take the next row
 of `docs/gaps.md` that needs nothing only a person can give. A bot never edits the workflows, `scripts/`,

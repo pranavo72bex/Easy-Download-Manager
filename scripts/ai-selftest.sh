@@ -180,6 +180,44 @@ expect "still: a split row is not (its steps are)" no "$(still A1)"
 expect "still: a person's row is not" no "$(still A2)"
 expect "still: a deleted row is not" no "$(still A1a)"
 
+# The merge's human QA gate and the nightly file picker (the maintainer, 2026-11-26: the app is
+# never made worse by a bot).
+if python3 -I scripts/ai-contract-gate.py --self-test >/dev/null 2>&1; then
+    pass "contract gate: a row main holds that the change loses stops the merge"
+else
+    fail "contract gate" "python3 scripts/ai-contract-gate.py --self-test fails"
+fi
+if python3 -I scripts/human-qa-report.py --self-test >/dev/null 2>&1; then
+    pass "contract gate: the rows are read as the report reads them"
+else
+    fail "contract report" "python3 scripts/human-qa-report.py --self-test fails"
+fi
+mkdir -p "$work/cov"
+cat >"$work/cov/table.txt" <<'TABLE'
+tooling/xtask/src/tasks.rs     535  293  45.23%  40  23  42.50%  301  166  44.85%  0  0  -
+crates/dm-core/src/small.rs    200   90  55.00%  10   4  60.00%  150   60  60.00%  0  0  -
+TOTAL                          735  383  47.89%  50  27  46.00%  451  226  49.89%  0  0  -
+TABLE
+expect "tests: never a file no bot may change (tooling/xtask/)" crates/dm-core/src/small.rs \
+    "$(python3 -I scripts/coverage-table.py pick "$work/cov/table.txt" | cut -d' ' -f1)"
+# The two reviews: ai-ask.py with a stand-in gateway (no network), asked as ai-merge.sh asks.
+second_opinion() {
+    printf 'Answer with JSON.' | python3 -I - "$here/scripts/ai-ask.py" "$@" <<'PY' 2>&1 >/dev/null |
+import importlib.util, io, sys
+spec = importlib.util.spec_from_file_location("ask", sys.argv[1])
+ask = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ask)
+ask.kilo_models = lambda: ["first:free", "kilo-auto/free", "openrouter/free", "second:free"]
+ask.ask_kilo = lambda model, prompt, as_json: '{"ok": true}'
+sys.stdin = io.StringIO("Answer with JSON.")
+sys.exit(ask.main(["ai-ask.py", "ask", "--json"] + sys.argv[2:]))
+PY
+        sed -n 's/^ai-ask: answered by kilo //p'
+}
+expect "reviews: the first opinion is the first model that answers" first:free "$(second_opinion)"
+expect "reviews: a second opinion is never the first model, nor a router" second:free "$(second_opinion --not first:free)"
+expect "reviews: no third model, no answer (waited for, never a yes)" "" "$(second_opinion --not first:free --not second:free)"
+
 echo
 if [ "$failures" -gt 0 ]; then
     echo "ai-selftest: $failures guardrail(s) not holding"

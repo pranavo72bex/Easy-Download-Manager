@@ -7,11 +7,14 @@ name: Bug report
 #
 # And the bots' safety net: when the commit that turned main red is one the bot merged
 # (ai-merge.yml) and the run before it was green, that merge is reverted at once, CI and
-# Desktop run again on main, and its issue is reopened and queued to be tried again.
-# GitHub's free runners and free models only; nothing to pay for.
+# Desktop run again on main, and its issue is reopened and queued to be tried again
+# (scripts/ai-revert.sh). The same for the contract: a bot's merge after which main holds
+# fewer of the behaviour contract's rows than the run before it is reverted too (the
+# `contract` job; scripts/ai-contract-gate.py judges). GitHub's free runners and free models
+# only; nothing to pay for.
 on:
   workflow_run:
-    workflows: [CI, Desktop, Deep fuzz, Audit]
+    workflows: [CI, Desktop, Deep fuzz, Audit, Contract on Linux]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -27,7 +30,9 @@ permissions:
 
 jobs:
   report:
-    if: github.event_name == 'workflow_dispatch' || contains(fromJSON('["failure", "success"]'), github.event.workflow_run.conclusion)
+    if: >-
+      github.event_name == 'workflow_dispatch' || (github.event.workflow_run.name != 'Contract on Linux'
+      && contains(fromJSON('["failure", "success"]'), github.event.workflow_run.conclusion))
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -67,34 +72,12 @@ jobs:
           fi
 
           # The bot's own merge turned main red: undone.
-          message=$(git log -1 --format=%B "$sha" 2>/dev/null || true)
           created=$(jq -r .createdAt <<<"$run_json")
           wid=$(jq -r .workflowDatabaseId <<<"$run_json")
           before=$(gh api "repos/$GH_REPO/actions/workflows/$wid/runs?branch=main&status=completed&per_page=20" \
             --jq "[.workflow_runs[] | select(.created_at < \"$created\" and .conclusion != \"cancelled\")] | first | .conclusion // empty")
-          if grep -q 'Merged by ai-merge.yml' <<<"$message" && [ "$before" = success ] \
-             && git merge-base --is-ancestor "$sha" origin/main 2>/dev/null; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git checkout -q main && git pull -q --ff-only origin main
-            if git revert --no-edit "$sha"; then
-              git commit --amend -q -m "$(printf 'Revert the bot'"'"'s merge that turned %s red [bot-revert]\n\n%s\n\nIts run: %s' "$workflow" "$(git log -1 --format=%s "$sha")" "$url")"
-              git push -q origin HEAD:main
-              gh workflow run ci.yml --ref main || true
-              gh workflow run desktop.yml --ref main -f bundles=false || true
-              issue=$(grep -oE '^issue: #?[0-9]+' <<<"$message" | grep -oE '[0-9]+' | head -n1 || true)
-              task=$(grep -oE '^task: [a-z]+' <<<"$message" | cut -d' ' -f2 | head -n1 || true)
-              if [ -n "$issue" ]; then
-                gh issue reopen "$issue" || true
-                gh issue edit "$issue" --add-label "bot:reverted,bot:queue,bot-task:${task:-bug}" --remove-label bot:merged || true
-                gh issue comment "$issue" --body "$(printf '<!-- dm-bot -->\nThe bot'"'"'s fix was reverted: after it was merged, [%s](%s) failed on main. Queued to be tried again.\n\n— dm'"'"'s bot' "$workflow" "$url")" || true
-              fi
-              gh workflow run ai-worker.yml || true
-              echo "Reverted $sha."
-              exit 0
-            fi
-            git revert --abort || true
-            echo "The revert did not apply cleanly: reported as an ordinary failure."
+          if [ "$before" = success ] && bash scripts/ai-revert.sh "$sha" "$workflow failed" "$url"; then
+            exit 0
           fi
 
           body=$(printf '%s\n\n%s\n\n%s\n%s\n' \
@@ -110,4 +93,40 @@ jobs:
             issue_url=$(gh issue create --title "$title" --label bot-fix,bot:queue,bot-task:ci --body "$body")
             echo "Opened ${issue_url##*/}"
             gh workflow run ai-worker.yml || true
+          fi
+
+  # A bot's merge after which main holds fewer contract rows than the run before it: undone.
+  # The contract run itself always passes (it is reported, not gating, for people), so it is
+  # judged by its words, against the last run on main before it.
+  contract:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Contract on Linux' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+      CREATED: ${{ github.event.workflow_run.created_at }}
+      WID: ${{ github.event.workflow_run.workflow_id }}
+      URL: ${{ github.event.workflow_run.html_url }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 50
+      - name: Revert the bot's merge if main holds fewer rows
+        run: |
+          set -uo pipefail
+          git log -1 --format=%B "$SHA" 2>/dev/null | grep -q 'Merged by ai-merge.yml' || { echo "Not the bot's merge."; exit 0; }
+          before=$(gh api "repos/$GH_REPO/actions/workflows/$WID/runs?branch=main&status=completed&per_page=20" \
+            --jq "[.workflow_runs[] | select(.created_at < \"$CREATED\" and .conclusion == \"success\")] | first | .id // empty")
+          [ -n "$before" ] || { echo "No run on main before it to hold it to."; exit 0; }
+          mkdir -p .bot
+          bash scripts/ai-contract-words.sh "$RUN_ID" .bot/after.txt || { echo "This run left no words: nothing to judge."; exit 0; }
+          bash scripts/ai-contract-words.sh "$before" .bot/before.txt || { echo "The run before it left no words: nothing to judge."; exit 0; }
+          set +e
+          python3 -I scripts/ai-contract-gate.py .bot/after.txt .bot/before.txt | tee .bot/gate.txt
+          verdict=${PIPESTATUS[0]}
+          set -e
+          if [ "$verdict" = 1 ]; then
+            bash scripts/ai-revert.sh "$SHA" "the contract held fewer rows ($(grep -oE '^- B[0-9]+' .bot/gate.txt | cut -c3- | paste -sd, -))" "$URL" || true
           fi

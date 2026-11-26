@@ -7,16 +7,20 @@
 # Whether one of the bot's pull requests (labelled bot:automerge) is merged:
 # `bash scripts/ai-merge.sh PR` ($GH_TOKEN, $GH_REPO), from .github/workflows/ai-merge.yml.
 #
-# Merged only when CI and Desktop both ran on its last commit and passed (Linux, Windows,
-# macOS, the coverage floor), and a free model's review of the diff (scripts/ai-ask.py)
-# found nothing against the rules. A failure or a review's objection goes back to the
+# Merged only when its branch holds all of main (one behind is brought up to date and checked
+# again, so what passed is what main becomes), CI and Desktop (and Android for code) ran on
+# its last commit and passed (Linux, Windows, macOS, the coverage floor), the human QA run
+# (contract-linux.yml: every behaviour contract row in dm's real window) holds every row main
+# holds (scripts/ai-contract-gate.py), and two free models, each on its own, reviewed the whole
+# diff (scripts/ai-ask.py) and found nothing against the rules: the app is never made worse
+# by a bot (the maintainer, 2026-11-26). A failure or a review's objection goes back to the
 # fixer as a revision (labels bot:queue, bot-task:revise), twice at most; then the pull
 # request is closed and its issue labelled bot:no-fix. A change from a stranger's issue
 # (origin: user) is never merged without a person when it touches what reaches the network,
 # the browser, the updater, secrets or packaging, or when it is large: it is labelled
-# bot:needs-maintainer and left open. After a merge, CI and Desktop are started on main
-# (a merge by this token starts no workflow), and bug-report.yml reverts the merge if main
-# goes red.
+# bot:needs-maintainer and left open. After a merge, CI, Desktop, Android and the contract
+# are started on main (a merge by this token starts no workflow), and bug-report.yml reverts
+# the merge if main goes red or holds fewer contract rows.
 
 set -uo pipefail
 pr=$1
@@ -51,21 +55,56 @@ origin=$(grep -oE '^origin: [a-z]+' <<<"$body" | cut -d' ' -f2 | head -n1)
 issue=$(grep -oE '^issue: #?[0-9]+' <<<"$body" | grep -oE '[0-9]+' | head -n1)
 task=$(grep -oE '^task: [a-z]+' <<<"$body" | cut -d' ' -f2 | head -n1)
 
-# CI and Desktop, and Android when code changed (the phone builds the same crates), on this
+# CI and Desktop; Android when code changed (the phone builds the same crates); and the human
+# QA run when what a person uses changed (the window, its assets, the extension): on this
 # very commit, finished.
 ANDROID='Android, the engine built'
+CONTRACT='Contract on Linux'
 needed=(CI Desktop)
 if jq -r '.files[].path' <<<"$info" | grep -qE '^(crates/|Cargo\.toml|assets/)'; then needed+=("$ANDROID"); fi
+if jq -r '.files[].path' <<<"$info" | grep -qE '^(crates/|Cargo\.toml|assets/|extension/)'; then needed+=("$CONTRACT"); fi
+# The contract on main, unless a run of it there is already queued or running.
+start_main_contract() {
+    local busy
+    busy=$(gh api "repos/$GH_REPO/actions/workflows/contract-linux.yml/runs?branch=main&per_page=5" \
+        --jq '[.workflow_runs[] | select(.status != "completed")] | length' 2>/dev/null || echo 0)
+    [ "$busy" = 0 ] && gh workflow run contract-linux.yml --ref main || true
+}
+start() { # WORKFLOW REF: one of the needed runs, started on REF.
+    case "$1" in
+    CI) gh workflow run ci.yml --ref "$2" ;;
+    Desktop) gh workflow run desktop.yml --ref "$2" -f bundles=false ;;
+    "$CONTRACT") gh workflow run contract-linux.yml --ref "$2" ;;
+    *) gh workflow run android.yml --ref "$2" ;;
+    esac
+}
+
+# What passed must be what main becomes: a branch behind main (another change merged while
+# this one was checked) is brought up to date, and every needed run starts again on it. One
+# that cannot be (a conflict) is closed, and its task queued again on the latest main.
+behind=$(gh api "repos/$GH_REPO/compare/main...$sha" --jq .behind_by 2>/dev/null || echo unknown)
+if [ "$behind" = unknown ]; then echo "Cannot tell whether $branch holds all of main: waiting."; exit 0; fi
+if [ "$behind" -gt 0 ]; then
+    if gh pr update-branch "$pr" >/dev/null 2>&1; then
+        echo "$branch was $behind behind main: brought up to date; its runs start again."
+        for w in "${needed[@]}"; do start "$w" "$branch" || true; done
+    else
+        say "Closed: main changed under this pull request, and it no longer merges cleanly. Its task is queued again, to be done on the latest main."
+        gh pr close "$pr" --delete-branch
+        if [ -n "$issue" ]; then
+            gh issue edit "$issue" --add-label "bot:queue,bot-task:${task:-bug}" --remove-label bot:pr || true
+            gh workflow run ai-worker.yml || true
+        fi
+    fi
+    exit 0
+fi
+
 runs=$(gh api "repos/$GH_REPO/actions/runs?head_sha=$sha&per_page=50" \
-    --jq "[.workflow_runs[] | select(.name == \"CI\" or .name == \"Desktop\" or .name == \"$ANDROID\")] | group_by(.name) | map(max_by(.created_at)) | .[] | \"\\(.name)\\t\\(.status)\\t\\(.conclusion)\\t\\(.id)\"")
+    --jq "[.workflow_runs[] | select(.name == \"CI\" or .name == \"Desktop\" or .name == \"$ANDROID\" or .name == \"$CONTRACT\")] | group_by(.name) | map(max_by(.created_at)) | .[] | \"\\(.name)\\t\\(.status)\\t\\(.conclusion)\\t\\(.id)\"")
 for w in "${needed[@]}"; do
     if ! grep -q "^$w	" <<<"$runs"; then
         echo "$w has not run on $sha: started."
-        case "$w" in
-        CI) gh workflow run ci.yml --ref "$branch" ;;
-        Desktop) gh workflow run desktop.yml --ref "$branch" -f bundles=false ;;
-        *) gh workflow run android.yml --ref "$branch" ;;
-        esac
+        start "$w" "$branch"
         exit 0
     fi
 done
@@ -92,11 +131,7 @@ cancelled=$(awk -F'\t' '$3 == "cancelled" || $3 == "timed_out" || $3 == "startup
 if [ -n "$cancelled" ]; then
     while read -r w; do
         echo "$w was cancelled on $sha: started again."
-        case "$w" in
-        CI) gh workflow run ci.yml --ref "$branch" ;;
-        Desktop) gh workflow run desktop.yml --ref "$branch" -f bundles=false ;;
-        *) gh workflow run android.yml --ref "$branch" ;;
-        esac
+        start "$w" "$branch"
     done <<<"$cancelled"
     exit 0
 fi
@@ -142,6 +177,49 @@ if [ -n "$failed" ]; then
     printf '%s' "$tolerated"
 fi
 
+# The human QA gate: every behaviour contract row main holds in dm's real window must hold
+# with this change, and every row it adds must hold too. Its run always passes (it is reported,
+# not gating, for people), so its words are read, beside main's last run's.
+if printf '%s\n' "${needed[@]}" | grep -qx "$CONTRACT"; then
+    cid=$(awk -F'\t' -v w="$CONTRACT" '$1 == w { print $4 }' <<<"$runs")
+    main_cid=$(gh api "repos/$GH_REPO/actions/workflows/contract-linux.yml/runs?branch=main&status=success&per_page=1" \
+        --jq '.workflow_runs[0].id // empty' 2>/dev/null || true)
+    if [ -z "$main_cid" ] || ! bash scripts/ai-contract-words.sh "$main_cid" .bot/main-qa.txt; then
+        echo "Main has no contract run to hold this change to: started on main; waiting."
+        start_main_contract
+        exit 0
+    fi
+    if ! bash scripts/ai-contract-words.sh "$cid" .bot/branch-qa.txt; then
+        attempt=$(gh api "repos/$GH_REPO/actions/runs/$cid" --jq .run_attempt 2>/dev/null || echo 1)
+        if [ "$attempt" -lt 2 ]; then
+            echo "The contract run on $sha left no words: run again."
+            gh run rerun "$cid" || start "$CONTRACT" "$branch"
+            exit 0
+        fi
+        : >.bot/branch-qa.txt # twice no words: judged as a run that broke (every row lost)
+    fi
+    gh api "repos/$GH_REPO/contents/docs/behaviour-contract.md?ref=$sha" --jq .content 2>/dev/null \
+        | base64 -d >.bot/branch-contract.md 2>/dev/null || : >.bot/branch-contract.md
+    contract_args=()
+    [ -s .bot/branch-contract.md ] && contract_args=(--contract .bot/branch-contract.md)
+    python3 -I scripts/ai-contract-gate.py .bot/branch-qa.txt .bot/main-qa.txt ${contract_args[@]+"${contract_args[@]}"} >.bot/gate.txt
+    verdict=$?
+    cat .bot/gate.txt
+    case "$verdict" in
+    0) ;;
+    1)
+        back_to_the_fixer "$(printf 'The human QA run ([contract on Linux](https://github.com/%s/actions/runs/%s)) holds fewer rows than main ([its run](https://github.com/%s/actions/runs/%s)):\n%s' \
+            "$GH_REPO" "$cid" "$GH_REPO" "$main_cid" "$(cat .bot/gate.txt)")"
+        exit 0
+        ;;
+    *)
+        echo "The contract cannot be judged yet: contract run started on main; waiting."
+        start_main_contract
+        exit 0
+        ;;
+    esac
+fi
+
 # What a person would look at before merging.
 files=$(jq -r '.files[].path' <<<"$info")
 size=$(( $(jq -r .additions <<<"$info") + $(jq -r .deletions <<<"$info") ))
@@ -152,6 +230,9 @@ held=""
 guardrails=$(grep -E "$GUARDRAILS" <<<"$files" || true)
 [ -n "$guardrails" ] && held="it changes the bots' own guardrails:"$'\n'"$guardrails"
 [ "$size" -gt "$limit" ] && held="${held:+$held$'\n'}it changes $size lines, over $limit."
+# The reviews read the whole diff or none of it: a change too long for them is a person's.
+REVIEW_BYTES=90000
+[ "${#diff}" -gt "$REVIEW_BYTES" ] && held="${held:+$held$'\n'}its diff (${#diff} bytes) is longer than the reviews can read whole ($REVIEW_BYTES)."
 if [ "$origin" = user ] || [ -z "$origin" ]; then
     touched=$(grep -E "$SENSITIVE" <<<"$files" || true)
     [ -n "$touched" ] && held="${held:+$held$'\n'}it comes from an issue anyone could open, and touches:"$'\n'"$touched"
@@ -193,25 +274,44 @@ EOF
     echo "--- the pull request's description"
     head -c 6000 <<<"$body"
     echo "--- the diff"
-    head -c 90000 <<<"$diff"
+    printf '%s\n' "$diff"
 } >.bot/review-prompt.txt
-if ! review=$(python3 scripts/ai-ask.py ask --json <.bot/review-prompt.txt); then
-    echo "No model answered for the review: the worker's next round tries again."
+# Two reviews, by two models, each on its own: both must find nothing. A model that does not
+# answer is waited for (the worker's next round), never taken as a yes.
+reviewers=()
+problems=""
+for n in 1 2; do
+    not=()
+    for m in ${reviewers[@]+"${reviewers[@]}"}; do not+=(--not "$m"); done
+    if ! review=$(python3 scripts/ai-ask.py ask --json ${not[@]+"${not[@]}"} <.bot/review-prompt.txt 2>.bot/review-$n.err); then
+        echo "No model answered for review $n: the worker's next round tries again."
+        exit 0
+    fi
+    model=$(sed -n 's/^ai-ask: answered by kilo //p' .bot/review-$n.err | tail -n1)
+    [ -n "$model" ] || { echo "Review $n names no model: waiting."; exit 0; }
+    reviewers+=("$model")
+    ok=$(jq -r '.ok' <<<"$review" 2>/dev/null || echo no)
+    if [ "$ok" != true ]; then
+        found=$(jq -r '.problems[]? | "- " + .' <<<"$review" 2>/dev/null)
+        problems+="$(printf '%s:\n%s' "$model" "${found:-- (no reason given, or not JSON)}")"$'\n'
+    fi
+done
+if [ -n "$problems" ]; then
+    back_to_the_fixer "$(printf 'The reviews found:\n%s' "$problems")"
     exit 0
 fi
-if [ "$(jq -r '.ok' <<<"$review")" != true ]; then
-    back_to_the_fixer "$(printf 'The review found:\n%s' "$(jq -r '.problems[]? | "- " + .' <<<"$review")")"
-    exit 0
-fi
+echo "Reviewed by ${reviewers[*]}: nothing found."
 
 # Merged.
 [ "$(jq -r .isDraft <<<"$info")" = true ] && gh pr ready "$pr"
 title=$(jq -r .title <<<"$info")
 case "$title" in *"[bot]"*) ;; *) title="$title [bot]" ;; esac
 gh pr merge "$pr" --squash --delete-branch --subject "$title" \
-    --body "$(printf 'Merged by ai-merge.yml after CI and Desktop passed on Linux, Windows and macOS and its review found nothing.\n\nissue: #%s\ntask: %s\norigin: %s' "${issue:-none}" "${task:-tests}" "${origin:-ai}")" || exit 1
+    --body "$(printf 'Merged by ai-merge.yml after CI and Desktop passed on Linux, Windows and macOS, the human QA run held every contract row main holds, and two reviews (%s) found nothing.\n\nissue: #%s\ntask: %s\norigin: %s' "${reviewers[*]}" "${issue:-none}" "${task:-tests}" "${origin:-ai}")" || exit 1
 gh workflow run ci.yml --ref main || true
 gh workflow run desktop.yml --ref main -f bundles=false || true
+gh workflow run android.yml --ref main || true
+gh workflow run contract-linux.yml --ref main || true
 if [ -n "$issue" ]; then
     gh label create bot:merged --color 0e8a16 --description "dm's bot: its fix is merged" 2>/dev/null || true
     gh issue edit "$issue" --add-label bot:merged --remove-label bot:pr || true
