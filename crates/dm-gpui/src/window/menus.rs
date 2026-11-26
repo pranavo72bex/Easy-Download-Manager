@@ -15,6 +15,8 @@ use dm_shell::app::commands::{Chord, Command, Key};
 use dm_shell::app::power::WhenDone;
 use gpui::{Action, App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType};
 
+mod by_path;
+pub(crate) use by_path::action_at;
 mod bar_menus;
 
 use bar_menus::{downloads_menu, file_menu, help_menu, view_menu};

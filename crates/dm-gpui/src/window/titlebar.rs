@@ -85,16 +85,80 @@ const CONTROLS_AT: f32 = native::Each {
 }
 .here();
 
+/// Whether the menus' titles are drawn in the window: not on macOS, where the system's menu bar
+/// holds them, but in the window tests, which open menus by them on every system.
+const MENU_TITLES_IN_WINDOW: bool = !cfg!(target_os = "macos") || cfg!(test);
+
+/// The search box's height, and its width open (Finder's toolbar field).
+const BOX_HEIGHT: f32 = 26.0;
+const BOX_OPEN: f32 = 240.0;
+/// Shut, a toolbar button: its picture and room about it.
+const BOX_SHUT: f32 = 32.0;
+/// How long it takes to open and to shut: an exit is shorter than its enter (better-motion).
+const OPENING: std::time::Duration = std::time::Duration::from_millis(250);
+const SHUTTING: std::time::Duration = std::time::Duration::from_millis(150);
+
 thread_local! {
-    /// Where the menus' titles end in the window, as the last frame laid
-    /// them out (their words are the language's, their size the system's):
-    /// the search box starts after it.
-    static MENUS_END: std::cell::Cell<f32> = const { std::cell::Cell::new(CONTROLS_AT + 340.0) };
+    /// The search box's glide: whether it is opening (else shutting), when that began, and the
+    /// width it began from, in points on screen. None before the window's first frame, which
+    /// draws it as it stands, with no glide (better-motion: no state animation on first render).
+    static GLIDE: std::cell::Cell<Option<(bool, std::time::Instant, f32)>> =
+        const { std::cell::Cell::new(None) };
 }
 
-/// The search box's height and its widest.
-const BOX_HEIGHT: f32 = 26.0;
-const BOX_WIDEST: f32 = 520.0;
+/// The search box's width this frame, in points on screen: `open`'s, or on its way there,
+/// easing out, asking for the next frame meanwhile; at once where the system asks for less
+/// motion.
+fn search_width(open: bool, window: &mut Window, cx: &Context<Downloads>) -> f32 {
+    let of = crate::window::zoom::of;
+    let target = |open: bool| of(if open { BOX_OPEN } else { BOX_SHUT });
+    let now = std::time::Instant::now();
+    let at = |(opening, began, from): (bool, std::time::Instant, f32)| {
+        let length = if opening { OPENING } else { SHUTTING };
+        let t = if cx.reduce_motion() {
+            1.0
+        } else {
+            (began.elapsed().as_secs_f32() / length.as_secs_f32()).min(1.0)
+        };
+        let eased = 1.0 - (1.0 - t).powi(5);
+        (from + (target(opening) - from) * eased, t < 1.0)
+    };
+    let glide = match GLIDE.with(std::cell::Cell::get) {
+        None => (open, now - OPENING, target(open)),
+        Some(g) if g.0 != open => (open, now, at(g).0),
+        Some(g) => g,
+    };
+    GLIDE.with(|c| c.set(Some(glide)));
+    let (width, moving) = at(glide);
+    if moving {
+        window.request_animation_frame();
+    }
+    width
+}
+
+/// The search box shut: its magnifier alone, a toolbar button's size, no edge and no field, as
+/// Finder's; a click opens it (Find, ⌘F).
+fn shut_look(
+    b: gpui::Stateful<gpui::Div>,
+    theme: Theme,
+    cx: &mut Context<Downloads>,
+) -> gpui::Stateful<gpui::Div> {
+    b.px_0()
+        .justify_center()
+        .border_color(gpui::transparent_black())
+        .bg(gpui::transparent_black())
+        .hover(move |s| s.bg(theme.stripe))
+        .cursor_pointer()
+        .tooltip(|window, cx| {
+            gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(t("Filter")))
+                .build(window, cx)
+        })
+        .on_click(cx.listener(|view, _, window, cx| {
+            view.find(window, cx);
+            cx.notify();
+        }))
+}
+
 /// Its corners, its focus ring's distance outside it, and its clear button's target.
 const BOX_CORNER: f32 = native::RADIUS + 1.0;
 const RING_OUT: f32 = space::XXS;
@@ -108,22 +172,12 @@ pub fn titlebar(
     window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    // As wide as two fifths of the window, between a field's least and the
-    // widest a title bar's box goes, centred on the window whatever stands
-    // at its sides.
-    let viewport = f32::from(window.viewport_size().width);
-    let menus_end = MENUS_END.with(std::cell::Cell::get);
-    // All in points on screen: the box's measures at the text size in
-    // force, the window's and the menus' as they stand.
-    let of = crate::window::zoom::of;
-    let room = viewport - menus_end - WINDOW_BUTTONS_WIDTH - of(16.0);
-    let width = (viewport * 0.4)
-        .clamp(of(220.0), of(BOX_WIDEST))
-        .min(room.max(of(140.0)));
-    // Centred on the window where the menus leave room, as the editor's
-    // command centre is; else in the middle of the room after them.
-    let centred = (viewport - width) / 2.0;
-    let before = (centred >= menus_end + of(8.0)).then_some(centred - menus_end);
+    // Finder's search (the maintainer, 2026-11-27: "make similar of Finder application
+    // (animation + compact)"): a magnifier at the bar's trailing end, opened to a field while it
+    // has the keys or holds words, shut again once it is left empty; its width glides between.
+    let focused = search_focused(view, window, cx);
+    let open = focused || !view.list.filter.read(cx).value().trim().is_empty();
+    let width = search_width(open, window, cx);
     div()
         .id("titlebar")
         .role(Role::Group)
@@ -137,53 +191,39 @@ pub fn titlebar(
         .border_color(theme.separator)
         .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none())
         .child(sidebar_button(view.layout.show_sidebar, theme, cx))
-        .child(
-            div()
-                .id("menu-titles")
-                .role(Role::MenuBar)
-                .aria_label(t("Menu"))
-                .relative()
-                .flex()
-                .flex_none()
-                .items_center()
-                .ml(px(space::XS))
-                .children(
-                    crate::window::menus::WINDOW_MENUS
-                        .iter()
-                        .enumerate()
-                        .map(|(i, name)| menu_title(i, t(name).into(), theme, screen, cx)),
-                )
-                // Where they end, for the next frame's search box.
-                .child(
-                    gpui::canvas(
-                        |_, _, _| {},
-                        |bounds, _, window, _| {
-                            let end = f32::from(bounds.origin.x + bounds.size.width);
-                            if (MENUS_END.with(std::cell::Cell::get) - end).abs() > 0.5 {
-                                MENUS_END.with(|e| e.set(end));
-                                window.refresh();
-                            }
-                        },
-                    )
-                    .absolute()
-                    .size_full(),
-                ),
-        )
-        // The empty space each side of the search box moves the window; the
-        // controls take their own clicks.
-        .child(match before {
-            Some(gap) => drag_space().w(gpui::px(gap)).flex_none(),
-            None => drag_space().flex_1(),
+        // The menus' titles in the window where the system has no menu bar of its own (Windows,
+        // Linux); on macOS they are the system's menu bar's, not drawn again here (the
+        // maintainer, 2026-11-27: "it is not hiding the Task File Download View Help on Macos. It
+        // should show on windows and linux"). The window tests open menus by these titles, as a
+        // Windows or Linux person does, on every system: the macOS bar is built from the same
+        // menus (`menus::set`).
+        .when(MENU_TITLES_IN_WINDOW, |bar| {
+            bar.child(
+                div()
+                    .id("menu-titles")
+                    .role(Role::MenuBar)
+                    .aria_label(t("Menu"))
+                    .relative()
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .ml(px(space::XS))
+                    .children(
+                        crate::window::menus::WINDOW_MENUS
+                            .iter()
+                            .enumerate()
+                            .map(|(i, name)| menu_title(i, t(name).into(), theme, screen, cx)),
+                    ),
+            )
         })
-        .child(search_box(
-            view,
-            Some(width),
-            search_focused(view, window, cx),
-            theme,
-            screen,
-            cx,
-        ))
+        // The empty space before the search box moves the window; the controls take their own
+        // clicks.
         .child(drag_space().flex_1())
+        .child(
+            search_box(view, Some(width), !open, focused, theme, screen, cx)
+                .when(!open, |b| shut_look(b, theme, cx)),
+        )
+        .child(drag_space().w(px(space::M)).flex_none())
         .children(window_buttons(theme, window.is_maximized()))
 }
 
@@ -242,6 +282,7 @@ pub fn narrow_titlebar(
         bar.child(search_box(
             view,
             None,
+            false,
             search_focused(view, window, cx),
             theme,
             screen,
@@ -422,11 +463,12 @@ fn search_focused(view: &Downloads, window: &Window, cx: &Context<Downloads>) ->
 fn search_box(
     view: &Downloads,
     width: Option<f32>,
+    shut: bool,
     focused: bool,
     theme: Theme,
     screen: &Screen,
     cx: &mut Context<Downloads>,
-) -> impl IntoElement {
+) -> gpui::Stateful<gpui::Div> {
     let searching = !view.list.filter.read(cx).value().trim().is_empty();
     let shown = view.list.shown.len();
     div()
@@ -450,7 +492,7 @@ fn search_box(
         .relative()
         .flex()
         .items_center()
-        .gap(px(space::S))
+        .gap(px(if shut { 0.0 } else { space::S }))
         .px(px(space::M))
         .rounded(px(BOX_CORNER))
         .border_1()
@@ -477,21 +519,33 @@ fn search_box(
         .child(
             svg()
                 .path("icons/search.svg")
-                .size(px(native::ICON_SMALL))
+                // A toolbar button's picture shut (the toolbar's own 18), the field's small one
+                // open, as Finder's.
+                .size(px(if shut {
+                    native::ICON_TOOL
+                } else {
+                    native::ICON_SMALL
+                }))
                 .flex_none()
                 .text_color(theme.muted),
         )
         .child(
-            div().flex_1().min_w_0().child(
-                gpui::Styled::h(
-                    Input::new(&view.list.filter)
-                        .appearance(false)
-                        .aria_label(t("Filter")),
-                    px(BOX_HEIGHT - 2.0),
-                )
-                .text_size(px(native::TEXT))
-                .px(px(0.0)),
-            ),
+            // Shut, the field takes no room and shows nothing: its words' first letter stood
+            // beside the magnifier. It stays in the window, where Find gives it the keys.
+            div()
+                .flex_1()
+                .min_w_0()
+                .when(shut, |d| d.flex_none().w_0().invisible())
+                .child(
+                    gpui::Styled::h(
+                        Input::new(&view.list.filter)
+                            .appearance(false)
+                            .aria_label(t("Filter")),
+                        px(BOX_HEIGHT - 2.0),
+                    )
+                    .text_size(px(native::TEXT))
+                    .px(px(0.0)),
+                ),
         )
         // How many rows the words leave, and a way to clear them.
         .when(searching, |d| {
@@ -627,15 +681,6 @@ impl Downloads {
         self.open_window_menu(0, x, window, cx);
     }
 }
-
-/// The room the window's own buttons take: on Windows, where the bar is the
-/// window's title bar; elsewhere the system draws them.
-const WINDOW_BUTTONS_WIDTH: f32 = native::Each {
-    macos: 0.0,
-    windows: 3.0 * WINDOW_BUTTON,
-    gnome: 0.0,
-}
-.here();
 
 /// Each of the window's own buttons' width, on Windows: the system's, in
 /// points on screen whatever the text size.

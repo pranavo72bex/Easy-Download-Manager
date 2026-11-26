@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The search box works as Finder's: a magnifier at the top bar's end that opens into a field when clicked or with ⌘F (Ctrl+F), and shuts again when left empty, gliding between. On macOS the window no longer repeats the menus' titles (Tasks, File, Downloads, View, Help); the Mac's own menu bar holds them. Windows and Linux keep them in the window.
 - On a phone, the Places drawer is as wide as a phone's own drawer, its places a finger's height with larger pictures beside the phone's larger words.
 - On a phone, the Places drawer slides in from the left and a menu's sheet rises from the foot as they open (none where the system asks for less motion).
 - The search box shows it has the keys with a ring around it, as every control does, and its clear button is easier to hit.

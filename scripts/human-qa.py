@@ -583,6 +583,14 @@ class Dm:
             shutil.copy(shot["result"]["path"], target)
             return target
 
+    def menu(self, *path):
+        # A menu item by its path, as the menu bar holds it: on macOS the menus' titles are the
+        # system's bar's, not drawn in the window, and a click cannot reach them (2026-11-27).
+        reply = self.call("ui.menu", path=list(path))
+        if not reply.get("ok"):
+            raise SystemExit(f"menu {' › '.join(path)}: {reply.get('error')}")
+        return reply
+
     def open_options(self):
         # By its command: on macOS a new dm has no toolbar Options; the app menu's Settings…
         # (⌘,) opens it there (2026-11-27).
@@ -1047,11 +1055,7 @@ def walk(dm, origin):
     dm.call("ui.place", place="all")
     pause(0.5)
     held = dm.row("night.bin")
-    dm.click("Downloads")
-    pause(0.5)
-    dm.click("Start queue")
-    pause(0.8)
-    dm.click("Night")
+    dm.menu("Downloads", "Start queue", "Night")
     r = dm.wait("night.bin", {"completed", "failed"}, 60)
     check("B64", "Downloads > Start Queue > Night starts the Night queue while the list shows All downloads",
           held and held.get("queue") == "Night" and held["state"]["kind"] not in ("running", "completed")
@@ -1280,9 +1284,7 @@ def walk(dm, origin):
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
     paths = [pathlib.Path(x["path"]) for x in dm.rows() if x["state"]["kind"] == "completed"]
     # From the Downloads menu: a new dm's toolbar has no Delete completed (2026-11-26).
-    dm.click("Downloads")
-    pause(0.5)
-    dm.click("Delete completed")
+    dm.menu("Downloads", "Delete completed")
     # Its own line, not the one before it ("Put back 1 download." from the
     # Undo above), which a fixed pause sometimes read (gaps row 56).
     said = ""
@@ -1449,9 +1451,7 @@ def walk(dm, origin):
     # B60: Site files has the switch for following links to other sites.
     dm.click("Cancel")
     pause(0.8)
-    dm.click("Tasks")
-    pause(0.5)
-    dm.click("Grabber")
+    dm.menu("Tasks", "Grabber")
     pause(0.8)
     site_words = dm.dialog_texts()
     check("B60", "Site files has 'Also follow links to other sites' beside the page depth",
@@ -2400,9 +2400,7 @@ def statistics(origin):
               "Speed over the last 5 minutes" in words, f"windows {dm.dialogs()}; words {words[:20]}")
         dm.call("ui.key", key="Escape")
         pause(0.8)
-        dm.click("View")
-        pause(0.5)
-        dm.click("Statistics")
+        dm.menu("View", "Statistics")
         for _ in range(40):
             if "Statistics" in dm.dialogs():
                 break

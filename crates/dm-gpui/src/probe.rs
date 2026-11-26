@@ -35,6 +35,26 @@ pub fn answer(
         crate::platform::syswindow::picture(window, &path)?;
         return Ok(serde_json::json!({ "path": path.display().to_string() }));
     }
+    // A menu item run by its path, as a person chooses it in the menu bar: on macOS the menus'
+    // titles are the system's bar's, not the window's, and a script's click cannot reach them.
+    if method == "ui.menu" {
+        let path: Vec<String> = params
+            .get("path")
+            .and_then(Value::as_array)
+            .map(|p| {
+                p.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .filter(|p: &Vec<String>| p.len() >= 2)
+            .ok_or("give `path`: a menu's name, then its items' words")?;
+        let ticks = view.menus.menu_ticks.clone().unwrap_or_default();
+        let action = crate::window::menus::action_at(&ticks, &path)
+            .ok_or_else(|| format!("no item to choose at {path:?}"))?;
+        window.dispatch_action(action, cx);
+        return Ok(serde_json::json!({ "path": path }));
+    }
     if let Some(answer) = probe::input(&mut Probe { view, window, cx }, method, params) {
         return answer;
     }
