@@ -41,17 +41,20 @@ pub struct StatisticsWindow {
     figures: Statistics,
     focus: gpui::FocusHandle,
     screen: Screen,
+    /// Where its figures are scrolled to, for the bar that says there are more below.
+    scroll: gpui::ScrollHandle,
 }
 
 impl StatisticsWindow {
-    /// A figure: its label in the labels' column, `words` beside it.
-    fn figure(&self, label: &'static str, words: String) -> gpui::Div {
+    /// A figure, as every window reports a fact (`native::fact`).
+    fn figure(&self, label: &'static str, words: String, theme: Theme) -> gpui::Div {
         let width = native::label_width(&LABELS.map(t));
-        native::row(
-            Some(t(label)),
+        native::fact(
+            t(label),
             width,
+            theme,
             &self.screen,
-            div().child(self.screen.label(words)),
+            self.screen.label(words),
         )
     }
 
@@ -171,8 +174,8 @@ impl Render for StatisticsWindow {
         // Figures of one width each, so they do not jitter as they change (gaps row E33).
         let body = native::body(theme)
             .font_features(native::figures())
-            .child(self.figure("Files finished", f.files.to_string()))
-            .child(self.figure("Downloaded in all", format::bytes(f.bytes)))
+            .child(self.figure("Files finished", f.files.to_string(), theme))
+            .child(self.figure("Downloaded in all", format::bytes(f.bytes), theme))
             .when(f.files == 0, |d| {
                 d.child(native::note(
                     t("Nothing has finished yet."),
@@ -190,10 +193,12 @@ impl Render for StatisticsWindow {
             .child(self.figure(
                 "Average speed",
                 f.average_speed.map(format::rate).unwrap_or_else(unmeasured),
+                theme,
             ))
             .child(self.figure(
                 "Best speed",
                 f.best_speed.map(format::rate).unwrap_or_else(unmeasured),
+                theme,
             ))
             .child(native::note(
                 t("Speeds are measured while dm is open, and forgotten when it closes."),
@@ -204,7 +209,17 @@ impl Render for StatisticsWindow {
                 t("Worked out from the finished downloads in the list; nothing new is kept."),
                 theme.muted,
                 &screen,
-            ))
+            ));
+        // Close in a band of its own under the figures, always in sight: at the figures' foot
+        // it lay past the window's edge with nothing to say so (`docs/ui-design.md` rule 7).
+        let footer = div()
+            .px(px(native::MARGIN))
+            .pb(px(native::MARGIN))
+            .when(!crate::platform::ON_A_PHONE, |bar| {
+                bar.pt(px(space::L))
+                    .border_t_1()
+                    .border_color(theme.separator)
+            })
             .child(native::buttons(
                 Vec::new(),
                 vec![
@@ -213,6 +228,9 @@ impl Render for StatisticsWindow {
                         .into_any_element(),
                 ],
             ));
+        // The bar shown while there is more below, on every system (macOS shows its own only
+        // as it scrolls), as the list's and the side panel's are.
+        let more_below = self.scroll.max_offset().y > gpui::px(0.0);
         let root = div()
             .id("statistics")
             .role(Role::Dialog)
@@ -226,15 +244,47 @@ impl Render for StatisticsWindow {
             }))
             .size_full()
             .bg(theme.window);
-        let root = native::phone_framed(root, t("Statistics"), theme).child(
-            div()
-                .id("statistics-body")
-                .size_full()
-                .flex_1()
-                .min_h_0()
-                .overflow_y_scroll()
-                .child(body),
-        );
+        let root = native::phone_framed(root, t("Statistics"), theme)
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .child(
+                        div()
+                            .id("statistics-body")
+                            .size_full()
+                            .overflow_y_scroll()
+                            .track_scroll(&self.scroll)
+                            .child(body),
+                    )
+                    .child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .map(|bar| {
+                                if crate::window::mirror::rtl() {
+                                    bar.left_0()
+                                } else {
+                                    bar.right_0()
+                                }
+                            })
+                            .w(gpui_base::Scrollbar::width())
+                            .child(
+                                gpui_base::Scrollbar::vertical(&self.scroll)
+                                    .viewport_from_layout()
+                                    .mode(if more_below {
+                                        gpui_base::ScrollbarMode::Always
+                                    } else {
+                                        crate::window::list::scrollbar_mode()
+                                    }),
+                            ),
+                    ),
+            )
+            .child(footer);
         crate::window::safe::kept_clear(root, window)
     }
 }
@@ -263,6 +313,7 @@ fn open(figures: Statistics, cx: &mut App) -> Option<gpui::AnyWindowHandle> {
                 figures,
                 focus,
                 screen,
+                scroll: gpui::ScrollHandle::new(),
             });
             cx.new(|cx| gpui_component::Root::new(view, window, cx))
         },

@@ -65,7 +65,7 @@ fn figure(row: &Entry) -> String {
 /// The facts' names, for the column they stand in.
 const NAMES: [&str; 3] = ["Will be saved to", "Saved to", "Address"];
 
-/// A fact: its name in the hint's colour beside its value, cut with "…" where it is long.
+/// A fact, as every window reports one (`native::fact`), cut with "…" where it is long.
 fn fact(name: &'static str, value: String, theme: Theme, screen: &Screen) -> Div {
     // As wide as the longest name in the language shown, where 90 points cut "Will be saved to".
     let names = NAMES.map(t);
@@ -74,25 +74,17 @@ fn fact(name: &'static str, value: String, theme: Theme, screen: &Screen) -> Div
         .map(|n| native::small_width(n))
         .fold(0.0, f32::max)
         .ceil();
-    div()
-        .flex()
-        .gap(px(space::M))
-        .min_w_0()
-        .child(
-            div()
-                .flex_none()
-                .w(px(column))
-                .text_color(theme.muted)
-                .child(screen.label(t(name))),
-        )
-        .child(
-            div()
-                .min_w_0()
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_ellipsis()
-                .child(screen.label(SharedString::from(value))),
-        )
+    native::fact(
+        t(name),
+        column,
+        theme,
+        screen,
+        div()
+            .overflow_hidden()
+            .whitespace_nowrap()
+            .text_ellipsis()
+            .child(screen.label(SharedString::from(value))),
+    )
 }
 
 fn pane(row: &Entry, place: String, theme: Theme, screen: &Screen) -> gpui::Stateful<Div> {

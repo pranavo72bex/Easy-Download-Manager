@@ -105,3 +105,33 @@ fn row_beside(
                 .child(control),
         )
 }
+
+/// A fact a window reports (a size, a count, where a file goes): its name in the hint's colour
+/// from the window's edge in a column `name_width` wide, its value beside it, as the progress
+/// window, View › Details and Statistics show theirs. Each drew its own, two with the names
+/// right-aligned mid-window. On a phone, [`row`]'s: the name above its value.
+pub fn fact(
+    name: &str,
+    name_width: f32,
+    theme: crate::window::theme::Theme,
+    screen: &Screen,
+    value: impl IntoElement,
+) -> Div {
+    let value = div().flex_1().min_w_0().child(value);
+    if crate::platform::ON_A_PHONE {
+        return row(Some(name), name_width, screen, value);
+    }
+    div()
+        .flex()
+        .map(crate::window::mirror::row)
+        .items_start()
+        .gap(px(LABEL_GAP))
+        .child(
+            div()
+                .w(px(name_width))
+                .flex_none()
+                .text_color(theme.muted)
+                .child(screen.label(name.to_string())),
+        )
+        .child(value)
+}
