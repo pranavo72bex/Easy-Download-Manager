@@ -305,17 +305,27 @@ if printf '%s\n' "${needed[@]}" | grep -qx "$CONTRACT"; then
 fi
 
 # Code scanning: no alert on this branch that main does not have already. Alerts are one
-# number across branches, so a new number is a new finding.
-alerts() { # REF: the open alerts' numbers, or nothing and status 1 when there is no analysis
+# number across branches, so a new number is a new finding. The scan that ran on this commit
+# filed its results under the pull request (refs/pull/N/merge: on a pull request CodeQL reports
+# what the change's own lines raise) or, started here, under the branch. An empty list is only
+# believed where an analysis was filed: GitHub answers a ref it has never scanned with none.
+scanned() { # REF: at least one analysis filed under REF
+    [ "$(gh api "repos/$GH_REPO/code-scanning/analyses?ref=$1&per_page=1" --jq 'length' 2>/dev/null || echo 0)" -gt 0 ]
+}
+alerts() { # REF: the open alerts' numbers
     gh api --paginate "repos/$GH_REPO/code-scanning/alerts?ref=$1&state=open&per_page=100" --jq '.[].number' 2>/dev/null
 }
-if ! on_main=$(alerts refs/heads/main); then
+qid=$(awk -F'\t' -v w="$CODEQL" '$1 == w { print $4 }' <<<"$runs")
+qevent=$(gh api "repos/$GH_REPO/actions/runs/$qid" --jq .event 2>/dev/null || echo unknown)
+qref="refs/heads/$branch"
+[ "$qevent" = pull_request ] && qref="refs/pull/$pr/merge"
+if ! scanned refs/heads/main; then
     echo "Main has no code scanning to hold this change to: CodeQL started on main; waiting."
     gh workflow run codeql.yml --ref main || true
     exit 0
 fi
-if ! on_branch=$(alerts "refs/heads/$branch"); then
-    echo "Code scanning of $branch has no results yet: waiting."
+if ! scanned "$qref" || ! on_branch=$(alerts "$qref") || ! on_main=$(alerts refs/heads/main); then
+    echo "Code scanning of this change ($qref) cannot be read yet: waiting."
     exit 0
 fi
 new_alerts=$(comm -13 <(sort -u <<<"$on_main") <(sort -u <<<"$on_branch") | grep -v '^$' || true)
