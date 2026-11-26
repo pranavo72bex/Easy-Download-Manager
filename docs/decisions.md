@@ -9105,3 +9105,14 @@ split its work into subagents, each a session of its own. The maintainer dropped
 (2026-11-26). Now Kilo is the only provider, `task` (subagents) is denied, and a free Kilo
 account's key (`KILO_API_KEY`) is sent when the secret is set; without it the keyless quota
 still applies.
+
+## 2026-11-26: GitGuardian scans every push, not only pull requests
+
+The GitGuardian app checked pull requests only; a commit pushed straight to main had no
+secret scan on GitHub. `.github/workflows/gitguardian.yml` runs ggshield (`secret scan ci`,
+the action pinned by commit at v1.56.1, a month old) on each push to any branch, with a
+read-only token and the checkout's credentials not kept. It needs the repository secret
+`GITGUARDIAN_API_KEY` (scope `scan`) and fails, saying so, without it. Secrets resolved in
+the dashboard are not reported again. Not taken: running it on pull requests too (the app
+already does, and a fork's pull request has no secrets), and adding it to `bug-report.yml`'s
+watched runs (a missing key is not a bug a bot can fix).
