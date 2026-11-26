@@ -16,7 +16,8 @@ name: Contract on Linux
 # For a bot's change, THE HUMAN QA GATE (the maintainer, 2026-11-26): scripts/ai-merge.sh starts
 # this on the pull request's commit and on main, reads both runs' words (the small
 # `contract-words` artifact) and merges only when every row main holds holds with the change
-# (scripts/ai-contract-gate.py). bug-report.yml reverts a bot's merge after which main holds fewer.
+# (scripts/ai-contract-gate.py) and the window looks as main's does here (`contract-looks`,
+# scripts/ai-looks-gate.py). bug-report.yml reverts a bot's merge after which main holds fewer.
 on:
   push:
     branches: [main]
@@ -83,6 +84,19 @@ jobs:
         with:
           name: contract-words
           path: ${{ runner.temp }}/human-qa/human-qa.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      # The window's three pictures (row B25), for the bots' look gate (scripts/ai-looks-gate.py):
+      # a bot's change is held to main's pictures drawn on this same runner.
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: contract-looks
+          path: |
+            ${{ runner.temp }}/human-qa/record/pictures/empty-window.png
+            ${{ runner.temp }}/human-qa/record/pictures/add-url.png
+            ${{ runner.temp }}/human-qa/record/pictures/download-details.png
           if-no-files-found: warn
           retention-days: 30
 

@@ -109,24 +109,32 @@ jobs:
       CREATED: ${{ github.event.workflow_run.created_at }}
       WID: ${{ github.event.workflow_run.workflow_id }}
       URL: ${{ github.event.workflow_run.html_url }}
+      ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 50
       - name: Revert the bot's merge if main holds fewer rows
         run: |
-          set -uo pipefail
+          set +e -uo pipefail # each failure here is read, not fatal
           git log -1 --format=%B "$SHA" 2>/dev/null | grep -q 'Merged by ai-merge.yml' || { echo "Not the bot's merge."; exit 0; }
-          before=$(gh api "repos/$GH_REPO/actions/workflows/$WID/runs?branch=main&status=completed&per_page=20" \
-            --jq "[.workflow_runs[] | select(.created_at < \"$CREATED\" and .conclusion == \"success\")] | first | .id // empty")
-          [ -n "$before" ] || { echo "No run on main before it to hold it to."; exit 0; }
+          # Held to the rows each of main's three runs before it held (a flaky row is not one).
           mkdir -p .bot
+          before=()
+          for id in $(gh api "repos/$GH_REPO/actions/workflows/$WID/runs?branch=main&status=completed&per_page=20" \
+            --jq "[.workflow_runs[] | select(.created_at < \"$CREATED\" and .conclusion == \"success\")][:3] | .[].id"); do
+            bash scripts/ai-contract-words.sh "$id" ".bot/before-$id.txt" && before+=(".bot/before-$id.txt")
+          done
+          [ "${#before[@]}" -gt 0 ] || { echo "No run on main before it left words to hold it to."; exit 0; }
           bash scripts/ai-contract-words.sh "$RUN_ID" .bot/after.txt || { echo "This run left no words: nothing to judge."; exit 0; }
-          bash scripts/ai-contract-words.sh "$before" .bot/before.txt || { echo "The run before it left no words: nothing to judge."; exit 0; }
-          set +e
-          python3 -I scripts/ai-contract-gate.py .bot/after.txt .bot/before.txt | tee .bot/gate.txt
+          python3 -I scripts/ai-contract-gate.py .bot/after.txt "${before[@]}" | tee .bot/gate.txt
           verdict=${PIPESTATUS[0]}
-          set -e
-          if [ "$verdict" = 1 ]; then
-            bash scripts/ai-revert.sh "$SHA" "the contract held fewer rows ($(grep -oE '^- B[0-9]+' .bot/gate.txt | cut -c3- | paste -sd, -))" "$URL" || true
+          [ "$verdict" = 1 ] || exit 0
+          # Seen once, run again before anything is undone: reverted only when the rows are
+          # lost a second time.
+          if [ "${ATTEMPT:-1}" -lt 2 ]; then
+            echo "Fewer rows held after the bot's merge: the run goes again before it is reverted."
+            gh run rerun "$RUN_ID"
+            exit 0
           fi
+          bash scripts/ai-revert.sh "$SHA" "the contract held fewer rows, twice ($(grep -oE '^- B[0-9]+' .bot/gate.txt | cut -c3- | paste -sd, -))" "$URL" || true

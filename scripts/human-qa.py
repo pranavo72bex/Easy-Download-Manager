@@ -1426,7 +1426,7 @@ def walk(dm, origin):
           first in words and "Attempts per connection (0 to keep trying)" in words, f"{words[:14]}")
     # B57: the site-limit list is there with its Add button.
     check("B57", "Advanced has a site connection-limit list with Add a site limit",
-          "Sites with their own connection limit:" in words and "Add a site limit" in words, f"{words}")
+          "Sites with their own connection limit" in words and "Add a site limit" in words, f"{words}")
     # B43 since 2026-11-08: on Windows reference A's Dial Up / VPN section, below the proxy's
     # (gaps row 93, G84); read further down the page, as a person scrolls on.
     words += [w for w in dm.scrolled_texts(turns=12) if w not in words]
@@ -1469,7 +1469,7 @@ def walk(dm, origin):
     check("B51", "Advanced shows the name dm sends to servers and the Identify as dm only switch",
           "dm identifies itself to servers as:" in words and "Identify as dm only" in words, f"{words}")
     check("B51", "Advanced has the site rules' list, which gives a site its own User-Agent and headers",
-          "Sites with their own folder, speed and headers:" in words and "Add a site rule" in words, f"{words}")
+          "Sites with their own folder, speed and headers" in words and "Add a site rule" in words, f"{words}")
     # B56: the Downloads tab has the Connections per file box with its Presets.
     dm.click("Downloads")
     pause(0.8)

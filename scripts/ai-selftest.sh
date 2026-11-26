@@ -192,6 +192,15 @@ if python3 -I scripts/human-qa-report.py --self-test >/dev/null 2>&1; then
 else
     fail "contract report" "python3 scripts/human-qa-report.py --self-test fails"
 fi
+if python3 -I scripts/ai-looks-gate.py --self-test >/dev/null 2>&1; then
+    pass "look gate: a window that looks other than main's stops the merge"
+else
+    fail "look gate" "python3 scripts/ai-looks-gate.py --self-test fails"
+fi
+unchecked=$(sed -n "s/^UNCHECKED='\(.*\)'$/\1/p" "$here/scripts/ai-merge.sh")
+expect "merge: YouTube's code, which CI's QA cannot run, waits for a person" \
+    "crates/dm-core/src/youtube/player/a.rs crates/dm-core/src/youtube.rs" \
+    "$(printf 'crates/dm-core/src/youtube/player/a.rs\ncrates/dm-core/src/youtube.rs\ncrates/dm-core/src/download.rs\n' | grep -E "$unchecked" | paste -sd' ' -)"
 mkdir -p "$work/cov"
 cat >"$work/cov/table.txt" <<'TABLE'
 tooling/xtask/src/tasks.rs     535  293  45.23%  40  23  42.50%  301  166  44.85%  0  0  -

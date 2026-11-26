@@ -490,16 +490,26 @@ assumes the one before it failed:
   so what passed is what main becomes; one that no longer merges is closed and its task
   queued again); CI, Desktop and Android green on Linux, Windows and macOS; the human QA
   run, every behaviour contract row in dm's real window on Linux (`contract-linux.yml`),
-  holding every row main holds and every row the change adds (`scripts/ai-contract-gate.py`;
-  the maintainer, 2026-11-26: the app is never made worse by a bot); never a change to a
-  guardrail; and two reviews by two different models, each reading the whole diff, both
-  putting security first (a diff too long to read whole waits for a person). From an issue anyone
+  holding every row each of main's last three runs held, and every row the change adds
+  (`scripts/ai-contract-gate.py`; a row that fails now and then on the runner stops nothing;
+  the maintainer, 2026-11-26: the app is never made worse by a bot); the window looking as
+  main's does, pictured on the same runner (`scripts/ai-looks-gate.py`, B25's own 1%: a bot
+  may not change how dm looks); dm no slower than main when the app's code changed
+  (`bench.yml`, held to main's numbers, measured again once when worse); no code scanning
+  alert main does not have (`codeql.yml`: Rust, Python, the workflows); never a change to a
+  guardrail; never, without a person, a change to what CI cannot check (YouTube refuses
+  GitHub's servers, so its rows never run there); and three reviews by three different
+  models, each reading the whole diff, the third about security alone (a diff too long to
+  read whole waits for a person). From an issue anyone
   could open, a change waits for a person (`bot:needs-maintainer`) when it touches the
   network, protocol, extension, downloads, archives, video sites, the system, the
   updater, secrets, packaging, assets or a manifest, adds `unsafe`, a process, the
   network, the environment, a URL or deleted files anywhere, or changes over 600 lines.
-- *A merge that turns main red, or after which main holds fewer contract rows, is
-  reverted* by `bug-report.yml` (`scripts/ai-revert.sh`), and its task queued again.
+- *A merge that turns main red, or after which main holds fewer contract rows (seen twice:
+  the run goes again once first), is reverted* by `bug-report.yml` (`scripts/ai-revert.sh`),
+  and its task queued again.
+- *Windows and macOS* run the contract too (`contract-desktop.yml`), reported, not gating,
+  until their runs on main show which rows a runner holds; then their words gate as Linux's do.
 
 What is left: the free model key (`KILO_API_KEY`) is in reach of the code a model
 writes, since the agent that holds it runs that code; it is a free key, worth a day's

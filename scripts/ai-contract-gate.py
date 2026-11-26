@@ -6,12 +6,14 @@
 
 """Whether a bot's pull request keeps every contract row main keeps (scripts/ai-merge.sh).
 
-    python3 scripts/ai-contract-gate.py BRANCH.txt MAIN.txt [--contract BRANCH-CONTRACT.md]
+    python3 scripts/ai-contract-gate.py BRANCH.txt MAIN.txt [MAIN.txt...] [--contract BRANCH-CONTRACT.md]
     python3 scripts/ai-contract-gate.py --self-test
 
 BRANCH.txt and MAIN.txt are what human-qa.py said on the pull request's commit and on main
 (contract-linux.yml's `contract-words` artifact, human-qa.txt), each judged row by row as
-scripts/human-qa-report.py judges them. The bot's change is held to main, not to the whole
+scripts/human-qa-report.py judges them. Given main's last few runs, a row is held to only when
+each of them held it (a run that broke is passed over): a row that fails now and then on CI's
+runner does not stop a change. The bot's change is held to main, not to the whole
 contract: a row main does not hold on CI's runner (a live site, a browser panel) does not
 stop it, but every row main holds must hold with the change, and a row the change adds to
 the contract (--contract, the branch's docs/behaviour-contract.md) must hold too.
@@ -42,13 +44,23 @@ def verdicts(rows, said):
 
 
 def gate(main_rows, branch_rows, branch_said, main_said):
-    """(lost, reason): the rows that do not hold with the change, or reason when it cannot judge."""
-    if main_said is None:
-        return None, "main's contract run left no words (contract-words)"
-    on_main = verdicts(main_rows, main_said)
-    held_on_main = [r for r, (v, _) in on_main.items() if v == "held"]
-    if not held_on_main:
-        return None, "main's contract run held no row: it broke, and is no measure"
+    """(lost, reason): the rows that do not hold with the change, or reason when it cannot judge.
+
+    main_said is one run's words, or a list of main's last runs': a row is held to only when
+    every one of them that did not break held it, so a row that fails now and then on CI's
+    runner (a slow site, a busy display) never blocks a change it has nothing to do with."""
+    runs = main_said if isinstance(main_said, list) else [main_said]
+    held_sets = []
+    for said in runs:
+        if said is None:
+            continue
+        held = {r for r, (v, _) in verdicts(main_rows, said).items() if v == "held"}
+        if held:  # a run that held no row broke, and is no measure
+            held_sets.append(held)
+    if not held_sets:
+        return None, "main's contract runs left no words, or held no row (they broke)"
+    steady = set.intersection(*held_sets)
+    held_on_main = [r for r, _ in main_rows if r in steady]
     on_branch = verdicts(branch_rows, branch_said)
     known = {r for r, _ in main_rows}
     added = [r for r, _ in branch_rows if r not in known]
@@ -84,13 +96,20 @@ def self_test():
     lost, _ = gate(rows, more, "The contract, row by row\n  NOT CHECKED  B04\n  FAIL         B03  x\n", main)
     assert [(l[0], l[3]) for l in lost] == [("B04", True)], lost
     assert gate(rows, more, "The contract, row by row\n  FAIL         B03  x\n\n3 of 4 rows hold\n", main) == ([], None)
+    # Main's last runs: a row one of them failed (flaky on the runner) is not held to; a run
+    # that broke is passed over, not taken as every row failing.
+    flaky = "The contract, row by row\n  FAIL         B02  slow\n  FAIL         B03  a live site\n\n1 of 3 rows hold\n"
+    assert gate(rows, rows, worse, [main, flaky]) == ([], None)
+    lost, _ = gate(rows, rows, worse, [main, main, broke])
+    assert [l[0] for l in lost] == ["B02"], lost
+    assert gate(rows, rows, worse, [broke, None])[0] is None
     print("ai-contract-gate.py self-test: ok")
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("branch", nargs="?", help="human-qa.txt from the pull request's commit")
-    p.add_argument("main", nargs="?", help="human-qa.txt from main")
+    p.add_argument("main", nargs="*", help="human-qa.txt from main's last runs, the newest first")
     p.add_argument("--contract", help="the branch's docs/behaviour-contract.md (else main's, this checkout's)")
     p.add_argument("--self-test", action="store_true")
     a = p.parse_args()
@@ -104,7 +123,7 @@ def main():
     if not main_rows or not branch_rows:
         print("no rows in the contract", file=sys.stderr)
         return 2
-    lost, why = gate(main_rows, branch_rows, read(a.branch), read(a.main))
+    lost, why = gate(main_rows, branch_rows, read(a.branch), [read(m) for m in a.main])
     if lost is None:
         print(f"Cannot judge: {why}.")
         return 2

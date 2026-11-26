@@ -7,7 +7,8 @@ name: Benchmark, weekly
 # more than the tolerance (20% and the harness's slack; the machine-bound scenarios' times scaled
 # by each run's ceiling, as bench/README.md scales the frozen floors) fails the run, naming it.
 # The first run on a branch, or one whose last numbers have expired, has nothing to compare and
-# passes; its numbers become the last.
+# passes; its numbers become the last. A bot's branch (bot/) is held to main's last numbers, and
+# scripts/ai-merge.sh reads whether it was compared at all ("dm against its last numbers" ran).
 #
 # Reference A is not on CI. Its frozen floor (bench/reference-a-baseline.json, never edited) is
 # judged here by compare.mjs for reading only; the side-by-side run beside reference A stays the
@@ -80,12 +81,14 @@ jobs:
             [ -f "$BENCH_OUT/$s.json" ] || { echo "::error::bench.mjs wrote no $s.json"; exit 1; }
           done
 
-      - name: The last run's numbers (this branch, the last run that passed)
+      # A bot's branch is held to main's numbers, not its own (it has none): scripts/ai-merge.sh
+      # merges a bot's change to the app only when dm is not worse than on main.
+      - name: The last run's numbers (this branch, the last run that passed; main's for a bot's)
         id: last
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ startsWith(github.ref_name, 'bot/') && 'main' || github.ref_name }}
         run: |
           id=$(gh run list --workflow bench.yml --branch "$BRANCH" --status success --limit 1 \
             --json databaseId --jq '.[0].databaseId // empty')

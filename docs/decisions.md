@@ -9155,3 +9155,36 @@ merge (`bug-report.yml`, `scripts/ai-revert.sh`), as a red CI or Desktop run alr
 Checked by dry runs of `ai-merge.sh` against a stand-in `gh` (behind main, a row lost, a review
 against, all good, main with no contract run, a run that left no words) and in
 `scripts/ai-selftest.sh`.
+
+## The bots' merge also holds the window's look, the speed, code scanning and a security review, 2026-11-26
+
+The maintainer asked for what the first gate left to a person to be checked without one too.
+What was done for each, and what was found:
+
+- *Flaky rows.* A row is held to only when each of main's last three contract runs held it,
+  and a revert after a merge needs the rows lost twice (the run goes again once first): one
+  bad run neither blocks a good change nor undoes it.
+- *B51 and B57* failed on every CI run because their checks in human-qa.py still wanted a
+  colon after two headings that 36d09c1c (2026-11-25, E29-E31) wrote without one, as the
+  contract words them. The checks now read the headings as the contract does; on that run's
+  own words both hold.
+- *B25 (the window's look)* never holds on CI: its pictures are the maintainer's, drawn
+  elsewhere (9% to 100% of pixels differ). CI draws the window the same way each time (0.00%
+  to 0.15% between three runs on main), so a bot's change is held to main's pictures from the
+  same runner, at B25's own 1% (`scripts/ai-looks-gate.py`, measuring with human-qa.py's own
+  functions). A person's run still holds the window to the maintainer's pictures.
+- *YouTube (B33-B36, B59)* cannot run on CI: YouTube answers GitHub's servers "Sign in to
+  confirm you're not a bot". Signing a real account in from CI is not done, so a bot's change
+  to YouTube's code waits for a person, whoever asked for it.
+- *Speed.* bench.yml holds a bot's branch to main's last numbers (it had none of its own, so it
+  compared nothing and passed); worse once is measured again before it goes back to the fixer.
+- *Security.* CodeQL (Rust, Python, the workflows; security-extended) on every bot branch: no
+  alert main does not have. And a third review, by a third model, about security alone.
+- *Windows and macOS.* contract-desktop.yml runs the contract on GitHub's runners, reported,
+  not gating: whether a runner can give human-qa.py the Accessibility and Screen Recording
+  permissions macOS asks a person for, and draw dm's window on Windows, is not known until it
+  has run. It gates once its runs on main show the rows it holds.
+
+What no machine judges: whether a person finds the change better. The gates hold the app to
+never worse, by every measure here, and a bot's task to its own measure (a test that failed
+now passes; coverage up; a new contract row that holds).
