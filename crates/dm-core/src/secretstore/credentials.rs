@@ -48,6 +48,9 @@ impl SecretStore for CredentialStore {
                 ))
             };
         }
+        if found.is_null() {
+            return Err("the Credential Manager answered without a credential".to_string());
+        }
         // SAFETY: the call succeeded, so `found` points to a credential that stays valid
         // until `CredFree`; its blob is `CredentialBlobSize` bytes, copied here before the
         // credential is freed, and `found` is not used after that.

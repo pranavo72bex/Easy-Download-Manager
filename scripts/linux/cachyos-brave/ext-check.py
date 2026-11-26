@@ -84,7 +84,7 @@ class H(http.server.SimpleHTTPRequestHandler):
 import ssl
 subprocess.run("openssl req -x509 -newkey rsa:2048 -nodes -keyout /root/k.pem -out /root/c.pem -days 2 -subj /CN=www.youtube.com -addext subjectAltName=DNS:www.youtube.com", shell=True, check=True, capture_output=True)
 srv = socketserver.ThreadingTCPServer(("127.0.0.1", 8443), H); srv.daemon_threads = True
-ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain("/root/c.pem", "/root/k.pem")
+ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.minimum_version = ssl.TLSVersion.TLSv1_2; ctx.load_cert_chain("/root/c.pem", "/root/k.pem")
 srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 # the page is on a youtube.com address over https, as the person's was
