@@ -579,15 +579,15 @@ fn every_toolbar_button_clicked_does_what_it_says() {
         serde_json::json!({ "place": "queue:Main queue" }),
     )
     .unwrap();
+    // Each says what it did once the queue has answered, which on a slow runner is a step or
+    // more after the click (macOS's CI run, 2026-11-26): waited for, not read at once.
     h.click("Start queue");
-    let said = h.said();
-    assert!(
-        said.starts_with("Started") || said.starts_with("Nothing in"),
-        "Start queue: {said:?}"
-    );
+    h.until("Start queue said", |h| {
+        let said = h.said();
+        said.starts_with("Started") || said.starts_with("Nothing in")
+    });
     h.click("Stop queue");
-    let said = h.said();
-    assert!(said.starts_with("Stopped"), "Stop queue: {said:?}");
+    h.until("Stop queue said", |h| h.said().starts_with("Stopped"));
     h.call("ui.place", serde_json::json!({ "place": "all" }))
         .unwrap();
 

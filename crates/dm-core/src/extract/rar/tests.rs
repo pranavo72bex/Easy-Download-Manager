@@ -438,9 +438,10 @@ fn the_next_part_keeps_the_width_of_its_number() {
         next("Film.PART01.RAR", 1).as_deref(),
         Some("Film.PART02.RAR")
     );
+    // In a folder, the separator as the system writes it.
     assert_eq!(
-        next("a/film.part001.rar", 11).as_deref(),
-        Some("a/film.part012.rar")
+        header::next_part(&Path::new("a").join("film.part001.rar"), 11),
+        Some(Path::new("a").join("film.part012.rar"))
     );
     // Not a first part, or not named as a set's.
     assert_eq!(next("film.part2.rar", 2), None);
