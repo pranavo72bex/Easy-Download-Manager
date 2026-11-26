@@ -382,8 +382,20 @@ pub(super) fn vint(mut v: u64) -> Vec<u8> {
 /// One RAR 5 block: CRC32, size, type, flags, the sizes of its extra and data areas, its
 /// `fields`, its `extra` area, then `data` where it has a data area.
 pub(super) fn rar5_block(kind: u64, fields: &[u8], extra: &[u8], data: Option<&[u8]>) -> Vec<u8> {
+    rar5_block_flagged(kind, 0, fields, extra, data)
+}
+
+/// [`rar5_block`] with the header flags `more` besides those of its areas (0x08 its data goes
+/// on from the part before, 0x10 into the part after).
+pub(super) fn rar5_block_flagged(
+    kind: u64,
+    more: u64,
+    fields: &[u8],
+    extra: &[u8],
+    data: Option<&[u8]>,
+) -> Vec<u8> {
     let mut body = vint(kind);
-    let flags = u64::from(!extra.is_empty()) | (u64::from(data.is_some()) << 1);
+    let flags = more | u64::from(!extra.is_empty()) | (u64::from(data.is_some()) << 1);
     body.extend(vint(flags));
     if !extra.is_empty() {
         body.extend(vint(extra.len() as u64));
@@ -402,6 +414,7 @@ pub(super) fn rar5_block(kind: u64, fields: &[u8], extra: &[u8], data: Option<&[
 }
 
 /// A RAR 5 file as the tests describe it.
+#[derive(Clone)]
 pub(super) struct File5<'a> {
     pub name: &'a str,
     pub size: u64,
@@ -445,6 +458,13 @@ impl<'a> File5<'a> {
     }
 
     pub(super) fn bytes(&self) -> Vec<u8> {
+        self.piece(false, false)
+    }
+
+    /// Its header and packed bytes as a piece of a file in parts: `from` going on from the
+    /// part before, `into` going on into the part after.
+    pub(super) fn piece(&self, from: bool, into: bool) -> Vec<u8> {
+        let more = if from { 0x08 } else { 0 } | if into { 0x10 } else { 0 };
         let mut f = vint(u64::from(self.dir) | if self.crc.is_some() { 0x04 } else { 0 });
         f.extend(vint(self.size));
         f.extend(vint(self.attributes));
@@ -460,8 +480,25 @@ impl<'a> File5<'a> {
             extra.extend(vint(r.len() as u64));
             extra.extend_from_slice(r);
         }
-        rar5_block(2, &f, &extra, Some(self.packed))
+        rar5_block_flagged(2, more, &f, &extra, Some(self.packed))
     }
+}
+
+/// Part `number` (0 the first) of a RAR 5 set: its main header says it is one of several (and
+/// its number, after the first), then `blocks`, then its end, saying whether a part follows.
+pub(super) fn rar5_part(number: u64, blocks: &[Vec<u8>], last: bool) -> Vec<u8> {
+    let mut out = super::header::SIGNATURE.to_vec();
+    let main = if number == 0 {
+        vint(0x01)
+    } else {
+        [vint(0x03), vint(number)].concat()
+    };
+    out.extend(rar5_block(1, &main, &[], None));
+    for b in blocks {
+        out.extend_from_slice(b);
+    }
+    out.extend(rar5_block(5, &vint(u64::from(!last)), &[], None));
+    out
 }
 
 /// A RAR 5 archive: its signature, a main header with `archive_flags`, the files, its end.

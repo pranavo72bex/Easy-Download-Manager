@@ -8,10 +8,14 @@
 //! blocks, each a CRC32, a size and a type, its fields, an optional extra area of records and
 //! an optional data area. Only the headers are read here; a file's packed bytes are left where
 //! they are and found again by their offset. Every count is outside data and is checked.
+//!
+//! An archive in parts (`film.part1.rar`, `film.part2.rar`…, gaps row C3c) is read from its
+//! first part on: each part ends saying whether another follows, and a file cut where a part
+//! ends goes on in the next under a header of its own, its packed bytes the pieces in order.
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::super::{plain_mode, Error};
 
@@ -37,7 +41,8 @@ pub(super) fn damaged(what: &str) -> Error {
     Error::Unreadable(format!("the RAR archive is damaged ({what})"))
 }
 
-/// An archive in several parts, which dm does not join.
+/// An archive in several parts that dm does not join: an old-format one, or one whose parts
+/// are not named `.part1.rar`, `.part2.rar`….
 pub(super) fn in_parts() -> Error {
     Error::Unreadable(
         "the RAR archive is one part of several (.part1.rar, .part2.rar…), \
@@ -45,6 +50,26 @@ pub(super) fn in_parts() -> Error {
             .into(),
     )
 }
+
+/// A part after the first, given where the set is to be read from its first.
+fn not_first(number: u64) -> Error {
+    Error::Unreadable(format!(
+        "this is part {} of a RAR archive in parts; extract it from its first part",
+        number.saturating_add(1)
+    ))
+}
+
+/// A part of the set that is not beside the others.
+fn missing(path: &Path) -> Error {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    Error::Unreadable(format!("a part of the RAR archive is not there ({name})"))
+}
+
+/// The most parts read as one archive.
+const MOST_PARTS: usize = 10_000;
 
 /// An archive that ends before its headers do.
 pub(super) fn cut_short() -> Error {
@@ -65,6 +90,14 @@ pub(super) enum Pack {
     Refused(String),
 }
 
+/// A run of a file's packed bytes: in which part (0 the first), where, and how many.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Span {
+    pub volume: usize,
+    pub offset: u64,
+    pub len: u64,
+}
+
 /// One file or folder the archive holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Entry {
@@ -73,8 +106,9 @@ pub(super) struct Entry {
     pub dir: bool,
     /// Bytes once unpacked, as the header says.
     pub size: u64,
-    /// Where its packed bytes start in the archive, and how many there are.
-    pub offset: u64,
+    /// Where its packed bytes are, in order (more than one run where it goes on from part to
+    /// part), and how many there are in all.
+    pub spans: Vec<Span>,
     pub packed: u64,
     /// The CRC32 of its unpacked bytes, where it has one.
     pub crc: Option<u32>,
@@ -207,19 +241,62 @@ fn block(file: &mut File, at: u64) -> Result<Block, Error> {
 }
 
 /// Reads the list of a RAR 5 archive at `path` (its signature already checked), at most
-/// `max_entries` files and folders.
-pub(super) fn read(path: &Path, max_entries: usize) -> Result<Vec<Entry>, Error> {
+/// `max_entries` files and folders, with the paths of its parts (`path` alone where it is in
+/// one).
+pub(super) fn read(path: &Path, max_entries: usize) -> Result<(Vec<PathBuf>, Vec<Entry>), Error> {
+    let mut volumes = vec![path.to_path_buf()];
+    let mut entries = Vec::new();
+    // A file whose packed bytes go on in the next part.
+    let mut open: Option<Entry> = None;
+    loop {
+        let volume = volumes.len() - 1;
+        let more = read_volume(
+            &volumes[volume],
+            volume,
+            max_entries,
+            &mut entries,
+            &mut open,
+        )?;
+        if !more {
+            break;
+        }
+        let next = next_part(path, volume + 1).ok_or_else(in_parts)?;
+        if volumes.len() >= MOST_PARTS {
+            return Err(Error::TooBig("too many parts"));
+        }
+        if !next.is_file() {
+            return Err(missing(&next));
+        }
+        volumes.push(next);
+    }
+    if open.is_some() {
+        return Err(cut_short());
+    }
+    Ok((volumes, entries))
+}
+
+/// Reads the part `volume` (0 the first) at `path` into `entries`, `open` holding a file that
+/// goes on from one part to the next; whether another part follows.
+fn read_volume(
+    path: &Path,
+    volume: usize,
+    max_entries: usize,
+    entries: &mut Vec<Entry>,
+    open: &mut Option<Entry>,
+) -> Result<bool, Error> {
     let mut file = File::open(path)?;
     let file_len = file.metadata()?.len();
-    let mut entries = Vec::new();
+    if volume > 0 {
+        let mut start = [0u8; 8];
+        if file.read_exact(&mut start).is_err() || start != SIGNATURE {
+            return Err(damaged("a part is not of the same archive"));
+        }
+    }
+    let mut in_set = false;
     let mut at = SIGNATURE.len() as u64;
     // An archive whose end block is missing ends where its last block does.
     while at < file_len {
         let b = block(&mut file, at)?;
-        // Continued from, or into, another part.
-        if b.flags & (0x08 | 0x10) != 0 {
-            return Err(in_parts());
-        }
         let next = b
             .data_at
             .checked_add(b.data_size)
@@ -229,25 +306,47 @@ pub(super) fn read(path: &Path, max_entries: usize) -> Result<Vec<Entry>, Error>
         }
         match b.kind {
             MAIN => {
-                // Its first flag: the archive is one volume of several.
-                if Cursor::new(&b.fields).vint()? & 0x01 != 0 {
-                    return Err(in_parts());
+                let mut c = Cursor::new(&b.fields);
+                let flags = c.vint()?;
+                // Its first flag: one part of several; its second: the part's number follows
+                // (every part but the first has one, from 1).
+                in_set = flags & 0x01 != 0;
+                let number = if flags & 0x02 != 0 { c.vint()? } else { 0 };
+                if volume == 0 && number != 0 {
+                    return Err(not_first(number));
+                }
+                if number != volume as u64 || (volume > 0 && !in_set) {
+                    return Err(damaged("its parts are out of order"));
                 }
             }
             // Every header after this one is encrypted.
             CRYPT => return Err(Error::Encrypted("its list of files".into())),
             FILE => {
-                if entries.len() >= max_entries {
-                    return Err(Error::TooBig("too many entries"));
+                // Continued from the part before, and into the part after.
+                let (from, into) = (b.flags & 0x08 != 0, b.flags & 0x10 != 0);
+                if (from || into) && !in_set {
+                    return Err(damaged("a file goes on into a part it has not"));
                 }
-                entries.push(file_entry(&b)?);
+                let piece = file_entry(&b, volume)?;
+                let entry = match (open.take(), from) {
+                    (Some(whole), true) => joined(whole, piece)?,
+                    (None, true) if volume == 0 => return Err(not_first(1)),
+                    (None, true) => return Err(damaged("a file goes on from nothing")),
+                    (Some(_), false) => return Err(damaged("a file stops between parts")),
+                    (None, false) => piece,
+                };
+                if into {
+                    *open = Some(entry);
+                } else {
+                    if entries.len() >= max_entries {
+                        return Err(Error::TooBig("too many entries"));
+                    }
+                    entries.push(entry);
+                }
             }
             END => {
-                // Its first flag: another volume follows.
-                if Cursor::new(&b.fields).vint()? & 0x01 != 0 {
-                    return Err(in_parts());
-                }
-                break;
+                // Its first flag: another part follows.
+                return Ok(Cursor::new(&b.fields).vint()? & 0x01 != 0);
             }
             // A service header (a comment, a recovery record, a quick-open copy of the
             // list) or a type of a later version: passed over with its data.
@@ -255,11 +354,52 @@ pub(super) fn read(path: &Path, max_entries: usize) -> Result<Vec<Entry>, Error>
         }
         at = next;
     }
-    Ok(entries)
+    Ok(false)
+}
+
+/// A file that goes on from one part to the next, `piece` being its header in the next: the
+/// same name, its packed bytes the runs of both. Its checksum is the last piece's (a piece
+/// before the last carries its own packed bytes' checksum, not the file's).
+fn joined(mut whole: Entry, piece: Entry) -> Result<Entry, Error> {
+    if piece.name != whole.name || piece.dir != whole.dir {
+        return Err(damaged("a file goes on as another"));
+    }
+    whole.packed = whole
+        .packed
+        .checked_add(piece.packed)
+        .ok_or_else(|| damaged("a file's size"))?;
+    whole.spans.extend(piece.spans);
+    whole.crc = piece.crc;
+    whole.blake2 = piece.blake2;
+    whole.encrypted |= piece.encrypted;
+    whole.special |= piece.special;
+    Ok(whole)
+}
+
+/// The path of part `number` (0 the first) of the set whose first part is `first`
+/// (`film.part1.rar`, `film.part01.rar`…: the digits keep their width where they fit); `None`
+/// where `first` is not so named.
+pub(super) fn next_part(first: &Path, number: usize) -> Option<PathBuf> {
+    let name = first.file_name()?.to_str()?;
+    let stem = name
+        .len()
+        .checked_sub(4)
+        .filter(|&at| name.is_char_boundary(at) && name[at..].eq_ignore_ascii_case(".rar"))?;
+    let digits_at = name[..stem]
+        .trim_end_matches(|c: char| c.is_ascii_digit())
+        .len();
+    let width = stem - digits_at;
+    let before = &name[..digits_at];
+    let named = before.len() >= 5 && before[before.len() - 5..].eq_ignore_ascii_case(".part");
+    if width == 0 || !named || name[digits_at..stem].parse::<usize>().ok()? != 1 {
+        return None;
+    }
+    let ext = &name[stem..];
+    Some(first.with_file_name(format!("{before}{:0width$}{ext}", number.checked_add(1)?)))
 }
 
 /// A file header's fields and extra records.
-fn file_entry(b: &Block) -> Result<Entry, Error> {
+fn file_entry(b: &Block, volume: usize) -> Result<Entry, Error> {
     let mut c = Cursor::new(&b.fields);
     let file_flags = c.vint()?;
     let size = c.vint()?;
@@ -298,7 +438,11 @@ fn file_entry(b: &Block) -> Result<Entry, Error> {
         name,
         dir,
         size,
-        offset: b.data_at,
+        spans: vec![Span {
+            volume,
+            offset: b.data_at,
+            len: b.data_size,
+        }],
         packed: b.data_size,
         crc,
         pack,

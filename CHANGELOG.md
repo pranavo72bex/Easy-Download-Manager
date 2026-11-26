@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A RAR archive in parts (`film.part1.rar`, `film.part2.rar`…) is extracted from its first part, the parts read where they are and never joined on disk, into a folder of the archive's name; a missing part is named, and a later part says to start from the first.
 - On a phone, dm no longer closes when the system's look changes under it (a new navigation mode, or a new wallpaper's colours on Android 12 and later): it opens again by itself, its downloads saved and resumed.
 - On Windows, Options' list of pages shows Sign-ins again without scrolling the list: the pages sit closer together, so all six fit beside a page with their two-line descriptions.
 - Extract here and Extract to ask for an archive's password when none of the saved ones opens it, in a small "Archive password" window that says a wrong one and stays open; "Keep this password" saves it once it has worked.

@@ -11,7 +11,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use super::super::{extract, is_archive, Limits};
-use super::writer::{greedy, pack, rar4, rar4_files, rar5, rar5_block, vint, File4, File5};
+use super::writer::{
+    greedy, pack, rar4, rar4_files, rar5, rar5_block, rar5_part, vint, File4, File5,
+};
 use super::*;
 use std::sync::atomic::AtomicBool;
 
@@ -197,10 +199,11 @@ fn passwords_parts_and_methods_dm_does_not_unpack_are_refused_in_words() {
     whole.extend(rar5_block(4, &[0, 0, 15], &[], None));
     whole.extend(vec![0u8; 64]);
     refused(&whole, |e| matches!(e, Error::Encrypted(_)));
-    // One volume of several.
-    refused(&rar5(0x01, &[File5::stored("a", b"x")]), |e| {
-        e.to_string().contains("one part of several")
-    });
+    // One part of several, its next not named as `.part2.rar` would be.
+    refused(
+        &rar5_part(0, &[File5::stored("a", b"x").bytes()], false),
+        |e| e.to_string().contains("one part of several"),
+    );
     // A later compression, a file checked by BLAKE2 alone.
     let later = File5 {
         info: (3 << 7) | 1,
@@ -315,4 +318,132 @@ fn a_cancel_stops_and_removes_the_folder() {
         extract(&archive, &few, &no, None, &|_, _| {}),
         Err(Error::TooBig(_))
     ));
+}
+
+/// A file's packed bytes cut in pieces where the parts end, as RAR cuts them: each piece before
+/// the last carries its own packed bytes' CRC32, the last the whole file's.
+fn pieces<'a>(whole: &File5<'a>, cuts: &[&'a [u8]]) -> Vec<File5<'a>> {
+    let last = cuts.len() - 1;
+    cuts.iter()
+        .enumerate()
+        .map(|(i, cut)| File5 {
+            packed: cut,
+            crc: Some(if i == last {
+                whole.crc.unwrap()
+            } else {
+                crc32fast::hash(cut)
+            }),
+            ..whole.clone()
+        })
+        .collect()
+}
+
+/// A RAR 5 set in three parts, read from its first: a stored file across all three, a packed
+/// one from the second into the third, a file whole in the first; extracted whole into a
+/// folder of the set's name, every CRC checked. A part missing, a part not the first, and a
+/// piece that does not add up are refused in words, with nothing made.
+#[test]
+fn a_rar5_set_in_parts_is_extracted_from_its_first_part() {
+    let big = noise(30_000);
+    let story = text(20_000);
+    let packed = pack(&greedy(&[], &story, 1 << 20));
+    let big_file = File5::stored("big.bin", &big);
+    let story_file = File5::packed("story.txt", &story, &packed, false);
+    let b = pieces(
+        &big_file,
+        &[&big[..10_000], &big[10_000..25_000], &big[25_000..]],
+    );
+    let (p1, p2) = packed.split_at(packed.len() / 2);
+    let s = pieces(&story_file, &[p1, p2]);
+    let set = [
+        rar5_part(
+            0,
+            &[
+                File5::stored("small.txt", b"hello").bytes(),
+                b[0].piece(false, true),
+            ],
+            false,
+        ),
+        rar5_part(1, &[b[1].piece(true, true)], false),
+        rar5_part(
+            2,
+            &[b[2].piece(true, false), s[0].piece(false, true)],
+            false,
+        ),
+        rar5_part(3, &[s[1].piece(true, false)], true),
+    ];
+    let write = |dir: &Path, parts: &[usize]| {
+        for &i in parts {
+            fs::write(dir.join(format!("film.part{}.rar", i + 1)), &set[i]).unwrap();
+        }
+    };
+    let extract_from = |dir: &Path, name: &str| {
+        extract(
+            &dir.join(name),
+            &Limits::default(),
+            &AtomicBool::new(false),
+            None,
+            &|_, _| {},
+        )
+    };
+
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), &[0, 1, 2, 3]);
+    let got = extract_from(dir.path(), "film.part1.rar").unwrap();
+    assert_eq!(got.folder, dir.path().join("film"));
+    assert_eq!(got.files, 3);
+    assert_eq!(fs::read(got.folder.join("small.txt")).unwrap(), b"hello");
+    assert_eq!(fs::read(got.folder.join("big.bin")).unwrap(), big);
+    assert_eq!(fs::read(got.folder.join("story.txt")).unwrap(), story);
+
+    // A part missing: said by its name, nothing made.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), &[0, 1, 3]);
+    let e = extract_from(dir.path(), "film.part1.rar").unwrap_err();
+    assert!(e.to_string().contains("film.part3.rar"), "{e}");
+    assert!(!dir.path().join("film").exists());
+
+    // A part after the first: to be extracted from the first.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), &[0, 1, 2, 3]);
+    let e = extract_from(dir.path(), "film.part2.rar").unwrap_err();
+    assert!(e.to_string().contains("from its first part"), "{e}");
+    assert!(!dir.path().join("film.part2").exists());
+
+    // A piece of the stored file damaged in the second part: the whole file's CRC finds it.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), &[0, 2, 3]);
+    let mut bad = big[10_000..25_000].to_vec();
+    bad[7] ^= 0xff;
+    let mut damaged_piece = b[1].clone();
+    damaged_piece.packed = &bad;
+    let part2 = rar5_part(1, &[damaged_piece.piece(true, true)], false);
+    fs::write(dir.path().join("film.part2.rar"), part2).unwrap();
+    let e = extract_from(dir.path(), "film.part1.rar").unwrap_err();
+    assert!(e.to_string().contains("does not add up"), "{e}");
+    assert!(!dir.path().join("film").exists());
+}
+
+#[test]
+fn the_next_part_keeps_the_width_of_its_number() {
+    let next = |name: &str, n| {
+        header::next_part(Path::new(name), n).map(|p| p.to_string_lossy().into_owned())
+    };
+    assert_eq!(next("film.part1.rar", 1).as_deref(), Some("film.part2.rar"));
+    assert_eq!(
+        next("film.part1.rar", 9).as_deref(),
+        Some("film.part10.rar")
+    );
+    assert_eq!(
+        next("Film.PART01.RAR", 1).as_deref(),
+        Some("Film.PART02.RAR")
+    );
+    assert_eq!(
+        next("a/film.part001.rar", 11).as_deref(),
+        Some("a/film.part012.rar")
+    );
+    // Not a first part, or not named as a set's.
+    assert_eq!(next("film.part2.rar", 2), None);
+    assert_eq!(next("film.rar", 1), None);
+    assert_eq!(next("film1.rar", 1), None);
 }

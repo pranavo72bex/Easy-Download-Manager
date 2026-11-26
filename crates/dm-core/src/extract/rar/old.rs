@@ -147,7 +147,11 @@ fn file_entry(whole: &[u8], flags: u16, data_at: u64) -> Result<Entry, Error> {
         name,
         dir,
         size,
-        offset: data_at,
+        spans: vec![super::header::Span {
+            volume: 0,
+            offset: data_at,
+            len: packed,
+        }],
         packed,
         crc: (!dir).then_some(crc),
         pack,

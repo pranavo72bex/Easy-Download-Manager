@@ -13,8 +13,9 @@ pub fn destination_for(archive: &Path) -> PathBuf {
     destination_in(archive, archive.parent().unwrap_or_else(|| Path::new(".")))
 }
 
-/// [`destination_for`] inside a chosen `parent` folder instead. The first part of a 7z in
-/// parts goes into a folder of the archive's name (`film.7z.001` into `film`).
+/// [`destination_for`] inside a chosen `parent` folder instead. The first part of an archive
+/// in parts goes into a folder of the archive's name (`film.7z.001`, `film.part1.rar` into
+/// `film`).
 pub fn destination_in(archive: &Path, parent: &Path) -> PathBuf {
     let stem = archive
         .file_stem()
@@ -26,6 +27,8 @@ pub fn destination_in(archive: &Path, parent: &Path) -> PathBuf {
                 .ends_with(".7z.001");
             if parts {
                 s[..s.len() - 3].to_string()
+            } else if let Some(set) = rar_set(archive, &s) {
+                set
             } else {
                 s
             }
@@ -39,4 +42,21 @@ pub fn destination_in(archive: &Path, parent: &Path) -> PathBuf {
         n += 1;
     }
     candidate
+}
+
+/// The name of the RAR set whose first part is `archive`, its stem `stem` (`film.part1`, or
+/// `film.part01`, gives `film`); `None` for any other name.
+fn rar_set(archive: &Path, stem: &str) -> Option<String> {
+    if !archive
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("rar"))
+    {
+        return None;
+    }
+    let digits_at = stem.trim_end_matches(|c: char| c.is_ascii_digit()).len();
+    let before = stem.get(..digits_at)?;
+    let first = stem.get(digits_at..)?.parse::<u32>().ok()? == 1;
+    let at = before.len().checked_sub(5)?;
+    (first && before.is_char_boundary(at) && before[at..].eq_ignore_ascii_case(".part"))
+        .then(|| before[..at].to_string())
 }

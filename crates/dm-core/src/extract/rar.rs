@@ -17,8 +17,12 @@
 //! in words. Every file's CRC32 is checked as it is written; a mismatch fails the archive and
 //! removes its folder.
 //!
+//! A RAR 5 archive in parts is read from its first part (`film.part1.rar`), the next ones found
+//! beside it by their names and read in place, never joined on disk (gaps row C3c).
+//!
 //! Refused before anything is written, in plain words: an archive with a password (its list
-//! of files or any file encrypted), one in several parts (`.part1.rar`…), a later version's
+//! of files or any file encrypted), an old-format one in parts or one whose parts are named
+//! otherwise, a part of a set that is missing or is not the first, a later version's
 //! compression, and a file checked only by a BLAKE2 hash, which dm does not compute.
 
 mod filters;
@@ -34,7 +38,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
-use self::header::{damaged, Entry, Pack, OLD_SIGNATURE, SIGNATURE};
+use self::header::{damaged, Entry, Pack, Span, OLD_SIGNATURE, SIGNATURE};
 use self::unpack::Unpacker;
 use super::{safe_path, Error, Extracted, Job};
 
@@ -43,14 +47,14 @@ pub fn is_rar(name: &str) -> bool {
     name.to_ascii_lowercase().ends_with(".rar")
 }
 
-/// Reads the list of the archive at `path`, RAR 5 or older.
-fn read_archive(path: &Path, max_entries: usize) -> Result<Vec<Entry>, Error> {
+/// Reads the list of the archive at `path`, RAR 5 or older, with the paths of its parts.
+fn read_archive(path: &Path, max_entries: usize) -> Result<(Vec<PathBuf>, Vec<Entry>), Error> {
     let mut start = Vec::new();
     File::open(path)?.take(8).read_to_end(&mut start)?;
     if start.starts_with(&SIGNATURE) {
         header::read(path, max_entries)
     } else if start.starts_with(&OLD_SIGNATURE) {
-        old::read(path, max_entries)
+        Ok((vec![path.to_path_buf()], old::read(path, max_entries)?))
     } else {
         Err(Error::Unreadable("this is not a RAR archive".into()))
     }
@@ -89,7 +93,7 @@ struct Planned {
 /// `super::extract_into` does a ZIP.
 pub(super) fn extract_into(archive: &Path, folder: &Path, job: &Job) -> Result<Extracted, Error> {
     let limits = job.limits;
-    let entries = read_archive(archive, limits.max_entries)?;
+    let (volumes, entries) = read_archive(archive, limits.max_entries)?;
 
     // First pass: every entry judged before anything is written.
     let mut plan: Vec<Planned> = Vec::with_capacity(entries.len());
@@ -131,13 +135,16 @@ pub(super) fn extract_into(archive: &Path, folder: &Path, job: &Job) -> Result<E
     if let Some(shown) = super::inside_a_file(plan.iter().map(|p| p.path.as_path()), &seen) {
         return Err(Error::Duplicate(shown));
     }
-    let stored = fs::metadata(archive)?.len();
+    let mut stored = 0u64;
+    for volume in &volumes {
+        stored = stored.saturating_add(fs::metadata(volume)?.len());
+    }
     if total > limits.ratio_floor && total / stored.max(1) > limits.max_ratio {
         return Err(Error::TooBig("it compresses far beyond anything real"));
     }
 
     fs::create_dir(folder)?;
-    let made = write_all(archive, &entries, folder, &plan, total, job);
+    let made = write_all(&volumes, &entries, folder, &plan, total, job);
     match made {
         Ok(files) => Ok(Extracted {
             folder: folder.to_path_buf(),
@@ -186,7 +193,7 @@ impl Out<'_> {
 /// The second pass: the entries judged, written in their order, a solid stream unpacked
 /// once from start to end as its files come.
 fn write_all(
-    path: &Path,
+    volumes: &[PathBuf],
     entries: &[Entry],
     folder: &Path,
     plan: &[Planned],
@@ -196,7 +203,6 @@ fn write_all(
     let (mut done, mut files) = (0u64, 0usize);
     let mut stream: Option<Unpacker> = None;
     let mut stream4: Option<v3::Unpacker> = None;
-    let mut archive = File::open(path)?;
     let mut buf = vec![0u8; 256 * 1024];
     (job.progress)(0, expected);
     for p in plan {
@@ -228,8 +234,12 @@ fn write_all(
             expected,
             job,
         };
-        archive.seek(SeekFrom::Start(entry.offset))?;
-        let mut packed = (&mut archive).take(entry.packed);
+        let mut packed = Packed {
+            volumes,
+            spans: &entry.spans,
+            next: 0,
+            reading: None,
+        };
         match entry.pack {
             Pack::Stored => copy(&mut packed, &mut buf, &mut out)?,
             Pack::Lz { solid, dict } => {
@@ -282,6 +292,40 @@ fn write_all(
         }
     }
     Ok(files)
+}
+
+/// A file's packed bytes, read run by run from the parts they are in.
+struct Packed<'a> {
+    volumes: &'a [PathBuf],
+    spans: &'a [Span],
+    /// The next run to open, and the one being read.
+    next: usize,
+    reading: Option<std::io::Take<File>>,
+}
+
+impl Read for Packed<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            if let Some(run) = self.reading.as_mut() {
+                let n = run.read(buf)?;
+                if n > 0 || buf.is_empty() {
+                    return Ok(n);
+                }
+                self.reading = None;
+            }
+            let Some(span) = self.spans.get(self.next) else {
+                return Ok(0);
+            };
+            self.next += 1;
+            let path = self
+                .volumes
+                .get(span.volume)
+                .ok_or_else(|| std::io::Error::other("a part of the archive is not there"))?;
+            let mut file = File::open(path)?;
+            file.seek(SeekFrom::Start(span.offset))?;
+            self.reading = Some(file.take(span.len));
+        }
+    }
 }
 
 /// A stored file's bytes, copied as they are.
