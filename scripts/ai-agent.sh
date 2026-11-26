@@ -50,8 +50,13 @@ ai_setup() {
 }
 
 # `ai_run PROVIDER PROMPT`: one turn; 3 when the provider cannot run here.
+#
+# `ai_run PROVIDER PROMPT continue`: the same session goes on, so a second try does not read
+# again every file the first read (on 2026-11-26 a second try spent 26 of the keyless quota's
+# 100 or so calls reading again what the first had read).
 ai_run() {
-    local provider=$1 prompt=$2
+    local provider=$1 prompt=$2 more=()
+    if [ "${3:-}" = continue ]; then more=(--continue); fi
     # Only what failed reaches the model: every line it reads is sent again with each of its
     # later calls, and a whole run's "PASS" lines (3,000 and more) ended the free quota.
     local base=(env -i "HOME=$HOME" "PATH=$PATH" TERM=dumb CI=true CARGO_TERM_COLOR=never
@@ -60,7 +65,7 @@ ai_run() {
     case "$provider" in
     kilo)
         timeout "$AI_TIMEOUT" "${base[@]}" "OPENCODE_CONFIG_CONTENT=$AI_KILO_CONFIG" \
-            opencode run --print-logs --auto --model "kilo/$KILO_MODEL" "$prompt"
+            opencode run --print-logs --auto ${more[@]+"${more[@]}"} --model "kilo/$KILO_MODEL" "$prompt"
         ;;
     *) return 3 ;;
     esac
@@ -206,10 +211,11 @@ ai_try() {
     for provider in $PROVIDERS; do
         git reset -q && git checkout -q -- . && git clean -qfd
         rm -f .bot/summary.md
-        local ask=$prompt
+        local ask=$prompt session=new
         for attempt in $(seq 1 "$AI_ATTEMPTS"); do
             echo "::group::$provider, try $attempt"
-            ai_run "$provider" "$ask"
+            ai_run "$provider" "$ask" "$session"
+            session=continue
             status=$?
             echo "::endgroup::"
             if [ "$status" = 3 ]; then
@@ -233,9 +239,8 @@ ai_try() {
             if [ "$result" = forbidden ] || [ "$result" = removes-a-test ]; then
                 git reset -q && git checkout -q -- . && git clean -qfd
             fi
-            ask="$prompt
-
-Your previous change was checked and refused ($result). The tree still holds your change
+            # The task itself is in the session already: only what failed is sent.
+            ask="Your previous change was checked and refused ($result). The tree still holds your change
 unless it was refused for touching a file it may not, or for removing or ignoring a test.
 What went wrong, first (the whole log is .bot/check.log):
 
