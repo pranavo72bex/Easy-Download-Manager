@@ -114,13 +114,16 @@ fi
 
 runs=$(gh api "repos/$GH_REPO/actions/runs?head_sha=$sha&per_page=50" \
     --jq "[.workflow_runs[] | select(.name == \"CI\" or .name == \"Desktop\" or .name == \"$ANDROID\" or .name == \"$CONTRACT\" or .name == \"$BENCH\" or .name == \"$CODEQL\")] | group_by(.name) | map(max_by(.created_at)) | .[] | \"\\(.name)\\t\\(.status)\\t\\(.conclusion)\\t\\(.id)\"")
+# Every one that has not run is started at once (they run side by side, not one by one).
+missing=0
 for w in "${needed[@]}"; do
     if ! grep -q "^$w	" <<<"$runs"; then
         echo "$w has not run on $sha: started."
-        start "$w" "$branch"
-        exit 0
+        start "$w" "$branch" || true
+        missing=1
     fi
 done
+[ "$missing" = 0 ] || exit 0
 if grep -qv '	completed	' <<<"$runs"; then echo "Still running:"; echo "$runs"; exit 0; fi
 
 back_to_the_fixer() {
