@@ -9089,3 +9089,8 @@ longer runs the whole suite (the workflow does, after it, and hands back what fa
 3,000 and more "PASS" lines were in the model's context), cargo and nextest print it only what
 fails, and it searches the contract and AGENTS.md for what it touches instead of reading
 90 KB whole.
+
+The first night on these cuts (run 45751236215) finished its first try inside the keyless
+quota, but its tests were for tooling/xtask/src/tasks.rs, which `ai_guard` refuses, and the
+second try on the same file ran the quota out. `scripts/coverage-table.py pick` now leaves out
+tooling/xtask/ as it leaves out what a Linux runner cannot run.
