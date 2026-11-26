@@ -89,10 +89,14 @@ impl Scheduler {
             .flex()
             .flex_col()
             .gap(px(native::ROW_GAP))
+            // What the Main queue's hours are for, in the explanations' words (small, secondary)
+            // as every dialog's are: set as body text it read as a setting.
             .when(main, |d| {
-                d.child(screen.label(t(
-                    "The hours when downloads may run, in every queue without hours of its own.",
-                )))
+                d.child(native::note(
+                    t("The hours when downloads may run, in every queue without hours of its own."),
+                    theme.muted,
+                    screen,
+                ))
             })
             .when(!main, |d| {
                 d.child(
