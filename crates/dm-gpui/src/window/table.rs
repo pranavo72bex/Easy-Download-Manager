@@ -497,7 +497,7 @@ fn row_cells(
                 let cut = cut(&queue, words_room(column, widths, name_room));
                 whole_where_cut(named, told, ("queue", id), place, queue.into(), cut)
             }
-            Column::Status => status_cell(row, place, layout, whens, theme, screen),
+            Column::Status => cells::status_cell(row, place, layout, whens, theme, screen),
             _ => {
                 let mut said = words(column, row, whens);
                 // A row not saved yet shows the folder it will go to, without that guess
@@ -521,82 +521,6 @@ fn row_cells(
             }
         })
         .collect()
-}
-
-/// A row's Status cell: its mark and words in its state's colour, the bar of a running one,
-/// and its whole words on hover where they are cut or the engine said more.
-fn status_cell(
-    row: &Entry,
-    place: usize,
-    layout: Layout<'_>,
-    whens: &format::Whens,
-    theme: Theme,
-    screen: &Screen,
-) -> AnyElement {
-    let Layout {
-        widths,
-        told,
-        name_room,
-        ..
-    } = layout;
-    let column = Column::Status;
-    // Its percentage in figures of one width, as the other figures are (gaps row E20).
-    let said = words(column, row, whens);
-    let fraction = (row.state == State::Running)
-        .then(|| row.progress.fraction())
-        .flatten();
-    // The whole words on hover, and the engine's own where the row says them in
-    // plainer ones: a cut failure could not be read (gaps row U3).
-    let whole = match dm_desktop_base::rows::failure_as_said(row) {
-        Some(raw) => format!("{said}\n{raw}"),
-        None => said.clone(),
-    };
-    cell(column, widths)
-        .font_features(crate::widgets::native::figures())
-        .id(("status", row.id))
-        .when(told, |c| told_cell(c, place, said.clone()))
-        .flex_col()
-        .items_start()
-        // Against the right where the window is mirrored (gaps row U35).
-        .when(crate::window::mirror::rtl(), |c| c.items_end())
-        .justify_center()
-        // Its mark and the gap after it beside the words.
-        .when(
-            whole != said || cut(&said, words_room(column, widths, name_room) - 18.0),
-            |c| {
-                c.tooltip(move |window, cx| {
-                    gpui_component::tooltip::Tooltip::new(SharedString::from(whole.clone()))
-                        .build(window, cx)
-                })
-            },
-        )
-        // Its state in its colour, as the phone's cards say it: a failure in the
-        // warning's, a finished download in the success colour, one going in the
-        // accent; on a chosen row, the choice's own text colour.
-        .when(!theme.is_chosen(), |c| match row.state {
-            State::Failed(_) => c.text_color(theme.warning),
-            State::Completed => c.text_color(theme.success),
-            State::Running => c.text_color(theme.accent_text),
-            _ => c,
-        })
-        // A mark told by its shape, then the words (gaps row E4): a state is
-        // never told by colour alone (`docs/ui-design.md`, rule 5).
-        .child(
-            div()
-                .flex()
-                .map(crate::window::mirror::row)
-                .items_center()
-                .gap(px(space::XS))
-                .max_w_full()
-                .children(cells::state_mark(&row.state, theme))
-                .child(fitted(screen.label(said))),
-        )
-        .when_some(fraction, |c, f| {
-            c.child(cells::progress_track(row.id, f, told, theme))
-        })
-        // A bar just finished fills and fades rather than vanishing (gaps row K7).
-        .children(cells::finishing_bar(row, theme))
-        .into_any_element()
 }
 
 /// What stands under the headings where the place chosen shows no row: as

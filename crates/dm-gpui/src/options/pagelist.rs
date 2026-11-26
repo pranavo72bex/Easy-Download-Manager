@@ -8,7 +8,7 @@
 
 use dm_desktop_base::i18n::t;
 use dm_desktop_base::options::{self, Tab};
-use gpui::{div, prelude::*, Context, Role, SharedString};
+use gpui::{div, prelude::*, Context, Div, Role, SharedString, Stateful, Window};
 
 use super::Options;
 use crate::widgets::{native, space};
@@ -17,6 +17,43 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 impl Options {
+    /// The list of pages, each with its picture, name and what it holds: beside a page, rows
+    /// close-set as the main window's side panel's places; at a phone's width, a screen of its own.
+    pub(super) fn page_list(
+        &mut self,
+        tabs: &[(Tab, &'static str)],
+        narrow: bool,
+        theme: Theme,
+        screen: &Screen,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        let entries: Vec<_> = tabs
+            .iter()
+            .map(|(tab, words)| {
+                let summary = crate::options::pages::summary(self, *tab, theme, window, cx);
+                self.page_tab(*tab, words, summary, narrow, theme, screen, cx)
+            })
+            .collect();
+        div()
+            .id("pages")
+            .role(Role::TabList)
+            .flex()
+            .flex_col()
+            .overflow_y_scroll()
+            .when(narrow, |l| {
+                l.flex_1().min_h_0().w_full().px(px(native::MARGIN))
+            })
+            .when(!narrow, |l| {
+                l.flex_1()
+                    .min_h_0()
+                    .gap(px(space::XXS))
+                    .px(px(space::M))
+                    .pb(px(space::M))
+            })
+            .children(entries)
+    }
+
     /// A page's entry in the list of pages, chosen by a click, Space or Return, the arrows
     /// moving from page to page. Beside a page, a source list's row: its picture and name on one
     /// line, as the main window's side panel draws a place, what it holds said at the top of the
@@ -220,4 +257,32 @@ fn picture(tab: Tab) -> &'static str {
         Tab::Advanced => "icons/page-advanced.svg",
         Tab::SiteLogins => "icons/page-sign-ins.svg",
     }
+}
+
+/// Beside a page, the list of pages as the dialog's side panel: the main window's side panel's
+/// colour, its height, a line at its edge, Find a setting (`search`) at its top.
+pub(super) fn side_panel(search: Div, list: Option<Stateful<Div>>, theme: Theme) -> Div {
+    div()
+        .flex_none()
+        .w(px(super::PAGES_WIDTH))
+        .h_full()
+        .flex()
+        .flex_col()
+        .bg(crate::window::theme::frame(theme.sidebar))
+        .map(|panel| {
+            if crate::window::mirror::rtl() {
+                panel.border_l_1()
+            } else {
+                panel.border_r_1()
+            }
+        })
+        .border_color(theme.separator)
+        .child(
+            div()
+                .px(px(space::M))
+                .pt(px(space::L))
+                .pb(px(space::M))
+                .child(search),
+        )
+        .children(list)
 }
