@@ -75,7 +75,8 @@ fn the_clipboard_watcher_offers_only_new_links_and_only_when_on() {
     looked(&mut h);
     assert!(!h.shows(offer), "offered while off");
 
-    h.click("Options");
+    // By its command: on macOS a new dm has no toolbar Options (the app menu's Settings…).
+    h.command("downloads.options");
     h.until("Options", |h| h.dialog_open("Options"));
     let watch = "Offer to download links I copy";
     // Lower on General than the window shows: scrolled to, as a person scrolls, as far as it

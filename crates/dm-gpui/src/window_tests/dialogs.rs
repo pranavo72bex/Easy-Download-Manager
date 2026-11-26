@@ -480,7 +480,8 @@ fn move_to_queue_makes_the_queue_named() {
 fn a_number_box_says_when_what_was_typed_is_not_a_number() {
     let world = world();
     let mut h = world.harness();
-    h.click("Options");
+    // By its command: on macOS a new dm has no toolbar Options (the app menu's Settings…).
+    h.command("downloads.options");
     h.until("Options", |h| h.dialog_open("Options"));
     h.click("Advanced");
     let label = "Time out a silent connection after (seconds)";

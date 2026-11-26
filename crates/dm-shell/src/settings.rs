@@ -512,6 +512,20 @@ impl SlowHours {
     }
 }
 
+/// The toolbar's buttons a new dm leaves off (`toolbar_hidden`): Delete completed and the
+/// Grabber, which Downloads and Tasks hold; and on macOS Options, which is the app menu's
+/// Settings… there (⌘,), as a Mac program keeps its settings, not a toolbar button (the
+/// maintainer, 2026-11-27). View › Customize toolbar brings any back.
+pub const TOOLBAR_HIDDEN_AT_FIRST: &[&str] = if cfg!(target_os = "macos") {
+    &[
+        "downloads.clear_finished",
+        "program.site_files",
+        "downloads.options",
+    ]
+} else {
+    &["downloads.clear_finished", "program.site_files"]
+};
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
@@ -577,9 +591,10 @@ impl Default for Settings {
             show_details: false,
             // A lighter toolbar at first (the maintainer, 2026-11-26): View › Customize
             // toolbar brings either back.
-            toolbar_hidden: ["downloads.clear_finished", "program.site_files"]
-                .map(String::from)
-                .to_vec(),
+            toolbar_hidden: TOOLBAR_HIDDEN_AT_FIRST
+                .iter()
+                .map(|id| (*id).to_string())
+                .collect(),
             site_logins: Vec::new(),
         }
     }

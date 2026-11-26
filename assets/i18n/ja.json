@@ -1110,5 +1110,6 @@
  "Download a video": "動画をダウンロードする",
  "Stop now, finish later": "今は止めて、あとで続ける",
  "Keep some speed for everything else": "ほかの通信のために速度を残す",
- "dm on a USB stick": "USBメモリーで使うdm"
+ "dm on a USB stick": "USBメモリーで使うdm",
+ "Settings": "設定"
 }
