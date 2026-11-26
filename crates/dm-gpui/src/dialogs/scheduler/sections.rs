@@ -295,39 +295,49 @@ impl Scheduler {
             screen,
         ))
         .child(
-            div().flex().flex_wrap().gap(px(space::L)).children(
-                [
-                    (WhenDone::Nothing, Command::WhenDoneNothing),
-                    (WhenDone::Quit, Command::WhenDoneQuit),
-                    (WhenDone::Sleep, Command::WhenDoneSleep),
-                    (WhenDone::Hibernate, Command::WhenDoneHibernate),
-                    (WhenDone::ShutDown, Command::WhenDoneShutDown),
-                ]
-                .into_iter()
-                // A phone cannot sleep, hibernate or turn off for dm: not shown there.
-                .filter(|(w, _)| {
-                    !crate::platform::ON_A_PHONE || w.possible(dm_desktop_base::power::available)
-                })
-                .map(|(w, command)| {
-                    // As the Downloads menu greys them:
-                    // only what this computer can do.
-                    let can = w.possible(dm_desktop_base::power::available);
-                    enabled(
-                        can,
-                        native::radio(
-                            command.id(),
-                            t(command.label()).into(),
-                            when_done == w,
-                            theme,
-                            screen,
+            // A line that wraps stands a row's gap under the first, as the rows above do (at
+            // the choices' own gap it stood 37 points down where rows are 32).
+            div()
+                .flex()
+                .flex_wrap()
+                .gap_x(px(space::L))
+                .gap_y(px(native::ROW_GAP))
+                .children(
+                    [
+                        (WhenDone::Nothing, Command::WhenDoneNothing),
+                        (WhenDone::Quit, Command::WhenDoneQuit),
+                        (WhenDone::Sleep, Command::WhenDoneSleep),
+                        (WhenDone::Hibernate, Command::WhenDoneHibernate),
+                        (WhenDone::ShutDown, Command::WhenDoneShutDown),
+                    ]
+                    .into_iter()
+                    // A phone cannot sleep, hibernate or turn off for dm: not shown there.
+                    .filter(|(w, _)| {
+                        !crate::platform::ON_A_PHONE
+                            || w.possible(dm_desktop_base::power::available)
+                    })
+                    .map(|(w, command)| {
+                        // As the Downloads menu greys them:
+                        // only what this computer can do.
+                        let can = w.possible(dm_desktop_base::power::available);
+                        enabled(
+                            can,
+                            native::radio(
+                                command.id(),
+                                t(command.label()).into(),
+                                when_done == w,
+                                theme,
+                                screen,
+                            )
+                            .on_click(cx.listener(
+                                move |this, _, _, cx| {
+                                    this.draft.schedule.when_done = w.word().to_string();
+                                    cx.notify();
+                                },
+                            )),
                         )
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.draft.schedule.when_done = w.word().to_string();
-                            cx.notify();
-                        })),
-                    )
-                }),
-            ),
+                    }),
+                ),
         )
         .when(any_greyed && !crate::platform::ON_A_PHONE, |d| {
             d.child(native::hint(

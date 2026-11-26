@@ -56,58 +56,34 @@ pub(super) fn folders(
     // Each kind's folder: the kind in the window's language, the folder a
     // name on disk, as it is; under a heading that says the boxes hold folders' names.
     p.section(t("Folders by category"));
-    let kinds = dm_core::Category::ALL;
-    for pair in kinds.chunks(2) {
-        // Two kinds a line on a computer; one a line on a phone, which has room for one.
-        let mut row = div()
-            .flex()
-            .gap(px(space::XL))
-            .when(crate::platform::ON_A_PHONE, |row| {
-                row.flex_col().gap(px(native::ROW_GAP))
-            });
-        for kind in pair {
-            let i = kinds.iter().position(|k| k == kind).unwrap_or(0);
-            let name = dm_desktop_base::i18n::name(&dm_desktop_base::format::titled(
-                &dm_shell::app::names::category_word(*kind),
-            ));
-            let field = input(
-                o,
-                window,
-                cx,
-                &format!("category_folders.{i}"),
-                "Category",
-                170.0,
-                on,
-                false,
-                move |o| kind_folder(o, i),
-            );
-            // On a phone a setting's row: the kind at the left, its folder at the right edge,
-            // as every other setting there; a computer keeps its column of names.
-            let label = if crate::platform::ON_A_PHONE {
-                div().flex_1().min_w_0().child(screen.label(name))
-            } else {
-                div()
-                    .w(px(crate::widgets::native::NUMBER_FIELD))
-                    .flex()
-                    .justify_end()
-                    .child(screen.label(name))
-            };
-            row = row.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(native::LABEL_GAP))
-                    .child(label)
-                    .child(field),
-            );
-        }
-        p.add(native::enabled(on, row));
+    // A line each, the kind at the leading edge and its folder's name at the trailing one, as
+    // every other setting on the page and as the phone had it: a computer's grid of two kinds a
+    // line, names right-aligned in two columns, was the page's one other layout.
+    for (i, kind) in dm_core::Category::ALL.into_iter().enumerate() {
+        let name = dm_desktop_base::i18n::name(&dm_desktop_base::format::titled(
+            &dm_shell::app::names::category_word(kind),
+        ));
+        let field = input(
+            o,
+            window,
+            cx,
+            &format!("category_folders.{i}"),
+            "Category",
+            KIND_FOLDER,
+            on,
+            false,
+            move |o| kind_folder(o, i),
+        );
+        p.setting(&name, on, field);
     }
     custom_categories(o, p, window, cx, on, &screen);
     unpacking(o, p, cx);
     archive_passwords(o, p, window, cx);
     let _ = theme;
 }
+
+/// A kind's folder's box, in points: as wide as the page's other boxes of words.
+const KIND_FOLDER: f32 = 220.0;
 
 /// Unpack when done (gaps row W14): the kinds whose finished archive is unpacked into a new
 /// folder of its name, and what then becomes of the archive.
