@@ -46,10 +46,9 @@ use crate::window::zoom::px;
 /// scrolls. Smaller on Windows, where 600 points stood nearly the height of
 /// a laptop's screen.
 const WIDTH: f32 = crate::widgets::native::WindowSize::Options.here().0;
-/// The list of pages beside a page at a computer's width (gaps row C21): room for a page's
-/// picture beside its name and for its line under the name in two lines, the page beside it
-/// still wider than its settings need.
-const PAGES_WIDTH: f32 = 224.0;
+/// The list of pages beside a page at a computer's width (gaps row C21): the main window's side
+/// panel's width.
+const PAGES_WIDTH: f32 = dm_shell::settings::SIDEBAR_WIDTH.default;
 const HEIGHT: f32 = crate::widgets::native::WindowSize::Options.here().1;
 
 /// Options' view.
@@ -435,7 +434,7 @@ impl Render for Options {
             .filter(|(tab, _)| !(phone && *tab == options::Tab::FileTypes))
             .copied()
             .collect();
-        let list = (!narrow || list_only).then(|| {
+        let mut list = (!narrow || list_only).then(|| {
             let entries: Vec<_> = tabs
                 .iter()
                 .map(|(tab, words)| {
@@ -448,35 +447,77 @@ impl Render for Options {
                 .role(Role::TabList)
                 .flex()
                 .flex_col()
-                .gap(px(if narrow { space::XS } else { space::XXS }))
                 .overflow_y_scroll()
                 .when(narrow, |l| {
                     l.flex_1().min_h_0().w_full().px(px(native::MARGIN))
                 })
+                // Beside a page, rows close-set as the main window's side panel's places.
                 .when(!narrow, |l| {
-                    l.flex_none().w(px(PAGES_WIDTH)).pr(px(space::M))
+                    l.flex_1()
+                        .min_h_0()
+                        .gap(px(space::XXS))
+                        .px(px(space::M))
+                        .pb(px(space::M))
                 })
                 .children(entries)
         });
-        // Search, for a setting whose page is not known (gaps row U24), across the top.
-        let header = div()
-            .px(px(native::MARGIN))
-            .pt(px(native::MARGIN - 6.0))
-            .pb(px(native::ROW_GAP))
-            .child(native::field(&self.search, "Find a setting", theme));
+        let search_input = self.search.clone();
+        let search = || native::field(&search_input, "Find a setting", theme);
+        // At a phone's width, Find a setting across the top (gaps row U24); beside a page, at
+        // the top of the list of pages, which it searches.
+        let header = narrow.then(|| {
+            div()
+                .px(px(native::MARGIN))
+                .pt(px(native::MARGIN - 6.0))
+                .pb(px(native::ROW_GAP))
+                .child(search())
+        });
         // Narrow, over a page: its name over it; the title bar's arrow and Back take it back to
         // the list (`close_button`).
+        let name_of = |tab: options::Tab| {
+            tabs.iter()
+                .find(|(t, _)| *t == tab)
+                .map(|(_, words)| *words)
+                .unwrap_or("General")
+        };
         let back = (narrow && !self.pages_shown && !searching).then(|| {
-            let name = tabs
-                .iter()
-                .find(|(tab, _)| *tab == self.tab)
-                .map(|(_, words)| t(words))
-                .unwrap_or_default();
             div()
                 .mx(px(native::MARGIN))
                 .mb(px(space::S))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
-                .child(screen.label(name.to_string()))
+                .child(screen.label(t(name_of(self.tab)).to_string()))
+        });
+        // Beside the list, the page shown opens with its name and what it holds.
+        let heading = (!narrow && !searching).then(|| {
+            let summary = crate::options::pages::summary(self, self.tab, theme, window, cx);
+            crate::options::pagelist::page_heading(name_of(self.tab), summary, theme, &screen)
+        });
+        // Beside a page, the list is the dialog's side panel: the main window's side panel's
+        // colour, its height, a line at its edge, Find a setting at its top.
+        let side = (!narrow).then(|| {
+            div()
+                .flex_none()
+                .w(px(PAGES_WIDTH))
+                .h_full()
+                .flex()
+                .flex_col()
+                .bg(crate::window::theme::frame(theme.sidebar))
+                .map(|panel| {
+                    if crate::window::mirror::rtl() {
+                        panel.border_l_1()
+                    } else {
+                        panel.border_r_1()
+                    }
+                })
+                .border_color(theme.separator)
+                .child(
+                    div()
+                        .px(px(space::M))
+                        .pt(px(space::L))
+                        .pb(px(space::M))
+                        .child(search()),
+                )
+                .children(list.take())
         });
         let page_view = (!list_only).then(|| {
             div()
@@ -485,11 +526,6 @@ impl Render for Options {
                 .min_h_0()
                 // Its long lines wrap within it rather than widening it past the window.
                 .min_w_0()
-                .when(!narrow, |page| {
-                    page.rounded(px(native::RADIUS))
-                        .border_1()
-                        .border_color(theme.separator)
-                })
                 .when(narrow, |page| {
                     page.border_t_1().border_color(theme.separator)
                 })
@@ -498,9 +534,11 @@ impl Render for Options {
                 // The settings its own children, so the page scrolls to one by its place
                 // (Advanced to its proxy section, where a proxy was refused).
                 .p(px(space::XL))
+                .when(!narrow, |page| page.px(px(space::XXL)))
                 .flex()
                 .flex_col()
                 .gap(px(native::ROW_GAP))
+                .children(heading)
                 .children(page)
         });
         let root = crate::widgets::native::dialog("options", t("Options"), theme, cx)
@@ -520,18 +558,18 @@ impl Render for Options {
             .text_color(theme.text)
             .flex()
             .flex_col()
-            .child(header)
+            .children(header)
             .children(back)
             .child(
                 div()
                     .flex_1()
                     .min_h_0()
                     .flex()
-                    .when(!narrow, |body| body.px(px(native::MARGIN)))
+                    .children(side)
                     .children(list)
                     .children(page_view),
             )
-            .child(self.footer(theme, &screen, cx));
+            .child(self.footer(narrow, theme, &screen, cx));
         crate::window::safe::kept_clear(root, window)
     }
 }
@@ -539,11 +577,17 @@ impl Render for Options {
 impl Options {
     /// Under the page: what went wrong, and the buttons, Restore defaults where the page has
     /// settings of its own.
-    fn footer(&self, theme: Theme, screen: &Screen, cx: &Context<Self>) -> gpui::Div {
+    fn footer(&self, narrow: bool, theme: Theme, screen: &Screen, cx: &Context<Self>) -> gpui::Div {
         let restore = !self.list_only && !options::tab_settings(self.tab).is_empty();
         div()
             .px(px(native::MARGIN))
             .pb(px(native::MARGIN))
+            // Beside a side panel, its own band under the panel and the page, a line above.
+            .when(!narrow && !crate::platform::ON_A_PHONE, |bar| {
+                bar.pt(px(space::L))
+                    .border_t_1()
+                    .border_color(theme.separator)
+            })
             // A phone's: its own bar under the page, a line above, as a phone's bottom bar,
             // so the page's last setting does not run into the buttons.
             .when(crate::platform::ON_A_PHONE, |bar| {
