@@ -97,12 +97,18 @@ struct Page {
     headings: Vec<String>,
     /// What each item says first, as written: the summary of a page with no headings.
     labels: Vec<String>,
+    /// What the first item says, where it stands before any heading: a page that opens with
+    /// settings of no section (Downloads' connections) begins its summary with it.
+    lead: Option<String>,
     theme: Theme,
     screen: Screen,
 }
 
 impl Page {
     fn add(&mut self, element: impl IntoElement) {
+        if self.items.is_empty() && self.headings.is_empty() && !self.saying.is_empty() {
+            self.lead = Some(self.saying.clone());
+        }
         self.items.push(element.into_any_element());
         if !self.saying.is_empty() {
             self.labels.push(self.saying.clone());
@@ -140,8 +146,12 @@ impl Page {
     /// Small words of their own, at the page's edge.
     fn note(&mut self, words: &str) {
         self.says(words);
-        let note = native::note(words.to_string(), self.theme.muted, &self.screen)
-            .when(crate::platform::ON_A_PHONE, |note| note.mt(px(-HINT_PULL)));
+        let note = native::measured(native::note(
+            words.to_string(),
+            self.theme.muted,
+            &self.screen,
+        ))
+        .when(crate::platform::ON_A_PHONE, |note| note.mt(px(-HINT_PULL)));
         self.add(note);
     }
 
@@ -304,6 +314,7 @@ fn built(
         saying: String::new(),
         headings: Vec::new(),
         labels: Vec::new(),
+        lead: None,
         theme,
         screen: o.screen.clone(),
     };
@@ -330,11 +341,13 @@ pub(crate) fn summary(
     cx: &mut Context<Options>,
 ) -> String {
     let page = built(o, tab, theme, window, cx);
-    // A page with no sections is summed up by its first settings' names.
+    // A page with no sections is summed up by its first settings' names; one with sections by
+    // their headings, after the setting it opens with where that stands before them: Downloads
+    // said "Queues with their own limit, …" and not its connections, its first setting.
     let named = if page.headings.is_empty() {
         page.labels
     } else {
-        page.headings
+        page.lead.into_iter().chain(page.headings).collect()
     };
     named
         .into_iter()
