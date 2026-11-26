@@ -117,7 +117,8 @@ fn inline(line: &str) -> String {
 pub fn page_html(text: &str) -> String {
     let mut body = String::new();
     let mut paragraph: Vec<String> = Vec::new();
-    let mut in_list = false;
+    // The list open, `ul` or `ol`, if one is.
+    let mut list: Option<&str> = None;
     let flush = |body: &mut String, paragraph: &mut Vec<String>| {
         if !paragraph.is_empty() {
             body.push_str(&format!("<p>{}</p>\n", inline(&paragraph.join(" "))));
@@ -126,24 +127,40 @@ pub fn page_html(text: &str) -> String {
     };
     for line in text.lines() {
         let trimmed = line.trim();
-        if let Some(item) = trimmed.strip_prefix("- ") {
+        // An item: "- " for a list, "1. ", "2. "… for numbered steps (gaps row C16a).
+        let item = match trimmed.strip_prefix("- ") {
+            Some(item) => Some(("ul", item, 1)),
+            None => step(trimmed).map(|(number, item)| ("ol", item, number)),
+        };
+        if let Some((kind, item, number)) = item {
             flush(&mut body, &mut paragraph);
-            if !in_list {
-                body.push_str("<ul>\n");
-                in_list = true;
+            match list {
+                Some(open) if open == kind => body.push_str("</li>\n"),
+                open => {
+                    if let Some(open) = open {
+                        body.push_str(&format!("</li>\n</{open}>\n"));
+                    }
+                    // Steps that do not start at 1 keep their numbers.
+                    let start = if number == 1 {
+                        String::new()
+                    } else {
+                        format!(" start=\"{number}\"")
+                    };
+                    body.push_str(&format!("<{kind}{start}>\n"));
+                    list = Some(kind);
+                }
             }
             body.push_str(&format!("<li>{}", inline(item)));
             continue;
         }
         // A list item's next lines, indented, go on in it.
-        if in_list && line.starts_with("  ") && !trimmed.is_empty() {
+        if list.is_some() && line.starts_with("  ") && !trimmed.is_empty() {
             body.push(' ');
             body.push_str(&inline(trimmed));
             continue;
         }
-        if in_list {
-            body.push_str("</li>\n</ul>\n");
-            in_list = false;
+        if let Some(open) = list.take() {
+            body.push_str(&format!("</li>\n</{open}>\n"));
         }
         let level = trimmed.chars().take_while(|c| *c == '#').count();
         if (1..=4).contains(&level) && trimmed[level..].starts_with(' ') {
@@ -159,8 +176,8 @@ pub fn page_html(text: &str) -> String {
         }
     }
     flush(&mut body, &mut paragraph);
-    if in_list {
-        body.push_str("</li>\n</ul>\n");
+    if let Some(open) = list {
+        body.push_str(&format!("</li>\n</{open}>\n"));
     }
     format!(
         "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>dm help</title>\n\
@@ -170,6 +187,15 @@ pub fn page_html(text: &str) -> String {
          color:#e8e8e8;background:#1e1e1e}}code{{background:#333}}}}</style></head>\n\
          <body>\n{body}</body></html>\n"
     )
+}
+
+/// A numbered step, "3. Do this": its number and its words; `None` for any other line.
+fn step(line: &str) -> Option<(u32, &str)> {
+    let (number, rest) = line.split_once(". ")?;
+    if number.is_empty() || number.len() > 3 || !number.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some((number.parse().ok()?, rest))
 }
 
 /// Writes the help page `name` into `home`'s `help` folder as a web page, giving its path; an
@@ -190,6 +216,28 @@ pub fn write_page(home: &Path, name: &str) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Lines "1. ", "2. "… read as numbered steps, an indented line going on in its step, and
+    /// a list of points after them is a list of its own (gaps row C16a).
+    #[test]
+    fn numbered_steps_read_as_an_ordered_list() {
+        let html = page_html(
+            "To add a link:\n\n1. Copy it.\n2. Press **Add URL**\n   and paste it.\n\
+             3. Press OK.\n- a point\n\nThen:\n\n4. Wait.\n\nIn 2026. Not a step.",
+        );
+        assert!(
+            html.contains(
+                "<ol>\n<li>Copy it.</li>\n<li>Press <b>Add URL</b> and paste it.</li>\n\
+                 <li>Press OK.</li>\n</ol>\n<ul>\n<li>a point</li>\n</ul>\n"
+            ),
+            "{html}"
+        );
+        assert!(
+            html.contains("<ol start=\"4\">\n<li>Wait.</li>\n</ol>\n"),
+            "{html}"
+        );
+        assert!(html.contains("<p>In 2026. Not a step.</p>"), "{html}");
+    }
 
     #[test]
     fn the_guides_markdown_reads_as_a_page() {
