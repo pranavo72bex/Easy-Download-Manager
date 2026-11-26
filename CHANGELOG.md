@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- dm's pictures are drawn with lines as heavy as the words beside them, as Finder's are: they were lighter than the text.
 - Options › Browser in three groups: adding the extension (Check now under the browsers it reads again), the right-click menu's items, and, under a heading of its own, which downloads dm takes from the browser.
 - Options' explanations wrap at a readable width (about 75 letters) instead of running across the whole page.
 - The window reads as Finder does: the side panel's places are 28 points tall, as the list's rows are, and the list's sizes, speeds and times are in the secondary colour so the file names are found first. Add numbered series counts its addresses under their list, not in an empty band above it.

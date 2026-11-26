@@ -180,8 +180,9 @@ Each system's own sizes, in points, macOS / Windows / Linux, and a phone's:
 Spacing steps (`space`): 2, 4, 6, 8, 10, 12, 16, 20, 24; a touch target is at least 48.
 Pictures (`native`): `ICON_SMALL` 12 beside small words, `ICON` 16 beside body text,
 `ICON_TOOL` 18 in the toolbar, `ICON_LARGE` 20 on a phone; drawn on a 24 grid at a stroke of
-1.75, heavier (2 to 2.5) where a glyph is drawn at 12 or 13 points, so every line comes out
-about 1.2 points wide. Corners: a control's `native::RADIUS`, a small mark's `space::CORNER_S`.
+2.25, so a picture at 16 points draws its lines 1.5 points wide, the weight of the regular text
+beside it (`better-ui`; 1.75 drew them 1.2, lighter than the words and than Finder's), heavier
+(2.4 to 2.5) where a glyph is drawn at 12 or 13 points. Corners: a control's `native::RADIUS`, a small mark's `space::CORNER_S`.
 A button with a face answers the pointer by shading its face (`Theme::answering`); one with
 none (a toolbar item) by the stripe. The
 font is the system's (`.SystemUIFont`); dm ships none. Everything is multiplied by the text size setting (`zoom.rs`, B66: stops of 60%, 80%, 100%, 120%, 150% and 200%).
