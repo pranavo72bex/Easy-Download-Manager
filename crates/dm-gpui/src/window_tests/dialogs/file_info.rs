@@ -73,7 +73,10 @@ fn download_details_offers_the_folder_last_used_for_that_kind() {
 #[test]
 fn the_file_info_dialog_puts_the_file_where_and_as_what_it_says() {
     let world = world();
-    let mut h = world.harness();
+    let mut settings = world.settings();
+    // Every column shown: Description, Referrer and Folder are hidden at first (2026-11-26).
+    settings.columns_hidden.clear();
+    let mut h = world.harness_with(settings);
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&world.url("file.zip"));

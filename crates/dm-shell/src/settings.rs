@@ -167,10 +167,10 @@ pub struct Settings {
     /// Toolbar buttons in the order a person put them, by command id; any
     /// not named follow in the default order.
     pub toolbar_order: Vec<String>,
-    /// The download list's columns in the order chosen, and those turned
-    /// off, by their keys; empty is the default order, all shown.
+    /// The download list's columns in the order chosen, by their keys; empty is the default
+    /// order.
     pub column_order: Vec<String>,
-    /// The columns turned off, by key.
+    /// The columns turned off, by key: at first Description, Referrer and Folder.
     pub columns_hidden: Vec<String>,
     /// The widths a person gave columns by dragging a heading's edge, in points at 100%, by key;
     /// a column not named has its own (gaps row U4).
@@ -561,7 +561,12 @@ impl Default for Settings {
             toolbar_order: Vec::new(),
             column_order: Vec::new(),
             column_widths: std::collections::BTreeMap::new(),
-            columns_hidden: Vec::new(),
+            // Description, Referrer and Folder in the columns menu, not shown at first: shown,
+            // they lay past a new window's right edge, unseen, and made the list scroll
+            // sideways (the maintainer, 2026-11-26).
+            columns_hidden: ["description", "referrer", "folder"]
+                .map(String::from)
+                .to_vec(),
             sidebar_width: SIDEBAR_WIDTH.default,
             shut_groups: Vec::new(),
             sort_column: String::new(),

@@ -261,9 +261,10 @@ fn a_column_turned_off_is_gone_and_comes_back() {
     h.click("Columns");
     h.click("Transfer rate");
     h.until("the column gone", |h| !h.shows("Transfer rate"));
+    // Kept beside the three hidden at first, in order.
     assert_eq!(
         kept(&mut h).columns_hidden,
-        ["rate"],
+        ["description", "folder", "rate", "referrer"],
         "not kept for the next launch"
     );
     assert!(
@@ -295,6 +296,8 @@ fn a_row_added_for_later_shows_its_folder_without_owning_it() {
     let world = world();
     let mut settings = world.settings();
     settings.folders.categorize = true;
+    // The Folder column shown: hidden at first (2026-11-26).
+    settings.columns_hidden.clear();
     let mut h = world.harness_with(settings);
     add_later(&mut h, &world, "file.zip");
     add_later(&mut h, &world, "download.php?id=5");
@@ -501,7 +504,10 @@ fn statuses_and_counts_say_what_is_so() {
 #[test]
 fn a_row_added_for_later_says_what_it_waits_for_with_its_size_and_folder() {
     let world = world();
-    let mut h = world.harness();
+    let mut settings = world.settings();
+    // Every column shown: Description, Referrer and Folder are hidden at first (2026-11-26).
+    settings.columns_hidden.clear();
+    let mut h = world.harness_with(settings);
     h.click("Add URL");
     h.until_shown("Address");
     h.type_text(&world.url("file.zip"));
@@ -754,4 +760,27 @@ fn a_chosen_rows_name_ends_before_its_own_buttons() {
         "the name gave {:?} of room",
         before.right() - after.right()
     );
+}
+
+/// A new dm shows the list's columns up to Last try date: Description, Referrer and Folder
+/// wait in View › Columns, unticked, and come back from there.
+#[test]
+fn description_referrer_and_folder_wait_in_the_columns_menu_at_first() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = world.harness();
+    add_later(&mut h, &world, "x.bin");
+    h.until("the row", |h| h.rows().len() == 1);
+    h.until_shown("Last try date");
+    for hidden in ["Description", "Referrer", "Folder"] {
+        assert!(!h.shows(hidden), "{hidden} shown at first");
+        assert!(
+            !h.menu_item(&["View", "Columns", hidden]).0,
+            "{hidden} ticked at first"
+        );
+    }
+    h.click("View");
+    h.click("Columns");
+    h.click("Folder");
+    h.until("Folder shown", |h| h.shows("Folder"));
 }

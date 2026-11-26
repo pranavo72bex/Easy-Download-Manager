@@ -750,12 +750,15 @@ fn the_queue_arrows_start_and_stop_the_queue_chosen() {
     });
 }
 
-/// At the window's smallest usual size (960 by 660) the columns run past its right edge, and
-/// the list scrolls sideways to reach the last of them, Folder.
+/// At the window's smallest usual size (960 by 660), with every column turned on, the columns
+/// run past its right edge, and the list scrolls sideways to reach the last of them, Folder.
 #[test]
 fn every_column_is_reached_at_the_default_window_size() {
     let world = world();
-    let mut h = world.harness();
+    let mut settings = world.settings();
+    // Every column shown: Description, Referrer and Folder are hidden at first (2026-11-26).
+    settings.columns_hidden.clear();
+    let mut h = world.harness_with(settings);
     let main = h.window;
     h.cx.update(|cx| {
         main.update(cx, |_, window, _| {
