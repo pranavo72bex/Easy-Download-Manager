@@ -196,8 +196,17 @@ impl Render for Series {
                                 &screen,
                             )),
                     ))
+                    // Every address the series makes, so a wrong padding or
+                    // end is seen before anything is fetched; its room kept
+                    // whether or not there is a list yet, only the rows in
+                    // view drawn.
+                    .child(addresses(listed, theme, &screen))
+                    // How many it makes, or what is wrong with the range, under the list it
+                    // speaks of, its room kept so the buttons do not move: between the fields
+                    // and the list it stood as an empty band until a series was typed.
                     .child(
                         div()
+                            .mt(px(-native::HINT_PULL))
                             .h(px(native::SMALL_TEXT + 6.0))
                             .child(native::note(
                                 line,
@@ -205,11 +214,6 @@ impl Render for Series {
                                 &screen,
                             )),
                     )
-                    // Every address the series makes, so a wrong padding or
-                    // end is seen before anything is fetched; its room kept
-                    // whether or not there is a list yet, only the rows in
-                    // view drawn.
-                    .child(addresses(listed, theme, &screen))
                     // Greyed until there is an address to make a series of;
                     // with one, a press says what is wrong with the range.
                     .child(native::buttons(

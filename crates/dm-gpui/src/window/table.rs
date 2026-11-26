@@ -512,9 +512,11 @@ fn row_cells(
                     .unwrap_or_default();
                 }
                 let said = SharedString::from(said);
-                let numeric = numeric(column);
+                // Every column but the name and the status in the secondary colour, as Finder
+                // draws a list's size, kind and date: the name is found first. The sizes and
+                // speeds stood in the text's colour, as loud as the name.
                 let worded = cell(column, widths)
-                    .when(!numeric, |c| c.text_color(theme.muted))
+                    .text_color(theme.muted)
                     .child(fitted(screen.label(said.clone())));
                 let cut = cut(&said, words_room(column, widths, name_room));
                 whole_where_cut(worded, told, (column.key(), id), place, said, cut)

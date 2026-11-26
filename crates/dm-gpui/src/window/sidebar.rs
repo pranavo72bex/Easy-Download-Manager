@@ -128,7 +128,8 @@ pub(crate) fn place_picture(view: &Downloads) -> &'static str {
 }
 
 /// A place's row in the side panel, in points: a saved search's and a followed list's too.
-pub(crate) const PLACE_ROW: f32 = 26.0;
+/// 28, as Finder's sidebar at its usual size and as the list's rows are.
+pub(crate) const PLACE_ROW: f32 = 28.0;
 
 /// The side panel.
 pub fn sidebar(

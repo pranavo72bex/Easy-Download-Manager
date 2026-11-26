@@ -87,6 +87,11 @@ The eye must have somewhere to start. Every window is checked against these, at 
     dialog): GPUI lays words from the left whatever the language. Look at a change in Arabic
     (`DM_SHOT_LANG=ar`) as well as in English.
 
+15. **Finder is the reference on macOS** (the maintainer, 2026-11-26). The window reads as
+    Finder does: body text `TEXT` (13), secondary text `SMALL_TEXT` (11) in `muted`, a side
+    panel's place and a list's row 28 points tall, a list's name in the text's colour and every
+    other column in `muted`, a section's heading small, semibold and in `muted`.
+
 ## Words
 
 The words are part of the design: short words rank themselves.
