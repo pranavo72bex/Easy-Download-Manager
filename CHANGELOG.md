@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- An Options page that opens with settings of no section names its first one in its line of what it holds (Downloads: "Connections per file, …"); Sign-ins' explanation reads in the explanations' words, not a setting's.
 - File properties divides what the download is (its name, status, size, where it goes) from the fields that may be changed with a line, as the Grabber divides its search from its saving.
 - Download details says a link that does not work under its Size, where the server's answer belongs, not under Keep no record at the form's foot; what OK refused stands over the buttons.
 - Options › Folders lists each kind's folder on a line of its own, its name at the left and its box at the right, as every other setting; the Scheduler's choices that wrap stand a row's gap apart.

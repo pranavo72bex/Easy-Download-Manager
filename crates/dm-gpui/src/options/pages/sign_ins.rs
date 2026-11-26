@@ -17,7 +17,9 @@ pub(super) fn sign_ins(
     // A heading, so the list of pages says what this one holds (contract B43, gaps row E43):
     // with words and no heading its line in the list was empty.
     p.section(t("Sites that need a sign-in"));
-    p.words(t(
+    // What the section is for, in the hint's words as every page's explanations are: set as a
+    // setting's name, it read as one.
+    p.note(t(
         "A user and password used for every download from a host.",
     ));
     p.note(t(
