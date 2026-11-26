@@ -644,21 +644,18 @@ impl Downloads {
             .map(|r| dm_shell::app::names::name_of(r))
             .unwrap_or_default();
         Some(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(native::LABEL_GAP))
-                .child(div().flex_1().child(screen.label(dm_desktop_base::i18n::tf(
+            crate::window::bars::body()
+                .child(crate::window::bars::words(screen.label(dm_desktop_base::i18n::tf(
                     "Click the download again on its page in your browser, and dm uses that as the new link for {}.",
                     &[&name],
                 ))))
-                .child(
+                .child(crate::window::bars::actions().child(
                     native::button("stop-awaiting", t("Cancel").into(), false, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.session.hands.stop_awaiting_link();
                             cx.notify();
                         })),
-                ),
+                )),
         )
     }
 

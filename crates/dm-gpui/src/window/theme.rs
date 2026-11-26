@@ -155,6 +155,16 @@ impl Theme {
         }
     }
 
+    /// A small button's face on a chosen row (a row's own Stop, Details…): the selection's words,
+    /// see-through over its fill, stronger under the pointer. The control's face there stood out
+    /// as white tiles on the light look's blue.
+    pub fn on_chosen_face(self, hovered: bool) -> Rgba {
+        Rgba {
+            a: if hovered { 0.24 } else { 0.16 },
+            ..self.on_selection
+        }
+    }
+
     /// The focus ring's colour round a control: the accent, and on the
     /// default button, which is filled with the accent, the words' colour
     /// on it (the accent there was a ring no one could see).

@@ -320,3 +320,16 @@ fn the_soft_choice_keeps_its_words_readable() {
         }
     }
 }
+
+/// A row's own button on a chosen row keeps its picture, in the selection's words, at 3 to 1 on
+/// its see-through face, at rest and under the pointer, and its face is seen on the selection.
+#[test]
+fn a_chosen_rows_buttons_keep_their_pictures_seen() {
+    for (at, theme) in every_look() {
+        for hovered in [false, true] {
+            let face = over_rgba(theme.on_chosen_face(hovered), theme.selection);
+            let picture = contrast(theme.on_selection, face);
+            assert!(picture >= 3.0, "{at}, hovered {hovered}: {picture:.2}");
+        }
+    }
+}

@@ -54,25 +54,25 @@ impl Downloads {
         // Problems from outside the list, each until dismissed.
         bars.extend(self.status.problems.iter().enumerate().map(|(i, problem)| {
             let body = crate::window::bars::body()
+                .child(crate::window::bars::words(
+                    screen.label(dm_desktop_base::format::as_shown(problem)),
+                ))
                 .child(
-                    gpui::div()
-                        .flex_1()
-                        .child(screen.label(dm_desktop_base::format::as_shown(problem))),
-                )
-                .child(
-                    crate::widgets::native::button(
-                        ("dismiss", i),
-                        dm_desktop_base::i18n::t("Dismiss").into(),
-                        false,
-                        theme,
-                        screen,
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if i < this.status.problems.len() {
-                            this.status.problems.remove(i);
-                        }
-                        cx.notify();
-                    })),
+                    crate::window::bars::actions().child(
+                        crate::widgets::native::button(
+                            ("dismiss", i),
+                            dm_desktop_base::i18n::t("Dismiss").into(),
+                            false,
+                            theme,
+                            screen,
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if i < this.status.problems.len() {
+                                this.status.problems.remove(i);
+                            }
+                            cx.notify();
+                        })),
+                    ),
                 );
             (Tone::Failure, body)
         }));

@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The bars above the list (a download that didn't finish, one paused for room, a problem, the update, a link awaited) keep their buttons together: where the window is narrow or the text large, the buttons go under the sentence as one, never one beside it and one under it.
+- A chosen row's own buttons (Stop, Details…) are a soft tint of the row's words rather than two white tiles on the blue.
+- Status and Last try date take less room at first, so a new window shows every column up to Last try date with the file names whole; Status still widens where the window has room.
 - Options' list of pages reads as the side panel does: each page with its picture, the chosen one a soft fill with the accent's bar at its edge rather than a solid blue block, and a page's line of what it holds lined up under its name and never cut through a word. The side panel's chosen place shows its count in the text's colour, readable on its fill in every look.
 - Help › How to… opens step-by-step guides, read without a connection: your first download, downloads from your browser, downloads overnight, a video, stopping now and finishing later, keeping some speed for everything else, and (on Windows) dm on a USB stick.
 - A schedule set to run once wakes the computer for that date and time only, not for the weekly window's hours on the days before it, and not again once it has run.

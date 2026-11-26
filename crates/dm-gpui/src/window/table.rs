@@ -56,10 +56,14 @@ fn width(column: Column) -> Option<f32> {
         // The queue's name, where it was a dot (gaps row E7).
         Column::Queue => Some(72.0),
         Column::Size => Some(72.0),
-        Column::Status => Some(150.0),
+        // Its least: "Complete" and a percentage with their marks. It grows to twice that where
+        // the window has room (`cell`); at 150 a new window's columns ran past the list's edge
+        // (900 points on macOS and GNOME, the name at its least and Last try date cut).
+        Column::Status => Some(108.0),
         Column::TimeLeft => Some(68.0),
         Column::Rate => Some(84.0),
-        Column::LastTry => Some(118.0),
+        // Its own (`own_width`): as wide as its heading and a date of another year.
+        Column::LastTry => Some(96.0),
         Column::Description | Column::Referrer | Column::Folder => Some(140.0),
     }
 }
@@ -84,6 +88,9 @@ fn own_width(column: Column, any_queue: bool) -> Option<f32> {
         Column::TimeLeft => {
             text_width(&format::span(std::time::Duration::from_secs(59 * 60 + 59))) + margins
         }
+        // A day of another year, as the computer writes one ("Sep 28, 2025", "28 Sep 2025"):
+        // longer than a time today.
+        Column::LastTry => text_width(&format::when(Some(LONG_DATE))) + margins,
         _ => 0.0,
     };
     let own = match column {
@@ -93,6 +100,10 @@ fn own_width(column: Column, any_queue: bool) -> Option<f32> {
     };
     Some(own.ceil())
 }
+
+/// A moment of another year whose date is among the longest written (September, a two-figure
+/// day): 2025-09-28 at noon, UTC.
+const LONG_DATE: u64 = 1_759_060_800;
 
 /// Whether a column's figures stand against its right edge.
 fn numeric(column: Column) -> bool {

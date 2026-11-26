@@ -34,6 +34,9 @@ const BROWSER_LOOKED_FOR: Duration = Duration::from_secs(3);
 /// The least width of a bar's words beside its buttons.
 const BAR_WORDS_MIN: f32 = 150.0;
 
+/// The room a bar's sentence asks for before its buttons go under it (`words`).
+const BAR_WORDS_BASIS: f32 = 300.0;
+
 /// The browser bar's buttons at their words' width with the macOS and Linux least width,
 /// not Windows' dialog width (`native::BUTTON_MIN`, 120): four of those left its words no
 /// room in Windows' first window.
@@ -51,6 +54,30 @@ pub(crate) fn body() -> gpui::Div {
         // Its words, then its buttons, from the right where the window is mirrored (E19).
         .map(crate::window::mirror::row)
         .flex_wrap()
+        .items_center()
+        .gap(px(native::LABEL_GAP))
+}
+
+/// A bar's sentence, beside its buttons (`actions`): it asks for `BAR_WORDS_BASIS` of the line
+/// and takes what else is free; where its share and the buttons do not fit on one line (a
+/// narrow window, a large text size), the buttons go under it together.
+pub(crate) fn words(said: impl IntoElement) -> gpui::Div {
+    div()
+        .flex_grow(1.0)
+        .flex_shrink(1.0)
+        .flex_basis(px(BAR_WORDS_BASIS))
+        .min_w(px(BAR_WORDS_MIN))
+        .child(said)
+}
+
+/// A bar's buttons, kept together: they move to the next line as one, never one left beside
+/// the words and the other under them (at 150% "Retry all" went under "1 download didn't
+/// finish." with "Hide" still beside it).
+pub(crate) fn actions() -> gpui::Div {
+    div()
+        .flex()
+        .map(crate::window::mirror::row)
+        .flex_none()
         .items_center()
         .gap(px(native::LABEL_GAP))
 }
@@ -185,33 +212,34 @@ impl Downloads {
             ],
         );
         Some(
-            body()
-                .child(div().flex_1().child(screen.label(words)))
-                .child(
-                    native::button("stalled-resume", t("Resume").into(), false, theme, screen)
-                        .on_click(cx.listener(move |view, _, _, cx| {
-                            view.later_then_read(move |backend| backend.resume(id), cx);
-                            cx.notify();
-                        })),
-                )
-                .child(
-                    native::button(
-                        "stalled-folder",
-                        t("Choose another folder…").into(),
-                        // Plain beside the toolbar's Add URL, the window's one filled button
-                        // (`docs/ui-design.md` rule 1, gaps row E15).
-                        false,
-                        theme,
-                        screen,
+            body().child(self::words(screen.label(words))).child(
+                actions()
+                    .child(
+                        native::button("stalled-resume", t("Resume").into(), false, theme, screen)
+                            .on_click(cx.listener(move |view, _, _, cx| {
+                                view.later_then_read(move |backend| backend.resume(id), cx);
+                                cx.notify();
+                            })),
                     )
-                    .on_click(cx.listener(move |_, _, _, cx| {
-                        crate::platform::services::ask_then(
-                            crate::platform::services::Asked::folder(),
-                            cx,
-                            move |view: &mut Self, dir, cx| view.relocate_later(id, dir, cx),
-                        );
-                    })),
-                ),
+                    .child(
+                        native::button(
+                            "stalled-folder",
+                            t("Choose another folder…").into(),
+                            // Plain beside the toolbar's Add URL, the window's one filled button
+                            // (`docs/ui-design.md` rule 1, gaps row E15).
+                            false,
+                            theme,
+                            screen,
+                        )
+                        .on_click(cx.listener(move |_, _, _, cx| {
+                            crate::platform::services::ask_then(
+                                crate::platform::services::Asked::folder(),
+                                cx,
+                                move |view: &mut Self, dir, cx| view.relocate_later(id, dir, cx),
+                            );
+                        })),
+                    ),
+            ),
         )
     }
 
@@ -237,34 +265,44 @@ impl Downloads {
         let retried = failed.clone();
         Some(
             body()
-                .child(div().flex_1().child(screen.label(tn(
+                .child(words(screen.label(tn(
                     "{} download didn't finish.||{} downloads didn't finish.",
                     count as u64,
                     &[&count],
                 ))))
                 .child(
-                    native::button("failed-hide", t("Hide").into(), false, theme, screen).on_click(
-                        cx.listener(move |view, _, _, cx| {
-                            view.layout.bars.failed_hidden.clone_from(&failed);
-                            cx.notify();
-                        }),
-                    ),
-                )
-                .child(
-                    native::button("failed-retry", t("Retry all").into(), false, theme, screen)
-                        .on_click(cx.listener(move |view, _, _, cx| {
-                            // Off the window's thread, as the toolbar's Resume is.
-                            let ids = retried.clone();
-                            view.later_then_read(
-                                move |backend| {
-                                    for id in &ids {
-                                        backend.retry(*id);
-                                    }
+                    actions()
+                        .child(
+                            native::button("failed-hide", t("Hide").into(), false, theme, screen)
+                                .on_click(cx.listener(move |view, _, _, cx| {
+                                    view.layout.bars.failed_hidden.clone_from(&failed);
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            native::button(
+                                "failed-retry",
+                                t("Retry all").into(),
+                                false,
+                                theme,
+                                screen,
+                            )
+                            .on_click(cx.listener(
+                                move |view, _, _, cx| {
+                                    // Off the window's thread, as the toolbar's Resume is.
+                                    let ids = retried.clone();
+                                    view.later_then_read(
+                                        move |backend| {
+                                            for id in &ids {
+                                                backend.retry(*id);
+                                            }
+                                        },
+                                        cx,
+                                    );
+                                    cx.notify();
                                 },
-                                cx,
-                            );
-                            cx.notify();
-                        })),
+                            )),
+                        ),
                 ),
         )
     }

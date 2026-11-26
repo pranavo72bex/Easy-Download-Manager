@@ -105,11 +105,12 @@ pub(super) fn row_buttons(
                 .items_center()
                 .justify_center()
                 .rounded(px(space::CORNER_S))
-                .bg(theme.control)
-                // A face answers the pointer a shade toward the words, as every button with a
-                // face does (`native::button`); the stripe in its place all but hid it on a
-                // chosen row (gaps row E23).
-                .hover(move |s| s.bg(theme.answering(theme.control, crate::window::theme::HOVERED)))
+                // On a chosen row, a face of the selection's own words, see-through: the
+                // control's white face stood out as two tiles on the blue (light look). Elsewhere
+                // the control's face. Either answers the pointer, a shade stronger (gaps row E23:
+                // the stripe in its place all but hid it on a chosen row).
+                .bg(face(chosen, false, theme))
+                .hover(move |s| s.bg(face(chosen, true, theme)))
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .on_click(cx.listener(move |view, _, window, cx| {
                     cx.stop_propagation();
@@ -124,6 +125,27 @@ pub(super) fn row_buttons(
                     window.dispatch_action(Box::new(crate::window::menus::Run(command)), cx);
                     cx.notify();
                 }))
-                .child(gpui::svg().path(icon).size(px(12.0)).text_color(theme.text))
+                .child(
+                    gpui::svg()
+                        .path(icon)
+                        .size(px(crate::widgets::native::ICON_SMALL))
+                        .text_color(if chosen {
+                            theme.on_selection
+                        } else {
+                            theme.text
+                        }),
+                )
         }))
+}
+
+/// A row button's face: on a chosen row the selection's own (`Theme::on_chosen_face`); on
+/// another the control's face, a shade toward the words under the pointer.
+fn face(chosen: bool, hovered: bool, theme: Theme) -> gpui::Rgba {
+    if chosen {
+        theme.on_chosen_face(hovered)
+    } else if hovered {
+        theme.answering(theme.control, crate::window::theme::HOVERED)
+    } else {
+        theme.control
+    }
 }

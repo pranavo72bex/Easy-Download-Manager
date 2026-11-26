@@ -422,16 +422,11 @@ impl Downloads {
             (t("Install now"), "install")
         };
         Some(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(native::LABEL_GAP))
-                .child(
-                    div()
-                        .flex_1()
-                        .child(screen.label(t("The dm update is downloaded and checked."))),
-                )
-                .child(
+            crate::window::bars::body()
+                .child(crate::window::bars::words(
+                    screen.label(t("The dm update is downloaded and checked.")),
+                ))
+                .child(crate::window::bars::actions().child(
                     native::button("update-later", t("Later").into(), false, theme, screen)
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.threads.update_row = None;
@@ -462,7 +457,7 @@ impl Downloads {
                             cx.notify();
                         }),
                     ),
-                ),
+                )),
         )
     }
 
