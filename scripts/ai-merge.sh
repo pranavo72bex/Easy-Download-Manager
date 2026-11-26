@@ -97,6 +97,16 @@ start() { # WORKFLOW REF: one of the needed runs, started on REF.
 # that cannot be (a conflict) is closed, and its task queued again on the latest main.
 behind=$(gh api "repos/$GH_REPO/compare/main...$sha" --jq .behind_by 2>/dev/null || echo unknown)
 if [ "$behind" = unknown ]; then echo "Cannot tell whether $branch holds all of main: waiting."; exit 0; fi
+# Only what main changed in the app itself makes the checks old: a branch behind main by docs,
+# scripts or workflows alone is merged as it was checked (else a busy main would keep a bot's
+# change from ever being merged, each push to main starting its hours of checks again).
+if [ "$behind" -gt 0 ]; then
+    moved=$(gh api "repos/$GH_REPO/compare/$sha...main" --jq '.files[].filename' 2>/dev/null || echo unknown)
+    if [ "$moved" != unknown ] && ! grep -qE '^(crates/|Cargo\.(toml|lock)$|assets/|extension/|rust-toolchain\.toml$|vendor/)' <<<"$moved"; then
+        echo "$branch is $behind behind main, by none of the app's own files: its checks still hold."
+        behind=0
+    fi
+fi
 if [ "$behind" -gt 0 ]; then
     if gh pr update-branch "$pr" >/dev/null 2>&1; then
         echo "$branch was $behind behind main: brought up to date; its runs start again."
