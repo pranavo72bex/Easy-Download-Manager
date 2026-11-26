@@ -216,6 +216,7 @@ impl Render for StatisticsWindow {
         let root = div()
             .id("statistics")
             .role(Role::Dialog)
+            .map(crate::window::mirror::text)
             .aria_label(t("Statistics"))
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|_, event: &KeyDownEvent, window, _| {

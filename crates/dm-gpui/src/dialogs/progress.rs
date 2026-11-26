@@ -358,6 +358,7 @@ impl Render for Progress {
         let root = div()
             .id(("progress", id as usize))
             .role(Role::Dialog)
+            .map(crate::window::mirror::text)
             .aria_label(title(&named))
             .track_focus(&self.focus)
             // Escape closes it, as its close button does; the list then

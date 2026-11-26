@@ -72,6 +72,10 @@ The eye must have somewhere to start. Every window is checked against these, at 
 11. **Check by a picture, not by reading code.** `python3 scripts/ui-shot.py out-dir
     [command …]` starts the real binary on a throwaway home with rows in every state and saves
     a PNG of the window and of each dialog a command opens. Look at it in each theme.
+12. **Right to left is mirrored twice.** A row's order through `mirror::row`, and its words
+    against the right through `mirror::text` on the window's root (`native::dialog` does it for a
+    dialog): GPUI lays words from the left whatever the language. Look at a change in Arabic
+    (`DM_SHOT_LANG=ar`) as well as in English.
 
 ## Words
 

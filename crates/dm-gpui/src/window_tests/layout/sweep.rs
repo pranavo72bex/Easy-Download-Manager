@@ -264,3 +264,31 @@ fn a_dialog_is_mirrored_right_to_left() {
         "the buttons were not mirrored: OK {ok:?}, Cancel {cancel:?}"
     );
 }
+
+/// In Hebrew a page of Options reads from the right: a switch at the left of its words, as a
+/// pop-up is (the switch stood at the right, its words from the page's left edge). Where in
+/// their boxes the words are drawn (`mirror::text`) is not recorded here: the pictures show it.
+#[test]
+fn a_pages_switches_stand_at_the_left_right_to_left() {
+    use dm_desktop_base::i18n::t;
+    // The language is the process's.
+    let _file = settings_file();
+    let world = world();
+    let mut settings = world.settings();
+    settings.general.language = "he".into();
+    let mut h = world.harness_with(settings);
+    dm_desktop_base::i18n::set("he");
+    h.command("downloads.options");
+    h.until("Options", |h| {
+        h.dialog_words(t("Start dm when I sign in")).is_some()
+    });
+    let switch_words = h.dialog_words(t("Start dm when I sign in")).unwrap();
+    let popup = h.dialog_words(t("Ask me")).unwrap();
+    dm_desktop_base::i18n::set("en");
+    // The words' box begins past the controls' column at the left, as a pop-up's row's does.
+    assert!(
+        switch_words.left() > popup.left(),
+        "the switch's words begin at the page's left, its switch not at their left: \
+         {switch_words:?}, pop-up {popup:?}"
+    );
+}

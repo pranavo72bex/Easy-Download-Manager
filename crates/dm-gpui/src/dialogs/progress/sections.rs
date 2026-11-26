@@ -402,6 +402,8 @@ fn opener(
         // Open or shut, as its arrow shows (gaps row U23).
         .aria_expanded(open)
         .flex()
+        // From the right where the language reads right to left: its arrow first there too.
+        .map(crate::window::mirror::row)
         .items_center()
         .gap(px(space::XS))
         .child(crate::widgets::native::icon(
@@ -416,7 +418,13 @@ fn opener(
         .child(screen.label(t(label)))
         .children(said.map(|said| {
             div()
-                .ml(px(space::S))
+                .map(|d| {
+                    if crate::window::mirror::rtl() {
+                        d.mr(px(space::S))
+                    } else {
+                        d.ml(px(space::S))
+                    }
+                })
                 .text_color(theme.muted)
                 .child(screen.label(said))
         }))

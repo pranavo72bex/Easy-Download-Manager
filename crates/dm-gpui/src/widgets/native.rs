@@ -555,6 +555,7 @@ pub fn dialog<V: CloseButton>(
         .id(id)
         .role(Role::Dialog)
         .aria_label(label.clone())
+        .map(crate::window::mirror::text)
         .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" {
                 // A pop-up's sheet open closes first; the dialog with the next Escape.

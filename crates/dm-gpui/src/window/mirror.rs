@@ -29,6 +29,18 @@ pub fn row<E: Styled>(row: E) -> E {
     }
 }
 
+/// `root`'s words against its right edge where the window is mirrored: GPUI lays words from
+/// the left whatever the language, so a window's root sets it once and its words take it (the
+/// main window's root, gaps row U35; each dialog's, as `native::dialog`). A setting's words in a
+/// wide box stood at its left, beside the control on the left, a page's headings too.
+pub fn text<E: Styled>(root: E) -> E {
+    if rtl() {
+        root.text_right()
+    } else {
+        root
+    }
+}
+
 /// The chevron that leads on (into a submenu, a page), pointing right, or left right to left
 /// (gaps rows E36, E41); also a shut section's, which opens below it.
 pub fn forward() -> &'static str {

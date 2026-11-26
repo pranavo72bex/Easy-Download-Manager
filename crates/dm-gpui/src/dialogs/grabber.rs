@@ -403,6 +403,7 @@ impl Render for Grabber {
         let root = div()
             .id("grabber")
             .role(Role::Dialog)
+            .map(crate::window::mirror::text)
             .aria_label(t("Grabber"))
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, pick: &Pick, window, cx| this.pick(pick, window, cx)))

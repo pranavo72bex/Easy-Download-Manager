@@ -268,8 +268,12 @@ fn line(label: &str, width: f32, screen: &Screen, value: impl IntoElement) -> gp
             })
             .child(div().w_full().min_w_0().child(value));
     }
+    // Mirrored where the language reads right to left, as `native::row`: the name at the right,
+    // against its value (it stood at the left with the value across the line from it).
+    let rtl = crate::window::mirror::rtl();
     div()
         .flex()
+        .map(crate::window::mirror::row)
         .items_start()
         .gap(px(native::LABEL_GAP))
         .child(
@@ -277,7 +281,13 @@ fn line(label: &str, width: f32, screen: &Screen, value: impl IntoElement) -> gp
                 .w(px(width))
                 .flex_none()
                 .flex()
-                .justify_end()
+                .map(|d| {
+                    if rtl {
+                        d.justify_start()
+                    } else {
+                        d.justify_end()
+                    }
+                })
                 .whitespace_nowrap()
                 .child(screen.label(label.to_string())),
         )

@@ -88,6 +88,7 @@ impl Render for About {
         let root = div()
             .id("about")
             .role(Role::Dialog)
+            .map(crate::window::mirror::text)
             .aria_label(t("About dm"))
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|_, event: &KeyDownEvent, window, _| {

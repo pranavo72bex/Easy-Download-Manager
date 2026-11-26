@@ -42,6 +42,9 @@ pub fn switch(
         .mx(gpui::px(-2.0))
         .min_h(px(on_a_phone(space::TOUCH, CONTROL)))
         .flex()
+        // The switch at the left where the language reads right to left, its words at the
+        // right, as `switch_inline` and a setting's row (gaps row E36).
+        .map(crate::window::mirror::row)
         .items_center()
         .gap(px(space::M))
         .cursor_pointer()
