@@ -312,14 +312,14 @@ def main():
     out.append(f"2. After every edit, build: `cargo test -p {main_crate} --no-run`. Fix each compile error before anything else: call only what the outlines below say exists, and only what is public (or in the same module).")
     out.append(f"3. Run the test: `cargo nextest run -p {main_crate} -E 'test(~NAME)'`. For a fix, see it fail first.")
     out.append("4. Make the change, smallest first, and run the test again until it passes.")
-    out.append("5. Then `cargo fmt --all`, `cargo clippy --workspace --all-targets --locked -- -D warnings`, and `cargo xtask test --profile ci`.")
+    out.append("5. Then `cargo fmt --all` and `cargo clippy --workspace --all-targets --locked -- -D warnings`. The workflow runs the whole suite (`cargo xtask test --profile ci`) after you and hands back only what failed: do not run it yourself, its output fills your context.")
     out.append("")
     out.append(f"Part of dm: **{', '.join(areas)}** (crates: {', '.join(crates)}).")
     out.append("")
     out.append("## Read these first, in this order (the first wins)")
     out.append("")
-    out.append("1. `docs/behaviour-contract.md`: never change or remove a row.")
-    out.append("2. `AGENTS.md`, its \"Rules for a change\".")
+    out.append("1. `docs/behaviour-contract.md`: never change or remove a row. Search it (`grep -n`) for what you change; do not read all of it.")
+    out.append("2. `AGENTS.md`, its \"Rules for a change\" only.")
     n = 3
     if clean:
         seen = set()
@@ -383,7 +383,7 @@ def main():
     for a in areas:
         for t in AREAS[a]["tests"]:
             out.append(f"- `{t}`")
-    out.append("- Everything, as CI runs it: `cargo xtask test --profile ci`")
+    out.append("- Everything, as CI runs it, is run by the workflow after you: not yours to run.")
     out.append("")
     for crate in crates[:2]:
         out.append(f"## Map of `crates/{crate}` (each file, its module comment)")
