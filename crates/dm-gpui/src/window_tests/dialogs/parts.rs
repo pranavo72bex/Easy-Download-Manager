@@ -23,9 +23,15 @@ fn a_part_can_be_made_vertical_or_square() {
     h.until_shown("Vertical 9:16");
     // The part's "to" (the foot's "to" its queue is a Queue line of the form since gaps E10).
     h.type_into_nth("to", 0, "0:09");
+    // What was typed lands before the next click (under load it came after, gaps row N33a).
+    h.until_shown("0:09");
     h.click("Vertical 9:16");
     h.click("Add for later");
-    h.until("the row", |h| !h.rows().is_empty());
+    h.until("the row with its span and shape", |h| {
+        h.rows()
+            .last()
+            .is_some_and(|r| r.span.is_some() && r.shape.is_some())
+    });
     let row = h.rows().last().cloned().unwrap();
     assert_eq!(row.shape, Some(dm_core::shape::Shape::Vertical));
     assert!(row.span.is_some());
@@ -48,9 +54,12 @@ fn a_part_can_be_saved_as_a_gif() {
     h.until_shown("GIF");
     // The part's "to" (the foot's "to" its queue is a Queue line of the form since gaps E10).
     h.type_into_nth("to", 0, "0:09");
+    h.until_shown("0:09");
     h.click("GIF");
     h.click("Add for later");
-    h.until("the row", |h| !h.rows().is_empty());
+    h.until("the row with its span and GIF", |h| {
+        h.rows().last().is_some_and(|r| r.span.is_some() && r.gif)
+    });
     let row = h.rows().last().cloned().unwrap();
     assert!(row.gif, "the row does not carry the GIF");
     assert!(row.span.is_some());
