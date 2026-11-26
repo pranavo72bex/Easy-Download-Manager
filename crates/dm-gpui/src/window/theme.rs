@@ -155,6 +155,20 @@ impl Theme {
         }
     }
 
+    /// A striped row as it shows: the stripe, see-through, laid on the list's background, as one
+    /// colour, for what stands over such a row and hides it (a row's own buttons): the list's
+    /// background there was a white patch on the grey stripe.
+    pub fn striped(self) -> Rgba {
+        let a = self.stripe.a;
+        let mix = |top: f32, base: f32| top * a + base * (1.0 - a);
+        Rgba {
+            r: mix(self.stripe.r, self.background.r),
+            g: mix(self.stripe.g, self.background.g),
+            b: mix(self.stripe.b, self.background.b),
+            a: self.background.a,
+        }
+    }
+
     /// A small button's face on a chosen row (a row's own Stop, Details…): the selection's words,
     /// see-through over its fill, stronger under the pointer. The control's face there stood out
     /// as white tiles on the light look's blue.

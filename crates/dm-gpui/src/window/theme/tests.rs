@@ -333,3 +333,25 @@ fn a_chosen_rows_buttons_keep_their_pictures_seen() {
         }
     }
 }
+
+/// A striped row's colour, as one, is the stripe laid on the list: on a plain row the list's
+/// own, and between the list's and the stripe's own colour, in every look.
+#[test]
+fn a_striped_row_is_the_stripe_on_the_list() {
+    for (at, theme) in every_look() {
+        let shown = over_rgba(theme.stripe, theme.background);
+        let striped = theme.striped();
+        let byte = |v: f32| (v * 255.0).round() as i32;
+        for (got, want) in [
+            (striped.r, shown.r),
+            (striped.g, shown.g),
+            (striped.b, shown.b),
+        ] {
+            assert!(
+                (byte(got) - byte(want)).abs() <= 1,
+                "{at}: {striped:?} {shown:?}"
+            );
+        }
+        assert_eq!(striped.a, theme.background.a, "{at}: as solid as the list");
+    }
+}

@@ -717,7 +717,12 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                             row_buttons(
                                 row,
                                 chosen,
-                                if chosen { background } else { theme.background },
+                                // Its row's own colour behind it, a striped row's too.
+                                match (chosen, i % 2 == 1) {
+                                    (true, _) => background,
+                                    (false, true) => theme.striped(),
+                                    (false, false) => theme.background,
+                                },
                                 original,
                                 cx,
                             )

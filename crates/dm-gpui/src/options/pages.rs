@@ -128,7 +128,10 @@ impl Page {
     fn section(&mut self, words: &str) {
         self.headings.push(words.to_string());
         self.says(words);
-        let heading = native::heading(words.to_string(), self.theme, &self.screen);
+        let heading = native::heading(words.to_string(), self.theme, &self.screen)
+            // A page's first: under the page's own name, as a first setting is, not a section's
+            // room further down (34 points under the name where a setting had 14).
+            .when(self.items.is_empty(), |h| h.mt_0());
         self.add(heading);
     }
 

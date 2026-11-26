@@ -5,6 +5,9 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The arrow beside Start queue and Stop queue points down, as tall as its button, and says "Queues" on hover: it opens the list of queues.
+- An Options page's first heading stands under the page's name as a first setting does, not a section's room further down.
+- A striped row's own buttons stand on the row's colour, not a white patch.
 - A place with nothing in it yet (a kind, a queue) says which, under its picture from the side panel: "Pictures", then "Nothing here yet."; it said "Nothing here" over "Nothing here yet.".
 - A click no longer leaves a focus ring on a button, a page or a place; the ring shows when Tab moves to it.
 - Options' list of pages has no tooltip over the page, and a page's line under its name is left out where it only repeated the page's one heading.

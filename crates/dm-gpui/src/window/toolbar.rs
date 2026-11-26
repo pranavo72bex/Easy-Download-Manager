@@ -259,7 +259,8 @@ fn button(
     div()
         .flex()
         .map(crate::window::mirror::row)
-        .items_center()
+        // The queues' arrow as tall as its button, one split button (it floated beside it).
+        .items_stretch()
         // Room before the rest, which stand at the end (gaps row E3).
         .when(rest_after == Some(at), |d| d.ml_auto())
         .child(button)
@@ -268,23 +269,27 @@ fn button(
 }
 
 /// The arrow beside Start Queue or Stop Queue (`command`) that lists the `queues`; the one
-/// chosen is started or stopped.
+/// chosen is started or stopped. A split button's: a menu opens under it, so it points down
+/// (the up-and-down mark is a pop-up's, which picks a value), as tall as its button.
 fn queue_arrow(command: Command, queues: Vec<String>, theme: Theme) -> impl IntoElement {
+    let named = dm_desktop_base::i18n::t("Queues");
     div()
         .id((command.id(), 1usize))
         .role(Role::Button)
-        .aria_label(dm_desktop_base::i18n::t("Queues"))
-        .h(px(28.0))
-        .w(px(14.0))
+        .aria_label(named)
+        .w(px(space::XL))
         .flex()
         .items_center()
         .justify_center()
         .rounded(px(crate::widgets::native::RADIUS))
-        .hover(|s| s.bg(theme.stripe))
+        .hover(move |s| s.bg(theme.stripe))
+        .tooltip(move |window, cx| {
+            gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(named)).build(window, cx)
+        })
         .child(
             svg()
-                .path("icons/chevron-up-down.svg")
-                .size(px(10.0))
+                .path("icons/chevron-down.svg")
+                .size(px(crate::widgets::native::ICON_SMALL))
                 .text_color(theme.muted),
         )
         .on_click(move |event, window, cx| {

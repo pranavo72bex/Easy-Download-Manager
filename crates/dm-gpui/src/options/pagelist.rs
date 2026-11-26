@@ -195,7 +195,8 @@ pub(super) fn page_heading(
         .flex()
         .flex_col()
         .gap(px(space::XXS))
-        .pb(px(space::S))
+        // One room under the name, whatever comes first under it (`Page::section`).
+        .pb(px(space::M))
         .child(
             div()
                 .text_size(px(native::SUBTITLE_TEXT))
