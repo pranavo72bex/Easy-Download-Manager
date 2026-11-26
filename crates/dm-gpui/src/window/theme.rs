@@ -49,8 +49,6 @@ pub struct Theme {
     pub accent: Rgba,
     /// Words and marks on the accent.
     pub on_accent: Rgba,
-    /// Each kind of file's colour (`Kinds`).
-    pub kinds: Kinds,
     /// Words drawn in the accent on a surface (a running download's state, a link, "+N
     /// more"): the accent's text shade, at 4.5 to 1 on the list, a stripe, a dialog and the
     /// side panel, where the fill itself may not be.
@@ -61,14 +59,17 @@ pub struct Theme {
 }
 
 impl Theme {
-    /// The colours on a chosen row: its words and marks on the selection
-    /// colour.
+    /// The colours on a chosen row, drawn as Options marks its chosen page: on the soft tint of
+    /// the accent (`chosen_soft`), every word and mark in the text's own colour, which reads at
+    /// 4.5 to 1 there (`the_soft_choice_keeps_its_words_readable`); the secondary, the accent's
+    /// and the state colours did not, every look. It was the solid selection, words all white.
     pub fn chosen(self) -> Theme {
         Theme {
-            text: self.on_selection,
-            muted: self.on_selection,
-            selection: self.on_selection,
-            accent_text: self.on_selection,
+            muted: self.text,
+            accent_text: self.text,
+            warning: self.text,
+            success: self.text,
+            selection: self.text,
             ..self
         }
     }
@@ -76,7 +77,7 @@ impl Theme {
     /// Whether these are a chosen row's colours (`chosen`): there the selection is drawn in the
     /// words' own colour, which no system's palette does (it would hide what is chosen).
     pub fn is_chosen(&self) -> bool {
-        self.selection == self.on_selection && self.text == self.on_selection
+        self.selection == self.text && self.muted == self.text
     }
 
     /// The colours for the system's appearance, as this system draws them.
@@ -155,30 +156,6 @@ impl Theme {
         }
     }
 
-    /// A striped row as it shows: the stripe, see-through, laid on the list's background, as one
-    /// colour, for what stands over such a row and hides it (a row's own buttons): the list's
-    /// background there was a white patch on the grey stripe.
-    pub fn striped(self) -> Rgba {
-        let a = self.stripe.a;
-        let mix = |top: f32, base: f32| top * a + base * (1.0 - a);
-        Rgba {
-            r: mix(self.stripe.r, self.background.r),
-            g: mix(self.stripe.g, self.background.g),
-            b: mix(self.stripe.b, self.background.b),
-            a: self.background.a,
-        }
-    }
-
-    /// A small button's face on a chosen row (a row's own Stop, Details…): the selection's words,
-    /// see-through over its fill, stronger under the pointer. The control's face there stood out
-    /// as white tiles on the light look's blue.
-    pub fn on_chosen_face(self, hovered: bool) -> Rgba {
-        Rgba {
-            a: if hovered { 0.24 } else { 0.16 },
-            ..self.on_selection
-        }
-    }
-
     /// The focus ring's colour round a control: the accent, and on the
     /// default button, which is filled with the accent, the words' colour
     /// on it (the accent there was a ring no one could see).
@@ -204,84 +181,6 @@ impl Theme {
     }
 }
 
-/// Each kind of file's colour (B45), in its row's and its card's picture: a set for the light
-/// looks and one for the dark, each at 3 to 1 on the list and a striped row, as a picture is
-/// read; under High Contrast the system's text colour, as every colour then is (gaps row E16:
-/// one set for both looks, Audio and Archives at 2.9 to 1 on white, Videos 2.6 on a dark list).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Kinds {
-    pub videos: Rgba,
-    pub audio: Rgba,
-    pub documents: Rgba,
-    pub apps: Rgba,
-    pub archives: Rgba,
-    pub pictures: Rgba,
-    pub other: Rgba,
-}
-
-impl Kinds {
-    /// On a light list.
-    fn light() -> Kinds {
-        Kinds {
-            videos: rgb(0x8e44ad),
-            audio: rgb(0xb85c0f),
-            documents: rgb(0x2b6cc4),
-            apps: rgb(0x3d8b37),
-            archives: rgb(0x8a6d0f),
-            pictures: rgb(0xc0395a),
-            other: rgb(0x6b7778),
-        }
-    }
-
-    /// On a dark list: the same hues, lighter.
-    fn dark() -> Kinds {
-        Kinds {
-            videos: rgb(0xc08ae0),
-            audio: rgb(0xf0a05a),
-            documents: rgb(0x6ea8f0),
-            apps: rgb(0x6cc463),
-            archives: rgb(0xd9b84a),
-            pictures: rgb(0xf07a98),
-            other: rgb(0xa8b3b4),
-        }
-    }
-
-    /// One colour for every kind (High Contrast's text): the pictures' shapes tell them apart.
-    fn one(colour: Rgba) -> Kinds {
-        Kinds {
-            videos: colour,
-            audio: colour,
-            documents: colour,
-            apps: colour,
-            archives: colour,
-            pictures: colour,
-            other: colour,
-        }
-    }
-
-    /// For the light look or the dark.
-    fn of(dark: bool) -> Kinds {
-        if dark {
-            Kinds::dark()
-        } else {
-            Kinds::light()
-        }
-    }
-
-    /// The colour of `kind`'s picture; a download of no kind, Other's.
-    pub fn of_kind(&self, kind: Option<dm_core::Category>) -> Rgba {
-        use dm_core::Category as K;
-        match kind {
-            Some(K::Videos) => self.videos,
-            Some(K::Audio) => self.audio,
-            Some(K::Documents) => self.documents,
-            Some(K::Apps) => self.apps,
-            Some(K::Archives) => self.archives,
-            Some(K::Pictures) => self.pictures,
-            _ => self.other,
-        }
-    }
-}
 /// Windows' close button under the pointer: its caption buttons' red.
 pub const CLOSE_HOVERED: u32 = 0xc42b1c;
 
@@ -342,7 +241,6 @@ fn macos(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x409cff),
-            kinds: Kinds::of(dark),
         }
     } else {
         Theme {
@@ -371,7 +269,6 @@ fn macos(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x0064e1),
-            kinds: Kinds::of(dark),
         }
     }
 }
@@ -401,7 +298,6 @@ fn windows(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x60cdff),
-            kinds: Kinds::of(dark),
             success: rgb(0x6ccb5f),
         }
     } else {
@@ -425,7 +321,6 @@ fn windows(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x005fb8),
-            kinds: Kinds::of(dark),
             success: rgb(0x0f7b0f),
         }
     }
@@ -458,7 +353,6 @@ fn high_contrast(p: &dm_desktop_base::contrast::Palette) -> Theme {
         accent: c(p.highlight),
         on_accent: c(p.highlight_text),
         accent_text: c(p.hotlight),
-        kinds: Kinds::one(c(p.window_text)),
         success: c(p.window_text),
     }
 }
@@ -488,7 +382,6 @@ fn gnome(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x78aeed),
-            kinds: Kinds::of(dark),
             success: rgb(0x78e9ab),
         }
     } else {
@@ -513,7 +406,6 @@ fn gnome(dark: bool) -> Theme {
             // Words drawn in the accent on the list, a dialog or the side panel: its text shade,
             // read at 4.5 to 1 on each (`accent_text`).
             accent_text: rgb(0x1866c2),
-            kinds: Kinds::of(dark),
             // Darker than the GNOME palette's (3.9 to 1 on the side panel, gaps row U22).
             success: rgb(0x17733a),
         }

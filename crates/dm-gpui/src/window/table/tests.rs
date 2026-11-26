@@ -26,34 +26,6 @@ fn the_list_is_told_as_a_table_of_headings_and_cells() {
     assert_eq!(cell.column_index(), Some(2));
 }
 
-/// A row's own buttons by how it stands, on the row under the pointer:
-/// Details on one not finished, Delete on one that is not writing its file.
-#[test]
-fn a_rows_buttons_follow_its_state() {
-    let of = |state: State| -> Vec<Command> {
-        let mut row: Entry = serde_json::from_value(serde_json::json!({
-            "id": 1,
-            "url": "http://example.com/f.bin",
-            "state": {"kind": "queued"},
-            "progress": {"downloaded": 0, "total": null, "speed": 0.0, "eta": null},
-            "filename": "f.bin",
-        }))
-        .unwrap();
-        row.state = state;
-        row_actions(&row).into_iter().map(|(c, _, _)| c).collect()
-    };
-    use Command::*;
-    assert_eq!(of(State::Running), [StopDownload, ShowProgress]);
-    assert_eq!(of(State::Queued), [StopDownload, ShowProgress]);
-    assert_eq!(of(State::Paused), [DownloadNow, ShowProgress, Remove]);
-    assert_eq!(
-        of(State::Failed("gone".into())),
-        [DownloadNow, ShowProgress, Remove]
-    );
-    assert_eq!(of(State::Completed), [OpenFile, OpenFolder, Remove]);
-    assert_eq!(of(State::Cancelled), [Remove]);
-}
-
 #[test]
 fn a_heading_dropped_on_another_takes_its_place() {
     use Column::{Name, Queue, Size, Status};

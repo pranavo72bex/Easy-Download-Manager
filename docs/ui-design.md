@@ -157,7 +157,6 @@ Linux, and under High Contrast the system's own. A widget reads the role, never 
 | `control` / `control_border` / `field` | A button's face and edge, a text field's inside |
 | `accent` / `on_accent` | A fill: the default button, a switch on, a ticked box; the words on it |
 | `accent_text` | The accent drawn on a surface: a running download's state, a link, "+N more", a bar, a focus ring; at 4.5 to 1 on the list, a stripe, a dialog, the side panel and a menu |
-| `kinds` | Each kind of file's picture in a row and a card: a light set and a dark set at 3 to 1 on the list and a stripe; under High Contrast the text colour |
 | `SCRIM` | The shade behind a sheet or a drawer |
 | `selection` / `on_selection` | What is chosen; the words on it |
 | `warning` | A failure and a destructive button's words |

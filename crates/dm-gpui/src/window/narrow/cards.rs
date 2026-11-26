@@ -271,10 +271,9 @@ fn card(
     let whens = &view.known.whens;
     let speed = crate::window::table::words(Column::Rate, row, whens);
     let left = crate::window::table::words(Column::TimeLeft, row, whens);
-    // Chosen, the card keeps its own colours under a soft tint of the accent, as the side panel's
-    // chosen place and the bottom bar's chosen tab: a solid accent card read as a second filled
-    // accent beside Add URL, its words all white.
-    let card_theme = theme;
+    // Chosen, the card is marked as Options marks its chosen page: the accent's soft tint and its
+    // bar at the leading edge, every word in the text's colour (`Theme::chosen`).
+    let card_theme = if chosen { theme.chosen() } else { theme };
     let (left_words, right_words) = figures(row, &status, speed);
     div()
         .id(("card", id as usize))
@@ -301,7 +300,10 @@ fn card(
         .gap(px(space::M))
         .border_b_1()
         .border_color(theme.separator)
-        .when(chosen, |c| c.bg(theme.chosen_soft()))
+        .when(chosen, |c| {
+            c.bg(theme.chosen_soft())
+                .child(crate::window::sidebar::chosen_bar(theme))
+        })
         .on_mouse_down(
             gpui::MouseButton::Left,
             cx.listener(move |view, event: &gpui::MouseDownEvent, _, cx| {
@@ -366,7 +368,7 @@ fn card(
                                 .gap(px(space::XS))
                                 .min_w_0()
                                 .children(crate::window::table::state_mark(&row.state, card_theme))
-                                .child(small(left_words, state_colour(row, false, theme), screen)),
+                                .child(small(left_words, state_colour(row, chosen, theme), screen)),
                         )
                         // Cut with "…" where the card is narrow, not run under its buttons.
                         .child(small(right_words, card_theme.muted, screen)),

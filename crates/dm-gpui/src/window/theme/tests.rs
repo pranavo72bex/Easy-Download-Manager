@@ -267,43 +267,6 @@ fn every_systems_palette_keeps_its_words_readable() {
     }
 }
 
-/// Each kind's picture reads at 3 to 1 on the list and a striped row in every system's look, as
-/// a picture is read; under High Contrast every kind is the system's text colour (gaps E16).
-#[test]
-fn each_kinds_picture_reads_on_the_list_in_every_look() {
-    let mut faint = Vec::new();
-    for (look, theme) in systems() {
-        let k = theme.kinds;
-        for (kind, colour) in [
-            ("videos", k.videos),
-            ("audio", k.audio),
-            ("documents", k.documents),
-            ("apps", k.apps),
-            ("archives", k.archives),
-            ("pictures", k.pictures),
-            ("other", k.other),
-        ] {
-            for (surface, back) in [
-                ("list", theme.background),
-                ("striped row", over_rgba(theme.stripe, theme.background)),
-            ] {
-                let ratio = contrast(colour, back);
-                if ratio < 3.0 {
-                    faint.push(format!("{look}: {kind} on the {surface}: {ratio:.2}"));
-                }
-            }
-        }
-    }
-    assert!(faint.is_empty(), "too faint: {faint:#?}");
-    use dm_desktop_base::contrast::Palette;
-    let black = high_contrast(&Palette::BLACK);
-    assert_eq!(
-        black.kinds.of_kind(Some(dm_core::Category::Audio)),
-        black.text
-    );
-    assert_eq!(black.kinds.of_kind(None), black.text);
-}
-
 /// A source list's chosen entry (the side panel's place, Options' page) keeps its words
 /// readable on its soft fill: all of them, its count and its line under the name too, drawn in
 /// the text's colour at 4.5 to 1 (the secondary colour read 4.29 there on GNOME's light side
@@ -311,47 +274,17 @@ fn each_kinds_picture_reads_on_the_list_in_every_look() {
 #[test]
 fn the_soft_choice_keeps_its_words_readable() {
     for (at, theme) in every_look() {
-        for (surface, back) in [("side panel", theme.sidebar), ("dialog", theme.window)] {
+        for (surface, back) in [
+            ("side panel", theme.sidebar),
+            ("dialog", theme.window),
+            ("list", theme.background),
+            ("striped row", over_rgba(theme.stripe, theme.background)),
+        ] {
             let chosen = over_rgba(theme.chosen_soft(), back);
             let name = contrast(theme.text, chosen);
             let mark = contrast(theme.accent_text, chosen);
             assert!(name >= 4.5, "{at}: a name on the {surface}: {name:.2}");
             assert!(mark >= 3.0, "{at}: a picture on the {surface}: {mark:.2}");
         }
-    }
-}
-
-/// A row's own button on a chosen row keeps its picture, in the selection's words, at 3 to 1 on
-/// its see-through face, at rest and under the pointer, and its face is seen on the selection.
-#[test]
-fn a_chosen_rows_buttons_keep_their_pictures_seen() {
-    for (at, theme) in every_look() {
-        for hovered in [false, true] {
-            let face = over_rgba(theme.on_chosen_face(hovered), theme.selection);
-            let picture = contrast(theme.on_selection, face);
-            assert!(picture >= 3.0, "{at}, hovered {hovered}: {picture:.2}");
-        }
-    }
-}
-
-/// A striped row's colour, as one, is the stripe laid on the list: on a plain row the list's
-/// own, and between the list's and the stripe's own colour, in every look.
-#[test]
-fn a_striped_row_is_the_stripe_on_the_list() {
-    for (at, theme) in every_look() {
-        let shown = over_rgba(theme.stripe, theme.background);
-        let striped = theme.striped();
-        let byte = |v: f32| (v * 255.0).round() as i32;
-        for (got, want) in [
-            (striped.r, shown.r),
-            (striped.g, shown.g),
-            (striped.b, shown.b),
-        ] {
-            assert!(
-                (byte(got) - byte(want)).abs() <= 1,
-                "{at}: {striped:?} {shown:?}"
-            );
-        }
-        assert_eq!(striped.a, theme.background.a, "{at}: as solid as the list");
     }
 }

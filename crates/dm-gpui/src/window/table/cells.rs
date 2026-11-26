@@ -25,7 +25,9 @@ pub(crate) fn name_drawn(name: &SharedString, screen: &Screen) -> impl IntoEleme
 /// The bar under a running row's status, `f` of the way along.
 pub(crate) fn progress_track(id: u64, f: f64, told: bool, theme: Theme) -> AnyElement {
     let target = f.clamp(0.0, 1.0) as f32;
-    let fill = div().h_full().rounded_full().bg(theme.selection);
+    // The accent, a fill's colour (rule 2), on a chosen row too, whose soft tint it reads on;
+    // the chosen row's own colours (`Theme::chosen`) would draw it in the words' colour.
+    let fill = div().h_full().rounded_full().bg(theme.accent);
     let track = div()
         .mt(px(space::XXS))
         .w_full()
