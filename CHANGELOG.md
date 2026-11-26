@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a phone, the Places drawer slides in from the left and a menu's sheet rises from the foot as they open (none where the system asks for less motion).
 - The search box shows it has the keys with a ring around it, as every control does, and its clear button is easier to hit.
 - On macOS, dm's settings open as a Mac program's do: **dm › Settings…** (⌘,) in the app menu, and a new dm's toolbar has no Options button there. Windows and Linux keep the toolbar's Options and Downloads › Options.
 - Options' explanations under a field (Browser's file types and sites, the proxy's script) stand close under it, as a switch's do; a phone's section headings are drawn as the computer's, semibold in the text's colour, not the accent's; a note under a heading on a phone no longer runs into it; Folders' line of what it holds names Download folder first, and Find a setting finds the folders by their names. A proxy refused on another page opens Advanced at the Proxy heading, not the setting above it.
