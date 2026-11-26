@@ -9131,3 +9131,7 @@ The first night on these cuts (run 45751236215) finished its first try inside th
 quota, but its tests were for tooling/xtask/src/tasks.rs, which `ai_guard` refuses, and the
 second try on the same file ran the quota out. `scripts/coverage-table.py pick` now leaves out
 tooling/xtask/ as it leaves out what a Linux runner cannot run.
+
+A second try now goes on in the first try's session (`opencode run --continue`) and is sent
+only what failed: in that run the second try spent 26 calls reading again what the first had
+read, and the keyless quota is about 100 calls a run.
