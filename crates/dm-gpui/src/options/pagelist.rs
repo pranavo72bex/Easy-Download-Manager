@@ -41,8 +41,14 @@ impl Options {
             .flex()
             .flex_col()
             .overflow_y_scroll()
+            // At a phone's width, from the margin the search field and the footer keep.
             .when(narrow, |l| {
-                l.flex_1().min_h_0().w_full().px(px(native::MARGIN))
+                l.flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .gap(px(space::XXS))
+                    .px(px(native::MARGIN - space::M))
+                    .pb(px(space::M))
             })
             .when(!narrow, |l| {
                 l.flex_1()
@@ -106,7 +112,7 @@ impl Options {
                 }),
             );
         if narrow {
-            self.phone_row(entry, words, summary, theme, screen)
+            self.phone_row(entry, tab, words, summary, theme, screen)
         } else {
             self.source_row(entry, tab, words, theme, screen)
         }
@@ -129,41 +135,35 @@ impl Options {
             .child(crate::window::sidebar::row_words(screen.label(t(words))))
     }
 
-    /// At a phone's width, the list a screen of its own: each page's name, what it holds under
-    /// it, and an arrow on to it.
+    /// At a phone's width, the list a screen of its own: the side panel's row (its picture, its
+    /// name in the body's weight, its fill under the pointer or a finger), grown to a finger's
+    /// height with what the page holds under its name, and an arrow on to it. The rows set apart
+    /// by space, as the side panel's are, not by lines (`better-layout`); a semibold name over
+    /// each read as six headings (rule 4: bold is a group's heading).
     fn phone_row(
         &self,
         entry: gpui::Stateful<gpui::Div>,
+        tab: Tab,
         words: &'static str,
         summary: String,
         theme: Theme,
         screen: &Screen,
     ) -> gpui::Stateful<gpui::Div> {
-        entry
-            .tab_index(0)
-            .focus_visible(move |s| s.border_2().border_color(theme.ring(false)))
-            .w_full()
-            .px(px(space::M))
-            .py(px(space::M))
-            .flex()
-            .items_center()
-            .gap(px(space::M))
-            .cursor_pointer()
-            .border_b_1()
-            .border_color(theme.separator)
-            .hover(move |s| s.bg(theme.stripe))
+        crate::window::sidebar::source_row(entry, false, picture(tab), theme)
+            .h_auto()
+            .min_h(px(space::TOUCH))
+            .py(px(space::S))
+            .gap(px(space::L))
+            // A finger's press answered where there is no pointer to hover.
+            .active(move |s| s.bg(theme.stripe))
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .gap(px(space::XS))
-                    .child(
-                        div()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(screen.label(t(words))),
-                    )
+                    .gap(px(space::XXS))
+                    .child(screen.label(t(words)))
                     .when(!summary.is_empty(), |d| {
                         d.child(
                             div()
@@ -183,8 +183,10 @@ impl Options {
     }
 }
 
-/// The page shown, at its top beside the list: its name and what it holds, as the list said
-/// them under each name before (`docs/behaviour-contract.md` B43).
+/// The page shown, at its top beside the list and over it at a phone's width: its name and what
+/// it holds, as the list said them under each name before (`docs/behaviour-contract.md` B43).
+/// The name a title's figure (`docs/ui-design.md` rule 4: 1.3 times the body or more): at 16 it
+/// was 1.2 times a computer's body and hardly larger than a phone's (15).
 pub(super) fn page_heading(
     words: &'static str,
     summary: String,
@@ -199,7 +201,7 @@ pub(super) fn page_heading(
         .pb(px(space::M))
         .child(
             div()
-                .text_size(px(native::SUBTITLE_TEXT))
+                .text_size(px(native::FIGURE_TEXT))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .child(screen.label(t(words))),
         )

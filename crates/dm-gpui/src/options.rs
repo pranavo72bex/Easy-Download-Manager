@@ -446,32 +446,27 @@ impl Render for Options {
             .then(|| self.page_list(&tabs, narrow, theme, &screen, window, cx));
         let search_input = self.search.clone();
         let search = || native::field(&search_input, "Find a setting", theme);
-        // At a phone's width, Find a setting across the top (gaps row U24); beside a page, at
-        // the top of the list of pages, which it searches.
-        let header = narrow.then(|| {
+        // At a phone's width, Find a setting across the top of the list of pages, which it
+        // searches (gaps row U24), as beside a page it stands at the top of the side panel: the
+        // panel's room above and under it. Not over a page, which opens with its name as it does
+        // beside the list; Back (the title bar's arrow, Escape) takes it to the list and the field.
+        let header = (narrow && (self.pages_shown || searching)).then(|| {
             div()
                 .px(px(native::MARGIN))
-                .pt(px(native::MARGIN - 6.0))
-                .pb(px(native::ROW_GAP))
+                .pt(px(space::L))
+                .pb(px(space::M))
                 .child(search())
         });
-        // Narrow, over a page: its name over it; the title bar's arrow and Back take it back to
-        // the list (`close_button`).
         let name_of = |tab: options::Tab| {
             tabs.iter()
                 .find(|(t, _)| *t == tab)
                 .map(|(_, words)| *words)
                 .unwrap_or("General")
         };
-        let back = (narrow && !self.pages_shown && !searching).then(|| {
-            div()
-                .mx(px(native::MARGIN))
-                .mb(px(space::S))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .child(screen.label(t(name_of(self.tab)).to_string()))
-        });
-        // Beside the list, the page shown opens with its name and what it holds.
-        let heading = (!narrow && !searching).then(|| {
+        // The page shown opens with its name and what it holds, beside the list and at a phone's
+        // width alike: over a page a phone's had its name alone, smaller, under a line, from
+        // another edge than the settings under it.
+        let heading = (!searching).then(|| {
             let summary = crate::options::pages::summary(self, self.tab, theme, window, cx);
             // Said under the page's name only where it names more than the one heading the page
             // opens with: "Sites that need a sign-in" stood twice, one under the other.
@@ -492,15 +487,13 @@ impl Render for Options {
                 .min_h_0()
                 // Its long lines wrap within it rather than widening it past the window.
                 .min_w_0()
-                .when(narrow, |page| {
-                    page.border_t_1().border_color(theme.separator)
-                })
                 .overflow_y_scroll()
                 .track_scroll(&self.scroll)
                 // The settings its own children, so the page scrolls to one by its place
                 // (Advanced to its proxy section, where a proxy was refused).
                 .p(px(space::XL))
-                .when(!narrow, |page| page.px(px(space::XXL)))
+                // At a phone's width from the margin the search field and the footer keep.
+                .px(px(if narrow { native::MARGIN } else { space::XXL }))
                 .flex()
                 .flex_col()
                 .gap(px(native::ROW_GAP))
@@ -525,7 +518,6 @@ impl Render for Options {
             .flex()
             .flex_col()
             .children(header)
-            .children(back)
             .child(
                 div()
                     .flex_1()
@@ -535,7 +527,7 @@ impl Render for Options {
                     .children(list)
                     .children(page_view),
             )
-            .child(self.footer(narrow, theme, &screen, cx));
+            .child(self.footer(theme, &screen, cx));
         crate::window::safe::kept_clear(root, window)
     }
 }
@@ -543,25 +535,22 @@ impl Render for Options {
 impl Options {
     /// Under the page: what went wrong, and the buttons, Restore defaults where the page has
     /// settings of its own.
-    fn footer(&self, narrow: bool, theme: Theme, screen: &Screen, cx: &Context<Self>) -> gpui::Div {
+    fn footer(&self, theme: Theme, screen: &Screen, cx: &Context<Self>) -> gpui::Div {
         let restore = !self.list_only && !options::tab_settings(self.tab).is_empty();
         div()
             .px(px(native::MARGIN))
             .pb(px(native::MARGIN))
-            // Beside a side panel, its own band under the panel and the page, a line above.
-            .when(!narrow && !crate::platform::ON_A_PHONE, |bar| {
-                bar.pt(px(space::L))
-                    .border_t_1()
-                    .border_color(theme.separator)
-            })
-            // A phone's: its own bar under the page, a line above, as a phone's bottom bar,
-            // so the page's last setting does not run into the buttons.
-            .when(crate::platform::ON_A_PHONE, |bar| {
-                bar.pt(px(space::S))
-                    .border_t_1()
-                    .border_color(theme.separator)
-                    .bg(theme.window)
-            })
+            // Its own band under the page, a line above, at every width, so the page's last
+            // setting does not run into the buttons (at a computer's narrow width it did); a
+            // phone's nearer the line, as a phone's bottom bar.
+            .pt(px(if crate::platform::ON_A_PHONE {
+                space::S
+            } else {
+                space::L
+            }))
+            .border_t_1()
+            .border_color(theme.separator)
+            .bg(theme.window)
             .flex()
             .flex_col()
             .gap(px(native::ROW_GAP))

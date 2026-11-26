@@ -32,7 +32,10 @@ The eye must have somewhere to start. Every window is checked against these, at 
    words all in the text's colour: never the filled accent, which is the default button's. A dialog with pages or queues (Options, the Scheduler) lists them as the main window's side
    panel lists places, through one helper (`sidebar::source_row`):
    its colour, its row height (`sidebar::PLACE_ROW`), one line each, the page opening with its
-   name. A small button on a chosen row has the selection's words, see-through, for its face
+   name. At a phone's width Options' list of pages is the same row grown to a finger's height,
+   what the page holds under its name, and a page opens with its name and that line
+   (`pagelist::page_heading`) as it does beside the list: one design, two widths (the
+   maintainer, 2026-11-26). A small button on a chosen row has the selection's words, see-through, for its face
    (`Theme::on_chosen_face`), never the control's white.
 3. **The error colour marks two things only:** a failure (a row, a field, a message) and a
    button that destroys (Delete, Cancel download), which is plain with its words in that
@@ -41,7 +44,8 @@ The eye must have somewhere to start. Every window is checked against these, at 
    (`native::undo_line`), as the list's Remove does in the status bar.
 4. **Three ranks of text, no more:**
    - *Figure*: what a window is for, read first: the progress window's "7% · 380 KB/s · 2 min
-     left", a dialog's title. Larger type (`native::TEXT` × 1.3 or more), semibold.
+     left", a dialog's title, an Options page's name. Larger type (`native::FIGURE_TEXT`,
+     `native::TEXT` × 1.4), semibold.
    - *Body*: everything read in turn: labels, fields, rows (`native::TEXT`).
    - *Hint*: what explains or is secondary: a help line, a size beside a name, a column of
      dates (`native::SMALL_TEXT`, the `muted` colour).

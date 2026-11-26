@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Options at a phone's width reads as it does beside the list: each page with its picture, its name in the body's weight and what it holds under it, set apart by space, not lines; a page opens with its name, in a title's size at every width, and what it holds, from the same edge as its settings, Find a setting on the list; a line over the buttons at every width.
 - The download list speaks Options' design, on the computer and a phone: each kind's picture in the accent's colour, told apart by its shape; the chosen download a soft tint with the accent's bar at its edge, its words in their own colour; no buttons on a row of its own (the toolbar, the row's menu and a double-click do what they did).
 - On a phone, the chosen download is a soft tint with its words in their own colours, as the bottom bar's chosen tab and the computer's chosen place; it was a solid accent card with white words.
 - On a phone, the bottom bar's chosen tab is a soft tint with its picture in the accent, as the computer's side panel marks its chosen place; the floating Add URL is the one solid accent on the screen.
