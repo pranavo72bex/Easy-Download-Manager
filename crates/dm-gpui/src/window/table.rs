@@ -547,7 +547,9 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
         .then(|| crate::window::sidebar::place_name(view))
         .flatten()
         .unwrap_or_else(|| heading.into());
-    let picture = empty_place.then(|| crate::window::sidebar::place_picture(view));
+    // The place's picture over every notice but a filter's, the first window's too: an empty
+    // place had one and the empty list none, two designs of one notice.
+    let picture = (!filtered).then(|| crate::window::sidebar::place_picture(view));
     div()
         .id("empty-list")
         .flex_1()
@@ -567,6 +569,9 @@ pub fn empty(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> imp
         .child(
             div()
                 .text_size(px(crate::widgets::native::SUBTITLE_TEXT))
+                // A title's rank: larger and semibold (`docs/ui-design.md` rule 4); in regular
+                // weight it stood barely apart from the line under it.
+                .font_weight(gpui::FontWeight::SEMIBOLD)
                 .child(screen.label(heading)),
         )
         .child(

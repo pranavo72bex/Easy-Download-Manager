@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The empty list's "Nothing queued" stands under the place's picture in a title's weight, as an empty kind's or queue's notice does.
 - The Scheduler's line on what the Main queue's hours are for reads as an explanation, small and secondary, not as a setting.
 - dm's pictures are drawn with lines as heavy as the words beside them, as Finder's are: they were lighter than the text.
 - Options › Browser in three groups: adding the extension (Check now under the browsers it reads again), the right-click menu's items, and, under a heading of its own, which downloads dm takes from the browser.
