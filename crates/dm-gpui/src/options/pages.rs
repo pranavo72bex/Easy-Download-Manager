@@ -146,8 +146,12 @@ impl Page {
     /// Small words of their own, at the page's edge.
     fn note(&mut self, words: &str) {
         self.says(words);
-        let note = native::note(words.to_string(), self.theme.muted, &self.screen)
-            .when(crate::platform::ON_A_PHONE, |note| note.mt(px(-HINT_PULL)));
+        let note = native::measured(native::note(
+            words.to_string(),
+            self.theme.muted,
+            &self.screen,
+        ))
+        .when(crate::platform::ON_A_PHONE, |note| note.mt(px(-HINT_PULL)));
         self.add(note);
     }
 

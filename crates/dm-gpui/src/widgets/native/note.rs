@@ -26,6 +26,18 @@ pub fn note(words: impl Into<SharedString>, color: gpui::Rgba, screen: &Screen) 
         .child(screen.label(words))
 }
 
+/// `note` held to a readable measure, about 75 letters of the small size (`better-typography`):
+/// across a wide page (Options') a note ran to 110 and the eye lost its line. From the leading
+/// edge, at the right where the window is mirrored. Not for a dialog's own warning, whose room
+/// is kept for its one line (Add URL's, over its buttons).
+pub fn measured(note: Div) -> Div {
+    note.max_w(px(NOTE_MEASURE))
+        .when(crate::window::mirror::rtl(), |n| n.ml_auto())
+}
+
+/// A note's widest, in points: about 75 letters of `SMALL_TEXT`.
+pub const NOTE_MEASURE: f32 = 480.0;
+
 /// How much nearer what it explains a hint stands than one row to the next, and the room it
 /// leaves after itself: the row and its hint one unit, the next row apart from both.
 pub const HINT_PULL: f32 = super::ROW_GAP - space::XXS;
@@ -35,7 +47,7 @@ pub(crate) const AFTER_HINT: f32 = space::XS;
 /// rows stand `ROW_GAP` apart (Options' pages, the Scheduler's hours): at a row's gap a hint stood
 /// midway between what it explains and the next row. Under a field in a form, `hint_under`.
 pub fn hint(words: impl Into<SharedString>, theme: Theme, screen: &Screen) -> Div {
-    note(words, theme.muted, screen)
+    measured(note(words, theme.muted, screen))
         .mt(px(-HINT_PULL))
         .mb(px(AFTER_HINT))
 }
