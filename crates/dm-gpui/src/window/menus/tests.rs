@@ -127,7 +127,13 @@ fn the_dock_menu_adds_resumes_and_stops() {
 fn an_item_that_opens_a_dialog_says_so_with_an_ellipsis() {
     let menus = build(&Ticks::default());
     assert!(find(&menus, "Add numbered series…").is_some());
-    assert!(find(&menus, "Options…").is_some());
+    // Options: the app menu's Settings… on macOS, as every Mac program names it; Options… else.
+    let options = if cfg!(target_os = "macos") {
+        "Settings…"
+    } else {
+        "Options…"
+    };
+    assert!(find(&menus, options).is_some());
     // One that acts at once has none.
     assert!(find(&menus, Command::StopDownload.label()).is_some());
     assert!(find(&menus, "Add numbered series").is_none());

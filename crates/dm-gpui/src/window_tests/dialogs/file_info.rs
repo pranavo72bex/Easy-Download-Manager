@@ -198,7 +198,8 @@ fn browse_picks_the_folder_a_download_goes_to() {
     h.until("it to finish", finished);
     assert!(std::path::Path::new(&h.rows()[0].path).starts_with(&picked));
 
-    h.click("Options");
+    // By its command: on macOS a new dm has no toolbar Options (the app menu's Settings…).
+    h.command("downloads.options");
     h.until("Options", |h| h.dialog_open("Options"));
     h.click("Folders");
     h.until("Options › Folders", |h| h.shows("Browse…"));

@@ -3,7 +3,8 @@
 How to have the downloads you start in your browser come to dm, step by
 step.
 
-1. Open **Options** (the toolbar's **Options** button) and choose **Browser**.
+1. Open **Options** (on macOS **dm › Settings…** or ⌘,; on Windows and Linux the toolbar's
+   **Options** button) and choose **Browser**.
 2. Under **Add dm to your browser**, click **Add** beside your browser. It
    opens the page where that browser adds dm's extension. Add it there.
 3. Back in dm, click **Check now**. Your browser now says **Connected**.

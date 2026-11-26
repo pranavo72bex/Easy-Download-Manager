@@ -543,6 +543,16 @@ fn item(command: Command) -> MenuItem {
     MenuItem::action(shown(command), Run(command)).disabled(!carried_out(command) || off)
 }
 
+/// Options in the app menu: "Settings…" on macOS, as every Mac program names it there (with
+/// ⌘, beside it), the window itself still called Options; "Options…" elsewhere.
+fn settings_item() -> MenuItem {
+    if cfg!(target_os = "macos") {
+        MenuItem::action(format!("{}…", t("Settings")), Run(Command::Options))
+    } else {
+        item(Command::Options)
+    }
+}
+
 /// A command's words on its menu item: with "…" where it opens a dialog
 /// that asks for more first, as macOS's own menus say it.
 fn shown(command: Command) -> String {
@@ -707,7 +717,7 @@ fn bar(ticks: &Ticks, phone: bool) -> Bar {
     let app = Menu::new("dm").items([
         item(C::About),
         MenuItem::separator(),
-        item(C::Options),
+        settings_item(),
         MenuItem::separator(),
         MenuItem::os_submenu(t("Services"), SystemMenuType::Services),
         MenuItem::separator(),

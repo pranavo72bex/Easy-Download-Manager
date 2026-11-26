@@ -5,6 +5,10 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a phone, the Places drawer is as wide as a phone's own drawer, its places a finger's height with larger pictures beside the phone's larger words.
+- On a phone, the Places drawer slides in from the left and a menu's sheet rises from the foot as they open (none where the system asks for less motion).
+- The search box shows it has the keys with a ring around it, as every control does, and its clear button is easier to hit.
+- On macOS, dm's settings open as a Mac program's do: **dm › Settings…** (⌘,) in the app menu, and a new dm's toolbar has no Options button there. Windows and Linux keep the toolbar's Options and Downloads › Options.
 - Options' explanations under a field (Browser's file types and sites, the proxy's script) stand close under it, as a switch's do; a phone's section headings are drawn as the computer's, semibold in the text's colour, not the accent's; a note under a heading on a phone no longer runs into it; Folders' line of what it holds names Download folder first, and Find a setting finds the folders by their names. A proxy refused on another page opens Advanced at the Proxy heading, not the setting above it.
 - Options at a phone's width reads as it does beside the list: each page with its picture, its name in the body's weight and what it holds under it, set apart by space, not lines; a page opens with its name, in a title's size at every width, and what it holds, from the same edge as its settings, Find a setting on the list; a line over the buttons at every width.
 - The download list speaks Options' design, on the computer and a phone: each kind's picture in the accent's colour, told apart by its shape; the chosen download a soft tint with the accent's bar at its edge, its words in their own colour; no buttons on a row of its own (the toolbar, the row's menu and a double-click do what they did).

@@ -1,7 +1,8 @@
 # Options
 
-Options holds dm's settings. Open it from **Downloads › Options**, the
-toolbar's **Options** button, or Ctrl+, (comma). It has six pages, listed at
+Options holds dm's settings. On macOS open it from **dm › Settings…** or ⌘,
+(comma), as every Mac program's settings; on Windows and Linux from
+**Downloads › Options**, the toolbar's **Options** button, or Ctrl+, (comma). It has six pages, listed at
 its left (on a phone, a list of their own):
 
 - [General](options-general.md): language, looks, starting, sounds, pop-ups

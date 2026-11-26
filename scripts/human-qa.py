@@ -583,6 +583,11 @@ class Dm:
             shutil.copy(shot["result"]["path"], target)
             return target
 
+    def open_options(self):
+        # By its command: on macOS a new dm has no toolbar Options; the app menu's Settings…
+        # (⌘,) opens it there (2026-11-27).
+        return self.call("command.run", id="downloads.options")
+
     def open_add_url(self):
         # In front first, as a person brings it before adding a link: a
         # window behind the browser draws no frames on macOS (B10 and B63,
@@ -1390,7 +1395,7 @@ def walk(dm, origin):
         win32_move(pid, "dm", 130, 130)
         pause(1.0)
     # Options keeps the clicks to itself: dm's window takes none until it is closed.
-    dm.click("Options")
+    dm.open_options()
     for _ in range(40):
         if "Options" in dm.dialogs():
             break
@@ -1409,7 +1414,7 @@ def walk(dm, origin):
     pause(0.6)
 
     # Options' tabs: the connection's and the proxy's settings are one Advanced page.
-    dm.click("Options")
+    dm.open_options()
     for _ in range(40):
         if "Options" in dm.dialogs():
             break
@@ -1464,7 +1469,7 @@ def walk(dm, origin):
           "Run this program when they are done (optional)" in sched_words, f"{sched_words}")
     dm.click("Cancel")
     pause(0.8)
-    dm.click("Options")
+    dm.open_options()
     pause(0.8)
     dm.click("Advanced")
     pause(0.8)
@@ -1558,7 +1563,7 @@ def walk(dm, origin):
     check("B66", "Ctrl (Cmd) with + draws the list larger at once, kept; with 0 back to 100%",
           medium > 0 and larger >= medium * 1.1 and back == medium and kept == 1.2,
           f"{medium} -> {larger} -> {back}, kept {kept}")
-    dm.click("Options")
+    dm.open_options()
     for _ in range(40):
         if "Options" in dm.dialogs():
             break
@@ -1591,7 +1596,7 @@ def walk(dm, origin):
         return saved.get("sound_language", "")
 
     def downloads_page():
-        dm.click("Options")
+        dm.open_options()
         for _ in range(40):
             if "Options" in dm.dialogs():
                 break
@@ -1829,7 +1834,7 @@ def unpack_when_done(dm, files):
     archive to the Trash" chosen: each ZIP's files land in a new folder of its name beside it,
     a folder already there is not replaced, and the row says what became of the archive."""
     def folders_page():
-        dm.click("Options")
+        dm.open_options()
         for _ in range(40):
             if "Options" in dm.dialogs():
                 break
@@ -1956,7 +1961,7 @@ def same_file_again(dm, files):
           and copies() == ["same (1).bin", "same.bin"] and saved == "again",
           f"row {r and r['state']}; {exact[1]}; files {copies()}; kept {saved!r}")
 
-    dm.click("Options")
+    dm.open_options()
     for _ in range(40):
         if "Options" in dm.dialogs():
             break
@@ -2066,7 +2071,7 @@ def only_through(dm, files):
     this computer's own server still completes, every connection coming from that network's
     address rather than the loopback's; Any network puts it back."""
     def advanced_page():
-        dm.click("Options")
+        dm.open_options()
         for _ in range(40):
             if "Options" in dm.dialogs():
                 break
@@ -2201,7 +2206,7 @@ def forgetting():
               f"rows {[r['filename'] for r in dm.rows()]}")
         dm.call("ui.window", to="shown")
         pause(0.6)
-        dm.click("Options")
+        dm.open_options()
         for _ in range(40):
             if "Options" in dm.dialogs():
                 break
@@ -2482,7 +2487,7 @@ def metered_waits(origin):
               r.get("state", {}).get("kind") == "completed", f"state {r.get('state')}, status {status()!r}")
         dm.call("ui.window", to="shown")
         pause(0.6)
-        dm.click("Options")
+        dm.open_options()
         for _ in range(40):
             if "Options" in dm.dialogs():
                 break

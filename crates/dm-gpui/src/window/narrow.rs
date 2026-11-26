@@ -132,7 +132,9 @@ impl Downloads {
         .child(bottomnav::bottom_nav(self, theme, screen, cx))
         .when_some(drawer, |root, drawer| {
             root.child(
-                over(cx, |view| view.layout.narrow.drawer = None).child(
+                over(cx, |view| view.layout.narrow.drawer = None).child(entering(
+                    "drawer-enter",
+                    Enter::FromLeft,
                     div()
                         .id("drawer")
                         .absolute()
@@ -142,11 +144,17 @@ impl Downloads {
                         .flex()
                         .occlude()
                         .child(drawer),
-                ),
+                )),
             )
         })
         .when_some(sheet, |root, sheet| {
-            root.child(over(cx, |view| view.layout.narrow.sheet = None).child(sheet))
+            root.child(
+                over(cx, |view| view.layout.narrow.sheet = None).child(entering(
+                    "sheet-enter",
+                    Enter::FromBottom,
+                    sheet,
+                )),
+            )
         })
     }
 
@@ -323,6 +331,46 @@ impl Downloads {
 
 /// A layer over the whole window, dimmed, whose tap anywhere outside what it holds runs
 /// `close`.
+/// Where a layer comes in from: the drawer from the window's left, where it stands, a sheet
+/// from its foot.
+#[derive(Clone, Copy)]
+enum Enter {
+    FromLeft,
+    FromBottom,
+}
+
+/// How far a layer travels as it comes in, and over how long (`better-motion`: a panel enters
+/// in 350 to 450 ms, easing out, travelling only far enough to say where it came from).
+const ENTER_TRAVEL: f32 = 48.0;
+const ENTER_FOR: std::time::Duration = std::time::Duration::from_millis(350);
+
+/// `layer` coming in as it opens: from `from` by [`ENTER_TRAVEL`], fading in, over
+/// [`ENTER_FOR`]; GPUI draws its last frame at once where the system asks for less motion. A
+/// wrapper the window's size is what moves, so what the layer places itself against (a sheet's
+/// foot and its drag) is as it was. It goes at once on closing: an exit says nothing more.
+fn entering(id: &'static str, from: Enter, layer: impl IntoElement) -> impl IntoElement {
+    use gpui::{Animation, AnimationExt};
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+        .child(layer)
+        .with_animation(
+            id,
+            Animation::new(ENTER_FOR).with_easing(gpui::ease_out_quint()),
+            move |wrapper, delta| {
+                let off = (1.0 - delta) * ENTER_TRAVEL;
+                let wrapper = wrapper.opacity(delta);
+                // The drawer stands at the window's left whatever the language: in from there.
+                match from {
+                    Enter::FromBottom => wrapper.top(px(off)),
+                    Enter::FromLeft => wrapper.left(px(-off)),
+                }
+            },
+        )
+}
+
 fn over(cx: &mut Context<Downloads>, close: impl Fn(&mut Downloads) + 'static) -> Stateful<Div> {
     div()
         .id("narrow-over")

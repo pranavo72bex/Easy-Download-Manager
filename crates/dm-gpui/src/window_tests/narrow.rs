@@ -456,7 +456,8 @@ fn a_place_held_opens_its_menu_as_a_sheet() {
             && view.layout.narrow.drawer.is_none()
             && view.layout.narrow.sheet.is_some()
     }));
-    assert!(h.shows("Stop all"), "{:?}", h.texts());
+    // Its last item in sight once the sheet has risen into place (it comes in from the foot).
+    h.until_shown("Stop all");
     h.person_click(dm_desktop_base::i18n::t("Stop all"), 1);
     h.until("the sheet closed", |h| {
         h.view(|view| view.layout.narrow.sheet.is_none())

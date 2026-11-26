@@ -34,3 +34,4 @@ application's rules around them. Read `AGENTS.md` ("Rules for a change", "Glossa
 
 - 2026-11-24: watch_estimating takes 5 arguments including downloaded_per_network: Option[ArcAtomicU64; 3], and Progress struct requires the per_network field.
 - 2026-11-25: In dm-js, Interp stores program: VecStmt and temporarily takes ownership via std::mem::take during evaluation to satisfy borrow checking without leaking memory via Box::leak.
+- 2026-11-26: The bot's summary claimed to add info_hash, name fields and magnet() method to Metainfo struct, but compilation errors show the struct only has trackers and info fields - the claimed changes were not actually

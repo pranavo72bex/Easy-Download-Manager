@@ -1089,5 +1089,6 @@
  "Largest file (KB)",
  "0 for any size.",
  "Run every (hours)",
- "0 runs it only when you ask."
+ "0 runs it only when you ask.",
+ "Settings"
 ]
