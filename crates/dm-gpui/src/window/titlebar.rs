@@ -95,6 +95,10 @@ thread_local! {
 /// The search box's height and its widest.
 const BOX_HEIGHT: f32 = 26.0;
 const BOX_WIDEST: f32 = 520.0;
+/// Its corners, its focus ring's distance outside it, and its clear button's target.
+const BOX_CORNER: f32 = native::RADIUS + 1.0;
+const RING_OUT: f32 = space::XXS;
+const CLEAR_TARGET: f32 = 24.0;
 
 /// The top bar.
 pub fn titlebar(
@@ -443,26 +447,37 @@ fn search_box(
             None => d.flex_1().min_w_0(),
         })
         .h(px(BOX_HEIGHT))
+        .relative()
         .flex()
         .items_center()
         .gap(px(space::S))
         .px(px(space::M))
-        .rounded(px(native::RADIUS + 1.0))
+        .rounded(px(BOX_CORNER))
         .border_1()
-        // Ringed while it has the keyboard, as a button is (the field draws no ring of its own
-        // without its frame): a caret alone did not say where the keys go.
-        .border_color(if focused {
-            theme.ring(false)
-        } else {
-            theme.separator
-        })
+        .border_color(theme.separator)
         .bg(theme.stripe)
+        // Ringed while it has the keyboard, 2 points outside its edge as every control's ring is
+        // (`native::ringed`), its corners following the box's (better-ui: outer = inner + gap):
+        // the edge's colour alone, 1 point, barely said where the keys go.
+        .when(focused, |d| {
+            d.child(
+                div()
+                    .absolute()
+                    .top(px(-RING_OUT))
+                    .left(px(-RING_OUT))
+                    .right(px(-RING_OUT))
+                    .bottom(px(-RING_OUT))
+                    .rounded(px(BOX_CORNER + RING_OUT))
+                    .border_2()
+                    .border_color(theme.ring(false)),
+            )
+        })
         // The magnifier at the left, as the system's search fields
         // and the editor's command centre draw it.
         .child(
             svg()
                 .path("icons/search.svg")
-                .size(px(13.0))
+                .size(px(native::ICON_SMALL))
                 .flex_none()
                 .text_color(theme.muted),
         )
@@ -488,22 +503,33 @@ fn search_box(
                     .child(screen.label(tn("{} shown||{} shown", shown as u64, &[&shown]))),
             )
             .child(
+                // Its target 24 points (WCAG 2.2, 2.5.8), the drawn circle 16 inside it: at 16
+                // the whole target was the circle.
                 div()
                     .id("clear-filter")
                     .role(Role::Button)
                     .aria_label(t("Clear"))
                     .flex_none()
-                    .size(px(native::ICON))
-                    .rounded_full()
+                    .size(px(CLEAR_TARGET))
+                    .mr(px(-space::XS))
                     .flex()
                     .items_center()
                     .justify_center()
-                    .bg(theme.muted)
-                    // A drawn mark named by what it does, not the font's "✕" (gaps row E41).
-                    .child(screen.mark(
-                        t("Clear"),
-                        native::icon("icons/close.svg", native::MARK_TEXT, theme.window),
-                    ))
+                    .cursor_pointer()
+                    .child(
+                        div()
+                            .size(px(native::ICON))
+                            .rounded_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .bg(theme.muted)
+                            // A drawn mark named by what it does, not the font's "✕" (E41).
+                            .child(screen.mark(
+                                t("Clear"),
+                                native::icon("icons/close.svg", native::MARK_TEXT, theme.window),
+                            )),
+                    )
                     .on_click(cx.listener(|view, _, window, cx| {
                         view.clear_filter(window, cx);
                     })),
