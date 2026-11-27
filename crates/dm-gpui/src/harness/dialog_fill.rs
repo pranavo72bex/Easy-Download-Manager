@@ -282,16 +282,21 @@ impl Harness {
                     .unwrap_or(false)
             })
         };
+        // Round the places again once the window has settled: under a whole run's load the
+        // dialog was not yet where its words said, and every press missed (watch list, twice).
         let mut found = false;
-        for at in tries {
-            self.cx.update(|cx| {
-                let _ = window.update(cx, |_, window, cx| window.blur(cx));
-            });
-            self.press_at(window, at, 1);
-            if in_a_field(&mut self.cx) {
-                found = true;
-                break;
+        'rounds: for _ in 0..10 {
+            for at in tries {
+                self.cx.update(|cx| {
+                    let _ = window.update(cx, |_, window, cx| window.blur(cx));
+                });
+                self.press_at(window, at, 1);
+                if in_a_field(&mut self.cx) {
+                    found = true;
+                    break 'rounds;
+                }
             }
+            self.cx.run_until_parked();
         }
         assert!(found, "no field by {label:?} took the keyboard");
         let all = gpui::Keystroke {

@@ -25,14 +25,39 @@ use gpui::{App, Pixels};
 
 /// The size in force, as an `f32`'s bits: read on every measure of every
 /// frame, from any window.
+#[cfg(not(test))]
 static FACTOR: AtomicU32 = AtomicU32::new(0x3f80_0000); // 1.0
+
+// Each test's own, as the language is (`i18n::set`): a window test drives its window on its own
+// thread, and one at 200% (the goldens', the sweep's) laid every window of the tests running
+// beside it out at 200%, where a press missed what it aimed at (the Grabber's test, twice).
+#[cfg(test)]
+thread_local! {
+    static FACTOR: AtomicU32 = const { AtomicU32::new(0x3f80_0000) };
+}
+
+/// The size in force's bits, read.
+fn load() -> u32 {
+    #[cfg(test)]
+    return FACTOR.with(|f| f.load(Ordering::Relaxed));
+    #[cfg(not(test))]
+    FACTOR.load(Ordering::Relaxed)
+}
+
+/// The size in force's bits, set.
+fn store(bits: u32) {
+    #[cfg(test)]
+    FACTOR.with(|f| f.store(bits, Ordering::Relaxed));
+    #[cfg(not(test))]
+    FACTOR.store(bits, Ordering::Relaxed);
+}
 
 /// gpui-component's own rem, at 100% (its theme's default font size).
 const REM: f32 = 16.0;
 
 /// The scale in force: 1.0 is 100%.
 pub fn factor() -> f32 {
-    f32::from_bits(FACTOR.load(Ordering::Relaxed))
+    f32::from_bits(load())
 }
 
 /// `points` of dm's design, at the text size in force.
@@ -54,7 +79,7 @@ fn at(points: f32, size: f32) -> f32 {
 /// Puts `size` in force (held to the nearest stop) before any window is
 /// drawn: the theme's rem, nothing redrawn. For the start.
 pub fn start(size: f32, cx: &mut App) {
-    FACTOR.store(TEXT_SIZE.held(size).to_bits(), Ordering::Relaxed);
+    store(TEXT_SIZE.held(size).to_bits());
     rem(cx);
 }
 
@@ -67,7 +92,7 @@ pub fn set(size: f32, cx: &mut App) -> bool {
     if (size - was).abs() < 0.001 {
         return false;
     }
-    FACTOR.store(size.to_bits(), Ordering::Relaxed);
+    store(size.to_bits());
     rem(cx);
     let ratio = size / was;
     for (handle, _, dialog) in crate::window::screen::Screens::all(cx) {
