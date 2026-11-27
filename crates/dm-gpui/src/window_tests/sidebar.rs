@@ -131,3 +131,24 @@ fn a_kind_is_listed_once_it_holds_a_download() {
     h.until("the row gone", |h| h.rows().is_empty());
     assert!(h.shows("Videos"), "the place shown left the panel");
 }
+
+/// The kinds' group is headed "Categories", not "All downloads", which the title and All under
+/// it said too; shut under its old heading, it stays shut.
+#[test]
+fn the_kinds_group_is_headed_categories_and_keeps_an_old_shut() {
+    let world = world();
+    let mut settings = world.settings();
+    settings.shut_groups = vec!["All downloads".into()];
+    let mut h = world.harness_with(settings);
+    h.until_shown("Categories");
+    assert!(
+        !h.shows("All"),
+        "the group shut under its old heading opened"
+    );
+    h.click("Categories");
+    h.until_shown("All");
+    assert!(
+        h.view(|view| view.backend.settings().shut_groups.is_empty()),
+        "the old heading kept"
+    );
+}

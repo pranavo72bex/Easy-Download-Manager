@@ -74,12 +74,19 @@ fn picture(place: &Place) -> &'static str {
     }
 }
 
+/// The kinds' group's heading, and the one it had (kept in `shut_groups` by its English).
+const CATEGORIES: &str = "Categories";
+const OLD_CATEGORIES: &str = "All downloads";
+
 /// Every place the panel lists, in order, with its heading where a group
 /// starts.
 fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> {
     let settings = &view.known.drawn;
     let mut all = vec![(
-        Some("All downloads"),
+        // "Categories", the word View › Categories and "Add or edit categories…" use: "All
+        // downloads" said again what the title and All under it said (the maintainer,
+        // 2026-11-27, "refine it").
+        Some(CATEGORIES),
         Place::All,
         SharedString::from(t("All")),
     )];
@@ -680,6 +687,8 @@ impl Downloads {
 
     /// Whether the side panel's group under `heading` is shut (gaps row U42).
     pub(crate) fn group_shut(&self, heading: &str) -> bool {
+        // Shut under its old heading, "All downloads", it stays shut as "Categories".
+        let old = (heading == CATEGORIES).then_some(OLD_CATEGORIES);
         // Kept by its heading's English, matched whatever its case: a group shut as "All
         // Downloads" stays shut now that its heading reads "All downloads" (gaps row E13).
         !heading.is_empty()
@@ -688,7 +697,7 @@ impl Downloads {
                 .drawn
                 .shut_groups
                 .iter()
-                .any(|g| g.eq_ignore_ascii_case(heading))
+                .any(|g| g.eq_ignore_ascii_case(heading) || old.is_some_and(|o| g == o))
     }
 
     /// The group under `heading` shut, or opened again, and kept for the next launch.
@@ -697,9 +706,10 @@ impl Downloads {
         let heading = heading.to_string();
         self.backend.keep_look(move |settings| {
             if shut {
-                settings
-                    .shut_groups
-                    .retain(|g| !g.eq_ignore_ascii_case(&heading));
+                settings.shut_groups.retain(|g| {
+                    !g.eq_ignore_ascii_case(&heading)
+                        && !(heading == CATEGORIES && g == OLD_CATEGORIES)
+                });
             } else if !settings.shut_groups.contains(&heading) {
                 settings.shut_groups.push(heading);
             }

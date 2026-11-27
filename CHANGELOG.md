@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The side panel's first group is headed "Categories", no longer repeating "All downloads" from the title. In Arabic and Hebrew the top bar reads from the right, and in Arabic sizes are written short (م.ب for MB), so the list fits a new window without scrolling sideways; the Size and Transfer rate columns are as wide as their widest figure in every unit, and words that join (Arabic) are measured as drawn.
 - On a phone, the top bar says "All downloads" for every download, as the computer's title bar does, not the app's name "dm".
 - Start queue and Stop queue say which queue they act on when hovered ("Start queue: Main queue"), and the arrow beside each is easier to hit (24 points) and is named for what it does ("Choose a queue to start", "Choose a queue to stop"), where a screen reader heard "Queues" for both.
 - A more minimal home screen: the side panel lists a kind (Videos, Audio, Pictures…) only once it holds a download, and a new dm leaves the Queue column off (View › Columns shows it; the queues are in the side panel), so Status has room for its words.
