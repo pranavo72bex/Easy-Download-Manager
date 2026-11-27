@@ -262,10 +262,10 @@ fn a_column_turned_off_is_gone_and_comes_back() {
     h.click("Columns");
     h.click("Transfer rate");
     h.until("the column gone", |h| !h.shows("Transfer rate"));
-    // Kept beside the three hidden at first, in order.
+    // Kept beside the four hidden at first, in order.
     assert_eq!(
         kept(&mut h).columns_hidden,
-        ["description", "folder", "rate", "referrer"],
+        ["description", "folder", "queue", "rate", "referrer"],
         "not kept for the next launch"
     );
     assert!(

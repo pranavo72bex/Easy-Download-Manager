@@ -486,6 +486,8 @@ fn the_places_are_reachable_when_they_give_way_at_large_text() {
     let world = world();
     let mut h = world.harness();
     h.resize(720.0, 460.0);
+    // A kind is listed once it holds a download.
+    add_later(&mut h, &world, &["clip.mp4"]);
     text_size(&mut h, 1.2);
     h.click("Videos");
     h.until("Videos chosen", |h| {
@@ -630,6 +632,9 @@ fn the_queue_columns_heading_is_named_and_sorts() {
     let world = world();
     let mut h = world.harness();
     add_later(&mut h, &world, &["file.zip"]);
+    // Off for a new dm (a more minimal window, 2026-11-27): turned on, as View › Columns does.
+    h.settings_to(|s| s.columns_hidden.retain(|c| c != "queue"));
+    h.until_shown("Queue");
     assert!(!h.shows("Q"), "the heading still says Q");
     // Pressed on its own words: a place worked out from Size's cell landed on Size in
     // Windows' wider type.

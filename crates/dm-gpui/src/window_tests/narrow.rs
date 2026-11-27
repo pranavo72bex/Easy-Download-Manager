@@ -126,6 +126,8 @@ fn the_drawer_shows_the_categories_and_queues() {
     let _file = settings_file();
     let world = world();
     let mut h = phone(&world);
+    // A kind is listed once it holds a download.
+    add_later(&mut h, &world, &["clip.mp4"]);
     h.until_shown("Places");
     assert!(!h.shows("Main queue"), "the side panel beside the cards");
     h.person_click("Places", 1);

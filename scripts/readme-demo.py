@@ -175,4 +175,5 @@ def main():
     print(OUT / "demo-desktop.gif")
 
 
-main()
+if __name__ == "__main__":
+    main()
