@@ -118,58 +118,71 @@ pub fn titlebar(
         .border_b_1()
         .border_color(theme.separator)
         .child(drag_space().w(gpui::px(CONTROLS_AT)).flex_none())
-        .child(sidebar_button(view.layout.show_sidebar, theme, cx))
-        // On macOS, where the menus' titles are the system's bar's, the window's title is the
-        // place shown, as Finder titles its window with the folder shown (the maintainer's
-        // choice of 2026-11-26, "Page title", read as Finder reads it): "All downloads", a kind,
-        // a queue. Windows and Linux draw the menus' titles there.
-        .when(!MENU_TITLES_IN_WINDOW, |bar| {
-            let name = crate::window::sidebar::place_name(view)
-                .unwrap_or_else(|| t("All downloads").into());
-            bar.child(
-                div()
-                    .ml(px(space::S))
-                    .min_w_0()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child(screen.label(name)),
-            )
-        })
-        // The menus' titles in the window where the system has no menu bar of its own (Windows,
-        // Linux); on macOS they are the system's menu bar's, not drawn again here (the
-        // maintainer, 2026-11-27: "it is not hiding the Task File Download View Help on Macos. It
-        // should show on windows and linux"). The window tests open menus by these titles, as a
-        // Windows or Linux person does, on every system: the macOS bar is built from the same
-        // menus (`menus::set`).
-        .when(MENU_TITLES_IN_WINDOW, |bar| {
-            bar.child(
-                div()
-                    .id("menu-titles")
-                    .role(Role::MenuBar)
-                    .aria_label(t("Menu"))
-                    .relative()
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .ml(px(space::XS))
-                    .children(
-                        crate::window::menus::WINDOW_MENUS
-                            .iter()
-                            .enumerate()
-                            .map(|(i, name)| menu_title(i, t(name).into(), theme, screen, cx)),
-                    ),
-            )
-        })
-        // The empty space before the search box moves the window; the controls take their own
-        // clicks.
-        .child(drag_space().flex_1())
         .child(
-            search_box(view, Some(width), !open, focused, theme, screen, cx)
-                .when(!open, |b| shut_look(b, theme, cx)),
+            // Between the system's own buttons, the bar's: the side panel's switch, the title or
+            // the menus' titles, and the search, read from the right in Arabic and Hebrew (they
+            // stood from the left, gaps row U35), the traffic lights and Windows' own buttons
+            // where the system puts them.
+            div()
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .flex()
+                .map(crate::window::mirror::row)
+                .items_center()
+                .child(sidebar_button(view.layout.show_sidebar, theme, cx))
+                // On macOS, where the menus' titles are the system's bar's, the window's title is the
+                // place shown, as Finder titles its window with the folder shown (the maintainer's
+                // choice of 2026-11-26, "Page title", read as Finder reads it): "All downloads", a kind,
+                // a queue. Windows and Linux draw the menus' titles there.
+                .when(!MENU_TITLES_IN_WINDOW, |bar| {
+                    let name = crate::window::sidebar::place_name(view)
+                        .unwrap_or_else(|| t("All downloads").into());
+                    bar.child(
+                        div()
+                            // Room from the switch on either side, as the bar mirrors.
+                            .px(px(space::S))
+                            .min_w_0()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child(screen.label(name)),
+                    )
+                })
+                // The menus' titles in the window where the system has no menu bar of its own (Windows,
+                // Linux); on macOS they are the system's menu bar's, not drawn again here (the
+                // maintainer, 2026-11-27: "it is not hiding the Task File Download View Help on Macos. It
+                // should show on windows and linux"). The window tests open menus by these titles, as a
+                // Windows or Linux person does, on every system: the macOS bar is built from the same
+                // menus (`menus::set`).
+                .when(MENU_TITLES_IN_WINDOW, |bar| {
+                    bar.child(
+                        div()
+                            .id("menu-titles")
+                            .role(Role::MenuBar)
+                            .aria_label(t("Menu"))
+                            .relative()
+                            .flex()
+                            .flex_none()
+                            .items_center()
+                            .ml(px(space::XS))
+                            .children(
+                                crate::window::menus::WINDOW_MENUS.iter().enumerate().map(
+                                    |(i, name)| menu_title(i, t(name).into(), theme, screen, cx),
+                                ),
+                            ),
+                    )
+                })
+                // The empty space before the search box moves the window; the controls take their own
+                // clicks.
+                .child(drag_space().flex_1())
+                .child(
+                    search_box(view, Some(width), !open, focused, theme, screen, cx)
+                        .when(!open, |b| shut_look(b, theme, cx)),
+                )
+                .child(drag_space().w(px(space::M)).flex_none()),
         )
-        .child(drag_space().w(px(space::M)).flex_none())
         .children(window_buttons(theme, window.is_maximized()))
 }
 

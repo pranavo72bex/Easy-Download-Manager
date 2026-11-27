@@ -43,8 +43,16 @@ pub fn figures() -> gpui::FontFeatures {
 thread_local! {
     /// The text system and the font the window's words are set in, as `measure_with` kept
     /// them: one for each thread an application runs on (a test's own).
-    static MEASURE: std::cell::RefCell<Option<(std::sync::Arc<gpui::TextSystem>, gpui::FontId)>> =
-        const { std::cell::RefCell::new(None) };
+    static MEASURE: std::cell::RefCell<Option<Measure>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What words are measured with: the text system, the interface font and its id, and a line
+/// shaper of its own (`WindowTextSystem`), which sets a run of letters as it is drawn.
+struct Measure {
+    system: std::sync::Arc<gpui::TextSystem>,
+    font_id: gpui::FontId,
+    font: gpui::Font,
+    lines: gpui::WindowTextSystem,
 }
 
 /// Keeps `cx`'s text system and the interface font, so `label_width` measures words as they
@@ -52,8 +60,17 @@ thread_local! {
 pub fn measure_with(cx: &gpui::App) {
     let family = gpui_component::ActiveTheme::theme(cx).font_family.clone();
     let system = cx.text_system().clone();
-    let font = system.resolve_font(&gpui::font(family));
-    MEASURE.with(|m| *m.borrow_mut() = Some((system, font)));
+    let font = gpui::font(family);
+    let font_id = system.resolve_font(&font);
+    let lines = gpui::WindowTextSystem::new(system.clone());
+    MEASURE.with(|m| {
+        *m.borrow_mut() = Some(Measure {
+            system,
+            font_id,
+            font,
+            lines,
+        })
+    });
 }
 
 /// How wide `words` are set at `size` points, at 100%: each letter as the system shapes it in
@@ -71,13 +88,36 @@ fn words_width(words: &str, size: f32) -> f32 {
     }) {
         return known;
     }
+    // Each letter alone, and the words set as one run, the wider: letters that join (Arabic)
+    // take other shapes in a run than alone, and "305.4 ك.ب/ث" measured letter by letter fell
+    // short and was cut; Latin letters set alone are no narrower than in a run.
     let measured = MEASURE.with(|m| {
-        m.borrow().as_ref().map(|(system, font)| {
-            words
+        m.borrow().as_ref().map(|measure| {
+            let alone = words
                 .chars()
-                .map(|ch| f32::from(system.layout_width(*font, gpui::px(size), ch)))
-                .sum::<f32>()
-                + 1.0
+                .map(|ch| {
+                    f32::from(
+                        measure
+                            .system
+                            .layout_width(measure.font_id, gpui::px(size), ch),
+                    )
+                })
+                .sum::<f32>();
+            let run = gpui::TextRun {
+                len: words.len(),
+                font: measure.font.clone(),
+                color: gpui::black(),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            };
+            let set = f32::from(
+                measure
+                    .lines
+                    .layout_line(words, gpui::px(size), &[run], None)
+                    .width,
+            );
+            alone.max(set) + 1.0
         })
     });
     match measured {
