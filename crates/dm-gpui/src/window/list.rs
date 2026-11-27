@@ -322,6 +322,10 @@ impl Downloads {
         // before the first frame are named now, where it has not been drawn yet (gaps row S16).
         self.name_the_rest();
         let allow_mcp = self.backend.settings().general.allow_mcp;
+        // A frame only where a request may have changed what is shown: a script asking for the
+        // rows ten or two hundred times a second (`bench/`, reference C's seven at a look every
+        // 5 ms) drew the whole window as often, most of its CPU (gaps row C0c).
+        let changes = asked.iter().any(|request| !reads_only(&request.method));
         for request in asked {
             let answer = match dm_shell::app::control_api::refused(
                 request.via_mcp,
@@ -333,7 +337,7 @@ impl Downloads {
             };
             self.reply(&request.method, (request.reply, answer));
         }
-        true
+        changes
     }
 
     /// Carries out a command from the menu bar or a key. What the shell
@@ -736,6 +740,16 @@ impl Render for Downloads {
 
 #[cfg(test)]
 mod tests {
+    /// Reading the rows or the screen draws no frame; anything that acts does (gaps row C0c).
+    #[test]
+    fn only_a_request_that_acts_draws_a_frame() {
+        assert!(super::reads_only("queue.list"));
+        assert!(super::reads_only("ui.texts"));
+        assert!(!super::reads_only("ui.click"));
+        assert!(!super::reads_only("batch"));
+        assert!(!super::reads_only("downloads.add"));
+    }
+
     use super::{clock, IDLE, RUNNING};
     use std::time::Duration;
 
@@ -749,4 +763,18 @@ mod tests {
         assert_eq!(clock(false, true), Duration::from_secs(1));
         assert_eq!(clock(false, false), IDLE);
     }
+}
+
+/// Whether the control port's `method` only reads, changing nothing the window shows: no frame
+/// is drawn for it. Every other method (a click, a command, `batch`, a screenshot) is drawn after.
+fn reads_only(method: &str) -> bool {
+    matches!(
+        method,
+        "queue.list"
+            | "ui.texts"
+            | "ui.windows"
+            | "ui.inspect"
+            | "ui.accessibility"
+            | "commands.list"
+    )
 }
