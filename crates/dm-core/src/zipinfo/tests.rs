@@ -120,3 +120,20 @@ fn a_zip_on_disk_is_listed_from_its_end_and_a_file_that_is_not_one_is_not() {
     assert!(zip_contents_of_file(&text).is_none());
     assert!(zip_contents_of_file(&dir.path().join("missing.zip")).is_none());
 }
+
+/// The nightly fuzzer's find (issue #72, `crash-7eb7dded`): a ZIP64 locator naming a record at
+/// the end of what a u64 holds. Reading 56 bytes from there overflowed and panicked; it is no
+/// listing now, as any other archive that does not add up.
+#[test]
+fn a_zip64_record_named_past_the_end_of_numbers_is_no_listing_not_a_panic() {
+    let crash: &[u8] = &[
+        0x84, 0xf, 0xf, 0xf, 0xf, 0xf, 0xa, 0xf, 0xf, 0xf, 0xf, 0x0, 0x0, 0x0, 0x50, 0x4b, 0x6,
+        0x7, 0x20, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0,
+        0xa3, 0xff, 0x50, 0x4b, 0x5, 0x6, 0xff, 0xff, 0xff, 0x0, 0xef, 0xff, 0xff, 0xff, 0xca,
+        0xca, 0xca, 0xd0, 0xca, 0xca, 0x24, 0x0, 0x0, 0x0,
+    ];
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("a.zip");
+    std::fs::write(&file, crash).unwrap();
+    assert!(zip_contents_of_file(&file).is_none());
+}

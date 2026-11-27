@@ -32,6 +32,15 @@ tempfile = "3"
 
 [workspace]
 
+# The crates dm builds with changes of its own (vendor/README.md), as the root workspace takes
+# them: without these the targets fuzzed crates.io's librqbit-bencode, whose unchecked number
+# reader overflows, not the checked one dm ships (issue #72). The fuzz targets build no window,
+# so the GPUI copies are not named.
+[patch.crates-io]
+librqbit = { path = "../vendor/librqbit" }
+librqbit-sha1-wrapper = { path = "../vendor/librqbit-sha1-wrapper" }
+librqbit-bencode = { path = "../vendor/librqbit-bencode" }
+
 [profile.release]
 debug = 1
 

@@ -265,7 +265,15 @@ pub async fn zip_contents(
     let (end_at, mut directory) = end_of_directory(&tail)?;
     if directory.needs64 {
         let record_at = locator64(&tail, end_at)?;
-        let record = range(client, url, referrer, sign_in, record_at, record_at + 55).await?;
+        let record = range(
+            client,
+            url,
+            referrer,
+            sign_in,
+            record_at,
+            record_at.checked_add(55)?,
+        )
+        .await?;
         directory = directory64(&record)?;
     }
     if directory.size > MOST_DIRECTORY || directory.offset.checked_add(directory.size)? > size {
@@ -287,7 +295,7 @@ pub async fn zip_contents(
             referrer,
             sign_in,
             directory.offset,
-            directory.offset + directory.size - 1,
+            (directory.offset + directory.size).checked_sub(1)?,
         )
         .await?
     };
@@ -338,7 +346,8 @@ pub async fn zip_take_one(
     }
     let skip =
         u64::from(u16_at(&header, 26).unwrap_or(0)) + u64::from(u16_at(&header, 28).unwrap_or(0));
-    let data_at = entry.at + 30 + skip;
+    // The archive's own numbers: a header far past what a u64 holds is no file to take out.
+    let data_at = entry.at.checked_add(30 + skip).ok_or_else(unreadable)?;
     let packed = if entry.packed == 0 {
         Vec::new()
     } else {
@@ -348,7 +357,9 @@ pub async fn zip_take_one(
             referrer,
             sign_in,
             data_at,
-            data_at + entry.packed - 1,
+            data_at
+                .checked_add(entry.packed - 1)
+                .ok_or_else(unreadable)?,
         )
         .await
         .ok_or_else(unreadable)?
@@ -429,7 +440,7 @@ pub fn zip_contents_of_file(path: &std::path::Path) -> Option<Vec<ZipEntry>> {
     let (end_at, mut directory) = end_of_directory(&tail)?;
     if directory.needs64 {
         let record_at = locator64(&tail, end_at)?;
-        let record = read_at(&mut file, record_at, record_at + 55)?;
+        let record = read_at(&mut file, record_at, record_at.checked_add(55)?)?;
         directory = directory64(&record)?;
     }
     if directory.size > MOST_DIRECTORY || directory.offset.checked_add(directory.size)? > size {
@@ -446,7 +457,7 @@ pub fn zip_contents_of_file(path: &std::path::Path) -> Option<Vec<ZipEntry>> {
         read_at(
             &mut file,
             directory.offset,
-            directory.offset + directory.size - 1,
+            (directory.offset + directory.size).checked_sub(1)?,
         )?
     };
     entries_of(&bytes, directory.entries)

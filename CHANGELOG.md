@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A damaged ZIP whose numbers run past their end (found by the nightly fuzzing) is reported as not a ZIP when Download details lists it, instead of stopping dm.
 - Password fields have an eye at their end that shows what you typed, and hides it again.
 - Options › Downloads says "Connections per file" is the most dm opens: it adds connections only while they make a download faster.
 - dm can run on a home server with no screen, in Docker: `tooling/docker/Dockerfile` and the guide's "dm on a home server" page. Downloads are added and listed with `docker exec`.
