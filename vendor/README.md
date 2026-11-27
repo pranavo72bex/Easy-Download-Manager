@@ -70,14 +70,15 @@ offered to the crate's makers.
 | `android-release-log` | A release build logs warnings and errors alone (Info in a debug build): upstream logged a heartbeat every five seconds and each lifecycle event in every build | gpui-android | `src/android/mod.rs` 1 | Android's alone | not yet |
 | `gl-limits` | An OpenGL ES adapter asked for the limits it has; upstream asked every native adapter for `downlevel_defaults`, whose compute limits GLES has not, so the device was refused and the window stayed black (on the Android emulator, and phones or Linux computers without Vulkan) | gpui-pre-wgpu | `src/wgpu_context.rs`, 1 | macOS draws with Metal; Windows with DirectX | not yet |
 | `android-one-backend` | On Android one backend, chosen before the window's surface is made: Vulkan where an instance with no window finds a Vulkan adapter, else GL alone. A Vulkan surface connects Android's window at once, so where no Vulkan adapter then worked, EGL found the window "already connected" and GL failed too | gpui-pre-wgpu | `src/wgpu_context.rs`, 1 | Android's alone: a desktop's window takes a surface of each kind | not yet |
+| `variable-weight` | A variable font's weights: a face asked for at a weight its `wght` axis holds is an instance of its own, shaped, measured and drawn at that weight; upstream shaped and drew every weight of one variable file at its default, and Android 12 and up ship Roboto as one variable file, so every semibold and medium on a phone drew at 400 (gaps row 225) | gpui-pre-wgpu | `src/cosmic_text_system.rs`, 6 | macOS (CoreText) and Windows (DirectWrite) pick a variable font's weight themselves | not yet |
 | `sha1` | `sha1-ring` backed by the pure-Rust sha1 and sha2 crates rather than aws-lc-rs | librqbit-sha1-wrapper | `Cargo.toml` 1, `src/lib.rs` 2 | One crate on every system | not yet |
 
 ## gpui-pre-wgpu (Android's renderer)
 
 `gpui-pre-wgpu/` is the crate published on crates.io at 0.3.12, GPUI's wgpu
 renderer, which Linux and Android draw with; dm's change is in
-`patches/gpui-pre-wgpu.patch` (rows `gl-limits` and `android-one-backend`
-above). Removed: its `Cargo.lock`, `.cargo_vcs_info.json` and `.cargo-ok`.
+`patches/gpui-pre-wgpu.patch` (rows `gl-limits`, `android-one-backend` and
+`variable-weight` above). Removed: its `Cargo.lock`, `.cargo_vcs_info.json` and `.cargo-ok`.
 Found on 2026-11-20 running dm on the Android emulator: before the change the
 window stayed black with "No GPU adapter found that can configure the display
 surface".

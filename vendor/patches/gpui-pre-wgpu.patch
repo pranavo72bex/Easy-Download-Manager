@@ -6,12 +6,183 @@ the code is marked `dm(<tag>):`, the tag its row in that file's table. The
 text before each file's section says what its hunks do, in order; git apply
 skips it.
 
+src/cosmic_text_system.rs:
+  1. variable-weight: a loaded face remembers the weight it is an instance at
+     and its normalized coordinates; its key, that weight.
+  2. variable-weight: every face loaded as its file is no instance.
+  3. variable-weight: a run is shaped at its instance's weight.
+  4. variable-weight: `variable_instance`, a variable face's instance at the
+     weight asked for, where its `wght` axis holds it.
+  5. variable-weight: a font asked for at a weight is that instance.
+  6. variable-weight: glyphs measured and drawn at the instance's coordinates.
+
 src/wgpu_context.rs:
   1. gl-limits: an OpenGL ES adapter asked for the limits it has.
   2. android-one-backend: the instance's backends from `backends()`.
   3. android-one-backend: `backends()`, one backend on Android, chosen
      before the window's surface is made.
 
+diff --git a/src/cosmic_text_system.rs b/src/cosmic_text_system.rs
+index 7750675..aca8182 100644
+--- a/src/cosmic_text_system.rs
++++ b/src/cosmic_text_system.rs
+@@ -44,6 +44,8 @@ impl FontKey {
+ struct LoadedFontKey {
+     database_id: cosmic_text::fontdb::ID,
+     font: FontKey,
++    /// dm(variable-weight): the instance's weight, 0 for the face as its file is.
++    weight: u16,
+ }
+ 
+ struct CosmicTextSystemState {
+@@ -63,6 +65,12 @@ struct CosmicTextSystemState {
+ 
+ struct LoadedFont {
+     font: Arc<CosmicTextFont>,
++    /// dm(variable-weight): the weight this face is drawn at where it is a variable font's
++    /// instance (`wght` set to it), and its normalized coordinates for swash; `None` and empty
++    /// for a face as its file is. Android 12 and up ship Roboto as one variable file, and every
++    /// weight asked of it drew at 400.
++    weight: Option<Weight>,
++    coords: Vec<i16>,
+     features: CosmicFontFeatures,
+     is_known_emoji_font: bool,
+     /// resolved at load time so `layout_line` shares one chain across faces.
+@@ -204,8 +212,12 @@ impl PlatformTextSystem for CosmicTextSystem {
+         };
+ 
+         let ix = find_best_match(font, candidates, &state)?;
+-
+-        Ok(candidates[ix])
++        let chosen = candidates[ix];
++        // dm(variable-weight): a variable face asked for a weight its `wght` axis holds is that
++        // weight's instance, a font of its own (shaped, measured and drawn at it).
++        Ok(state
++            .variable_instance(chosen, &key, font.weight.0)
++            .unwrap_or(chosen))
+     }
+ 
+     fn prewarm_fonts(&self, font_ids: &[FontId]) {
+@@ -239,7 +251,8 @@ impl PlatformTextSystem for CosmicTextSystem {
+ 
+     fn typographic_bounds(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Bounds<f32>> {
+         let lock = self.0.read();
+-        let glyph_metrics = lock.loaded_font(font_id).font.as_swash().glyph_metrics(&[]);
++        let loaded = lock.loaded_font(font_id);
++        let glyph_metrics = loaded.font.as_swash().glyph_metrics(&loaded.coords);
+         let glyph_id = glyph_id.0 as u16;
+         Ok(Bounds {
+             origin: point(0.0, 0.0),
+@@ -303,12 +316,63 @@ impl CosmicTextSystemState {
+             primary_family_name: first_family.0.clone().into(),
+             stretch: face.stretch,
+             style: face.style,
+-            weight: face.weight,
++            weight: loaded_font.weight.unwrap_or(face.weight),
+             features: loaded_font.features.clone(),
+             fallback_chain: Arc::clone(&loaded_font.user_fallback_chain),
+         })
+     }
+ 
++    /// dm(variable-weight): `base`'s instance at `weight` where `base` is a variable font whose
++    /// `wght` axis holds `weight` and whose own weight is another; `None` otherwise.
++    fn variable_instance(&mut self, base: FontId, key: &FontKey, weight: f32) -> Option<FontId> {
++        let loaded = &self.loaded_fonts[base.0];
++        if loaded.weight.is_some() {
++            return None;
++        }
++        let database_id = loaded.font.id();
++        let face_weight = self.font_system.db().face(database_id)?.weight;
++        let wanted = Weight(weight.round().clamp(1.0, 1000.0) as u16);
++        if wanted == face_weight {
++            return None;
++        }
++        let axis = loaded
++            .font
++            .as_swash()
++            .variations()
++            .find_by_tag(swash::Tag::from_be_bytes(*b"wght"))?;
++        let value = wanted.0 as f32;
++        if value < axis.min_value() || value > axis.max_value() {
++            return None;
++        }
++        let instance_key = LoadedFontKey {
++            database_id,
++            font: key.clone(),
++            weight: wanted.0,
++        };
++        if let Some(&id) = self.loaded_font_ids_by_key.get(&instance_key) {
++            return Some(id);
++        }
++        let font = self.font_system.get_font(database_id, wanted)?;
++        let coords = font
++            .as_swash()
++            .variations()
++            .normalized_coords([(swash::Tag::from_be_bytes(*b"wght"), value)])
++            .collect();
++        let base = &self.loaded_fonts[base.0];
++        let instance = LoadedFont {
++            font,
++            weight: Some(wanted),
++            coords,
++            features: base.features.clone(),
++            is_known_emoji_font: base.is_known_emoji_font,
++            user_fallback_chain: Arc::clone(&base.user_fallback_chain),
++        };
++        let id = FontId(self.loaded_fonts.len());
++        self.loaded_fonts.push(instance);
++        self.loaded_font_ids_by_key.insert(instance_key, id);
++        Some(id)
++    }
++
+     fn prewarm_fonts(&mut self, font_ids: &[FontId]) {
+         for &font_id in font_ids {
+             let Some(properties) = self.font_match_properties(font_id) else {
+@@ -400,6 +464,7 @@ impl CosmicTextSystemState {
+             let key = LoadedFontKey {
+                 database_id,
+                 font: loaded_font_key.clone(),
++                weight: 0,
+             };
+             if let Some(&font_id) = self.loaded_font_ids_by_key.get(&key) {
+                 self.loaded_fonts[font_id.0].user_fallback_chain = Arc::clone(&user_fallback_chain);
+@@ -436,6 +501,8 @@ impl CosmicTextSystemState {
+             loaded_font_ids.push(font_id);
+             self.loaded_fonts.push(LoadedFont {
+                 font,
++                weight: None,
++                coords: Vec::new(),
+                 features: cosmic_features.clone(),
+                 is_known_emoji_font: check_is_known_emoji_font(&postscript_name),
+                 user_fallback_chain: Arc::clone(&user_fallback_chain),
+@@ -447,7 +514,8 @@ impl CosmicTextSystemState {
+     }
+ 
+     fn advance(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Size<f32>> {
+-        let glyph_metrics = self.loaded_font(font_id).font.as_swash().glyph_metrics(&[]);
++        let loaded = self.loaded_font(font_id);
++        let glyph_metrics = loaded.font.as_swash().glyph_metrics(&loaded.coords);
+         Ok(Size {
+             width: glyph_metrics.advance_width(glyph_id.0 as u16),
+             height: glyph_metrics.advance_height(glyph_id.0 as u16),
+@@ -528,6 +596,8 @@ impl CosmicTextSystemState {
+             .builder(font_ref)
+             .size(pixel_size * params.scale_factor)
+             .hint(true)
++            // dm(variable-weight): an instance drawn at its weight.
++            .normalized_coords(loaded_font.coords.iter())
+             .build();
+ 
+         let sources: &[Source] = if params.is_emoji {
+@@ -585,6 +655,8 @@ impl CosmicTextSystemState {
+             let font_id = FontId(self.loaded_fonts.len());
+             self.loaded_fonts.push(LoadedFont {
+                 font,
++                weight: None,
++                coords: Vec::new(),
+                 features: CosmicFontFeatures::new(),
+                 is_known_emoji_font: check_is_known_emoji_font(&face.post_script_name),
+                 user_fallback_chain: Arc::from(Vec::new()),
 diff --git a/src/wgpu_context.rs b/src/wgpu_context.rs
 index b566578..8aff7c5 100644
 --- a/src/wgpu_context.rs
