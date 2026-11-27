@@ -83,6 +83,18 @@ pub(crate) struct Narrow {
     pub(crate) laid_out: bool,
 }
 
+/// How far below the window's top the drawer starts: under the top bar where the system's
+/// traffic lights stand in it (a narrow window on macOS), whose red, yellow and green buttons
+/// were drawn over the drawer's first heading; from the top elsewhere, where nothing of the
+/// system's stands at the bar's start (a phone keeps clear of its own bars by `safe::edges`).
+fn drawer_clear_of_the_bar() -> gpui::Pixels {
+    if cfg!(target_os = "macos") && !crate::platform::ON_A_PHONE {
+        gpui::px(crate::window::titlebar::narrow_height())
+    } else {
+        gpui::px(0.0)
+    }
+}
+
 impl Downloads {
     /// The window's parts at a phone's width, on `root`: the top bar, the bars and the cards,
     /// the status bar, and the drawer or the sheet over them where open.
@@ -138,7 +150,7 @@ impl Downloads {
                     div()
                         .id("drawer")
                         .absolute()
-                        .top(safe.top)
+                        .top(safe.top + drawer_clear_of_the_bar())
                         .bottom(safe.bottom)
                         .left(safe.left)
                         .flex()
