@@ -176,6 +176,22 @@ pub struct SignIn {
     agent: Option<String>,
 }
 
+/// The last copy of a sign-in writes zero over its cookie and its header values as it goes
+/// (gaps row H15d): every request and connection holds a clone of the one buffer of each
+/// (`Arc`), so the one that is let go last is the only one that can, and must.
+impl Drop for SignIn {
+    fn drop(&mut self) {
+        if let Some(header) = Arc::get_mut(&mut self.header) {
+            crate::wipe::str(header);
+        }
+        if let Some(extra) = Arc::get_mut(&mut self.extra) {
+            for (_, value) in extra.iter_mut() {
+                crate::wipe::string(value);
+            }
+        }
+    }
+}
+
 /// The `User-Agent` a person gave a download, where its headers hold one. The browser never
 /// hands one over (the extension leaves it out), so one here is the person's.
 fn own_agent(headers: &[(String, String)]) -> Option<String> {

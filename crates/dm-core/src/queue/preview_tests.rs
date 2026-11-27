@@ -71,3 +71,19 @@ fn the_preview_of_a_torrent_is_its_largest_file_under_its_own_ending() {
     let again = preview_of(parts, "Sintel").unwrap();
     assert_eq!(std::fs::read(again).unwrap(), b"the film's first pieces");
 }
+
+/// A row's sign-in let go is emptied: its cookies and its headers (gaps row H15e); the bytes
+/// are written over first (`dm_net::wipe`'s own tests).
+#[test]
+fn a_row_forgets_its_sign_in() {
+    let mut entry: Entry = serde_json::from_str(
+        r#"{"id":1,"url":"https://example.com/f.bin","state":{"kind":"queued"},
+        "progress":{"downloaded":0,"total":null,"speed":0.0,"eta":null},"filename":""}"#,
+    )
+    .unwrap();
+    entry.cookies = "session=abc".into();
+    entry.headers = vec![("Authorization".into(), "Bearer xyz".into())];
+    entry.forget_sign_in();
+    assert!(entry.cookies.is_empty());
+    assert!(entry.headers.is_empty());
+}

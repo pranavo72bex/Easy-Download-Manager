@@ -341,6 +341,16 @@ fn is_zero_network(network: &u8) -> bool {
 }
 
 impl Entry {
+    /// The row's sign-in let go: its cookies and request headers written over with zeros, then
+    /// emptied (gaps row H15e), where a plain `clear` left them readable in freed memory.
+    pub(crate) fn forget_sign_in(&mut self) {
+        dm_net::wipe::string(&mut self.cookies);
+        for (_, value) in &mut self.headers {
+            dm_net::wipe::string(value);
+        }
+        self.headers.clear();
+    }
+
     /// What kind of failure this row's is, where it failed: the kind its error carried, or
     /// for a row with none (saved by a dm from before kinds, or made by hand) the one its
     /// sentence gives ([`crate::FailKind::of_old_text`]). `None` for a row that has not failed.

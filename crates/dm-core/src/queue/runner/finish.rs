@@ -351,8 +351,7 @@ impl DownloadList {
                 slot.entry_mut().mirrors = finished.mirrors;
                 slot.entry_mut().replaces = None;
                 if std::mem::take(&mut slot.entry_mut().cookies_once) {
-                    slot.entry_mut().cookies.clear();
-                    slot.entry_mut().headers.clear();
+                    slot.entry_mut().forget_sign_in();
                 }
                 State::Completed
             }

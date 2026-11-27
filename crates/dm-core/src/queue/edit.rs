@@ -358,8 +358,7 @@ impl DownloadList {
                 .and_then(|s| s.for_url(&url).map(|_| ()))
                 .is_some();
             if !same_server {
-                slot.entry_mut().cookies.clear();
-                slot.entry_mut().headers.clear();
+                slot.entry_mut().forget_sign_in();
             }
             slot.entry_mut().url = url;
             true

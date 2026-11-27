@@ -9228,3 +9228,14 @@ pile onto the start a player is reading. Nothing changes for a download nobody p
 `bench` and the speed floors are untouched. Dropped for now: a plan of small ordered pieces
 for every media file from its first byte, which costs requests on every video and needs
 `bench` to show it is no slower; left in the row, if wanted.
+
+## Secrets wiped by dm's own code, not a crate, 2026-11-27 (gaps row H15b)
+
+H15b asked for the `zeroize` crate or dm's own wipe. Chosen at the maintainer's standing word
+(the recommended option): dm's own (`dm_net::wipe`), as the clean-room rule asks for no new
+third-party package. It is a volatile write of zero to each byte, which the compiler may not
+drop as a dead store, then a compiler fence; a `String` is wiped over its whole capacity, as a
+value shortened in place leaves its old tail there. Three `unsafe` blocks, each with its SAFETY
+note. Used by `SignIn`'s `Drop` (the last of its clones, which share one buffer since H15c) and
+`Entry::forget_sign_in`. What a library copies on its way (reqwest's `HeaderValue`s, the
+kernel's buffers) is beyond it.
