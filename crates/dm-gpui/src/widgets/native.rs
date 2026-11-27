@@ -430,22 +430,37 @@ pub fn buttons(leading: Vec<gpui::AnyElement>, mut trailing: Vec<gpui::AnyElemen
             .children(leading)
             .children(trailing);
     }
+    // Where the window is too narrow for them in one row (Options at 400 points in Arabic, its
+    // Restore defaults long), Cancel and OK go to a line of their own at the trailing edge:
+    // OK ran past the window's edge.
     div()
         .mt(px(FOOTER_GAP - ROW_GAP))
         .flex()
         .map(crate::window::mirror::row)
+        .flex_wrap()
+        .justify_end()
+        .when(crate::window::mirror::rtl(), |d| d.justify_start())
         .items_center()
-        .gap(px(BUTTON_GAP))
+        .gap_x(px(BUTTON_GAP))
+        .gap_y(px(ROW_GAP))
         .child(
             div()
-                .flex_1()
+                .flex_grow(1.0)
                 .flex()
                 .map(crate::window::mirror::row)
                 .items_center()
                 .gap(px(LABEL_GAP))
                 .children(leading),
         )
-        .children(trailing)
+        // Cancel and OK as one: they wrap together, never one without the other.
+        .child(
+            div()
+                .flex()
+                .map(crate::window::mirror::row)
+                .items_center()
+                .gap(px(BUTTON_GAP))
+                .children(trailing),
+        )
 }
 
 /// A radio button and its words, as the system draws one: chosen, in the

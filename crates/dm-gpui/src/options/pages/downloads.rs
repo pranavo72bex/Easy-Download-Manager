@@ -78,9 +78,13 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
                 cx.notify();
             }))
     });
+    // The page's width, so the presets wrap where it has no room for them, from the right in a
+    // language read so: at 400 points in Arabic the row ran past the window's left edge.
     p.add(
         div()
+            .w_full()
             .flex()
+            .map(crate::window::mirror::row)
             .flex_wrap()
             .items_center()
             .gap(px(space::S))

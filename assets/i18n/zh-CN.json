@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "为其他用途留出速度",
  "dm on a USB stick": "U 盘上的 dm",
  "Settings": "设置",
- "{} download||{} downloads": "{} 个下载"
+ "{} download||{} downloads": "{} 个下载",
+ "Downloading": "正在下载",
+ "Failed": "失败",
+ "Today": "今天",
+ "Yesterday": "昨天",
+ "Previous 7 days": "过去 7 天",
+ "Previous 30 days": "过去 30 天",
+ "Earlier": "更早",
+ "No queue": "无队列"
 }

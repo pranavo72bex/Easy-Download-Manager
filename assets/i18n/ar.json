@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "اترك بعض السرعة لكل شيء آخر",
  "dm on a USB stick": "dm على ذاكرة USB",
  "Settings": "الإعدادات",
- "{} download||{} downloads": "{} تنزيل||{} تنزيل||{} تنزيلين||{} تنزيلات||{} تنزيلًا||{} تنزيل"
+ "{} download||{} downloads": "{} تنزيل||{} تنزيل||{} تنزيلين||{} تنزيلات||{} تنزيلًا||{} تنزيل",
+ "Downloading": "جارٍ التنزيل",
+ "Failed": "فشل",
+ "Today": "اليوم",
+ "Yesterday": "أمس",
+ "Previous 7 days": "آخر 7 أيام",
+ "Previous 30 days": "آخر 30 يومًا",
+ "Earlier": "أقدم",
+ "No queue": "بلا قائمة انتظار"
 }

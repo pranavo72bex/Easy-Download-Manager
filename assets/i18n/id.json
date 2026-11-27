@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "Sisakan kecepatan untuk yang lain",
  "dm on a USB stick": "dm di flashdisk USB",
  "Settings": "Pengaturan",
- "{} download||{} downloads": "{} unduhan"
+ "{} download||{} downloads": "{} unduhan",
+ "Downloading": "Mengunduh",
+ "Failed": "Gagal",
+ "Today": "Hari ini",
+ "Yesterday": "Kemarin",
+ "Previous 7 days": "7 hari terakhir",
+ "Previous 30 days": "30 hari terakhir",
+ "Earlier": "Lebih lama",
+ "No queue": "Tanpa antrean"
 }

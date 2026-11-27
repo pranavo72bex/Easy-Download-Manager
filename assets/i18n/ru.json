@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "Оставить скорость для остального",
  "dm on a USB stick": "dm на USB-флешке",
  "Settings": "Настройки",
- "{} download||{} downloads": "{} загрузка||{} загрузки||{} загрузок"
+ "{} download||{} downloads": "{} загрузка||{} загрузки||{} загрузок",
+ "Downloading": "Загружаются",
+ "Failed": "Не удалось",
+ "Today": "Сегодня",
+ "Yesterday": "Вчера",
+ "Previous 7 days": "Последние 7 дней",
+ "Previous 30 days": "Последние 30 дней",
+ "Earlier": "Ранее",
+ "No queue": "Без очереди"
 }

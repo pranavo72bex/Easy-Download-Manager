@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "다른 작업을 위해 속도 남기기",
  "dm on a USB stick": "USB 메모리의 dm",
  "Settings": "설정",
- "{} download||{} downloads": "다운로드 {}개"
+ "{} download||{} downloads": "다운로드 {}개",
+ "Downloading": "다운로드 중",
+ "Failed": "실패",
+ "Today": "오늘",
+ "Yesterday": "어제",
+ "Previous 7 days": "지난 7일",
+ "Previous 30 days": "지난 30일",
+ "Earlier": "이전",
+ "No queue": "대기열 없음"
 }

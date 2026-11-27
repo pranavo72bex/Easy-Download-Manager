@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "Geri kalanı için hız bırak",
  "dm on a USB stick": "USB bellekte dm",
  "Settings": "Ayarlar",
- "{} download||{} downloads": "{} indirme"
+ "{} download||{} downloads": "{} indirme",
+ "Downloading": "İndiriliyor",
+ "Failed": "Başarısız",
+ "Today": "Bugün",
+ "Yesterday": "Dün",
+ "Previous 7 days": "Son 7 gün",
+ "Previous 30 days": "Son 30 gün",
+ "Earlier": "Daha eski",
+ "No queue": "Kuyruk yok"
 }

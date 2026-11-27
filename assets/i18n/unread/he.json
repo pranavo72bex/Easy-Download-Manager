@@ -1091,5 +1091,13 @@
  "Run every (hours)",
  "0 runs it only when you ask.",
  "Settings",
- "{} download||{} downloads"
+ "{} download||{} downloads",
+ "Downloading",
+ "Failed",
+ "Today",
+ "Yesterday",
+ "Previous 7 days",
+ "Previous 30 days",
+ "Earlier",
+ "No queue"
 ]

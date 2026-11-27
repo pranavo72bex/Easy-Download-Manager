@@ -273,8 +273,13 @@ impl Probe<'_, '_> {
         let row = crate::window::zoom::of(ROW_HEIGHT);
         let first = (scrolled / row).floor().max(0.0) as usize;
         let count = (height / row).ceil() as usize + 1;
-        (first..(first + count).min(self.view.list.shown.len()))
-            .map(|i| (i, top + i as f32 * row - scrolled, left, width))
+        // Each line a row or a section heading (`list::groups`): the rows' places in the list.
+        (first..(first + count).min(self.view.line_count()))
+            .filter_map(|line| match self.view.line(line)? {
+                crate::window::list::Line::Row { at, .. } => Some((line, at)),
+                crate::window::list::Line::Heading(_) => None,
+            })
+            .map(|(line, i)| (i, top + line as f32 * row - scrolled, left, width))
             .filter(|(_, y, _, _)| *y + row > top && *y < top + height)
             .collect()
     }

@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "ほかの通信のために速度を残す",
  "dm on a USB stick": "USBメモリーで使うdm",
  "Settings": "設定",
- "{} download||{} downloads": "{} 件のダウンロード"
+ "{} download||{} downloads": "{} 件のダウンロード",
+ "Downloading": "ダウンロード中",
+ "Failed": "失敗",
+ "Today": "今日",
+ "Yesterday": "昨日",
+ "Previous 7 days": "過去7日間",
+ "Previous 30 days": "過去30日間",
+ "Earlier": "それ以前",
+ "No queue": "キューなし"
 }

@@ -117,6 +117,8 @@ mod commands;
 mod complete;
 mod detail;
 mod following;
+mod groups;
+pub(crate) use groups::Line;
 mod in_front;
 mod keys;
 mod later;
@@ -420,7 +422,7 @@ impl Downloads {
                 self.list.selected = std::collections::BTreeSet::from([row.id]);
                 self.list
                     .scroll
-                    .scroll_to_item(at, gpui::ScrollStrategy::Center);
+                    .scroll_to_item(self.line_of(at), gpui::ScrollStrategy::Center);
                 self.say(tf("Found {}.", &[&name]));
             }
             None => self.say(tf("Nothing is called “{}”.", &[&self.list.filter_text])),

@@ -16,6 +16,7 @@ use dm_shell::app::power::WhenDone;
 use crate::harness::world::{world, World, PAYLOAD};
 use crate::harness::{settings_file, Harness};
 
+mod headings;
 mod schedule_and_status;
 
 /// The settings in force.

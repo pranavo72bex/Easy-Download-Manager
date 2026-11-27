@@ -96,14 +96,18 @@ search, title and phone changes).
 1. `python3 scripts/ai-health.py`; then main's runs on `41de6a72` (CI, Desktop on three
    systems, Android, `contract-linux.yml`: the window changed, so its look against main's is
    expected to need the baseline taken again).
-2. The list's section headings (the maintainer's choice of 2026-11-26, the one left of "Section
-   headings, Page title and summary, One-colour icons, Chosen row like Options"): rows grouped
-   under a heading as Finder groups by date or kind. Needs care: sorting, the keys' row order,
-   the chosen row's index and the phone's cards all assume one flat list; a heading is not a row
-   for the keys, a screen reader or Select all.
+2. Done 2026-11-27: the list's section headings (`list/groups.rs`, `columns::group_of`, B25):
+   sorted by Status, Last try date or Queue, a heading over each run of rows; `shown` stays flat
+   and the headings are lines between rows. Left: a phone's cards have none (a heading as tall
+   as a card looked wrong; a list of mixed heights is a change to the cards' `uniform_list`).
+   Main's red Desktop (#78, titlebar.rs over 800 lines) is fixed in `2642cce0`.
 3. Keep refining the home screen and list on desktop and phone, English first (the
    maintainer: "keep fixing and refining UI english first in a loop"), each change pictured.
-4. Known: Options in Arabic at 400 points pushes OK past the window's edge.
+4. Done 2026-11-27: Options in Arabic at 400 points pushed OK past the window's edge; a
+   computer's dialog foot now wraps as a phone's (`native::buttons`, Cancel and OK as one, test
+   `a_narrow_options_foot_wraps_and_keeps_ok_in_the_window`). Seen in the same pictures, still
+   open: at 400 points in Arabic a hint's wrapped lines stand in the wrong order (Downloads'
+   "Connections per file" hint), and its presets' row runs past the left edge.
 5. Owed before a merge: `cargo test --workspace` and `python3 scripts/human-qa.py` in a visible
    window (B25's pictures are owed: the window changed); readers for the new unread lines
    ("{} download||{} downloads", the Grabber's hints, Settings…).
@@ -284,6 +288,7 @@ React, `h-dvh`, metadata) do not apply to GPUI.
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
 | E47 | A pop-up saying whether its choices are open is never read off a tree | PARTIAL · S · person | Done 2026-11-25: `.aria_expanded(open)` on the pop-up button, open while its sheet shows (`PICKING`); a desktop pop-up's choices are the system's menu, which the system announces. Left: read off the system's tree by `human-qa.py` or the emulator (GPUI's test windows build none, so the row's window test cannot be written) |
+| E52 | Arabic and Hebrew at a narrow width (Options at 400 points, found 2026-11-27 in `ui-shot.py` pictures with Options opened that narrow): a hint that wraps shows its lines in reverse order, the sentence's start on the last line (Downloads' "Connections per file" and "Sound language" hints), as GPUI on macOS breaks a right-to-left line by its glyphs' places from the left | OPEN · M | A wrapped right-to-left paragraph in reading order on macOS and Linux (a fix in the line wrapping, or dm breaking such hints into lines itself), checked in an Arabic picture at 400 points. Done 2026-11-27: Downloads' presets row, which ran past the left edge, has the page's width, wraps, and reads from the right |
 
 ## First priority: the window's design (rows E, the maintainer, 2026-11-23)
 

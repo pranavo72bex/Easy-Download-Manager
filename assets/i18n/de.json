@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "Etwas Geschwindigkeit für alles andere lassen",
  "dm on a USB stick": "dm auf einem USB-Stick",
  "Settings": "Einstellungen",
- "{} download||{} downloads": "{} Download||{} Downloads"
+ "{} download||{} downloads": "{} Download||{} Downloads",
+ "Downloading": "Wird geladen",
+ "Failed": "Fehlgeschlagen",
+ "Today": "Heute",
+ "Yesterday": "Gestern",
+ "Previous 7 days": "Letzte 7 Tage",
+ "Previous 30 days": "Letzte 30 Tage",
+ "Earlier": "Früher",
+ "No queue": "Keine Warteschlange"
 }
