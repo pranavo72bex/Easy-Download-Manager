@@ -149,7 +149,7 @@ impl Scheduler {
         let wake = self.draft.schedule.wake;
         // Start at and Stop at as wide as the wider of them, so their pickers line up where Stop
         // at goes under Start at (a phone): they stood 5 points apart (unslop review).
-        let times_label = native::text_width(&t("Start at")).max(native::text_width(&t("Stop at")));
+        let times_label = native::text_width(t("Start at")).max(native::text_width(t("Stop at")));
         let d = div().flex().flex_col().gap(px(native::ROW_GAP)).child(
             // Each time with its words, Stop at under Start at where a line has no room for
             // both (a phone, gaps row N31).
