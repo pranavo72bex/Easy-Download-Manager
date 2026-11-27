@@ -103,7 +103,11 @@ search, title and phone changes).
    Main's red Desktop (#78, titlebar.rs over 800 lines) is fixed in `2642cce0`.
 3. Keep refining the home screen and list on desktop and phone, English first (the
    maintainer: "keep fixing and refining UI english first in a loop"), each change pictured.
-4. Known: Options in Arabic at 400 points pushes OK past the window's edge.
+4. Done 2026-11-27: Options in Arabic at 400 points pushed OK past the window's edge; a
+   computer's dialog foot now wraps as a phone's (`native::buttons`, Cancel and OK as one, test
+   `a_narrow_options_foot_wraps_and_keeps_ok_in_the_window`). Seen in the same pictures, still
+   open: at 400 points in Arabic a hint's wrapped lines stand in the wrong order (Downloads'
+   "Connections per file" hint), and its presets' row runs past the left edge.
 5. Owed before a merge: `cargo test --workspace` and `python3 scripts/human-qa.py` in a visible
    window (B25's pictures are owed: the window changed); readers for the new unread lines
    ("{} download||{} downloads", the Grabber's hints, Settings…).

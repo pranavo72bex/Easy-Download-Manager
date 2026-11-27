@@ -292,3 +292,68 @@ fn a_pages_switches_stand_at_the_left_right_to_left() {
          {switch_words:?}, pop-up {popup:?}"
     );
 }
+
+/// Options as narrow as a phone's screen, in Arabic, on a page: its foot's buttons wrap, Cancel
+/// and OK together at the trailing edge, and none runs past the window's edge (at 400 points
+/// with the system's fonts Restore defaults pushed OK out of the window).
+#[test]
+fn a_narrow_options_foot_wraps_and_keeps_ok_in_the_window() {
+    use dm_desktop_base::i18n::t;
+    // The language is the process's.
+    let _file = settings_file();
+    let world = world();
+    let mut settings = world.settings();
+    settings.general.language = "ar".into();
+    let mut h = world.harness_with(settings);
+    dm_desktop_base::i18n::set("ar");
+    h.command("downloads.options");
+    h.until("Options", |h| {
+        h.dialog_words(t("Start dm when I sign in")).is_some()
+    });
+    let main = h.window;
+    let width = 240.0;
+    h.cx.update(|cx| {
+        for window in cx.windows() {
+            if window != main {
+                let _ = window.update(cx, |_, window, _| {
+                    window.resize(gpui::size(gpui::px(width), gpui::px(700.0)))
+                });
+            }
+        }
+    });
+    h.until("Options narrowed", |h| {
+        h.dialog(|_: &mut crate::options::Options, window, _| {
+            f32::from(window.viewport_size().width) <= width + 1.0
+        })
+    });
+    // Narrow, Options lists its pages: General opened, as a phone's settings open one.
+    if h.dialog_words(t("Restore defaults")).is_none() {
+        h.click(t("General"));
+    }
+    h.until("General's page", |h| {
+        h.dialog_words(t("Restore defaults")).is_some()
+    });
+    let ok = h.dialog_words(t("OK")).unwrap();
+    let cancel = h.dialog_words(t("Cancel")).unwrap();
+    let restore = h.dialog_words(t("Restore defaults")).unwrap();
+    dm_desktop_base::i18n::set("en");
+    for (name, b) in [
+        ("OK", ok),
+        ("Cancel", cancel),
+        ("Restore defaults", restore),
+    ] {
+        assert!(
+            b.left() >= gpui::px(0.0) && b.right() <= gpui::px(width),
+            "{name} out of the window, {width} wide: {b:?}"
+        );
+    }
+    assert_eq!(
+        ok.top(),
+        cancel.top(),
+        "Cancel and OK parted: {ok:?}, {cancel:?}"
+    );
+    assert!(
+        ok.top() > restore.top(),
+        "the foot did not wrap: {ok:?}, {restore:?}"
+    );
+}

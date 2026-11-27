@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A dialog made narrow (Options at a phone's width, in a language with long words such as Arabic) wraps its buttons: Cancel and OK go together onto a line of their own at the trailing edge; OK ran past the window's edge.
 - As Finder groups a sorted list: sorted by Status, Last try date or Queue, the download list groups its rows under small headings (Downloading, Finished…; Today, Yesterday, Previous 7 days…; each queue). The arrow keys, Select all and a screen reader pass the headings by; sorted by another column, or in the order added, there are none.
 - As Finder does: on macOS the window is titled with the place shown (All downloads, a kind, a queue), and the status bar starts with how many downloads it holds.
 - The search box works as Finder's: a magnifier at the top bar's end that opens into a field when clicked or with ⌘F (Ctrl+F), and shuts again when left empty, gliding between. On macOS the window no longer repeats the menus' titles (Tasks, File, Downloads, View, Help); the Mac's own menu bar holds them. Windows and Linux keep them in the window.
