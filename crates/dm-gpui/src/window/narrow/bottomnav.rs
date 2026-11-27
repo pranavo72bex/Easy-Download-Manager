@@ -112,6 +112,9 @@ fn tab_drawn(
         .aria_label(SharedString::from(words))
         .aria_selected(lit)
         .flex_1()
+        // Each a quarter of the bar whatever its word: at 200% "Options" ran past the screen's
+        // edge (better-layout review); a word too long for its quarter is cut with "…".
+        .min_w_0()
         .h_full()
         .flex()
         .flex_col()
@@ -157,6 +160,11 @@ fn tab_drawn(
         )
         .child(
             div()
+                .max_w_full()
+                .px(px(space::XS))
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
                 .text_size(px(crate::widgets::native::CAPTION_TEXT))
                 .text_color(colour)
                 .when(lit, |d| d.font_weight(gpui::FontWeight::SEMIBOLD))

@@ -31,11 +31,11 @@ const BROWSER_HINT_HIDDEN: &str = dm_core::paths::BROWSER_HINT_HIDDEN;
 /// bar looks into it again.
 const BROWSER_LOOKED_FOR: Duration = Duration::from_secs(3);
 
-/// The least width of a bar's words beside its buttons.
-const BAR_WORDS_MIN: f32 = 150.0;
-
 /// The room a bar's sentence asks for before its buttons go under it (`words`).
 const BAR_WORDS_BASIS: f32 = 300.0;
+
+/// The least width of the browser bar's sentence beside its browsers' buttons.
+const BAR_WORDS_MIN: f32 = 150.0;
 
 /// The browser bar's buttons at their words' width with the macOS and Linux least width,
 /// not Windows' dialog width (`native::BUTTON_MIN`, 120): four of those left its words no
@@ -66,14 +66,19 @@ pub(crate) fn words(said: impl IntoElement) -> gpui::Div {
         .flex_grow(1.0)
         .flex_shrink(1.0)
         .flex_basis(px(BAR_WORDS_BASIS))
-        .min_w(px(BAR_WORDS_MIN))
+        // As narrow as the room beside the mark and "+N messages", its words wrapping: a least
+        // width of 150 points was 300 at 200% text and ran under "+1 message" on a phone
+        // (better-layout review). The buttons go under the words by the basis, not by this.
+        .min_w_0()
         // A button's height, its words centred in it: the bar's first line is that tall whether
         // its buttons stand beside the words or under them, so the mark and "+N messages" line
         // up with the sentence (on a phone they floated between it and the buttons).
         .min_h(px(FIRST_LINE))
         .flex()
         .items_center()
-        .child(said)
+        // Its words may wrap: a flex row's child is otherwise as wide as its words, and at 200%
+        // the sentence ran under "+1 message" (better-layout review).
+        .child(div().flex_1().min_w_0().child(said))
 }
 
 /// A bar's buttons, kept together: they move to the next line as one, never one left beside
