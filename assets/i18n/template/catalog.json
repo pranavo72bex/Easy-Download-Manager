@@ -615,7 +615,7 @@
  "Shows Download details before a download from your browser starts.": "",
  "Asks you to click the file again on its page, to get a link that works.": "",
  "A saved file gets the date the website gives it, not today's.": "",
- "How many parts of a file dm fetches at once. More is faster on most sites, but some limit it.": "",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.": "",
  "How many files download at the same time.": "",
  "Keeps dm from using all of your connection.": "",
  "How many times dm tries again after a connection fails.": "",

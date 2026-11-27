@@ -615,7 +615,7 @@
  "Shows Download details before a download from your browser starts.": "Toont Downloaddetails voordat een download uit je browser start.",
  "Asks you to click the file again on its page, to get a link that works.": "Vraagt je het bestand op zijn pagina opnieuw aan te klikken om een werkende link te krijgen.",
  "A saved file gets the date the website gives it, not today's.": "Een opgeslagen bestand krijgt de datum die de website opgeeft, niet die van vandaag.",
- "How many parts of a file dm fetches at once. More is faster on most sites, but some limit it.": "In hoeveel delen dm een bestand tegelijk ophaalt. Meer is op de meeste sites sneller, maar sommige beperken het.",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.": "Het hoogste aantal delen van een bestand dat dm tegelijk ophaalt. Het opent er alleen meer zolang die het sneller maken; sommige sites beperken dit.",
  "How many files download at the same time.": "Hoeveel bestanden tegelijk worden gedownload.",
  "Keeps dm from using all of your connection.": "Voorkomt dat dm je hele verbinding gebruikt.",
  "How many times dm tries again after a connection fails.": "Hoe vaak dm het opnieuw probeert nadat een verbinding mislukt.",

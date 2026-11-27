@@ -615,7 +615,7 @@
  "Shows Download details before a download from your browser starts.": "מציג את פרטי ההורדה לפני שמתחילה הורדה מהדפדפן.",
  "Asks you to click the file again on its page, to get a link that works.": "מבקש ללחוץ שוב על הקובץ בדף שלו, כדי לקבל קישור שעובד.",
  "A saved file gets the date the website gives it, not today's.": "קובץ שנשמר מקבל את התאריך שהאתר נותן לו, ולא את התאריך של היום.",
- "How many parts of a file dm fetches at once. More is faster on most sites, but some limit it.": "כמה חלקים של קובץ dm מוריד בו-זמנית. יותר זה מהיר יותר ברוב האתרים, אבל יש אתרים שמגבילים זאת.",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.": "המספר המרבי של חלקי קובץ ש-dm מוריד בבת אחת. הוא פותח עוד רק כל עוד הם מאיצים; יש אתרים שמגבילים זאת.",
  "How many files download at the same time.": "כמה קבצים יורדים בו-זמנית.",
  "Keeps dm from using all of your connection.": "מונע מ-dm לנצל את כל החיבור שלך.",
  "How many times dm tries again after a connection fails.": "כמה פעמים dm מנסה שוב לאחר שחיבור נכשל.",

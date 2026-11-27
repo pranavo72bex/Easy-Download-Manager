@@ -615,7 +615,7 @@
  "Shows Download details before a download from your browser starts.": "Menampilkan Detail unduhan sebelum unduhan dari peramban Anda dimulai.",
  "Asks you to click the file again on its page, to get a link that works.": "Meminta Anda mengeklik file itu lagi di halamannya untuk mendapatkan tautan yang berfungsi.",
  "A saved file gets the date the website gives it, not today's.": "File yang disimpan mendapat tanggal dari situs web, bukan tanggal hari ini.",
- "How many parts of a file dm fetches at once. More is faster on most sites, but some limit it.": "Berapa bagian file yang diambil dm sekaligus. Lebih banyak lebih cepat di sebagian besar situs, tetapi ada yang membatasinya.",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.": "Jumlah terbanyak bagian file yang diambil dm sekaligus. Ia membuka lebih banyak hanya selama itu mempercepat; beberapa situs membatasinya.",
  "How many files download at the same time.": "Berapa file yang diunduh pada saat yang sama.",
  "Keeps dm from using all of your connection.": "Mencegah dm memakai seluruh koneksi Anda.",
  "How many times dm tries again after a connection fails.": "Berapa kali dm mencoba lagi setelah koneksi gagal.",

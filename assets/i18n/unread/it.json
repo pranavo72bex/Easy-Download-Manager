@@ -335,5 +335,6 @@
  "Choose a queue to start",
  "Choose a queue to stop",
  "Local time. Hours that end before they start run overnight.",
- "+{} message||+{} messages"
+ "+{} message||+{} messages",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it."
 ]

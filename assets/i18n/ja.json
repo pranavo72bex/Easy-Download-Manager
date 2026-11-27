@@ -615,7 +615,7 @@
  "Shows Download details before a download from your browser starts.": "ブラウザーからのダウンロードを開始する前にダウンロードの詳細を表示します。",
  "Asks you to click the file again on its page, to get a link that works.": "動作するリンクを得るために、そのページでもう一度ファイルをクリックするよう求めます。",
  "A saved file gets the date the website gives it, not today's.": "保存したファイルに、今日の日付ではなくウェブサイトが示す日付を付けます。",
- "How many parts of a file dm fetches at once. More is faster on most sites, but some limit it.": "dm が 1 つのファイルを同時にいくつの部分に分けて取得するか。多いほど多くのサイトで速くなりますが、制限するサイトもあります。",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.": "dm が同時に取得するファイルの部分の最大数です。速くなる間だけ増やします。制限するサイトもあります。",
  "How many files download at the same time.": "同時にダウンロードするファイルの数。",
  "Keeps dm from using all of your connection.": "dm が接続を使い切らないようにします。",
  "How many times dm tries again after a connection fails.": "接続に失敗した後、dm が再試行する回数。",

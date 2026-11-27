@@ -615,7 +615,7 @@
  "Shows Download details before a download from your browser starts.": "Affiche Détails du téléchargement avant le démarrage d'un téléchargement de votre navigateur.",
  "Asks you to click the file again on its page, to get a link that works.": "Vous demande de cliquer de nouveau sur le fichier sur sa page pour obtenir un lien qui fonctionne.",
  "A saved file gets the date the website gives it, not today's.": "Un fichier enregistré reçoit la date que lui donne le site web, pas celle d'aujourd'hui.",
- "How many parts of a file dm fetches at once. More is faster on most sites, but some limit it.": "En combien de parties dm récupère un fichier à la fois. Plus est plus rapide sur la plupart des sites, mais certains le limitent.",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.": "Le nombre maximal de parties d'un fichier que dm récupère à la fois. Il n'en ouvre davantage que tant qu'elles accélèrent ; certains sites le limitent.",
  "How many files download at the same time.": "Combien de fichiers se téléchargent en même temps.",
  "Keeps dm from using all of your connection.": "Empêche dm d'utiliser toute votre connexion.",
  "How many times dm tries again after a connection fails.": "Combien de fois dm réessaie après l'échec d'une connexion.",

@@ -615,7 +615,7 @@
  "Shows Download details before a download from your browser starts.": "Tarayıcınızdaki bir indirme başlamadan önce İndirme ayrıntıları gösterir.",
  "Asks you to click the file again on its page, to get a link that works.": "Çalışan bir bağlantı almak için dosyaya sayfasında yeniden tıklamanızı ister.",
  "A saved file gets the date the website gives it, not today's.": "Kaydedilen dosya, bugünün değil web sitesinin verdiği tarihi alır.",
- "How many parts of a file dm fetches at once. More is faster on most sites, but some limit it.": "dm'nin bir dosyayı aynı anda kaç parçada aldığı. Çoğu sitede daha fazlası daha hızlıdır, ancak bazıları sınırlar.",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.": "dm'nin bir dosyadan aynı anda aldığı en fazla parça sayısı. Daha fazlasını yalnızca hızlandırdıkça açar; bazı siteler bunu sınırlar.",
  "How many files download at the same time.": "Aynı anda kaç dosyanın indirildiği.",
  "Keeps dm from using all of your connection.": "dm'nin tüm bağlantınızı kullanmasını engeller.",
  "How many times dm tries again after a connection fails.": "Bir bağlantı başarısız olunca dm'nin kaç kez yeniden denediği.",

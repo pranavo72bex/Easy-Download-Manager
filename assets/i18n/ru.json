@@ -615,7 +615,7 @@
  "Shows Download details before a download from your browser starts.": "Показывает «Сведения о загрузке» перед началом загрузки из браузера.",
  "Asks you to click the file again on its page, to get a link that works.": "Просит снова щёлкнуть файл на его странице, чтобы получить рабочую ссылку.",
  "A saved file gets the date the website gives it, not today's.": "Сохранённый файл получает дату, которую указывает сайт, а не сегодняшнюю.",
- "How many parts of a file dm fetches at once. More is faster on most sites, but some limit it.": "На сколько частей dm разбивает файл при загрузке. Чем больше, тем быстрее на большинстве сайтов, но некоторые это ограничивают.",
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.": "Наибольшее число частей файла, которые dm качает одновременно. Он открывает больше, только пока это ускоряет; некоторые сайты это ограничивают.",
  "How many files download at the same time.": "Сколько файлов загружается одновременно.",
  "Keeps dm from using all of your connection.": "Не даёт dm занять всё ваше подключение.",
  "How many times dm tries again after a connection fails.": "Сколько раз dm повторяет попытку после сбоя подключения.",

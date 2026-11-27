@@ -44,7 +44,7 @@ fn connections(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Cont
         |o| o.draft.downloads.connections.to_string(),
     );
     p.setting(t("Connections per file"), true, connections);
-    p.hint(t("How many parts of a file dm fetches at once. More is faster on most sites, but some limit it."));
+    p.hint(t("The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it."));
     // The presets (B56): one sets the box; the one matching it is chosen.
     let now = o.draft.downloads.connections;
     let presets = options::CONNECTION_PRESETS.iter().map(|(words, count)| {

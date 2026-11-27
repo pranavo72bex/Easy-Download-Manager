@@ -24,7 +24,7 @@
 "Connections per file, Queues with their own limit, Queues that start at a set time" 220 104 860 125
 "Connections per file" 220 158.5 758 183
 "1" 770 147 860 195
-"How many parts of a file dm fetches at once. More is faster on most sites, but some limit it." 220 197 700 239
+"The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it." 220 197 700 239
 "Presets:" 220 270.5 283 291.5
 "Slow (2)" 299 270.5 362 291.5
 "Normal (8)" 388 270.5 466 291.5
