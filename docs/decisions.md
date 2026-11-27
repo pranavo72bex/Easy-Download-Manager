@@ -9214,3 +9214,17 @@ made. It is 7-Zip's largest choosable dictionary (1536 MB) and above RAR 5's own
 (1 GiB), so an archive made by either with its own settings unpacks. Dropped: 1 GiB (the row's
 example), which refuses 7-Zip's largest; a share of the computer's memory, which unpacks an
 archive on one machine and refuses it on another. RAR 3's window (4 MiB) is unchanged.
+
+## Preview fetches the rest in file order; nothing else changes, 2026-11-27 (gaps row W13)
+
+W13 asked how to let a video play while it downloads. An HTTP download is planned as one range
+per connection (eight at most open at once) and every range fills together, so the file's
+start is whole only late; pieces beyond the connections were taken from the file's end
+backwards (`in_order`, for servers that limit connections), and a free connection halved the
+slowest range. Chosen at the maintainer's standing word (the recommended option): Preview on a
+running download sets `Control::fetch_in_file_order`. From then on a connection takes the first
+piece nobody has, and halves the range nearest the file's start, so connections that finish
+pile onto the start a player is reading. Nothing changes for a download nobody previews, so
+`bench` and the speed floors are untouched. Dropped for now: a plan of small ordered pieces
+for every media file from its first byte, which costs requests on every video and needs
+`bench` to show it is no slower; left in the row, if wanted.

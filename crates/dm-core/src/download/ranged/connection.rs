@@ -187,6 +187,13 @@ impl Connection {
                 None => ControlFlow::Break(Flow::Leave),
             });
         }
+        // Preview asked for the file's start first: the first piece nobody has taken, in file
+        // order, before any given up on or any halving (gaps row W13).
+        if self.job.control.in_file_order() {
+            if let Some(index) = (0..self.planned).find(|&index| take(&self.job, index)) {
+                return Ok(ControlFlow::Continue(index));
+            }
+        }
         let counter = self.next.fetch_add(1, Ordering::Relaxed);
         let given = if counter < self.planned {
             Some(in_order(counter, self.planned))

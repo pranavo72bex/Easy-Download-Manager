@@ -223,3 +223,99 @@ async fn a_range_stalled_at_the_end_is_asked_again_within_moments() {
         "the others waited on the stalled range: {took:?}"
     );
 }
+
+/// A server of `data` that sends any answer starting within one of `slow`'s spans a chunk of
+/// 64 KiB every so often after its first, and every other at once; with what each request asked for.
+async fn paced(
+    data: Arc<Vec<u8>>,
+    slow: Vec<(std::ops::Range<usize>, Duration)>,
+) -> (String, Arc<Mutex<Vec<(usize, usize)>>>) {
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let seen = asked.clone();
+    let slow = Arc::new(slow);
+    let app = axum::Router::new().route(
+        "/f.bin",
+        get(move |headers: HeaderMap| {
+            let (data, seen, slow) = (data.clone(), seen.clone(), slow.clone());
+            async move {
+                let total = data.len();
+                let range = closed(&headers, total);
+                if let Some(range) = range.filter(|_| headers.contains_key("if-range")) {
+                    seen.lock().unwrap().push(range);
+                }
+                let (a, b) = range.unwrap_or((0, total - 1));
+                let pause = slow
+                    .iter()
+                    .find(|(span, _)| span.contains(&a))
+                    .map(|(_, pause)| *pause);
+                let chunks: Vec<bytes::Bytes> = data[a..=b]
+                    .chunks(64 * 1024)
+                    .map(bytes::Bytes::copy_from_slice)
+                    .collect();
+                // The first chunk at once, so the pace of each is known early; the rest paced.
+                let stream = futures_util::stream::iter(chunks.into_iter().enumerate()).then(
+                    move |(n, chunk)| async move {
+                        if let Some(pause) = pause.filter(|_| n > 0) {
+                            tokio::time::sleep(pause).await;
+                        }
+                        Ok::<_, std::io::Error>(chunk)
+                    },
+                );
+                Response::builder()
+                    .status(206)
+                    .header("accept-ranges", "bytes")
+                    .header("etag", "\"h\"")
+                    .header("content-range", format!("bytes {a}-{b}/{total}"))
+                    .header("content-length", b - a + 1)
+                    .body(Body::from_stream(stream))
+                    .unwrap()
+            }
+        }),
+    );
+    (format!("http://{}/f.bin", serve(app).await), asked)
+}
+
+/// Where the first range made by halving began: eight connections over 16 MB, eight ranges of
+/// 2 MB, the second (2 MB on) and the last (14 MB on) sent slowly, the last the slower; with
+/// the download's pieces in file order or not.
+async fn first_halved(in_file_order: bool) -> usize {
+    let data = body(16 * MB);
+    let slow = vec![
+        // Each range starts 64 bytes before its first byte (`LEAD_BYTES`): the third at 4 MB - 64.
+        (2 * MB - 64..4 * MB - 64, Duration::from_millis(25)),
+        (14 * MB - 64..16 * MB, Duration::from_millis(150)),
+    ];
+    let (url, asked) = paced(data.clone(), slow).await;
+    let dir = tempdir();
+    let opts = dm_core::Options {
+        connections: 8,
+        ..options(dir.path())
+    };
+    if in_file_order {
+        opts.control.fetch_in_file_order();
+    }
+    let done = download(&client(), &url, &opts)
+        .await
+        .expect("the download failed");
+    assert!(
+        std::fs::read(&done.path).unwrap() == *data,
+        "not the file served"
+    );
+    let fetched = ranges(&asked.lock().unwrap());
+    // The seven planned ranges after the probe's first, then the halvings.
+    let (start, _) = *fetched.get(7).expect("no range was halved");
+    start
+}
+
+/// Preview asks for a download's pieces in file order (gaps row W13): a connection with no
+/// range of its own halves the range nearest the file's start, where a player reads on, before
+/// a slower one further on, and the file comes whole. (Which of two slow ranges the default
+/// halves first depends on which shows its pace first: `halving::tests` holds the choice.)
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn in_file_order_the_range_nearest_the_start_is_halved_first() {
+    let start = first_halved(true).await;
+    assert!(
+        (2 * MB..4 * MB).contains(&start),
+        "in file order, the first halving began at {start}"
+    );
+}

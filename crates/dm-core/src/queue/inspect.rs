@@ -50,6 +50,11 @@ impl DownloadList {
         if entry.state == State::Completed {
             return Err("it has finished: open it instead".into());
         }
+        // What is left is fetched from the file's start onwards, so the player reading the
+        // preview finds more of it as it plays (gaps row W13).
+        if let Some(slot) = self.inner.slots.lock().await.get(&id) {
+            slot.control.fetch_in_file_order();
+        }
         let parts = self.parts_dir_of(id).await;
         tokio::task::spawn_blocking(move || preview_of(&parts, &entry.filename))
             .await

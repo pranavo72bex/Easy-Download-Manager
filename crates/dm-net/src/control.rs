@@ -12,7 +12,7 @@
 //! there is no state here beyond a single flag: everything else is already
 //! on disk.
 
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
 
 const RUN: u8 = 0;
@@ -40,7 +40,15 @@ pub enum Wanted {
 /// download that has already ended to pause is a no-op rather than an error,
 /// because the alternative is every caller racing to check first.
 #[derive(Debug, Clone, Default)]
-pub struct Control(Arc<AtomicU8>);
+pub struct Control(Arc<Shared>);
+
+/// What a [`Control`]'s handles share: what the download was asked to do, and whether its
+/// pieces are fetched in file order from now on ([`Control::fetch_in_file_order`]).
+#[derive(Debug, Default)]
+struct Shared {
+    wanted: AtomicU8,
+    in_file_order: AtomicBool,
+}
 
 impl Control {
     /// A handle that asks for nothing yet.
@@ -55,6 +63,7 @@ impl Control {
         // talked back into merely pausing.
         let _ = self
             .0
+            .wanted
             .compare_exchange(RUN, PAUSE, Ordering::SeqCst, Ordering::SeqCst);
     }
 
@@ -62,13 +71,14 @@ impl Control {
     pub fn resume(&self) {
         let _ = self
             .0
+            .wanted
             .compare_exchange(PAUSE, RUN, Ordering::SeqCst, Ordering::SeqCst);
     }
 
     /// Cancelling is final. A cancelled download is not resumed, it is added
     /// again — which is a different thing, with a different id.
     pub fn cancel(&self) {
-        self.0.store(CANCEL, Ordering::SeqCst);
+        self.0.wanted.store(CANCEL, Ordering::SeqCst);
     }
 
     /// Whether two handles speak for the same download run.
@@ -85,11 +95,25 @@ impl Control {
     /// What the download has been asked to do now.
     #[must_use]
     pub fn wanted(&self) -> Wanted {
-        match self.0.load(Ordering::Relaxed) {
+        match self.0.wanted.load(Ordering::Relaxed) {
             PAUSE => Wanted::Pause,
             CANCEL => Wanted::Cancel,
             _ => Wanted::Run,
         }
+    }
+
+    /// Asks the download to fetch what is left of it from its start onwards, in file order
+    /// (gaps row W13): Preview asked for a video or sound file a player is about to read from
+    /// its start. Pieces are otherwise taken from the file's end backwards after the first,
+    /// which suits a server that limits connections and leaves the file's middle to the last.
+    pub fn fetch_in_file_order(&self) {
+        self.0.in_file_order.store(true, Ordering::Relaxed);
+    }
+
+    /// Whether [`Control::fetch_in_file_order`] was asked.
+    #[must_use]
+    pub fn in_file_order(&self) -> bool {
+        self.0.in_file_order.load(Ordering::Relaxed)
     }
 
     /// Stops here if stopping is what was asked for.

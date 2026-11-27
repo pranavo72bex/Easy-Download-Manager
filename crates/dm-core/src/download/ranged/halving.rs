@@ -18,7 +18,22 @@ pub(super) enum Halving {
     Nothing,
 }
 
-/// Halves the range its own connection would take longest to finish, under that connection,
+/// Whether `candidate` (a range's index, its start and the time it has left) is halved before
+/// `chosen`: the slower, or in file order the nearer the file's start.
+fn first_to_halve(
+    chosen: (usize, u64, f64),
+    candidate: (usize, u64, f64),
+    start_first: bool,
+) -> bool {
+    if start_first {
+        candidate.1 < chosen.1
+    } else {
+        candidate.2 > chosen.2
+    }
+}
+
+/// Halves the range its own connection would take longest to finish (in file order, the one
+/// nearest the file's start: [`Control::fetch_in_file_order`](crate::Control)), under that connection,
 /// where that is longer than a new request is worth (`Job::split_worth`), and returns the new
 /// range made of its back half. Only says whether anything is left to halve when not `judging`.
 ///
@@ -39,8 +54,11 @@ pub(super) async fn split_largest(job: &Job, judging: bool) -> Halving {
         return Halving::Nothing;
     }
     let (now, worth) = (tokio::time::Instant::now(), job.split_worth().as_secs_f64());
+    // Preview asked for the file's start first (gaps row W13): the range worth halving nearest
+    // the file's start, not the slowest, so the free connections fill the start a player reads.
+    let start_first = job.control.in_file_order();
     let mut halvable = false;
-    let mut slowest: Option<(usize, f64)> = None;
+    let mut slowest: Option<(usize, u64, f64)> = None;
     for i in 0..index {
         let l = crate::lock(&job.live[i]);
         if !l.taken || l.left() < 2 * MIN_SPLIT {
@@ -51,12 +69,13 @@ pub(super) async fn split_largest(job: &Job, judging: bool) -> Halving {
             break;
         }
         if let Some(time) = l.time_left(now).filter(|&time| time > worth) {
-            if slowest.is_none_or(|(_, most)| time > most) {
-                slowest = Some((i, time));
+            let candidate = (i, l.start, time);
+            if slowest.is_none_or(|chosen| first_to_halve(chosen, candidate, start_first)) {
+                slowest = Some(candidate);
             }
         }
     }
-    let Some((victim, _)) = slowest else {
+    let Some((victim, _, _)) = slowest else {
         return if halvable {
             Halving::Later
         } else {
@@ -120,4 +139,21 @@ pub(super) async fn split_largest(job: &Job, judging: bool) -> Halving {
         },
     };
     Halving::Range(index)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::first_to_halve;
+
+    /// The slower of two ranges is halved first; in file order (Preview, gaps row W13), the one
+    /// nearer the file's start, however fast it goes.
+    #[test]
+    fn the_slowest_is_halved_first_or_in_file_order_the_nearest_the_start() {
+        let near_and_quick = (1, 2 << 20, 0.8);
+        let far_and_slow = (7, 14 << 20, 9.0);
+        assert!(first_to_halve(near_and_quick, far_and_slow, false));
+        assert!(!first_to_halve(far_and_slow, near_and_quick, false));
+        assert!(first_to_halve(far_and_slow, near_and_quick, true));
+        assert!(!first_to_halve(near_and_quick, far_and_slow, true));
+    }
 }

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Preview on a video that is still downloading fetches the rest from the start onwards: connections that finish their part help with the part nearest the start, so the player has more to play sooner. Downloads that are not previewed are fetched as before.
 - The message bar above the list says "+1 message" where more messages wait behind it; "+1 more" beside "1 download didn't finish." read as one more failed download.
 - On a Mac, a narrow window's side drawer opens under the top bar: the window's red, yellow and green buttons were drawn over its first heading.
 - The Scheduler's hint under its hours reads "Local time. Hours that end before they start run overnight."; it said "HH:MM", a typed form the hours' pickers no longer ask for.
