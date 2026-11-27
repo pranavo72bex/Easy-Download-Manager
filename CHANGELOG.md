@@ -5,6 +5,12 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a phone, the top bar says "All downloads" for every download, as the computer's title bar does, not the app's name "dm".
+- Start queue and Stop queue say which queue they act on when hovered ("Start queue: Main queue"), and the arrow beside each is easier to hit (24 points) and is named for what it does ("Choose a queue to start", "Choose a queue to stop"), where a screen reader heard "Queues" for both.
+- A more minimal home screen: the side panel lists a kind (Videos, Audio, Pictures…) only once it holds a download, and a new dm leaves the Queue column off (View › Columns shows it; the queues are in the side panel), so Status has room for its words.
+- The hint said once on a first download reads "Double-click a download to watch its progress." (it pointed to a Details button rows no longer have), and the Size and Transfer rate columns are wide enough for "999.9 MB" (a size such as "419.4 MB" was cut). The README's desktop demo is recorded again, by the new `scripts/readme-demo.py`.
+- At a new window's size the download list no longer scrolls sideways: where it has no room for every column's heading and its sort arrow, the columns are as wide as their figures, a heading that does not fit cut and whole on hover. The README's pictures are retaken, with Add URL and the Scheduler.
+- The search's magnifier at the top bar's end is drawn in the text's colour like the toolbar's pictures (it looked greyed out), with a larger lens, and its tooltip names its keys (⌘F, Ctrl+F); it and the side panel's button are one size with one hover face. On a phone, the menu's dots and Close are drawn pictures, not typed characters.
 - Options › Downloads' presets (Slow … Maximum) wrap at a narrow width and read from the right in Arabic and Hebrew; they ran past the window's edge.
 - A dialog made narrow (Options at a phone's width, in a language with long words such as Arabic) wraps its buttons: Cancel and OK go together onto a line of their own at the trailing edge; OK ran past the window's edge.
 - As Finder groups a sorted list: sorted by Status, Last try date or Queue, the download list groups its rows under small headings (Downloading, Finished…; Today, Yesterday, Previous 7 days…; each queue). The arrow keys, Select all and a screen reader pass the headings by; sorted by another column, or in the order added, there are none.

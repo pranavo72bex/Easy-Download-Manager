@@ -884,7 +884,7 @@
  "No setting says “{}”.": "Keine Einstellung enthält „{}“.",
  "Download complete — {}": "Download abgeschlossen — {}",
  "Details": "Details",
- "Hover a download and press Details to watch its progress.": "Fahren Sie über einen Download und klicken Sie auf „Details“, um den Fortschritt zu sehen.",
+ "Double-click a download to watch its progress.": "Doppelklicken Sie auf einen Download, um den Fortschritt zu sehen.",
  "User-Agent": "User-Agent",
  "Request headers": "Anfrage-Header",
  "Name: value | Name: value": "Name: Wert | Name: Wert",
@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Letzte 7 Tage",
  "Previous 30 days": "Letzte 30 Tage",
  "Earlier": "Früher",
- "No queue": "Keine Warteschlange"
+ "No queue": "Keine Warteschlange",
+ "Choose a queue to start": "Warteschlange zum Starten wählen",
+ "Choose a queue to stop": "Warteschlange zum Stoppen wählen"
 }

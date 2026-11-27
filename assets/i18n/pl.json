@@ -884,7 +884,7 @@
  "No setting says “{}”.": "Żadne ustawienie nie zawiera „{}”.",
  "Download complete — {}": "Pobieranie zakończone — {}",
  "Details": "Szczegóły",
- "Hover a download and press Details to watch its progress.": "Najedź na pobieranie i naciśnij Szczegóły, aby śledzić jego postęp.",
+ "Double-click a download to watch its progress.": "Kliknij dwukrotnie pobieranie, aby śledzić jego postęp.",
  "User-Agent": "User-Agent",
  "Request headers": "Nagłówki żądania",
  "Name: value | Name: value": "Nazwa: wartość | Nazwa: wartość",
@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Ostatnie 7 dni",
  "Previous 30 days": "Ostatnie 30 dni",
  "Earlier": "Wcześniej",
- "No queue": "Bez kolejki"
+ "No queue": "Bez kolejki",
+ "Choose a queue to start": "Wybierz kolejkę do uruchomienia",
+ "Choose a queue to stop": "Wybierz kolejkę do zatrzymania"
 }

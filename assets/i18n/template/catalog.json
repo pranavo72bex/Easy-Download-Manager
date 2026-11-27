@@ -884,7 +884,7 @@
  "No setting says “{}”.": "",
  "Download complete — {}": "",
  "Details": "",
- "Hover a download and press Details to watch its progress.": "",
+ "Double-click a download to watch its progress.": "",
  "User-Agent": "",
  "Request headers": "",
  "Name: value | Name: value": "",
@@ -1120,5 +1120,7 @@
  "Previous 7 days": "",
  "Previous 30 days": "",
  "Earlier": "",
- "No queue": ""
+ "No queue": "",
+ "Choose a queue to start": "",
+ "Choose a queue to stop": ""
 }

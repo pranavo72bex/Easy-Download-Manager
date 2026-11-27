@@ -98,6 +98,9 @@ The eye must have somewhere to start. Every window is checked against these, at 
     Finder does: body text `TEXT` (13), secondary text `SMALL_TEXT` (11) in `muted`, a side
     panel's place and a list's row 28 points tall, a list's name in the text's colour and every
     other column in `muted`, a section's heading small, semibold and in `muted`.
+    A picture that is a button (the toolbar's, the top bar's magnifier and side-panel switch) is
+    in the text's colour; `muted` is for a picture beside words it explains (a field's hint,
+    a heading's arrow), where it would read as greyed on a button.
 
 ## Words
 
@@ -183,7 +186,8 @@ Each system's own sizes, in points, macOS / Windows / Linux, and a phone's:
 | Between rows of a form (`ROW_GAP`) | 8 | 8 | 10 | 14 |
 | A control's corners (`RADIUS`) | 5 | 4 | 6 | 10 |
 
-Spacing steps (`space`): 2, 4, 6, 8, 10, 12, 16, 20, 24; a touch target is at least 48.
+Spacing steps (`space`): 2, 4, 6, 8, 10, 12, 16, 20; a pointer's target is at least 24
+(`TARGET`, WCAG 2.5.8), a touch target at least 48 (`TOUCH`).
 Pictures (`native`): `ICON_SMALL` 12 beside small words, `ICON` 16 beside body text,
 `ICON_TOOL` 18 in the toolbar, `ICON_LARGE` 20 on a phone; drawn on a 24 grid at a stroke of
 2.25, so a picture at 16 points draws its lines 1.5 points wide, the weight of the regular text

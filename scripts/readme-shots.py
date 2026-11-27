@@ -15,7 +15,8 @@ four downloads from a server on 127.0.0.1, as a person would have them: one
 finished, one running (its server sends it slowly), one added for later
 and one whose link no longer works. Then it is pictured by the system, as it
 stands on screen: the window (screenshot.png), a download's progress window
-(progress.png) and Options (settings.png), each with its -dark twin. The
+(progress.png) and Options (settings.png), each with its -dark twin, and in
+the dark look Add URL (addurl-dark.png) and the Scheduler (scheduler-dark.png). The
 download folder is shown as ~/Downloads, nothing of the computer that made
 them. macOS, as its window is pictured with `screencapture`; standard
 library only.
@@ -163,6 +164,8 @@ def take(look, base, work):
     # so the window is pictured as a person leaves it.
     (home / "settings.json").write_text(json.dumps({
         "theme": look, "download_dir": str(downloads), "show_progress": False, "show_complete": False,
+        # The settings' edition, or dm takes its defaults: every pop-up on.
+        "popups_version": 2,
     }), encoding="utf-8")
     dm = Dm(home)
     try:
@@ -177,10 +180,13 @@ def take(look, base, work):
         time.sleep(1.0)
         # A link that answers 404 says so in a window of its own: closed, as a
         # person closes it.
+        # Its button says Close (it said OK).
         for _ in range(10):
-            if "OK" not in [t["text"] for t in dm.call("ui.texts").get("texts", []) if t.get("window") == "dialog"]:
+            said = [t["text"] for t in dm.call("ui.texts").get("texts", []) if t.get("window") == "dialog"]
+            button = next((b for b in ("Close", "OK") if b in said), None)
+            if button is None:
                 break
-            dm.call("ui.click", text="OK")
+            dm.call("ui.click", text=button)
             time.sleep(0.5)
         # A few seconds in, so its pieces and speed show.
         time.sleep(4)
@@ -197,6 +203,16 @@ def take(look, base, work):
         in_front(dm)
         picture_dialog(dm, "Options", OUT / f"settings{suffix}.png")
         dm.call("ui.key", key="Escape")
+        time.sleep(0.6)
+        # Add URL and the Scheduler, as the README's gallery shows them: in the dark look.
+        if look == "dark":
+            for command, title, name in (("program.add_url", "Add URL", "addurl"),
+                                         ("downloads.scheduler", "Scheduler", "scheduler")):
+                dm.call("command.run", id=command)
+                in_front(dm)
+                picture_dialog(dm, title, OUT / f"{name}{suffix}.png")
+                dm.call("ui.key", key="Escape")
+                time.sleep(0.6)
     finally:
         dm.quit()
 
@@ -218,6 +234,9 @@ def main():
         shutil.rmtree(work, ignore_errors=True)
     for name in ("screenshot", "progress", "settings"):
         print(f"{OUT / name}.png and {name}-dark.png")
+    for name in ("addurl", "scheduler"):
+        print(f"{OUT / name}-dark.png")
 
 
-main()
+if __name__ == "__main__":
+    main()

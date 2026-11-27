@@ -173,8 +173,35 @@ pub fn titlebar(
         .children(window_buttons(theme, window.is_maximized()))
 }
 
+/// A button of a phone's top bar: a finger's target ([`space::TOUCH`]), its picture
+/// [`phone_icon`]; its own click, not the bar's, whose double-click zooms the window.
+fn phone_button(id: &'static str, words: &'static str, theme: Theme) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .role(Role::Button)
+        .aria_label(words)
+        .flex_none()
+        .min_w(px(space::TOUCH))
+        .h(px(space::TOUCH))
+        .px(px(space::XS))
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(native::RADIUS))
+        .hover(|b| b.bg(theme.control))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+}
+
+/// A phone's top bar's picture, `path` in `colour`, at the bar's size.
+fn phone_icon(path: &'static str, colour: gpui::Rgba) -> gpui::Svg {
+    svg().path(path).size(px(PHONE_ICON)).text_color(colour)
+}
+
+/// A phone's top bar's pictures' size, in points.
+const PHONE_ICON: f32 = 24.0;
+
 /// The top bar at a phone's width (gaps row N7), in place of the menus' titles, the search
-/// box and the toolbar: the place chosen's name (else "dm") as its title, search, and the
+/// box and the toolbar: the place chosen's name ("All downloads" at All) as its title, search, and the
 /// overflow menu holding the toolbar's commands and the menus (`narrow.rs`). Search
 /// opens the desktop's own search box across the bar, the same words narrowing the same list,
 /// with a close that clears them. Still the window's title bar where dm draws one: past the
@@ -187,25 +214,8 @@ pub fn narrow_titlebar(
     window: &mut Window,
     cx: &mut Context<Downloads>,
 ) -> impl IntoElement {
-    let button = |id: &'static str, words: &'static str| {
-        div()
-            .id(id)
-            .role(Role::Button)
-            .aria_label(words)
-            .flex_none()
-            .min_w(px(space::TOUCH))
-            .h(px(space::TOUCH))
-            .px(px(space::XS))
-            .flex()
-            .items_center()
-            .justify_center()
-            .rounded(px(native::RADIUS))
-            .hover(|b| b.bg(theme.control))
-            // Its own click: not the bar's, whose double-click zooms the window.
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-    };
-    let icon =
-        |path: &'static str, colour: gpui::Rgba| svg().path(path).size(px(24.0)).text_color(colour);
+    let button = |id: &'static str, words: &'static str| phone_button(id, words, theme);
+    let icon = phone_icon;
     let menu = t("Menu");
     let filter = t("Filter");
     let close = t("Close");
@@ -237,10 +247,14 @@ pub fn narrow_titlebar(
         .child(
             button("search-close", close)
                 .on_click(cx.listener(|view, _, window, cx| view.close_search(window, cx)))
-                .child(screen.mark(close, div().child("✕"))),
+                .child(screen.mark(close, icon("icons/close.svg", theme.text))),
         )
     } else {
-        let title = crate::window::sidebar::place_name(view).unwrap_or_else(|| "dm".into());
+        // The place shown, as the computer's title bar names it; at All, "All downloads", not the
+        // app's name (the maintainer, 2026-11-27: "remove the app name like dm … from homescreen
+        // top left corner. make it minimilistic").
+        let title =
+            crate::window::sidebar::place_name(view).unwrap_or_else(|| t("All downloads").into());
         // The place's name as the bar's title, as a phone's apps name the screen shown; the
         // places are the bottom navigation's, and Add URL the button floating over the list.
         // On a phone, under the title, how the downloads go: the status bar's first words,
@@ -292,9 +306,9 @@ pub fn narrow_titlebar(
         )
         .child(
             button("overflow-button", menu)
-                .text_size(px(native::TEXT + 8.0))
                 .on_click(cx.listener(|view, _, _, cx| view.open_overflow(cx)))
-                .child(screen.mark(menu, div().child("⋮"))),
+                // A drawn mark, not the font's "⋮" (gaps row E41).
+                .child(screen.mark(menu, icon("icons/more-vertical.svg", theme.text))),
         )
     };
     bar.children(window_buttons(theme, window.is_maximized()))
@@ -311,24 +325,8 @@ fn choosing_bar(
 ) -> gpui::Stateful<gpui::Div> {
     use crate::window::menus::Run;
     use dm_shell::app::commands::Command;
-    let button = |id: &'static str, words: &'static str| {
-        div()
-            .id(id)
-            .role(Role::Button)
-            .aria_label(words)
-            .flex_none()
-            .min_w(px(space::TOUCH))
-            .h(px(space::TOUCH))
-            .px(px(space::XS))
-            .flex()
-            .items_center()
-            .justify_center()
-            .rounded(px(native::RADIUS))
-            .hover(|b| b.bg(theme.control))
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-    };
-    let icon =
-        |path: &'static str, colour: gpui::Rgba| svg().path(path).size(px(24.0)).text_color(colour);
+    let button = |id: &'static str, words: &'static str| phone_button(id, words, theme);
+    let icon = phone_icon;
     let close = t("Close");
     let all = t("Select all");
     let share = t("Share");
@@ -348,7 +346,7 @@ fn choosing_bar(
                 view.list.selected.clear();
                 cx.notify();
             }))
-            .child(screen.mark(close, div().child("✕"))),
+            .child(screen.mark(close, icon("icons/close.svg", theme.text))),
     )
     .child(
         div()
@@ -491,6 +489,12 @@ impl Downloads {
     }
 }
 
+/// A button of the bar (the side panel's switch, the search shut): its width and height, and
+/// its corners, one for both; its picture a toolbar button's (`native::ICON_TOOL`).
+const BAR_BUTTON: f32 = 28.0;
+const BAR_BUTTON_HEIGHT: f32 = 26.0;
+const BAR_CORNER: f32 = native::RADIUS + 1.0;
+
 /// Each of the window's own buttons' width, on Windows: the system's, in
 /// points on screen whatever the text size.
 const WINDOW_BUTTON: f32 = 46.0;
@@ -573,12 +577,12 @@ fn sidebar_button(shown: bool, theme: Theme, cx: &mut Context<Downloads>) -> imp
             gpui::Toggled::False
         })
         .flex_none()
-        .w(px(30.0))
-        .h(px(24.0))
+        .w(px(BAR_BUTTON))
+        .h(px(BAR_BUTTON_HEIGHT))
         .flex()
         .items_center()
         .justify_center()
-        .rounded(px(native::RADIUS))
+        .rounded(px(BAR_CORNER))
         .hover(|b| b.bg(theme.control))
         .tooltip(move |window, cx| {
             gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(words)).build(window, cx)
@@ -589,7 +593,9 @@ fn sidebar_button(shown: bool, theme: Theme, cx: &mut Context<Downloads>) -> imp
         .child(
             svg()
                 .path("icons/sidebar.svg")
-                .size(px(17.0))
-                .text_color(theme.muted),
+                .size(px(native::ICON_TOOL))
+                // The text's colour, as the toolbar's pictures under it: in the secondary
+                // colour it read as greyed.
+                .text_color(theme.text),
         )
 }

@@ -386,12 +386,19 @@ fn card(
                 format!("{}, {menu_of}", t("Row menu")).into(),
                 theme,
             )
-            .text_size(px(NAME_TEXT + 4.0))
-            .text_color(card_theme.muted)
             .on_click(cx.listener(move |view, _, _, cx| {
                 view.open_card_menu(id, cx);
             }))
-            .child(screen.mark(t("Row menu"), div().child("⋮"))),
+            // A drawn mark, not the font's "⋮" (gaps row E41).
+            .child(
+                screen.mark(
+                    t("Row menu"),
+                    gpui::svg()
+                        .path("icons/more-vertical.svg")
+                        .size(px(crate::widgets::native::ICON_LARGE))
+                        .text_color(card_theme.muted),
+                ),
+            ),
         )
         .into_any_element()
 }

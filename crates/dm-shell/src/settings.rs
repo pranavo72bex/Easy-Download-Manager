@@ -579,7 +579,9 @@ impl Default for Settings {
             // Description, Referrer and Folder in the columns menu, not shown at first: shown,
             // they lay past a new window's right edge, unseen, and made the list scroll
             // sideways (the maintainer, 2026-11-26).
-            columns_hidden: ["description", "referrer", "folder"]
+            // Queue too (the maintainer, 2026-11-27, a more minimal window): empty for most
+            // downloads, the queues in the side panel; View › Columns shows it again.
+            columns_hidden: ["queue", "description", "referrer", "folder"]
                 .map(String::from)
                 .to_vec(),
             sidebar_width: SIDEBAR_WIDTH.default,

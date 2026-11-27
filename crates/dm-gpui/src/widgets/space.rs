@@ -31,6 +31,10 @@ pub const XXL: f32 = 20.0;
 /// Forty points: room above an empty list's words, a section set apart.
 pub const SECTION: f32 = 40.0;
 
+/// Twenty-four points: a pointer's least target on a computer (WCAG 2.2, 2.5.8), for a control
+/// drawn smaller than its room, such as the toolbar's queue arrows.
+pub const TARGET: f32 = 24.0;
+
 /// Forty-eight points: a finger's least target at a phone's width (gaps row N7), as phones'
 /// own guidelines ask (44 to 48).
 pub const TOUCH: f32 = 48.0;

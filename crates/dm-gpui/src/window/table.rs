@@ -70,7 +70,10 @@ fn width(column: Column) -> Option<f32> {
 /// (`docs/ui-design.md` rule 7: an Arabic size, "2.1 ميغ…", and a cut heading had no way to be
 /// read whole). Queue, where no row shown waits in one, as wide as its heading alone: its room
 /// stood empty while the file's name beside it was cut. Status grows on its own (`cell`).
-fn own_width(column: Column, any_queue: bool) -> Option<f32> {
+/// Without `headings` (the list has no room for every heading whole), a column as wide as its
+/// figures need: its heading cut, whole on hover, rather than the list scrolling sideways at a
+/// new window's size (`docs/ui-design.md` rule 7: cut only where there is no more room).
+fn own_width(column: Column, any_queue: bool, headings: bool) -> Option<f32> {
     use crate::widgets::native::{small_width, text_width};
     let default = width(column)?;
     // The cell's margins (`px_2` each side), and the sort arrow's room beside a heading.
@@ -78,10 +81,20 @@ fn own_width(column: Column, any_queue: bool) -> Option<f32> {
     let heading = small_width(&format!("{} ▼", column.title())) + margins;
     // A figure as long as the column says: a size and a rate just under a thousand of their
     // unit, the time left in its two largest units.
-    let large = 1_073_217_536;
+    // Under a thousand of a unit, as the computer counts (a KB 1000 bytes on macOS, 1024 on
+    // Windows): "999.9 MB" and "1023.5 MB", wider than the "1.07 GB" a single number gave,
+    // which "419.4 MB" outgrew.
+    let large = [999_949_999_u64, 1_073_217_536];
+    let widest = |write: &dyn Fn(u64) -> String| {
+        large
+            .iter()
+            .map(|&n| text_width(&write(n)))
+            .fold(0.0_f32, f32::max)
+            + margins
+    };
     let figure = match column {
-        Column::Size => text_width(&format::bytes(large)) + margins,
-        Column::Rate => text_width(&format::rate(large as f64)) + margins,
+        Column::Size => widest(&format::bytes),
+        Column::Rate => widest(&|n| format::rate(n as f64)),
         Column::TimeLeft => {
             text_width(&format::span(std::time::Duration::from_secs(59 * 60 + 59))) + margins
         }
@@ -93,7 +106,8 @@ fn own_width(column: Column, any_queue: bool) -> Option<f32> {
     let own = match column {
         Column::Status => default,
         Column::Queue if !any_queue => heading,
-        _ => default.max(heading).max(figure),
+        _ if headings => default.max(heading).max(figure),
+        _ => default.max(figure),
     };
     Some(own.ceil())
 }
@@ -291,15 +305,34 @@ impl Downloads {
             .iter()
             .filter_map(|&r| self.rows.get(r))
             .any(|row| !row.queue.is_empty());
-        for column in columns(self) {
-            if column == Column::Status || widths.contains_key(column.key()) {
-                continue;
+        let given = widths.clone();
+        let own = |headings: bool| {
+            let mut widths = given.clone();
+            for column in columns(self) {
+                if column == Column::Status || widths.contains_key(column.key()) {
+                    continue;
+                }
+                if let Some(own) = own_width(column, any_queue, headings) {
+                    widths.insert(column.key().to_string(), own);
+                }
             }
-            if let Some(own) = own_width(column, any_queue) {
-                widths.insert(column.key().to_string(), own);
-            }
+            widths
+        };
+        let whole = own(true);
+        // The list's room as last laid out (none before its first frame): where every heading
+        // whole leaves the file name less than its least, the columns as wide as their figures.
+        let room =
+            f32::from(self.list.sideways.bounds().size.width) / crate::window::zoom::factor();
+        let needed: f32 = columns(self)
+            .into_iter()
+            .map(|column| width_of(column, &whole).unwrap_or(NAME_AT_LEAST))
+            .sum::<f32>()
+            + 8.0;
+        if room > 0.0 && needed > room {
+            own(false)
+        } else {
+            whole
         }
-        widths
     }
 
     /// A heading's edge dragged to `wide` points (at 100%): drawn at once, kept a few times a

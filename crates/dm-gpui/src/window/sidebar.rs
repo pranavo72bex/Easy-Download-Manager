@@ -83,10 +83,19 @@ fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> 
         Place::All,
         SharedString::from(t("All")),
     )];
+    // Only the kinds that hold a download, and the one shown (the maintainer, 2026-11-27: "more
+    // minimilistic … functional so that user do not have to dig"): an empty kind's place showed
+    // nothing; each comes into the panel with its first download.
+    let categories = settings.categories();
     for c in Category::ALL {
+        let place = Place::Kind(c);
+        if view.list.place != place && view.list.places.count(&place, &view.rows, &categories) == 0
+        {
+            continue;
+        }
         let word = dm_shell::app::names::category_word(c);
         let label = name(&dm_desktop_base::format::titled(&word));
-        all.push((None, Place::Kind(c), label.into()));
+        all.push((None, place, label.into()));
     }
     for custom in &settings.custom_categories {
         let custom = custom.name.trim();
@@ -110,7 +119,7 @@ fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> 
 }
 
 /// The place chosen's name as the panel lists it, for the phone's top bar (gaps row N7); none
-/// for All, every download, where the bar says "dm".
+/// for All, every download, where the bar says "All downloads".
 pub(crate) fn place_name(view: &Downloads) -> Option<SharedString> {
     if view.list.place == Place::All {
         return None;

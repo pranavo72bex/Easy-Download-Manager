@@ -884,7 +884,7 @@
  "No setting says “{}”.": "“{}” geçen ayar yok.",
  "Download complete — {}": "İndirme tamamlandı — {}",
  "Details": "Ayrıntılar",
- "Hover a download and press Details to watch its progress.": "Bir indirmenin üzerine gelin ve ilerlemesini izlemek için Ayrıntılar’a basın.",
+ "Double-click a download to watch its progress.": "İlerlemesini izlemek için bir indirmeye çift tıklayın.",
  "User-Agent": "Kullanıcı aracısı",
  "Request headers": "İstek üst bilgileri",
  "Name: value | Name: value": "Ad: değer | Ad: değer",
@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Son 7 gün",
  "Previous 30 days": "Son 30 gün",
  "Earlier": "Daha eski",
- "No queue": "Kuyruk yok"
+ "No queue": "Kuyruk yok",
+ "Choose a queue to start": "Başlatılacak kuyruğu seçin",
+ "Choose a queue to stop": "Durdurulacak kuyruğu seçin"
 }

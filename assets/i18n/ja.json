@@ -884,7 +884,7 @@
  "No setting says “{}”.": "「{}」を含む設定はありません。",
  "Download complete — {}": "ダウンロード完了 — {}",
  "Details": "詳細",
- "Hover a download and press Details to watch its progress.": "ダウンロードにポインターを合わせて「詳細」を押すと進行状況を確認できます。",
+ "Double-click a download to watch its progress.": "ダウンロードをダブルクリックすると進行状況を確認できます。",
  "User-Agent": "ユーザーエージェント",
  "Request headers": "リクエストヘッダー",
  "Name: value | Name: value": "名前: 値 | 名前: 値",
@@ -1120,5 +1120,7 @@
  "Previous 7 days": "過去7日間",
  "Previous 30 days": "過去30日間",
  "Earlier": "それ以前",
- "No queue": "キューなし"
+ "No queue": "キューなし",
+ "Choose a queue to start": "開始するキューを選択",
+ "Choose a queue to stop": "停止するキューを選択"
 }

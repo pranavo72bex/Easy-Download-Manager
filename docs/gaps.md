@@ -76,6 +76,25 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
+## Next session (written 2026-11-27, evening)
+
+**Done today, after the handoff below** (each pictured light and dark, on the Mac and the
+emulator): main's red Desktop (#78, `titlebar.rs` over 800 lines); the list's section headings
+(sorted by Status, Last try date or Queue); a narrow dialog's foot wraps (Options in Arabic at
+400 points); the top bar's magnifier and side-panel switch one button in the text's colour, the
+search's tooltip naming ⌘F; a phone's ⋮ and ✕ drawn; the list fits a new window (columns give
+up their headings' room before scrolling sideways; Size as wide as "999.9 MB"); a more minimal
+home screen at the maintainer's words ("minimilist … functional"): a kind in the side panel once
+it holds a download, Queue off for a new dm; the first-download hint says to double-click (the
+row's Details button it named is gone). README pictures and both demos taken again by
+`scripts/readme-shots.py`, the new `readme-demo.py` (desktop GIF) and `readme-phone.py` (the
+emulator's GIF and picture). B25 names each change.
+
+**Still owed:** `python3 scripts/human-qa.py` in a visible window (B25's pictures are owed:
+the window changed); E52's wrapped right-to-left hints; readers for the new unread lines.
+More minimal, if wanted (not done, as rows B19 and B64 name them): the toolbar's Stop all,
+Start queue and Stop queue could go under More by default.
+
 ## Next session (written 2026-11-27, for 2026-11-28)
 
 **Done 2026-11-26 and 27: the UI refinement, Finder as the reference** (all on main, last

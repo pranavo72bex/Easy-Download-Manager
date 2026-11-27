@@ -182,6 +182,8 @@ fn button(
     let queues = matches!(command, Command::StartQueue | Command::StopQueue)
         .then(|| view.known.queue_list.clone());
     let arrow = queues.map(|queues| queue_arrow(command, queues, theme));
+    let queues_named = matches!(command, Command::StartQueue | Command::StopQueue)
+        .then(|| dm_desktop_base::i18n::name(&view.current_queue()).to_string());
     let button = div()
         .id(command.id())
         .role(Role::Button)
@@ -246,16 +248,22 @@ fn button(
         )
         // Its words on hover where the button shows none, and why it is greyed where
         // it is (gaps row U5).
-        .when(!worded || why_off.is_some(), |b| {
-            let said = match why_off {
-                Some(why) => format!("{words}: {why}"),
-                None => words.to_string(),
-            };
-            b.tooltip(move |window, cx| {
-                gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(said.clone()))
-                    .build(window, cx)
-            })
-        });
+        // Start queue and Stop queue name the queue they act on, the one shown or the Main
+        // queue: the button's word alone left it to be guessed.
+        .when(
+            !worded || why_off.is_some() || queues_named.is_some(),
+            |b| {
+                let said = match (why_off, queues_named.clone()) {
+                    (Some(why), _) => format!("{words}: {why}"),
+                    (None, Some(queue)) => format!("{words}: {queue}"),
+                    (None, None) => words.to_string(),
+                };
+                b.tooltip(move |window, cx| {
+                    gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(said.clone()))
+                        .build(window, cx)
+                })
+            },
+        );
     div()
         .flex()
         .map(crate::window::mirror::row)
@@ -271,13 +279,21 @@ fn button(
 /// The arrow beside Start Queue or Stop Queue (`command`) that lists the `queues`; the one
 /// chosen is started or stopped. A split button's: a menu opens under it, so it points down
 /// (the up-and-down mark is a pop-up's, which picks a value), as tall as its button.
+/// Its width: WCAG 2.2's least target (2.5.8), as it stands against its button (it was 16).
+pub(super) const QUEUE_ARROW: f32 = space::TARGET;
+
 fn queue_arrow(command: Command, queues: Vec<String>, theme: Theme) -> impl IntoElement {
-    let named = dm_desktop_base::i18n::t("Queues");
+    // Named by what it does, each its own: both arrows were "Queues" to a screen reader.
+    let named = dm_desktop_base::i18n::t(if command == Command::StopQueue {
+        "Choose a queue to stop"
+    } else {
+        "Choose a queue to start"
+    });
     div()
         .id((command.id(), 1usize))
         .role(Role::Button)
         .aria_label(named)
-        .w(px(space::XL))
+        .w(px(QUEUE_ARROW))
         .flex()
         .items_center()
         .justify_center()

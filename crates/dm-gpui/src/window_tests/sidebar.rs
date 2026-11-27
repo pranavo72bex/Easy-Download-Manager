@@ -101,3 +101,33 @@ fn an_empty_place_names_itself() {
         .count();
     assert_eq!(named, 2, "the place's name in the panel and over the list");
 }
+
+/// The side panel lists a kind only while it holds a download (a more minimal window, the
+/// maintainer, 2026-11-27): a new dm's panel has All, Unfinished, Finished and the queues; a
+/// kind comes in with its first download, and the kind being shown stays listed.
+#[test]
+fn a_kind_is_listed_once_it_holds_a_download() {
+    use dm_shell::app::places::Place;
+    let world = world();
+    let mut h = world.harness();
+    h.until_shown("Unfinished");
+    for kind in ["Videos", "Audio", "Documents", "Pictures"] {
+        assert!(!h.shows(kind), "{kind} listed with nothing in it");
+    }
+    h.call(
+        "downloads.add",
+        serde_json::json!({ "urls": [world.url("clip.mp4")], "later": true }),
+    )
+    .unwrap();
+    h.until_shown("Videos");
+    assert!(!h.shows("Pictures"));
+    // Shown, it stays listed when its last download goes.
+    h.click("Videos");
+    h.until("Videos chosen", |h| {
+        h.view(|view| view.list.place == Place::Kind(dm_core::Category::Videos))
+    });
+    let id = h.rows()[0].id;
+    h.view(|view| view.backend.remove(id));
+    h.until("the row gone", |h| h.rows().is_empty());
+    assert!(h.shows("Videos"), "the place shown left the panel");
+}

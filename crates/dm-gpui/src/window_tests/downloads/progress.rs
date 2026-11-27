@@ -236,7 +236,7 @@ fn a_started_download_says_once_where_its_progress_is() {
     });
     h.add_url(&world.url("stalled.bin"), "Start now");
     h.until("it to run", running);
-    h.until("the hint", |h| h.said().contains("press Details"));
+    h.until("the hint", |h| h.said().contains("Double-click a download"));
     assert!(h.view(|view| view.backend.settings()).hinted_details);
     // Said, so not said again.
     h.view(|view| {

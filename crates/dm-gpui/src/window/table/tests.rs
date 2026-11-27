@@ -55,17 +55,34 @@ fn a_column_is_as_wide_as_its_heading_and_figures() {
         Column::Rate,
         Column::LastTry,
     ] {
-        let own = own_width(column, true).unwrap();
+        let own = own_width(column, true, true).unwrap();
         assert!(own >= width(column).unwrap(), "{column:?}");
         assert!(own >= small_width(column.title()) + 16.0, "{column:?}");
     }
-    let size = own_width(Column::Size, true).unwrap();
+    let size = own_width(Column::Size, true, true).unwrap();
     assert!(size >= text_width(&format::bytes(1_073_217_536)) + 16.0);
-    let empty_queue = own_width(Column::Queue, false).unwrap();
+    let empty_queue = own_width(Column::Queue, false, true).unwrap();
     assert!(empty_queue < width(Column::Queue).unwrap(), "{empty_queue}");
     assert!(empty_queue >= small_width(Column::Queue.title()) + 16.0);
-    assert_eq!(own_width(Column::Status, true), width(Column::Status));
-    assert_eq!(own_width(Column::Name, true), None);
+    assert_eq!(own_width(Column::Status, true, true), width(Column::Status));
+    assert_eq!(own_width(Column::Name, true, true), None);
+}
+
+/// Where the list has no room for every heading whole, a column is as wide as its figures need,
+/// never under its default: its heading is cut (whole on hover) rather than the list scrolling
+/// sideways at a new window's size.
+#[test]
+fn without_room_a_column_keeps_its_figures_and_gives_up_its_heading() {
+    use crate::widgets::native::text_width;
+    let rate = own_width(Column::Rate, true, false).unwrap();
+    assert!(rate >= width(Column::Rate).unwrap());
+    assert!(rate >= text_width(&format::rate(1_073_217_536.0)) + 16.0);
+    assert!(rate <= own_width(Column::Rate, true, true).unwrap());
+    let size = own_width(Column::Size, true, false).unwrap();
+    assert!(size >= text_width(&format::bytes(1_073_217_536)) + 16.0);
+    // As wide as the widest size under a thousand of a unit, as this computer counts.
+    assert!(size >= text_width(&format::bytes(999_949_999)) + 16.0);
+    assert!(size >= text_width(&format::bytes(419_400_000)) + 16.0);
 }
 
 /// Words are offered whole where they are wider than their room, as measured, not counted.
