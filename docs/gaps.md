@@ -43,6 +43,9 @@ row, bring that row up to date or delete it too. A step that is only partly done
 with what is done added to it. Add a `CHANGELOG.md` line in a user's words when a user would
 notice. `python3 scripts/gaps-check.py` says whether the file keeps this shape (CI runs it).
 
+**Not a row** (the maintainer, 2026-11-27): a native speaker's reading of a translation. Those
+come from people's reports, as issues, not from this file.
+
 **To add one:** write it as a step is written (small, one place, its files, its test, its
 "Done when"), mark it `· bot` or `· person`, and a bot can take it the same day.
 
@@ -91,7 +94,7 @@ row's Details button it named is gone). README pictures and both demos taken aga
 emulator's GIF and picture). B25 names each change.
 
 **Still owed:** `python3 scripts/human-qa.py` in a visible window (B25's pictures are owed:
-the window changed); readers for the new unread lines. E52 closed 2026-11-27: right-to-left words that
+the window changed). E52 closed 2026-11-27: right-to-left words that
 wrap are broken in reading order by dm (`widgets/reading.rs`).
 More minimal, if wanted (not done, as rows B19 and B64 name them): the toolbar's Stop all,
 Start queue and Stop queue could go under More by default.
@@ -129,8 +132,7 @@ search, title and phone changes).
    open: at 400 points in Arabic a hint's wrapped lines stand in the wrong order (Downloads'
    "Connections per file" hint), and its presets' row runs past the left edge.
 5. Owed before a merge: `cargo test --workspace` and `python3 scripts/human-qa.py` in a visible
-   window (B25's pictures are owed: the window changed); readers for the new unread lines
-   ("{} download||{} downloads", the Grabber's hints, Settings…).
+   window (B25's pictures are owed: the window changed).
 6. `cargo clean` the scratch target when the disk runs low (it filled to 0 on 2026-11-26).
 
 ## Next session (written 2026-11-26)
@@ -180,8 +182,6 @@ test there) and Android runs once main is pushed; then the rows the bots have no
    visible window (it now has B78; B25's and B78's pictures are owed).
 3. Bot rows next in order: C3c (a RAR in parts), C4a to C4c (live links in the Grabber), C5b to
    C5d, C6a to C6e (torrent rows' own commands), C8a and C8b, C11c to C11e.
-4. Owed: a reader for the lines added to `assets/i18n/unread/` (the six of Archive password,
-   "rtsp:// streams", "by category").
 
 ## Next session (written 2026-11-25, end of day)
 
@@ -211,7 +211,7 @@ E24 to E49 of the ui reviews, the most of them closed. `cargo test --workspace`:
    Narrator), E37 (B25's pictures), E41, E47, and E50 (the rules that need a
    picture or a walk).
 4. Owed checks: `python3 scripts/human-qa.py` in a visible window (B01's new screen reader
-   check, B25's pictures); a reader for the many lines added to `assets/i18n/unread/` today.
+   check, B25's pictures).
 5. Then rows K left for a person (K2's disk, K3d, K3e, K4), then rows H.
 
 **Disk:** `target/debug/deps` keeps every test binary each rebuild makes (78 GB today); the
@@ -237,8 +237,7 @@ passed, 0 failed.
    changes applied at once and a "More" section in Options on the phone (C21); the rest of N24.
 3. Owed checks: `python3 scripts/human-qa.py` in a visible window before the next merge or
    release (B25's Download details picture may move a few points: a form's label column is now
-   measured, not guessed, E2); the extension popup's new buttons clicked through in Edge (C12); a reader for the
-   new translations in `assets/i18n/unread/`; the maintainer's word on mentioning the torrent
+   measured, not guessed, E2); the extension popup's new buttons clicked through in Edge (C12); the maintainer's word on mentioning the torrent
    feed's word filter in contract row B75 (C10).
 4. Timing tests that fail under load (N33): `seam_check`, `limits`, `second_path`,
    `server_dates`, `shutdown`, `hls_memory`, and the window test
@@ -627,8 +626,8 @@ Gathered from the sessions of 2026-11-18 to 2026-11-20; each row's Status has th
   and the doubles baseline grew) or `rfd = "0.17"`; whether a social site's picture seen with no
   sound stays offered alone (2026-11-21, `dm_protocol::media::social_cdn`: right for a silent
   reel, wrong where a player fetches the sound only once it is turned on).
-- **Only the maintainer can do:** 163, R4, W24, R2's submissions, F4's export file, row 5's
-  readers, W23's 416 strings changed since 2026-10-24, F-Droid's submission (N14). Not asked:
+- **Only the maintainer can do:** 163, R4, W24, R2's submissions, F4's export file,
+  F-Droid's submission (N14). Not asked:
   desktop signing, R1 and F6's update key, ignored at the maintainer's word of 2026-11-21.
 - **Not finished, to restart from `main` if still wanted:** the fix-and-optimise pass of
   2026-11-20 (13 areas, run as workflows of agents on the Windows laptop): its branches
@@ -757,7 +756,6 @@ run again). Done on macOS on 2026-11-21 (above); left:
 
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
-| 5   | 96 strings (the 71 reworded in 0.7.0, the 14 of 2026-10-30 for the quality list, the part fields and the Playlist dialog, Take out's 4, and of 2026-11-12 row U7's two waiting phrases, row U5's three reasons a button is greyed and the two notes a download puts on its row, `dm_core::NOTES`) were put into the other twelve languages by a machine pass and have not been read by a native speaker | BLOCKED: native readers | One reader per language corrects them (`git log -p --follow -- crates/dm-desktop-base/i18n`; before 2026-11-10 they were under `dm-desktop/i18n`) |
 | 20  | Stress phases not run on Windows: `fulldisk` (needs a small volume) and `torrent` (needs a sandbox off the public network); the clipboard offer is covered on Linux only, as on macOS and Windows the only clipboard is a person's | PARTIAL | On Windows: `fulldisk` with a VHD as the download folder, `torrent` in a sandbox; the clipboard phase on a machine whose clipboard nobody is using |
 | 39  | Secrets sealed under a key in the system's store: proved on Windows, macOS and Linux, except a copy of dm's home started under another Windows account, which must not open them and must say so once | PARTIAL | On a Windows computer with a second account |
 | 47  | The second network path (Options › Advanced › Network) is tested with a second local address only | PARTIAL | One run with a phone's connection beside the computer's own, recording the speeds and each path's share |
@@ -1063,7 +1061,6 @@ browsers (R4), an update that only opens its installer (F6).
 |-----|-----|--------|---------------|
 | W21 | Nothing shows a person that a release is what the source builds: no list of what is in it, no second build to compare, and the installers are unsigned (R1), which is the first thing a new user sees (SmartScreen, Gatekeeper). Done: `cargo xtask crates-list` writes `crates.txt`, every crate and version in the app and the extension (`cargo tree` without dev-dependencies, every target, with each one's source from `cargo metadata` and crates.io's digest from `Cargo.lock`); `cargo xtask sign-release` writes `SHA256SUMS` of every release file and `SHA256SUMS.sig` by F6's key (`update_key.rs`'s signer, refusing a key dm does not carry); `cargo xtask verify-release <dir>` checks a download against the key dm carries (`xtask/src/release.rs`, tests in `release/tests.rs`: good passes, a changed file, a changed digest line, another key and a path outside the folder fail); the release job makes, signs and checks them after `latest.json`'s signing and uploads them; `docs/RELEASING.md` "Checking a release" and "Building the same bytes" (toolchain, `--locked`, profile, flags, targets; no bit-for-bit claim: Windows paths and link time, archives' times). Owed: a CI run at a tag (with F6's key set), a second build compared, and R1 at the maintainer's word | PARTIAL · M | Each release carries a list of every crate and version in it (made by the release workflow), its digests signed by a key of the project's (F6's), and `docs/RELEASING.md` says how to build the same bytes; R1 taken up again at the maintainer's word, as no other row removes that first warning |
 | W22 | An unsigned installer is sometimes called harmful by antivirus programs, and nobody learns of it until a user says so | OPEN · S · decide (a release's files sent to an outside scanner) | The release workflow checks each installer with the common scanners before it is published and holds the release on a finding; a false alarm reported to its vendor, the steps in `docs/RELEASING.md` |
-| W23 | Fourteen languages, 96 strings of twelve of them unread by a native speaker (row 5), no right-to-left (U35), and no stated way for a reader to add or mend a language | PARTIAL · person (a person's run, a bench or the maintainer's word: nothing in it for a bot): guide and command done (`docs/guide/translating.md`; `cargo xtask i18n [<code> | --issue <code>]` counts each catalog's missing and unread strings against `assets/i18n/template/catalog.json` and the lists in `assets/i18n/unread/`, seeded with row 5's 91 strings still said, and fails only on a malformed file; `cargo test -p xtask` holds the real catalogs to it). Owed: the issues, one per language, posted by the maintainer from `--issue`; then readers, and the new languages | `docs/guide/translating.md`: one file to copy, `cargo xtask` says which strings are missing or unread; the catalogs' unread strings listed per language in an issue a reader can take; then the languages with the most speakers dm lacks (Hindi, Arabic with U35, Vietnamese, Ukrainian) |
 | W24 | Windows on Arm (R3), Safari (R4), the Chrome Web Store (R4) and the package managers not yet submitted (R2) are each a person who cannot install dm as they install everything else | OPEN: the maintainer's (accounts and a fee); Safari's wrapper is coded (R4, 2026-11-18), its signing and store are the maintainer's | Those four rows closed; this row is their order: the Chrome Web Store first (the most people), then winget and Homebrew, then Windows on Arm, then Safari |
 | W25 | The control port and MCP can do everything, but a person who wants dm on a home server (a NAS, a small computer with no screen) has `--headless` and no page to look at; the window is the only face. A page served beyond the loopback was declined with the phone's links (2026-11-13) | OPEN · L · decide (stays declined unless the maintainer reopens it) | The design of 2026-10-24 for a listener beyond the loopback (pairing, a token per device that can be revoked, a pinned key, a rate limit) written as a security review first; only then a page of the list with Add, Pause and Resume, off by default, nothing listening until it is turned on |
 | W26 | More connections than the person set, while each is held to a low rate (`docs/feature-matrix.md`, "Worth taking"): reference B ends such a download in 1.2 s where dm takes 2.0 s at the default 8 | OPEN · S · the maintainer's word (a change to existing behaviour, waiting since the matrix was written) | Connections' choice "Automatic (up to …)" with a stated ceiling, growing only while each addition raises the total rate (`ranged::grow`'s rule) and never on a server that refused one; `tests/grow.rs`; `bench` `per_conn` better than both references |
@@ -1155,7 +1152,6 @@ and only the needed components exported on the phone; `SECURITY.md`.
 | H33c | librqbit-tracker-comms is not vendored, so dm cannot change how it reads a tracker | OPEN · M · person | Do: make a patched copy of `librqbit-tracker-comms` 9.1.0 the way the others are made (`tooling/xtask/src/vendor.rs`, a `[patch.crates-io]` line in `Cargo.toml`, an `exclude` entry, an empty patch). Where: `tooling/xtask/src/vendor.rs`, `Cargo.toml`, `vendor/README.md`. Test: `cargo xtask vendor librqbit-tracker-comms` then `git status` shows no change. Done when: that holds. |
 | H33d | An HTTP tracker's interval of 0 makes dm announce again at once | OPEN · S · person · after H33c | Do: after H33c, a least interval for HTTP trackers in `task_single_tracker_monitor_http` (a named const, for example 60 s), as the UDP side has; marked `dm(caps)`, the patch written again. Vendored code: a person's. Where: the vendored tracker_comms.rs, `vendor/README.md`. Test: `a_tracker_answering_interval_zero_is_not_asked_again_at_once` in `crates/dm-core/tests/torrent_network.rs`. Done when: that test passes, and `cargo xtask test --profile ci`. |
 | H33e | An HTTP tracker's body is read whole | OPEN · S · person · after H33c | Do: after H33c, read the answer in `tracker_one_request_http` in chunks and refuse it past a named cap (for example 1 MiB); marked `dm(caps)`, the patch written again. Vendored code: a person's. Where: the vendored tracker_comms.rs, `vendor/README.md`. Test: `a_trackers_endless_answer_is_cut_off_at_the_cap` in `crates/dm-core/tests/torrent_network.rs`. Done when: that test passes, and `cargo xtask test --profile ci`. |
-| H35 | Many MP4 tracks, each with a one-size sample table of 16M samples, still ask for 384 MB a track | PARTIAL · split · S | Done 2026-11-25: a plain MP4's tracks together within the cap, read before any table is made (`claimed_samples`), and a fragmented one's runs over every track together (H35a, H35b). Done 2026-11-24: a track's sample runs bounded together (16M), not each alone (`a_tracks_runs_together_cannot_claim_billions_of_samples`); a 7z's keys held to eight of 2^24 rounds in all (`an_archive_of_endless_keys_is_refused_once_they_have_taken_too_long`); an AAC frame over 1 MiB refused before it is read; the AAC edit list, a 7z AES size near `u64::MAX` and a WebM timecode near `i64::MAX` held at the line's end rather than overflowing. Done 2026-11-27 (H35c to H35e): a dictionary over 1.5 GiB refused before any window is made, LZMA, LZMA2 and RAR 5 (`extract::MOST_DICTIONARY`, `docs/decisions.md`). Left: a total over all of a file's tracks. |
 | H37 | A sharing app's provider whose stream never ends held the share lock for good | PARTIAL · split · S | Coded 2026-11-24: the `content://` copy runs on a thread of its own, waited for 30 s, then refused with a notification and the lock let go (`intent.rs` `copy_within`); clippy clean for arm64. Left: seen on the emulator with a provider that never ends Split into H37a–H37b (below), each one step for a bot or a person. |
 | H37b | Not seen yet with a real provider that never ends | OPEN · S · person | Do: on the emulator, share to dm a `content://` file whose stream never ends. Check that dm posts "did not hand it over within 30 seconds" and that a link shared after it is taken. Write the result in the row. Where: `docs/gaps.md` row H37. Test: an emulator run. Done when: the run is recorded with what it showed. |
 | H3  | Nothing shows who made a downloaded program | OPEN · M to L · decide | Properties › "Signed by": the signer read from a Windows program, a macOS app or an APK (read only, dm's own Rust); "not signed" said plainly. Decide which of the three formats comes first (APK is the smallest) |
@@ -1247,7 +1243,7 @@ below 600 points (`window/narrow.rs`). Three things hold it back:
 | V2  | 150 strings over 60 characters, 24 over 120; on a phone a setting's explanation fills the screen | OPEN · M | Each long string cut to one short line under its setting; the rest moves to that setting's page in `docs/guide/`, opened by a "Learn more" link. Longest first (the dial-up, firewall, "Only through", backup and seeding texts) |
 | V5  | The row's status, sizes and dates have one form; a card on a phone needs a shorter one | OPEN · S | One formatter with a full and a short form ("45% · 2.1 MB/s · 3 min", "Yesterday"), picked by the room the text has, never by the system |
 | V6  | Nothing keeps the words short once they are fixed, and a translation can be far longer than its English | OPEN · S to M | `cargo xtask words` (beside `i18n`): fails on a string over its kind's limit, on Title Case, on a word outside U20's list, and on a translation over 1.4 times its English. V15's pictures catch what still does not fit |
-| V7  | All fourteen languages carry the old long strings | OPEN · M, after V2 to V4 | Translate the new short strings; the changed ones go to each language's unread list (W23) |
+| V7  | All fourteen languages carry the old long strings | OPEN · M, after V2 to V4 | Translate the new short strings |
 
 ### V, second part: one layout code that adapts
 
@@ -1382,8 +1378,7 @@ monocolor pictures written into rule 2), and their rows deleted.
 
 Owed for the fixes above: the pictures of contract B25 taken again at the next `human-qa.py`
 (the accent's shade changed on macOS and GNOME, the empty list's button, the kinds' colours, the
-words in sentence case); a reader for the new and derived translations in `assets/i18n/unread/`
-("This link no longer works", "The disk is full in {}"); a walk with VoiceOver over the list's arrow
+words in sentence case); a walk with VoiceOver over the list's arrow
 keys and the side panel; the window at 360 and 700 points wide (`ui-shot.py` pictures one size
 only); the phone on the emulator with Remove animations on.
 
