@@ -738,6 +738,20 @@ impl Render for Downloads {
     }
 }
 
+/// Whether the control port's `method` only reads, changing nothing the window shows: no frame
+/// is drawn for it. Every other method (a click, a command, `batch`, a screenshot) is drawn after.
+fn reads_only(method: &str) -> bool {
+    matches!(
+        method,
+        "queue.list"
+            | "ui.texts"
+            | "ui.windows"
+            | "ui.inspect"
+            | "ui.accessibility"
+            | "commands.list"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     /// Reading the rows or the screen draws no frame; anything that acts does (gaps row C0c).
@@ -763,18 +777,4 @@ mod tests {
         assert_eq!(clock(false, true), Duration::from_secs(1));
         assert_eq!(clock(false, false), IDLE);
     }
-}
-
-/// Whether the control port's `method` only reads, changing nothing the window shows: no frame
-/// is drawn for it. Every other method (a click, a command, `batch`, a screenshot) is drawn after.
-fn reads_only(method: &str) -> bool {
-    matches!(
-        method,
-        "queue.list"
-            | "ui.texts"
-            | "ui.windows"
-            | "ui.inspect"
-            | "ui.accessibility"
-            | "commands.list"
-    )
 }
