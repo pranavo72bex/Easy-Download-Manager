@@ -15,6 +15,7 @@ each one, without a connection.
 - [Stop now, finish later](guide/resuming.md)
 - [Keep some speed for everything else](guide/speed-limits.md)
 - [dm on a USB stick](guide/usb-stick.md) (Windows)
+- [dm on a home server](guide/home-server.md) (Docker)
 
 ## Every page of the help
 

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- dm can run on a home server with no screen, in Docker: `tooling/docker/Dockerfile` and the guide's "dm on a home server" page. Downloads are added and listed with `docker exec`.
 - With **Only through** chosen (Options › Advanced › Network), on a Mac and on Linux the names of the sites you download from are looked up over that network too, not over the plain line.
 - A site's sign-in cookie and the request headers the browser handed over are written over with zeros in memory once a download is done with them, rather than left readable where they were.
 - Preview on a video that is still downloading fetches the rest from the start onwards: connections that finish their part help with the part nearest the start, so the player has more to play sooner. Downloads that are not previewed are fetched as before.
