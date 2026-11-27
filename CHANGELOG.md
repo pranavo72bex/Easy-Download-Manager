@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Add URL's Recent list says "Choose…" until an address is picked; it was an empty box.
 - On a phone, opening a failed download's properties no longer brings up the keyboard over the reason it failed; a tap on a field does.
 - On a phone, Options' section headings (Appearance, Pop-ups…) are small and grey, so they read as headings and not as one more setting, and Copy link and Copy details have their own picture in a download's menu.
 - On a phone: pictures in menus, the Places drawer and Options are Android's 24 dp size (they were 20 and read small), download cards are 80 dp tall so more fit on a screen, and the "didn't finish" bar is a band shorter. Opening Add URL no longer makes Android say "dm pasted from your clipboard" when the clipboard holds no link.

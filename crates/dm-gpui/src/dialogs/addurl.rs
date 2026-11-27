@@ -148,9 +148,11 @@ impl Render for AddUrl {
                     .flex()
                     .items_center()
                     .gap(px(native::BUTTON_GAP))
+                    // "Choose…" on its face until one is picked: it stood an empty box with an
+                    // arrow, saying nothing of what it holds (unslop review on the emulator).
                     .child(popup::button(
                         "recent",
-                        SharedString::default(),
+                        t("Choose…").into(),
                         shown,
                         None,
                         theme,
