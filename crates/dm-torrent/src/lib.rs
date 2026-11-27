@@ -511,6 +511,9 @@ mod tests {
     fn a_number_too_big_for_its_type_is_refused_not_overflowed() {
         assert!(metainfo(b"d1::166666666666661666666666613").is_err());
         assert!(metainfo(b"d4:infod12:piece lengthi99999999999999999999999eee").is_err());
+        // The nightly fuzzer's find (issue #72, crash-47a28fb2): a string's length past usize's
+        // end, which crates.io's reader overflowed on; the vendored, checked one refuses it.
+        assert!(metainfo(b"d77777777777777777777777770\x91\x91\x91d770\x91\x91\x91d0").is_err());
     }
 
     #[test]
