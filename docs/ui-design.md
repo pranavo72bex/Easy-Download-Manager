@@ -98,6 +98,9 @@ The eye must have somewhere to start. Every window is checked against these, at 
     Finder does: body text `TEXT` (13), secondary text `SMALL_TEXT` (11) in `muted`, a side
     panel's place and a list's row 28 points tall, a list's name in the text's colour and every
     other column in `muted`, a section's heading small, semibold and in `muted`.
+    A picture that is a button (the toolbar's, the top bar's magnifier and side-panel switch) is
+    in the text's colour; `muted` is for a picture beside words it explains (a field's hint,
+    a heading's arrow), where it would read as greyed on a button.
 
 ## Words
 

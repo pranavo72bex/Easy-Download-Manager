@@ -12,6 +12,7 @@ running, paused, failed), drives it over the control protocol, and saves
 PNGs:
 
     python3 scripts/ui-shot.py out-dir [command-id ...]
+    DM_SHOT_SIZE=412x915 python3 scripts/ui-shot.py out-dir   # a phone-wide window
 
 With command ids (as `commands.list` names them), each is run and the window
 is photographed after it as well, so a dialog can be looked at; `click:Words`
@@ -97,6 +98,14 @@ def main():
         # DM_SHOT_TEXT_SIZE=1.5|2.0 photographs it at a larger text size.
         "text_size": float(os.environ.get("DM_SHOT_TEXT_SIZE", "1.0")),
     }), encoding="utf-8")
+    # DM_SHOT_SIZE=412x915 opens the window that size (in points), as dm opens one it kept:
+    # under 600 wide, the phone's layout, pictured on a computer.
+    if os.environ.get("DM_SHOT_SIZE"):
+        width, height = (float(n) for n in os.environ["DM_SHOT_SIZE"].lower().split("x"))
+        (home / "window.json").write_text(json.dumps({
+            "format": 1, "x": 120, "y": 80, "width": width, "height": height,
+            "state": "windowed", "display": None,
+        }), encoding="utf-8")
     env = dict(os.environ, DM_HOME=str(home))
     app = subprocess.Popen([BINARY, "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

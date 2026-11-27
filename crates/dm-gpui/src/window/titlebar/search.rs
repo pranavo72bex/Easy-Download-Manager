@@ -11,8 +11,8 @@ use super::*;
 /// The search box's height, and its width open (Finder's toolbar field).
 const BOX_HEIGHT: f32 = 26.0;
 const BOX_OPEN: f32 = 240.0;
-/// Shut, a toolbar button: its picture and room about it.
-const BOX_SHUT: f32 = 32.0;
+/// Shut, a button of the bar as the side panel's switch is (`BAR_BUTTON`).
+const BOX_SHUT: f32 = BAR_BUTTON;
 /// How long it takes to open and to shut: an exit is shorter than its enter (better-motion).
 const OPENING: std::time::Duration = std::time::Duration::from_millis(250);
 const SHUTTING: std::time::Duration = std::time::Duration::from_millis(150);
@@ -66,11 +66,22 @@ pub(super) fn shut_look(
         .justify_center()
         .border_color(gpui::transparent_black())
         .bg(gpui::transparent_black())
-        .hover(move |s| s.bg(theme.stripe))
+        // A bar button's face on hover, as the side panel's switch.
+        .hover(move |s| s.bg(theme.control))
         .cursor_pointer()
+        // Its name and its keys, as a toolbar button's tooltip teaches them: ⌘F was found only
+        // in the menu.
         .tooltip(|window, cx| {
-            gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(t("Filter")))
-                .build(window, cx)
+            let keys = if cfg!(target_os = "macos") {
+                "⌘F"
+            } else {
+                "Ctrl+F"
+            };
+            gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(format!(
+                "{} ({keys})",
+                t("Filter")
+            )))
+            .build(window, cx)
         })
         .on_click(cx.listener(|view, _, window, cx| {
             view.find(window, cx);
@@ -78,8 +89,9 @@ pub(super) fn shut_look(
         }))
 }
 
-/// Its corners, its focus ring's distance outside it, and its clear button's target.
-const BOX_CORNER: f32 = native::RADIUS + 1.0;
+/// Its corners (a bar button's, shut), its focus ring's distance outside it, and its clear
+/// button's target.
+const BOX_CORNER: f32 = BAR_CORNER;
 const RING_OUT: f32 = space::XXS;
 const CLEAR_TARGET: f32 = 24.0;
 
@@ -148,15 +160,19 @@ pub(super) fn search_box(
         .child(
             svg()
                 .path("icons/search.svg")
-                // A toolbar button's picture shut (the toolbar's own 18), the field's small one
-                // open, as Finder's.
+                // A toolbar button's picture shut (the toolbar's own 18); open, a picture beside
+                // body text (16, about the words' size: at 12 it was smaller than the letters
+                // beside it, better-ui's 1 to 1.25 times).
                 .size(px(if shut {
                     native::ICON_TOOL
                 } else {
-                    native::ICON_SMALL
+                    native::ICON
                 }))
                 .flex_none()
-                .text_color(theme.muted),
+                // Shut, a button's picture in the text's colour as the toolbar's and the side
+                // panel's switch: in the secondary colour it read as greyed. Open, the field's
+                // hint in the secondary colour, as a search field's.
+                .text_color(if shut { theme.text } else { theme.muted }),
         )
         .child(
             // Shut, the field takes no room and shows nothing: its words' first letter stood

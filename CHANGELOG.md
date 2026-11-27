@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The search's magnifier at the top bar's end is drawn in the text's colour like the toolbar's pictures (it looked greyed out), with a larger lens, and its tooltip names its keys (⌘F, Ctrl+F); it and the side panel's button are one size with one hover face. On a phone, the menu's dots and Close are drawn pictures, not typed characters.
 - Options › Downloads' presets (Slow … Maximum) wrap at a narrow width and read from the right in Arabic and Hebrew; they ran past the window's edge.
 - A dialog made narrow (Options at a phone's width, in a language with long words such as Arabic) wraps its buttons: Cancel and OK go together onto a line of their own at the trailing edge; OK ran past the window's edge.
 - As Finder groups a sorted list: sorted by Status, Last try date or Queue, the download list groups its rows under small headings (Downloading, Finished…; Today, Yesterday, Previous 7 days…; each queue). The arrow keys, Select all and a screen reader pass the headings by; sorted by another column, or in the order added, there are none.

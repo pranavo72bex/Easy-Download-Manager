@@ -46,6 +46,8 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     "grabber",
     // The toolbar's More, where the buttons do not fit (gaps row E3).
     "more",
+    // A phone's top bar's overflow menu, dots stood up as the system's.
+    "more-vertical",
     // Each file kind's, before a row's name (B45).
     "kind-videos",
     "kind-audio",
