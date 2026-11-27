@@ -884,7 +884,7 @@
  "No setting says “{}”.": "אין הגדרה שאומרת „{}”.",
  "Download complete — {}": "ההורדה הושלמה — {}",
  "Details": "פרטים",
- "Hover a download and press Details to watch its progress.": "העבירו את העכבר מעל הורדה ולחצו על 'פרטים' כדי לעקוב אחר ההתקדמות שלה.",
+ "Double-click a download to watch its progress.": "לחצו פעמיים על הורדה כדי לעקוב אחר ההתקדמות שלה.",
  "User-Agent": "User-Agent",
  "Request headers": "כותרות בקשה",
  "Name: value | Name: value": "שם: ערך | שם: ערך",

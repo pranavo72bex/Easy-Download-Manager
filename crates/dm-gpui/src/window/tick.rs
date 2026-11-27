@@ -245,7 +245,8 @@ impl Downloads {
     }
 
     /// A download under way while its progress window does not open by itself: said once,
-    /// ever, where its progress is (the row's Details button),
+    /// ever, where its progress is (a double-click on its row, whatever the setting for a
+    /// finished one; the row's own Details button is gone, B45),
     /// and only where nothing else is being said.
     pub(crate) fn details_hint(&mut self) {
         use dm_shell::app::hints::Hint;
@@ -253,7 +254,7 @@ impl Downloads {
         if !Hint::Details.due(&settings, &self.running_rows(), self.status.said.is_none()) {
             return;
         }
-        self.say(t("Hover a download and press Details to watch its progress.").into());
+        self.say(t("Double-click a download to watch its progress.").into());
         let mut wanted = settings;
         Hint::Details.mark(&mut wanted);
         if let Err(e) = self.backend.set_settings(wanted) {

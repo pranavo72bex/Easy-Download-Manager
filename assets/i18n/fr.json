@@ -884,7 +884,7 @@
  "No setting says “{}”.": "Aucun réglage ne contient « {} ».",
  "Download complete — {}": "Téléchargement terminé — {}",
  "Details": "Détails",
- "Hover a download and press Details to watch its progress.": "Survolez un téléchargement et appuyez sur Détails pour suivre sa progression.",
+ "Double-click a download to watch its progress.": "Double-cliquez sur un téléchargement pour suivre sa progression.",
  "User-Agent": "Agent utilisateur",
  "Request headers": "En-têtes de requête",
  "Name: value | Name: value": "Nom : valeur | Nom : valeur",

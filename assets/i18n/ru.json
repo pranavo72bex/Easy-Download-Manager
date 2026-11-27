@@ -884,7 +884,7 @@
  "No setting says “{}”.": "Нет настройки со словами «{}».",
  "Download complete — {}": "Загрузка завершена — {}",
  "Details": "Подробности",
- "Hover a download and press Details to watch its progress.": "Наведите курсор на загрузку и нажмите «Подробности», чтобы следить за ходом.",
+ "Double-click a download to watch its progress.": "Дважды щёлкните загрузку, чтобы следить за ходом.",
  "User-Agent": "User-Agent",
  "Request headers": "Заголовки запроса",
  "Name: value | Name: value": "Имя: значение | Имя: значение",

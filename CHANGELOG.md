@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The hint said once on a first download reads "Double-click a download to watch its progress." (it pointed to a Details button rows no longer have), and the Size and Transfer rate columns are wide enough for "999.9 MB" (a size such as "419.4 MB" was cut). The README's desktop demo is recorded again, by the new `scripts/readme-demo.py`.
 - At a new window's size the download list no longer scrolls sideways: where it has no room for every column's heading and its sort arrow, the columns are as wide as their figures, a heading that does not fit cut and whole on hover. The README's pictures are retaken, with Add URL and the Scheduler.
 - The search's magnifier at the top bar's end is drawn in the text's colour like the toolbar's pictures (it looked greyed out), with a larger lens, and its tooltip names its keys (⌘F, Ctrl+F); it and the side panel's button are one size with one hover face. On a phone, the menu's dots and Close are drawn pictures, not typed characters.
 - Options › Downloads' presets (Slow … Maximum) wrap at a narrow width and read from the right in Arabic and Hebrew; they ran past the window's edge.

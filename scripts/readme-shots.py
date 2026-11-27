@@ -164,6 +164,8 @@ def take(look, base, work):
     # so the window is pictured as a person leaves it.
     (home / "settings.json").write_text(json.dumps({
         "theme": look, "download_dir": str(downloads), "show_progress": False, "show_complete": False,
+        # The settings' edition, or dm takes its defaults: every pop-up on.
+        "popups_version": 2,
     }), encoding="utf-8")
     dm = Dm(home)
     try:
@@ -236,4 +238,5 @@ def main():
         print(f"{OUT / name}-dark.png")
 
 
-main()
+if __name__ == "__main__":
+    main()

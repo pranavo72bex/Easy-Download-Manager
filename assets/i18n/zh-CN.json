@@ -884,7 +884,7 @@
  "No setting says “{}”.": "没有设置包含“{}”。",
  "Download complete — {}": "下载完成 — {}",
  "Details": "详细信息",
- "Hover a download and press Details to watch its progress.": "将鼠标移到下载上，点击“详细信息”查看进度。",
+ "Double-click a download to watch its progress.": "双击下载即可查看其进度。",
  "User-Agent": "用户代理",
  "Request headers": "请求标头",
  "Name: value | Name: value": "名称: 值 | 名称: 值",

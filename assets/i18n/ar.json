@@ -884,7 +884,7 @@
  "No setting says “{}”.": "لا يوجد إعداد يقول «{}».",
  "Download complete — {}": "اكتمل التنزيل — {}",
  "Details": "التفاصيل",
- "Hover a download and press Details to watch its progress.": "مرّر المؤشر فوق تنزيل واضغط التفاصيل لمتابعة تقدمه.",
+ "Double-click a download to watch its progress.": "انقر نقرًا مزدوجًا على تنزيل لمتابعة تقدمه.",
  "User-Agent": "User-Agent",
  "Request headers": "ترويسات الطلب",
  "Name: value | Name: value": "الاسم: القيمة | الاسم: القيمة",

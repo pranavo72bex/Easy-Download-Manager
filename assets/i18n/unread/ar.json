@@ -850,7 +850,7 @@
  "No setting says “{}”.",
  "Download complete — {}",
  "Details",
- "Hover a download and press Details to watch its progress.",
+ "Double-click a download to watch its progress.",
  "User-Agent",
  "Request headers",
  "Name: value | Name: value",

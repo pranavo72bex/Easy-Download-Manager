@@ -81,10 +81,20 @@ fn own_width(column: Column, any_queue: bool, headings: bool) -> Option<f32> {
     let heading = small_width(&format!("{} ▼", column.title())) + margins;
     // A figure as long as the column says: a size and a rate just under a thousand of their
     // unit, the time left in its two largest units.
-    let large = 1_073_217_536;
+    // Under a thousand of a unit, as the computer counts (a KB 1000 bytes on macOS, 1024 on
+    // Windows): "999.9 MB" and "1023.5 MB", wider than the "1.07 GB" a single number gave,
+    // which "419.4 MB" outgrew.
+    let large = [999_949_999_u64, 1_073_217_536];
+    let widest = |write: &dyn Fn(u64) -> String| {
+        large
+            .iter()
+            .map(|&n| text_width(&write(n)))
+            .fold(0.0_f32, f32::max)
+            + margins
+    };
     let figure = match column {
-        Column::Size => text_width(&format::bytes(large)) + margins,
-        Column::Rate => text_width(&format::rate(large as f64)) + margins,
+        Column::Size => widest(&format::bytes),
+        Column::Rate => widest(&|n| format::rate(n as f64)),
         Column::TimeLeft => {
             text_width(&format::span(std::time::Duration::from_secs(59 * 60 + 59))) + margins
         }

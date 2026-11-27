@@ -23,7 +23,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
-  <img alt="The dm window: a menu row with a search box, a toolbar, a list of places on the left, and the downloads as a table with their size, status, time left and speed" src="docs/screenshot.png">
+  <img alt="The dm window: a title bar naming the place shown with a search button at its end, a toolbar, a list of places on the left, and the downloads as a table with their size, status, time left and speed" src="docs/screenshot.png">
 </picture>
 
 | 🚀 [Download](#step-1--download-the-files) | ✨ [Why dm](#why-dm) | 🎬 [Demo](#see-it-in-action) | ⚙️ [How it works](#how-dm-works) | 🧰 [What it does](#what-it-does) | 📱 [On your phone](#on-your-phone-android) | 🖼️ [Screenshots](#screenshots) | 🛠️ [Install](#install) | ❓ [FAQ](#faq) | 🌍 [Languages](#languages) | 📖 [User guide](docs/user-guide.md) | 💻 [Developers](#for-developers) |
@@ -58,7 +58,7 @@ downloads to it. On a phone, the app alone.
 <table>
   <tr>
     <td align="center" width="72%">
-      <img src="docs/demo-desktop.gif" alt="dm on a Mac: five downloads arrive, the large ones run side by side at about 19 MB/s, the small ones finish at once, then one download's own window shows its speed, time left and parts">
+      <img src="docs/demo-desktop.gif" alt="dm on a Mac: five downloads arrive, the large ones run side by side at about 20 MB/s, the small ones finish at once, then one download's own window shows its speed, time left and parts">
       <br><sub><strong>On a computer</strong>: downloads side by side, and one's own window</sub>
     </td>
     <td align="center" width="28%">
@@ -164,11 +164,11 @@ Then click any download link: it lands in dm.
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/addurl-dark.png" alt="Add URL: an address field and Needs a sign-in, with Cancel and OK">
+      <img src="docs/addurl-dark.png" alt="Add URL: an address field and Needs a sign-in, with Cancel and Next">
       <br><sub><strong>Add URL</strong>: paste a link, and say if it needs a sign-in</sub>
     </td>
     <td align="center" width="50%">
-      <img src="docs/scheduler-dark.png" alt="The Scheduler: queues, the hours downloads may run, days of the week, and what to do when they are done">
+      <img src="docs/scheduler-dark.png" alt="The Scheduler: the queues, the hours downloads may run, the days of the week, and what to do when they are done">
       <br><sub><strong>The Scheduler</strong>: the hours and days a queue runs, and sleep or shut down after</sub>
     </td>
   </tr>

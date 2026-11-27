@@ -80,6 +80,9 @@ fn without_room_a_column_keeps_its_figures_and_gives_up_its_heading() {
     assert!(rate <= own_width(Column::Rate, true, true).unwrap());
     let size = own_width(Column::Size, true, false).unwrap();
     assert!(size >= text_width(&format::bytes(1_073_217_536)) + 16.0);
+    // As wide as the widest size under a thousand of a unit, as this computer counts.
+    assert!(size >= text_width(&format::bytes(999_949_999)) + 16.0);
+    assert!(size >= text_width(&format::bytes(419_400_000)) + 16.0);
 }
 
 /// Words are offered whole where they are wider than their room, as measured, not counted.
