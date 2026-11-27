@@ -384,11 +384,13 @@ impl Downloads {
             .filter_map(|(at, &r)| self.rows.get(r).map(|row| (row.id, at)))
             .collect();
         self.list.shown = shown;
+        self.group();
         // Rows added or taken away above the view, or a sort, no longer
         // move what is in it: the row that was at its top stays there
         // (gaps row 182).
         if let Some((id, was, height, offset)) = top {
             if let Some(&now) = self.list.positions.get(&id) {
+                let now = self.line_of(now);
                 let held = holding_top(offset, height, was, now);
                 if held != offset {
                     let state = self.list.scroll.0.borrow();
@@ -402,6 +404,7 @@ impl Downloads {
     /// The list laid out `range` on screen: its files are looked for at
     /// once where it moved.
     pub(crate) fn laid_out(&mut self, range: std::ops::Range<usize>, cx: &mut Context<Self>) {
+        let range = self.rows_on(range);
         if self.list.visible != range {
             self.list.visible = range;
             self.known.files_looked = None;
@@ -411,7 +414,7 @@ impl Downloads {
         }
     }
 
-    /// The row at the top of the list's view, where it is in the list, the
+    /// The row at the top of the list's view, the line it is on (`groups`), the
     /// rows' height and how far the list is scrolled (both in points); none
     /// before the list is first laid out.
     pub(super) fn top_row(&self) -> Option<(dm_core::Id, usize, f32, f32)> {
@@ -428,8 +431,13 @@ impl Downloads {
         if height <= 0.0 {
             return None;
         }
-        let at = (-offset / height).floor().max(0.0) as usize;
-        Some((self.id_at(at)?, at, height, offset))
+        // The line at the top, or under a heading there the row after it.
+        let line = (-offset / height).floor().max(0.0) as usize;
+        let (line, at) = match self.line(line)? {
+            super::Line::Row { at, .. } => (line, at),
+            super::Line::Heading(k) => (line + 1, self.headings()[k].0),
+        };
+        Some((self.id_at(at)?, line, height, offset))
     }
 }
 

@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "Lascia un po' di velocità per il resto",
  "dm on a USB stick": "dm su una chiavetta USB",
  "Settings": "Impostazioni",
- "{} download||{} downloads": "{} download||{} download"
+ "{} download||{} downloads": "{} download||{} download",
+ "Downloading": "In download",
+ "Failed": "Non riusciti",
+ "Today": "Oggi",
+ "Yesterday": "Ieri",
+ "Previous 7 days": "Ultimi 7 giorni",
+ "Previous 30 days": "Ultimi 30 giorni",
+ "Earlier": "Precedenti",
+ "No queue": "Nessuna coda"
 }

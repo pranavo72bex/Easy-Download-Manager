@@ -96,11 +96,11 @@ search, title and phone changes).
 1. `python3 scripts/ai-health.py`; then main's runs on `41de6a72` (CI, Desktop on three
    systems, Android, `contract-linux.yml`: the window changed, so its look against main's is
    expected to need the baseline taken again).
-2. The list's section headings (the maintainer's choice of 2026-11-26, the one left of "Section
-   headings, Page title and summary, One-colour icons, Chosen row like Options"): rows grouped
-   under a heading as Finder groups by date or kind. Needs care: sorting, the keys' row order,
-   the chosen row's index and the phone's cards all assume one flat list; a heading is not a row
-   for the keys, a screen reader or Select all.
+2. Done 2026-11-27: the list's section headings (`list/groups.rs`, `columns::group_of`, B25):
+   sorted by Status, Last try date or Queue, a heading over each run of rows; `shown` stays flat
+   and the headings are lines between rows. Left: a phone's cards have none (a heading as tall
+   as a card looked wrong; a list of mixed heights is a change to the cards' `uniform_list`).
+   Main's red Desktop (#78, titlebar.rs over 800 lines) is fixed in `2642cce0`.
 3. Keep refining the home screen and list on desktop and phone, English first (the
    maintainer: "keep fixing and refining UI english first in a loop"), each change pictured.
 4. Known: Options in Arabic at 400 points pushes OK past the window's edge.

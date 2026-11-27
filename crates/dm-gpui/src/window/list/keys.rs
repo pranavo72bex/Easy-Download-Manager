@@ -128,7 +128,7 @@ impl Downloads {
         if let Some(at) = cursor.and_then(|c| self.position_of(c)) {
             self.list
                 .scroll
-                .scroll_to_item(at, gpui::ScrollStrategy::Nearest);
+                .scroll_to_item(self.line_of(at), gpui::ScrollStrategy::Nearest);
         }
     }
 
@@ -181,7 +181,7 @@ impl Downloads {
             if let Some(at) = found {
                 self.list
                     .scroll
-                    .scroll_to_item(at, gpui::ScrollStrategy::Nearest);
+                    .scroll_to_item(self.line_of(at), gpui::ScrollStrategy::Nearest);
             }
         }
     }
@@ -203,7 +203,7 @@ impl Downloads {
         };
         let top = f32::from(self.list.scroll.0.borrow().base_handle.bounds().origin.y);
         let offset = f32::from(self.list.scroll.0.borrow().base_handle.offset().y);
-        let y = top + offset + (at as f32 + 0.5) * ROW_HEIGHT;
+        let y = top + offset + (self.line_of(at) as f32 + 0.5) * ROW_HEIGHT;
         let x = f32::from(self.list.scroll.0.borrow().base_handle.bounds().origin.x) + 40.0;
         // Opened by a key, the system's menu has the keyboard.
         self.show_row_menu(gpui::point(gpui::px(x), gpui::px(y)), window, cx);

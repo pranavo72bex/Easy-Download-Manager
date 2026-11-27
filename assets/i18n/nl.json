@@ -1112,5 +1112,13 @@
  "Keep some speed for everything else": "Snelheid overlaten voor de rest",
  "dm on a USB stick": "dm op een USB-stick",
  "Settings": "Instellingen",
- "{} download||{} downloads": "{} download||{} downloads"
+ "{} download||{} downloads": "{} download||{} downloads",
+ "Downloading": "Downloaden",
+ "Failed": "Mislukt",
+ "Today": "Vandaag",
+ "Yesterday": "Gisteren",
+ "Previous 7 days": "Afgelopen 7 dagen",
+ "Previous 30 days": "Afgelopen 30 dagen",
+ "Earlier": "Eerder",
+ "No queue": "Geen wachtrij"
 }

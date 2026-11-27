@@ -206,76 +206,41 @@ pub fn compare(column: Column, a: &Entry, b: &Entry) -> std::cmp::Ordering {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A heading or View › Sort by sorts up, then down, then back in the
-    /// order the downloads were added (gaps row U29).
-    #[test]
-    fn a_third_choice_puts_the_list_back_in_the_order_added() {
-        let up = next_sort(None, Column::Size);
-        assert_eq!(up, Some((Column::Size, true)));
-        let down = next_sort(up, Column::Size);
-        assert_eq!(down, Some((Column::Size, false)));
-        assert_eq!(next_sort(down, Column::Size), None);
-        // Another column starts at up, whichever way the list was sorted.
-        assert_eq!(next_sort(down, Column::Name), Some((Column::Name, true)));
-    }
-
-    /// The sort is kept in the settings and read back as it was; settings
-    /// saved before it was kept load with the list in the order added.
-    #[test]
-    fn the_sort_kept_is_the_sort_read_back() {
-        let mut settings = dm_shell::settings::Settings::default();
-        assert_eq!(kept_sort(&settings), None);
-        for sort in [
-            Some((Column::Rate, false)),
-            Some((Column::Name, true)),
-            None,
-        ] {
-            keep_sort(&mut settings, sort);
-            assert_eq!(kept_sort(&settings), sort);
-        }
-        let old: dm_shell::settings::Settings =
-            serde_json::from_str("{}").expect("settings with nothing in them load");
-        assert_eq!(kept_sort(&old), None);
-        assert!(old.sort_ascending);
-    }
-
-    #[test]
-    fn columns_sort_by_what_they_show() {
-        use dm_core::State;
-        use std::cmp::Ordering::*;
-        let named = |name: &str| -> Entry {
-            serde_json::from_value(serde_json::json!({
-                "id": 1,
-                "url": "https://e.com/f.bin",
-                "state": serde_json::to_value(State::Paused).unwrap(),
-                "progress": {"downloaded": 0, "total": null, "speed": 0.0, "eta": null},
-                "filename": name,
-            }))
-            .unwrap()
-        };
-        // Names: numbers by value.
-        assert_eq!(
-            compare(Column::Name, &named("part 2"), &named("part 10")),
-            Less
-        );
-        // Size: what has arrived of a file of unknown length is its size.
-        let (mut big, mut small) = (named("a"), named("b"));
-        big.progress.downloaded = 5000;
-        small.progress.total = Some(10);
-        assert_eq!(compare(Column::Size, &big, &small), Greater);
-        // Speed and time left: a stopped row's last figures are not shown,
-        // and do not sort it ahead of one that is running.
-        let (mut stopped, mut running) = (named("a"), named("b"));
-        stopped.progress.speed = 9e9;
-        stopped.progress.eta = Some(std::time::Duration::from_secs(1));
-        running.state = State::Running;
-        running.progress.speed = 100.0;
-        running.progress.eta = Some(std::time::Duration::from_secs(500));
-        assert_eq!(compare(Column::Rate, &stopped, &running), Less);
-        assert_eq!(compare(Column::TimeLeft, &stopped, &running), Less);
-    }
+/// The heading a row stands under where the list is sorted by `column`, as Finder groups a
+/// sorted list: by its state under Status, by the day it was last tried under Last try date
+/// (`today` the local day), by its queue under Queue; none under the other columns, whose
+/// groups would be a row each. Each group is a run of rows under the sort, either way up: the
+/// heading follows from what `compare` sorts by.
+#[must_use]
+pub fn group_of(column: Column, row: &Entry, today: dm_core::clock::Date) -> Option<String> {
+    let words = match column {
+        Column::Status => match row.state {
+            State::Running => "Downloading",
+            State::Queued => "Queued",
+            State::Paused => "Stopped",
+            State::Failed(_) => "Failed",
+            State::Cancelled => "Cancelled",
+            State::Completed => "Finished",
+        },
+        Column::LastTry => match row
+            .finished_at
+            .and_then(|at| dm_core::clock::local_at(i64::try_from(at).ok()?))
+        {
+            None => "Unfinished",
+            Some(at) => match today.days_since_epoch() - at.date.days_since_epoch() {
+                ..=0 => "Today",
+                1 => "Yesterday",
+                2..=7 => "Previous 7 days",
+                8..=30 => "Previous 30 days",
+                _ => "Earlier",
+            },
+        },
+        Column::Queue if row.queue.is_empty() => "No queue",
+        Column::Queue => return Some(row.queue.clone()),
+        _ => return None,
+    };
+    Some(t(words).to_string())
 }
+
+#[cfg(test)]
+mod tests;

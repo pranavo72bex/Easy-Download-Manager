@@ -603,10 +603,32 @@ const EMPTY_PICTURE: f32 = 32.0;
 /// What an empty list says of the next step on a phone.
 pub(crate) const PHONE_EMPTY: &str = "Share a link to dm from any app, or add one here.";
 
+/// A section heading over a group of rows (`list::groups`): small, semibold and in the
+/// secondary colour, as Finder's and the side panel's, standing where the file names start; a
+/// row's height, so the lines are all of one; read as a heading, not a row.
+fn group_heading(words: SharedString, theme: Theme, screen: &Screen) -> AnyElement {
+    div()
+        .id(gpui::ElementId::Name(format!("heading-{words}").into()))
+        .role(Role::Heading)
+        .aria_label(words.clone())
+        .w_full()
+        .h(px(ROW_HEIGHT))
+        .px(px(space::L))
+        .flex()
+        .map(crate::window::mirror::row)
+        .items_end()
+        .pb(px(space::XS))
+        .text_size(px(crate::widgets::native::SMALL_TEXT))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(theme.muted)
+        .child(screen.label(words))
+        .into_any_element()
+}
+
 /// The rows of the place chosen.
 pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl IntoElement {
     let screen = view.screen.clone();
-    let count = view.list.shown.len();
+    let count = view.line_count();
     uniform_list(
         "rows",
         count,
@@ -626,15 +648,21 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
             // Whether a chosen row is finished, asked once, the first time a
             // chosen row that is not needs to know: it carries the others.
             let chosen_finished = std::cell::OnceCell::new();
+            let mut headings = Vec::new();
             let drawn = range
-                .filter_map(|i| {
-                    this.list
+                .filter_map(|line| match this.line(line)? {
+                    crate::window::list::Line::Heading(k) => {
+                        headings.push((line, k));
+                        None
+                    }
+                    crate::window::list::Line::Row { at, nth } => this
+                        .list
                         .shown
-                        .get(i)
+                        .get(at)
                         .and_then(|&r| this.rows.get(r))
-                        .map(|row| (i, row))
+                        .map(|row| (line, at, nth, row)),
                 })
-                .map(|(i, row)| {
+                .map(|(line, i, nth, row)| {
                     let kind = this.list.places.placed(row, &categories).0;
                     let chosen = this.list.selected.contains(&row.id);
                     // A chosen row as Options marks its chosen page: the accent's soft tint and
@@ -686,8 +714,8 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                                 .bg(original.chosen_soft())
                                 .child(crate::window::sidebar::chosen_bar(original))
                         })
-                        .when(!chosen && i % 2 == 1, |r| r.bg(theme.stripe));
-                    pointer::row_handlers(drawn, id, dragged, reorders, original, cx)
+                        .when(!chosen && nth % 2 == 1, |r| r.bg(theme.stripe));
+                    let element = pointer::row_handlers(drawn, id, dragged, reorders, original, cx)
                         .children(row_cells(
                             row,
                             this,
@@ -703,8 +731,18 @@ pub fn rows(view: &Downloads, theme: Theme, cx: &mut Context<Downloads>) -> impl
                         ))
                         // A row just added fades in, one taken off fades out (gaps row K7).
                         .map(|row| cells::arriving(id, row))
+                        .into_any_element();
+                    (line, element)
                 })
                 .collect::<Vec<_>>();
+            // The headings among them, each in its line's place.
+            let mut drawn = drawn;
+            for (line, k) in headings {
+                let words = this.list.headings[k].1.clone();
+                let at = drawn.partition_point(|(l, _)| *l < line);
+                drawn.insert(at, (line, group_heading(words, theme, &screen)));
+            }
+            let drawn: Vec<AnyElement> = drawn.into_iter().map(|(_, d)| d).collect();
             // Rows drawn from now on, but for the window's first, are ones just added.
             cells::list_drawn();
             drawn

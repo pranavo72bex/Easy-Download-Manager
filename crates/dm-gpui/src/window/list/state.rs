@@ -51,6 +51,8 @@ pub(crate) struct ListView {
     pub(crate) shown: Vec<usize>,
     /// Where each row shown is in the list, by id (`reshow`).
     pub(super) positions: HashMap<dm_core::Id, usize>,
+    /// The section headings, each with the place in `shown` of its first row (`groups`).
+    pub(crate) headings: Vec<(usize, gpui::SharedString)>,
     /// The column the list is sorted by, and whether up; none: as added.
     pub(crate) sort: Option<(Column, bool)>,
     /// The rows chosen, by id: they stay chosen as the list is read again
@@ -85,6 +87,7 @@ impl ListView {
             places: Places::default(),
             shown: Vec::new(),
             positions: Default::default(),
+            headings: Vec::new(),
             sort: None,
             selected: Default::default(),
             anchor: None,
