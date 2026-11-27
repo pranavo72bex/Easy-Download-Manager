@@ -246,7 +246,7 @@ fn write_all(
                 // A file that is not solid starts a stream of its own.
                 match (&mut stream, solid) {
                     (Some(u), true) => u.solid(dict)?,
-                    (s, _) => *s = Some(Unpacker::new(dict)),
+                    (s, _) => *s = Some(Unpacker::new(dict)?),
                 }
                 let Some(unpacker) = stream.as_mut() else {
                     return Err(damaged("a solid file has no file before it"));

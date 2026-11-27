@@ -316,7 +316,7 @@
  "The torrent's own name": "토렌트 자체 이름",
  "Finding peers…": "피어 찾는 중…",
  "Tick at least one day.": "요일을 하나 이상 선택하세요.",
- "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM, 현지 시간. 시작보다 이르게 끝나는 구간은 밤새 실행됩니다.",
+ "Local time. Hours that end before they start run overnight.": "현지 시간. 시작보다 이르게 끝나는 시간대는 밤새 실행됩니다.",
  "A download with this name exists. This one will be numbered.": "같은 이름의 다운로드가 있습니다. 이 다운로드에는 번호가 붙습니다.",
  "Not available: {}.": "사용할 수 없음: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{}은(는) 일정을 기다리는 중입니다. 일정 시간이 되면 자동으로 시작합니다.",

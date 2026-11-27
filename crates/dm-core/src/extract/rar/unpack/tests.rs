@@ -59,7 +59,7 @@ fn unpack(u: &mut Unpacker, packed: &[u8], size: u64) -> Result<Vec<u8>, Error> 
 fn round_trip(tokens: &[Token]) -> Vec<u8> {
     let want = model(&[], tokens);
     let got = unpack(
-        &mut Unpacker::new(128 << 10),
+        &mut Unpacker::new(128 << 10).unwrap(),
         &pack(tokens),
         want.len() as u64,
     )
@@ -145,11 +145,16 @@ fn a_block_without_tables_keeps_the_last_ones() {
     let mut packed = block(&first, &lengths, true, false);
     packed.extend(block(&second, &lengths, false, true));
     let want = model(&[], &all);
-    let got = unpack(&mut Unpacker::new(1 << 20), &packed, want.len() as u64).unwrap();
+    let got = unpack(
+        &mut Unpacker::new(1 << 20).unwrap(),
+        &packed,
+        want.len() as u64,
+    )
+    .unwrap();
     assert_eq!(got, b"one block, then another block and more");
     // A first block with no tables has nothing to decode with.
     let bare = block(&second, &lengths, false, true);
-    assert!(unpack(&mut Unpacker::new(1 << 20), &bare, 9).is_err());
+    assert!(unpack(&mut Unpacker::new(1 << 20).unwrap(), &bare, 9).is_err());
 }
 
 #[test]
@@ -166,14 +171,14 @@ fn a_solid_file_carries_on_the_stream_before_it() {
     );
     let all: Vec<Token> = first.iter().chain(&second).copied().collect();
     let lengths = lengths_for(&all);
-    let mut u = Unpacker::new(1 << 20);
+    let mut u = Unpacker::new(1 << 20).unwrap();
     let a = block(&first, &lengths, true, true);
     assert_eq!(unpack(&mut u, &a, one.len() as u64).unwrap(), one);
     u.solid(1 << 20).unwrap();
     let b = block(&second, &lengths, false, true);
     assert_eq!(unpack(&mut u, &b, two.len() as u64).unwrap(), two);
     // Alone, the second file reaches before its first byte, with no tables either.
-    assert!(unpack(&mut Unpacker::new(1 << 20), &b, two.len() as u64).is_err());
+    assert!(unpack(&mut Unpacker::new(1 << 20).unwrap(), &b, two.len() as u64).is_err());
 }
 
 #[test]
@@ -183,20 +188,20 @@ fn filters_are_undone_at_their_place_in_the_file() {
     t.push(Token::Filter(1, 6, filters::DELTA, 2));
     t.extend(lits(&[b'w', 246, 246, 246, 255, 255, 255, b'q']));
     assert_eq!(
-        unpack(&mut Unpacker::new(1 << 20), &pack(&t), 11).unwrap(),
+        unpack(&mut Unpacker::new(1 << 20).unwrap(), &pack(&t), 11).unwrap(),
         [b'x', b'y', b'z', b'w', 10, 1, 20, 2, 30, 3, b'q']
     );
     // E8 five bytes into the file: the call's place is counted from the file's start.
     let mut t = lits(b"12345");
     t.push(Token::Filter(0, 9, filters::E8, 0));
     t.extend(lits(&[0xe8, 0x0b, 0x01, 0, 0, 0x90, 0x90, 0x90, 0x90]));
-    let got = unpack(&mut Unpacker::new(1 << 20), &pack(&t), 14).unwrap();
+    let got = unpack(&mut Unpacker::new(1 << 20).unwrap(), &pack(&t), 14).unwrap();
     assert_eq!(got[5..], [0xe8, 0x05, 0x01, 0, 0, 0x90, 0x90, 0x90, 0x90]);
     // A filter whose block runs past the file's end is damage.
     let mut t = lits(b"ab");
     t.push(Token::Filter(0, 10, filters::E8, 0));
     t.extend(lits(b"cd"));
-    assert!(unpack(&mut Unpacker::new(1 << 20), &pack(&t), 4).is_err());
+    assert!(unpack(&mut Unpacker::new(1 << 20).unwrap(), &pack(&t), 4).is_err());
 }
 
 #[test]
@@ -214,18 +219,37 @@ fn damaged_streams_are_errors_not_panics() {
     // A match before the first byte.
     let mut t = lits(b"a");
     t.push(Token::Match(3, 5));
-    assert!(unpack(&mut Unpacker::new(1 << 20), &pack(&t), 4).is_err());
+    assert!(unpack(&mut Unpacker::new(1 << 20).unwrap(), &pack(&t), 4).is_err());
     let good = pack(&lits(b"hello"));
     // The block's check byte, its size cut short, a size that is not the file's.
     let mut bad = good.clone();
     bad[1] ^= 1;
-    assert!(unpack(&mut Unpacker::new(1 << 20), &bad, 5).is_err());
-    assert!(unpack(&mut Unpacker::new(1 << 20), &good[..good.len() - 1], 5).is_err());
-    assert!(unpack(&mut Unpacker::new(1 << 20), &good, 6).is_err());
-    assert!(unpack(&mut Unpacker::new(1 << 20), &[], 5).is_err());
+    assert!(unpack(&mut Unpacker::new(1 << 20).unwrap(), &bad, 5).is_err());
+    assert!(unpack(
+        &mut Unpacker::new(1 << 20).unwrap(),
+        &good[..good.len() - 1],
+        5
+    )
+    .is_err());
+    assert!(unpack(&mut Unpacker::new(1 << 20).unwrap(), &good, 6).is_err());
+    assert!(unpack(&mut Unpacker::new(1 << 20).unwrap(), &[], 5).is_err());
     // Bytes that are no stream at all.
     for seed in 0..20 {
         let junk = noise(300, seed);
-        let _ = unpack(&mut Unpacker::new(1 << 20), &junk, 1000);
+        let _ = unpack(&mut Unpacker::new(1 << 20).unwrap(), &junk, 1000);
     }
+}
+
+/// A RAR 5 file asking for a dictionary over the largest dm unpacks with (the format allows
+/// 4 GiB) is refused before any window is made, and so is a solid file after it (gaps row H35e).
+#[test]
+fn a_file_asking_for_a_larger_dictionary_than_dm_allows_is_refused() {
+    let most = crate::extract::MOST_DICTIONARY;
+    assert!(Unpacker::new(most).is_ok());
+    for asked in [most + 1, 2 << 30, 4 << 30] {
+        let said = Unpacker::new(asked).err().expect("refused").to_string();
+        assert!(said.contains("dictionary is over 1.5 GiB"), "{said}");
+    }
+    let mut u = Unpacker::new(1 << 20).unwrap();
+    assert!(u.solid(4 << 30).is_err());
 }

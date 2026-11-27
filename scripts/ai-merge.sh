@@ -28,7 +28,7 @@ mkdir -p .bot
 MARK='<!-- dm-bot -->'
 # Never merged by a bot, whoever asked: the guardrails (ai_guard refuses them too; this is
 # the last look).
-GUARDRAILS='^(\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/coverage-floor\.txt$|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|docs/behaviour-baseline/|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml)'
+GUARDRAILS='^(\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/coverage-floor\.txt$|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|docs/behaviour-baseline/|crates/dm-gpui/src/window_tests/golden\.rs$|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml)'
 # Not merged without a person when the change comes from an issue anyone could open: what
 # reaches the network, the browser, the system, the updater, secrets or packaging.
 SENSITIVE='^(crates/dm-net/|crates/dm-protocol/|crates/dm-catcher/|crates/dm-safari/|crates/dm-android/|extension/|packaging/|vendor/|crates/dm-core/src/(download|http|ftp|torrent|secretstore|platform|rtsp|youtube|extract)|crates/dm-shell/src/(app/update|app/handoff|register|shell|native)|crates/dm-desktop-base/src/(control|platform|boot)|crates/[^/]+/build\.rs|Cargo\.toml|crates/[^/]+/Cargo\.toml|assets/)'

@@ -82,6 +82,17 @@ fn width_of(column: Column, widths: &Widths) -> Option<f32> {
 /// The most Status grows to, as a share of its least width.
 const STATUS_GROWS_TO: f32 = 2.0;
 
+/// How much wider than its least Status is drawn where the columns at their least leave `free`
+/// points: a third of them (the name takes two), up to `STATUS_GROWS_TO` times its least; none
+/// where it is hidden or a person gave it a width (`cell`).
+fn status_growth(columns: &[Column], widths: &Widths, free: f32) -> f32 {
+    if !columns.contains(&Column::Status) || widths.contains_key(Column::Status.key()) {
+        return 0.0;
+    }
+    let least = width_of(Column::Status, widths).unwrap_or(0.0);
+    (free / 3.0).min(least * (STATUS_GROWS_TO - 1.0))
+}
+
 /// The file name's column never narrower than this: the other columns
 /// scroll sideways first, as a macOS list does.
 const NAME_AT_LEAST: f32 = 180.0;
@@ -174,7 +185,14 @@ fn cell(column: Column, widths: &Widths) -> gpui::Div {
             .min_w(px(w))
             .max_w(px(w * STATUS_GROWS_TO)),
         (_, Some(w)) => cell.w(px(w)).flex_none(),
-        (_, None) => cell.flex_1().flex_grow(2.0).min_w(px(NAME_AT_LEAST)),
+        // From its least, so the room past every column's least is shared two to one with
+        // Status: from nothing, Status took its whole least first and stood wider than the
+        // name, which was cut ("Ubuntu-24.0…top.iso" in a new window, Status half empty).
+        (_, None) => cell
+            .flex_grow(2.0)
+            .flex_shrink(1.0)
+            .flex_basis(px(NAME_AT_LEAST))
+            .min_w(px(NAME_AT_LEAST)),
     };
     if numeric(column) {
         cell.justify_end()
@@ -219,7 +237,8 @@ impl Downloads {
             .filter_map(|&column| width_of(column, widths))
             .sum();
         // The row's own margins (`px_1` each side), as `least_width` counts them.
-        (seen.max(least_width(self)) - others - 8.0).max(NAME_AT_LEAST)
+        let free = (seen.max(least_width(self)) - others - 8.0 - NAME_AT_LEAST).max(0.0);
+        NAME_AT_LEAST + free - status_growth(columns, widths, free)
     }
 
     /// The columns' widths as drawn: the ones kept, the one being dragged, and the rest their

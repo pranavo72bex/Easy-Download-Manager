@@ -9188,3 +9188,29 @@ What was done for each, and what was found:
 What no machine judges: whether a person finds the change better. The gates hold the app to
 never worse, by every measure here, and a bot's task to its own measure (a test that failed
 now passes; coverage up; a new contract row that holds).
+
+## Right-to-left words that wrap: dm breaks the lines, not GPUI, 2026-11-27 (gaps row E52)
+
+GPUI breaks a wrapped line by walking its shaped glyphs in the order they stand on screen
+(`LineLayout::compute_wrap_boundaries`), from the left; for Arabic or Hebrew that is the
+sentence's end, so a hint wrapped to three lines began on the last. The same code is in every
+GPUI platform, so Linux, Windows and Android have it too. Chosen: `widgets/reading.rs`, an
+element `Screen::label` uses only where the language reads right to left and the words hold a
+right-to-left letter. It breaks the words at their spaces in reading order, measuring each line
+by shaping it, and draws each line on its own, aligned as the window's text is. Words that are
+cut or kept on one line are GPUI's own element. Dropped: a patched copy of `gpui-pre` (the
+core crate, the largest dm would carry) for one loop's order; worth offering upstream instead.
+A line that fits measures as GPUI's (widths rounded up to whole points), so the window's
+goldens did not move.
+
+## The largest dictionary dm unpacks with: 1.5 GiB, 2026-11-27 (gaps rows H35c to H35e)
+
+LZMA, LZMA2 and RAR 5 let an archive ask for a 4 GiB window, and the reference tools unpack
+that much. dm's windows grow only as bytes are unpacked, so a small archive costs little; but a
+crafted one that unpacks gigabytes of zeros with a 4 GiB dictionary held 4 GiB of memory, on a
+phone as on a computer. Chosen at the maintainer's standing word (take the recommended
+option): 1.5 GiB (`extract::MOST_DICTIONARY`), refused with that reason before any window is
+made. It is 7-Zip's largest choosable dictionary (1536 MB) and above RAR 5's own largest
+(1 GiB), so an archive made by either with its own settings unpacks. Dropped: 1 GiB (the row's
+example), which refuses 7-Zip's largest; a share of the computer's memory, which unpacks an
+archive on one machine and refuses it on another. RAR 3's window (4 MiB) is unchanged.

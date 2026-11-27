@@ -112,6 +112,12 @@ pub const SWITCHES: &[Switch] = &[
         test_only: true,
     },
     Switch {
+        name: "DM_GOLDEN",
+        purpose: "`write`: the window's golden test writes this system's layout files \
+                  again rather than judging the window by them.",
+        test_only: true,
+    },
+    Switch {
         name: "DM_HIGH_CONTRAST",
         purpose: "`black` or `white`: a debug build off Windows shows that high-contrast \
                   palette, for checking it.",

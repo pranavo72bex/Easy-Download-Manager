@@ -54,6 +54,17 @@ impl Default for Limits {
     }
 }
 
+/// The largest dictionary (the window of bytes a match copies from) dm unpacks with, for LZMA,
+/// LZMA2 and RAR 5 (gaps rows H35c to H35e): 1.5 GiB, which is 7-Zip's largest choosable
+/// (1536 MB) and above RAR 5's own largest (1 GiB). The formats allow 4 GiB, and a window
+/// grows to its dictionary as bytes are unpacked, so a crafted archive of zeros could hold
+/// 4 GiB of memory; one asking for more than this is refused before anything is unpacked.
+/// The maintainer's standing word (take the recommended option), 2026-11-27.
+pub(crate) const MOST_DICTIONARY: u64 = 1536 << 20;
+
+/// What a refusal of a dictionary over [`MOST_DICTIONARY`] says.
+pub(crate) const DICTIONARY_TOO_LARGE: &str = "its dictionary is over 1.5 GiB";
+
 /// What an extraction made.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Extracted {

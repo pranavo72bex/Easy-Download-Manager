@@ -5,6 +5,11 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The Scheduler's hint under its hours reads "Local time. Hours that end before they start run overnight."; it said "HH:MM", a typed form the hours' pickers no longer ask for.
+- In a new window the download list shows a file's whole name ("Ubuntu-24.04-desktop.iso", which was cut to "Ubuntu-24.0…top.iso"): the room past every column's least goes two parts to the name for one to Status, where Status took its share first and stood half empty.
+- Unpacking: a 7z or RAR archive whose dictionary is over 1.5 GiB is refused with that reason, before anything is unpacked (the formats allow 4 GiB, which a crafted archive could hold in memory). Every 7-Zip preset and every RAR 5 archive is under it.
+- In Arabic and Hebrew, words that wrap onto several lines (a setting's hint in Options, a long note) read from the first line down; the sentence began on the last line before.
+- For contributors: the window's layout is held by golden files (`docs/behaviour-baseline/layout/`): 19 scenes of a computer's window and 15 of a phone's, each word with where it is drawn, so a change that moves, cuts or drops a word fails a test (`docs/testing.md`).
 - The side panel's first group is headed "Categories", no longer repeating "All downloads" from the title. In Arabic and Hebrew the top bar reads from the right, and in Arabic sizes are written short (م.ب for MB), so the list fits a new window without scrolling sideways; the Size and Transfer rate columns are as wide as their widest figure in every unit, and words that join (Arabic) are measured as drawn.
 - On a phone, the top bar says "All downloads" for every download, as the computer's title bar does, not the app's name "dm".
 - Start queue and Stop queue say which queue they act on when hovered ("Start queue: Main queue"), and the arrow beside each is easier to hit (24 points) and is named for what it does ("Choose a queue to start", "Choose a queue to stop"), where a screen reader heard "Queues" for both.

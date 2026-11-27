@@ -132,6 +132,10 @@ SectionEnd
 [features]
 default = ["runtime-shaders"]
 runtime-shaders = ["gpui_platform/runtime_shaders"]
+# The phone's layout built for this computer, for the window's goldens alone
+# (window_tests/golden.rs): ON_A_PHONE and GNOME's measures, as an Android build has them.
+# Never shipped: a build with it is a phone's window in a computer's.
+phone-layout = []
 
 [dependencies]
 dm-core.workspace = true

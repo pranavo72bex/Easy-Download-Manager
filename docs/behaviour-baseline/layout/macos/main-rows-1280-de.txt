@@ -1,0 +1,54 @@
+# dm's window, scene main-rows-1280-de (macos, 1280x720, de, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 1280x720]
+"Aufgaben" 118 8 181 29
+"Datei" 197 8 236 29
+"Downloads" 252 8 323 29
+"Ansicht" 339 8 394 29
+"Hilfe" 410 8 449 29
+"URL hinzufügen" 16 63 109 81
+"Fortsetzen" 139 62.5 205 80.5
+"Stopp" 235 63 268 81
+"Löschen" 288 63 335 81
+"Alle stoppen" 732 63 812 81
+"Zeitplaner" 832 63 898 81
+"Warteschlange starten" 918 63 1057 81
+"Warteschlange stoppen" 1101 63 1240 81
+"Kategorien" 16 108 82 126
+"Alle" 40 133.5 72 154.5
+"3" 176 135 183 153
+"Videos" 40 161.5 87 182.5
+"1" 176 163 183 181
+"Dokumente" 40 189.5 111 210.5
+"1" 176 191 183 209
+"Archive" 40 217.5 95 238.5
+"1" 176 219 183 237
+"Unvollständig" 40 261.5 142 282.5
+"3" 176 263 183 281
+"Abgeschlossen" 40 289.5 142 310.5
+"Warteschlangen" 16 326 109 344
+"Haupt-Warteschlange" 40 351.5 168 372.5
+"3" 176 353 183 371
+"Prüf-Warteschlange" 40 379.5 175 400.5
+"dm zum Browser hinzufügen:" 236 95.5 439 116.5
+"Microsoft Edge" 462 95.5 572 116.5
+"Firefox" 610 95.5 665 116.5
+"Chrome und andere" 703 95.5 836 116.5
+"Nicht jetzt" 1167 95.5 1253 116.5
+"Dateiname" 212 129.5 272 147.5
+"Größe" 650 129.5 683 147.5
+"Status" 699 129.5 739 147.5
+"Restzeit" 949 129.5 1002 147.5
+"Übertragungsrate" 1032 129.5 1138 147.5
+"Letzter Versuch" 1154 129.5 1253 147.5
+"report.pdf" 236 156.5 314 177.5
+"Wartet auf »Warteschlange starten«" 715 156.5 899 177.5
+"holiday.mp4" 236 184.5 322 205.5
+"Wartet auf »Warteschlange starten«" 715 184.5 899 205.5
+"archive.zip" 236 212.5 322 233.5
+"Wartet auf »Warteschlange starten«" 715 212.5 899 233.5
+"3 Downloads" 16 699.5 89 717.5
+"· Nichts wird heruntergeladen" 93 699.5 285 717.5
+"· 3 warten auf »Warteschlange starten«" 289 699.5 540 717.5
+"· Geschwindigkeitsbegrenzer" 544 699.5 723 717.5

@@ -316,7 +316,7 @@
  "The torrent's own name": "トレント自体の名前",
  "Finding peers…": "ピアを検索中…",
  "Tick at least one day.": "少なくとも 1 日を選んでください。",
- "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM（現地時刻）。終了が開始より前の場合は、日をまたいで実行します。",
+ "Local time. Hours that end before they start run overnight.": "現地時刻。終了が開始より前の場合は、日をまたいで実行します。",
  "A download with this name exists. This one will be numbered.": "同じ名前のダウンロードがあります。このダウンロードには番号が付きます。",
  "Not available: {}.": "利用できません：{}。",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} はスケジュール待ちです。スケジュールの時間帯になると自動で開始します。",

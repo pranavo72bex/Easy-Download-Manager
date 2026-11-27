@@ -7,8 +7,9 @@
 //! On a phone the notifier and the clipboard are the app's (`phone.rs`, gaps row N17), and there is no tray.
 
 /// Whether dm runs on a phone: no browser extension reaches it there, and what only a
-/// computer has (the browser's bar) is not offered.
-pub(crate) const ON_A_PHONE: bool = cfg!(target_os = "android");
+/// computer has (the browser's bar) is not offered. `phone-layout` builds the phone's layout
+/// on a computer, for the window's goldens (`window_tests/golden.rs`).
+pub(crate) const ON_A_PHONE: bool = cfg!(any(target_os = "android", feature = "phone-layout"));
 
 pub(crate) mod clipwatch;
 pub(crate) mod dragout;

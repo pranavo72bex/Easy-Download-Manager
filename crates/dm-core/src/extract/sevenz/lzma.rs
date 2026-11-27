@@ -23,6 +23,18 @@ fn damaged(what: &str) -> io::Error {
     )
 }
 
+/// `dict` refused where it is over the largest dictionary dm unpacks with
+/// ([`MOST_DICTIONARY`](crate::extract::MOST_DICTIONARY)), before any window is made.
+fn allowed(dict: u32) -> io::Result<()> {
+    if u64::from(dict) > crate::extract::MOST_DICTIONARY {
+        return Err(io::Error::other(format!(
+            "the archive is larger than dm will extract ({})",
+            crate::extract::DICTIONARY_TOO_LARGE
+        )));
+    }
+    Ok(())
+}
+
 /// Bytes of packed input, read through a buffer of its own, counted, and stopped at a limit
 /// (an LZMA2 chunk's end) so a damaged chunk cannot read into the next one.
 pub(super) struct Input {
@@ -549,6 +561,7 @@ impl LzmaReader {
             .filter(|(_, d)| d.len() == 4)
             .ok_or_else(|| damaged("its properties are not five bytes"))?;
         let dict = u32::from_le_bytes([dict[0], dict[1], dict[2], dict[3]]);
+        allowed(dict)?;
         let mut input = Input::new(reader);
         let mut rc = Range::default();
         if size > 0 {
@@ -622,6 +635,7 @@ impl Lzma2Reader {
         } else {
             (2 | u32::from(prop & 1)) << (prop / 2 + 11)
         };
+        allowed(dict)?;
         let props = Props {
             lc: 0,
             lp: 0,
@@ -758,3 +772,6 @@ impl Read for Lzma2Reader {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

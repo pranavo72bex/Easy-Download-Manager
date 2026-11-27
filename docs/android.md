@@ -471,6 +471,21 @@ submitted. What it needs, and where dm stands:
   `title.txt`, `short_description.txt`, `full_description.txt`, `images/phoneScreenshots/`),
   which F-Droid reads from the repository; not written yet, waiting for dm's phone window (N17).
 
+## Which certificates dm trusts
+
+One rule for every connection dm makes, on the phone as on a computer (gaps row H18): a server's
+certificate must chain to one of the public roots dm is built with (`webpki-roots`, the list
+Mozilla keeps), and to nothing else. The system's store is never read: a root a person, a
+company's device profile or another app added to the phone vouches for no server to dm, and
+neither does Android's own list. The rule is in one place, `dm-net`'s `root_store`, which every
+HTTP client (`with_tls`), the stream protocols (RTMP, `rtsps://`, FTPS) and the trackers' client
+(librqbit's `tracker_tls`, `dm(roots)`) take. The app's Java does no networking and sets no
+`networkSecurityConfig`. Tests: `the_roots_are_the_public_ones_alone` (dm's store holds the
+public roots and nothing more) and `every_client_in_dms_crates_takes_dms_roots` (no client is
+built with reqwest's own `Client::new()` or `Client::builder()`, which would check with the
+system's store). The one exception is a test's: `DM_BENCH_CA`, the benchmark's own server. A
+person's own root, trusted when they say so in Options, is not built (it adds a setting).
+
 ## Still owed
 
 - **dm's window on a phone (N3, N16, N17, N7).** Drawn on a phone since 2026-11-21 (Vulkan);

@@ -63,7 +63,10 @@ impl<T: Copy> Each<T> {
 
     /// This system's measure (GNOME's on any system but macOS and Windows).
     pub(crate) const fn here(&self) -> T {
-        if cfg!(target_os = "macos") {
+        // A phone's layout built on a computer measures as Android's build does: GNOME's.
+        if cfg!(feature = "phone-layout") {
+            self.gnome
+        } else if cfg!(target_os = "macos") {
             self.macos
         } else if cfg!(windows) {
             self.windows

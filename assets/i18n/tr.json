@@ -316,7 +316,7 @@
  "The torrent's own name": "Torrentin kendi adı",
  "Finding peers…": "Eş aranıyor…",
  "Tick at least one day.": "En az bir gün işaretleyin.",
- "HH:MM, local time. A window ending before it starts runs overnight.": "SS:DD, yerel saat. Başlamadan önce biten bir aralık gece boyunca sürer.",
+ "Local time. Hours that end before they start run overnight.": "Yerel saat. Başlamadan önce biten saatler gece boyunca sürer.",
  "A download with this name exists. This one will be numbered.": "Bu adda bir indirme var. Bu numaralandırılacak.",
  "Not available: {}.": "Kullanılamıyor: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} zamanlamayı bekliyor; zamanlama açılınca kendiliğinden başlar.",

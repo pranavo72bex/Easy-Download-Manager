@@ -62,7 +62,13 @@ impl Screen {
     /// `text`, drawn, and recorded where it is laid out.
     pub fn label(&self, text: impl Into<SharedString>) -> impl IntoElement {
         let text: SharedString = text.into();
-        self.mark(text.clone(), text)
+        // Right-to-left words that wrap are broken in reading order (gaps row E52).
+        if crate::widgets::reading::needs(&text) {
+            return self
+                .mark(text.clone(), crate::widgets::reading::Paragraph(text))
+                .into_any_element();
+        }
+        self.mark(text.clone(), text).into_any_element()
     }
 
     /// `element`, drawn, and recorded as saying `text` where it is laid

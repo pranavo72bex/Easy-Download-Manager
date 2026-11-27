@@ -1,0 +1,40 @@
+# dm's window, scene main-empty-600 (macos, 600x600, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 600x600]
+"Tasks" 118 8 157 29
+"File" 173 8 205 29
+"Downloads" 221 8 292 29
+"View" 308 8 340 29
+"Help" 356 8 388 29
+"Add URL" 16 63 63 81
+"Resume" 93 62.5 133 80.5
+"Stop" 163 63 190 81
+"Delete" 210 63 250 81
+"Stop all" 287 63 340 81
+"Scheduler" 360 63 420 81
+"Start queue" 440 63 513 81
+"More" 557 63 584 81
+"Categories" 16 108 82 126
+"All" 40 133.5 64 154.5
+"Unfinished" 40 177.5 118 198.5
+"Finished" 40 205.5 103 226.5
+"Queues" 16 242 56 260
+"Main queue" 40 267.5 118 288.5
+"Recheck queue" 40 295.5 142 316.5
+"Add dm to your browser:" 236 95.5 416 116.5
+"Microsoft Edge" 439 95.5 549 116.5
+"Firefox" 251 127.5 306 148.5
+"Chrome and others" 344 127.5 477 148.5
+"Not now" 251 159.5 306 180.5
+"File name" 212 193.5 272 211.5
+"Size" 437 193.5 464 211.5
+"Status" 480 193.5 520 211.5
+"Time left" 588 193.5 600 211.5
+"Nothing queued" 332.5 299 467.5 325
+"Add URL, paste a link, or send one from your browser." 220 329 580 371
+"Add URL" 372.5 384.5 427.5 405.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 220 419 580 455
+"0 downloads" 16 579.5 89 597.5
+"· Nothing downloading" 93 579.5 232 597.5
+"· Speed limiter" 236 579.5 335 597.5

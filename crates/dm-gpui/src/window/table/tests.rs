@@ -95,3 +95,23 @@ fn cut_words_are_measured_against_their_room() {
     let wide = crate::widgets::native::text_width(long);
     assert!(cut(long, wide - 1.0) && !cut(long, wide + 1.0));
 }
+
+/// Room past every column's least goes two parts to the file name for one to Status, up to
+/// twice Status's least; none to Status where it is hidden or given a width by hand. Status took
+/// its whole least before the name had any of the room, and stood wider than a name it cut.
+#[test]
+fn status_grows_by_a_third_of_the_spare_room_and_the_name_by_the_rest() {
+    let shown = [Column::Name, Column::Size, Column::Status];
+    let none = Widths::new();
+    let least = width(Column::Status).unwrap();
+    assert_eq!(status_growth(&shown, &none, 90.0), 30.0);
+    assert_eq!(status_growth(&shown, &none, 0.0), 0.0);
+    // At most twice its least, however wide the window.
+    assert_eq!(status_growth(&shown, &none, 10_000.0), least);
+    assert_eq!(
+        status_growth(&[Column::Name, Column::Size], &none, 90.0),
+        0.0
+    );
+    let given = Widths::from([(Column::Status.key().to_string(), 150.0)]);
+    assert_eq!(status_growth(&shown, &given, 90.0), 0.0);
+}

@@ -35,8 +35,18 @@ const MAX_FILTERS: usize = 8192;
 /// The window is never smaller than this, so a filter's whole block fits in it beside what
 /// is still to be written.
 const MIN_WINDOW: u64 = 8 << 20;
-/// The format's largest dictionary.
-const MAX_WINDOW: u64 = 4 << 30;
+/// The largest window: dm's largest dictionary, rounded up to a power of two (the format's
+/// own is 4 GiB; a larger dictionary is refused, `allowed`).
+const MAX_WINDOW: u64 = crate::extract::MOST_DICTIONARY.next_power_of_two();
+
+/// `dict` refused where it is over the largest dictionary dm unpacks with, before any window
+/// is made (gaps row H35e); it was clamped to 4 GiB.
+fn allowed(dict: u64) -> Result<(), Error> {
+    if dict > crate::extract::MOST_DICTIONARY {
+        return Err(Error::TooBig(crate::extract::DICTIONARY_TOO_LARGE));
+    }
+    Ok(())
+}
 /// Bytes unpacked between writes.
 const FLUSH: u64 = 1 << 20;
 
@@ -92,6 +102,7 @@ impl Window {
     /// Makes room for a solid file's dictionary `dict`, where `pos` bytes are unpacked: a
     /// larger one only while the window has not wrapped yet.
     pub(super) fn fit(&mut self, dict: u64, pos: u64) -> Result<(), Error> {
+        allowed(dict)?;
         let want = dict.clamp(MIN_WINDOW, MAX_WINDOW).next_power_of_two();
         if want > self.size {
             if pos > self.buf.len() as u64 {
@@ -262,8 +273,9 @@ pub(super) struct Unpacker {
 
 impl Unpacker {
     /// A stream whose first file needs the dictionary `dict`.
-    pub(super) fn new(dict: u64) -> Unpacker {
-        Unpacker {
+    pub(super) fn new(dict: u64) -> Result<Unpacker, Error> {
+        allowed(dict)?;
+        Ok(Unpacker {
             win: Window::new(dict),
             pos: 0,
             written: 0,
@@ -274,7 +286,7 @@ impl Unpacker {
             filters: VecDeque::new(),
             out: Vec::new(),
             spare: Vec::new(),
-        }
+        })
     }
 
     /// Readies the stream for a solid file whose dictionary is `dict`.

@@ -316,7 +316,7 @@
  "The torrent's own name": "Собственное имя торрента",
  "Finding peers…": "Поиск пиров…",
  "Tick at least one day.": "Отметьте хотя бы один день.",
- "HH:MM, local time. A window ending before it starts runs overnight.": "ЧЧ:ММ, местное время. Окно, которое заканчивается раньше начала, идёт через ночь.",
+ "Local time. Hours that end before they start run overnight.": "Местное время. Часы, которые заканчиваются раньше начала, идут через ночь.",
  "A download with this name exists. This one will be numbered.": "Загрузка с таким именем уже есть. Эта будет пронумерована.",
  "Not available: {}.": "Недоступно: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "«{}» ждёт расписания; начнётся само, когда оно откроется.",

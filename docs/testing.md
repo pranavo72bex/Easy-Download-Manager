@@ -208,6 +208,32 @@ after each release build. `python3 scripts/stress-protocols.py detach` (macOS) p
 folder's drive (a disk image, detached by force) during a download: the row must end paused with
 why, and dm must keep answering.
 
+## The window's goldens: every word where it was
+
+`crates/dm-gpui/src/window_tests/golden.rs` draws 19 scenes of a computer's window (the main
+window at 1280, 840, 600 and 360 points wide, empty and with three rows, at 200% text, in German
+and Hebrew; Add URL, four Options pages, the Scheduler, the speed limiter, Properties, About)
+and 15 of the phone's, and holds every word each draws, with its window and where it is seen, to
+`docs/behaviour-baseline/layout/<target>/<scene>.txt`. A word moved, cut, added or taken away, or
+a dialog grown or shrunk, fails the test with the lines that differ. Words are measured by GPUI's
+test text system, not the system's fonts, so a scene is the same on every machine of one system;
+each system has its own files (`macos`, `linux`, `windows`, and `android`: the phone's layout
+built on Linux with `--features phone-layout`, CI's Desktop job on Linux). A system with no files
+is not judged: its pictures go to `target/goldens-new/<target>/`, which CI keeps as the run's
+`goldens-new-<os>` artifact.
+
+The files and `golden.rs` are among the bots' guardrails: only a person changes them. After a
+change to the window that was meant, write them again and read the difference before committing:
+
+```sh
+DM_GOLDEN=write cargo test -p dm-gpui golden                          # this computer's
+DM_GOLDEN=write cargo test -p dm-gpui --features phone-layout golden  # on Linux: the phone's
+```
+
+For a system you are not on, take the files from a CI run's `goldens-new-<os>` artifact
+(`gh run download <run> -n goldens-new-ubuntu-latest`), read them, and copy them into
+`docs/behaviour-baseline/layout/`.
+
 ## Profiling
 
 A profile is read against a build that has symbols. The release profile strips them, so

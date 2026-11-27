@@ -80,7 +80,7 @@ ai_guard() {
     git add -N . 2>/dev/null
     changed=$(git status --porcelain)
     if [ -z "$changed" ]; then echo none; return; fi
-    guarded='\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/behaviour-baseline/|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml'
+    guarded='\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/behaviour-baseline/|crates/dm-gpui/src/window_tests/golden\.rs|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml'
     if [ "$AI_CONTRACT_ADD" != 1 ]; then guarded+='|docs/behaviour-contract\.md'; fi
     guarded=" ($guarded)"
     if grep -qE "$guarded" <<<"$changed"; then

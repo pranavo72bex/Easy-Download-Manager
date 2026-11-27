@@ -316,7 +316,7 @@
  "The torrent's own name": "De eigen naam van de torrent",
  "Finding peers…": "Peers zoeken…",
  "Tick at least one day.": "Vink ten minste één dag aan.",
- "HH:MM, local time. A window ending before it starts runs overnight.": "UU:MM, lokale tijd. Een venster dat eindigt vóór het begint, loopt door de nacht.",
+ "Local time. Hours that end before they start run overnight.": "Lokale tijd. Uren die eindigen vóór ze beginnen, lopen door de nacht.",
  "A download with this name exists. This one will be numbered.": "Er bestaat al een download met deze naam. Deze krijgt een nummer.",
  "Not available: {}.": "Niet beschikbaar: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} wacht op de planning; start vanzelf zodra die opent.",

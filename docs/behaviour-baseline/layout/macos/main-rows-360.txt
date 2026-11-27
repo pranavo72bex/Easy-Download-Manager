@@ -1,0 +1,33 @@
+# dm's window, scene main-rows-360 (macos, 360x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 360x720]
+"All downloads" 94 9 256 38
+"Filter" 272 11.5 296 35.5
+"Menu" 324 11.5 348 35.5
+"Add dm to your browser:" 36 54 216 75
+"Microsoft Edge" 51 84.5 161 105.5
+"Firefox" 199 84.5 254 105.5
+"Chrome and others" 51 116.5 184 137.5
+"Not now" 278 116.5 333 137.5
+"report.pdf" 64 155 244 181
+"Waiting for Start queue" 80 199 236 220
+"Resume download" 266 177.5 286 197.5
+"Row menu" 322 177.5 342 197.5
+"holiday.mp4" 64 239 244 265
+"Waiting for Start queue" 80 283 236 304
+"Resume download" 266 261.5 286 281.5
+"Row menu" 322 261.5 342 281.5
+"archive.zip" 64 323 244 349
+"Waiting for Start queue" 80 367 236 388
+"Resume download" 266 345.5 286 365.5
+"Row menu" 322 345.5 342 365.5
+"Add URL" 303 571 329 597
+"3 downloads" 16 631.5 62 649.5
+"· Nothing downloading" 66 631.5 153 649.5
+"· 3 waiting for Start queue" 157 631.5 269 649.5
+"· Speed limiter" 273 631.5 330 649.5
+"All" 34 693.5 56 713
+"Unfinished" 99 693.5 171 713
+"Places" 203 693.5 247 713
+"Options" 289.5 693.5 340.5 713

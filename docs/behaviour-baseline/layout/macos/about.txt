@@ -1,0 +1,53 @@
+# dm's window, scene about (macos, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 1280x720]
+"Tasks" 118 8 157 29
+"File" 173 8 205 29
+"Downloads" 221 8 292 29
+"View" 308 8 340 29
+"Help" 356 8 388 29
+"Add URL" 16 63 63 81
+"Resume" 93 62.5 133 80.5
+"Stop" 163 63 190 81
+"Delete" 210 63 250 81
+"Stop all" 904 63 957 81
+"Scheduler" 977 63 1037 81
+"Start queue" 1057 63 1130 81
+"Stop queue" 1174 63 1240 81
+"Categories" 16 108 82 126
+"All" 40 133.5 64 154.5
+"Unfinished" 40 177.5 118 198.5
+"Finished" 40 205.5 103 226.5
+"Queues" 16 242 56 260
+"Main queue" 40 267.5 118 288.5
+"Recheck queue" 40 295.5 142 316.5
+"Add dm to your browser:" 236 95.5 416 116.5
+"Microsoft Edge" 439 95.5 549 116.5
+"Firefox" 587 95.5 642 116.5
+"Chrome and others" 680 95.5 813 116.5
+"Not now" 1198 95.5 1253 116.5
+"File name" 212 129.5 272 147.5
+"Size" 703 129.5 730 147.5
+"Status" 746 129.5 786 147.5
+"Time left" 976 129.5 1036 147.5
+"Transfer rate" 1066 129.5 1152 147.5
+"Last try date" 1168 129.5 1254 147.5
+"Nothing queued" 672.5 235 807.5 261
+"Add URL, paste a link, or send one from your browser." 533 265 947 286
+"Add URL" 712.5 299.5 767.5 320.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 528.5 334 951.5 352
+"0 downloads" 16 699.5 89 717.5
+"· Nothing downloading" 93 699.5 232 717.5
+"· Speed limiter" 236 699.5 335 717.5
+
+[dialog "About dm" 420x264.5]
+"dm" 198 20 222 52.5
+"Version <version>" somewhere
+"A free download manager, written in Rust." 50 86.5 370 107.5
+"Source code" 96.5 117.5 182.5 138.5
+"Licence (GPL v3)" 198.5 117.5 323.5 138.5
+"Privacy" 100 146.5 155 167.5
+"Code signing policy" 171 146.5 320 167.5
+"Check for updates" 143.5 196 276.5 217
+"Not checked yet." 157 226.5 263 244.5

@@ -185,7 +185,7 @@ impl Scheduler {
         );
         // The hint directly under the hours it explains (gaps row E10), not at the foot.
         let d = d.child(native::hint(
-            t("HH:MM, local time. A window ending before it starts runs overnight."),
+            t("Local time. Hours that end before they start run overnight."),
             theme,
             screen,
         ));

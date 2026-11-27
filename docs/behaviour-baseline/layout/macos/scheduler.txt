@@ -1,0 +1,85 @@
+# dm's window, scene scheduler (macos, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 1280x720]
+"Tasks" 118 8 157 29
+"File" 173 8 205 29
+"Downloads" 221 8 292 29
+"View" 308 8 340 29
+"Help" 356 8 388 29
+"Add URL" 16 63 63 81
+"Resume" 93 62.5 133 80.5
+"Stop" 163 63 190 81
+"Delete" 210 63 250 81
+"Stop all" 904 63 957 81
+"Scheduler" 977 63 1037 81
+"Start queue" 1057 63 1130 81
+"Stop queue" 1174 63 1240 81
+"Categories" 16 108 82 126
+"All" 40 133.5 64 154.5
+"Unfinished" 40 177.5 118 198.5
+"Finished" 40 205.5 103 226.5
+"Queues" 16 242 56 260
+"Main queue" 40 267.5 118 288.5
+"Recheck queue" 40 295.5 142 316.5
+"Add dm to your browser:" 236 95.5 416 116.5
+"Microsoft Edge" 439 95.5 549 116.5
+"Firefox" 587 95.5 642 116.5
+"Chrome and others" 680 95.5 813 116.5
+"Not now" 1198 95.5 1253 116.5
+"File name" 212 129.5 272 147.5
+"Size" 703 129.5 730 147.5
+"Status" 746 129.5 786 147.5
+"Time left" 976 129.5 1036 147.5
+"Transfer rate" 1066 129.5 1152 147.5
+"Last try date" 1168 129.5 1254 147.5
+"Nothing queued" 672.5 235 807.5 261
+"Add URL, paste a link, or send one from your browser." 533 265 947 286
+"Add URL" 712.5 299.5 767.5 320.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 528.5 334 951.5 352
+"0 downloads" 16 699.5 89 717.5
+"· Nothing downloading" 93 699.5 232 717.5
+"· Speed limiter" 236 699.5 335 717.5
+
+[dialog "Scheduler" 720x618]
+"Queues" 20 20 192 41
+"Main queue" 52 50.5 130 71.5
+"Recheck queue" 52 80.5 154 101.5
+"Start now" 35 116.5 106 137.5
+"Stop" 153 116.5 185 137.5
+"The hours when downloads may run, in every queue without hours of its own." 225 20 700 56
+"Only download between set hours" 265 66 698 87
+"Start at" 225 98.5 288 119.5
+"01" 306 98.5 322 119.5
+":" 400 98.5 408 119.5
+"00" 422 98.5 438 119.5
+"Stop at" 225 130.5 280 151.5
+"07" 298 130.5 314 151.5
+":" 392 130.5 400 151.5
+"00" 414 130.5 430 151.5
+"Local time. Hours that end before they start run overnight." 225 155 700 173
+"Every week, on the days ticked" 247 187 482 208
+"Sun" 267 220 291 241
+"Mon" 325 220 349 241
+"Tue" 383 220 407 241
+"Wed" 441 220 465 241
+"Thu" 499 220 523 241
+"Fri" 557 220 581 241
+"Sat" 615 220 639 241
+"Once, on this date" 247 253 388 274
+"15" 235 285.5 251 306.5
+"Jun" 339 285.5 363 306.5
+"2030" 443 285.5 475 306.5
+"When the scheduled downloads are done" 225 336 700 357
+"Do nothing" 247 363 325 384
+"Exit dm" 361 363 416 384
+"Sleep" 452 363 491 384
+"Hibernate" 527 363 598 384
+"Turn off computer" 247 396 380 417
+"A greyed choice is one this computer doesn't allow dm." 225 421 700 439
+"Try a failed download again this many times (0 for none)" 225 451 642 493
+"0" 650 460 700 484
+"Run this program when they are done (optional)" 225 501 700 522
+"?" 28 575.5 36 596.5
+"Cancel" 544.5 575.5 591.5 596.5
+"Save" 644 575.5 676 596.5

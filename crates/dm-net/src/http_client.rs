@@ -326,6 +326,56 @@ mod redirect_tests {
 mod trust_tests {
     use tokio_rustls::rustls::pki_types::CertificateDer;
 
+    /// The roots are the public ones dm is built with, and only those: nothing of the system's
+    /// store (gaps row H18), whatever this computer holds.
+    #[test]
+    fn the_roots_are_the_public_ones_alone() {
+        assert_eq!(
+            super::root_store(Vec::new()).len(),
+            webpki_roots::TLS_SERVER_ROOTS.len()
+        );
+    }
+
+    /// Every HTTP client in dm's crates is built through `with_tls` (the roots above): one made
+    /// with reqwest's own `Client::new()` or `Client::builder()` would check certificates with
+    /// the system's store, which reqwest 0.13 builds in (`rustls-platform-verifier`).
+    #[test]
+    fn every_client_in_dms_crates_takes_dms_roots() {
+        fn sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    sources(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut files = Vec::new();
+        sources(&crates, &mut files);
+        let mut own = Vec::new();
+        for file in files {
+            let text = std::fs::read_to_string(&file).unwrap_or_default();
+            for (n, line) in text.lines().enumerate() {
+                let made = ["Client::new()", "Client::builder()", "ClientBuilder::new()"]
+                    .iter()
+                    .any(|m| line.contains(m));
+                // Through dm's TLS, or words about a client (a comment, this test's own list).
+                let through = line.contains("with_tls(")
+                    || line.trim_start().starts_with("//")
+                    || line.contains("\"Client::");
+                if made && !through {
+                    own.push(format!("{}:{}", file.display(), n + 1));
+                }
+            }
+        }
+        assert!(
+            own.is_empty(),
+            "a client not built through with_tls: {own:?}"
+        );
+    }
+
     /// dm's TLS made with a certificate trusted beside the public roots (the benchmark's,
     /// `DM_BENCH_CA`): the server that shows it is answered, where the public roots alone
     /// refuse it (`a_client_dm_builds_speaks_tls_with_the_public_roots_alone`).
@@ -365,10 +415,7 @@ pub fn tls_config() -> Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>
 fn make_tls_config(
     also: Vec<tokio_rustls::rustls::pki_types::CertificateDer<'static>>,
 ) -> Result<std::sync::Arc<tokio_rustls::rustls::ClientConfig>, crate::Error> {
-    let mut roots = tokio_rustls::rustls::RootCertStore::empty();
-    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    // Each was checked as a root when it was given (`trust::certificates`): none is left out.
-    roots.add_parsable_certificates(also);
+    let roots = root_store(also);
     // The provider named rather than taken from the process's default:
     // ring is the only one compiled in (gaps row P7), but whether a default
     // is installed depends on whether a torrent session has started yet.
@@ -380,6 +427,20 @@ fn make_tls_config(
     .with_root_certificates(roots)
     .with_no_client_auth();
     Ok(std::sync::Arc::new(config))
+}
+
+/// The roots dm's TLS trusts: the public ones dm is built with (`webpki-roots`) and `also`,
+/// never the system's store (gaps row H18): a root a person, a company's profile or another app
+/// added to the computer or the phone vouches for no server to dm (`docs/android.md`, "Which
+/// certificates dm trusts").
+fn root_store(
+    also: Vec<tokio_rustls::rustls::pki_types::CertificateDer<'static>>,
+) -> tokio_rustls::rustls::RootCertStore {
+    let mut roots = tokio_rustls::rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    // Each was checked as a root when it was given (`trust::certificates`): none is left out.
+    roots.add_parsable_certificates(also);
+    roots
 }
 
 /// The `Retry-After` a refusal carried, if it carried a usable one.
