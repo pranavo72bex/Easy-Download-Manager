@@ -946,6 +946,7 @@ version = "0.10.3"
 dependencies = [
  "bytes",
  "librqbit",
+ "librqbit-peer-protocol",
  "tokio",
  "tokio-util",
  "url",

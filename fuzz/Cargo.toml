@@ -97,3 +97,10 @@ path = "fuzz_targets/javascript.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "peer_messages"
+path = "fuzz_targets/peer_messages.rs"
+test = false
+doc = false
+bench = false

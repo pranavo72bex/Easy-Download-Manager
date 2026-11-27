@@ -29,6 +29,16 @@ use std::sync::Arc;
 use librqbit::{AddTorrent, AddTorrentOptions, TorrentStatsState};
 use tokio_util::sync::CancellationToken;
 
+/// One message a peer sent, read from the start of `bytes` as the torrent library reads every
+/// peer's: how many bytes it took, or why it could not be read (cut short, unknown, malformed).
+/// Never panics, whatever the bytes: the fuzz target `peer_messages` holds it to that (gaps rows
+/// H11a, H11b).
+pub fn read_peer_message(bytes: &[u8]) -> Result<usize, String> {
+    librqbit_peer_protocol::Message::deserialize(bytes, &[])
+        .map(|(_, used)| used)
+        .map_err(|e| e.to_string())
+}
+
 mod error;
 pub use error::Error;
 
@@ -480,6 +490,18 @@ pub fn metainfo(bytes: &[u8]) -> Result<Metainfo, Error> {
 
 #[cfg(test)]
 mod tests {
+    /// A keep-alive is read whole; garbage and a message cut short are errors, not panics.
+    #[test]
+    fn a_peers_message_is_read_or_refused_never_a_panic() {
+        assert_eq!(super::read_peer_message(&[0, 0, 0, 0]), Ok(4));
+        assert!(super::read_peer_message(&[0, 0, 0, 5, 4]).is_err());
+        assert!(super::read_peer_message(&[0, 0, 0, 2, 250, 1]).is_err());
+        for n in 0..300u32 {
+            let bytes: Vec<u8> = (0..n).map(|i| (i * 37 + n) as u8).collect();
+            let _ = super::read_peer_message(&bytes);
+        }
+    }
+
     use super::*;
 
     /// A number in a `.torrent` past its type's end is refused, not multiplied past it: the

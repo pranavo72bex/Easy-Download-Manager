@@ -15,6 +15,8 @@ publish = false
 # vendored copy `rust-tls` means ring and the pure-Rust SHA-1, so no second crypto library
 # (aws-lc, built in C with cmake) and no axum come with it (vendor/README.md).
 librqbit.workspace = true
+# What a peer sends, read as the library reads it (`read_peer_message`, gaps row H11a).
+librqbit-peer-protocol.workspace = true
 # A .torrent's bytes, handed to the library without a copy.
 bytes.workspace = true
 # The token that shuts a session down, which dm-core also keeps for a shared torrent.

@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [torrent_metainfo, hls_playlist, dash_manifest, metalink, archives, zip_listing, mp4, youtube_frames, javascript]
+        target: [torrent_metainfo, hls_playlist, dash_manifest, metalink, archives, zip_listing, mp4, youtube_frames, javascript, peer_messages]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       # libFuzzer's coverage needs nightly's sanitizer flags; dm itself is built on stable.
