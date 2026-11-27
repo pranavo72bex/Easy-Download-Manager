@@ -32,7 +32,7 @@ use crate::window::zoom::px;
 pub const NO_CHOOSER: &str = "No file picker here: type the path.";
 
 /// The field's name.
-const PATH: &str = "File's path";
+const PATH: &str = "File’s path";
 
 /// What came of an Import or an Export started here, told back once the
 /// file is read or written: the dialog closes, or says why not.
@@ -61,7 +61,7 @@ pub(crate) fn suggested(download_dir: &Path) -> PathBuf {
 pub(crate) fn typed_path(typed: &str, example: &Path) -> Result<PathBuf, String> {
     dm_shell::settings::full_path(typed).ok_or_else(|| {
         tf(
-            "Type the file's full path, such as {}.",
+            "Type the file’s full path, such as {}.",
             &[&example.display()],
         )
     })

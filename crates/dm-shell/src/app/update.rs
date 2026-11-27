@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 pub const NOTES: &str = "https://github.com/pranavo72bex/Easy-Download-Manager/releases/tag/";
 
 /// The newest release's notes, from the last check, where it named a page
-/// under `NOTES`: what About's "What's new" opens.
+/// under `NOTES`: what About's "What’s new" opens.
 pub static LATEST_NOTES: Mutex<Option<String>> = Mutex::new(None);
 
 /// A release's notes page from its `latest.json`, only one of the

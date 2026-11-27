@@ -10,7 +10,7 @@ chosen. It also opens from:
 - the **Update download link** button of the question **The file doesn't
   exist** (see [Questions dm asks](questions.md));
 - by itself, when a download's link has expired and **Options › General ›
-  Offer a new link when a download's link has expired** is on, unless
+  Offer a new link when a download’s link has expired** is on, unless
   another of dm's windows is in front.
 
 The menu item is greyed while the download runs and once it has finished,
@@ -19,7 +19,7 @@ except while it waits to try again after a failure.
 ## Fields and buttons
 
 - The download's name, and its address now.
-- "The download's link has expired? Paste a fresh one:" and a field for the
+- "The download’s link has expired? Paste a fresh one:" and a field for the
   new address.
 - **Or:** **Get it from the browser:** shown when the download came from a
   web page. It opens that page in your browser and closes this window. A

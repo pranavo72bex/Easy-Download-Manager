@@ -59,7 +59,7 @@ pub const CONNECTION_PRESETS: [(&str, u32); 4] = [
 
 /// Options › Downloads' sound languages (gaps row Y10): the setting's value (a language tag)
 /// and the language's own name, untranslated, as the window's languages are named. The pop-up
-/// offers "The video's own" (an empty value) above them.
+/// offers "The video’s own" (an empty value) above them.
 pub const SOUND_LANGUAGES: [(&str, &str); 16] = [
     ("en", "English"),
     ("es", "Español"),
@@ -390,7 +390,7 @@ pub fn ok(
     {
         return Err(Refused {
             says: tf(
-                "\"{}\" can't be a category, because its name is also its folder's. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.",
+                "“{}” can’t be a category, because its name is also its folder’s. Leave out / \\ : * ? \" < > |, names like CON, and a dot or space at the end.",
                 &[&bad],
             ),
             tab: Some(Tab::SaveTo),
@@ -412,14 +412,14 @@ fn proxy_refused(p: &dm_core::Proxy) -> Option<String> {
     }
     let host = p.host.trim();
     if host.is_empty() {
-        Some(t("Enter the proxy's host, or untick \"Connect through a proxy\".").to_string())
+        Some(t("Enter the proxy’s host, or untick “Connect through a proxy”.").to_string())
     } else if host.contains("://")
         || host
             .chars()
             .any(|c| c.is_whitespace() || "/@?#".contains(c))
     {
         Some(tf(
-            "\"{}\" isn't a valid proxy host. Enter a name like proxy.example.com; the port goes in its own field.",
+            "“{}” isn’t a valid proxy host. Enter a name like proxy.example.com; the port goes in its own field.",
             &[&host],
         ))
     } else if p.port == 0 {

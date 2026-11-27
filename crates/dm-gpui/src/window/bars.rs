@@ -298,7 +298,7 @@ impl Downloads {
         Some(
             body()
                 .child(words(screen.label(tn(
-                    "{} download didn't finish.||{} downloads didn't finish.",
+                    "{} download didn’t finish.||{} downloads didn’t finish.",
                     count as u64,
                     &[&count],
                 ))))

@@ -15,7 +15,7 @@ extension. **Check now** looks again, after you add or remove one.
 
 **Magnet links open with:** and **.torrent files open with:** say which
 program Windows opens them with: dm, **another program**, **nothing yet**,
-or **the app chosen in Windows' Default apps**. It says **Looking…** while
+or **the app chosen in Windows’ Default apps**. It says **Looking…** while
 it asks Windows.
 
 - **Use dm for magnet links** and **Use dm for .torrent files** make dm the
@@ -30,7 +30,7 @@ it asks Windows.
 
 ## The right-click menu
 
-**Items dm adds to the browser's right-click menu:** turn an item off to take
+**Items dm adds to the browser’s right-click menu:** turn an item off to take
 it out of the browser's right-click menu:
 
 - **Download link with dm:** the link you right-clicked.
@@ -79,7 +79,7 @@ browser** is off.
 - **Show Download video on web videos:** "A button over a video on a web
   page, to download it with dm." See [Videos and their
   qualities](videos.md).
-- **Send the browser's sign-in with downloads:** "Files that need you signed
+- **Send the browser’s sign-in with downloads:** "Files that need you signed
   in come to dm too. Your sign-in goes with that one download and is
   forgotten after it. Off: only the sites you turn on in the extension's
   menu send it." See [Sign-ins](sign-ins.md).

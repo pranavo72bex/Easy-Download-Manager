@@ -183,9 +183,9 @@ pub fn clash(
 /// something else).
 pub fn name_hint(url: &str, titled: bool, remux: bool) -> String {
     if titled {
-        t("The video's own title").to_string()
+        t("The video’s own title").to_string()
     } else if dm_core::is_torrent(url) {
-        t("The torrent's own name").to_string()
+        t("The torrent’s own name").to_string()
     } else {
         dm_shell::app::lookups::stream_name(url, None, remux)
             .unwrap_or_else(|| dm_shell::app::names::provisional(url))

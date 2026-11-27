@@ -65,12 +65,12 @@
 "Video quality" 220 281 694 303.5
 "Best available" 716 281 834 303.5
 "Sound language" 220 325 685 347.5
-"The video's own" 707 325 834 347.5
-"Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own." 220 355.5 700 394.5
+"The video’s own" 707 325 834 347.5
+"Where a video has its sound in several languages, this one is taken; where none speaks it, the video’s own." 220 355.5 700 394.5
 "Start the Main queue when dm opens" 220 414 820 436.5
 "Downloads waiting in the Main queue start without a click." 220 444.5 700 464
 "Embed subtitles in videos from player pages" 220 483.5 820 506
-"A video's subtitles are saved inside its file, to turn on in your player." 220 514 700 527
+"A video’s subtitles are saved inside its file, to turn on in your player." 220 514 700 527
 "?" 30.5 553.5 39.5 576
 "Restore defaults" 75 553.5 210 576
 "Cancel" 704 553.5 755 576

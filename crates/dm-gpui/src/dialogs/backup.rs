@@ -39,12 +39,12 @@ const PASSPHRASE: &str = "Passphrase";
 /// The field the passphrase is typed in again.
 const AGAIN: &str = "Passphrase again";
 /// The field of the file's path, typed where there is no file chooser (Export's words).
-const PATH: &str = "File's path";
+const PATH: &str = "File’s path";
 /// The backup's file, beside its path.
 const FROM: &str = "From";
 
 /// What Back up dm says of a backup.
-const BACKUP_SAYS: &str = "One file of dm's settings, queues, schedules, site rules, saved searches and list of downloads. The sign-ins (passwords, and the cookies a browser handed over) go in only with a passphrase, sealed with it.";
+const BACKUP_SAYS: &str = "One file of dm’s settings, queues, schedules, site rules, saved searches and list of downloads. The sign-ins (passwords, and the cookies a browser handed over) go in only with a passphrase, sealed with it.";
 /// What Restore says it does.
 const RESTORE_SAYS: &str = "Its settings, queues, schedules, site rules and saved searches replace these, as OK in Options does; its downloads are added to the list, those already in it left out. Downloads running go on.";
 /// What Restore says of the passphrase.
@@ -448,15 +448,15 @@ fn read_backup(path: &Path, passphrase: &str) -> Result<Backup, Failed> {
 fn worded(failed: &Failed, path: &Path) -> String {
     match failed {
         Failed::Io(e) => tf(
-            "{} couldn't be read: {}",
+            "{} couldn’t be read: {}",
             &[&path.display(), &dm_desktop_base::format::file_error(e)],
         ),
         Failed::Refused(Refused::NotABackup) => t("That file is not a backup of dm.").to_string(),
         Failed::Refused(Refused::WrongPassphrase) => {
-            t("That passphrase does not open this backup's sign-ins.").to_string()
+            t("That passphrase does not open this backup’s sign-ins.").to_string()
         }
         Failed::Refused(Refused::SealedByNewer) => {
-            t("This backup's sign-ins were sealed by a newer dm, which this one can't open.")
+            t("This backup’s sign-ins were sealed by a newer dm, which this one can’t open.")
                 .to_string()
         }
     }
@@ -487,13 +487,13 @@ fn restored_words(
     }
     if !said.is_empty() {
         words.push(tf(
-            "Some of its settings couldn't be read, so their defaults are in use: {}.",
+            "Some of its settings couldn’t be read, so their defaults are in use: {}.",
             &[&said.join("; ")],
         ));
     }
     if unread > 0 {
         words.push(tf(
-            "Downloads it holds that this dm can't read, left out: {}.",
+            "Downloads it holds that this dm can’t read, left out: {}.",
             &[&unread],
         ));
     }
@@ -564,7 +564,7 @@ impl Downloads {
                 let outcome = match written {
                     Ok(Ok(())) => Ok(()),
                     Ok(Err(e)) => Err(tf(
-                        "{} couldn't be written: {}",
+                        "{} couldn’t be written: {}",
                         &[&path.display(), &dm_desktop_base::format::file_error(&e)],
                     )),
                     Err(why) => Err(why.into_string()),

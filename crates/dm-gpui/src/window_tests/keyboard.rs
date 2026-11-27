@@ -154,7 +154,7 @@ fn escape_closes_the_menu_or_the_dialog_in_front_and_nothing_behind_it() {
     h.click("Advanced");
     // A proxy of its own, its kind picked from the pop-up, so that its host can be typed.
     h.reveal("Proxy type");
-    h.click("The computer's proxy settings");
+    h.click("The computer’s proxy settings");
     h.click("HTTP");
     h.fill("Host", "proxy.example");
     h.key("escape", &[]);

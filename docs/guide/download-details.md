@@ -37,7 +37,7 @@ says **From** and the browser's name. With several addresses it says **and
   in.
 - **Save as:** the file's name (one address only). While it is empty its
   hint shows the name the file will get: the name in the address, "The
-  video's own title", or "The torrent's own name". When the server says
+  video's own title", or "The torrent’s own name". When the server says
   its own name, an empty field is filled with it.
 - **Quality:** for a video page or a YouTube video. It says "Reading the
   video's qualities…" and then shows each quality as a button, with its

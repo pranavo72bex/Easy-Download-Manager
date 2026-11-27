@@ -116,13 +116,13 @@ fn common_failures_have_plain_reasons() {
     assert_eq!(retry_cause("disk: No space left on device"), None);
     assert_eq!(
         reason("network: error following redirect for url (http://a/loop): too many redirects"),
-        Some("the site keeps redirecting in a loop, so the file can't be reached")
+        Some("the site keeps redirecting in a loop, so the file can’t be reached")
     );
     assert_eq!(
         reason("disk: No space left on device (os error 28)"),
         Some("the disk is full")
     );
-    assert_eq!(reason("a sentence of the engine's own"), None);
+    assert_eq!(reason("a sentence of the engine’s own"), None);
     // What the address or the server's page says is not the reason.
     assert_eq!(
         reason("the server answered 404 Not Found for https://e.com/birth-certificate.pdf"),
@@ -134,11 +134,11 @@ fn common_failures_have_plain_reasons() {
     );
     assert_eq!(
             reason("could not read the torrent file /home/a/x.torrent: No such file or directory (os error 2)"),
-            Some("the .torrent file couldn't be read")
+            Some("the .torrent file couldn’t be read")
         );
     assert_eq!(
             reason("network: error sending request for url (http://h/x) — SOCKS error: failed to create underlying connection"),
-            Some("the server couldn't be reached"),
+            Some("the server couldn’t be reached"),
             "only the words before the dash decide"
         );
     assert_eq!(
@@ -148,7 +148,7 @@ fn common_failures_have_plain_reasons() {
     assert_eq!(
         reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
         Some("the server had a problem on its end"),
-        "the server's status decides, not the page's \"timed out\""
+        "the server’s status decides, not the page’s \"timed out\""
     );
     assert_eq!(
         reason(
@@ -161,20 +161,20 @@ fn common_failures_have_plain_reasons() {
             Some("the site is busy and turning downloads away")
         );
     assert_eq!(
-        reason("YouTube says: Sign in to confirm you're not a bot"),
-        Some("the site wants to check you're not a bot")
+        reason("YouTube says: Sign in to confirm you’re not a bot"),
+        Some("the site wants to check you’re not a bot")
     );
     assert_eq!(
         reason("YouTube says: Video unavailable"),
-        Some("this video isn't available")
+        Some("this video isn’t available")
     );
     assert_eq!(
         reason("no stream at that quality"),
-        Some("dm couldn't get the video from this page")
+        Some("dm couldn’t get the video from this page")
     );
     assert_eq!(
-            reason("dm's video helper could not be got ready (network: error sending request for url (https://github.com/x))"),
-            Some("dm couldn't get ready for videos")
+            reason("dm’s video helper could not be got ready (network: error sending request for url (https://github.com/x))"),
+            Some("dm couldn’t get ready for videos")
         );
     assert_eq!(
         reason("could not write C:\\Users\\me\\no space left\\a.zip"),
@@ -182,7 +182,7 @@ fn common_failures_have_plain_reasons() {
     );
     assert_eq!(
             reason("error sending request for url (https://e.com/a): invalid peer certificate: UnknownIssuer"),
-            Some("the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect")
+            Some("the site’s security certificate is from an issuer dm doesn’t trust, so dm didn’t connect")
         );
 }
 
@@ -197,13 +197,13 @@ fn a_certificate_failure_is_said_by_its_cause() {
     for (cause, said) in [
         ("Expired", "has expired"),
         ("ExpiredContext { time: 1, not_after: 0 }", "has expired"),
-        ("NotValidYet", "isn't valid yet"),
+        ("NotValidYet", "isn’t valid yet"),
         (
             "NotValidForNameContext { expected: e.com, presented: [] }",
             "is for another site",
         ),
-        ("UnknownIssuer", "is from an issuer dm doesn't trust"),
-        ("BadSignature", "couldn't be checked"),
+        ("UnknownIssuer", "is from an issuer dm doesn’t trust"),
+        ("BadSignature", "couldn’t be checked"),
     ] {
         let plain = reason(&raw(cause)).unwrap_or_default();
         assert!(plain.contains(said), "{cause}: {plain}");
@@ -422,7 +422,7 @@ fn a_failure_that_only_says_what_went_wrong_says_what_to_do() {
 fn a_connection_that_did_not_come_up_is_said_as_reference_a_says_it() {
     let failed = "the connection Office VPN did not come up after 2 tries: No connection could be \
                   made because the target machine actively refused it. (os error 10061)";
-    let plain = "the dial-up or VPN connection didn't come up";
+    let plain = "the dial-up or VPN connection didn’t come up";
     assert_eq!(reason(failed), Some(plain));
     assert!(next_step(failed).is_some_and(|step| step.contains("Dial Up / VPN")));
     let redialling = "the connection Office VPN did not come up: Undefined RAS Dial Error.";
@@ -483,7 +483,7 @@ fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {
          go out directly. Fix it under Options › Advanced and tick it again.",
     );
     assert!(
-        said.starts_with("The proxy can't be used (the proxy has no host)"),
+        said.starts_with("The proxy can’t be used (the proxy has no host)"),
         "{said}"
     );
     assert_eq!(worded_problem("something else"), "something else");

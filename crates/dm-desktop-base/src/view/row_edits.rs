@@ -288,7 +288,7 @@ pub fn files_refusal(why: &str) -> String {
         "Stop the download to change which files are fetched." => {
             t("Stop the download to change which files are fetched.")
         }
-        "The torrent's files are not known yet." => t("The torrent's files are not known yet."),
+        "The torrent’s files are not known yet." => t("The torrent’s files are not known yet."),
         other => other,
     }
     .to_string()
@@ -322,7 +322,7 @@ mod tests {
         for why in [
             "Tick at least one file.",
             "Stop the download to change which files are fetched.",
-            "The torrent's files are not known yet.",
+            "The torrent’s files are not known yet.",
             "the disk is full",
         ] {
             // In English, each is its own words.

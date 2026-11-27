@@ -589,7 +589,7 @@ fn two_queues_keep_their_own_hours_in_the_scheduler() {
     h.click("Night");
     h.until("Night chosen", |h| draft(h).queue == "Night");
     assert!(
-        h.shows("This queue follows the Main queue's hours."),
+        h.shows("This queue follows the Main queue’s hours."),
         "a queue with no hours of its own says whose it follows"
     );
     h.click("Hours of its own for this queue");

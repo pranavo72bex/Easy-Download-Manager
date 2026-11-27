@@ -294,7 +294,7 @@ impl Downloads {
                                 &[&n, &dm_desktop_base::i18n::name(dm_core::MAIN_QUEUE)],
                             )),
                             Err(e) => self.status.problems.push(tf(
-                                "the search {} found files that couldn't be added: {}",
+                                "the search {} found files that couldn’t be added: {}",
                                 &[&name, &e],
                             )),
                         }
@@ -305,7 +305,7 @@ impl Downloads {
                     {
                         if let Err(e) = self.backend.set_settings(wanted) {
                             self.status.problems.push(tf(
-                                "what the search {} has seen couldn't be saved: {}",
+                                "what the search {} has seen couldn’t be saved: {}",
                                 &[&name, &e],
                             ));
                         }
@@ -337,7 +337,7 @@ impl Downloads {
             // Still run, and not again for a minute; but said, since an
             // unsaved last run means the search runs again at every launch.
             self.status.problems.push(dm_desktop_base::i18n::tf(
-                "when the saved searches last ran couldn't be saved: {}",
+                "when the saved searches last ran couldn’t be saved: {}",
                 &[&e],
             ));
         }

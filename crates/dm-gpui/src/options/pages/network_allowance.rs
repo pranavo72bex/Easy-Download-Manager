@@ -44,7 +44,7 @@ pub(super) fn third_limits(
     window: &mut Window,
     cx: &mut Context<Options>,
 ) {
-    let words = "Third network's speed limit (KB/s, 0 for none)";
+    let words = "Third network’s speed limit (KB/s, 0 for none)";
     let field = input(
         o,
         window,

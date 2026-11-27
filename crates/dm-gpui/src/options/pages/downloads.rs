@@ -146,14 +146,14 @@ fn sound_language(o: &Options, p: &mut Page) {
     let now = &o.draft.downloads.sound_language;
     let at = options::sound_language_at(now);
     let words: SharedString = match at {
-        Some(0) => t("The video's own").into(),
+        Some(0) => t("The video’s own").into(),
         Some(i) => options::SOUND_LANGUAGES
             .get(i - 1)
             .map_or_else(|| now.clone(), |(_, name)| name.to_string())
             .into(),
         None => now.clone().into(),
     };
-    let choices: Vec<SharedString> = std::iter::once(SharedString::from(t("The video's own")))
+    let choices: Vec<SharedString> = std::iter::once(SharedString::from(t("The video’s own")))
         .chain(
             options::SOUND_LANGUAGES
                 .iter()
@@ -165,7 +165,7 @@ fn sound_language(o: &Options, p: &mut Page) {
         true,
         popup::button("sound-language", words, choices, at, theme, &screen),
     );
-    p.hint(t("Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own."));
+    p.hint(t("Where a video has its sound in several languages, this one is taken; where none speaks it, the video’s own."));
 }
 
 /// The switches: the Main queue at launch, subtitles and streams as MP4.
@@ -192,7 +192,7 @@ fn switches(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         |s| s.downloads.subtitles = !s.downloads.subtitles,
     );
     p.hint(t(
-        "A video's subtitles are saved inside its file, to turn on in your player.",
+        "A video’s subtitles are saved inside its file, to turn on in your player.",
     ));
     check(
         p,
@@ -375,7 +375,7 @@ fn watching_and_after(
         window,
         cx,
         "watch_folder",
-        "Watch a folder: links (.url, .webloc or a text file of links) and .torrent files saved there are added, then moved to its \"done\" folder. Leave it empty to turn this off.",
+        "Watch a folder: links (.url, .webloc or a text file of links) and .torrent files saved there are added, then moved to its “done” folder. Leave it empty to turn this off.",
         true,
         |o| o.draft.downloads.watch_folder.clone(),
         |o, folder| o.draft.downloads.watch_folder = folder,
@@ -412,7 +412,7 @@ fn watching_and_after(
     if crate::platform::ON_A_PHONE {
         return;
     }
-    p.words(t("When a download finishes, run this command (a virus checker or a script). The file's path is added at the end:"));
+    p.words(t("When a download finishes, run this command (a virus checker or a script). The file’s path is added at the end:"));
     let command = input(
         o,
         window,
@@ -474,7 +474,7 @@ fn metered_and_battery(
             &screen,
         ),
     );
-    p.hint(t("Where the system marks the connection as metered: a phone's hotspot, a capped plan. Downloads that wait go on by themselves once it is not."));
+    p.hint(t("Where the system marks the connection as metered: a phone’s hotspot, a capped plan. Downloads that wait go on by themselves once it is not."));
     let level = input(
         o,
         window,
@@ -488,7 +488,7 @@ fn metered_and_battery(
     );
     p.setting(t("On battery: wait below (%, 0 for never)"), true, level);
     p.hint(if crate::platform::ON_A_PHONE {
-        t("Downloads wait while the phone's battery is below this level, and go on once it charges or is above it again.")
+        t("Downloads wait while the phone’s battery is below this level, and go on once it charges or is above it again.")
     } else {
         t("Downloads wait while the computer runs on its battery below this level, and go on once it charges or is above it again.")
     });

@@ -127,7 +127,7 @@ pub fn decide(
         return says(if address.is_empty() {
             t("Type or paste the address of what to download.")
         } else {
-            t("That isn't a link dm can download. Paste a web address like https://example.com/file.zip.")
+            t("That isn’t a link dm can download. Paste a web address like https://example.com/file.zip.")
         });
     }
     // Several links pasted one after another (a list copied from a page or

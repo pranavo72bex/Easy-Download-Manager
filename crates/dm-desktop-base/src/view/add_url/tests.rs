@@ -14,7 +14,7 @@ fn nothing_typed_is_asked_for_and_a_bad_link_is_said_to_be_one() {
     );
     assert!(matches!(
         decide("not a link", false, "", "", &settings, &[]).next,
-        Next::Says(s) if s.starts_with("That isn't a link dm can download")
+        Next::Says(s) if s.starts_with("That isn’t a link dm can download")
     ));
 }
 

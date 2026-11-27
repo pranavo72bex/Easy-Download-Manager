@@ -293,11 +293,11 @@ fn a_video_page_that_failed_says_why_after_the_sentence() {
     row.state = State::Failed("no stream at that quality".into());
     assert_eq!(
         status_in_english(&row),
-        "Dm couldn't get the video from this page (no stream at that quality)"
+        "Dm couldn’t get the video from this page (no stream at that quality)"
     );
     // A failure with its own plain words is not given a second one.
     row.state = State::Failed("YouTube says: Video unavailable".into());
-    assert_eq!(status_in_english(&row), "This video isn't available");
+    assert_eq!(status_in_english(&row), "This video isn’t available");
 }
 
 /// A full disk says whose, the folder the file was going to.

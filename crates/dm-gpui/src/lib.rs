@@ -165,7 +165,7 @@ fn boot_and_run(
             }
             Err(e) => {
                 backend.note(dm_desktop_base::i18n::tf(
-                    "the control protocol couldn't start: {}",
+                    "the control protocol couldn’t start: {}",
                     &[&e],
                 ));
                 None

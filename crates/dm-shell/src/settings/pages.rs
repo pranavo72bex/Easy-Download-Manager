@@ -363,7 +363,7 @@ impl Default for AdvancedSettings {
     fn default() -> Self {
         AdvancedSettings {
             speed_limit: 0,
-            // The computer's proxy settings, as a browser takes them: with none set it goes
+            // The computer’s proxy settings, as a browser takes them: with none set it goes
             // direct; behind one, a new dm works where the browser does
             // (docs/decisions.md, 2026-11-06, in place of gaps row 80).
             proxy: Proxy {

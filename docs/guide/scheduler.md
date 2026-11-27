@@ -26,7 +26,7 @@ These two act straight away; they do not wait for **OK**.
 - For the **Main queue** the window says "The hours when downloads may
   run, in every queue without hours of its own."
 - For any other queue, **Hours of its own for this queue:** unticked, the
-  window says "This queue follows the Main queue's hours." and the rest is
+  window says "This queue follows the Main queue’s hours." and the rest is
   greyed. Tick it to give the queue its own hours.
 - **Only download between set hours:** the hours are used only while this
   is ticked. Unticked, the queue's downloads may run at any time, and the

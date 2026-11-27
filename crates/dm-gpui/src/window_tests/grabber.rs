@@ -170,7 +170,7 @@ fn the_grabber_follows_links_to_other_sites_only_when_ticked_and_a_saved_search_
     h.close_dialogs();
 }
 
-/// "Keep the site's folders" (B61): off by default and kept ticked by a saved search; ticked,
+/// "Keep the site’s folders" (B61): off by default and kept ticked by a saved search; ticked,
 /// each file a search found is saved under the download folder in folders that mirror its
 /// address (here its site's, `127.0.0.1_<port>`), not in the download folder itself.
 #[test]
@@ -187,7 +187,7 @@ fn ticked_keep_the_sites_folders_saves_each_file_in_folders_that_mirror_its_addr
     let untouched = saved(&mut h).remove(0);
     assert!(!untouched.keep_layout, "ticked by default");
     assert!(!untouched.other_sites, "ticked by default");
-    h.click("Keep the site's folders");
+    h.click("Keep the site’s folders");
     h.click("Save search");
     h.until("the search saved with the box ticked", |h| {
         saved(h).first().is_some_and(|s| s.keep_layout)

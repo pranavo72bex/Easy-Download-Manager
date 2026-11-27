@@ -134,7 +134,7 @@ first ([Some are already in the list](guide/questions.md#some-are-already-in-the
 Where the computer has no file panel to choose the file with (a Linux
 desktop without one), a small window, "Export the list" or "Import a list",
 says "No file picker here: type the path." Type the file's full path under
-**File's path** (`~` is your home folder) and click **OK**; Export offers
+**File’s path** (`~` is your home folder) and click **OK**; Export offers
 `downloads.dmlist` in the download folder. A path that is not a full one is
 answered with "Type the file's full path, such as …", and a file that
 cannot be read or written is said there too; the window stays open with

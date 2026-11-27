@@ -505,7 +505,7 @@ fn escape_keeps_a_ticked_dont_show_again_as_close_does() {
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("the download to complete", |h| completed(h) == 1);
     h.until("Download complete", |h| h.dialog_open("Download complete"));
-    h.click("Don't show this window again");
+    h.click("Don’t show this window again");
     for _ in 0..3 {
         h.until("a wake", |_| true);
     }

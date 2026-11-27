@@ -81,7 +81,7 @@ impl Downloads {
         }
     }
 
-    /// "Download complete" closed: a ticked "Don't show this window again"
+    /// "Download complete" closed: a ticked "Don’t show this window again"
     /// kept, and said.
     pub fn complete_closed(&mut self, never: bool, cx: &mut Context<Self>) {
         self.windows.complete.clear();
@@ -92,7 +92,7 @@ impl Downloads {
             match self.backend.set_settings(wanted) {
                 Ok(_) => self.say(
                     dm_desktop_base::i18n::t(
-                        "This window won't open again. Turn it on in Options › General.",
+                        "This window won’t open again. Turn it on in Options › General.",
                     )
                     .into(),
                 ),

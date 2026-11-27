@@ -188,7 +188,7 @@ impl Render for PlaylistWindow {
                 .child(screen.label(t("Reading the playlist…")))
                 .into_any_element(),
             Some(Err(why)) => native::note(
-                tf("The playlist couldn't be read: {}", &[why]),
+                tf("The playlist couldn’t be read: {}", &[why]),
                 theme.warning,
                 &screen,
             )

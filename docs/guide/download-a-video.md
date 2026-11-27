@@ -17,7 +17,7 @@ Without the browser:
 
 1. Copy the video page's address.
 2. Click **Add URL**, check the address is in **Address**, and click **OK**.
-3. Download details says "Reading the video's qualities…", then shows each
+3. Download details says "Reading the video’s qualities…", then shows each
    quality as a button with its size. Click one.
 4. To keep only a part, tick **Only a part of the video** and give **from**
    and **to** (such as 4:10 and 4:45).

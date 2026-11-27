@@ -58,7 +58,7 @@
 "Browse…" 786 193.5 845 216
 "A download already begun keeps the folder it began in." 220 224 700 243.5
 "Sort finished files into folders by category" 220 263 820 285.5
-"Turn on sorting to set the kinds' folders and your own categories." 220 293.5 700 313
+"Turn on sorting to set the kinds’ folders and your own categories." 220 293.5 700 313
 "Folders by category" 220 347 860 369.5
 "Videos" 220 381 628 403.5
 "Videos" 640 375.5 860 409.5

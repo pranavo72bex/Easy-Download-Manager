@@ -65,7 +65,7 @@ fn a_proxy_of_its_own_for_https_and_a_configuration_script_are_set_in_options() 
     assert!(!settings.advanced.proxy.per_scheme.contains_key("http"));
     assert!(settings.advanced.proxy.script.is_empty());
 
-    let script = "Automatic configuration script address (it chooses each site's proxy, in place of the above)";
+    let script = "Automatic configuration script address (it chooses each site’s proxy, in place of the above)";
     open_options(&mut h);
     tab(&mut h, "Advanced");
     h.fill(script, "http://wpad.example/proxy.pac");
@@ -93,14 +93,14 @@ fn options_refuses_a_proxy_with_no_host() {
     tab(&mut h, "Advanced");
     own_proxy(&mut h);
     h.click_as_person("OK", 0);
-    h.until("the refusal", |h| h.shows_part("Enter the proxy's host"));
+    h.until("the refusal", |h| h.shows_part("Enter the proxy’s host"));
     assert!(h.dialog_open("Options"), "OK took a proxy with no host");
     // Nothing was put in force: the proxy still follows the computer's settings.
     let untouched = |h: &mut Harness| kept(h).advanced.proxy.kind == dm_core::ProxyKind::System;
     assert!(untouched(&mut h));
     h.fill("Host", "http://proxy.example:3128");
     h.click_as_person("OK", 0);
-    h.until("the refusal", |h| h.shows_part("isn't a valid proxy host"));
+    h.until("the refusal", |h| h.shows_part("isn’t a valid proxy host"));
     assert!(untouched(&mut h));
     h.click("Cancel");
 }
@@ -154,7 +154,7 @@ fn a_proxy_that_is_wrong_opens_advanced_at_the_proxy_section() {
             && h.shows("Connect through a proxy")
     });
     assert!(h.dialog_open("Options"), "OK took a proxy with no host");
-    assert!(h.shows_part("Enter the proxy's host"));
+    assert!(h.shows_part("Enter the proxy’s host"));
     h.click("Cancel");
 }
 
@@ -260,7 +260,7 @@ fn the_third_networks_limit_is_kept_from_options() {
         o.draft.second_path = "dm-test-network0".into();
         cx.notify();
     });
-    h.fill("Third network's speed limit (KB/s, 0 for none)", "300");
+    h.fill("Third network’s speed limit (KB/s, 0 for none)", "300");
     ok(&mut h);
     assert_eq!(kept(&mut h).third_limit_kb, 300);
 }
@@ -275,12 +275,12 @@ fn the_second_networks_allowance_is_kept_from_options() {
     open_options(&mut h);
     tab(&mut h, "Advanced");
     h.fill_after(
-        "Second network's speed limit (KB/s, 0 for none)",
+        "Second network’s speed limit (KB/s, 0 for none)",
         "Data allowance (MB, 0 for none)",
         "500",
     );
     h.fill_after(
-        "Second network's speed limit (KB/s, 0 for none)",
+        "Second network’s speed limit (KB/s, 0 for none)",
         "Allowance period (hours)",
         "6",
     );
@@ -305,7 +305,7 @@ fn a_network_is_called_by_the_name_given_it() {
         o.draft.second_path = "dm-test-network0".into();
         cx.notify();
     });
-    h.fill("Second network's name", "Phone");
+    h.fill("Second network’s name", "Phone");
     ok(&mut h);
     let kept = kept(&mut h);
     assert_eq!(

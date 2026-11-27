@@ -208,7 +208,7 @@ impl Details {
         if found.page && !self.youtube() {
             found.name = None;
             self.name.update(cx, |n, cx| {
-                n.set_placeholder(t("Named after the page's title"), window, cx)
+                n.set_placeholder(t("Named after the page’s title"), window, cx)
             });
         }
         if let Some(name) = found.name.clone() {

@@ -297,7 +297,7 @@ pub(super) fn networks_words(
         }
         said
     };
-    let mut parts = vec![part(0, t("This computer's connection"))];
+    let mut parts = vec![part(0, t("This computer’s connection"))];
     for (path, name) in [(1, named[0]), (2, named[1])] {
         if connections.iter().any(|c| usize::from(c.network) == path) {
             parts.push(part(path, name));
@@ -688,7 +688,7 @@ mod network_tests {
         assert!(said.contains("answers in 40 ms"), "{said}");
         assert_eq!(said.matches("answers in").count(), 1, "{said}");
         assert!(
-            said.contains("This computer's connection") && said.contains("60%"),
+            said.contains("This computer’s connection") && said.contains("60%"),
             "{said}"
         );
         assert!(

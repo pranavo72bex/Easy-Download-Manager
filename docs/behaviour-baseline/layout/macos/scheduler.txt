@@ -76,7 +76,7 @@
 "Sleep" 452 363 491 384
 "Hibernate" 527 363 598 384
 "Turn off computer" 247 396 380 417
-"A greyed choice is one this computer doesn't allow dm." 225 421 700 439
+"A greyed choice is one this computer doesn’t allow dm." 225 421 700 439
 "Try a failed download again this many times (0 for none)" 225 451 642 493
 "0" 650 460 700 484
 "Run this program when they are done (optional)" 225 501 700 522

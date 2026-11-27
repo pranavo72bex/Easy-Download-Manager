@@ -382,7 +382,7 @@ fn disguise_words(kind: Option<&str>) -> &'static str {
         Some("a Windows program") => "a Windows program",
         Some("a Linux program") => "a Linux program",
         Some("a macOS program") => "a macOS program",
-        Some("an Android app's code") => "an Android app's code",
+        Some("an Android app’s code") => "an Android app’s code",
         Some("a script") => "a script",
         _ => "a program",
     }

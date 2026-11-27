@@ -5,7 +5,7 @@
 
 //! "Download complete" (B63), one window for everything that finished,
 //! newest first, each file with its own Open and Open folder (Open with… is on its row's menu);
-//! Close, and "Don't show this window again", kept once it closes.
+//! Close, and "Don’t show this window again", kept once it closes.
 
 use dm_core::Id;
 use dm_desktop_base::format;
@@ -27,7 +27,7 @@ const NAME_BASIS: f32 = 240.0;
 /// The window's view.
 pub struct Complete {
     view: WeakEntity<Downloads>,
-    /// "Don't show this window again" is ticked.
+    /// "Don’t show this window again" is ticked.
     never: bool,
     screen: Screen,
     /// The window's keyboard: nothing in it takes typing, and Escape and
@@ -67,7 +67,7 @@ fn finished(view: &Downloads) -> Vec<Finished> {
 }
 
 impl Complete {
-    /// Closes the window, keeping a ticked "Don't show this window again".
+    /// Closes the window, keeping a ticked "Don’t show this window again".
     fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let never = self.never;
         let _ = self
@@ -143,7 +143,7 @@ impl Render for Complete {
                     .child(native::buttons(
                         vec![native::switch_inline(
                             "never",
-                            t("Don't show this window again").into(),
+                            t("Don’t show this window again").into(),
                             never,
                             theme,
                             &screen,

@@ -14,7 +14,7 @@ use std::path::Path;
 const HEAD: usize = 64;
 
 /// What `head` (a file's first bytes) says the file runs as, in words for the row: a Windows,
-/// Linux or macOS program, an Android app's code, or a script. `None` for anything else.
+/// Linux or macOS program, an Android app’s code, or a script. `None` for anything else.
 pub fn program_in(head: &[u8]) -> Option<&'static str> {
     let starts = |magic: &[u8]| head.starts_with(magic);
     if starts(b"MZ") {
@@ -30,7 +30,7 @@ pub fn program_in(head: &[u8]) -> Option<&'static str> {
         // 0xcafebabe is a universal macOS program and also Java's class file: both run.
         Some("a macOS program")
     } else if starts(b"dex\n") {
-        Some("an Android app's code")
+        Some("an Android app’s code")
     } else if starts(b"#!") {
         Some("a script")
     } else {

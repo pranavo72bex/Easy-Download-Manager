@@ -105,7 +105,7 @@ pub fn ask(
                 Ok(Ok(Some(paths))) => paths.into_iter().next(),
                 Ok(Ok(None)) | Err(_) => None,
                 Ok(Err(why)) => {
-                    let why = tf("The file couldn't be chosen: {}", &[&why]);
+                    let why = tf("The file couldn’t be chosen: {}", &[&why]);
                     cx.update(|cx| tell(window, &why, cx));
                     None
                 }

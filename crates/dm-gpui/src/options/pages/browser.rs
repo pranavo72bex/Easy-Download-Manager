@@ -87,7 +87,7 @@ fn menu_items(p: &mut Page, cx: &mut Context<Options>, c: &dm_protocol::CatchRul
     // The items dm adds to the browser's right-click menu, each chosen.
     // A heading over its switches, as "Add dm to your browser" is over its rows (seen in
     // ui-shot.py's picture: it stood as plain words).
-    p.section(t("Items dm adds to the browser's right-click menu"));
+    p.section(t("Items dm adds to the browser’s right-click menu"));
     for (id, _) in dm_protocol::MENU_ITEMS {
         let words = match id {
             "dm-link" => t("Download link with dm"),
@@ -220,7 +220,7 @@ fn catching(
         |o| o.typed.once.clone(),
     );
     p.labelled(t("Sites whose links work only once"), on, once);
-    p.hint_when(on, t("dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser's sign-in then fails in dm rather than finishing in the browser."));
+    p.hint_when(on, t("dm takes their downloads without first asking the server whether it can fetch them, which would use the link up. A link that needs the browser’s sign-in then fails in dm rather than finishing in the browser."));
 }
 
 /// The keys a click on a link can be held with, to leave it with the browser or send it to dm.
@@ -291,12 +291,12 @@ fn panel_and_sign_in(p: &mut Page, cx: &mut Context<Options>, c: &dm_protocol::C
         p,
         cx,
         "sign-in-everywhere",
-        t("Send the browser's sign-in with downloads"),
+        t("Send the browser’s sign-in with downloads"),
         c.sign_in_everywhere,
         true,
         |s| s.browser.catch.sign_in_everywhere = !s.browser.catch.sign_in_everywhere,
     );
-    p.hint(t("Files that need you signed in come to dm too. Your sign-in goes with that one download and is forgotten after it. Off: only the sites you turn on in the extension's menu send it."));
+    p.hint(t("Files that need you signed in come to dm too. Your sign-in goes with that one download and is forgotten after it. Off: only the sites you turn on in the extension’s menu send it."));
     p.note(t("Your browser picks this up the next time it sends dm a download. Its right-click menu sends any link either way."));
 }
 
@@ -340,7 +340,7 @@ fn handlers(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
             Some(Owner::Dm) => "dm",
             Some(Owner::Other) => t("another program"),
             Some(Owner::Nobody) => t("nothing yet"),
-            Some(Owner::WindowsChoice) => t("the app chosen in Windows' Default apps"),
+            Some(Owner::WindowsChoice) => t("the app chosen in Windows’ Default apps"),
         };
         let mut row = div()
             .flex()
@@ -411,7 +411,7 @@ fn handlers(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
         }
         p.add(row);
     }
-    p.note(t("dm keeps what another program had, and can give it back. Where Windows' Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps."));
+    p.note(t("dm keeps what another program had, and can give it back. Where Windows’ Default apps has a choice, that choice decides: change it in Settings, Apps, Default apps."));
     // Windows' own chooser at a first magnet click is its question, not dm's.
-    p.note(t("The first magnet link you click may make Windows ask which app opens it: choose dm there. dm can't answer for you."));
+    p.note(t("The first magnet link you click may make Windows ask which app opens it: choose dm there. dm can’t answer for you."));
 }

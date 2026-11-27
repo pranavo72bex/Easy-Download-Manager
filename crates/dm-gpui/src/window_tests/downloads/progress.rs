@@ -161,7 +161,7 @@ fn downloads_finishing_together_share_one_complete_window() {
     });
 }
 
-/// Download complete can be turned off from itself ("Don't show this window again"), and offers
+/// Download complete can be turned off from itself ("Don’t show this window again"), and offers
 /// Open and Open folder for each file; Open with… is on the row's menu (unslop review).
 #[test]
 fn download_complete_offers_open_and_open_folder_and_not_again() {
@@ -173,7 +173,7 @@ fn download_complete_offers_open_and_open_folder_and_not_again() {
     assert!(h.shows("Open folder"), "{:?}", h.texts());
     assert!(!h.shows("Open with…"), "{:?}", h.texts());
     // Ticking marks the box and leaves the window open; nothing is saved yet.
-    h.click("Don't show this window again");
+    h.click("Don’t show this window again");
     for _ in 0..3 {
         h.until("a wake", |_| true);
     }

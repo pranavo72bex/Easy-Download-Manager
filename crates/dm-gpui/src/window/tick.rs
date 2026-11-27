@@ -379,7 +379,7 @@ impl Downloads {
             self.list.selected.remove(id);
         }
         if !done.failed.is_empty() {
-            self.say(tf("Couldn't delete {}", &[&done.failed.join("; ")]));
+            self.say(tf("Couldn’t delete {}", &[&done.failed.join("; ")]));
         }
         self.read();
     }

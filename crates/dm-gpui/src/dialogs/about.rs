@@ -5,7 +5,7 @@
 
 //! About dm, centred as the system's own About panels are: the name, the
 //! version, what dm is, the project's pages; Check for updates and what
-//! came of it, What's new and Download the update. Help's Tip of the day.
+//! came of it, What’s new and Download the update. Help's Tip of the day.
 //! The update downloaded and checked against its release's digest is
 //! offered above the list: Install now, or Later. The check is the
 //! application's (`dm_shell::app::update`), its words dm's own, kept with no
@@ -152,7 +152,7 @@ impl Render for About {
                                     d.child(
                                         native::button(
                                             "whats-new",
-                                            t("What's new").into(),
+                                            t("What’s new").into(),
                                             false,
                                             theme,
                                             &screen,
@@ -352,7 +352,7 @@ impl Downloads {
             Ok(id) => {
                 self.threads.update_row = Some(id);
                 self.say(
-                    t("Downloading the update. dm will offer to install it when it's verified.")
+                    t("Downloading the update. dm will offer to install it when it’s verified.")
                         .into(),
                 );
             }

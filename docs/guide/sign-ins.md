@@ -9,7 +9,7 @@ For a site you are signed in to in your browser, the easiest way is to let
 the browser hand the download over: click it on the page, or right-click
 it and choose **Download link with dm**.
 
-- **Options › Browser › Send the browser's sign-in with downloads:** "Files
+- **Options › Browser › Send the browser’s sign-in with downloads:** "Files
   that need you signed in come to dm too. Your sign-in goes with that one
   download and is forgotten after it. Off: only the sites you turn on in the
   extension's menu send it."

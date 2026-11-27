@@ -1009,14 +1009,14 @@ def walk(dm, origin):
     page = dm.wait("pageyes.zip", {"completed", "failed"}, 60)
     saved = pathlib.Path(page["path"]) if page and page.get("path") else None
     check("B40", "a web page for a file is asked about; Save as HTML saves it as an HTML page",
-          said is not None and "Save as HTML" in said and "Don't download" in said and saved is not None
+          said is not None and "Save as HTML" in said and "Don’t download" in said and saved is not None
           and saved.name == "pageyes.html" and saved.read_bytes().startswith(b"<html>"),
           saved.name if saved else str(page and page["state"]))
     dm.add(f"{files}/pageno.zip")
-    said = answer(dm, "Web page instead of the file", "Don't download")
+    said = answer(dm, "Web page instead of the file", "Don’t download")
     pause(2)
     left = list((WORK / "home" / "downloads").rglob("pageno*"))
-    check("B40", "Don't download removes the row and keeps nothing",
+    check("B40", "Don’t download removes the row and keeps nothing",
           said is not None and dm.row("pageno.zip") is None and not left,
           f"row kept: {dm.row('pageno.zip') is not None}, files: {left}")
 
@@ -1457,8 +1457,8 @@ def walk(dm, origin):
     check("B60", "Site files has 'Also follow links to other sites' beside the page depth",
           "Also follow links to other sites" in site_words and "Page depth" in site_words,
           f"{site_words}")
-    check("B61", "Site files has 'Keep the site's folders' under the other-sites box",
-          "Keep the site's folders" in site_words, f"{site_words}")
+    check("B61", "Site files has 'Keep the site’s folders' under the other-sites box",
+          "Keep the site’s folders" in site_words, f"{site_words}")
     dm.click("Close")
     pause(0.8)
     # B62: the Scheduler has the field for a program to run at the end.
@@ -1533,7 +1533,7 @@ def walk(dm, origin):
     check("B65", "the Scheduler lists the queues; another queue offers hours of its own, a date, Start now and Stop",
           "Queues" in sched and "Main queue" in sched and "Start now" in sched and "Stop" in sched
           and "Once, on this date" in sched and "Hours of its own for this queue" in other
-          and "This queue follows the Main queue's hours." in other, f"{sched} / {other}")
+          and "This queue follows the Main queue’s hours." in other, f"{sched} / {other}")
     dm.click("Cancel")
     pause(0.6)
     # B52: the tray's Speed menu has Settings…, which the tray cannot be driven
@@ -1618,9 +1618,9 @@ def walk(dm, origin):
     laid_out = ("Video quality" in words and "Sound language" in words
                 and words.index("Video quality") < words.index("Sound language"))
     check("B68", "Options › Downloads has Sound language under Video quality, the video's own at first, with its note",
-          laid_out and "The video's own" in words
+          laid_out and "The video’s own" in words
           and (sound_note in words or sound_note in " ".join(words)), f"{words}")
-    dm.click("The video's own")
+    dm.click("The video’s own")
     pause(0.6)
     dm.click("Español")
     pause(0.6)
@@ -1631,7 +1631,7 @@ def walk(dm, origin):
     shown = "Español" in words
     dm.click("Español")
     pause(0.6)
-    dm.click("The video's own")
+    dm.click("The video’s own")
     pause(0.6)
     dm.click("OK")
     pause(1.0)
@@ -2327,7 +2327,7 @@ def backing_up():
         pause(0.5)
         words = " ".join(dm.dialog_texts())
         check("B72", "a wrong passphrase is said in the window, which stays open, and nothing is restored",
-              "That passphrase does not open this backup's sign-ins." in words and "Restore dm" in dm.dialogs()
+              "That passphrase does not open this backup’s sign-ins." in words and "Restore dm" in dm.dialogs()
               and len(dm.rows()) == 1, f"{dm.dialogs()}: {words[-200:]}; rows {len(dm.rows())}")
         dm.call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
         typed(passphrase)

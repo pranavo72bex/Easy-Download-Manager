@@ -209,7 +209,7 @@ impl Downloads {
                 }
                 Err(e) => {
                     let why = tf(
-                        "{} couldn't be read: {}",
+                        "{} couldn’t be read: {}",
                         &[&path.display(), &dm_desktop_base::format::file_error(&e)],
                     );
                     view.say(why.clone());
@@ -271,7 +271,7 @@ impl Downloads {
         let asked = crate::dialogs::question::Asked {
             title: t("Some are already in the list").into(),
             lines: vec![tn(
-                "{} of the {} addresses in this list is already in dm's list.||{} of the {} addresses in this list are already in dm's list.",
+                "{} of the {} addresses in this list is already in dm’s list.||{} of the {} addresses in this list are already in dm’s list.",
                 already as u64,
                 &[&already, &total],
             )
@@ -371,7 +371,7 @@ impl Downloads {
                 }
                 Err(e) => {
                     let why = tf(
-                        "{} couldn't be written: {}",
+                        "{} couldn’t be written: {}",
                         &[&path.display(), &dm_desktop_base::format::file_error(&e)],
                     );
                     view.say(why.clone());

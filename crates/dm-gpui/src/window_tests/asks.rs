@@ -77,7 +77,7 @@ fn a_web_page_for_a_file_leaves_nothing_on_dont_download() {
     let mut h = world.harness();
     h.add_url(&world.url("pagefile.zip"), "Start now");
     h.until_shown("Web page instead of the file");
-    h.click("Don't download");
+    h.click("Don’t download");
     h.until("the row to go", |h| h.rows().is_empty());
 }
 

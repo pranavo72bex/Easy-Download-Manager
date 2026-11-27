@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- dm's English words use typographic apostrophes and quotes (didn’t, “done”) everywhere, where some used the keyboard's ' and " and two used curly ones. A download that failed before keeps its translated reason.
+- On a phone, the bottom bar's chosen tab shows its picture filled, as Android's own tab bars do.
 - On Android 12 and up (and on Linux with a variable system font), bold, semibold and medium text draws at its weight: titles, headings, file names and the chosen tab were all drawn regular, as the phone's Roboto is one variable font.
 - At a large text size on a phone, the message bar's sentence wraps instead of running under "+1 message", and the bottom bar's four tabs stay on the screen, a long word cut with "…".
 - In Arabic and Hebrew on a phone, the bottom bar reads from the right (All at the right edge), a finished download's size reads "2.1 MB" (Hebrew showed "MB 2.1"), and speeds say "/ث" in Arabic and "/с" in Russian instead of a Latin "/s".

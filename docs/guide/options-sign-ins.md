@@ -14,7 +14,7 @@ for how the window works.
   computer itself), so the password never goes out unencrypted. An address
   with a user and password of its own keeps them.
 - The [Grabber](grabber.md) uses a login kept here for its site, and says so.
-- "Kept in dm's settings file on this computer, readable by your account."
+- "Kept in dm’s settings file on this computer, readable by your account."
   On the phone: "Kept in dm's settings file on this phone, where only dm can
   read it."
   Where the system's password store works, the passwords go there and the

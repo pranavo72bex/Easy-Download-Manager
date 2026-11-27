@@ -22,7 +22,7 @@ open, it comes to the front as it stands.
   most 100 pages are read in one search.
 - **Also follow links to other sites:** off, only pages on the start
   page's own site are read; on, pages elsewhere are read too.
-- **Keep the site's folders:** saves each file in folders named after its
+- **Keep the site’s folders:** saves each file in folders named after its
   site and the folders of its address, instead of straight into the
   download folder.
 - **Time limit (minutes):** a search stops after this long

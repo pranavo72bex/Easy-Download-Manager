@@ -45,7 +45,7 @@ pub(super) fn phone_rules(p: &mut Page, cx: &mut Context<Options>, s: &Settings)
         |s| s.downloads.data_saver_waits = !s.downloads.data_saver_waits,
     );
     p.hint(t(
-        "Downloads wait while Android's Data Saver is on, and go on once it is off.",
+        "Downloads wait while Android’s Data Saver is on, and go on once it is off.",
     ));
     check(
         p,

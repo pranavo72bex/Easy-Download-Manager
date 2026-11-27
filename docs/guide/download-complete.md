@@ -24,14 +24,14 @@ one.
 
 ## Buttons
 
-- **Don't show this window again:** ticked, closing the window turns off
+- **Don’t show this window again:** ticked, closing the window turns off
   **Show a message when a download finishes**, and the status bar says
-  "This window won't open again. Turn it on in Options › General."
+  "This window won’t open again. Turn it on in Options › General."
 - **Close:** closes the window.
 
 ## Good to know
 
 - **Return**, **Escape**, Ctrl+W (⌘W on macOS) and the close button all
-  close it, keeping what **Don't show this window again** says.
+  close it, keeping what **Don’t show this window again** says.
 - It does not open over **Exit dm?** while that is asked; it opens once you
   answer.

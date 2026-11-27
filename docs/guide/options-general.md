@@ -75,13 +75,13 @@ the window works.
 - **Start downloading while Download details is open:** "The file is fetched
   while you choose where it goes; Start now puts it there, Cancel removes
   it."
-- **Offer a new link when a download's link has expired:** "Asks you to
+- **Offer a new link when a download’s link has expired:** "Asks you to
   click the file again on its page, to get a link that works." See
   [Update download link](update-link.md).
 
 ## Adding and keeping files
 
-- **Keep the file's date from the server:** "A saved file gets the date the
+- **Keep the file’s date from the server:** "A saved file gets the date the
   website gives it, not today's."
 
 ## The list

@@ -94,7 +94,7 @@ it made of a finished archive:
   As above, and the archive is in the Recycle Bin (the Trash on macOS), as
   **Send the archive to the Trash** asks. The row stays, saying this rather
   than "File missing".
-- `unpacked into a folder of its name, but the archive couldn't be sent to the Trash`
+- `unpacked into a folder of its name, but the archive couldn’t be sent to the Trash`
   Its files are out, but the system would not take the archive (on a drive
   with no Recycle Bin, for one). It is still where it was: delete it
   yourself if you no longer want it.
@@ -347,7 +347,7 @@ Torrents and proxies are under "Torrents" below.
 - `No file picker here: type the path.`
   Shown in "Import a list" or "Export the list" where the computer has no
   file panel to choose the list's file with (a Linux desktop without one).
-  Type the file's full path under **File's path** and click **OK**.
+  Type the file's full path under **File’s path** and click **OK**.
 - `Type the file's full path, such as ….`
   The path typed is not a full one (from the drive or `/`, or `~` for your
   home folder). Type it whole, as the example shows.
@@ -374,12 +374,12 @@ Torrents and proxies are under "Torrents" below.
   The file chosen in **File › Restore…** is not one **File › Back up dm…**
   wrote (a settings file or a list is opened with Options' or Tasks'
   Import). Nothing was restored.
-- `That passphrase does not open this backup's sign-ins.`
+- `That passphrase does not open this backup’s sign-ins.`
   The passphrase is not the one the backup was made with (or the file was
   changed since). The window stays open and nothing is restored: type it
   again, with its capital letters, or leave it empty to restore everything
   but the sign-ins.
-- `This backup's sign-ins were sealed by a newer dm, which this one can't open.`
+- `This backup’s sign-ins were sealed by a newer dm, which this one can’t open.`
   Update dm, or leave the passphrase empty to restore everything else.
 - `… couldn't be read: …`
 - `… couldn't be written: …`
@@ -468,7 +468,7 @@ A Metalink lists the same file on several servers (mirrors).
 ## Video pages and YouTube
 
 dm reads YouTube's pages itself. When it cannot get a video, the Status says
-"dm couldn't get the video from this page", with dm's reason after it.
+"dm couldn’t get the video from this page", with dm's reason after it.
 YouTube changes its pages from time to time: try again later, and look for
 a new dm with **Help › Check for updates**.
 
@@ -835,7 +835,7 @@ it." Type it under **Password** and click **Extract**. With **Keep this
 password** on, it is added to the saved ones once it has opened the archive,
 so the next archive that has it opens without asking.
 
-- `Type the archive's password.`
+- `Type the archive’s password.`
   **Extract** was clicked with the field empty.
 - `That password does not open it.`
   The password typed is not the archive's (or the locked part is damaged,

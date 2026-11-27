@@ -66,7 +66,7 @@
 "How long a connection may say nothing before dm gives up on it." 220 342 700 361.5
 "Only through" 220 378 659 400.5
 "Any network" 681 378 774 400.5
-"Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used." 220 407.5 700 435
+"Every download goes out over this network alone, such as your VPN’s. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used." 220 407.5 700 435
 "?" 35.5 468.5 44.5 491
 "Restore defaults" 79 468.5 214 491
 "OK" 599.5 468.5 616.5 491

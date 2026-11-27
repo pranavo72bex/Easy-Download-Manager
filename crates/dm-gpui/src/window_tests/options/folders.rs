@@ -36,13 +36,13 @@ fn a_category_made_in_options_takes_its_files_into_its_own_folder() {
             .parent()
             .unwrap()
             .ends_with("Lectures"),
-        "{} is not in the category's folder",
+        "{} is not in the category’s folder",
         row.path
     );
     assert_eq!(std::fs::read(&row.path).unwrap(), payload());
     // The side panel lists it, with its one download.
     h.click("Lectures");
-    h.until("the category's one row", |h| {
+    h.until("the category’s one row", |h| {
         h.view(|view| {
             view.list.place == dm_shell::app::places::Place::Custom("Lectures".into())
                 && view.list.shown.len() == 1
@@ -128,7 +128,7 @@ fn options_refuses_a_category_that_is_not_one_folder_and_a_relative_download_fol
     h.fill("Category", "Work/Docs");
     h.fill("Types", "pdf");
     h.click_as_person("OK", 0);
-    h.until("the refusal", |h| h.shows_part("can't be a category"));
+    h.until("the refusal", |h| h.shows_part("can’t be a category"));
     assert_eq!(kept(&mut h).custom_categories, before.custom_categories);
 
     h.reveal("Delete category");
@@ -250,12 +250,12 @@ fn a_site_rule_set_in_options_sends_that_sites_downloads_to_its_folder_at_its_sp
             ("User-Agent", "SiteAgent/3")
         ]
         .map(|(n, v)| (n.to_string(), v.to_string())),
-        "the rule's agent and headers, from the rule"
+        "the rule’s agent and headers, from the rule"
     );
     assert_eq!(done.save_dir.as_deref(), folder.to_str());
     assert!(
         std::path::Path::new(&done.path).starts_with(&folder),
-        "it landed in the site's folder: {}",
+        "it landed in the site’s folder: {}",
         done.path
     );
 

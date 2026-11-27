@@ -136,7 +136,7 @@ pub fn schedule_problem(schedule: &Schedule) -> Option<String> {
         // Refused here, where it was typed: saved, "25:00" or "1am" turned
         // the schedule off without a word.
         return Some(tf(
-            "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.",
+            "“{}” to “{}”: times are HH:MM in 24 hours, such as 01:00 or 23:30.",
             &[&schedule.from, &schedule.to],
         ));
     }
@@ -145,7 +145,7 @@ pub fn schedule_problem(schedule: &Schedule) -> Option<String> {
             let date = at.trim().split(' ').next().unwrap_or_default();
             dm_core::clock::ymd(date).is_none().then(|| {
                 tf(
-                    "\"{}\" is not a date: write it as YYYY-MM-DD, such as 2026-12-31.",
+                    "“{}” is not a date: write it as YYYY-MM-DD, such as 2026-12-31.",
                     &[&date],
                 )
             })
@@ -160,7 +160,7 @@ pub fn schedule_problem(schedule: &Schedule) -> Option<String> {
 pub fn slow_hours_problem(slow: &dm_shell::settings::SlowHours) -> Option<String> {
     (slow.enabled && !(dm_core::is_time(&slow.from) && dm_core::is_time(&slow.to))).then(|| {
         tf(
-            "\"{}\" to \"{}\": times are HH:MM in 24 hours, such as 01:00 or 23:30.",
+            "“{}” to “{}”: times are HH:MM in 24 hours, such as 01:00 or 23:30.",
             &[&slow.from, &slow.to],
         )
     })

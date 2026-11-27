@@ -9,7 +9,7 @@ network can give you its address. The settings are in **Options › Advanced
   through a proxy server. Whoever runs the network can give you its
   address." Off, downloads go out directly.
 - **Proxy type:**
-  - **The computer's proxy settings:** the proxy Windows (or your system) is
+  - **The computer’s proxy settings:** the proxy Windows (or your system) is
     set to use. The fields below are greyed.
   - **HTTP**, **HTTPS**, **SOCKS4** or **SOCKS5:** a proxy you name below.
     Ask whoever runs the network which kind it is. Changing the kind changes
@@ -54,7 +54,7 @@ network can give you its address. The settings are in **Options › Advanced
 Options will not keep a proxy that is turned on but cannot be used, and
 opens Advanced at its proxy section to say why:
 
-- "Enter the proxy's host, or untick "Connect through a proxy"."
+- "Enter the proxy’s host, or untick “Connect through a proxy”."
 - "… isn't a valid proxy host. Enter a name like proxy.example.com; the
   port goes in its own field."
 - "A proxy needs a port from 1 to 65535."

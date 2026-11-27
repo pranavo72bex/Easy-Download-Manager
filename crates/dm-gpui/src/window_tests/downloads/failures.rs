@@ -226,7 +226,7 @@ fn failed_downloads_are_counted_above_the_list_with_retry_all() {
     let mut h = world.harness();
     h.add_url(&world.url("secret.zip"), "Start now");
     h.until("the failure", failed);
-    h.until_shown("1 download didn't finish.");
+    h.until_shown("1 download didn’t finish.");
     let asked = SECRET_ASKED.load(std::sync::atomic::Ordering::SeqCst);
     h.click("Retry all");
     // Tried again: asked of the server once more, and failed again, as that server still
@@ -235,7 +235,7 @@ fn failed_downloads_are_counted_above_the_list_with_retry_all() {
         SECRET_ASKED.load(std::sync::atomic::Ordering::SeqCst) > asked
     });
     h.until("the second failure", failed);
-    h.until_shown("1 download didn't finish.");
+    h.until_shown("1 download didn’t finish.");
     h.click("Hide");
-    h.until("the bar to go", |h| !h.shows("1 download didn't finish."));
+    h.until("the bar to go", |h| !h.shows("1 download didn’t finish."));
 }

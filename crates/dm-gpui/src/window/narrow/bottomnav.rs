@@ -152,11 +152,12 @@ fn tab_drawn(
                 // phone's tab bar marks its own: a solid accent pill was a second filled accent
                 // beside the floating Add URL, the screen's one main action (rule 1).
                 .when(lit, |pill| pill.bg(theme.chosen_soft()))
-                .child(gpui::svg().path(picture).size(px(ICON)).text_color(if lit {
-                    theme.accent_text
-                } else {
-                    colour
-                })),
+                .child(
+                    gpui::svg()
+                        .path(filled_if(picture, lit))
+                        .size(px(ICON))
+                        .text_color(if lit { theme.accent_text } else { colour }),
+                ),
         )
         .child(
             div()
@@ -170,4 +171,37 @@ fn tab_drawn(
                 .when(lit, |d| d.font_weight(gpui::FontWeight::SEMIBOLD))
                 .child(screen.label(SharedString::from(words))),
         )
+}
+
+/// `picture`'s filled form where its tab is lit: outline is a tab's picture, fill marks the one
+/// shown (better-ui review; a phone's own tab bars do the same).
+fn filled_if(picture: &'static str, lit: bool) -> &'static str {
+    if !lit {
+        return picture;
+    }
+    match picture {
+        "icons/place-all.svg" => "icons/place-all-filled.svg",
+        "icons/place-unfinished.svg" => "icons/place-unfinished-filled.svg",
+        "icons/sidebar.svg" => "icons/sidebar-filled.svg",
+        "icons/options.svg" => "icons/options-filled.svg",
+        other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// Each tab's filled picture is one dm has: a missing one drew nothing on the lit tab.
+    #[test]
+    fn every_lit_tab_has_its_filled_picture() {
+        for picture in [
+            "icons/place-all.svg",
+            "icons/place-unfinished.svg",
+            "icons/sidebar.svg",
+            "icons/options.svg",
+        ] {
+            let filled = super::filled_if(picture, true);
+            assert_ne!(filled, picture);
+            assert!(dm_assets::icon(filled).is_some(), "{filled}");
+        }
+    }
 }

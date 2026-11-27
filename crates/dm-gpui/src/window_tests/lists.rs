@@ -314,7 +314,7 @@ fn a_row_added_for_later_shows_its_folder_without_owning_it() {
     );
     let out = world.dir.path().join("out");
     let planned = out.join("Archives").display().to_string();
-    h.until("the Folder column to show the kind's folder", |h| {
+    h.until("the Folder column to show the kind’s folder", |h| {
         h.shows(&planned)
     });
     // A name that does not say its kind shows none: the server decides.
@@ -559,7 +559,7 @@ fn a_finished_rows_size_is_its_files() {
         view.known.saved = Default::default();
         view.known.read_all = true;
     });
-    h.until("the file's own size", |h| {
+    h.until("the file’s own size", |h| {
         h.rows()[0].progress.total == Some(1000)
     });
 }
@@ -670,7 +670,7 @@ fn remove_says_when_finished_and_unfinished_rows_are_mixed() {
     h.command("file.select_all");
     h.command("file.remove");
     h.until("the question", |h| {
-        h.shows_part("Some downloads aren't finished")
+        h.shows_part("Some downloads aren’t finished")
     });
     assert!(h.shows("The finished file is kept."));
     assert!(!h.shows_part("Nothing was downloaded yet"));

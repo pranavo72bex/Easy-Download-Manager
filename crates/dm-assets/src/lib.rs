@@ -92,6 +92,12 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     "rename",
     "move-up",
     "move-down",
+    // A phone's bottom bar: the lit tab's picture filled, as a phone's own tab bars mark it
+    // (better-ui: outline is the default, fill marks the active state).
+    "place-all-filled",
+    "place-unfinished-filled",
+    "sidebar-filled",
+    "options-filled",
     // A phone's card menu: Copy link and Copy details (Copy link drew Update download link's
     // picture, two items alike for two acts).
     "copy",

@@ -345,7 +345,7 @@ impl Grabber {
                 .child(
                     phone_switch(
                         "keep-layout",
-                        t("Keep the site's folders").into(),
+                        t("Keep the site’s folders").into(),
                         keep,
                         theme,
                         screen,

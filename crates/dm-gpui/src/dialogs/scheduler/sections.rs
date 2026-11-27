@@ -114,7 +114,7 @@ impl Scheduler {
                 )
                 .when(!own, |d| {
                     d.child(native::hint(
-                        t("This queue follows the Main queue's hours."),
+                        t("This queue follows the Main queue’s hours."),
                         theme,
                         screen,
                     ))
@@ -364,7 +364,7 @@ impl Scheduler {
         )
         .when(any_greyed && !crate::platform::ON_A_PHONE, |d| {
             d.child(native::hint(
-                t("A greyed choice is one this computer doesn't allow dm."),
+                t("A greyed choice is one this computer doesn’t allow dm."),
                 theme,
                 screen,
             ))

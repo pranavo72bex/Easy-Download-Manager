@@ -120,7 +120,7 @@ pub fn due_now(
 }
 
 /// What a search found, grouped by the folder under `download_dir` that
-/// mirrors each file's address (the search's "Keep the site's folders"):
+/// mirrors each file's address (the search's "Keep the site’s folders"):
 /// each group's folder (`None`: the download folder itself) and its files,
 /// in the folders' order.
 pub fn by_site_folder(

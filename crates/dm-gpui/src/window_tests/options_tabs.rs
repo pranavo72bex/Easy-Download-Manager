@@ -43,7 +43,7 @@ fn a_settings_file_that_cannot_be_written_or_read_is_said() {
     crate::platform::services::choose_ahead(world.dir.path().to_path_buf());
     h.click("Save settings to a file…");
     h.until("the refusal to write", |h| {
-        h.shows_part("couldn't be written")
+        h.shows_part("couldn’t be written")
     });
 
     let junk = world.dir.path().join("junk.json");
@@ -51,7 +51,7 @@ fn a_settings_file_that_cannot_be_written_or_read_is_said() {
     crate::platform::services::choose_ahead(junk.clone());
     h.scroll_to("Load settings from a file…");
     h.click("Load settings from a file…");
-    let unread = format!("{} couldn't be read", junk.display());
+    let unread = format!("{} couldn’t be read", junk.display());
     h.until("the refusal to read", |h| h.shows_part(&unread));
 
     let file = world.dir.path().join("carried.json");
@@ -80,7 +80,7 @@ fn the_browser_page_offers_the_extension_and_warns_of_one_key_for_both() {
     std::fs::remove_file(&seen).unwrap();
     assert_eq!(connected, 1, "{:?}", h.texts());
     h.click("Add");
-    h.until("the extension's page", |_| {
+    h.until("the extension’s page", |_| {
         world
             .fake
             .opened
@@ -172,8 +172,8 @@ fn restore_defaults_puts_a_tab_back_and_only_that_tab() {
     let draft = h.dialog(|o: &mut Options, _, _| o.draft.clone());
     let (general, catch) = (&draft.general, &draft.browser.catch);
     assert_eq!(draft.downloads.connections, defaults.downloads.connections);
-    assert_eq!(general.theme, "dark", "General's setting was put back");
-    assert_eq!(catch.extensions, ["zzz"], "Browser's was put back");
+    assert_eq!(general.theme, "dark", "General’s setting was put back");
+    assert_eq!(catch.extensions, ["zzz"], "Browser’s was put back");
     tab(&mut h, "Browser");
     h.click("Restore defaults");
     let (draft, types) = h.dialog(|o: &mut Options, _, _| (o.draft.clone(), o.typed.types.clone()));

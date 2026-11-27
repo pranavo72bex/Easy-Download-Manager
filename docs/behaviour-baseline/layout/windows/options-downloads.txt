@@ -65,8 +65,8 @@
 "Video quality" 220 287.5 634 310
 "Best available" 656 287.5 774 310
 "Sound language" 220 327.5 625 350
-"The video's own" 647 327.5 774 350
-"Where a video has its sound in several languages, this one is taken; where none speaks it, the video's own." 220 357 700 396
+"The video’s own" 647 327.5 774 350
+"Where a video has its sound in several languages, this one is taken; where none speaks it, the video’s own." 220 357 700 396
 "Start the Main queue when dm opens" 220 412.5 760 435
 "?" 35.5 468.5 44.5 491
 "Restore defaults" 79 468.5 214 491

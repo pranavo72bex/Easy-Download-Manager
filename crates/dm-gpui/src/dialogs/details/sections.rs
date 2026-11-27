@@ -110,7 +110,7 @@ impl Details {
             let control = match &self.choices {
                 None => div()
                     .text_color(theme.muted)
-                    .child(screen.label(t("Reading the video's qualities…")))
+                    .child(screen.label(t("Reading the video’s qualities…")))
                     .into_any_element(),
                 Some(list) if list.is_empty() => div()
                     .text_color(theme.muted)

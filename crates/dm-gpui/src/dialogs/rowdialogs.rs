@@ -197,7 +197,7 @@ impl Render for UpdateLink {
                                 .text_color(theme.muted),
                         )
                         .child(
-                            screen.label(t("The download's link has expired? Paste a fresh one:")),
+                            screen.label(t("The download’s link has expired? Paste a fresh one:")),
                         )
                         .child(native::field(&self.address, "New address", theme))
                         .when(self.page.is_some(), |d| {

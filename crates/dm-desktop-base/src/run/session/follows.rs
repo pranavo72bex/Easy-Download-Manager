@@ -77,7 +77,7 @@ impl Session {
             // Still read, and not again for a minute; but said, since an unsaved last reading
             // reads it again at every launch.
             effects.push(Effect::Problem(tf(
-                "what is followed couldn't be saved: {}",
+                "what is followed couldn’t be saved: {}",
                 &[&e],
             )));
         }

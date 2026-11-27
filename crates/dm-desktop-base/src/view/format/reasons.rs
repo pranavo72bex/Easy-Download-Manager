@@ -27,7 +27,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
     // Reference A's row says "Cannot connect to the Internet." (2026-11-08).
     (
         &["did not come up"],
-        "the dial-up or VPN connection didn't come up",
+        "the dial-up or VPN connection didn’t come up",
     ),
     // Third: a download waiting for the one network downloads are held to (dm-net's
     // `only_through`, gaps row W12), before any of the words below its adapter's name may hold.
@@ -55,11 +55,11 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["too many redirects"],
-        "the site keeps redirecting in a loop, so the file can't be reached",
+        "the site keeps redirecting in a loop, so the file can’t be reached",
     ),
     (
         &["the server's name could not be found"],
-        "the site couldn't be found",
+        "the site couldn’t be found",
     ),
     (
         &["the server refused the connection"],
@@ -73,27 +73,27 @@ pub const REASONS: [(&[&str], &str); 38] = [
     // other cause is said as one that could not be checked, the next line.
     (
         &["certificate: expired"],
-        "the site's security certificate has expired, so dm didn't connect",
+        "the site’s security certificate has expired, so dm didn’t connect",
     ),
     (
         &["certificate: notvalidyet"],
-        "the site's security certificate isn't valid yet, so dm didn't connect",
+        "the site’s security certificate isn’t valid yet, so dm didn’t connect",
     ),
     (
         &["certificate: notvalidforname"],
-        "the site's security certificate is for another site, so dm didn't connect",
+        "the site’s security certificate is for another site, so dm didn’t connect",
     ),
     (
         &["certificate: unknownissuer"],
-        "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect",
+        "the site’s security certificate is from an issuer dm doesn’t trust, so dm didn’t connect",
     ),
     (
         &["certificate"],
-        "the site's security certificate couldn't be checked, so dm didn't connect",
+        "the site’s security certificate couldn’t be checked, so dm didn’t connect",
     ),
     (
         &["cannot be reached (was its drive"],
-        "its folder's drive isn't connected",
+        "its folder’s drive isn’t connected",
     ),
     (
         &["insecure (http)"],
@@ -101,7 +101,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["copy-protected", "drm protected"],
-        "this video is copy-protected (DRM), so only the site's own player can play it",
+        "this video is copy-protected (DRM), so only the site’s own player can play it",
     ),
     (
         &["no space left", "os error 28", "disk full"],
@@ -109,11 +109,11 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["too large for this drive"],
-        "the file is too big for this drive, which can't hold files over 4 GB (FAT32)",
+        "the file is too big for this drive, which can’t hold files over 4 GB (FAT32)",
     ),
     (
         &["disk: permission denied", "os error 13"],
-        "dm isn't allowed to save in that folder",
+        "dm isn’t allowed to save in that folder",
     ),
     (
         &["the server answered 404"],
@@ -125,7 +125,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["could not read the torrent file"],
-        "the .torrent file couldn't be read",
+        "the .torrent file couldn’t be read",
     ),
     // Raw engine text shown for these.
     (
@@ -139,7 +139,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
             "error connecting to proxy",
             "proxy server",
         ],
-        "the proxy couldn't be reached",
+        "the proxy couldn’t be reached",
     ),
     // A file's own errors, as `dm_core::file_error` words them.
     (&["it is not there"], "it is not there"),
@@ -168,11 +168,11 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["the server answered 403"],
-        "the site wouldn't give dm the file",
+        "the site wouldn’t give dm the file",
     ),
     (
         &["video helper", "video tools"],
-        "dm couldn't get ready for videos",
+        "dm couldn’t get ready for videos",
     ),
     (
         &[
@@ -183,7 +183,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["confirm you're not a bot", "sign in to confirm"],
-        "the site wants to check you're not a bot",
+        "the site wants to check you’re not a bot",
     ),
     (
         &[
@@ -193,7 +193,7 @@ pub const REASONS: [(&[&str], &str); 38] = [
             "has been removed",
             "not available in your country",
         ],
-        "this video isn't available",
+        "this video isn’t available",
     ),
     (
         &[
@@ -211,18 +211,18 @@ pub const REASONS: [(&[&str], &str); 38] = [
     ),
     (
         &["an encrypted stream dm cannot record"],
-        "dm can't record this kind of encrypted stream",
+        "dm can’t record this kind of encrypted stream",
     ),
     // Last: the specific failures above say more.
     (
         &["error sending request"],
-        "the server couldn't be reached",
+        "the server couldn’t be reached",
     ),
 ];
 
 /// What a video page that failed is said to be when nothing more
 /// specific is known (`REASONS`).
-pub const VIDEO_NOT_GOT: &str = "dm couldn't get the video from this page";
+pub const VIDEO_NOT_GOT: &str = "dm couldn’t get the video from this page";
 
 /// The video reader's own words for why it could not get a page's video, for
 /// the status to say after [`VIDEO_NOT_GOT`]: its first line, without any
@@ -262,11 +262,11 @@ pub fn retry_cause(raw: &str) -> Option<&'static str> {
     }
     match reason(raw)? {
         "the connection dropped before the file was complete" => Some("Connection dropped"),
-        "the site couldn't be found" => Some("Server not found"),
+        "the site couldn’t be found" => Some("Server not found"),
         "the server refused the connection" => Some("Connection refused"),
         "the server took too long to answer" => Some("No answer"),
-        "the server couldn't be reached" => Some("Server unreachable"),
-        "the dial-up or VPN connection didn't come up" => Some("Redialling"),
+        "the server couldn’t be reached" => Some("Server unreachable"),
+        "the dial-up or VPN connection didn’t come up" => Some("Redialling"),
         "the network downloads go only through is not connected" => Some("Waiting for the network"),
         _ => None,
     }
@@ -299,7 +299,10 @@ pub fn reason(raw: &str) -> Option<&'static str> {
         .filter(|word| !word.contains('/') && !word.contains('\\'))
         .collect::<Vec<_>>()
         .join(" ")
-        .to_lowercase();
+        .to_lowercase()
+        // The engine writes a typographic apostrophe (’) since 2026-11-27; a row failed before
+        // has the keyboard's ('). The signs below are written with the keyboard's.
+        .replace('\u{2019}', "'");
     REASONS
         .iter()
         .find(|(signs, _)| signs.iter().any(|sign| lower.contains(sign)))
@@ -325,7 +328,7 @@ pub const NEXT_STEPS: [(&str, &str); 30] = [
         "Check the address, or try again later. If a firewall or security program asks about dm, allow it, then click Retry",
     ),
     (
-        "the site keeps redirecting in a loop, so the file can't be reached",
+        "the site keeps redirecting in a loop, so the file can’t be reached",
         "Open the page in your browser and download from there, which hands dm the real link",
     ),
     (
@@ -333,27 +336,27 @@ pub const NEXT_STEPS: [(&str, &str); 30] = [
         "Choose another name or folder with Move/Rename, or remove the other file",
     ),
     (
-        "the site's security certificate couldn't be checked, so dm didn't connect",
-        "Check that the computer's date and time are right, then click Retry",
+        "the site’s security certificate couldn’t be checked, so dm didn’t connect",
+        "Check that the computer’s date and time are right, then click Retry",
     ),
     (
-        "the site's security certificate has expired, so dm didn't connect",
-        "The site must renew it. If many sites say this, check the computer's date and time",
+        "the site’s security certificate has expired, so dm didn’t connect",
+        "The site must renew it. If many sites say this, check the computer’s date and time",
     ),
     (
-        "the site's security certificate isn't valid yet, so dm didn't connect",
-        "Check that the computer's date and time are right, then click Retry",
+        "the site’s security certificate isn’t valid yet, so dm didn’t connect",
+        "Check that the computer’s date and time are right, then click Retry",
     ),
     (
-        "the site's security certificate is for another site, so dm didn't connect",
+        "the site’s security certificate is for another site, so dm didn’t connect",
         "Check the address. On a public network someone may be in between: try another network",
     ),
     (
-        "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect",
+        "the site’s security certificate is from an issuer dm doesn’t trust, so dm didn’t connect",
         "A network that inspects traffic (at work or school) may be in between: try another network",
     ),
     (
-        "the dial-up or VPN connection didn't come up",
+        "the dial-up or VPN connection didn’t come up",
         "Choose another connection in Options › Advanced › Dial Up / VPN, or turn off Use Windows Dial Up / VPN Networking, then click Retry",
     ),
     (
@@ -373,27 +376,27 @@ pub const NEXT_STEPS: [(&str, &str); 30] = [
         "Try again",
     ),
     (
-        "the site couldn't be found",
-        "Check the address, and that you're online",
+        "the site couldn’t be found",
+        "Check the address, and that you’re online",
     ),
     (
         "the server took too long to answer",
         "Try again in a moment",
     ),
     (
-        "its folder's drive isn't connected",
+        "its folder’s drive isn’t connected",
         "Plug it back in, or choose another folder",
     ),
     (
-        "the file is too big for this drive, which can't hold files over 4 GB (FAT32)",
+        "the file is too big for this drive, which can’t hold files over 4 GB (FAT32)",
         "Choose a folder on another drive",
     ),
     (
-        "dm isn't allowed to save in that folder",
+        "dm isn’t allowed to save in that folder",
         "Choose another folder",
     ),
     (
-        "the .torrent file couldn't be read",
+        "the .torrent file couldn’t be read",
         "It may be damaged",
     ),
     (
@@ -401,7 +404,7 @@ pub const NEXT_STEPS: [(&str, &str); 30] = [
         "Add the login in Properties › User name, or in Options › Sign-ins for the whole site",
     ),
     (
-        "the proxy couldn't be reached",
+        "the proxy couldn’t be reached",
         "Check its address in Options › Advanced",
     ),
     (
@@ -413,24 +416,24 @@ pub const NEXT_STEPS: [(&str, &str); 30] = [
         "Try again in a few minutes",
     ),
     (
-        "the site wouldn't give dm the file",
+        "the site wouldn’t give dm the file",
         "It may need you to sign in (Properties › User name)",
     ),
     (
-        "dm couldn't get ready for videos",
-        "Check that you're online, then click Retry",
+        "dm couldn’t get ready for videos",
+        "Check that you’re online, then click Retry",
     ),
     (
-        "the site wants to check you're not a bot",
+        "the site wants to check you’re not a bot",
         "Play the video in your browser, then use the Download video button on it",
     ),
     (
-        "this video isn't available",
+        "this video isn’t available",
         "It may be private, removed, or not shown in your country",
     ),
     (
-        "the server couldn't be reached",
-        "Check that you're online",
+        "the server couldn’t be reached",
+        "Check that you’re online",
     ),
 ];
 
@@ -478,15 +481,15 @@ pub fn step_button(raw: &str) -> Option<StepButton> {
     Some(match reason(raw)? {
         // Each failure whose step is another folder has the button that moves it there.
         "the disk is full"
-        | "its folder's drive isn't connected"
-        | "the file is too big for this drive, which can't hold files over 4 GB (FAT32)"
-        | "dm isn't allowed to save in that folder" => StepButton::ChooseFolder,
+        | "its folder’s drive isn’t connected"
+        | "the file is too big for this drive, which can’t hold files over 4 GB (FAT32)"
+        | "dm isn’t allowed to save in that folder" => StepButton::ChooseFolder,
         "this link no longer works" => StepButton::UpdateLink,
-        "the site keeps redirecting in a loop, so the file can't be reached" => {
+        "the site keeps redirecting in a loop, so the file can’t be reached" => {
             StepButton::OpenPage
         }
         "something of that name is already there" => StepButton::MoveRename,
-        "the dial-up or VPN connection didn't come up" => StepButton::Options,
+        "the dial-up or VPN connection didn’t come up" => StepButton::Options,
         _ => return None,
     })
 }

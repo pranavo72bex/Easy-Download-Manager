@@ -31,7 +31,7 @@ pub const UNPACKED_AND_TRASHED: &str =
 
 /// "Unpack when done" unpacked the archive, which could not be sent to the Trash (gaps row W14).
 pub const UNPACKED_NOT_TRASHED: &str =
-    "unpacked into a folder of its name, but the archive couldn't be sent to the Trash";
+    "unpacked into a folder of its name, but the archive couldn’t be sent to the Trash";
 
 /// "Unpack when done" left an archive with a password packed (gaps row W14).
 pub const NOT_UNPACKED_PASSWORD: &str = "not unpacked: the archive has a password";

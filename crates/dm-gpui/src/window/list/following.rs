@@ -29,7 +29,7 @@ impl Downloads {
             Err(e) => self
                 .status
                 .problems
-                .push(tf("what is followed couldn't be saved: {}", &[&e])),
+                .push(tf("what is followed couldn’t be saved: {}", &[&e])),
         }
         // The next frame draws the settings as now, not those the last read kept: the side
         // panel lists it at once (B75).
@@ -43,7 +43,7 @@ impl Downloads {
         if let Err(e) = self.backend.set_settings(wanted) {
             self.status
                 .problems
-                .push(tf("what is followed couldn't be saved: {}", &[&e]));
+                .push(tf("what is followed couldn’t be saved: {}", &[&e]));
         }
         self.known.drawn_fresh = false;
         cx.notify();
@@ -76,7 +76,7 @@ impl Downloads {
             Err(e) => {
                 self.status
                     .problems
-                    .push(tf("the followed {} couldn't be read: {}", &[&name, &e]));
+                    .push(tf("the followed {} couldn’t be read: {}", &[&name, &e]));
                 return;
             }
         };
@@ -92,7 +92,7 @@ impl Downloads {
                     &[&n, &queue],
                 )),
                 Err(e) => self.status.problems.push(tf(
-                    "the items {} gained couldn't be added: {}",
+                    "the items {} gained couldn’t be added: {}",
                     &[&name, &e],
                 )),
             }
@@ -102,7 +102,7 @@ impl Downloads {
             if let Err(e) = self.backend.set_settings(wanted) {
                 self.status
                     .problems
-                    .push(tf("what is followed couldn't be saved: {}", &[&e]));
+                    .push(tf("what is followed couldn’t be saved: {}", &[&e]));
             }
         }
     }

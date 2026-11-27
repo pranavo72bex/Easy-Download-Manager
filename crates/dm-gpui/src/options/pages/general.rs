@@ -414,7 +414,7 @@ fn backdrop(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
             |s| s.general.mica = !s.general.mica,
         );
         p.hint(t(
-            "Lets the desktop show faintly through the window, as Windows' own apps do.",
+            "Lets the desktop show faintly through the window, as Windows’ own apps do.",
         ));
     }
 }
@@ -431,7 +431,7 @@ fn pop_up_windows(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         |s| s.general.show_progress = !s.general.show_progress,
     );
     p.hint(t(
-        "Off: press Details on a download's row to open its progress.",
+        "Off: press Details on a download’s row to open its progress.",
     ));
     check(
         p,
@@ -518,7 +518,7 @@ fn pop_ups(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         p,
         cx,
         "offer-new-link",
-        t("Offer a new link when a download's link has expired"),
+        t("Offer a new link when a download’s link has expired"),
         s.general.offer_new_link,
         true,
         |s| s.general.offer_new_link = !s.general.offer_new_link,
@@ -535,13 +535,13 @@ fn keeping(p: &mut Page, cx: &mut Context<Options>, s: &Settings) {
         p,
         cx,
         "server-dates",
-        t("Keep the file's date from the server"),
+        t("Keep the file’s date from the server"),
         s.general.server_dates,
         true,
         |s| s.general.server_dates = !s.general.server_dates,
     );
     p.hint(t(
-        "A saved file gets the date the website gives it, not today's.",
+        "A saved file gets the date the website gives it, not today’s.",
     ));
 }
 
@@ -586,7 +586,7 @@ fn settings_file(p: &mut Page, cx: &mut Context<Options>) {
                 o.says = Some(
                     match std::fs::write(&path, o.draft.exported()) {
                         Ok(()) => tf("Saved to {}, without any password.", &[&path.display()]),
-                        Err(e) => tf("{} couldn't be written: {}", &[&path.display(), &e]),
+                        Err(e) => tf("{} couldn’t be written: {}", &[&path.display(), &e]),
                     }
                     .into(),
                 );
@@ -607,7 +607,7 @@ fn settings_file(p: &mut Page, cx: &mut Context<Options>) {
                             o.retype();
                             t("Loaded. Look them over, then OK to use them.").to_string()
                         }
-                        Err(e) => tf("{} couldn't be read: {}", &[&path.display(), &e]),
+                        Err(e) => tf("{} couldn’t be read: {}", &[&path.display(), &e]),
                     }
                     .into(),
                 );

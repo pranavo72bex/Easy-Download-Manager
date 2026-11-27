@@ -50,7 +50,7 @@ pub(super) fn folders(
     // Why what follows is greyed.
     if !on {
         p.hint(t(
-            "Turn on sorting to set the kinds' folders and your own categories.",
+            "Turn on sorting to set the kinds’ folders and your own categories.",
         ));
     }
     // Each kind's folder: the kind in the window's language, the folder a

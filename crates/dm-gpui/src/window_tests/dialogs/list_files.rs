@@ -135,7 +135,7 @@ fn a_list_that_cannot_be_written_keeps_its_dialog_open() {
     h.choose_ahead(&path);
     h.command("program.export");
     h.until("Export to say", |h| {
-        h.said().contains("couldn't be written")
+        h.said().contains("couldn’t be written")
     });
     assert!(
         h.said().contains(&path.display().to_string()),
@@ -155,23 +155,23 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     h.add_url(&world.url("file.zip"), "Add for later");
     h.until("the row", |h| !h.rows().is_empty());
     h.command("program.export");
-    h.until("Export's dialog", |h| h.dialog_open("Export the list"));
+    h.until("Export’s dialog", |h| h.dialog_open("Export the list"));
     h.until_shown("No file picker here: type the path.");
     let offered = h.dialog(|d: &mut crate::dialogs::listfile::ListFile, _, cx| d.typed(cx));
     assert!(offered.ends_with("downloads.dmlist"), "{offered}");
     let nowhere = world.dir.path().join("no such folder").join("list.dmlist");
-    h.type_into("File's path", &nowhere.display().to_string());
+    h.type_into("File’s path", &nowhere.display().to_string());
     h.click("Export");
-    h.until("the write refused", |h| h.shows_part("couldn't be written"));
+    h.until("the write refused", |h| h.shows_part("couldn’t be written"));
     assert!(
         h.dialog_open("Export the list"),
         "closed with the path lost"
     );
     let file = world.dir.path().join("typed.dmlist");
-    h.type_into("File's path", &file.display().to_string());
+    h.type_into("File’s path", &file.display().to_string());
     h.click("Export");
     h.until("the list written", |_| file.is_file());
-    h.until("Export's dialog closed", |h| {
+    h.until("Export’s dialog closed", |h| {
         !h.dialog_open("Export the list")
     });
 
@@ -179,22 +179,22 @@ fn import_and_export_take_a_typed_path_without_a_file_chooser() {
     let mut other_h = other.harness();
     *other.fake.no_chooser.lock().unwrap() = true;
     other_h.command("program.import");
-    other_h.until("Import's dialog", |h| h.dialog_open("Import a list"));
-    other_h.type_into("File's path", "relative.dmlist");
+    other_h.until("Import’s dialog", |h| h.dialog_open("Import a list"));
+    other_h.type_into("File’s path", "relative.dmlist");
     other_h.click("Import");
     other_h.until("the path refused", |h| h.shows_part("full path"));
     let missing = other.dir.path().join("missing.dmlist");
-    other_h.type_into("File's path", &missing.display().to_string());
+    other_h.type_into("File’s path", &missing.display().to_string());
     other_h.click("Import");
-    other_h.until("the read refused", |h| h.shows_part("couldn't be read"));
+    other_h.until("the read refused", |h| h.shows_part("couldn’t be read"));
     assert!(
         other_h.dialog_open("Import a list"),
         "closed with the path lost"
     );
-    other_h.type_into("File's path", &file.display().to_string());
+    other_h.type_into("File’s path", &file.display().to_string());
     other_h.click("Import");
     other_h.until("the list imported", |h| h.rows().len() == 1);
-    other_h.until("Import's dialog closed", |h| {
+    other_h.until("Import’s dialog closed", |h| {
         !h.dialog_open("Import a list")
     });
 }

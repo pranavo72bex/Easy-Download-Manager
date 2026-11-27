@@ -739,7 +739,7 @@ pub fn target_duration(media: &str) -> u64 {
 
 /// What a copy-protected stream is told.
 pub const PROTECTED: &str =
-    "this video is copy-protected (DRM), so only the site's own player can play it; dm does not download it";
+    "this video is copy-protected (DRM), so only the site’s own player can play it; dm does not download it";
 
 /// Whether an HLS key belongs to a rights system rather than to HLS's own
 /// scrambling: any key format but `identity`, or a key address that is not

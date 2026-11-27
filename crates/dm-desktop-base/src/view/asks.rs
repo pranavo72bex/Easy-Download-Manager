@@ -77,12 +77,12 @@ pub fn remove(
     // them from the same pieces.
     let mixed = unfinished && files > 0;
     let sentence = match (unfinished, count) {
-        (true, _) if mixed => t("Some downloads aren't finished. They lose what was downloaded."),
+        (true, _) if mixed => t("Some downloads aren’t finished. They lose what was downloaded."),
         (true, 1) if !fetched => t("Nothing was downloaded yet. Remove it from the list?"),
         (true, _) if !fetched => t("Nothing was downloaded yet. Remove them from the list?"),
-        (true, 1) => t("This download isn't finished. Removing it discards what was downloaded."),
+        (true, 1) => t("This download isn’t finished. Removing it discards what was downloaded."),
         (true, _) => {
-            t("Some downloads aren't finished. Removing them discards what was downloaded.")
+            t("Some downloads aren’t finished. Removing them discards what was downloaded.")
         }
         (false, 1) if remove_files => t("Its file is deleted too."),
         (false, _) if remove_files => t("Their files are deleted too."),
@@ -182,7 +182,7 @@ pub fn page_for_file() -> DownloadAsk {
         )
         .to_string()],
         detail: None,
-        buttons: vec![t("Save as HTML").into(), t("Don't download").into()],
+        buttons: vec![t("Save as HTML").into(), t("Don’t download").into()],
     }
 }
 
@@ -347,7 +347,7 @@ mod tests {
         let one = row(State::Paused, 10);
         let ask = remove(&[&one], 0, false, false, Some("film.mp4".into()));
         assert_eq!(ask.title_english, "Remove an unfinished download");
-        assert!(ask.sentence.starts_with("This download isn't finished"));
+        assert!(ask.sentence.starts_with("This download isn’t finished"));
         assert_eq!(ask.named, "film.mp4");
         assert_eq!((ask.go, ask.keep), ("Remove download", "Keep it"));
         assert_eq!(ask.toggle, None);
@@ -385,7 +385,7 @@ mod tests {
         assert_eq!(name.buttons, vec!["Use Report 2026.pdf", "Keep dl"]);
         let page = page_for_file();
         assert_eq!(page.title_english, "Web page instead of the file");
-        assert_eq!(page.buttons, vec!["Save as HTML", "Don't download"]);
+        assert_eq!(page.buttons, vec!["Save as HTML", "Don’t download"]);
     }
 
     #[test]

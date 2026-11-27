@@ -75,14 +75,14 @@ pub fn update_words(update: &Update, running: &str) -> String {
             &[v, &running],
         ),
         Update::Newer(v, None) => tf(
-            "dm {} is out (this is {}). It is on the project's releases page.",
+            "dm {} is out (this is {}). It is on the project’s releases page.",
             &[v, &running],
         ),
         Update::NoRelease => tf("No newer release yet (you have {}).", &[&running]),
         // In plain words where dm knows them (the raw
         // "error sending request for url (…)" offline).
         Update::Failed(why) => tf(
-            "Couldn't reach the update server: {}",
+            "Couldn’t reach the update server: {}",
             &[&crate::format::reason(why).map(t).unwrap_or(why.as_str())],
         ),
     }
@@ -123,10 +123,10 @@ pub fn tips() -> [&'static str; 8] {
         t("Right-click a page and choose Download all links with dm to pick from every link on it."),
         t("Downloads › Scheduler starts a queue at set hours, and can shut the computer down when it is done."),
         t("Move the mouse over a playing video and click Download video to choose a quality."),
-        t("Drag a link from the browser onto dm's window to download it."),
+        t("Drag a link from the browser onto dm’s window to download it."),
         t("The Grabber lists the files a website links to, by type and size; save a search to run it again."),
         t("Options › Advanced › Network sets a speed limit and the number of attempts for a failed download."),
-        t("Properties shows a finished file's SHA-256 and checks it against a digest you were given."),
+        t("Properties shows a finished file’s SHA-256 and checks it against a digest you were given."),
     ]
 }
 

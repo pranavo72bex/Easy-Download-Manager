@@ -80,7 +80,7 @@ fn a_finished_files_command_that_cannot_start_is_a_problem_and_chosen_sounds_pla
         serde_json::json!({ "urls": [world.url("file.zip")] }),
     )
     .unwrap();
-    h.until("the program's failure to be said", |h| {
+    h.until("the program’s failure to be said", |h| {
         problems(h)
             .iter()
             .any(|p| p.contains("no-such-program") && p.contains("could not start"))
@@ -95,7 +95,7 @@ fn a_finished_files_command_that_cannot_start_is_a_problem_and_chosen_sounds_pla
             .filter(|o| *o == "chime")
             .count()
     };
-    h.until("the finish and the dry queue's sounds", |_| chimes() >= 2);
+    h.until("the finish and the dry queue’s sounds", |_| chimes() >= 2);
 }
 
 /// "Delete file after" with a file that cannot be moved to the Trash: it stays with its row,
@@ -127,7 +127,7 @@ fn a_file_due_for_deletion_that_cannot_be_moved_stays_and_is_said() {
     }
     h.view(|view| view.backend.set_delete_after(row.id, Some(1)));
     h.until("the failure to be said", |h| {
-        h.said().starts_with("Couldn't delete")
+        h.said().starts_with("Couldn’t delete")
     });
     let kept = h.view(|view| view.backend.row(row.id));
     std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -149,7 +149,7 @@ fn a_change_of_settings_with_a_cookies_file_gone_is_made_and_the_problem_said() 
     h.settings_to(|s| s.advanced.cookies_file = named);
     std::fs::remove_file(&cookies).unwrap();
     h.settings_to(|s| s.hinted_big = !s.hinted_big);
-    h.until("the cookies file's problem", |h| {
+    h.until("the cookies file’s problem", |h| {
         problems(h)
             .iter()
             .any(|p| p.contains("downloads go without its cookies"))

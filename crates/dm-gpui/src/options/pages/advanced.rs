@@ -129,8 +129,8 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
             &screen,
         ),
     );
-    p.hint(t("Use a second connection too, such as your phone over USB or its hotspot. Half of each download's connections go over it. Not used while a proxy is on."));
-    network_allowance::name_field(o, p, window, cx, &second, "Second network's name");
+    p.hint(t("Use a second connection too, such as your phone over USB or its hotspot. Half of each download’s connections go over it. Not used while a proxy is on."));
+    network_allowance::name_field(o, p, window, cx, &second, "Second network’s name");
     // A third beside it, once a second is chosen (gaps row K3).
     if !second.is_empty() {
         let third = o.draft.third_path.clone();
@@ -160,14 +160,14 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
             ),
         );
         let third = o.draft.third_path.clone();
-        network_allowance::name_field(o, p, window, cx, &third, "Third network's name");
+        network_allowance::name_field(o, p, window, cx, &third, "Third network’s name");
         network_allowance::third_limits(o, p, window, cx);
         p.note(t(
-            "Each download's connections are shared among all the networks chosen.",
+            "Each download’s connections are shared among all the networks chosen.",
         ));
     }
     // Its own speed limit, shared by its connections (gaps row K5).
-    let words = "Second network's speed limit (KB/s, 0 for none)";
+    let words = "Second network’s speed limit (KB/s, 0 for none)";
     let field = input(
         o,
         window,
@@ -180,7 +180,7 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
         |o| o.draft.second_limit_kb.to_string(),
     );
     p.setting(t(words), true, field);
-    p.hint(t("Holds the second network, such as a phone's data, to this speed, whatever the other connection does."));
+    p.hint(t("Holds the second network, such as a phone’s data, to this speed, whatever the other connection does."));
     network_allowance::allowance(
         o,
         p,
@@ -221,7 +221,7 @@ fn second_network(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut C
         for step in [
             t("1. Connect your phone to this computer with its USB cable. If it asks whether to trust this computer, say yes."),
             t("2. Turn on its hotspot: on an iPhone, Settings › Personal Hotspot; on Android, USB tethering."),
-            t("3. Choose it above. Keep Wi-Fi as this computer's own connection, so only downloads use the phone's data."),
+            t("3. Choose it above. Keep Wi-Fi as this computer’s own connection, so only downloads use the phone’s data."),
         ] {
             p.hint(step);
         }
@@ -263,7 +263,7 @@ fn only_through(o: &mut Options, p: &mut Page) {
         true,
         popup::button("only-through", shown.into(), words, at, theme, &screen),
     );
-    p.hint(t("Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used."));
+    p.hint(t("Every download goes out over this network alone, such as your VPN’s. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used."));
 }
 
 /// Sites with their own connection limit, and the button adding one.
@@ -524,7 +524,7 @@ fn identity(o: &mut Options, p: &mut Page, cx: &mut Context<Options>) {
         |s| s.identify_as_dm = !s.identify_as_dm,
     );
     p.hint(t(
-        "Sends dm's own name first. A site that refuses it is asked again with another name.",
+        "Sends dm’s own name first. A site that refuses it is asked again with another name.",
     ));
 }
 
@@ -547,7 +547,7 @@ fn bittorrent(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Conte
         true,
         blocklist,
     );
-    p.hint(t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list can't be read."));
+    p.hint(t("A list in the P2P format, plain or gzipped, on the web or on this computer. One on the web is fetched through the proxy and read again once a day; a torrent stops, saying why, if the list can’t be read."));
     // Off unless turned on: sharing sends from the person's connection.
     let share = o.draft.torrent_share;
     check(
@@ -608,7 +608,7 @@ fn proxy(o: &mut Options, p: &mut Page, window: &mut Window, cx: &mut Context<Op
     p.hint(t("For a network that reaches the internet through a proxy server. Whoever runs the network can give you its address."));
     let on = proxy.enabled;
     let kind_words = |kind: Kind| match kind {
-        Kind::System => t("The computer's proxy settings").to_string(),
+        Kind::System => t("The computer’s proxy settings").to_string(),
         other => format!("{other:?}").to_uppercase(),
     };
     p.setting(
@@ -755,7 +755,7 @@ fn script(o: &mut Options, p: &mut Page, on: bool, window: &mut Window, cx: &mut
         window,
         cx,
         "proxy.script",
-        "Automatic configuration script address (it chooses each site's proxy, in place of the above)",
+        "Automatic configuration script address (it chooses each site’s proxy, in place of the above)",
         WIDE,
         on,
         false,
@@ -763,9 +763,9 @@ fn script(o: &mut Options, p: &mut Page, on: bool, window: &mut Window, cx: &mut
     );
     // Its words over it, as every wide field's on the page (`Page::labelled`).
     p.labelled(
-        t("Automatic configuration script address (it chooses each site's proxy, in place of the above)"),
+        t("Automatic configuration script address (it chooses each site’s proxy, in place of the above)"),
         on,
         script,
     );
-    p.hint_when(on, t("Every download, the video tools and a torrent's SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT."));
+    p.hint_when(on, t("Every download, the video tools and a torrent’s SOCKS5 connections go through it; FTP through SOCKS or HTTP CONNECT."));
 }

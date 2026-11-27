@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Where each saved page and file goes under the folder chosen (gaps row F2): in folders that
-//! mirror its address, as the Grabber's "Keep the site's folders" does, under names safe on
+//! mirror its address, as the Grabber's "Keep the site’s folders" does, under names safe on
 //! every disk, none given twice.
 
 use std::collections::HashSet;

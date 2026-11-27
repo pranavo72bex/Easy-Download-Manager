@@ -68,7 +68,7 @@ fn a_new_folder_is_made_and_one_that_cannot_be_is_said() {
         let said = at(SaveTo::OneFolder, &typed.display().to_string())
             .ready(&root, &cats)
             .unwrap_err();
-        assert!(said.contains("couldn't be written"), "{said}");
+        assert!(said.contains("couldn’t be written"), "{said}");
         assert!(said.contains("already there"), "{said}");
     }
     // Not allowed to: a folder no one may write in.

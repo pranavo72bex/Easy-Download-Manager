@@ -55,7 +55,7 @@ fn in_force(h: &mut Harness, world: &crate::harness::world::World) -> dm_core::O
 /// (docs/decisions.md, 2026-11-06), so its kind is picked from the pop-up, as a person does.
 fn own_proxy(h: &mut Harness) {
     h.reveal("Proxy type");
-    h.click("The computer's proxy settings");
+    h.click("The computer’s proxy settings");
     h.click("HTTP");
     h.until("the proxy's own kind", |h| {
         h.dialog(|o: &mut Options, _, _| o.draft.advanced.proxy.kind == dm_core::ProxyKind::Http)
@@ -224,8 +224,8 @@ fn a_sound_language_picked_in_options_is_kept() {
     tab(&mut h, "Downloads");
     h.reveal("Sound language");
     // A new install takes each video's own sound.
-    h.reveal("The video's own");
-    h.click("The video's own");
+    h.reveal("The video’s own");
+    h.click("The video’s own");
     h.click("Español");
     h.until_shown("Español");
     ok(&mut h);
@@ -236,8 +236,8 @@ fn a_sound_language_picked_in_options_is_kept() {
     tab(&mut h, "Downloads");
     h.reveal("Español");
     h.click("Español");
-    h.click("The video's own");
-    h.until_shown("The video's own");
+    h.click("The video’s own");
+    h.until_shown("The video’s own");
     ok(&mut h);
     assert_eq!(kept(&mut h).downloads.sound_language, "");
     assert_eq!(saved_settings()["sound_language"], "");
@@ -461,7 +461,7 @@ fn the_second_network_says_how_to_use_a_phone_step_by_step() {
     for step in [
         "1. Connect your phone to this computer with its USB cable. If it asks whether to trust this computer, say yes.",
         "2. Turn on its hotspot: on an iPhone, Settings › Personal Hotspot; on Android, USB tethering.",
-        "3. Choose it above. Keep Wi-Fi as this computer's own connection, so only downloads use the phone's data.",
+        "3. Choose it above. Keep Wi-Fi as this computer’s own connection, so only downloads use the phone’s data.",
     ] {
         h.reveal(step);
     }

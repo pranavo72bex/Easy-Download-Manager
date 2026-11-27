@@ -62,7 +62,7 @@ impl PasswordDialog {
         }
         let password = self.password.read(cx).value().to_string();
         if password.is_empty() {
-            return self.refused(t("Type the archive's password.").into(), window, cx);
+            return self.refused(t("Type the archive’s password.").into(), window, cx);
         }
         self.busy = true;
         let (tell, told) = async_channel::bounded(1);

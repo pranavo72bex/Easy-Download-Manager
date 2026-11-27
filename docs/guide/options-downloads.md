@@ -21,7 +21,7 @@ A site that allows fewer connections can be given its own number: see
 - **Video quality:** the quality a video is downloaded at unless you pick
   another: **Best available**, **Up to 1080p**, **Up to 720p**, **Up to
   480p** or **Audio only**. See [Videos and their qualities](videos.md).
-- **Sound language:** **The video's own** (at first), or a language by its
+- **Sound language:** **The video’s own** (at first), or a language by its
   own name: English, Español, Français, Deutsch and others. "Where a video
   has its sound in several languages, this one is taken; where none speaks
   it, the video's own." A dubbed video (a YouTube video with dubs, or a
@@ -65,7 +65,7 @@ A site that allows fewer connections can be given its own number: see
 ## Watching a folder and running a command
 
 - "Watch a folder: links (.url, .webloc or a text file of links) and
-  .torrent files saved there are added, then moved to its "done" folder.
+  .torrent files saved there are added, then moved to its “done” folder.
   Leave it empty to turn this off." **Browse…** picks the folder. dm looks
   in it every few seconds.
 - "When a download finishes, run this command (a virus checker or a script).

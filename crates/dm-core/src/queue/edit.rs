@@ -284,7 +284,7 @@ impl DownloadList {
                     return false;
                 }
                 if slot.entry.torrent_files.len() != wanted.len() {
-                    why = Some("The torrent's files are not known yet.");
+                    why = Some("The torrent’s files are not known yet.");
                     return false;
                 }
                 for (file, on) in Arc::make_mut(&mut slot.entry_mut().torrent_files)
@@ -320,7 +320,7 @@ impl DownloadList {
                     return false;
                 }
                 if slot.entry.torrent_files.len() != priorities.len() {
-                    why = Some("The torrent's files are not known yet.");
+                    why = Some("The torrent’s files are not known yet.");
                     return false;
                 }
                 for (file, p) in Arc::make_mut(&mut slot.entry_mut().torrent_files)

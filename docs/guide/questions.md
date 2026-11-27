@@ -122,7 +122,7 @@ looks like an HTML web page. Would you like to continue downloading it and
 save it as an HTML page?"
 
 - **Save as HTML:** downloads the page and keeps it.
-- **Don't download:** removes the download.
+- **Don’t download:** removes the download.
 
 Return and Escape: **Save as HTML**.
 

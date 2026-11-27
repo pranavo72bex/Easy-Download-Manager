@@ -69,7 +69,7 @@ pub fn taken_words(slot: &Option<TakeSlot>, asked: &str) -> Option<String> {
                 .unwrap_or_else(|| name.clone());
             tf("{} saved to {}", &[&saved, &folder])
         }
-        Some((name, Err(why))) => tf("Couldn't take out {}: {}", &[name, why]),
+        Some((name, Err(why))) => tf("Couldn’t take out {}: {}", &[name, why]),
     })
 }
 
@@ -140,7 +140,7 @@ mod tests {
         ));
         assert_eq!(
             taken_words(&asked, "a.txt").as_deref(),
-            Some("Couldn't take out a.txt: this file is locked with a password")
+            Some("Couldn’t take out a.txt: this file is locked with a password")
         );
     }
 }
