@@ -109,7 +109,10 @@ fn row_beside(
 /// A fact a window reports (a size, a count, where a file goes): its name in the hint's colour
 /// from the window's edge in a column `name_width` wide, its value beside it, as the progress
 /// window, View › Details and Statistics show theirs. Each drew its own, two with the names
-/// right-aligned mid-window. On a phone, [`row`]'s: the name above its value.
+/// right-aligned mid-window. On a phone the same where the names are short (an Android
+/// settings row's name and value): stacked, three short facts took 380 dp of the progress window
+/// (unslop review on the emulator); [`row`]'s, the name above its value, where a language's
+/// names are wider than [`PHONE_FACT_NAME`].
 pub fn fact(
     name: &str,
     name_width: f32,
@@ -118,7 +121,7 @@ pub fn fact(
     value: impl IntoElement,
 ) -> Div {
     let value = div().flex_1().min_w_0().child(value);
-    if crate::platform::ON_A_PHONE {
+    if crate::platform::ON_A_PHONE && name_width > PHONE_FACT_NAME {
         return row(Some(name), name_width, screen, value);
     }
     div()
@@ -135,6 +138,9 @@ pub fn fact(
         )
         .child(value)
 }
+
+/// The widest a fact's names may be, in points, for a phone to set each beside its value.
+const PHONE_FACT_NAME: f32 = 140.0;
 
 /// What a field's value means, under the field in the fields' column of a form whose labels are
 /// `label_width` wide: nearer its field than the next row is (a hint stood midway between them),
