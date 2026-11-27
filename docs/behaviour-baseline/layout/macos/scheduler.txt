@@ -57,7 +57,7 @@
 "07" 298 130.5 314 151.5
 ":" 392 130.5 400 151.5
 "00" 414 130.5 430 151.5
-"HH:MM, local time. A window ending before it starts runs overnight." 225 155 700 173
+"Local time. Hours that end before they start run overnight." 225 155 700 173
 "Every week, on the days ticked" 247 187 482 208
 "Sun" 267 220 291 241
 "Mon" 325 220 349 241

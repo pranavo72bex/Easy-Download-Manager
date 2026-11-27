@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The Scheduler's hint under its hours reads "Local time. Hours that end before they start run overnight."; it said "HH:MM", a typed form the hours' pickers no longer ask for.
 - In a new window the download list shows a file's whole name ("Ubuntu-24.04-desktop.iso", which was cut to "Ubuntu-24.0…top.iso"): the room past every column's least goes two parts to the name for one to Status, where Status took its share first and stood half empty.
 - Unpacking: a 7z or RAR archive whose dictionary is over 1.5 GiB is refused with that reason, before anything is unpacked (the formats allow 4 GiB, which a crafted archive could hold in memory). Every 7-Zip preset and every RAR 5 archive is under it.
 - In Arabic and Hebrew, words that wrap onto several lines (a setting's hint in Options, a long note) read from the first line down; the sentence began on the last line before.

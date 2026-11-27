@@ -316,7 +316,7 @@
  "The torrent's own name": "השם של הטורנט עצמו",
  "Finding peers…": "מחפש עמיתים…",
  "Tick at least one day.": "סמן לפחות יום אחד.",
- "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM, שעה מקומית. חלון שמסתיים לפני שהוא מתחיל פועל במשך הלילה.",
+ "Local time. Hours that end before they start run overnight.": "שעה מקומית. שעות שמסתיימות לפני שהן מתחילות פועלות במשך הלילה.",
  "A download with this name exists. This one will be numbered.": "כבר קיימת הורדה בשם הזה. להורדה זו יתווסף מספר.",
  "Not available: {}.": "לא זמין: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} ממתין ללוח הזמנים; הוא יתחיל מעצמו כשלוח הזמנים ייפתח.",

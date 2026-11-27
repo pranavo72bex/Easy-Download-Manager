@@ -316,7 +316,7 @@
  "The torrent's own name": "Il nome proprio del torrent",
  "Finding peers…": "Ricerca dei peer…",
  "Tick at least one day.": "Seleziona almeno un giorno.",
- "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM, ora locale. Una fascia che finisce prima di iniziare dura la notte.",
+ "Local time. Hours that end before they start run overnight.": "Ora locale. Una fascia che finisce prima di iniziare dura la notte.",
  "A download with this name exists. This one will be numbered.": "Esiste già un download con questo nome. Questo sarà numerato.",
  "Not available: {}.": "Non disponibile: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} attende la pianificazione; parte da sola quando si apre.",

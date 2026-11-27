@@ -316,7 +316,7 @@
  "The torrent's own name": "种子自身的名称",
  "Finding peers…": "正在查找对等节点…",
  "Tick at least one day.": "请至少勾选一天。",
- "HH:MM, local time. A window ending before it starts runs overnight.": "HH:MM，本地时间。结束早于开始的时段会跨夜运行。",
+ "Local time. Hours that end before they start run overnight.": "本地时间。结束早于开始的时段会跨夜运行。",
  "A download with this name exists. This one will be numbered.": "已有同名下载。此下载将加上编号。",
  "Not available: {}.": "不可用：{}。",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.": "{} 正在等待计划时段；时段开始时会自动开始。",

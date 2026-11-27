@@ -307,7 +307,6 @@
  "The torrent's own name",
  "Finding peers…",
  "Tick at least one day.",
- "HH:MM, local time. A window ending before it starts runs overnight.",
  "A download with this name exists. This one will be numbered.",
  "Not available: {}.",
  "{} is waiting for the schedule; it starts by itself when the schedule opens.",
@@ -1101,5 +1100,6 @@
  "Earlier",
  "No queue",
  "Choose a queue to start",
- "Choose a queue to stop"
+ "Choose a queue to stop",
+ "Local time. Hours that end before they start run overnight."
 ]
