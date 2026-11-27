@@ -482,6 +482,7 @@
  "unit:MB": "MB",
  "unit:GB": "GB",
  "unit:TB": "TB",
+ "unit:/s": "/s",
  "Also delete the file": "Excluir também o arquivo",
  "Also delete the files": "Excluir também os arquivos",
  "Couldn't delete {}": "Não foi possível excluir: {}",

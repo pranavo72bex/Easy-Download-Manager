@@ -76,7 +76,13 @@ fn unit(word: &'static str) -> &'static str {
 
 /// A rate, from the engine's bytes a second.
 pub fn rate(per_second: f64) -> String {
-    format!("{}/s", bytes(per_second.max(0.0) as u64))
+    // "/s" in the language's own word, as the units are: Arabic's ك.ب beside a Latin "/s" read
+    // "s/ك.ب" (unslop review, references/rtl.md).
+    format!(
+        "{}{}",
+        bytes(per_second.max(0.0) as u64),
+        unit(crate::i18n::t("unit:/s"))
+    )
 }
 
 /// Time remaining; nothing at all when there is nothing honest to say.

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- In Arabic and Hebrew on a phone, the bottom bar reads from the right (All at the right edge), a finished download's size reads "2.1 MB" (Hebrew showed "MB 2.1"), and speeds say "/ث" in Arabic and "/с" in Russian instead of a Latin "/s".
 - On a phone, while several downloads are being chosen, each chosen one shows a tick on its tile, and the cards' own buttons and the add button step aside so the top bar's actions are the ones in reach.
 - On a phone, a menu whose items have no pictures (Help) starts its words at the edge instead of a picture's width in, and the menu's Tasks has its own + picture instead of Start queue's.
 - On a phone, a download's progress window, View › Details and Statistics set each short fact's name beside its value (File size  62.9 MB) rather than above it, so they take a third of the room.

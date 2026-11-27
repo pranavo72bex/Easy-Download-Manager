@@ -482,6 +482,7 @@
  "unit:MB": "MB",
  "unit:GB": "GB",
  "unit:TB": "TB",
+ "unit:/s": "/s",
  "Also delete the file": "Hapus juga berkas",
  "Also delete the files": "Hapus juga berkas",
  "Couldn't delete {}": "Tidak bisa dihapus: {}",

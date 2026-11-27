@@ -482,6 +482,7 @@
  "unit:MB": "MB",
  "unit:GB": "GB",
  "unit:TB": "TB",
+ "unit:/s": "/s",
  "Also delete the file": "파일도 삭제",
  "Also delete the files": "파일도 삭제",
  "Couldn't delete {}": "{}을(를) 삭제할 수 없습니다",

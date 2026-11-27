@@ -78,6 +78,9 @@ pub(super) fn bottom_nav(
         .h(px(HEIGHT))
         .flex()
         .items_center()
+        // From the right where the window is mirrored: "All" stood at the left in Arabic and
+        // Hebrew under a top bar read from the right (unslop review, references/rtl.md).
+        .map(crate::window::mirror::row)
         .bg(crate::window::theme::frame(theme.sidebar))
         .border_t_1()
         .border_color(theme.separator)

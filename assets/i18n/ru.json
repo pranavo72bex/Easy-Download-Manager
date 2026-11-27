@@ -482,6 +482,7 @@
  "unit:MB": "МБ",
  "unit:GB": "ГБ",
  "unit:TB": "ТБ",
+ "unit:/s": "/с",
  "Also delete the file": "Также удалить файл",
  "Also delete the files": "Также удалить файлы",
  "Couldn't delete {}": "Не удалось удалить: {}",

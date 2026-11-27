@@ -482,6 +482,7 @@
  "unit:MB": "MB",
  "unit:GB": "GB",
  "unit:TB": "TB",
+ "unit:/s": "/s",
  "Also delete the file": "ファイルも削除する",
  "Also delete the files": "ファイルも削除する",
  "Couldn't delete {}": "{} を削除できませんでした",

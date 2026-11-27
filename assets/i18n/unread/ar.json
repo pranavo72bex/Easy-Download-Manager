@@ -1101,5 +1101,6 @@
  "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.",
  "Data allowance (MB, 0 for none)",
  "Allowance period (hours)",
- "Tap a download to watch its progress."
+ "Tap a download to watch its progress.",
+ "unit:/s"
 ]

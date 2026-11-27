@@ -482,6 +482,7 @@
  "unit:MB": "Mo",
  "unit:GB": "Go",
  "unit:TB": "To",
+ "unit:/s": "/s",
  "Also delete the file": "Supprimer aussi le fichier",
  "Also delete the files": "Supprimer aussi les fichiers",
  "Couldn't delete {}": "Suppression impossible : {}",

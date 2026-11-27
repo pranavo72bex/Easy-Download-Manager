@@ -482,6 +482,7 @@
  "unit:MB": "MB",
  "unit:GB": "GB",
  "unit:TB": "TB",
+ "unit:/s": "/s",
  "Also delete the file": "Dosyayı da sil",
  "Also delete the files": "Dosyaları da sil",
  "Couldn't delete {}": "Silinemedi: {}",

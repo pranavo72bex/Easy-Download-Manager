@@ -154,7 +154,10 @@ fn state_colour(row: &Entry, chosen: bool, theme: Theme) -> gpui::Rgba {
 
 /// A card's line under its bar: on the left its state and size (for a running torrent, who it
 /// comes from), on the right its speed (for a whole torrent still shared, what it sends).
-fn figures(row: &Entry, status: &str, speed: String) -> (String, String) {
+/// A finished card's state and size are two pieces (the third, its size, apart): one string
+/// mixed a language read right to left with a Latin unit and read "MB 2.1" in Hebrew (unslop
+/// review, references/rtl.md).
+fn figures(row: &Entry, status: &str, speed: String) -> (String, Option<String>, String) {
     let swarm = dm_core::is_torrent(&row.url)
         .then(|| dm_desktop_base::rows::swarm_of(row.id))
         .flatten();
@@ -171,9 +174,18 @@ fn figures(row: &Entry, status: &str, speed: String) -> (String, String) {
             None => size,
         }
     } else {
-        format!("{status} · {size}")
+        return (
+            status.to_string(),
+            Some(size),
+            right_figures(row, swarm, speed),
+        );
     };
-    let right = match swarm {
+    (left, None, right_figures(row, swarm, speed))
+}
+
+/// A card's figures at its line's end: its speed, or what a shared torrent sends.
+fn right_figures(row: &Entry, swarm: Option<dm_core::Swarm>, speed: String) -> String {
+    match swarm {
         Some(swarm) if row.state == State::Completed && swarm.connected > 0 => {
             dm_desktop_base::i18n::tf(
                 "↑ {} · {} leechers",
@@ -184,8 +196,7 @@ fn figures(row: &Entry, status: &str, speed: String) -> (String, String) {
             )
         }
         _ => speed,
-    };
-    (left, right)
+    }
 }
 
 /// A card's first line: its name, cut in its middle, and the time left beside it.
@@ -277,7 +288,7 @@ fn card(
     // Chosen, the card is marked as Options marks its chosen page: the accent's soft tint and its
     // bar at the leading edge, every word in the text's colour (`Theme::chosen`).
     let card_theme = if chosen { theme.chosen() } else { theme };
-    let (left_words, right_words) = figures(row, &status, speed);
+    let (left_words, size_after, right_words) = figures(row, &status, speed);
     div()
         .id(("card", id as usize))
         .role(Role::ListItem)
@@ -361,7 +372,11 @@ fn card(
                                 .gap(px(space::XS))
                                 .min_w_0()
                                 .children(crate::window::table::state_mark(&row.state, card_theme))
-                                .child(small(left_words, state_colour(row, chosen, theme), screen)),
+                                .child(small(left_words, state_colour(row, chosen, theme), screen))
+                                .when_some(size_after, |line, size| {
+                                    line.child(small("·".into(), card_theme.muted, screen))
+                                        .child(small(size, card_theme.muted, screen))
+                                }),
                         )
                         // Cut with "…" where the card is narrow, not run under its buttons.
                         .child(small(right_words, card_theme.muted, screen)),

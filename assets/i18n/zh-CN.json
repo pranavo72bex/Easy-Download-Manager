@@ -482,6 +482,7 @@
  "unit:MB": "MB",
  "unit:GB": "GB",
  "unit:TB": "TB",
+ "unit:/s": "/s",
  "Also delete the file": "同时删除文件",
  "Also delete the files": "同时删除文件",
  "Couldn't delete {}": "无法删除 {}",

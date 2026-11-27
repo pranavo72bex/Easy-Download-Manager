@@ -482,6 +482,7 @@
  "unit:MB": "م.ب",
  "unit:GB": "غ.ب",
  "unit:TB": "ت.ب",
+ "unit:/s": "/ث",
  "Also delete the file": "حذف الملف أيضًا",
  "Also delete the files": "حذف الملفات أيضًا",
  "Couldn't delete {}": "تعذّر حذف {}",
