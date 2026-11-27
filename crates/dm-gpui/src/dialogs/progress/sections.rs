@@ -175,7 +175,9 @@ pub(super) fn facts(
     let (theme, screen) = (look.theme, &look.screen);
     let p = &row.progress;
     let next_step = match &row.state {
-        State::Failed(why) => format::next_step(why).map(t),
+        State::Failed(why) => format::next_step(why)
+            .map(crate::platform::said_step)
+            .map(t),
         _ => None,
     };
     body.child(

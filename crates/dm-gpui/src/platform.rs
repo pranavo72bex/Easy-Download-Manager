@@ -29,3 +29,12 @@ pub(crate) mod services;
 pub(crate) mod sheets;
 pub(crate) mod syswindow;
 pub(crate) mod tray;
+
+/// A failure's next step (`format::next_step`) as this system says it: a phone taps Retry.
+pub(crate) fn said_step(step: &'static str) -> &'static str {
+    if ON_A_PHONE {
+        dm_desktop_base::format::on_a_phone(step)
+    } else {
+        step
+    }
+}

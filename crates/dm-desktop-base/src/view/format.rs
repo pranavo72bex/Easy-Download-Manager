@@ -13,8 +13,8 @@ use crate::i18n::{t, tf};
 mod reasons;
 
 pub use reasons::{
-    next_step, reason, retry_cause, step_button, video_said, StepButton, NEXT_STEPS, REASONS,
-    RETRY_CAUSES, VIDEO_NOT_GOT,
+    next_step, on_a_phone, reason, retry_cause, step_button, video_said, StepButton, NEXT_STEPS,
+    REASONS, RETRY_CAUSES, VIDEO_NOT_GOT,
 };
 
 /// A byte count in the unit a person reads it in.

@@ -494,3 +494,17 @@ fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {
     assert_eq!(as_shown("ünlü"), "Ünlü");
     assert_eq!(as_shown(""), "");
 }
+
+/// A phone taps Retry (gaps row 224): every next step that says "click" has a phone wording
+/// without it, and the phone's wordings say "tap".
+#[test]
+fn a_phone_taps_retry_where_a_computer_clicks_it() {
+    for (_, step) in super::NEXT_STEPS {
+        let phone = super::on_a_phone(step);
+        if step.contains("click Retry") && !step.contains("Dial Up") {
+            assert!(phone.contains("tap Retry"), "{phone}");
+        } else {
+            assert_eq!(phone, step);
+        }
+    }
+}

@@ -364,7 +364,9 @@ impl Render for Properties {
         let editable = !matches!(row.state, State::Running | State::Completed)
             || dm_desktop_base::rows::retrying(row.id).is_some();
         let next_step = match &row.state {
-            State::Failed(why) => format::next_step(why).map(t),
+            State::Failed(why) => format::next_step(why)
+                .map(crate::platform::said_step)
+                .map(t),
             _ => None,
         };
         let raw_failure = dm_desktop_base::rows::failure_as_said(&row).map(str::to_string);

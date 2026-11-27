@@ -494,6 +494,27 @@ pub fn step_button(raw: &str) -> Option<StepButton> {
     })
 }
 
+/// A next step as a phone says it: Retry is tapped there, not clicked (gaps row 224). The steps
+/// that name no click, and Windows' dial-up one, are as the computer says them.
+const PHONE_STEPS: [(&str, &str); 4] = [
+    ("Free some space, or choose a folder on another drive (Options › Folders), then click Retry",
+     "Free some space, or choose a folder on another drive (Options › Folders), then tap Retry"),
+    ("Check the address, or try again later. If a firewall or security program asks about dm, allow it, then click Retry",
+     "Check the address, or try again later. If a firewall or security program asks about dm, allow it, then tap Retry"),
+    ("Check that the computer’s date and time are right, then click Retry",
+     "Check that the computer’s date and time are right, then tap Retry"),
+    ("Check that you’re online, then click Retry",
+     "Check that you’re online, then tap Retry"),
+];
+
+/// `step` (one of [`NEXT_STEPS`]) as a phone says it.
+pub fn on_a_phone(step: &'static str) -> &'static str {
+    PHONE_STEPS
+        .iter()
+        .find(|(computer, _)| *computer == step)
+        .map_or(step, |(_, phone)| *phone)
+}
+
 /// The next step for a failure, in English (look it up with `t`); `None`
 /// where its plain words already say what to do, or are not known.
 pub fn next_step(raw: &str) -> Option<&'static str> {

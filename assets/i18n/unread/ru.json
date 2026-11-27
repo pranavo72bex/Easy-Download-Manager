@@ -339,5 +339,9 @@
  "Data allowance (MB, 0 for none)",
  "Allowance period (hours)",
  "Tap a download to watch its progress.",
- "unit:/s"
+ "unit:/s",
+ "Free some space, or choose a folder on another drive (Options › Folders), then tap Retry",
+ "Check the address, or try again later. If a firewall or security program asks about dm, allow it, then tap Retry",
+ "Check that the computer’s date and time are right, then tap Retry",
+ "Check that you’re online, then tap Retry"
 ]

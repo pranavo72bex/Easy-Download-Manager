@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a phone, a failure's next step says to tap Retry, not click it, in every language.
 - dm's English words use typographic apostrophes and quotes (didn’t, “done”) everywhere, where some used the keyboard's ' and " and two used curly ones. A download that failed before keeps its translated reason.
 - On a phone, the bottom bar's chosen tab shows its picture filled, as Android's own tab bars do.
 - On Android 12 and up (and on Linux with a variable system font), bold, semibold and medium text draws at its weight: titles, headings, file names and the chosen tab were all drawn regular, as the phone's Roboto is one variable font.

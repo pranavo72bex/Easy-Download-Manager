@@ -92,7 +92,9 @@ fn pane(row: &Entry, place: String, theme: Theme, screen: &Screen) -> gpui::Stat
     let why = match &row.state {
         State::Failed(why) => Some((
             dm_desktop_base::rows::status_of(row),
-            format::next_step(why).map(t),
+            format::next_step(why)
+                .map(crate::platform::said_step)
+                .map(t),
         )),
         _ => None,
     };
