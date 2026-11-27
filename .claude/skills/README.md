@@ -24,6 +24,13 @@ dm: nothing here is built into or shipped with the app.
   - `upskill`: proposes skills, hooks and automations from past sessions, for a person to
     pick. A bot never runs it: what it would change (the workflows, the skills) is the bots'
     guardrails.
+- `unslop/`: from github.com/heydamir/unslop at commit 620163ee (2026-11-27), by Damir
+  Sokolovsky, CC BY 4.0 (`LICENSE-unslop`; keep the credit). Its markdown only: its
+  `scripts/` (Node, for web pages), `agents/` and reference images were left out, so the
+  image links in `references/refs.md` lead nowhere here. Written for web pages; read it
+  through `dm-design`. For dm its order of passes (spacing, color, icons, copy, type,
+  layout, details, motion) and its list of tells (`references/signs.md`) are what apply;
+  its hero visuals and landing-page advice do not fit a download manager's window.
 - Not taken from that repository, though each was read and is clean: `explain-interface`
   (it fetches web pages and their stylesheets with `curl`), `build-design` (Figma),
   `state-machine` and `variant` (they render a component on a throwaway web page; dm's window
