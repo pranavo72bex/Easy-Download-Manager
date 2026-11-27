@@ -1120,5 +1120,7 @@
  "Previous 7 days": "7 hari terakhir",
  "Previous 30 days": "30 hari terakhir",
  "Earlier": "Lebih lama",
- "No queue": "Tanpa antrean"
+ "No queue": "Tanpa antrean",
+ "Choose a queue to start": "Pilih antrean untuk dimulai",
+ "Choose a queue to stop": "Pilih antrean untuk dihentikan"
 }

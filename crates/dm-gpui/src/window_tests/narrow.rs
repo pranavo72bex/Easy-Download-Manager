@@ -227,13 +227,15 @@ fn search_at_a_phones_width_narrows_the_cards() {
     );
 }
 
-/// The top bar names the place chosen, as the drawer lists it; at All, "dm".
+/// The top bar names the place chosen, as the drawer lists it; at All, "All downloads", never
+/// the app's name.
 #[test]
 fn the_top_bar_names_the_place_chosen() {
     let _file = settings_file();
     let world = world();
     let mut h = phone(&world);
-    h.until_shown("dm");
+    h.until_shown("All downloads");
+    assert!(!h.shows("dm"), "the app's name in the top bar");
     let queue = "Main queue";
     assert!(!h.shows(queue), "{:?}", h.texts());
     h.update(|view, cx| {

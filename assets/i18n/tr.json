@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Son 7 gün",
  "Previous 30 days": "Son 30 gün",
  "Earlier": "Daha eski",
- "No queue": "Kuyruk yok"
+ "No queue": "Kuyruk yok",
+ "Choose a queue to start": "Başlatılacak kuyruğu seçin",
+ "Choose a queue to stop": "Durdurulacak kuyruğu seçin"
 }

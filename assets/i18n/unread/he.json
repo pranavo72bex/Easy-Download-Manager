@@ -1099,5 +1099,7 @@
  "Previous 7 days",
  "Previous 30 days",
  "Earlier",
- "No queue"
+ "No queue",
+ "Choose a queue to start",
+ "Choose a queue to stop"
 ]

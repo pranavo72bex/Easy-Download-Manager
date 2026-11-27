@@ -1120,5 +1120,7 @@
  "Previous 7 days": "آخر 7 أيام",
  "Previous 30 days": "آخر 30 يومًا",
  "Earlier": "أقدم",
- "No queue": "بلا قائمة انتظار"
+ "No queue": "بلا قائمة انتظار",
+ "Choose a queue to start": "اختر قائمة انتظار لبدئها",
+ "Choose a queue to stop": "اختر قائمة انتظار لإيقافها"
 }

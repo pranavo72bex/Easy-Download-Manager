@@ -1120,5 +1120,7 @@
  "Previous 7 days": "过去 7 天",
  "Previous 30 days": "过去 30 天",
  "Earlier": "更早",
- "No queue": "无队列"
+ "No queue": "无队列",
+ "Choose a queue to start": "选择要开始的队列",
+ "Choose a queue to stop": "选择要停止的队列"
 }

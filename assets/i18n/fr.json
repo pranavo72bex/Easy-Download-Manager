@@ -1120,5 +1120,7 @@
  "Previous 7 days": "7 derniers jours",
  "Previous 30 days": "30 derniers jours",
  "Earlier": "Plus ancien",
- "No queue": "Sans file"
+ "No queue": "Sans file",
+ "Choose a queue to start": "Choisir une file à démarrer",
+ "Choose a queue to stop": "Choisir une file à arrêter"
 }

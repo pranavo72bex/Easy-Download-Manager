@@ -1120,5 +1120,7 @@
  "Previous 7 days": "7 הימים האחרונים",
  "Previous 30 days": "30 הימים האחרונים",
  "Earlier": "מוקדם יותר",
- "No queue": "ללא תור"
+ "No queue": "ללא תור",
+ "Choose a queue to start": "בחירת תור להפעלה",
+ "Choose a queue to stop": "בחירת תור לעצירה"
 }

@@ -119,7 +119,7 @@ fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> 
 }
 
 /// The place chosen's name as the panel lists it, for the phone's top bar (gaps row N7); none
-/// for All, every download, where the bar says "dm".
+/// for All, every download, where the bar says "All downloads".
 pub(crate) fn place_name(view: &Downloads) -> Option<SharedString> {
     if view.list.place == Place::All {
         return None;

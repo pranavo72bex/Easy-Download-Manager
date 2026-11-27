@@ -46,7 +46,7 @@ The skills speak CSS and the DOM. In dm:
 
 | The skills say | In dm |
 |---|---|
-| Design tokens, CSS variables | Colour roles of `Theme` (`crates/dm-gpui/src/window/theme.rs`); sizes in `widgets/native.rs` (`TEXT`, `SMALL_TEXT`, `CONTROL`, `MARGIN`, `ROW_GAP`, `RADIUS`, …) and `widgets/space.rs` (`XXS` 2 … `XXXL` 24, `SECTION`, `TOUCH` 48, `CORNER_S/M/L`) |
+| Design tokens, CSS variables | Colour roles of `Theme` (`crates/dm-gpui/src/window/theme.rs`); sizes in `widgets/native.rs` (`TEXT`, `SMALL_TEXT`, `CONTROL`, `MARGIN`, `ROW_GAP`, `RADIUS`, …) and `widgets/space.rs` (`XXS` 2 … `XXL` 20, `TARGET` 24, `SECTION`, `TOUCH` 48, `CORNER_S/L`) |
 | `rem`, the reader's font size | `zoom::px` (`window/zoom.rs`): every size goes through it so Text size (60–120%) reaches it |
 | `prefers-color-scheme`, two theme blocks | `Theme::of(appearance)`: a palette per system (AppKit, WinUI, libadwaita) light and dark, and High Contrast's system colours |
 | `forced-colors` | Windows High Contrast: every colour is the system's, so nothing may rely on colour alone |

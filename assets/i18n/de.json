@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Letzte 7 Tage",
  "Previous 30 days": "Letzte 30 Tage",
  "Earlier": "Früher",
- "No queue": "Keine Warteschlange"
+ "No queue": "Keine Warteschlange",
+ "Choose a queue to start": "Warteschlange zum Starten wählen",
+ "Choose a queue to stop": "Warteschlange zum Stoppen wählen"
 }

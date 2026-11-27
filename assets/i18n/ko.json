@@ -1120,5 +1120,7 @@
  "Previous 7 days": "지난 7일",
  "Previous 30 days": "지난 30일",
  "Earlier": "이전",
- "No queue": "대기열 없음"
+ "No queue": "대기열 없음",
+ "Choose a queue to start": "시작할 대기열 선택",
+ "Choose a queue to stop": "중지할 대기열 선택"
 }

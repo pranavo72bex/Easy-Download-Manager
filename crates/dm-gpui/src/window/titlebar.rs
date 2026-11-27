@@ -201,7 +201,7 @@ fn phone_icon(path: &'static str, colour: gpui::Rgba) -> gpui::Svg {
 const PHONE_ICON: f32 = 24.0;
 
 /// The top bar at a phone's width (gaps row N7), in place of the menus' titles, the search
-/// box and the toolbar: the place chosen's name (else "dm") as its title, search, and the
+/// box and the toolbar: the place chosen's name ("All downloads" at All) as its title, search, and the
 /// overflow menu holding the toolbar's commands and the menus (`narrow.rs`). Search
 /// opens the desktop's own search box across the bar, the same words narrowing the same list,
 /// with a close that clears them. Still the window's title bar where dm draws one: past the
@@ -250,7 +250,11 @@ pub fn narrow_titlebar(
                 .child(screen.mark(close, icon("icons/close.svg", theme.text))),
         )
     } else {
-        let title = crate::window::sidebar::place_name(view).unwrap_or_else(|| "dm".into());
+        // The place shown, as the computer's title bar names it; at All, "All downloads", not the
+        // app's name (the maintainer, 2026-11-27: "remove the app name like dm … from homescreen
+        // top left corner. make it minimilistic").
+        let title =
+            crate::window::sidebar::place_name(view).unwrap_or_else(|| t("All downloads").into());
         // The place's name as the bar's title, as a phone's apps name the screen shown; the
         // places are the bottom navigation's, and Add URL the button floating over the list.
         // On a phone, under the title, how the downloads go: the status bar's first words,

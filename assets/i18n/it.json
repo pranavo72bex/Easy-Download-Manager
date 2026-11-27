@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Ultimi 7 giorni",
  "Previous 30 days": "Ultimi 30 giorni",
  "Earlier": "Precedenti",
- "No queue": "Nessuna coda"
+ "No queue": "Nessuna coda",
+ "Choose a queue to start": "Scegli una coda da avviare",
+ "Choose a queue to stop": "Scegli una coda da fermare"
 }

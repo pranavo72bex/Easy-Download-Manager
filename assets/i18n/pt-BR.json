@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Últimos 7 dias",
  "Previous 30 days": "Últimos 30 dias",
  "Earlier": "Anteriores",
- "No queue": "Sem fila"
+ "No queue": "Sem fila",
+ "Choose a queue to start": "Escolha uma fila para iniciar",
+ "Choose a queue to stop": "Escolha uma fila para parar"
 }

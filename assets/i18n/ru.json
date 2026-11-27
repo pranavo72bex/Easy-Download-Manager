@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Последние 7 дней",
  "Previous 30 days": "Последние 30 дней",
  "Earlier": "Ранее",
- "No queue": "Без очереди"
+ "No queue": "Без очереди",
+ "Choose a queue to start": "Выбрать очередь для запуска",
+ "Choose a queue to stop": "Выбрать очередь для остановки"
 }

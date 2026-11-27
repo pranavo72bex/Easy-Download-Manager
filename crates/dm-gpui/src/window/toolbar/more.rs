@@ -20,8 +20,8 @@ const GAP: f32 = 4.0;
 const ENDS: f32 = 16.0;
 /// A button's room each side of its picture or word.
 const SIDES: f32 = 16.0;
-/// The arrow beside Start Queue and Stop Queue.
-const ARROW: f32 = 14.0;
+/// The arrow beside Start Queue and Stop Queue, as drawn (it was counted 14, drawn 16).
+const ARROW: f32 = super::QUEUE_ARROW;
 /// What rounding and the toolbar's border take, so a button that just fits is not cut.
 const SLACK: f32 = 8.0;
 

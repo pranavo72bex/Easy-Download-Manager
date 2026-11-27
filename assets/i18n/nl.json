@@ -1120,5 +1120,7 @@
  "Previous 7 days": "Afgelopen 7 dagen",
  "Previous 30 days": "Afgelopen 30 dagen",
  "Earlier": "Eerder",
- "No queue": "Geen wachtrij"
+ "No queue": "Geen wachtrij",
+ "Choose a queue to start": "Kies een wachtrij om te starten",
+ "Choose a queue to stop": "Kies een wachtrij om te stoppen"
 }
