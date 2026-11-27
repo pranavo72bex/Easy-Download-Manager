@@ -1,0 +1,73 @@
+# dm's window, scene options-advanced (linux, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 1280x720]
+"Tasks" 48 7 90 29.5
+"File" 106 7 140 29.5
+"Downloads" 156 7 232 29.5
+"View" 248 7 282 29.5
+"Help" 298 7 332 29.5
+"Add URL" 16 62 67 81.5
+"Resume" 97.5 61.5 141.5 81
+"Stop" 172 62 201 81.5
+"Delete" 221 62 265 81.5
+"Stop all" 810 62 868 81.5
+"Options" 888 62 939 81.5
+"Scheduler" 959 62 1024 81.5
+"Start queue" 1044 62 1124 81.5
+"Stop queue" 1168 62 1240 81.5
+"Categories" 16 108 88 127.5
+"All" 40 134 66 156.5
+"Unfinished" 40 178 125 200.5
+"Finished" 40 206 108 228.5
+"Queues" 16 243.5 60 263
+"Main queue" 40 269.5 125 292
+"Recheck queue" 40 297.5 150 320
+"Add dm to your browser:" 236 99.5 430 122
+"Microsoft Edge" 453 99.5 571 122
+"Firefox" 609 99.5 668 122
+"Chrome and others" 706 99.5 849 122
+"Not now" 1194 99.5 1253 122
+"File name" 212 138.5 277 158
+"Size" 676 138.5 705 158
+"Status" 721 138.5 765 158
+"Time left" 953 138.5 1018 158
+"Transfer rate" 1049 138.5 1143 158
+"Last try date" 1159 138.5 1253 158
+"Nothing queued" 672.5 245 807.5 271
+"Add URL, paste a link, or send one from your browser." 517 275 963 297.5
+"Add URL" 710.5 315 769.5 337.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 509.5 355.5 970.5 375
+"0 downloads" 16 698.5 96 718
+"· Nothing downloading" 100 698.5 252 718
+"· Speed limiter" 256 698.5 364 718
+
+[dialog "Options" 880x600]
+"General" 40 56.5 99 79
+"Browser" 40 86.5 99 109
+"Folders" 40 116.5 99 139
+"Downloads" 40 146.5 116 169
+"Advanced" 40 176.5 108 199
+"Sign-ins" 40 206.5 108 229
+"Advanced" 220 16 860 47.5
+"Network, Sites with their own connection limit, Proxy" 220 49.5 860 69
+"Network" 220 87 860 109.5
+"Speed limit (KB/s, 0 for none)" 220 121 758 143.5
+"0" 770 115.5 860 149.5
+"Keeps dm from using all of your connection." 220 151.5 700 171
+"Attempts per connection (0 to keep trying)" 220 190.5 758 213
+"15" 770 185 860 219
+"How many times dm tries again after a connection fails." 220 221 700 240.5
+"Wait between attempts (seconds, 0 for automatic)" 220 260 758 282.5
+"0" 770 254.5 860 288.5
+"How long dm waits before it tries again." 220 290.5 700 310
+"Time out a silent connection after (seconds)" 220 329.5 758 352
+"30" 770 324 860 358
+"How long a connection may say nothing before dm gives up on it." 220 360 700 379.5
+"Only through" 220 399 719 421.5
+"Any network" 741 399 834 421.5
+"Every download goes out over this network alone, such as your VPN's. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used." 220 429.5 700 527
+"?" 30.5 553.5 39.5 576
+"Restore defaults" 75 553.5 210 576
+"Cancel" 704 553.5 755 576
+"OK" 813.5 553.5 830.5 576

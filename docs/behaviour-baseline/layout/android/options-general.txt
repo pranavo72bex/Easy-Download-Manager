@@ -1,0 +1,44 @@
+# dm's window, scene options-general (android, 412x915, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 412x915]
+"All downloads" 24 4.5 308 37
+"0 downloads" 24 37 308 58
+"Filter" 324 19.5 348 43.5
+"Menu" 376 19.5 400 43.5
+"Nothing queued" 138.5 146 273.5 172
+"Share a link to dm from any app, or add one here." 16 176 396 225
+"Add URL" 174.5 248.5 237.5 273
+"All" 40.5 888.5 62.5 908
+"Unfinished" 118.5 888.5 190.5 908
+"Places" 235.5 888.5 279.5 908
+"Options" 335 888.5 386 908
+
+[dialog "Options" 880x600]
+"General" 44 131.5 107 156
+"Folders" 44 181.5 107 206
+"Downloads" 44 231.5 125 256
+"Advanced" 44 281.5 116 306
+"Sign-ins" 44 331.5 116 356
+"General" 220 68 860 102
+"Language, Appearance, Starting and updating" 220 104 860 125
+"Language" 220 158.5 748 183
+"English" 770 158.5 833 183
+"Appearance" 220 225 860 249.5
+"Theme" 220 271 677 295.5
+"As the phone is" 699 271 834 295.5
+"Text size" 220 321.5 860 346
+"60%" 220 380 244 401
+"80%" 260 380 284 401
+"100%" 296 380 328 401
+"120%" 336 380 368 401
+"150%" 376 380 408 401
+"200%" 416 380 448 401
+"100%" 452 351.5 488 376
+"Starting and updating" 220 427.5 860 452
+"When an address is already in the list" 220 473.5 748 498
+"Ask me" 770 473.5 824 498
+"?" 477.5 547.5 486.5 572
+"Restore defaults" 533 547.5 677 572
+"Cancel" 719 547.5 773 572
+"Done" 814 547.5 850 572

@@ -1,0 +1,34 @@
+# dm's window, scene scheduler (android, 412x915, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 412x915]
+"All downloads" 24 4.5 308 37
+"0 downloads" 24 37 308 58
+"Filter" 324 19.5 348 43.5
+"Menu" 376 19.5 400 43.5
+"Nothing queued" 138.5 146 273.5 172
+"Share a link to dm from any app, or add one here." 16 176 396 225
+"Add URL" 174.5 248.5 237.5 273
+"All" 40.5 888.5 62.5 908
+"Unfinished" 118.5 888.5 190.5 908
+"Places" 235.5 888.5 279.5 908
+"Options" 335 888.5 386 908
+
+[dialog "Scheduler" 720x520]
+"Queues" 16 68 704 92.5
+"Main queue" 52 110 142 134.5
+"Recheck queue" 52 160 169 184.5
+"Start now" 31 218 112 242.5
+"Stop" 150 218 186 242.5
+"The hours when downloads may run, in every queue without hours of its own." 16 279.5 704 300.5
+"Only download between set hours" 18 326 650 350.5
+"Start at" 16 388 88 412.5
+"01" 106 388 124 412.5
+":" 200 388 209 412.5
+"00" 223 388 241 412.5
+"Stop at" 337 388 400 412.5
+"07" 418 388 436 412.5
+":" 512 388 521 412.5
+"00" 535 388 553 412.5
+"Local time. Hours that end before they start run overnight." 16 426.5 496 447.5
+"Every week, on the days ticked" 38 477 308 501.5

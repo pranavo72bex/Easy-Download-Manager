@@ -1,0 +1,74 @@
+# dm's window, scene options-folders (linux, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 1280x720]
+"Tasks" 48 7 90 29.5
+"File" 106 7 140 29.5
+"Downloads" 156 7 232 29.5
+"View" 248 7 282 29.5
+"Help" 298 7 332 29.5
+"Add URL" 16 62 67 81.5
+"Resume" 97.5 61.5 141.5 81
+"Stop" 172 62 201 81.5
+"Delete" 221 62 265 81.5
+"Stop all" 810 62 868 81.5
+"Options" 888 62 939 81.5
+"Scheduler" 959 62 1024 81.5
+"Start queue" 1044 62 1124 81.5
+"Stop queue" 1168 62 1240 81.5
+"Categories" 16 108 88 127.5
+"All" 40 134 66 156.5
+"Unfinished" 40 178 125 200.5
+"Finished" 40 206 108 228.5
+"Queues" 16 243.5 60 263
+"Main queue" 40 269.5 125 292
+"Recheck queue" 40 297.5 150 320
+"Add dm to your browser:" 236 99.5 430 122
+"Microsoft Edge" 453 99.5 571 122
+"Firefox" 609 99.5 668 122
+"Chrome and others" 706 99.5 849 122
+"Not now" 1194 99.5 1253 122
+"File name" 212 138.5 277 158
+"Size" 676 138.5 705 158
+"Status" 721 138.5 765 158
+"Time left" 953 138.5 1018 158
+"Transfer rate" 1049 138.5 1143 158
+"Last try date" 1159 138.5 1253 158
+"Nothing queued" 672.5 245 807.5 271
+"Add URL, paste a link, or send one from your browser." 517 275 963 297.5
+"Add URL" 710.5 315 769.5 337.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 509.5 355.5 970.5 375
+"0 downloads" 16 698.5 96 718
+"· Nothing downloading" 100 698.5 252 718
+"· Speed limiter" 256 698.5 364 718
+
+[dialog "Options" 880x600]
+"General" 40 56.5 99 79
+"Browser" 40 86.5 99 109
+"Folders" 40 116.5 99 139
+"Downloads" 40 146.5 116 169
+"Advanced" 40 176.5 108 199
+"Sign-ins" 40 206.5 108 229
+"Folders" 220 16 860 47.5
+"Download folder, Folders by category, Unpack when done" 220 49.5 860 69
+"Download folder" 220 87 860 109.5
+"/tmp/dm-golden/Downloads" 220 115.5 763 149.5
+"Browse…" 786 121 845 143.5
+"Folder for unfinished downloads" 220 159.5 860 182
+"Browse…" 786 193.5 845 216
+"A download already begun keeps the folder it began in." 220 224 700 243.5
+"Sort finished files into folders by category" 220 263 820 285.5
+"Turn on sorting to set the kinds' folders and your own categories." 220 293.5 700 313
+"Folders by category" 220 347 860 369.5
+"Videos" 220 381 628 403.5
+"Videos" 640 375.5 860 409.5
+"Audio" 220 425 628 447.5
+"Audio" 640 419.5 860 453.5
+"Documents" 220 469 628 491.5
+"Documents" 640 463.5 860 497.5
+"Apps" 220 513 628 527
+"Apps" 640 507.5 860 527
+"?" 30.5 553.5 39.5 576
+"Restore defaults" 75 553.5 210 576
+"Cancel" 704 553.5 755 576
+"OK" 813.5 553.5 830.5 576

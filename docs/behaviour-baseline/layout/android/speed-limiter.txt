@@ -1,0 +1,24 @@
+# dm's window, scene speed-limiter (android, 412x915, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 412x915]
+"All downloads" 24 4.5 308 37
+"0 downloads" 24 37 308 58
+"Filter" 324 19.5 348 43.5
+"Menu" 376 19.5 400 43.5
+"Nothing queued" 138.5 146 273.5 172
+"Share a link to dm from any app, or add one here." 16 176 396 225
+"Add URL" 174.5 248.5 237.5 273
+"All" 40.5 888.5 62.5 908
+"Unfinished" 118.5 888.5 190.5 908
+"Places" 235.5 888.5 279.5 908
+"Options" 335 888.5 386 908
+
+[dialog "Speed limiter" 722x300]
+"Speed limit (KB/s, 0 for none)" 16 79.5 604 104
+"0" 616 68 706 116
+"Download at most this many MB (0 for no limit)" 16 141.5 604 166
+"0" 616 130 706 178
+"in each period of this many hours" 16 203.5 604 228
+"1" 616 192 706 240
+"Slower between set hours" 18 265.5 652 290

@@ -1,0 +1,23 @@
+# dm's window, scene main-empty-360 (windows, 360x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 360x720]
+"All downloads" 24 8 106 38.5
+"Filter" 122 11.5 146 35.5
+"Menu" 174 11.5 198 35.5
+"Add dm to your browser:" 36 54 230 76.5
+"Microsoft Edge" 51 89 169 111.5
+"Firefox" 207 89 266 111.5
+"Chrome and others" 51 129 194 151.5
+"Not now" 274 129 333 151.5
+"Nothing queued" 112.5 245.5 247.5 271.5
+"Add URL, paste a link, or send one from your browser." 24 275.5 336 320.5
+"Add URL" 150.5 337 209.5 359.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 24 376.5 336 415.5
+"0 downloads" 16 630.5 88.5 650
+"· Nothing downloading" 92.5 630.5 229.5 650
+"· Speed limiter" 233.5 630.5 330 650
+"All" 34 693.5 56 713
+"Unfinished" 99 693.5 171 713
+"Places" 203 693.5 247 713
+"Options" 289.5 693.5 340.5 713

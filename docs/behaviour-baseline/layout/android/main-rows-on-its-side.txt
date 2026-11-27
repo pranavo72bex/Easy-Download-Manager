@@ -1,0 +1,45 @@
+# dm's window, scene main-rows-on-its-side (android, 915x412, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 915x412]
+"Tasks" 48 6 93 30.5
+"File" 109 6 145 30.5
+"Downloads" 161 6 242 30.5
+"View" 258 6 294 30.5
+"Help" 310 6 346 30.5
+"Add URL" 16 61.5 71 82.5
+"Resume" 103 61 150 82
+"Stop" 182 61.5 214 82.5
+"Delete" 234 61.5 281 82.5
+"Stop all" 418 61.5 481 82.5
+"Options" 501 61.5 556 82.5
+"Scheduler" 576 61.5 647 82.5
+"Start queue" 667 61.5 753 82.5
+"Stop queue" 797 61.5 875 82.5
+"Categories" 16 108 94 129
+"All" 44 144.5 71 169
+"3" 275 146.5 283 167.5
+"Videos" 44 192.5 98 217
+"1" 275 194.5 283 215.5
+"Documents" 44 240.5 125 265
+"1" 275 242.5 283 263.5
+"Archives" 44 288.5 116 313
+"1" 275 290.5 283 311.5
+"Unfinished" 44 352.5 134 377
+"3" 275 354.5 283 375.5
+"File name" 312 91 383 112
+"Size" 542 91 574 112
+"Status" 590 91 637 112
+"Time left" 698 91 762 112
+"Transfer rate" 778 91 878 112
+"Last try date" 894 91 915 112
+"report.pdf" 336 117.5 426 142
+"Waiting for Start queue" 606 117.5 682 142
+"holiday.mp4" 336 145.5 435 170
+"Waiting for Start queue" 606 145.5 682 170
+"archive.zip" 336 173.5 435 198
+"Waiting for Start queue" 606 173.5 682 198
+"3 downloads" 16 390 102 411
+"· Nothing downloading" 106 390 270 411
+"· 3 waiting for Start queue" 274 390 485 411
+"· Speed limiter" 489 390 607 411

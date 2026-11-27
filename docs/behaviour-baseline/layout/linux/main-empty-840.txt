@@ -1,0 +1,43 @@
+# dm's window, scene main-empty-840 (linux, 840x600, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 840x600]
+"Tasks" 48 7 90 29.5
+"File" 106 7 140 29.5
+"Downloads" 156 7 232 29.5
+"View" 248 7 282 29.5
+"Help" 298 7 332 29.5
+"Add URL" 16 62 67 81.5
+"Resume" 97.5 61.5 141.5 81
+"Stop" 172 62 201 81.5
+"Delete" 221 62 265 81.5
+"Stop all" 370 62 428 81.5
+"Options" 448 62 499 81.5
+"Scheduler" 519 62 584 81.5
+"Start queue" 604 62 684 81.5
+"Stop queue" 728 62 800 81.5
+"Categories" 16 108 88 127.5
+"All" 40 134 66 156.5
+"Unfinished" 40 178 125 200.5
+"Finished" 40 206 108 228.5
+"Queues" 16 243.5 60 263
+"Main queue" 40 269.5 125 292
+"Recheck queue" 40 297.5 150 320
+"Add dm to your browser:" 236 99.5 430 122
+"Microsoft Edge" 453 99.5 571 122
+"Firefox" 609 99.5 668 122
+"Chrome and others" 251 141.5 394 164
+"Not now" 754 141.5 813 164
+"File name" 212 180.5 277 200
+"Size" 440 180.5 469 200
+"Status" 485 180.5 529 200
+"Time left" 593 180.5 653 200
+"Transfer rate" 669 180.5 763 200
+"Last try date" 779 180.5 840 200
+"Nothing queued" 452.5 287 587.5 313
+"Add URL, paste a link, or send one from your browser." 297 317 743 339.5
+"Add URL" 490.5 357 549.5 379.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 289.5 397.5 750.5 417
+"0 downloads" 16 578.5 96 598
+"· Nothing downloading" 100 578.5 252 598
+"· Speed limiter" 256 578.5 364 598

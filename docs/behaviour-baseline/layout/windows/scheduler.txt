@@ -1,0 +1,87 @@
+# dm's window, scene scheduler (windows, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 1280x720]
+"Tasks" 48 7 90 29.5
+"File" 106 7 140 29.5
+"Downloads" 156 7 232 29.5
+"View" 248 7 282 29.5
+"Help" 298 7 332 29.5
+"Add URL" 16 62 67 81.5
+"Resume" 97.5 61.5 141.5 81
+"Stop" 172 62 201 81.5
+"Delete" 221 62 265 81.5
+"Stop all" 810 62 868 81.5
+"Options" 888 62 939 81.5
+"Scheduler" 959 62 1024 81.5
+"Start queue" 1044 62 1124 81.5
+"Stop queue" 1168 62 1240 81.5
+"Categories" 16 108 88 127.5
+"All" 40 134 66 156.5
+"Unfinished" 40 178 125 200.5
+"Finished" 40 206 108 228.5
+"Queues" 16 243.5 60 263
+"Main queue" 40 269.5 125 292
+"Recheck queue" 40 297.5 150 320
+"Add dm to your browser:" 236 98.5 430 121
+"Microsoft Edge" 453 98.5 571 121
+"Firefox" 609 98.5 668 121
+"Chrome and others" 706 98.5 849 121
+"Not now" 1194 98.5 1253 121
+"File name" 212 136.5 277 156
+"Size" 676 136.5 705 156
+"Status" 721 136.5 765 156
+"Time left" 953 136.5 1018 156
+"Transfer rate" 1049 136.5 1143 156
+"Last try date" 1159 136.5 1253 156
+"Nothing queued" 672.5 243 807.5 269
+"Add URL, paste a link, or send one from your browser." 517 273 963 295.5
+"Add URL" 710.5 312 769.5 334.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 509.5 351.5 970.5 371
+"0 downloads" 16 698.5 96 718
+"· Nothing downloading" 100 698.5 252 718
+"· Speed limiter" 256 698.5 364 718
+
+[dialog "Scheduler" 720x790.5]
+"Queues" 24 24 276 46.5
+"Main queue" 56 55 141 77.5
+"Recheck queue" 56 85 166 107.5
+"Start now" 46 125 122 147.5
+"Stop" 195 125 229 147.5
+"The hours when downloads may run, in every queue without hours of its own." 309 24 696 63
+"Only download between set hours" 349 73 694 95.5
+"Start at" 309 110 377 132.5
+"01" 395 110 412 132.5
+":" 489 110 498 132.5
+"00" 512 110 529 132.5
+"Stop at" 309 150 368 172.5
+"07" 386 150 403 172.5
+":" 480 150 489 172.5
+"00" 503 150 520 172.5
+"Local time. Hours that end before they start run overnight." 309 179.5 696 218.5
+"Every week, on the days ticked" 331 232.5 583 255
+"Sun" 351 267 377 289.5
+"Mon" 411 267 437 289.5
+"Tue" 471 267 497 289.5
+"Wed" 531 267 557 289.5
+"Thu" 591 267 617 289.5
+"Fri" 651 267 677 289.5
+"Sat" 351 303.5 377 326
+"Once, on this date" 331 338 483 360.5
+"15" 319 375 336 397.5
+"Jun" 423 375 449 397.5
+"2030" 527 375 561 397.5
+"Wake the computer from sleep to start" 349 412.5 694 435
+"When the scheduled downloads are done" 309 465 696 487.5
+"Do nothing" 331 493.5 416 516
+"Exit dm" 452 493.5 511 516
+"Sleep" 547 493.5 589 516
+"Hibernate" 331 528 407 550.5
+"Turn off computer" 443 528 586 550.5
+"Try a failed download again this many times (0 for none)" 309 560.5 638 605.5
+"0" 646 567 696 599
+"Run this program when they are done (optional)" 309 613.5 696 636
+"Hang up modem when done" 349 686 694 708.5
+"?" 35.5 739 44.5 761.5
+"Save" 491 739 525 761.5
+"Cancel" 610.5 739 661.5 761.5

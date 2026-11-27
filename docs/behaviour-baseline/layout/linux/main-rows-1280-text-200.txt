@@ -1,0 +1,49 @@
+# dm's window, scene main-rows-1280-text-200 (linux, 1280x720, en, text at 200%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
+
+[main "dm" 1280x720]
+"Tasks" 88 14.5 172 60
+"File" 204 14.5 272 60
+"Downloads" 304 14.5 456 60
+"View" 488 14.5 556 60
+"Help" 588 14.5 656 60
+"Add URL" 32 125 133 164
+"Resume" 194.5 124 281.5 163
+"Stop" 343 125 401 164
+"Delete" 441 125 528 164
+"Stop all" 723 125 839 164
+"Options" 879 125 980 164
+"Scheduler" 1020 125 1150 164
+"More" 1190 125 1248 164
+"Categories" 32 216 176 255
+"All" 80 268 131 313.5
+"3" 352 271.5 367 310.5
+"Videos" 80 324 181 369.5
+"1" 352 327.5 367 366.5
+"Documents" 80 380 232 425.5
+"1" 352 383.5 367 422.5
+"Archives" 80 436 215 481.5
+"1" 352 439.5 367 478.5
+"Unfinished" 80 524 249 569.5
+"3" 352 527.5 367 566.5
+"Finished" 80 580 215 625.5
+"Queues" 32 655 119 672
+"Add dm to your browser:" 472 199 859 244.5
+"Microsoft Edge" 904 199 1140 244.5
+"Firefox" 501 283 619 328.5
+"Chrome and others" 693 283 979 328.5
+"Not now" 1109 283 1227 328.5
+"File name" 424 361 554 400
+"Size" 880 361 938 400
+"Status" 970 361 1057 400
+"Time left" 1186 361 1280 400
+"report.pdf" 472 414 641 459.5
+"Waiting for Start queue" 1002 414 1154 459.5
+"holiday.mp4" 472 470 657 515.5
+"Waiting for Start queue" 1002 470 1154 515.5
+"archive.zip" 472 526 657 571.5
+"Waiting for Start queue" 1002 526 1154 571.5
+"3 downloads" 32 677 191 716
+"· Nothing downloading" 199 677 502 716
+"· 3 waiting for Start queue" 510 677 899 716
+"· Speed limiter" 907 677 1123 716
