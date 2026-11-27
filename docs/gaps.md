@@ -288,6 +288,7 @@ React, `h-dvh`, metadata) do not apply to GPUI.
 | #   | Gap | Status | How it closes |
 |-----|-----|--------|---------------|
 | E47 | A pop-up saying whether its choices are open is never read off a tree | PARTIAL · S · person | Done 2026-11-25: `.aria_expanded(open)` on the pop-up button, open while its sheet shows (`PICKING`); a desktop pop-up's choices are the system's menu, which the system announces. Left: read off the system's tree by `human-qa.py` or the emulator (GPUI's test windows build none, so the row's window test cannot be written) |
+| E52 | Arabic and Hebrew at a narrow width (Options at 400 points, found 2026-11-27 in `ui-shot.py` pictures with Options opened that narrow): a hint that wraps shows its lines in reverse order, the sentence's start on the last line (Downloads' "Connections per file" and "Sound language" hints), as GPUI on macOS breaks a right-to-left line by its glyphs' places from the left | OPEN · M | A wrapped right-to-left paragraph in reading order on macOS and Linux (a fix in the line wrapping, or dm breaking such hints into lines itself), checked in an Arabic picture at 400 points. Done 2026-11-27: Downloads' presets row, which ran past the left edge, has the page's width, wraps, and reads from the right |
 
 ## First priority: the window's design (rows E, the maintainer, 2026-11-23)
 
