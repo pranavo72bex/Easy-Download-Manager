@@ -227,7 +227,7 @@ fn every_systems_palette_keeps_its_words_readable() {
             contrast(theme.on_accent, theme.accent) >= 4.5,
             "{at}: default button"
         );
-        // Words and marks in the accent (a running download's state, "+N more", a link, a
+        // Words and marks in the accent (a running download's state, "+N messages", a link, a
         // bar) on every surface they are drawn on, a striped row's included.
         for (surface, back) in [
             ("list", theme.background),

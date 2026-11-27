@@ -193,7 +193,7 @@ impl Downloads {
 }
 
 /// The least width the offered link is given before Download and Dismiss go under it: 160
-/// points less the room the bar's mark and "+N more" now take in the bar (gaps row E5), so a
+/// points less the room the bar's mark and "+N messages" now take in the bar (gaps row E5), so a
 /// phone's 412 points still keep the link on its words' line, in Windows' wider type too.
 const LINK_AT_LEAST: f32 = 96.0;
 

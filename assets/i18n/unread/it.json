@@ -334,5 +334,6 @@
  "Double-click a download to watch its progress.",
  "Choose a queue to start",
  "Choose a queue to stop",
- "Local time. Hours that end before they start run overnight."
+ "Local time. Hours that end before they start run overnight.",
+ "+{} message||+{} messages"
 ]

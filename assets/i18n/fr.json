@@ -875,7 +875,7 @@
  "Don't download": "Ne pas télécharger",
  "When this download is done": "Quand ce téléchargement est terminé",
  "{} · {} free": "{} · {} libres",
- "+{} more||+{} more": "+{} autre||+{} autres",
+ "+{} message||+{} messages": "+{} message||+{} messages",
  "Reading… {} pages, {} files found": "Lecture… {} pages, {} fichiers trouvés",
  "Open the page": "Ouvrir la page",
  "Check now": "Vérifier maintenant",

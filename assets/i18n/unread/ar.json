@@ -840,7 +840,6 @@
  "Don't download",
  "When this download is done",
  "{} · {} free",
- "+{} more||+{} more",
  "Reading… {} pages, {} files found",
  "Open the page",
  "Check now",
@@ -1101,5 +1100,6 @@
  "No queue",
  "Choose a queue to start",
  "Choose a queue to stop",
- "Local time. Hours that end before they start run overnight."
+ "Local time. Hours that end before they start run overnight.",
+ "+{} message||+{} messages"
 ]

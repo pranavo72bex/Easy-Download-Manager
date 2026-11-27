@@ -875,7 +875,7 @@
  "Don't download": "İndirme",
  "When this download is done": "Bu indirme bittiğinde",
  "{} · {} free": "{} · {} boş",
- "+{} more||+{} more": "+{} daha",
+ "+{} message||+{} messages": "+{} mesaj",
  "Reading… {} pages, {} files found": "Okunuyor… {} sayfa, {} dosya bulundu",
  "Open the page": "Sayfayı aç",
  "Check now": "Şimdi denetle",

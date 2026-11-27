@@ -875,7 +875,7 @@
  "Don't download": "다운로드 안 함",
  "When this download is done": "이 다운로드가 끝나면",
  "{} · {} free": "{} · {} 남음",
- "+{} more||+{} more": "{}개 더",
+ "+{} message||+{} messages": "+메시지 {}개",
  "Reading… {} pages, {} files found": "읽는 중… {}페이지, 파일 {}개 찾음",
  "Open the page": "페이지 열기",
  "Check now": "지금 확인",

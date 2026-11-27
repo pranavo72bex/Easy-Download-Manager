@@ -125,7 +125,7 @@ fn mark(tone: Tone, theme: Theme) -> gpui::Div {
 }
 
 /// A bar above the list (gaps row E5): its mark, its body (the sentence in the text colour and
-/// its buttons), and where `more` bars wait behind it, "+N more" at its end, which shows them
+/// its buttons), and where `more` bars wait behind it, "+N messages" at its end, which shows them
 /// all. One bar where a message and its count were two.
 pub(crate) fn framed(
     tone: Tone,
@@ -149,7 +149,9 @@ pub(crate) fn framed(
         .child(mark(tone, theme))
         .child(div().flex_1().min_w_0().child(body))
         .when(more > 0, |d| {
-            let words = tn("+{} more||+{} more", more as u64, &[&more]);
+            // Named as messages: a bare "+1 more" beside "1 download didn't finish." read as one
+            // more failed download.
+            let words = tn("+{} message||+{} messages", more as u64, &[&more]);
             d.child(
                 div()
                     .id("more-bars")
@@ -178,7 +180,7 @@ pub(crate) fn framed(
 /// browser's extension has been heard from (looked at every few seconds).
 #[derive(Default)]
 pub struct Bars {
-    /// "+N more" was clicked: every bar shown, until one or none is left (gaps row U26).
+    /// "+N messages" was clicked: every bar shown, until one or none is left (gaps row U26).
     pub(crate) all: bool,
     /// The failures hidden: the bar stays away until another fails.
     failed_hidden: BTreeSet<Id>,

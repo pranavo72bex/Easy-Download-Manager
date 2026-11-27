@@ -875,7 +875,7 @@
  "Don't download": "不下载",
  "When this download is done": "此下载完成后",
  "{} · {} free": "{} · 可用 {}",
- "+{} more||+{} more": "还有 {} 条",
+ "+{} message||+{} messages": "+{} 条消息",
  "Reading… {} pages, {} files found": "正在读取… {} 个页面，找到 {} 个文件",
  "Open the page": "打开页面",
  "Check now": "立即检查",

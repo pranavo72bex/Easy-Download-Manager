@@ -875,7 +875,7 @@
  "Don't download": "לא להוריד",
  "When this download is done": "כשההורדה הזו מסתיימת",
  "{} · {} free": "{} · {} פנויים",
- "+{} more||+{} more": "+{} נוסף||+{} נוספים||+{} נוספים",
+ "+{} message||+{} messages": "+{} הודעה||+{} הודעות||+{} הודעות",
  "Reading… {} pages, {} files found": "קורא… {} דפים, נמצאו {} קבצים",
  "Open the page": "פתיחת הדף",
  "Check now": "בדיקה עכשיו",

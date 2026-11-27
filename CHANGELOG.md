@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The message bar above the list says "+1 message" where more messages wait behind it; "+1 more" beside "1 download didn't finish." read as one more failed download.
 - On a Mac, a narrow window's side drawer opens under the top bar: the window's red, yellow and green buttons were drawn over its first heading.
 - The Scheduler's hint under its hours reads "Local time. Hours that end before they start run overnight."; it said "HH:MM", a typed form the hours' pickers no longer ask for.
 - In a new window the download list shows a file's whole name ("Ubuntu-24.04-desktop.iso", which was cut to "Ubuntu-24.0…top.iso"): the room past every column's least goes two parts to the name for one to Status, where Status took its share first and stood half empty.

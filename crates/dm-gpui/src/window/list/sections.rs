@@ -85,7 +85,7 @@ impl Downloads {
             // Asked for all, they stand together until one or none is left.
             self.layout.bars.all = false;
         }
-        // One bar at a time, "+N more" at its end (gaps rows U26, E5); all once asked for.
+        // One bar at a time, "+N messages" at its end (gaps rows U26, E5); all once asked for.
         let more = if self.layout.bars.all {
             0
         } else {
