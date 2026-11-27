@@ -151,7 +151,7 @@ Then click any download link: it lands in dm.
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/phone.png" width="260" alt="dm on an Android phone: four finished downloads as cards">
+      <img src="docs/phone.png" width="260" alt="dm on an Android phone: five downloads as cards, two large ones downloading and three complete">
       <br><sub><strong>On a phone</strong>: the same app, each download a card</sub>
     </td>
     <td align="center" width="50%">
@@ -188,7 +188,7 @@ Then click any download link: it lands in dm.
 
 ## On your phone (Android)
 
-<img align="right" width="240" src="docs/phone.png" alt="dm on an Android phone: the list of downloads as cards, each with its kind's picture, its name, a bar and Complete with its size; All, Unfinished, Finished and Places at the bottom">
+<img align="right" width="240" src="docs/phone.png" alt="dm on an Android phone: the list of downloads as cards, each with its kind's picture, its name, a bar and Complete with its size; All, Unfinished, Places and Options at the bottom">
 
 dm runs on Android 10 and newer, with the same engine and the same window as
 on a computer, laid out for a phone: each download a card, the menus in one
