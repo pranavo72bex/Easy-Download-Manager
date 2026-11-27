@@ -239,13 +239,22 @@ pub(super) fn drawn(
     if !quick.is_empty() {
         items.push(quick_row(menu, quick, theme, screen, cx));
     }
+    // The pictures' column only in a menu where one item has a picture or a tick: Help's items
+    // have none, and their words stood a picture's width in from the edge (unslop review).
+    let gutter = menu.items.iter().any(|item| match item {
+        OwnedMenuItem::Submenu(sub) => menu_picture(&sub.name).is_some(),
+        OwnedMenuItem::Action {
+            action, checked, ..
+        } => *checked || picture_of(action.as_ref()).is_some(),
+        _ => false,
+    });
     items.extend(
         menu.items
             .iter()
             .enumerate()
             // What the row above holds is not listed again; nor a separator it leaves first.
             .filter(|(i, _)| !quick.contains(i))
-            .map(|(i, item)| item_drawn(i, item, sheet.key_of(i), theme, screen, cx)),
+            .map(|(i, item)| item_drawn(i, item, gutter, sheet.key_of(i), theme, screen, cx)),
     );
     bottomsheet::sheet(
         "sheet",
@@ -355,6 +364,7 @@ pub(super) fn hooks(cx: &mut Context<Downloads>) -> bottomsheet::Hooks {
 fn item_drawn(
     i: usize,
     item: &OwnedMenuItem,
+    gutter: bool,
     key: Option<&gpui::FocusHandle>,
     theme: Theme,
     screen: &Screen,
@@ -375,21 +385,23 @@ fn item_drawn(
                 view.sheet_submenu(i);
                 cx.notify();
             }))
-            .child(
-                div()
-                    .flex_none()
-                    .w(px(ICON))
-                    .flex()
-                    .justify_center()
-                    .when_some(menu_picture(&sub.name), |d, picture| {
-                        d.child(
-                            gpui::svg()
-                                .path(picture)
-                                .size(px(ICON))
-                                .text_color(theme.muted),
-                        )
-                    }),
-            )
+            .when(gutter, |l| {
+                l.child(
+                    div()
+                        .flex_none()
+                        .w(px(ICON))
+                        .flex()
+                        .justify_center()
+                        .when_some(menu_picture(&sub.name), |d, picture| {
+                            d.child(
+                                gpui::svg()
+                                    .path(picture)
+                                    .size(px(ICON))
+                                    .text_color(theme.muted),
+                            )
+                        }),
+                )
+            })
             .child(
                 div()
                     .flex_1()
@@ -425,28 +437,29 @@ fn item_drawn(
                         view.sheet_action(i, window, cx);
                     }))
                 })
-                .child(
-                    div()
-                        .flex_none()
-                        .w(px(ICON))
-                        .flex()
-                        .justify_center()
-                        .when_some(picture, |d, picture| {
-                            d.child(
-                                gpui::svg()
-                                    .path(picture)
-                                    .size(px(ICON))
-                                    .text_color(if disabled { theme.muted } else { theme.text }),
-                            )
-                        })
-                        .when(*checked && picture.is_none(), |d| {
-                            d.child(crate::widgets::native::icon(
-                                "icons/check.svg",
-                                ICON,
-                                theme.accent_text,
-                            ))
-                        }),
-                )
+                .when(gutter, |l| {
+                    l.child(
+                        div()
+                            .flex_none()
+                            .w(px(ICON))
+                            .flex()
+                            .justify_center()
+                            .when_some(picture, |d, picture| {
+                                d.child(
+                                    gpui::svg().path(picture).size(px(ICON)).text_color(
+                                        if disabled { theme.muted } else { theme.text },
+                                    ),
+                                )
+                            })
+                            .when(*checked && picture.is_none(), |d| {
+                                d.child(crate::widgets::native::icon(
+                                    "icons/check.svg",
+                                    ICON,
+                                    theme.accent_text,
+                                ))
+                            }),
+                    )
+                })
                 .child(div().flex_1().min_w_0().child(screen.label(name.clone())))
                 // Where its picture has the tick's place, the tick at the line's end.
                 .when(*checked && picture.is_some(), |l| {
@@ -505,7 +518,9 @@ fn picture_of(action: &dyn gpui::Action) -> Option<&'static str> {
 fn menu_picture(name: &str) -> Option<&'static str> {
     use dm_desktop_base::i18n::t;
     let pictures = [
-        (t("Tasks"), "icons/start-queue.svg"),
+        // Ways to add downloads: the phone's add button's +, not Start queue's picture, which
+        // stood twice in one menu for two things (unslop review).
+        (t("Tasks"), "icons/plus.svg"),
         (t("File"), "icons/place-folder.svg"),
         (t("Downloads"), "icons/place-all.svg"),
         (t("View"), "icons/sidebar.svg"),
