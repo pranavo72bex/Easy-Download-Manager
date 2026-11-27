@@ -19,3 +19,4 @@ are added by `scripts/ai-triage.py`. These are notes, and may be wrong: they nev
 - 2026-11-26 (pranavo72bex): C5b was completed in ae899990: added `limit_only_present` setting and `Settings::speed_limit_bytes_for` with presence-aware limiting; the gap row is removed from docs/gaps.md.
 - 2026-11-26: cargo xtask layers enforces 800-line file and 150-line function limits; dm-gpui/src/options.rs (844 lines, render fn 165 lines), dm-gpui/src/window/table.rs (804 lines), and dm-core/src/youtube/player.rs (850 lines) alre
 - 2026-11-26: The fuzz workspace (fuzz/Cargo.toml) must include the root's [patch.crates-io] section to use vendored librqbit-* crates; otherwise fuzz targets pull unpatched crates.io versions that overflow on large bencode integers.
+- 2026-11-27: In dm-gpui, modules with children use foo.rs beside foo/ directory, never foo/mod.rs (see window/mod.rs and titlebar/mod.rs)
