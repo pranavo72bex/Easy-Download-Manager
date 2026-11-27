@@ -257,7 +257,11 @@ fn input(
         .when(width >= WIDE, |d| {
             d.flex_1().w_full().flex_shrink(1.0).min_w_0()
         })
-        .child(native::field_if(&field, name, on, theme))
+        .child(if masked {
+            native::secret_field_if(&field, name, on, theme)
+        } else {
+            native::field_if(&field, name, on, theme)
+        })
         .when(not_a_number, |d| {
             d.child(native::note(
                 t("Numbers only: the one before was kept"),

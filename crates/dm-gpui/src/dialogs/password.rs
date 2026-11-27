@@ -194,7 +194,7 @@ impl Render for PasswordDialog {
                         Some(t(PASSWORD)),
                         width,
                         &screen,
-                        native::field(&self.password, PASSWORD, theme),
+                        native::secret_field(&self.password, PASSWORD, theme),
                     ))
                     .child(native::row(
                         None,

@@ -308,7 +308,11 @@ fn field_line(
         Some(t(label)),
         width,
         screen,
-        native::field_if(input, label, on, theme),
+        if label == "Password" {
+            native::secret_field_if(input, label, on, theme)
+        } else {
+            native::field_if(input, label, on, theme)
+        },
     )
 }
 

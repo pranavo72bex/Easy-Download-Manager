@@ -283,7 +283,24 @@ pub fn field(input: &Entity<InputState>, name: &'static str, theme: Theme) -> Di
 /// A field that takes no typing while `on` is false, greyed as the
 /// system greys one.
 pub fn field_if(input: &Entity<InputState>, name: &'static str, on: bool, theme: Theme) -> Div {
-    field_drawn(input, name, on, true, theme)
+    field_drawn(input, name, on, true, theme, false)
+}
+
+/// A password's field (its state `masked`), with an eye at its end that shows what was typed
+/// and hides it again (gaps row V20): a long password typed blind was retyped whole for one
+/// wrong letter.
+pub fn secret_field(input: &Entity<InputState>, name: &'static str, theme: Theme) -> Div {
+    secret_field_if(input, name, true, theme)
+}
+
+/// [`secret_field`] taking no typing while `on` is false.
+pub fn secret_field_if(
+    input: &Entity<InputState>,
+    name: &'static str,
+    on: bool,
+    theme: Theme,
+) -> Div {
+    field_drawn(input, name, on, true, theme, true)
 }
 
 /// `field_if`, with the field itself not drawn where `drawn` is false: it still takes the
@@ -295,10 +312,12 @@ pub(super) fn field_drawn(
     on: bool,
     drawn: bool,
     theme: Theme,
+    secret: bool,
 ) -> Div {
     let field = Input::new(input)
         .aria_label(dm_desktop_base::i18n::t(name))
-        .disabled(!on);
+        .disabled(!on)
+        .when(secret, Input::mask_toggle);
     let held = input.clone();
     let pressed = input.clone();
     // `Styled`'s, not the multi-line height `Input::h` sets.

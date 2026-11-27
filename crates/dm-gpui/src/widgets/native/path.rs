@@ -47,31 +47,34 @@ pub fn path_field(
     // The field itself is not drawn under the path laid on it: Linux's renderer painted the
     // field's own text (its hint, the whole path) over the box, and the two were read as one
     // smudge. The box draws the field's frame in its place.
-    field_drawn(input, name, true, shown.is_none(), theme).when_some(shown, |d, (shown, colour)| {
-        d.child(
-            div()
-                .absolute()
-                .top_0()
-                .bottom_0()
-                .left_0()
-                .right_0()
-                .rounded(px(RADIUS))
-                .border_1()
-                .border_color(theme.separator)
-                .bg(theme.field)
-                .px(px(5.0))
-                .flex()
-                .items_center()
-                .overflow_hidden()
-                .text_size(px(TEXT))
-                .text_color(colour)
-                .child(
-                    div()
-                        .w_full()
-                        .whitespace_nowrap()
-                        .text_ellipsis_middle()
-                        .child(shown),
-                ),
-        )
-    })
+    field_drawn(input, name, true, shown.is_none(), theme, false).when_some(
+        shown,
+        |d, (shown, colour)| {
+            d.child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .left_0()
+                    .right_0()
+                    .rounded(px(RADIUS))
+                    .border_1()
+                    .border_color(theme.separator)
+                    .bg(theme.field)
+                    .px(px(5.0))
+                    .flex()
+                    .items_center()
+                    .overflow_hidden()
+                    .text_size(px(TEXT))
+                    .text_color(colour)
+                    .child(
+                        div()
+                            .w_full()
+                            .whitespace_nowrap()
+                            .text_ellipsis_middle()
+                            .child(shown),
+                    ),
+            )
+        },
+    )
 }

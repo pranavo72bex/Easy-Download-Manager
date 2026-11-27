@@ -200,7 +200,7 @@ fn archive_passwords(
                     .flex_1()
                     .min_w_0()
                     .max_w(px(320.0))
-                    .child(native::field(&field, "Add a password", theme)),
+                    .child(native::secret_field(&field, "Add a password", theme)),
             )
             .child(add),
     );

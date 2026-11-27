@@ -30,6 +30,9 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     // A side-panel group's heading: open (up, to close it) or shut (down, to open it).
     "chevron-up",
     "chevron-down",
+    // A password field's show and hide (gpui-component's `IconName::Eye` and `EyeOff`, V20).
+    "eye",
+    "eye-off",
     // The toolbar's.
     "add",
     "resume",

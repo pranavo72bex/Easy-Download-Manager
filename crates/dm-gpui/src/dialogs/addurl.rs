@@ -218,7 +218,7 @@ impl Render for AddUrl {
                             Some(t("Password")),
                             width,
                             &screen,
-                            native::field(&self.password, "Password", theme),
+                            native::secret_field(&self.password, "Password", theme),
                         ))
                     })
                     // The warning's line kept whether or not it says anything, so OK stays under

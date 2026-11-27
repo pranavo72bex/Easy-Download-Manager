@@ -217,7 +217,7 @@ impl BackupDialog {
                 Some(t(PASSPHRASE)),
                 width,
                 screen,
-                native::field(&self.passphrase, PASSPHRASE, theme),
+                native::secret_field(&self.passphrase, PASSPHRASE, theme),
             ));
         }
         if !self.restore {
@@ -225,7 +225,7 @@ impl BackupDialog {
                 Some(t(AGAIN)),
                 width,
                 screen,
-                native::field(&self.again, AGAIN, theme),
+                native::secret_field(&self.again, AGAIN, theme),
             ));
         }
         rows.into_iter()
