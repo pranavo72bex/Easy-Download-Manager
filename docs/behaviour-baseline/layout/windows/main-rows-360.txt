@@ -23,10 +23,10 @@
 "Resume download" 266 363 286 383
 "Row menu" 322 363 342 383
 "Add URL" 303 571 329 597
-"3 downloads" 16 630.5 62 650
-"· Nothing downloading" 66 630.5 153.5 650
-"· 3 waiting for Start queue" 157.5 630.5 270 650
-"· Speed limiter" 274 630.5 330 650
+"3 downloads" 16 630.5 96 650
+"· Nothing downloading" 100 630.5 252 650
+"· 3 waiting for Start queue" 256 630.5 307.5 650
+"· Speed limiter" 311.5 630.5 330 650
 "All" 34 693.5 56 713
 "Unfinished" 99 693.5 171 713
 "Places" 203 693.5 247 713

@@ -177,8 +177,8 @@ fn the_clipboard_bar_keeps_its_buttons_in_the_window() {
     }
 }
 
-/// At a phone's width the link copied is shown, with Download and Dismiss on a line of their
-/// own under it (on one line it was cut to "…"); at a desktop's width all is on one line.
+/// At a phone's width the link copied is shown at least 90 points wide, Download and Dismiss
+/// under the words (on one line it was cut to "…"); at a desktop's width all is on one line.
 #[test]
 fn at_a_phones_width_the_clipboard_bar_shows_the_link_with_its_buttons_under_it() {
     let world = world();
@@ -205,7 +205,7 @@ fn at_a_phones_width_the_clipboard_bar_shows_the_link_with_its_buttons_under_it(
     );
     h.resize(412.0, 915.0);
     h.until("the phone's layout", |h| !one_line(h).0);
-    let (_, label, _) = one_line(&mut h);
+    let (_, _, button) = one_line(&mut h);
     let link_at = h.bounds_of(&shown);
     assert!(
         f32::from(link_at.size.width) >= 90.0,
@@ -213,7 +213,12 @@ fn at_a_phones_width_the_clipboard_bar_shows_the_link_with_its_buttons_under_it(
         link_at.size.width,
         h.texts()
     );
-    assert!(link_at.origin.y < label.origin.y + label.size.height);
+    // On its words' line where the type leaves it room (macOS), else on the buttons' line under
+    // them (Linux's and Windows' wider type, beside "+1 message"): never below the buttons.
+    assert!(
+        link_at.origin.y < button.origin.y + button.size.height,
+        "the link {link_at:?} is under the buttons {button:?}"
+    );
 }
 
 /// A video link copied at a moment (`&t=34`) offers that moment as the part's start in
