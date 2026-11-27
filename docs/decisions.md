@@ -9239,3 +9239,15 @@ value shortened in place leaves its old tail there. Three `unsafe` blocks, each 
 note. Used by `SignIn`'s `Drop` (the last of its clones, which share one buffer since H15c) and
 `Entry::forget_sign_in`. What a library copies on its way (reqwest's `HeaderValue`s, the
 kernel's buffers) is beyond it.
+
+## Names looked up over the held network by dm's own client, 2026-11-27 (gaps row H23d)
+
+Under "Only through" every connection was bound to the held network, but names went to the
+system's resolver, which no program can bind, so the sites a person fetched from were asked of
+the network they meant to avoid. Chosen at the maintainer's standing word (the recommended
+option, the one that closes the leak): dm's DNS client (`dns/ask.rs`, already the benchmark's)
+asks the computer's IPv4 name servers from the held network's address (`dns/held.rs`), on macOS
+and Linux, where `/etc/resolv.conf` lists them (systemd-resolved's upstream file where the stub
+is listed). No server known fails the lookup with why, never a quiet fall-back. Windows (no such
+file; its servers are per adapter through an API) and Android (H23e) keep the system's route,
+said in the guide. Dropped: accepting the system's route everywhere and only saying so.

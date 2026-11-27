@@ -29,6 +29,7 @@ use std::time::{Duration, Instant};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
 mod ask;
+mod held;
 
 pub use ask::ask_test_names_of;
 
@@ -242,6 +243,10 @@ async fn look_up(name: &str) -> std::io::Result<Vec<SocketAddr>> {
     // The benchmark's DNS server, for a name under `.test` (`ask`, its `slowname` case).
     if let Some(server) = ask::server_for(name) {
         return ask::ask(server, name).await;
+    }
+    // Under "Only through", asked from the held network's address (gaps row H23d).
+    if let Some(from) = held::asks_from() {
+        return held::look_up(name, from).await;
     }
     // The port is the connector's to set, as reqwest's own resolver leaves it.
     Ok(tokio::net::lookup_host((name, 0)).await?.collect())

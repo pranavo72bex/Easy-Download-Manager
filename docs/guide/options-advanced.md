@@ -30,6 +30,10 @@ BitTorrent. See [Options](options.md) for how the window works.
   network too, as does an RTMP, RTSPS or MMS stream's. A plain `rtsp://`
   stream, and on Windows a torrent, fails saying why instead, since dm cannot
   hold its connections to one network there. While one is chosen, **Second network** is greyed and not used.
+  On a Mac and on Linux the names of the sites are looked up over that network
+  too: dm asks the computer's name servers itself, from the network's address,
+  so even the names you download from are not sent over the plain line. On
+  Windows and Android the system looks names up, by its own route.
 - **Second network:** "Use a second connection too, such as your phone over
   USB or its hotspot. Half of each download's connections go over it. Not
   used while a proxy is on." **None** uses only the computer's usual

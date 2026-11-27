@@ -10,7 +10,8 @@
 //! the first client; with none given, every name goes to the system as before.
 //!
 //! One question over UDP for the name's IPv4 addresses (type A), the answer read for them; no
-//! retry, no TCP, no IPv6: what the benchmark's server answers. `.test` is reserved for testing
+//! retry, no TCP, no IPv6: what the benchmark's server answers. The same client asks the
+//! computer's name servers from the held network's address under "Only through" (`held.rs`). `.test` is reserved for testing
 //! (RFC 6761), so no real name is ever sent here.
 
 use std::io::ErrorKind;
@@ -50,12 +51,22 @@ fn under_test(name: &str) -> bool {
 /// `name`'s IPv4 addresses, asked of the DNS server at `server`; the port is the connector's
 /// to set.
 pub(super) async fn ask(server: SocketAddr, name: &str) -> std::io::Result<Vec<SocketAddr>> {
+    ask_from(server, name, None).await
+}
+
+/// [`ask`], the question sent from `from` where given: the address of the network downloads
+/// are held to, so the question cannot leave by another (gaps row H23d).
+pub(super) async fn ask_from(
+    server: SocketAddr,
+    name: &str,
+    from: Option<std::net::IpAddr>,
+) -> std::io::Result<Vec<SocketAddr>> {
     let id = question_id();
     let asked = question(id, name)?;
-    let any: SocketAddr = if server.is_ipv4() {
-        (Ipv4Addr::UNSPECIFIED, 0).into()
-    } else {
-        (Ipv6Addr::UNSPECIFIED, 0).into()
+    let any: SocketAddr = match from {
+        Some(from) => (from, 0).into(),
+        None if server.is_ipv4() => (Ipv4Addr::UNSPECIFIED, 0).into(),
+        None => (Ipv6Addr::UNSPECIFIED, 0).into(),
     };
     let socket = tokio::net::UdpSocket::bind(any).await?;
     socket.connect(server).await?;
