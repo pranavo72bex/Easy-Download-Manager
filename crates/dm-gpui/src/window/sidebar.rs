@@ -394,6 +394,7 @@ fn projects(
                     .gap_2()
                     .text_size(px(crate::widgets::native::TEXT))
                     .hover(|s| s.bg(theme.stripe))
+                    .active(move |s| s.bg(theme.pressed_soft()))
                     .tooltip(move |window, cx| {
                         gpui_component::tooltip::Tooltip::new(page.clone()).build(window, cx)
                     })
@@ -479,6 +480,8 @@ fn place_row(
             // Between a long name's ellipsis and the count; unseen while the name fits.
             .gap_2()
             .text_size(px(crate::widgets::native::TEXT))
+            // A finger's press shown as it lands, in the phone's drawer (gaps row V25).
+            .map(|d| crate::widgets::press::first(d, crate::widgets::native::RADIUS, theme))
             // The chosen place a soft fill with the accent's bar at its edge, quieter than the
             // chosen row of the list (gaps row E6).
             .when(chosen, |d| {
@@ -486,7 +489,10 @@ fn place_row(
                     .bg(theme.chosen_soft())
                     .child(chosen_bar(theme))
             })
-            .when(!chosen, |d| d.hover(|s| s.bg(theme.stripe)))
+            .when(!chosen, |d| {
+                d.hover(|s| s.bg(theme.stripe))
+                    .active(move |s| s.bg(theme.pressed_soft()))
+            })
             // A name the panel cuts, read whole on hover.
             .when_some(whole, |d, whole| {
                 d.tooltip(move |window, cx| {
@@ -598,10 +604,15 @@ pub(crate) fn source_row(
         .items_center()
         .gap(px(crate::widgets::space::M))
         .cursor_pointer()
+        // A finger's press shown as it lands (gaps row V25).
+        .map(|d| crate::widgets::press::first(d, crate::widgets::native::RADIUS, theme))
         .when(chosen, |d| {
             d.bg(theme.chosen_soft()).child(chosen_bar(theme))
         })
-        .when(!chosen, |d| d.hover(move |s| s.bg(theme.stripe)))
+        .when(!chosen, |d| {
+            d.hover(move |s| s.bg(theme.stripe))
+                .active(move |s| s.bg(theme.pressed_soft()))
+        })
         .child(
             gpui::svg()
                 .path(icon)

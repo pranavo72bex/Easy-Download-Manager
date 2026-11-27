@@ -121,6 +121,7 @@ pub fn header(
                         sorted,
                     )
                     .hover(|s| s.bg(theme.stripe))
+                    .active(move |s| s.bg(theme.pressed_soft()))
                     .on_click(cx.listener(move |view, _, _, cx| {
                         // Kept in the settings; View › Sort by's tick follows.
                         view.sort_by(column, cx);

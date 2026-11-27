@@ -9276,3 +9276,25 @@ Not changed: the side panel's and the list's pictures in the accent's text shade
 "every element highlighted" would quiet, were the maintainer's choice (B25, B45); a bar's
 buttons stay `native::button`, the one way a button is drawn.
 
+
+## A finger's press drawn by dm, not by `.active()`, 2026-11-27 (gaps row V25)
+
+- GPUI's gesture recogniser makes a tap a mouse press and its release together, at the lift, so
+  an element's `.active()` style is never drawn under a finger: on the phone nothing showed a tap.
+  Hover is already right: GPUI draws no `.hover()` style while the last input was a touch.
+- `widgets/press.rs` draws it instead: a canvas, the first child of what is tapped, takes GPUI's
+  `TouchDragEvent` (`Started`, offered as every touch begins and not claimed, so taps, scrolls and
+  long presses go on as before) where its own hitbox is the one under the finger, and paints the
+  text's colour at `PRESSED` over the face (what `Theme::answering` makes of any face) until the
+  tap's release, a scroll or a long press, 1.5 s at most. Being first, it comes before anything
+  pressable inside it, which claims the press first in GPUI's bubbling order.
+- Tried in thought and dropped: sending a mouse move as a finger lands from dm's copy of the
+  Android platform (it would start the tooltips' timers under a held finger, and hover is off for
+  touch anyway); and patching `.active()` in GPUI itself, which is crates.io's gpui-pre, not a
+  copy dm keeps.
+- Only where `platform::ON_A_PHONE` (and in the tests): a computer's mouse presses before it
+  releases, and `.active()` shows it there.
+- A bottom tab is pressed anywhere in its quarter of the bar but shows it on its pill alone
+  (`press::claims` and `press::face`, a press claimed under a name and drawn by another
+  element): the whole quarter lit, seen on the emulator, was a hard grey box, where Android's own
+  tab bars light the pill.

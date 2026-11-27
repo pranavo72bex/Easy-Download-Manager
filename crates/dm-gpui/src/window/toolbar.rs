@@ -53,6 +53,16 @@ fn hovered(main: bool, theme: Theme) -> gpui::Rgba {
     }
 }
 
+/// A toolbar button's face pressed (gaps row V25): the filled one's as a push button's, the
+/// rest a step past their hover.
+fn pressed(main: bool, theme: Theme) -> gpui::Rgba {
+    if main {
+        theme.answering(theme.accent, crate::window::theme::PRESSED)
+    } else {
+        theme.pressed_soft()
+    }
+}
+
 /// Where the room before the rest of the toolbar goes (gaps row E3): after the leading run of
 /// Add URL and what acts on the chosen rows, then the rest stand at the end. Where a person
 /// moved the buttons, the run ends where they put another command.
@@ -218,6 +228,7 @@ fn button(
         .when(!enabled, |b| b.opacity(0.4))
         .when(enabled, |b| {
             b.hover(move |s| s.bg(hovered(main, theme)))
+                .active(move |s| s.bg(pressed(main, theme)))
                 .on_click(cx.listener(move |_, _, window, cx| {
                     window.dispatch_action(Box::new(Run(command)), cx);
                 }))
@@ -299,6 +310,7 @@ fn queue_arrow(command: Command, queues: Vec<String>, theme: Theme) -> impl Into
         .justify_center()
         .rounded(px(crate::widgets::native::RADIUS))
         .hover(move |s| s.bg(theme.stripe))
+        .active(move |s| s.bg(theme.pressed_soft()))
         .tooltip(move |window, cx| {
             gpui_component::tooltip::Tooltip::new(gpui::SharedString::from(named)).build(window, cx)
         })

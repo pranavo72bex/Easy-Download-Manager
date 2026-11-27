@@ -261,6 +261,7 @@ fn round(
         .justify_center()
         .rounded_full()
         .active(move |b| b.bg(theme.control))
+        .map(|b| crate::widgets::press::first(b, space::TOUCH / 2.0, theme))
         .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 
@@ -344,6 +345,8 @@ fn card(
             view.card_tapped(id, event.click_count(), cx);
         }))
         .relative()
+        // A finger's press shown as it lands (gaps row V25).
+        .map(|card| crate::widgets::press::first(card, 0.0, theme))
         // A finger held on it: GPUI's own long press, claimed so it is no tap (gaps row C22).
         .child(long_press_layer(id, cx))
         .child(tile(kind, choosing && chosen, card_theme))

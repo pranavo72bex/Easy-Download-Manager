@@ -179,6 +179,13 @@ impl Theme {
             a: face.a,
         }
     }
+
+    /// A quiet control pressed (a toolbar button, a place, a column's heading): the stripe it
+    /// shows under the pointer, a step further toward the text, as a push button's press is a
+    /// step past its hover (gaps row V25).
+    pub fn pressed_soft(self) -> Rgba {
+        self.answering(self.stripe, HOVERED)
+    }
 }
 
 /// Windows' close button under the pointer: its caption buttons' red.

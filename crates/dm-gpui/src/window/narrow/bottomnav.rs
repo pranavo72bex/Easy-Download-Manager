@@ -27,6 +27,9 @@ pub(crate) const HEIGHT: f32 = 68.0;
 /// A tab's picture, as Material's: 24 points.
 const ICON: f32 = 24.0;
 
+/// The height of the pill behind a tab's picture, which marks the tab shown and a finger's press.
+const PILL: f32 = 30.0;
+
 /// What a tab does.
 #[derive(Clone)]
 enum Tab {
@@ -139,10 +142,12 @@ fn tab_drawn(
             }
             cx.notify();
         }))
+        // A finger's press anywhere on the tab, shown on its pill as it lands (gaps row V25).
+        .map(|tab| crate::widgets::press::claims(tab, ("bottom-tab", i)))
         .child(
             div()
                 .w(px(56.0))
-                .h(px(30.0))
+                .h(px(PILL))
                 .rounded_full()
                 .flex()
                 .items_center()
@@ -152,6 +157,13 @@ fn tab_drawn(
                 // phone's tab bar marks its own: a solid accent pill was a second filled accent
                 // beside the floating Add URL, the screen's one main action (rule 1).
                 .when(lit, |pill| pill.bg(theme.chosen_soft()))
+                .when(crate::widgets::press::SHOWN, |pill| {
+                    pill.child(crate::widgets::press::face(
+                        ("bottom-tab", i),
+                        PILL / 2.0,
+                        theme,
+                    ))
+                })
                 .child(
                     gpui::svg()
                         .path(filled_if(picture, lit))

@@ -194,7 +194,9 @@ Pictures (`native`): `ICON_SMALL` 12 beside small words, `ICON` 16 beside body t
 beside it (`better-ui`; 1.75 drew them 1.2, lighter than the words and than Finder's), heavier
 (2.4 to 2.5) where a glyph is drawn at 12 or 13 points. Corners: a control's `native::RADIUS`, a small mark's `space::CORNER_S`.
 A button with a face answers the pointer by shading its face (`Theme::answering`); one with
-none (a toolbar item) by the stripe. The
+none (a toolbar item, a place, a column's heading) by the stripe, and pressed a step past it
+(`Theme::pressed_soft`). On a phone a finger's press is drawn by `widgets::press` from the
+moment it lands (a tap reaches GPUI's `.active()` only at the lift); nothing hovers. The
 font is the system's (`.SystemUIFont`); dm ships none. Everything is multiplied by the text size setting (`zoom.rs`, B66: stops of 60%, 80%, 100%, 120%, 150% and 200%).
 Pictures are dm's own SVGs (`assets/icons/`).
 

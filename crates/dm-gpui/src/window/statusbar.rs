@@ -238,6 +238,7 @@ pub fn statusbar(
                     .border_color(theme.separator)
                     .cursor_pointer()
                     .hover(|s| s.bg(theme.stripe))
+                    .active(move |s| s.bg(theme.pressed_soft()))
                     .text_color(theme.accent_text)
                     .on_click(cx.listener(|view, _, _, cx| {
                         view.undo_remove(cx);

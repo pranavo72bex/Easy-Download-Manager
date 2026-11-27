@@ -5,6 +5,8 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- The toolbar's buttons, the side panel's places and the list's column headings darken while pressed, as the window's other buttons do; they only lit under the pointer.
+- On a phone, a tap shows on what it touches the moment the finger lands: a download card, its buttons, the bottom tabs, menu items, the Places drawer, Options' pages and every button darken under the finger, as Android's own controls do. Before, nothing showed a tap until whatever it opened appeared.
 - On a phone, a failure's next step says to tap Retry, not click it, in every language.
 - dm's English words use typographic apostrophes and quotes (didn’t, “done”) everywhere, where some used the keyboard's ' and " and two used curly ones. A download that failed before keeps its translated reason.
 - On a phone, the bottom bar's chosen tab shows its picture filled, as Android's own tab bars do.

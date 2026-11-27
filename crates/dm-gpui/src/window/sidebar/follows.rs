@@ -44,6 +44,7 @@ pub(super) fn rows(
                 .gap_2()
                 .text_size(px(crate::widgets::native::TEXT))
                 .hover(|s| s.bg(theme.stripe))
+                .active(move |s| s.bg(theme.pressed_soft()))
                 .tooltip(move |window, cx| {
                     gpui_component::tooltip::Tooltip::new(address.clone()).build(window, cx)
                 })

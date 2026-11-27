@@ -583,3 +583,53 @@ fn an_opened_sheet_has_the_keys() {
     h.until_shown("Resume all");
     assert!(has_keys(&mut h), "the submenu's first line lost the keys");
 }
+
+/// A finger's press shows the moment it lands, as `.active()` never did on a phone, where a tap
+/// is a press and release together at the lift (gaps row V25): on the card under it, or on the
+/// card's ⋮ alone where it lands on that; the lift ends it and is the tap.
+#[test]
+fn a_fingers_press_shows_as_it_lands_on_the_innermost_thing() {
+    let _file = settings_file();
+    let world = world();
+    let mut h = phone(&world);
+    add_later(&mut h, &world, &["file.zip"]);
+    h.until_shown("file.zip");
+    let name = h.bounds_of("file.zip");
+    let (window, at) = h.finger_down("file.zip");
+    let pressed = h.pressed(window).expect("no press shown on the card");
+    assert!(pressed.contains(&at), "{pressed:?} is not under {at:?}");
+    assert!(
+        pressed.size.width > name.size.width,
+        "the name's words lit, not the card: {pressed:?}"
+    );
+    h.finger_up(window, at);
+    assert_eq!(h.pressed(window), None, "the press outlived the lift");
+    let row = h.row("file.zip");
+    h.until("the tap to choose the card", |h| {
+        h.view(|view| view.list.selected == [row.id].into())
+    });
+    // On the card's ⋮, that button alone, a finger's 48 points.
+    let (window, at) = h.finger_down("Row menu");
+    let pressed = h.pressed(window).expect("no press shown on the ⋮");
+    assert!(pressed.contains(&at));
+    assert!(
+        f32::from(pressed.size.width) <= 48.5,
+        "the card lit under its ⋮: {pressed:?}"
+    );
+    h.finger_up(window, at);
+    assert_eq!(h.pressed(window), None);
+    h.until("the ⋮'s tap to open the card's menu", |h| {
+        h.view(|view| view.layout.narrow.sheet.is_some())
+    });
+    h.person_click("Close", 1);
+    h.until("the sheet slid away", |h| !h.shows("Copy link"));
+    // A bottom tab is pressed anywhere in its quarter of the bar (its pill shows it).
+    let (window, at) = h.finger_down("Unfinished");
+    let pressed = h.pressed(window).expect("no press on the tab");
+    assert!(
+        (f32::from(pressed.size.width) - PHONE.0 / 4.0).abs() < 1.0,
+        "{pressed:?}"
+    );
+    h.finger_up(window, at);
+    assert_eq!(h.pressed(window), None);
+}

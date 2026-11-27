@@ -72,6 +72,64 @@ impl Harness {
         found.unwrap_or_else(|| panic!("nothing on screen says {text:?}: {:?}", self.texts()))
     }
 
+    /// A finger put down on the words `text`, as a phone's screen reports a touch's start
+    /// (GPUI's `TouchEvent`, `Started`), and left there: the window and the place.
+    pub(crate) fn finger_down(
+        &mut self,
+        text: &str,
+    ) -> (gpui::AnyWindowHandle, gpui::Point<gpui::Pixels>) {
+        let (window, bounds) = self.drawn(text, 0);
+        let at = bounds.center();
+        self.touch(window, at, gpui::TouchPhase::Started);
+        (window, at)
+    }
+
+    /// The finger put down at `at` in `window` lifted there: GPUI makes it a tap.
+    pub(crate) fn finger_up(
+        &mut self,
+        window: gpui::AnyWindowHandle,
+        at: gpui::Point<gpui::Pixels>,
+    ) {
+        self.touch(window, at, gpui::TouchPhase::Ended);
+    }
+
+    /// What a finger is pressing in `window` as its pressed face shows it (`widgets::press`).
+    pub(crate) fn pressed(
+        &mut self,
+        window: gpui::AnyWindowHandle,
+    ) -> Option<gpui::Bounds<gpui::Pixels>> {
+        self.cx
+            .update(|cx| {
+                window.update(cx, |_, window, _| crate::widgets::press::pressed_in(window))
+            })
+            .ok()
+            .flatten()
+    }
+
+    /// Touch 1 at `at` in `window`, in `phase`.
+    fn touch(
+        &mut self,
+        window: gpui::AnyWindowHandle,
+        at: gpui::Point<gpui::Pixels>,
+        phase: gpui::TouchPhase,
+    ) {
+        self.cx.update(|cx| {
+            let _ = window.update(cx, |_, window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::Touch(gpui::TouchEvent {
+                        id: gpui::TouchId(1),
+                        phase,
+                        position: at,
+                        predicted_position: None,
+                        force: None,
+                    }),
+                    cx,
+                );
+            });
+        });
+        self.step();
+    }
+
     /// A press and release of the pointer at `at` in `window`, `clicks` times.
     /// A finger held still on the words `text`, as the phone's gesture recogniser reports one
     /// (GPUI's `LongPressEvent`), in the main window.

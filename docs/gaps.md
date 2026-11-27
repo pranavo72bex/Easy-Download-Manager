@@ -79,6 +79,27 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
+## Next session (written 2026-11-27, night; for 2026-11-28)
+
+**Done tonight** (pushed to main): Desktop CI green again (Linux and Windows goldens from run
+46036433397's artifacts; the 412-point clipboard test holds the link at least 90 wide, never
+under the buttons); C0c, a script reading the rows draws no frame; V25, a finger's press drawn
+on the phone (`widgets/press.rs`, seen on the emulator) and the desktop's quiet controls pressed
+a step past their hover (`Theme::pressed_soft`).
+
+**Start with:** `python3 scripts/ai-health.py`; then main's Desktop, Android and
+`contract-linux.yml` runs on tonight's push (the press layer adds nothing a golden reads, but the
+look of a pressed control is new). Then, at the maintainer's word ("focus on desktop app only"),
+the desktop window: `ui-shot.py` pictures at 700 and 1280 points, light and dark, and the home
+screen and list refined from them, each change pictured. Owed before a merge:
+`python3 scripts/human-qa.py` in a visible window.
+
+**Android builds here:** a debug APK packs `app/build/rustJniLibs/debug`, not
+`src/main/jniLibs`: build the library into the former (`cargo ndk ... -o
+crates/dm-android/android/app/build/rustJniLibs/debug build -p dm-android --lib --release`, with
+`CARGO_TARGET_DIR=target/android-only`), then `./gradlew assembleDebug -x cargoNdkDebug`. An old
+library left there was packed instead of the new one, and the first emulator check ran old code.
+
 ## Next session (written 2026-11-27, evening)
 
 **Done today, after the handoff below** (each pictured light and dark, on the Mac and the
@@ -1281,7 +1302,7 @@ controls inside a phone layout, and a tablet or a phone with a mouse keeps finge
 | V22 | A pop-up button opens a small menu at the pointer on every device (`popup.rs`); a long list is hard to reach with a thumb | OPEN · S to M | One picker: a menu with a mouse, a bottom sheet with a finger, and a searchable list when it has more than about ten choices |
 | V23 | Date and time pickers, sliders (the speed limiter) and the folder field (`path_field`) are built for a mouse | OPEN · M | Time as a wheel or large steppers with a finger; a slider with a larger handle and its value shown above the thumb; the folder field opens the system's picker and shows a short path with its end kept |
 | V24 | Dialog buttons: at the right in a row on desktop, wrapped on a phone, by a build-time switch (`native::buttons`) | OPEN · S | One button bar: a row at the end when wide, full-width stacked buttons with the main action lowest when compact; a destructive action always in the error colour |
-| V25 | Feedback differs by control: some show hover, press and focus, some none (U2); on touch nothing shows a press | OPEN · S to M | Every control has the same five states (rest, hover, pressed, focused, disabled) from the tokens; with a finger, pressed shows at once and hover never |
+| V25 | Feedback differs by control: some show hover, press and focus, some none (U2); on touch nothing shows a press | PARTIAL · S to M | Every control has the same five states (rest, hover, pressed, focused, disabled) from the tokens; with a finger, pressed shows at once and hover never. Done 2026-11-27: why a finger showed no press: GPUI makes a tap a mouse press and release together at the lift, so `.active()` never drew; hover is already off while the last input was a touch (GPUI's own `last_input_was_touch`). `widgets/press.rs` paints the pressed face (the text at `PRESSED` over the face, as `answering` makes it) from the touch's start (`TouchDragEvent`, `Started`) to its tap, scroll or long press (1.5 s at most), on the innermost thing pressed and nothing under a sheet: cards and their buttons, the bottom tabs, sheet lines and their close, the drawer's places, Options' pages, `native::button`, pop-ups, the top bar's Back, Add URL's floating button and Undo; test `a_fingers_press_shows_as_it_lands_on_the_innermost_thing` (`window_tests/narrow.rs`). On a computer the quiet controls that showed hover and no press now press a step past their hover (`Theme::pressed_soft`): the toolbar's buttons (Add URL as a filled button), More, the queue's arrow, the side panel's places, searches and followed sites, the list's headings and Undo. Seen on the emulator 2026-11-27 (arm64, a held `input swipe`, the screen taken mid-hold): a bottom tab's pill (the tab's quarter claims the press, `press::claims`/`press::face`: the whole quarter lit was a hard grey box), a card, its ⋮ alone, the drawer's places, Add URL's button; each gone at the lift. Left: the switches, check boxes and fields on a phone; the top bar's buttons and Windows' caption buttons |
 | V26 | No single place shows every control in every form | OPEN · M | A gallery window in the debug build (`dm --gallery`): each control at both pointer kinds, three widths, both themes, 200% text, right-to-left. V15 takes its pictures there, so a control is checked once, not once per dialog |
 
 **Order to take them:** V1 first (the rule, a day). Then V8 and V9 with N20, since the Android

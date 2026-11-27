@@ -100,6 +100,7 @@ pub(super) fn more_button(
         .rounded(px(crate::widgets::native::RADIUS))
         .text_size(px(crate::widgets::native::SMALL_TEXT))
         .hover(move |s| s.bg(theme.stripe))
+        .active(move |s| s.bg(theme.pressed_soft()))
         // The dots where pictures are shown, and where only words are, its word alone.
         .when(picture || !worded, |b| {
             b.child(

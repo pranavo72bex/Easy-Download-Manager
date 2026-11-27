@@ -177,6 +177,8 @@ pub fn button_of(
         .active(move |s| s.bg(theme.answering(theme.control, crate::window::theme::PRESSED)))
         .text_size(px(TEXT))
         .whitespace_nowrap()
+        // A finger's press, which `.active()` never shows on a phone (gaps row V25).
+        .map(|b| crate::widgets::press::first(b, RADIUS, theme))
         .child(screen.label(words))
         // The system's up-and-down chevrons, at the trailing end.
         .child(

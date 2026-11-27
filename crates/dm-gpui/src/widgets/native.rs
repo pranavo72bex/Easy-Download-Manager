@@ -236,6 +236,7 @@ pub fn button(
     theme: Theme,
     screen: &Screen,
 ) -> Stateful<Div> {
+    let face = if default { theme.accent } else { theme.control };
     div()
         .id(id)
         .role(Role::Button)
@@ -265,15 +266,11 @@ pub fn button(
                 .border_1()
                 .border_color(theme.control_border)
         })
-        // Answering the pointer: lighter or darker under it, more so pressed (gaps row U2).
-        .hover(move |s| {
-            let face = if default { theme.accent } else { theme.control };
-            s.bg(theme.answering(face, crate::window::theme::HOVERED))
-        })
-        .active(move |s| {
-            let face = if default { theme.accent } else { theme.control };
-            s.bg(theme.answering(face, crate::window::theme::PRESSED))
-        })
+        // Answering the pointer: lighter or darker under it, more so pressed (gaps row U2); a
+        // finger's press drawn as it lands, which `.active()` never shows on a phone (V25).
+        .hover(move |s| s.bg(theme.answering(face, crate::window::theme::HOVERED)))
+        .active(move |s| s.bg(theme.answering(face, crate::window::theme::PRESSED)))
+        .map(|b| crate::widgets::press::first(b, RADIUS, theme))
         .child(screen.label(words))
 }
 

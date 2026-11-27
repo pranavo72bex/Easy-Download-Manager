@@ -42,6 +42,7 @@ pub fn phone_bar(
                 .rounded_full()
                 .active(move |s| s.bg(theme.control))
                 .on_click(back)
+                .map(|b| crate::widgets::press::first(b, space::TOUCH / 2.0, theme))
                 .child(
                     gpui::svg()
                         .path("icons/back.svg")

@@ -233,6 +233,7 @@ impl Downloads {
                         .on_click(cx.listener(|view, _, _, cx| {
                             view.run(dm_shell::app::commands::Command::AddUrl, cx)
                         }))
+                        .map(|b| crate::widgets::press::first(b, FLOATING / 2.0, theme))
                         .child(
                             screen.mark(
                                 add,
@@ -458,6 +459,7 @@ fn snackbar(n: usize, theme: Theme, screen: &Screen, cx: &mut Context<Downloads>
                     view.undo_remove(cx);
                     cx.notify();
                 }))
+                .map(|b| crate::widgets::press::first(b, 0.0, theme))
                 .child(screen.label(undo)),
         )
 }

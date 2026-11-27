@@ -76,6 +76,8 @@ pub(crate) fn line(id: impl Into<gpui::ElementId>, theme: Theme) -> Stateful<Div
         .map(|l| native::ringed(l, theme))
         .rounded_none()
         .hover(move |l| l.bg(theme.answering(theme.menu, crate::window::theme::HOVERED)))
+        // A finger's press shown as it lands (gaps row V25).
+        .map(|l| crate::widgets::press::first(l, 0.0, theme))
 }
 
 /// The dimmed layer over the whole window a sheet stands on; a tap on it, outside the sheet,
@@ -153,6 +155,7 @@ pub(crate) fn sheet(
                         .map(|b| native::ringed(b, theme))
                         .rounded_full()
                         .active(move |b| b.bg(theme.control))
+                        .map(|b| crate::widgets::press::first(b, space::TOUCH / 2.0, theme))
                         .on_click(move |_, window, cx| close(window, cx))
                         .child(screen.mark(
                             close_words,
