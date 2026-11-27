@@ -8,8 +8,11 @@
 //! idle spell, every socket dropped. Windows is asked not to sleep for as
 //! long as a row is Running, and told it may again when none is; a phone
 //! is held by a wake lock the app takes (`phone::keep_awake`, gaps row
-//! N17). Other systems leave sleep to their own power settings, so there
-//! this does nothing.
+//! N17); a Mac holds a user-initiated activity (`NSProcessInfo`), which also
+//! keeps App Nap off: a dm with no window shown (`--headless`, a hidden or
+//! covered window) was napped, its timers stretched, and fetched `capped` in
+//! 6.3 to 10.5 s where its window's took 5.6 (gaps row C0c). Linux leaves
+//! sleep to its own power settings, so there this does nothing.
 
 /// What the queue's busyness last asked of the system, so the system is
 /// told only when that changes.
@@ -33,7 +36,7 @@ impl Keeper {
 /// its own each time the queue changes (`changes::subscribe`), not every few seconds (gaps row
 /// S18): the setting belongs to the thread that made it and lasts as long as the thread does.
 pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
-    #[cfg(any(windows, target_os = "android"))]
+    #[cfg(any(windows, target_os = "android", target_os = "macos"))]
     {
         // One nudge waiting at most: changes that come while the queue is being looked at are
         // one more look, not one each.
@@ -55,7 +58,7 @@ pub fn watch(busy: impl Fn() -> bool + Send + 'static) {
                 }
             });
     }
-    #[cfg(not(any(windows, target_os = "android")))]
+    #[cfg(not(any(windows, target_os = "android", target_os = "macos")))]
     let _ = busy;
 }
 
@@ -182,8 +185,42 @@ impl PhoneQueue {
 // Windows' thread state.
 #[cfg(target_os = "android")]
 use crate::phone::keep_awake as hold_awake;
+#[cfg(target_os = "macos")]
+use mac::hold as hold_awake;
 #[cfg(windows)]
 use win::hold as hold_awake;
+
+#[cfg(target_os = "macos")]
+mod mac {
+    use objc2::rc::Retained;
+    use objc2::runtime::{NSObjectProtocol, ProtocolObject};
+    use objc2_foundation::{NSActivityOptions, NSProcessInfo, NSString};
+
+    thread_local! {
+        /// The activity held, on the watch's own thread, which alone begins and ends it.
+        static HELD: std::cell::RefCell<Option<Retained<ProtocolObject<dyn NSObjectProtocol>>>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    /// Begins a user-initiated activity (no idle sleep, no App Nap) while `on`, ends it when not.
+    pub(super) fn hold(on: bool) {
+        HELD.with(|held| {
+            let mut held = held.borrow_mut();
+            let info = NSProcessInfo::processInfo();
+            if on && held.is_none() {
+                let reason = NSString::from_str("Downloading");
+                *held = Some(
+                    info.beginActivityWithOptions_reason(NSActivityOptions::UserInitiated, &reason),
+                );
+            } else if !on {
+                if let Some(activity) = held.take() {
+                    // SAFETY: `activity` is the object `beginActivityWithOptions:reason:` gave.
+                    unsafe { info.endActivity(&activity) };
+                }
+            }
+        });
+    }
+}
 
 #[cfg(windows)]
 mod win {

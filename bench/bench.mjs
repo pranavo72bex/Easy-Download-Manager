@@ -29,6 +29,8 @@
 //   BENCH_WORK            scratch folder (default: <temp>/dm-bench)
 //   BENCH_DM_HOME         dm's home for the run (default: <work>/dm-home, wiped first)
 //   BENCH_DM_DOWNLOADS    dm's download folder (default: <dm home>/downloads); use a fresh one per run
+//   BENCH_DM_HEADLESS     1 runs dm with no window (--headless): the window's share of the CPU,
+//                         against a run without it (gaps row C0c)
 //   BENCH_DM_CONNECTIONS  dm's connections setting (default: dm's own; 16 for the 16-connection group)
 //   BENCH_REFA_DIR        where reference A saves (default: <work>/refa)
 //   BENCH_CEILING_DIR     where `ceiling` writes (default: dm's download folder)
@@ -82,6 +84,7 @@ function defaultDm() {
   return null;
 }
 const DM = process.env.DM_BINARY || defaultDm();
+const HEADLESS = process.env.BENCH_DM_HEADLESS === '1';
 const APPS = (process.env.BENCH_APPS || (WIN && REFA.exe ? 'refa,dm' : 'dm')).split(',').map((s) => s.trim()).filter(Boolean);
 const WITH_REFA = APPS.includes('refa');
 const WORK = process.env.BENCH_WORK || path.join(os.tmpdir(), 'dm-bench');
@@ -465,7 +468,7 @@ class Dm {
     // DM_BENCH_DNS: the slow name's server, which dm asks names under .test of (`slowname`),
     // unless the computer itself is pointed at it.
     const named = nameServer && !NAME_SYSTEM ? { DM_BENCH_DNS: `127.0.0.1:${nameServer.port}` } : {};
-    this.proc = spawn(DM, ['--control', '0'], { env: { ...process.env, DM_HOME: this.home, ...(tls ? { DM_BENCH_CA: tls.certFile } : {}), ...named }, stdio: 'ignore' });
+    this.proc = spawn(DM, HEADLESS ? ['--headless', '--control', '0'] : ['--control', '0'], { env: { ...process.env, DM_HOME: this.home, ...(tls ? { DM_BENCH_CA: tls.certFile } : {}), ...named }, stdio: 'ignore' });
     watched.set(this.proc.pid, 'dm');
     const portFile = path.join(this.home, 'control.port');
     for (let i = 0; i < 400; i++) { if (fs.existsSync(portFile) && fs.readFileSync(portFile, 'utf8').trim()) break; await sleep(50); }

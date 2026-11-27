@@ -55,7 +55,9 @@ trash.workspace = true
 objc2.workspace = true
 # The Dock's bar and badge (taskbar.rs): its tile, the program's picture and a bar over it.
 objc2-app-kit = { workspace = true, features = ["std", "NSApplication", "NSResponder", "NSAccessibility", "objc2-core-foundation", "NSDockTile", "NSImage", "NSImageView", "NSControl", "NSView", "NSProgressIndicator", "NSColor", "NSColorSpace"] }
-objc2-foundation = { workspace = true, features = ["std", "NSString", "NSArray", "NSGeometry"] }
+# NSProcessInfo: the activity that keeps a Mac from idle sleep and App Nap while a download runs
+# (platform/awake.rs).
+objc2-foundation = { workspace = true, features = ["std", "NSString", "NSArray", "NSGeometry", "NSProcessInfo", "NSObject"] }
 
 [target.'cfg(windows)'.dependencies]
 # A finished download's toast (toast.rs): WinRT, which windows-sys has no

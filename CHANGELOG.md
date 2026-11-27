@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a Mac, dm keeps the computer from idle sleep while a download runs, as it already did on Windows, and macOS no longer slows a download when dm's window is hidden or dm runs without one (a 100 MiB test download took up to 10.5 s instead of 5.6).
 - A damaged ZIP whose numbers run past their end (found by the nightly fuzzing) is reported as not a ZIP when Download details lists it, instead of stopping dm.
 - Password fields have an eye at their end that shows what you typed, and hides it again.
 - Options › Downloads says "Connections per file" is the most dm opens: it adds connections only while they make a download faster.
