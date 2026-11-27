@@ -127,9 +127,6 @@ fn properties_change_the_description_and_refresh_an_expired_address() {
     let world = world();
     let mut h = world.harness();
     h.add_url(&world.url("gone.bin"), "Start now");
-    // A 404 is told in a window of its own (B41), answered before the list is used.
-    h.until_shown("HTTP/1.1 404 Not Found");
-    h.click("Close");
     h.until("the missing file to fail", |h| {
         h.rows().iter().any(|r| matches!(r.state, State::Failed(_)))
     });

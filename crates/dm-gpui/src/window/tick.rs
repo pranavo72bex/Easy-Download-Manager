@@ -254,7 +254,16 @@ impl Downloads {
         if !Hint::Details.due(&settings, &self.running_rows(), self.status.said.is_none()) {
             return;
         }
-        self.say(t("Double-click a download to watch its progress.").into());
+        // In a phone's layout a tap opens a card: "Double-click" named what a finger does not
+        // do, beside three other parts cut to fit the narrow bar (unslop review).
+        self.say(
+            if self.layout.narrow.laid_out {
+                t("Tap a download to watch its progress.")
+            } else {
+                t("Double-click a download to watch its progress.")
+            }
+            .into(),
+        );
         let mut wanted = settings;
         Hint::Details.mark(&mut wanted);
         if let Err(e) = self.backend.set_settings(wanted) {

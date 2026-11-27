@@ -30,8 +30,6 @@ pub enum Question {
     },
     /// A web page answered for a file: save the page, or not.
     Page(Id),
-    /// A server said the file is not there.
-    NotFound(Id),
     /// The same file as one already here, stopped before its body (gaps row W18): show that
     /// one, or download it again.
     SameFile(Id),
@@ -41,10 +39,7 @@ impl Question {
     /// The row it is about.
     pub fn id(&self) -> Id {
         match self {
-            Question::Name { id, .. }
-            | Question::Page(id)
-            | Question::NotFound(id)
-            | Question::SameFile(id) => *id,
+            Question::Name { id, .. } | Question::Page(id) | Question::SameFile(id) => *id,
         }
     }
 }
@@ -106,8 +101,6 @@ impl Questions {
             if let (true, Some(kind)) = (newly_failed, failed) {
                 if kind == FailKind::WebPage && !row.accept_page {
                     self.waiting.push_back(Question::Page(row.id));
-                } else if kind == FailKind::Refused(404) {
-                    self.waiting.push_back(Question::NotFound(row.id));
                 } else if kind == FailKind::SameFile && !row.accept_same {
                     self.waiting.push_back(Question::SameFile(row.id));
                 }

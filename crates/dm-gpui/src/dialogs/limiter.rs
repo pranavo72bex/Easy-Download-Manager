@@ -154,13 +154,13 @@ impl Render for Limiter {
                         Some(labels[1]),
                         width,
                         &screen,
-                        number_field(&self.mb, "Download at most this many MB (0 for no limit)"),
+                        number_field(&self.mb, "Data allowance (MB, 0 for none)"),
                     ))
                     .child(native::row_short(
                         Some(labels[2]),
                         width,
                         &screen,
-                        number_field(&self.hours, "in each period of this many hours"),
+                        number_field(&self.hours, "Allowance period (hours)"),
                     ))
                     // A lower limit for set hours of every day.
                     .child(native::row(
@@ -248,8 +248,8 @@ impl Render for Limiter {
 fn labels() -> [&'static str; 6] {
     [
         t("Speed limit (KB/s, 0 for none)"),
-        t("Download at most this many MB (0 for no limit)"),
-        t("in each period of this many hours"),
+        t("Data allowance (MB, 0 for none)"),
+        t("Allowance period (hours)"),
         t("Start at"),
         t("Stop at"),
         t("Speed limit in those hours (KB/s)"),

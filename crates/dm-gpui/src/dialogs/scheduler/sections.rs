@@ -147,6 +147,9 @@ impl Scheduler {
     /// while downloads are not held to set hours.
     pub(super) fn timed(&self, theme: Theme, screen: &Screen, cx: &mut Context<Self>) -> gpui::Div {
         let wake = self.draft.schedule.wake;
+        // Start at and Stop at as wide as the wider of them, so their pickers line up where Stop
+        // at goes under Start at (a phone): they stood 5 points apart (unslop review).
+        let times_label = native::text_width(&t("Start at")).max(native::text_width(&t("Stop at")));
         let d = div().flex().flex_col().gap(px(native::ROW_GAP)).child(
             // Each time with its words, Stop at under Start at where a line has no room for
             // both (a phone, gaps row N31).
@@ -160,7 +163,11 @@ impl Scheduler {
                         .flex()
                         .items_center()
                         .gap(px(native::LABEL_GAP))
-                        .child(screen.label(t("Start at")))
+                        .child(
+                            div()
+                                .min_w(px(times_label))
+                                .child(screen.label(t("Start at"))),
+                        )
                         .child(native::time_picker(
                             ("from-hour", "from-minute"),
                             &self.draft.schedule.from,
@@ -174,7 +181,11 @@ impl Scheduler {
                         .flex()
                         .items_center()
                         .gap(px(native::LABEL_GAP))
-                        .child(screen.label(t("Stop at")))
+                        .child(
+                            div()
+                                .min_w(px(times_label))
+                                .child(screen.label(t("Stop at"))),
+                        )
                         .child(native::time_picker(
                             ("to-hour", "to-minute"),
                             &self.draft.schedule.to,
@@ -240,11 +251,19 @@ impl Scheduler {
                 .pl(px(space::XXL))
                 .flex()
                 .flex_wrap()
-                .gap(px(space::M_L))
+                .gap(px(if crate::platform::ON_A_PHONE {
+                    space::M
+                } else {
+                    space::M_L
+                }))
                 .children(DAYS.iter().enumerate().map(|(day, word)| {
                     let day = day as u8;
                     let ticked = days.contains(&day);
                     native::checkbox(("day", day as usize), t(word).into(), ticked, theme, screen)
+                        // On a phone a day's box is a day's width, not the line's: the week
+                        // stood one day a line, seven lines of scrolling (unslop review on the
+                        // emulator); four a line, two lines.
+                        .when(crate::platform::ON_A_PHONE, |c| c.w(px(PHONE_DAY)))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             let days = &mut this.draft.schedule.days;
                             if days.contains(&day) {
@@ -395,3 +414,6 @@ impl Scheduler {
         })
     }
 }
+
+/// A weekday's box on a phone, in points: its tick and a day's short name ("Wed", "Mié").
+const PHONE_DAY: f32 = 76.0;

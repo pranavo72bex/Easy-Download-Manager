@@ -161,16 +161,17 @@ fn downloads_finishing_together_share_one_complete_window() {
     });
 }
 
-/// Download complete can be turned off from itself ("Don't show this window again"), and
-/// offers Open with beside Open.
+/// Download complete can be turned off from itself ("Don't show this window again"), and offers
+/// Open and Open folder for each file; Open with… is on the row's menu (unslop review).
 #[test]
-fn download_complete_offers_open_with_and_not_again() {
+fn download_complete_offers_open_and_open_folder_and_not_again() {
     let world = world();
     let mut h = world.harness_with(world.settings_with(|s| s.general.show_complete = true));
     h.add_url(&world.url("file.zip"), "Start now");
     h.until("the download to complete", |h| completed(h) == 1);
     h.until("Download complete", |h| h.dialog_open("Download complete"));
-    assert!(h.shows("Open with…"), "{:?}", h.texts());
+    assert!(h.shows("Open folder"), "{:?}", h.texts());
+    assert!(!h.shows("Open with…"), "{:?}", h.texts());
     // Ticking marks the box and leaves the window open; nothing is saved yet.
     h.click("Don't show this window again");
     for _ in 0..3 {

@@ -276,12 +276,12 @@ fn the_second_networks_allowance_is_kept_from_options() {
     tab(&mut h, "Advanced");
     h.fill_after(
         "Second network's speed limit (KB/s, 0 for none)",
-        "Download at most this many MB (0 for no limit)",
+        "Data allowance (MB, 0 for none)",
         "500",
     );
     h.fill_after(
         "Second network's speed limit (KB/s, 0 for none)",
-        "in each period of this many hours",
+        "Allowance period (hours)",
         "6",
     );
     ok(&mut h);

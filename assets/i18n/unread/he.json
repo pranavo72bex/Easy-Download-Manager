@@ -442,7 +442,6 @@
  "done, {}",
  "waiting, {}",
  "{} of {}",
- "Download at most this many MB (0 for no limit)",
  "Exiting pauses it. It picks up where it left off the next time you open dm.||Exiting pauses them. They pick up where they left off the next time you open dm.",
  "Found {} link; {} ticked.||Found {} links; {} ticked.",
  "From and To must both be numbers, or both letters of one case.",
@@ -452,7 +451,6 @@
  "The address needs exactly one * to fill in.",
  "The range runs backwards.",
  "Waiting for Start queue",
- "in each period of this many hours",
  "{} finishing||{} finishing",
  "· {} finishing||· {} finishing",
  "· {} waiting for Start queue||· {} waiting for Start queue",
@@ -987,7 +985,6 @@
  "the site's security certificate isn't valid yet, so dm didn't connect",
  "the site's security certificate is for another site, so dm didn't connect",
  "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect",
- "This link no longer works",
  "this link has expired",
  "dm is waiting for the browser to hand over a new one for the same file",
  "the dial-up or VPN connection didn't come up",
@@ -1101,5 +1098,8 @@
  "Choose a queue to stop",
  "Local time. Hours that end before they start run overnight.",
  "+{} message||+{} messages",
- "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it."
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.",
+ "Data allowance (MB, 0 for none)",
+ "Allowance period (hours)",
+ "Tap a download to watch its progress."
 ]

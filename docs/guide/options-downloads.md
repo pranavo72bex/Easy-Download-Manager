@@ -5,8 +5,8 @@ How dm fetches, and what happens around a download. See
 
 ## Connections and files at once
 
-- **Connections per file:** "How many parts of a file dm fetches at once.
-  More is faster on most sites, but some limit it."
+- **Connections per file:** "The most parts of a file dm fetches at once. It
+  opens more only while they make it faster; some sites limit it."
 - **Presets:** **Slow (2)**, **Normal (8)**, **Fast (16)** and **Maximum
   (32)** each set the number above; the one that matches it is marked. A new dm
   uses 16.

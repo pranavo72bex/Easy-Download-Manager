@@ -87,6 +87,14 @@ pub const ICONS: &[(&str, &[u8])] = icons!(
     // A phone's card menu: Share, and Copy link.
     "share",
     "link",
+    // A phone's card menu: Move/Rename, Move up and Move down, beside their neighbours'
+    // pictures (the unslop review: those three alone had none, holes in the column).
+    "rename",
+    "move-up",
+    "move-down",
+    // A phone's card menu: Copy link and Copy details (Copy link drew Update download link's
+    // picture, two items alike for two acts).
+    "copy",
     // Drawn marks, not the font's characters (gaps row E41): a sheet's Close, a tick, and the
     // chevrons that lead on, back, or open what is shut below.
     "close",

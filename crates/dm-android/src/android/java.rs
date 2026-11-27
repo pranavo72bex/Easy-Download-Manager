@@ -90,6 +90,13 @@ impl Java for Jni {
         // Android 10 and up answer only while dm's window has the focus; `None` otherwise.
         jvm::with("read the clipboard", |env, context| {
             let manager = jvm::service(env, context, "clipboard")?;
+            // Android 12 and up show "dm pasted from your clipboard" at every read, link or
+            // not: Add URL said so over an empty field when the clipboard held a sentence. What
+            // the clipboard holds is asked first, which shows nothing (unslop review): where
+            // the system has looked at it and finds no link in it, it is not read.
+            if jvm::sdk(env)? >= 31 && !may_be_a_link(env, &manager)? {
+                return Ok(None);
+            }
             let clip = env
                 .call_method(
                     &manager,
@@ -252,4 +259,45 @@ fn no_app(why: String, instead: &str) -> String {
     } else {
         why
     }
+}
+
+/// `ClipboardManager.getPrimaryClipDescription()`'s answer (Android 12, API 31, and up): false
+/// only where the system has classified the clipboard's text and is under half sure it holds a
+/// link (`TextClassifier.TYPE_URL`); true where it has not classified it yet, so a link copied a
+/// moment ago is still read. Asking for the description is no read: no notice is shown.
+fn may_be_a_link(env: &mut Env<'_>, manager: &JObject<'_>) -> jni::errors::Result<bool> {
+    /// `ClipDescription.CLASSIFICATION_COMPLETE`.
+    const COMPLETE: i32 = 3;
+    let description = env
+        .call_method(
+            manager,
+            jni_str!("getPrimaryClipDescription"),
+            jni_sig!("()Landroid/content/ClipDescription;"),
+            &[],
+        )?
+        .l()?;
+    if description.is_null() {
+        return Ok(false);
+    }
+    let status = env
+        .call_method(
+            &description,
+            jni_str!("getClassificationStatus"),
+            jni_sig!("()I"),
+            &[],
+        )?
+        .i()?;
+    if status != COMPLETE {
+        return Ok(true);
+    }
+    let url = env.new_string("url")?;
+    let score = env
+        .call_method(
+            &description,
+            jni_str!("getConfidenceScore"),
+            jni_sig!("(Ljava/lang/String;)F"),
+            &[JValue::Object(&url)],
+        )?
+        .f()?;
+    Ok(score >= 0.5)
 }

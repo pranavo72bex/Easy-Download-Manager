@@ -20,8 +20,8 @@ pub(super) fn allowance(
     let [mb, hours] = keys;
     let third = mb.starts_with("third");
     for (key, words) in [
-        (mb, "Download at most this many MB (0 for no limit)"),
-        (hours, "in each period of this many hours"),
+        (mb, "Data allowance (MB, 0 for none)"),
+        (hours, "Allowance period (hours)"),
     ] {
         let field = input(o, window, cx, key, words, NUMBER, on, false, |o| {
             let s = &o.draft;

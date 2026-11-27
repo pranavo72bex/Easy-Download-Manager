@@ -111,7 +111,7 @@ fn the_welcome_offers_the_extension_for_each_browser() {
 }
 
 /// A downloaded file is run by a person's click: a moment after a script pressed a key in the
-/// window, Download complete's Open and Open with… and Properties' Open run nothing and say
+/// window, Download complete's Open and Properties' Open run nothing and say
 /// why, as File › Open does; once that moment has passed, a click runs it
 /// (`docs/security-report.md`, gaps row 159 f). A script's click on Open is refused outright
 /// (`probe::is_run_a_file`), so the clicks here are a person's pointer.
@@ -129,11 +129,9 @@ fn a_dialogs_open_runs_nothing_a_moment_after_a_script_pressed_a_key() {
     h.until("Download complete", |h| h.dialog_open("Download complete"));
     let refused = "Opening a file is done by a person, not by a script";
 
-    // Download complete: Open, then Open with…, run nothing, and the file stays listed.
+    // Download complete: Open runs nothing, and the file stays listed.
     h.key("f13", &[]);
     h.person_click("Open", 1);
-    h.key("f13", &[]);
-    h.person_click("Open with…", 1);
     assert!(
         h.fake.opened.lock().unwrap().is_empty(),
         "{:?}",

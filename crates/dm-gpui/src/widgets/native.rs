@@ -143,7 +143,9 @@ impl WindowSize {
             Self::AddUrl => Each::all((520.0, 220.0)),
             Self::Series => Each::all((520.0, 300.0)),
             Self::Playlist => Each::all((560.0, 420.0)),
-            Self::Complete => Each::all((440.0, 220.0)),
+            // Wide enough for a file's name beside its two buttons (unslop review): at 440 points
+            // "Ubuntu-24.04-desktop.iso" was cut.
+            Self::Complete => Each::all((560.0, 220.0)),
             Self::Progress => Each::all((480.0, 320.0)),
             Self::Properties => Each::all((560.0, 420.0)),
             Self::Scheduler => Each::all((720.0, 520.0)),
@@ -210,8 +212,9 @@ pub const ICON_SMALL: f32 = 12.0;
 pub const ICON: f32 = 16.0;
 /// A toolbar button's picture over its word.
 pub const ICON_TOOL: f32 = 18.0;
-/// A phone's picture: a card's button, a tab of the bottom bar.
-pub const ICON_LARGE: f32 = 20.0;
+/// A phone's picture (a card's button, a sheet's and the drawer's rows, Options' list): Material's
+/// 24, where 20 read as 15 dp beside 16 sp words (unslop review); 20 on a computer's drop target.
+pub const ICON_LARGE: f32 = on_a_phone(24.0, 20.0);
 
 /// A dialog's body: the margins, the system's text, its rows apart.
 pub fn body(theme: Theme) -> Div {

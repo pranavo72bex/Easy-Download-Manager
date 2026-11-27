@@ -998,12 +998,12 @@ def walk(dm, origin):
           and pathlib.Path(second["path"]).name == "second",
           pathlib.Path(second["path"]).name if second and second.get("path") else str(second and second["state"]))
     gone = questions.get("This link no longer works", [])
-    check("B41", "a 404 is told once in a window: this link no longer works, what to do, HTTP/1.1 404 Not Found, Update download link and Close",
-          len(gone) == 1 and "Open the page it came from in your browser" in " ".join(gone[0])
-          and "HTTP/1.1 404 Not Found" in " ".join(gone[0]) and "Close" in gone[0]
-          and "Update download link" in gone[0], f"{len(gone)} window(s)")
+    # Since 2026-11-27 (the maintainer: "stop the failure popup at launch") a 404 opens no
+    # window: the row and the bar above the list say it; Update download link is on its menu.
+    check("B41", "a 404 opens no window; the row says this link no longer works",
+          not gone and "no longer works" in status, f"{len(gone)} window(s); row: {status}")
     pause(3)
-    check("B41", "it does not come back for the same row", "This link no longer works" not in dm.dialogs(), "")
+    check("B41", "no window comes later for the row", "This link no longer works" not in dm.dialogs(), "")
     dm.add(f"{files}/pageyes.zip")
     said = answer(dm, "Web page instead of the file", "Save as HTML")
     page = dm.wait("pageyes.zip", {"completed", "failed"}, 60)

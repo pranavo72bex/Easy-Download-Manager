@@ -14,8 +14,10 @@ finished."
 
 - Its name and size, and under them where it was saved.
 - **Open:** opens the file.
-- **Open with…:** opens it with a program you pick.
 - **Open folder:** opens its folder with the file chosen.
+
+To open it with another program, use **Open with…** on its row's menu in
+the main window.
 
 A file you act on leaves the window, and the window closes with the last
 one.

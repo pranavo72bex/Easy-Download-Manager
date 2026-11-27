@@ -306,7 +306,6 @@ impl Downloads {
                 ..
             } => asks::name_sent(address_name, server_name),
             Question::Page(_) => asks::page_for_file(),
-            Question::NotFound(_) => asks::not_found(),
             // With "Remember my choice", as "Already in the list" is (gaps row W18).
             Question::SameFile(id) => return self.ask_same_file(*id, cx),
         };
@@ -318,21 +317,15 @@ impl Downloads {
             toggle: None,
             ticked: false,
             buttons: ask.buttons.into_iter().map(Into::into).collect(),
-            // Escape keeps the default, which changes nothing; where the default mends something
-            // (a fresh link for a link that no longer works), Escape is Close, which does not.
+            // Escape keeps the default, which changes nothing.
             default: 0,
-            escape: usize::from(matches!(question, Question::NotFound(_))),
+            escape: 0,
             destroys: None,
         };
         let view = cx.entity().downgrade();
         let answer: crate::dialogs::question::Answer = Box::new(move |button, _, cx| {
             let _ = view.update(cx, |view, cx| {
                 view.questions.asking = false;
-                // "This link no longer works"'s first button: a fresh link for its row (gaps rows
-                // U10, E14).
-                if let (Question::NotFound(id), 0) = (&question, button) {
-                    view.run_on(*id, dm_shell::app::commands::Command::UpdateLink, cx);
-                }
                 view.answered(question, button == 0, cx);
                 view.read();
                 view.promote_asks(cx);

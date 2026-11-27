@@ -257,10 +257,10 @@ fn the_download_limit_is_set_in_the_speed_limiter_and_reaches_the_queue() {
     let mut h = world.harness();
     h.command("downloads.speed_limiter.settings");
     h.until("the Speed limiter", |h| h.dialog_open("Speed limiter"));
-    assert!(h.shows("Download at most this many MB (0 for no limit)"));
-    assert!(h.shows("in each period of this many hours"));
-    h.fill("Download at most this many MB (0 for no limit)", "500");
-    h.fill("in each period of this many hours", "4");
+    assert!(h.shows("Data allowance (MB, 0 for none)"));
+    assert!(h.shows("Allowance period (hours)"));
+    h.fill("Data allowance (MB, 0 for none)", "500");
+    h.fill("Allowance period (hours)", "4");
     h.click("Save");
     h.until("the Speed limiter to close", |h| {
         !h.dialog_open("Speed limiter")
@@ -724,8 +724,8 @@ fn a_long_label_beside_a_small_box_stays_in_the_column() {
     h.command("downloads.speed_limiter.settings");
     h.until("the Speed limiter", |h| h.dialog_open("Speed limiter"));
     let speed = h.bounds_of("Speed limit (KB/s, 0 for none)");
-    let most = h.bounds_of("Download at most this many MB (0 for no limit)");
-    let period = h.bounds_of("in each period of this many hours");
+    let most = h.bounds_of("Data allowance (MB, 0 for none)");
+    let period = h.bounds_of("Allowance period (hours)");
     let start = h.bounds_of("Start at");
     // In the column: its words end where the others' do, its box on the line, not under it.
     assert_eq!(

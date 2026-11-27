@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What reference A asks about, and dm asks too (maintainer): the name the server
-//! sent, a web page where a file was asked for, a 404.
+//! sent, a web page where a file was asked for; a 404 asks nothing.
 
 use dm_core::State;
 
@@ -81,27 +81,23 @@ fn a_web_page_for_a_file_leaves_nothing_on_dont_download() {
     h.until("the row to go", |h| h.rows().is_empty());
 }
 
+/// A 404 opens no window (B41, the maintainer, 2026-11-27): the row says "This link no longer
+/// works" and the bar above the list counts it; Update download link is on the row's menu.
 #[test]
-fn a_404_is_told_once_in_a_window_of_its_own() {
+fn a_404_opens_no_window() {
     let world = world();
     let mut h = world.harness();
     h.add_url(&world.url("missing.bin"), "Start now");
-    h.until_shown("HTTP/1.1 404 Not Found");
-    assert!(
-        h.shows(
-            "Open the page it came from in your browser and download from there, which gives dm a new link."
-        ),
-        "{:?}",
-        h.texts()
-    );
-    assert!(h.shows("HTTP/1.1 404 Not Found"), "{:?}", h.texts());
-    h.click("Close");
-    // The row stays failed, and the window does not come back for it.
+    h.until("the row to fail", |h| {
+        h.rows()
+            .first()
+            .is_some_and(|r| matches!(r.state, State::Failed(_)))
+    });
     for _ in 0..20 {
         h.until("a wake", |_| true);
     }
     assert!(!h.shows("HTTP/1.1 404 Not Found"), "{:?}", h.texts());
-    assert!(matches!(h.rows()[0].state, State::Failed(_)));
+    assert!(h.dialogs().is_empty(), "{:?}", h.dialogs());
 }
 
 /// The same file from a second address (contract row B73, gaps row W18): asked about before it

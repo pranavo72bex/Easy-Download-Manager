@@ -60,9 +60,9 @@ fn window_sizes_are_as_they_were() {
         ),
         (
             WindowSize::Complete,
-            (440.0, 220.0),
-            (440.0, 220.0),
-            (440.0, 220.0),
+            (560.0, 220.0),
+            (560.0, 220.0),
+            (560.0, 220.0),
         ),
         (
             WindowSize::Progress,

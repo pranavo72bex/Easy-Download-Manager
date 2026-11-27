@@ -204,9 +204,13 @@ pub fn statusbar(
         .text_color(theme.muted)
         .font_features(crate::widgets::native::figures())
         // Each part cut with "…" where the bar is narrower than they are, never cut off unseen
-        // at its edge (gaps row V15).
-        .children(said.into_iter().map(|part| {
+        // at its edge (gaps row V15). The count and what is running keep their words whole: the
+        // parts after them (a sentence said a moment ago, what waits, the speed limiter) give up
+        // their room. Shrunk alike, a phone's bar at 200% read "6 downlo… · 1 downloading at 307… ·
+        // Tap a download to watch its pr… · Speed li…" (unslop review).
+        .children(said.into_iter().enumerate().map(|(i, part)| {
             div()
+                .when(i < 2, |part| part.flex_shrink_0())
                 .min_w_0()
                 .overflow_hidden()
                 .whitespace_nowrap()

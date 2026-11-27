@@ -82,7 +82,7 @@ fn a_server_name_a_page_and_a_404_are_asked_once_each_in_order() {
         })
     );
     assert_eq!(questions.next(|_| true), Some(Question::Page(2)));
-    assert_eq!(questions.next(|_| true), Some(Question::NotFound(3)));
+    // A 404 raises no question: the row and the bar above the list say it (B41).
     assert_eq!(questions.next(|_| true), None);
     // The same rows again raise nothing new.
     questions.watch(&[

@@ -220,7 +220,6 @@
  "the site's security certificate is for another site, so dm didn't connect",
  "the site's security certificate is from an issuer dm doesn't trust, so dm didn't connect",
  "The disk is full in {}",
- "This link no longer works",
  "this link has expired",
  "dm is waiting for the browser to hand over a new one for the same file",
  "the dial-up or VPN connection didn't come up",
@@ -336,5 +335,8 @@
  "Choose a queue to stop",
  "Local time. Hours that end before they start run overnight.",
  "+{} message||+{} messages",
- "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it."
+ "The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it.",
+ "Data allowance (MB, 0 for none)",
+ "Allowance period (hours)",
+ "Tap a download to watch its progress."
 ]

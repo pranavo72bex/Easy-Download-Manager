@@ -14,9 +14,9 @@
 "Add URL, paste a link, or send one from your browser." 20 258 340 300
 "Add URL" 152.5 313.5 207.5 334.5
 "Drop a link, .torrent, .url, .webloc or text file of links here." 20 348 340 384
-"0 downloads" 16 631.5 88 649.5
-"· Nothing downloading" 92 631.5 228.5 649.5
-"· Speed limiter" 232.5 631.5 330 649.5
+"0 downloads" 16 631.5 89 649.5
+"· Nothing downloading" 93 631.5 232 649.5
+"· Speed limiter" 236 631.5 330 649.5
 "All" 34 693.5 56 713
 "Unfinished" 99 693.5 171 713
 "Places" 203 693.5 247 713

@@ -490,9 +490,13 @@ fn picture_of(action: &dyn gpui::Action) -> Option<&'static str> {
         C::OpenFolder => "icons/place-folder.svg",
         C::DeleteFile => "icons/delete.svg",
         C::Properties => "icons/details.svg",
-        C::CopyLink | C::UpdateLink => "icons/link.svg",
+        C::UpdateLink => "icons/link.svg",
+        C::CopyLink | C::CopyDetails => "icons/copy.svg",
         C::Redownload => "icons/resume.svg",
         C::MoveToQueue | C::RemoveFromQueue => "icons/place-queue.svg",
+        C::MoveRename => "icons/rename.svg",
+        C::MoveUp => "icons/move-up.svg",
+        C::MoveDown => "icons/move-down.svg",
         _ => return None,
     })
 }
@@ -506,6 +510,8 @@ fn menu_picture(name: &str) -> Option<&'static str> {
         (t("Downloads"), "icons/place-all.svg"),
         (t("View"), "icons/sidebar.svg"),
         (t("Help"), "icons/details.svg"),
+        // A card menu's own submenu: when the file goes, by the clock (unslop review).
+        (t("Delete file after"), "icons/scheduler.svg"),
     ];
     pictures
         .into_iter()

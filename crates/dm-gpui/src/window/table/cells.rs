@@ -350,6 +350,56 @@ pub(crate) fn state_mark(state: &dm_core::State, theme: Theme) -> Option<AnyElem
 #[cfg(test)]
 mod glide_tests;
 
+/// `bar` along a Status cell's foot, inside its margins (`px_2`).
+fn under_words(bar: AnyElement) -> AnyElement {
+    div()
+        .absolute()
+        .left(px(8.0))
+        .right(px(8.0))
+        .bottom(px(space::XXS))
+        .child(bar)
+        .into_any_element()
+}
+
+/// The width of the columns straight after Status whose cells say nothing for `row`: a failed
+/// row's Time left and Transfer rate are empty, and its reason may use their room.
+fn room_after_status(
+    columns: &[Column],
+    row: &Entry,
+    widths: &Widths,
+    whens: &format::Whens,
+) -> f32 {
+    columns
+        .iter()
+        .skip_while(|&&c| c != Column::Status)
+        .skip(1)
+        .take_while(|&&c| {
+            !matches!(c, Column::Name | Column::Queue) && words(c, row, whens).is_empty()
+        })
+        .filter_map(|&c| width_of(c, widths))
+        .sum()
+}
+
+/// `cell` made `extra` points wider over the cells after it, its outer width unchanged (a
+/// negative margin on its trailing side), so every column still stands where it did.
+fn borrow<E: Styled>(cell: E, column: Column, widths: &Widths, extra: f32) -> E {
+    let Some(w) = width_of(column, widths) else {
+        return cell;
+    };
+    let cell = if widths.contains_key(column.key()) {
+        cell.w(px(w + extra))
+    } else {
+        cell.flex_basis(px(w + extra))
+            .min_w(px(w + extra))
+            .max_w(px(w * STATUS_GROWS_TO + extra))
+    };
+    if crate::window::mirror::rtl() {
+        cell.ml(px(-extra))
+    } else {
+        cell.mr(px(-extra))
+    }
+}
+
 /// A row's Status cell: its mark and words in its state's colour, the bar of a running one,
 /// and its whole words on hover where they are cut or the engine said more.
 pub(super) fn status_cell(
@@ -361,12 +411,18 @@ pub(super) fn status_cell(
     screen: &Screen,
 ) -> AnyElement {
     let Layout {
+        columns,
         widths,
         told,
         name_room,
-        ..
     } = layout;
     let column = Column::Status;
+    // A failure's words run on over the cells after Status that say nothing for it (Time left,
+    // Transfer rate): "This link no l…" was cut beside two empty cells (unslop review).
+    let borrowed = match row.state {
+        State::Failed(_) => room_after_status(columns, row, widths, whens),
+        _ => 0.0,
+    };
     // Its percentage in figures of one width, as the other figures are (gaps row E20).
     let said = words(column, row, whens);
     let fraction = (row.state == State::Running)
@@ -387,9 +443,14 @@ pub(super) fn status_cell(
         // Against the right where the window is mirrored (gaps row U35).
         .when(crate::window::mirror::rtl(), |c| c.items_end())
         .justify_center()
+        .when(borrowed > 0.0, |c| borrow(c, column, widths, borrowed))
         // Its mark and the gap after it beside the words.
         .when(
-            whole != said || cut(&said, words_room(column, widths, name_room) - 18.0),
+            whole != said
+                || cut(
+                    &said,
+                    words_room(column, widths, name_room) + borrowed - 18.0,
+                ),
             |c| {
                 c.tooltip(move |window, cx| {
                     gpui_component::tooltip::Tooltip::new(SharedString::from(whole.clone()))
@@ -419,10 +480,13 @@ pub(super) fn status_cell(
                 .children(cells::state_mark(&row.state, theme))
                 .child(fitted(screen.label(said))),
         )
+        // The bar lies along the cell's foot, out of the words' flow, so a running row's words
+        // stand on the line the other rows' do: stacked, they sat 3 points higher (unslop review).
+        .relative()
         .when_some(fraction, |c, f| {
-            c.child(cells::progress_track(row.id, f, told, theme))
+            c.child(under_words(cells::progress_track(row.id, f, told, theme)))
         })
         // A bar just finished fills and fades rather than vanishing (gaps row K7).
-        .children(cells::finishing_bar(row, theme))
+        .children(cells::finishing_bar(row, theme).map(under_words))
         .into_any_element()
 }

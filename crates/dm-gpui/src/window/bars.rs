@@ -67,6 +67,12 @@ pub(crate) fn words(said: impl IntoElement) -> gpui::Div {
         .flex_shrink(1.0)
         .flex_basis(px(BAR_WORDS_BASIS))
         .min_w(px(BAR_WORDS_MIN))
+        // A button's height, its words centred in it: the bar's first line is that tall whether
+        // its buttons stand beside the words or under them, so the mark and "+N messages" line
+        // up with the sentence (on a phone they floated between it and the buttons).
+        .min_h(px(FIRST_LINE))
+        .flex()
+        .items_center()
         .child(said)
 }
 
@@ -140,19 +146,19 @@ pub(crate) fn framed(
         // Its mark first, at the right where the window is mirrored, beside its sentence: it
         // stood at the far end, across the bar (gaps row E19).
         .map(crate::window::mirror::row)
-        .items_center()
+        .items_start()
         .gap(px(native::LABEL_GAP))
         .px(px(space::L))
         .py(px(space::S))
         .border_b_1()
         .border_color(theme.separator)
-        .child(mark(tone, theme))
+        .child(first_line(mark(tone, theme)))
         .child(div().flex_1().min_w_0().child(body))
         .when(more > 0, |d| {
             // Named as messages: a bare "+1 more" beside "1 download didn't finish." read as one
             // more failed download.
             let words = tn("+{} message||+{} messages", more as u64, &[&more]);
-            d.child(
+            d.child(first_line(
                 div()
                     .id("more-bars")
                     // A button as native::button is: named, reached by Tab, pressed by Space or
@@ -171,9 +177,28 @@ pub(crate) fn framed(
                         cx.notify();
                     }))
                     .child(screen.label(words)),
-            )
+            ))
         })
         .into_any_element()
+}
+
+/// A bar's first line's height: a button's on a computer, where the buttons may stand beside
+/// the words; on a phone, where they always go under them, the words' own line (48 left a
+/// band of nothing over the buttons, unslop review on the emulator).
+const FIRST_LINE: f32 = if crate::platform::ON_A_PHONE {
+    32.0
+} else {
+    native::CONTROL
+};
+
+/// `piece` (the mark, "+N messages") centred on a bar's first line, a button tall (`words`).
+fn first_line(piece: impl IntoElement) -> gpui::Div {
+    div()
+        .flex_none()
+        .h(px(FIRST_LINE))
+        .flex()
+        .items_center()
+        .child(piece)
 }
 
 /// What the bars remember: which failures were hidden, and whether the

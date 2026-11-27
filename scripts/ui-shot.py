@@ -91,6 +91,9 @@ def main():
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "categorize": True, "show_progress": False,
         "show_complete": False,
+        # This edition's pop-ups' number: without it dm reads the file as an older edition's
+        # and turns every pop-up back on (Download complete opened over each dialog pictured).
+        "popups_version": 2,
         # DM_SHOT_THEME=light|dark|classic|system picks the look to photograph.
         "theme": os.environ.get("DM_SHOT_THEME", "system"),
         # DM_SHOT_LANG=de|fr|... photographs it in that language.
@@ -154,6 +157,11 @@ def main():
             if not shown or sys.platform != "darwin":
                 return
             x0, y0, x1, y1 = shown[-1]
+            # dm to the front first: the rectangle is the screen's, and another app's window
+            # over it (an editor) was pictured in its place.
+            subprocess.run(["osascript", "-e", "tell application \"System Events\" to set frontmost of "
+                            f"(first process whose unix id is {app.pid}) to true"], capture_output=True)
+            time.sleep(0.5)
             target = out / f"{name}-dialog.png"
             subprocess.run(["screencapture", "-x", f"-R{round(x0)},{round(y0)},{round(x1 - x0)},{round(y1 - y0)}",
                             str(target)], capture_output=True)

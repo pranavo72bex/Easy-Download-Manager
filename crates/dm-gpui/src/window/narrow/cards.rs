@@ -21,9 +21,11 @@ use crate::window::theme::Theme;
 use crate::window::zoom::px;
 
 /// A card's height, in points: a name, a bar and two lines of figures, a finger's room around
-/// (well over `space::TOUCH`); taller on a phone, whose text is larger.
+/// (well over `space::TOUCH`). 80 on a phone: a running card's three lines take about 58, and
+/// at 92 a phone showed four cards where it holds five (unslop review on the emulator; a
+/// Material three-line item is 88, a two-line one 72).
 pub(crate) const CARD_HEIGHT: f32 = if crate::platform::ON_A_PHONE {
-    92.0
+    80.0
 } else {
     84.0
 };
@@ -270,7 +272,7 @@ fn card(
     let status = dm_desktop_base::rows::status_of(row);
     let whens = &view.known.whens;
     let speed = crate::window::table::words(Column::Rate, row, whens);
-    let left = crate::window::table::words(Column::TimeLeft, row, whens);
+    let left = time_left(row, whens);
     // Chosen, the card is marked as Options marks its chosen page: the accent's soft tint and its
     // bar at the leading edge, every word in the text's colour (`Theme::chosen`).
     let card_theme = if chosen { theme.chosen() } else { theme };
@@ -342,17 +344,7 @@ fn card(
                 .flex_col()
                 .gap(px(space::S))
                 .child(name_line(name.clone(), left, card_theme, screen))
-                // No bar on a finished card: its tick says it (gaps row E4).
-                // One just finished fills and fades rather than vanishing (gaps row K7).
-                .children(crate::window::table::finishing_bar(row, card_theme))
-                .when(row.state != State::Completed, |card| {
-                    card.child(div().w_full().child(crate::window::table::progress_track(
-                        row.id,
-                        row.progress.fraction().unwrap_or(0.0),
-                        false,
-                        card_theme,
-                    )))
-                })
+                .children(card_bar(row, card_theme))
                 .child(
                     div()
                         .flex()
@@ -617,4 +609,34 @@ impl Downloads {
     fn choose_card(&mut self, id: dm_core::Id) {
         self.click_row(id, false, false);
     }
+}
+
+/// A card's time left once it is known: "Calculating…" said nothing the bar under it did not,
+/// and took the name's room ("ubuntu-24.0…64.iso" on the emulator, unslop review).
+fn time_left(row: &Entry, whens: &dm_desktop_base::format::Whens) -> String {
+    if row.state == State::Running && row.progress.eta.is_none() {
+        String::new()
+    } else {
+        crate::window::table::words(Column::TimeLeft, row, whens)
+    }
+}
+
+/// A card's bar under its name. None on a finished card, its tick says it (gaps row E4), but one
+/// just finished fills and fades rather than vanishing (gaps row K7); nor on a failed one, an
+/// empty track under "This link no longer works" said nothing (unslop review, 2026-11-27).
+fn card_bar(row: &Entry, card_theme: Theme) -> Option<gpui::AnyElement> {
+    if let Some(settling) = crate::window::table::finishing_bar(row, card_theme) {
+        return Some(settling);
+    }
+    (row.state != State::Completed && !matches!(row.state, State::Failed(_))).then(|| {
+        div()
+            .w_full()
+            .child(crate::window::table::progress_track(
+                row.id,
+                row.progress.fraction().unwrap_or(0.0),
+                false,
+                card_theme,
+            ))
+            .into_any_element()
+    })
 }

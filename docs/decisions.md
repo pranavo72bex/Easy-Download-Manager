@@ -9251,3 +9251,28 @@ and Linux, where `/etc/resolv.conf` lists them (systemd-resolved's upstream file
 is listed). No server known fails the lookup with why, never a quiet fall-back. Windows (no such
 file; its servers are per adapter through an API) and Android (H23e) keep the system's route,
 said in the guide. Dropped: accepting the system's route everywhere and only saying so.
+
+## The unslop review's passes (the maintainer, 2026-11-27)
+
+The window was read against heydamir/unslop's list of signs (`.claude/skills/unslop/`), through
+`dm-design`. What it changed, each at the maintainer's word ("do 1-3", "do all three, stop the
+failure popup at launch", "yes, do the remaining passes"):
+
+- A 404 asks nothing (B41): the row says "This link no longer works", the bar above the list
+  counts it, and Update download link is on the row's menu. A window over everything for what
+  the row and the bar already said was the loudest thing in the window.
+- A failed row's Status words run on over the empty Time left and Transfer rate cells (a
+  negative trailing margin, so no column moves) rather than being cut; a running row's bar lies
+  along the cell's foot, out of the words' flow.
+- Download complete gives each file Open and Open folder beside its name, not three buttons
+  under it: twelve equal buttons for four files left nothing to look at first. Open with… is on
+  the row's menu.
+- The speed limiter's allowance pair is "Data allowance (MB, 0 for none)" and "Allowance period
+  (hours)": the second label began in lower case as the end of the first's sentence, and the
+  first was over rule 6's 40% (the shorter wording E10's entry above asked for). The new
+  translations are in `assets/i18n/unread/` until a speaker reads them.
+
+Not changed: the side panel's and the list's pictures in the accent's text shade, which unslop's
+"every element highlighted" would quiet, were the maintainer's choice (B25, B45); a bar's
+buttons stay `native::button`, the one way a button is drawn.
+

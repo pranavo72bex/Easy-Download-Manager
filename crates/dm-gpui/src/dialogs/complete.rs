@@ -4,7 +4,7 @@
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! "Download complete" (B63), one window for everything that finished,
-//! newest first, each file with its own Open, Open with… and Open folder;
+//! newest first, each file with its own Open and Open folder (Open with… is on its row's menu);
 //! Close, and "Don't show this window again", kept once it closes.
 
 use dm_core::Id;
@@ -20,6 +20,9 @@ use crate::window::list::Downloads;
 use crate::window::screen::{Screen, Screens};
 use crate::window::theme::Theme;
 use crate::window::zoom::px;
+
+/// The room a file's name and place ask for before its buttons go under them.
+const NAME_BASIS: f32 = 240.0;
 
 /// The window's view.
 pub struct Complete {
@@ -73,27 +76,20 @@ impl Complete {
         window.remove_window();
     }
 
-    /// Open, Open with… or Open folder for one file; it leaves the list.
-    /// Open and Open with… run the file: a person's click does, a script's
-    /// a moment ago does not, and the file stays listed for the person.
-    fn act(&mut self, id: Id, path: String, how: u8, cx: &mut Context<Self>) {
+    /// Open (`run`) or Open folder for one file; it leaves the list. Open runs the file: a
+    /// person's click does, a script's a moment ago does not, and the file stays listed for the
+    /// person.
+    fn act(&mut self, id: Id, path: String, run: bool, cx: &mut Context<Self>) {
         let _ = self.view.update(cx, |view, cx| {
-            if how < 2 {
+            if run {
                 if let Some(why) = view.port.scripted.run_refused() {
                     view.say(why.to_string());
                     cx.notify();
                     return;
                 }
-            }
-            match how {
-                0 => view.open_path(&path),
-                // It leaves the list once the panel is closed, as when the
-                // window waited for the panel.
-                1 => {
-                    view.open_path_with(&path, move |view, cx| view.complete_done(id, cx), cx);
-                    return;
-                }
-                _ => view.reveal_path(&path),
+                view.open_path(&path);
+            } else {
+                view.reveal_path(&path);
             }
             view.complete_done(id, cx);
         });
@@ -138,91 +134,11 @@ impl Render for Complete {
                             .flex()
                             .flex_col()
                             .gap(px(space::L))
-                            .children(rows.iter().enumerate().map(|(i, row)| {
-                                let name = row.name.clone();
-                                let size = format::bytes(row.size);
-                                let (id, open_path, with_path, folder_path) =
-                                    (row.id, row.path.clone(), row.path.clone(), row.path.clone());
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(space::XS))
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .items_center()
-                                            .gap(px(space::M))
-                                            .child(
-                                                native::cut(
-                                                    ("done-name", i),
-                                                    name.clone(),
-                                                    false,
-                                                    &screen,
-                                                )
-                                                .flex_1()
-                                                .font_weight(gpui::FontWeight::SEMIBOLD),
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_color(theme.muted)
-                                                    .child(screen.label(size)),
-                                            ),
-                                    )
-                                    // Its place on one line, cut short as its name is: a long path
-                                    // wrapped over five lines (Windows' C:\Users\…), and the
-                                    // window showed two files where it holds three.
-                                    .child(
-                                        native::cut(
-                                            ("done-path", i),
-                                            row.path.clone(),
-                                            true,
-                                            &screen,
-                                        )
-                                        .text_size(px(native::SMALL_TEXT))
-                                        .text_color(theme.muted),
-                                    )
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .gap(px(native::LABEL_GAP))
-                                            .child(
-                                                native::button(
-                                                    ("open", i),
-                                                    t("Open").into(),
-                                                    false,
-                                                    theme,
-                                                    &screen,
-                                                )
-                                                .on_click(cx.listener(move |this, _, _, cx| {
-                                                    this.act(id, open_path.clone(), 0, cx)
-                                                })),
-                                            )
-                                            .child(
-                                                native::button(
-                                                    ("open-with", i),
-                                                    t("Open with…").into(),
-                                                    false,
-                                                    theme,
-                                                    &screen,
-                                                )
-                                                .on_click(cx.listener(move |this, _, _, cx| {
-                                                    this.act(id, with_path.clone(), 1, cx)
-                                                })),
-                                            )
-                                            .child(
-                                                native::button(
-                                                    ("folder", i),
-                                                    t("Open folder").into(),
-                                                    false,
-                                                    theme,
-                                                    &screen,
-                                                )
-                                                .on_click(cx.listener(move |this, _, _, cx| {
-                                                    this.act(id, folder_path.clone(), 2, cx)
-                                                })),
-                                            ),
-                                    )
-                            })),
+                            .children(
+                                rows.iter()
+                                    .enumerate()
+                                    .map(|(i, row)| file_row(i, row, theme, &screen, cx)),
+                            ),
                     )
                     .child(native::buttons(
                         vec![native::switch_inline(
@@ -246,6 +162,89 @@ impl Render for Complete {
             ));
         crate::window::safe::kept_clear(root, window).into_any_element()
     }
+}
+
+/// One finished file in Download complete: its name, size and place at the start, its Open and
+/// Open folder at the end, on the name's lines.
+fn file_row(
+    i: usize,
+    row: &Finished,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Complete>,
+) -> gpui::Div {
+    let name = row.name.clone();
+    let size = format::bytes(row.size);
+    let (id, open_path, folder_path) = (row.id, row.path.clone(), row.path.clone());
+    // One file: its name, size and place at the start, its two
+    // buttons at the end, on the name's lines. Three buttons under
+    // each file (twelve for four) made every file as loud as the
+    // next; Open with… is on the row's menu (unslop review).
+    // Where the name and the buttons do not fit on one line (a
+    // phone, a large text size), the buttons go under it.
+    div()
+        .flex()
+        .map(crate::window::mirror::row)
+        .flex_wrap()
+        .items_center()
+        .gap(px(space::L))
+        .child(
+            div()
+                .flex_grow(1.0)
+                .flex_shrink(1.0)
+                .flex_basis(px(NAME_BASIS))
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .gap(px(space::XXS))
+                .child(
+                    div()
+                        .flex()
+                        .map(crate::window::mirror::row)
+                        .items_center()
+                        .gap(px(space::M))
+                        .child(
+                            native::cut(("done-name", i), name.clone(), false, screen)
+                                .flex_1()
+                                .font_weight(gpui::FontWeight::SEMIBOLD),
+                        )
+                        .child(
+                            div()
+                                .flex_none()
+                                .text_color(theme.muted)
+                                .child(screen.label(size)),
+                        ),
+                )
+                // Its place on one line, cut short as its name is: a
+                // long path wrapped over five lines (Windows'
+                // C:\Users\…), and the window showed two files where
+                // it holds three.
+                .child(
+                    native::cut(("done-path", i), row.path.clone(), true, screen)
+                        .text_size(px(native::SMALL_TEXT))
+                        .text_color(theme.muted),
+                ),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_none()
+                .map(crate::window::mirror::row)
+                .gap(px(native::LABEL_GAP))
+                .child(
+                    native::button(("open", i), t("Open").into(), false, theme, screen).on_click(
+                        cx.listener(move |this, _, _, cx| {
+                            this.act(id, open_path.clone(), true, cx)
+                        }),
+                    ),
+                )
+                .child(
+                    native::button(("folder", i), t("Open folder").into(), false, theme, screen)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.act(id, folder_path.clone(), false, cx)
+                        })),
+                ),
+        )
 }
 
 /// Opens "Download complete", in the corner above the status bar.

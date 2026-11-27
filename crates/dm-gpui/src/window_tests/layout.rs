@@ -289,9 +289,7 @@ fn long_status_text_wraps_and_stays_on_screen() {
     h.until("the refusal", |h| {
         h.rows().iter().any(|r| matches!(r.state, State::Failed(_)))
     });
-    // The server's answer, a question of its own in front, put away.
-    h.until("the question", |h| h.shows("HTTP/1.1 404 Not Found"));
-    h.click("Close");
+    // A 404 asks nothing (B41): the progress window stays, with Retry.
     h.until("the progress window's Retry", |h| {
         h.dialog_words("Retry").is_some()
     });

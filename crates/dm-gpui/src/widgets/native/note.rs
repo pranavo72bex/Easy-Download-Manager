@@ -88,7 +88,17 @@ pub fn heading(words: impl Into<SharedString>, theme: Theme, screen: &Screen) ->
         .mt(px(super::on_a_phone(space::XL, space::XXL)))
         .mb(px(-space::XS))
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(theme.text)
+        // On a phone a heading is set apart by its size and colour, as the drawer's
+        // "Categories" is: Android's font draws no semibold, and "Appearance" stood as one more
+        // setting among its own (unslop review on the emulator, 2026-11-27).
+        .when(crate::platform::ON_A_PHONE, |h| {
+            h.text_size(px(super::SMALL_TEXT))
+        })
+        .text_color(if crate::platform::ON_A_PHONE {
+            theme.muted
+        } else {
+            theme.text
+        })
         .child(screen.label(words))
 }
 

@@ -66,8 +66,8 @@ tray icon. Asked for again while it is open, it comes to the front.
 
 - **Speed limit (KB/s, 0 for none):** the limit every download shares, as
   above. The most it takes is 1,048,576 KB/s.
-- **Download at most this many MB (0 for no limit)** and **in each period
-  of this many hours:** a download limit, for a connection with a
+- **Data allowance (MB, 0 for none)** and **Allowance period (hours):** a
+  download limit, for a connection with a
   fair-use allowance. dm counts what every download brings in, torrents and
   videos included. The period begins with the first byte counted after the
   last period ended, and runs for the hours given (1 to 744). Once the

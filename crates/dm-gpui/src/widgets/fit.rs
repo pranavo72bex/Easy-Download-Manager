@@ -47,3 +47,35 @@ pub fn fitted(content: impl IntoElement) -> gpui::AnyElement {
         )
         .into_any_element()
 }
+
+/// `body` and, under it, `foot` (a dialog's buttons), [`fitted`]. On a phone the foot stays at the
+/// screen's foot above a hairline, as Options' does, and the body scrolls over it: in Download
+/// details and File properties the buttons were the last of what scrolled, and a phone showed
+/// only their tops at the screen's edge (unslop review on the emulator, 2026-11-27).
+pub fn fitted_with_foot(
+    body: gpui::Div,
+    foot: impl IntoElement,
+    theme: crate::window::theme::Theme,
+) -> gpui::AnyElement {
+    if !crate::platform::ON_A_PHONE {
+        return fitted(body.child(foot));
+    }
+    div()
+        .flex_1()
+        .min_h_0()
+        .w_full()
+        .flex()
+        .flex_col()
+        .child(fitted(body))
+        .child(
+            div()
+                .flex_none()
+                .w_full()
+                .px(px(crate::widgets::native::MARGIN))
+                .py(px(crate::widgets::space::M))
+                .border_t_1()
+                .border_color(theme.separator)
+                .child(foot),
+        )
+        .into_any_element()
+}

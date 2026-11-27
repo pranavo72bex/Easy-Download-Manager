@@ -45,9 +45,9 @@
 [dialog "Speed limiter" 673x378.5]
 "Speed limit (KB/s, 0 for none)" 154 23.5 406 46
 "0" 414 18 504 52
-"Download at most this many MB (0 for no limit)" 19 67.5 406 90
+"Data allowance (MB, 0 for none)" 19 67.5 406 90
 "0" 414 62 504 96
-"in each period of this many hours" 128 111.5 406 134
+"Allowance period (hours)" 128 111.5 406 134
 "1" 414 106 504 140
 "Slower between set hours" 454 152 656 174.5
 "Start at" 338 192 406 214.5

@@ -443,11 +443,11 @@ impl Render for Properties {
             })
             .when(self.says.is_none(), |d| {
                 d.child(native::says("properties-says", None, theme, &screen))
-            })
-            .child(Self::buttons(&look, finished, failed, &row, cx));
+            });
+        let foot = Self::buttons(&look, finished, failed, &row, cx);
         let root = crate::widgets::native::dialog("properties", t("File properties"), theme, cx)
             .on_action(cx.listener(|this, pick: &Pick, _, cx| this.pick(pick, cx)))
-            .child(crate::widgets::fit::fitted(body));
+            .child(crate::widgets::fit::fitted_with_foot(body, foot, theme));
         crate::window::safe::kept_clear(root, window).into_any_element()
     }
 }
@@ -527,9 +527,11 @@ fn open_now(view: WeakEntity<Downloads>, id: Id, cx: &mut App) {
                 (true, false) => &address,
                 _ => &note,
             };
-            // On a phone, focus brings up the keyboard over half the dialog: given only to a
-            // field to be filled in, not to the note of a finished download (gaps row N31).
-            if editable || !crate::platform::ON_A_PHONE {
+            // On a phone, focus brings up the keyboard over half the dialog: given only where a
+            // sign-in is to be filled in (gaps row N31). A failed download's address took it too,
+            // and the keyboard hid the reason and its next step, which a tap on the card is
+            // for (unslop review on the emulator); a tap on the field brings it up.
+            if !crate::platform::ON_A_PHONE || (editable && wants_login) {
                 first.update(cx, |f, cx| f.focus(window, cx));
             }
             let properties = cx.new(|cx| {

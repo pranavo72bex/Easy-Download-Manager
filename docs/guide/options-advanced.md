@@ -44,8 +44,8 @@ BitTorrent. See [Options](options.md) for how the window works.
 - "Second network's speed limit (KB/s, 0 for none)": "Holds the second
   network, such as a phone's data, to this speed, whatever the other
   connection does." Its connections share it, beside the speed limit above.
-  Under it, "Download at most this many MB (0 for no limit)" "in each period
-  of this many hours" is the second network's own allowance, apart from the
+  Under it, "Data allowance (MB, 0 for none)" and "Allowance period (hours)"
+  are the second network's own allowance, apart from the
   one all downloads share: once it is used, the other networks carry the
   downloads until the period ends.
 - "Second network's name" and "Third network's name": a name of your own

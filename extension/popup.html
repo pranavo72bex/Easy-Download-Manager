@@ -11,39 +11,43 @@
 <meta charset="utf-8">
 <title>dm</title>
 <style>
+  /* Every margin, padding and gap on a 4-point step, 16 at the sides (unslop review, 2026-11-27). */
   :root { color-scheme: light dark; --bg: #ffffff; --text: #242424; --weak: #616161;
-          --line: #e0e0e0; --brand: #0f6cbd; --brand-hover: #115ea3; --on-brand: #ffffff; --bad: #c50f1f; }
+          --line: #e0e0e0; --brand: #0f6cbd; --brand-hover: #115ea3; --on-brand: #ffffff; --bad: #c50f1f;
+          --brand-text: #0f6cbd; }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #292929; --text: #ffffff; --weak: #adadad; --line: #3d3d3d;
-            --brand: #115ea3; --brand-hover: #0f6cbd; --bad: #f1707b; }
+            --brand: #115ea3; --brand-hover: #0f6cbd; --bad: #f1707b;
+            /* The brand as words on the dark ground: #115ea3 read 2.2 to 1 there. */
+            --brand-text: #479ef5; }
   }
   body { margin: 0; width: 290px; background: var(--bg); color: var(--text);
          font: 14px/1.4 system-ui, -apple-system, sans-serif; }
-  header { display: flex; align-items: center; gap: 8px; padding: 12px 14px 8px; font-weight: 600; font-size: 15px; }
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 16px 8px; font-weight: 600; font-size: 15px; }
   .mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 5px;
           background: var(--brand); color: var(--on-brand); font-size: 14px; }
-  .status { margin: 0 14px 10px; color: var(--weak); font-size: 12px; }
+  .status { margin: 0 16px 12px; color: var(--weak); font-size: 12px; }
   .status.bad { color: var(--bad); }
-  .row { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--line); cursor: pointer; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line); cursor: pointer; }
   .row input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--brand); }
   .row.off { color: var(--weak); cursor: default; }
-  .actions { padding: 10px 14px 14px; border-top: 1px solid var(--line); }
-  button { width: 100%; padding: 7px 12px; border: 0; border-radius: 4px; background: var(--brand);
+  .actions { padding: 12px 16px 16px; border-top: 1px solid var(--line); }
+  button { width: 100%; padding: 8px 12px; border: 0; border-radius: 4px; background: var(--brand);
            color: var(--on-brand); font: inherit; font-weight: 600; cursor: pointer; }
   button:hover, a.button:hover { background: var(--brand-hover); }
-  a.button { display: block; box-sizing: border-box; width: 100%; padding: 7px 12px; border-radius: 4px; background: var(--brand);
+  a.button { display: block; box-sizing: border-box; width: 100%; padding: 8px 12px; border-radius: 4px; background: var(--brand);
              color: var(--on-brand); font-weight: 600; text-align: center; text-decoration: none; }
-  .steps { margin: 0 14px 10px; padding: 0; list-style: none; font-size: 12px; }
-  .steps li { margin: 0 0 6px; }
-  .going { margin: 0 14px 10px; padding: 0; list-style: none; font-size: 12px; }
-  .going li { display: flex; align-items: center; gap: 6px; margin: 0 0 3px; }
+  .steps { margin: 0 16px 12px; padding: 0; list-style: none; font-size: 12px; }
+  .steps li { margin: 0 0 8px; }
+  .going { margin: 0 16px 12px; padding: 0; list-style: none; font-size: 12px; }
+  .going li { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
   .going .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .heading { display: flex; align-items: center; gap: 6px; margin: 0 14px 4px; color: var(--weak); font-size: 12px; font-weight: 600; }
+  .heading { display: flex; align-items: center; gap: 8px; margin: 0 16px 4px; color: var(--weak); font-size: 12px; font-weight: 600; }
   .heading span { flex: 1; }
-  button.small { flex: none; width: auto; padding: 1px 7px; border: 1px solid var(--line); background: transparent;
-                 color: var(--brand); font-size: 11px; font-weight: 600; }
+  button.small { flex: none; width: auto; padding: 2px 8px; border: 1px solid var(--line); background: transparent;
+                 color: var(--brand-text); font-size: 11px; font-weight: 600; }
   button.small:hover { background: var(--line); }
-  .advanced { margin: 0 14px 10px; color: var(--weak); font-size: 11px; user-select: all; word-break: break-all; }
+  .advanced { margin: 0 16px 12px; color: var(--weak); font-size: 11px; user-select: all; word-break: break-all; }
   [hidden] { display: none !important; }
 </style>
 </head>

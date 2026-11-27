@@ -656,7 +656,7 @@ impl Render for Details {
             .child(self.no_record_row(&look, cx));
         let body = self.unpack_box(&look, cx, body);
         let body = self.says_row(&look, body.child(self.queue_row(&look)));
-        let body = body.child(self.buttons(&look, cx));
+        let foot = self.buttons(&look, cx);
 
         let root =
             crate::widgets::native::dialog("download-details", t("Download details"), theme, cx)
@@ -669,7 +669,7 @@ impl Render for Details {
                         this.add(false, window, cx);
                     }
                 }))
-                .child(crate::widgets::fit::fitted(body));
+                .child(crate::widgets::fit::fitted_with_foot(body, foot, theme));
         crate::window::safe::kept_clear(root, window)
     }
 }

@@ -5,6 +5,17 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- On a phone, opening a failed download's properties no longer brings up the keyboard over the reason it failed; a tap on a field does.
+- On a phone, Options' section headings (Appearance, Pop-ups…) are small and grey, so they read as headings and not as one more setting, and Copy link and Copy details have their own picture in a download's menu.
+- On a phone: pictures in menus, the Places drawer and Options are Android's 24 dp size (they were 20 and read small), download cards are 80 dp tall so more fit on a screen, and the "didn't finish" bar is a band shorter. Opening Add URL no longer makes Android say "dm pasted from your clipboard" when the clipboard holds no link.
+- On a phone, a download's menu has a picture beside every item (Move/Rename, Move up, Move down and Delete file after had none), and a running download's card shows its time left once it is known, instead of "Calculating…" taking its name's room.
+- Browser extension: the toolbar popup's "Clear finished" is readable in dark mode (its blue read 2.2 to 1 on the dark ground), and its margins and rows are evened out.
+- Where the status bar is short of room (a phone, a large text size) the download count and what is running stay whole; a passing hint and the speed limiter's words are cut first, where every part was cut alike.
+- On a phone, the hint said on a first download reads "Tap a download to watch its progress."; it said "Double-click".
+- Download complete is quieter: each finished file has Open and Open folder beside its name, instead of three buttons under it. Open with… is on the download's right-click menu.
+- The speed limiter's allowance reads "Data allowance (MB, 0 for none)" and "Allowance period (hours)", in Options › Advanced too; the second label read as the end of the first's sentence.
+- A download whose link no longer works (a 404) no longer opens a window over everything: its row says "This link no longer works" in full, and the bar above the list counts it. Update download link is on the row's menu. On a phone a failed download has no empty progress bar, and the bar above the list keeps its mark and "+1 message" on its sentence's line.
+- A running download's percentage stands on the same line as the other rows' status words; its bar lies under it.
 - On a Mac, dm keeps the computer from idle sleep while a download runs, as it already did on Windows, and macOS no longer slows a download when dm's window is hidden or dm runs without one (a 100 MiB test download took up to 10.5 s instead of 5.6).
 - A damaged ZIP whose numbers run past their end (found by the nightly fuzzing) is reported as not a ZIP when Download details lists it, instead of stopping dm.
 - Password fields have an eye at their end that shows what you typed, and hides it again.
