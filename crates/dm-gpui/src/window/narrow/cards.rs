@@ -273,6 +273,7 @@ fn card(
     let whens = &view.known.whens;
     let speed = crate::window::table::words(Column::Rate, row, whens);
     let left = time_left(row, whens);
+    let choosing = view.layout.narrow.choosing;
     // Chosen, the card is marked as Options marks its chosen page: the accent's soft tint and its
     // bar at the leading edge, every word in the text's colour (`Theme::chosen`).
     let card_theme = if chosen { theme.chosen() } else { theme };
@@ -334,7 +335,7 @@ fn card(
         .relative()
         // A finger held on it: GPUI's own long press, claimed so it is no tap (gaps row C22).
         .child(long_press_layer(id, cx))
-        .child(tile(kind, false, card_theme))
+        .child(tile(kind, choosing && chosen, card_theme))
         // Its name and time left, its bar, and a line of its state and figures.
         .child(
             div()
@@ -366,39 +367,59 @@ fn card(
                         .child(small(right_words, card_theme.muted, screen)),
                 ),
         )
-        .when_some(quick_of(row), |card, quick| {
+        // While several are being chosen the top bar acts on them: a card's own buttons stood
+        // beside the choice, to act on one card alone (unslop review on the emulator).
+        .when_some(quick_of(row).filter(|_| !choosing), |card, quick| {
             card.child(quick_button(id, quick, false, theme, screen, cx))
         })
         // Its menu.
-        .child(
-            // Named with its download, as a screen reader moves from card to card; a finger's
-            // whole 48 points (gaps row E22).
-            round(
-                ("card-menu", id as usize),
-                format!("{}, {menu_of}", t("Row menu")).into(),
-                theme,
-            )
-            .on_click(cx.listener(move |view, _, _, cx| {
-                view.open_card_menu(id, cx);
-            }))
-            // A drawn mark, not the font's "⋮" (gaps row E41).
-            .child(
-                screen.mark(
-                    t("Row menu"),
-                    gpui::svg()
-                        .path("icons/more-vertical.svg")
-                        .size(px(crate::widgets::native::ICON_LARGE))
-                        .text_color(card_theme.muted),
+        .when(!choosing, |card| {
+            card.child(
+                // Named with its download, as a screen reader moves from card to card; a finger's
+                // whole 48 points (gaps row E22).
+                round(
+                    ("card-menu", id as usize),
+                    format!("{}, {menu_of}", t("Row menu")).into(),
+                    theme,
+                )
+                .on_click(cx.listener(move |view, _, _, cx| {
+                    view.open_card_menu(id, cx);
+                }))
+                // A drawn mark, not the font's "⋮" (gaps row E41).
+                .child(
+                    screen.mark(
+                        t("Row menu"),
+                        gpui::svg()
+                            .path("icons/more-vertical.svg")
+                            .size(px(crate::widgets::native::ICON_LARGE))
+                            .text_color(card_theme.muted),
+                    ),
                 ),
-            ),
-        )
+            )
+        })
         .into_any_element()
 }
 
-/// A card's kind, its picture on a tile of its colour.
-fn tile(kind: Option<dm_core::Category>, chosen: bool, card_theme: Theme) -> gpui::Div {
-    let (picture, colour) = kind_picture(kind, card_theme);
-    let tint = if chosen { card_theme.text } else { colour };
+/// A card's kind, its picture on a tile of its colour; `ticked` (chosen among several), a tick
+/// on the accent, as a phone's own lists mark what is chosen: a soft tint alone was hard to see.
+fn tile(kind: Option<dm_core::Category>, ticked: bool, card_theme: Theme) -> gpui::Div {
+    if ticked {
+        return div()
+            .flex_none()
+            .size(px(TILE))
+            .rounded(px(TILE / 4.0))
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(card_theme.accent)
+            .child(
+                gpui::svg()
+                    .path("icons/check.svg")
+                    .size(px(24.0))
+                    .text_color(card_theme.on_accent),
+            );
+    }
+    let (picture, tint) = kind_picture(kind, card_theme);
     div()
         .flex_none()
         .size(px(TILE))

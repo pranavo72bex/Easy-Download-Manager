@@ -203,7 +203,8 @@ impl Downloads {
             })
             // Add URL where the thumb is, at the list's bottom right, as a phone's own
             // download lists have it; the top bar's + does the same at the top.
-            .when(!empty, |list| {
+            // Not while several are chosen: the top bar then acts on them (unslop review).
+            .when(!empty && !self.layout.narrow.choosing, |list| {
                 list.child(
                     div()
                         .id("add-floating")
