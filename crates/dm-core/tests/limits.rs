@@ -618,9 +618,13 @@ async fn a_mirror_that_limits_connections_and_requests_is_fetched_faster_than_on
     // allowed for, about 0.6 of it alone, and up to 0.65 beside a whole workspace's tests (4.85
     // to 5.2 s of 8 in four runs beside four copies of the queue tests, 2026-11-12): held to 0.7.
     // Without what gaps row 197 changed, it takes 1.6 times one connection's.
+    // Stretched by the runner's load as the stillness above is (gaps row 221: CI's runners at
+    // 5.65 to 5.68 s of 5.6, twice since), but never to one connection's time: under 0.95 of it
+    // is still faster than one connection, and the 1.6 times before row 197 still fails.
+    let share = (0.7 * load.max(dm_test_support::load::load_factor())).min(0.95);
     assert!(
-        took < one_connection.mul_f64(0.7),
-        "took {took:?} where one connection takes {one_connection:?}"
+        took < one_connection.mul_f64(share),
+        "took {took:?} where one connection takes {one_connection:?} (allowed {share:.2} of it)"
     );
 }
 
