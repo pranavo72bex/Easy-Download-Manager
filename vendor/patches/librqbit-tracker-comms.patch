@@ -1,0 +1,71 @@
+dm's change to librqbit-tracker-comms 9.1.0 (crates.io, Apache-2.0),
+applied to the published crate with resources/, Cargo.lock, Cargo.toml.orig
+and .cargo_vcs_info.json removed first. Made again by `cargo xtask vendor`;
+explained in vendor/README.md (each change marked `dm(caps):`, its row in
+that file's table). The text before each file's section says what its hunks
+do, in order; git apply skips it.
+
+src/tracker_comms.rs:
+  1. MOST_HTTP_ANSWER (1 MiB) and LEAST_HTTP_INTERVAL (60 s), named.
+  2. An HTTP tracker's answer read a piece at a time and refused past
+     MOST_HTTP_ANSWER, by its stated length or as it comes (gaps row H33e).
+  3. The wait before the next announce never under LEAST_HTTP_INTERVAL: an
+     interval of 0 had dm announce again at once (gaps row H33d).
+
+diff --git a/src/tracker_comms.rs b/src/tracker_comms.rs
+index 7614b1d..fbbc5ae 100644
+--- a/src/tracker_comms.rs
++++ b/src/tracker_comms.rs
+@@ -26,6 +26,14 @@ use crate::tracker_comms_udp;
+ use crate::tracker_comms_udp::UdpTrackerClient;
+ use librqbit_core::hash_id::Id20;
+ 
++/// dm(caps): the longest answer an HTTP tracker may give, in bytes: a list of 50 peers is under
++/// a kilobyte, and a tracker's answer had no limit but its 30 s (gaps row H33e).
++pub const MOST_HTTP_ANSWER: usize = 1024 * 1024;
++
++/// dm(caps): the least wait between announces to one HTTP tracker, whatever interval it gives
++/// (gaps row H33d).
++pub const LEAST_HTTP_INTERVAL: Duration = Duration::from_secs(60);
++
+ pub struct TrackerComms {
+     info_hash: Id20,
+     peer_id: Id20,
+@@ -294,7 +302,22 @@ impl TrackerComms {
+         if !response.status().is_success() {
+             anyhow::bail!("tracker responded with {:?}", response.status());
+         }
+-        let bytes = response.bytes().await?;
++        // dm(caps): the answer read a piece at a time and refused past `MOST_HTTP_ANSWER`, rather
++        // than read whole however long it is (gaps row H33e).
++        if response
++            .content_length()
++            .is_some_and(|length| length > MOST_HTTP_ANSWER as u64)
++        {
++            anyhow::bail!("tracker's answer is longer than {MOST_HTTP_ANSWER} bytes");
++        }
++        let mut response = response;
++        let mut bytes = Vec::new();
++        while let Some(chunk) = response.chunk().await? {
++            if bytes.len() + chunk.len() > MOST_HTTP_ANSWER {
++                anyhow::bail!("tracker's answer is longer than {MOST_HTTP_ANSWER} bytes");
++            }
++            bytes.extend_from_slice(&chunk);
++        }
+         if let Ok((error, _)) =
+             bencode::from_bytes_with_rest::<tracker_comms_http::TrackerError>(&bytes)
+         {
+@@ -313,9 +336,10 @@ impl TrackerComms {
+         for peer in response.iter_peers() {
+             self.tx.send(peer).await?;
+         }
+-        Ok(Duration::from_secs(
+-            response.min_interval.unwrap_or(response.interval),
+-        ))
++        // dm(caps): never sooner than `LEAST_HTTP_INTERVAL`, as the UDP side holds its own least:
++        // an interval of 0 had dm announce again at once, without end (gaps row H33d).
++        Ok(Duration::from_secs(response.min_interval.unwrap_or(response.interval))
++            .max(LEAST_HTTP_INTERVAL))
+     }
+ 
+     async fn task_single_tracker_monitor_udp(

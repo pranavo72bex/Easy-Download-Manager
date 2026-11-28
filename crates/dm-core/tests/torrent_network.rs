@@ -224,3 +224,108 @@ async fn a_shared_torrent_announces_again_when_the_network_changes_and_waits_out
     set_adapter_lister(None);
     seeder.stop().await;
 }
+
+/// A tracker on the loopback answering every announce with `body`, counting the announces.
+async fn tracker_answering(
+    body: impl Fn() -> axum::body::Body + Clone + Send + Sync + 'static,
+    asked: Arc<std::sync::atomic::AtomicUsize>,
+) -> SocketAddr {
+    use axum::{routing::get, Router};
+    let handler = move || {
+        let (body, asked) = (body.clone(), Arc::clone(&asked));
+        async move {
+            asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            body()
+        }
+    };
+    serve(Router::new().route("/announce", get(handler))).await
+}
+
+/// A magnet of a made-up torrent whose one tracker is `tracker`: dm announces to it and finds
+/// nobody, so the torrent waits on the tracker for as long as the test lets it.
+fn magnet_of(tracker: SocketAddr) -> String {
+    format!(
+        "magnet:?xt=urn:btih:{}&tr=http://{tracker}/announce",
+        "ab".repeat(20)
+    )
+}
+
+/// A tracker answering "interval 0" is not asked again at once and without end: dm waits at
+/// least a minute between announces to an HTTP tracker, as it does to a UDP one (gaps row H33d).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_tracker_answering_interval_zero_is_not_asked_again_at_once() {
+    let asked = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let tracker = tracker_answering(
+        || axum::body::Body::from(&b"d8:intervali0e5:peers0:e"[..]),
+        Arc::clone(&asked),
+    )
+    .await;
+    let dir = tempdir();
+    let options = common::options(dir.path());
+    let control = options.control.clone();
+    let magnet = magnet_of(tracker);
+    let run =
+        tokio::spawn(async move { download_torrent(&client(), &magnet, &options, None).await });
+    let began = Instant::now();
+    while asked.load(std::sync::atomic::Ordering::SeqCst) == 0 {
+        assert!(
+            began.elapsed() < Duration::from_secs(20),
+            "dm never announced"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    let times = asked.load(std::sync::atomic::Ordering::SeqCst);
+    control.pause();
+    let _ = tokio::time::timeout(Duration::from_secs(10), run).await;
+    assert!(times <= 2, "dm announced {times} times in four seconds");
+}
+
+/// A tracker whose answer never ends is read no further than a megabyte: dm lets go of it there
+/// rather than reading it whole (gaps row H33e).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_trackers_endless_answer_is_cut_off_at_the_cap() {
+    let sent = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = Arc::clone(&sent);
+    let endless = move || {
+        let counted = Arc::clone(&counted);
+        // A bencoded dictionary that opens and never closes: a byte string's worth of peers
+        // longer than any answer, sent as fast as dm takes it.
+        let start = futures_util::stream::once(async {
+            Ok::<_, std::io::Error>(bytes::Bytes::from_static(b"d5:peers999999999:"))
+        });
+        let rest = futures_util::StreamExt::take(
+            futures_util::stream::repeat_with(move || {
+                counted.fetch_add(64 * 1024, std::sync::atomic::Ordering::SeqCst);
+                Ok(bytes::Bytes::from(vec![0u8; 64 * 1024]))
+            }),
+            1024,
+        );
+        axum::body::Body::from_stream(futures_util::StreamExt::chain(start, rest))
+    };
+    let asked = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let tracker = tracker_answering(endless, Arc::clone(&asked)).await;
+    let dir = tempdir();
+    let options = common::options(dir.path());
+    let control = options.control.clone();
+    let magnet = magnet_of(tracker);
+    let run =
+        tokio::spawn(async move { download_torrent(&client(), &magnet, &options, None).await });
+    let began = Instant::now();
+    while asked.load(std::sync::atomic::Ordering::SeqCst) == 0 {
+        assert!(
+            began.elapsed() < Duration::from_secs(20),
+            "dm never announced"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let read = sent.load(std::sync::atomic::Ordering::SeqCst);
+    control.pause();
+    let _ = tokio::time::timeout(Duration::from_secs(10), run).await;
+    assert!(
+        read < 8 * 1024 * 1024,
+        "dm read {} MiB of the tracker's answer",
+        read / (1024 * 1024)
+    );
+}

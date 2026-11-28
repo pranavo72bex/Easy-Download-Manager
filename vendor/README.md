@@ -9,7 +9,7 @@ by its path (below).
 
 Every copy is made the same way (gaps rows P3, A17 and X5): the published
 crate, checked against its SHA-256, with what dm's build does not use removed
-and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all seven again
+and `patches/<crate>.patch` applied. `cargo xtask vendor` makes all eight again
 (`cargo xtask vendor gpui-pre-linux` one), the same on Windows, macOS and
 Linux (`desktop/xtask/src/vendor.rs`, which holds each crate's version and
 SHA-256 and what is removed from it, and for gpui-android the repository and
@@ -59,7 +59,7 @@ offered to the crate's makers.
 | `trim` | The `[[example]]` targets and the test that read `resources/` left out with the files removed | librqbit | `Cargo.toml` 1, `src/session.rs` 1 | One crate on every system | dm's alone: upstream keeps those files |
 | `checks` | A torrent's info refused before the library works from it where it cannot be true: a piece length of 0 (a divide by zero), hashes that are not 20 bytes a piece, more than 2^22 pieces, lengths whose sum overflows; and metadata a peer sends before its handshake an error, not a panic (gaps rows H10, H32) | librqbit | `src/session.rs` 3, `src/peer_info_reader/mod.rs` 1 | One crate on every system | not yet |
 | `numbers` | A bencoded integer or byte string's length past its type's end refused rather than read: atoi's checked readers in place of its unchecked ones, which multiplied past the end (a panic where overflow is checked, found by the nightly fuzz run on `d1::166666666666661666666666613`; elsewhere a wrapped number another client reads as the one written) | librqbit-bencode | `src/deserialize.rs`, 3 | One crate on every system | not yet |
-| `caps` | What peers and trackers can make a torrent hold, bounded: at most 5,000 peers known (PEX messages of 5,000 new addresses each grew the table without end), PEX's dropped peers not added, a tracker's answer within 30 s and no redirect to another host, and a peer with more than 500 piece requests waiting to be uploaded cut off (each counted from its request until its chunk is written: a peer reading nothing grew the queues until the write timed out) (gaps rows H10, H33, H33b) | librqbit | `src/session.rs` 1, `src/peer_connection.rs` 3, `src/torrent_state/live/mod.rs` 5, `src/torrent_state/live/peers/mod.rs` 1 | One crate on every system | not yet |
+| `caps` | What peers and trackers can make a torrent hold, bounded: at most 5,000 peers known (PEX messages of 5,000 new addresses each grew the table without end), PEX's dropped peers not added, a tracker's answer within 30 s and no redirect to another host, and a peer with more than 500 piece requests waiting to be uploaded cut off (each counted from its request until its chunk is written: a peer reading nothing grew the queues until the write timed out) ; an HTTP tracker's answer at most 1 MiB and its next announce no sooner than 60 s, whatever interval it gives (gaps rows H10, H33, H33b, H33d, H33e) | librqbit, librqbit-tracker-comms | `src/session.rs` 1, `src/peer_connection.rs` 3, `src/torrent_state/live/mod.rs` 5, `src/torrent_state/live/peers/mod.rs` 1; tracker-comms `src/tracker_comms.rs` 3 | One crate on every system | not yet |
 | `android-only` | gpui-mobile cut to its Android platform: the manifest written again (gpui-android, no feature flags), the iOS platform, components, packages, platform views and host-driven entry removed, and what called them | gpui-android | `Cargo.toml` 1, `src/lib.rs` 1, `src/android/mod.rs` 1, `src/android/jni.rs` 5 | Android's alone | dm's alone: upstream is all of gpui-mobile |
 | `port-0312` | Moved from gpui-pre 0.3.6 to dm's 0.3.12: `platform_info`, `on_displays_changed`, `refresh_interval`, `on_display_changed` (new in the traits), `gpu_specs` an `Option`, `RequestFrameOptions`' new fields | gpui-android | `Cargo.toml` 1, `src/android/platform.rs` 3, `src/android/display.rs` 1, `src/android/window.rs` 3 | The other copies are 0.3.12's own | not yet |
 | `android-stack` | GPUI's windows as a stack on the phone's one surface: the newest shown drawn over all of it, whatever size it asked for, and given the input; one closing uncovers the one below, drawn again in full, and puts away the keyboard its field had up; the status and navigation bars told as GPUI's safe area (`insets`); Back is Escape given to the window on top, then, where it did nothing with it, that window closed as its close button closes it, or, on the first window, the task sent to the background (`moveTaskToBack`) so downloads go on. Upstream gave every window the same surface, each taking its callbacks from the last, and Back was Escape alone | gpui-android | `src/stack.rs` (new) 1, `src/android/layers.rs` (new) 1, `src/android/window.rs` 17, `src/android/jni.rs` 1, `src/android/mod.rs` 1, `src/android/platform.rs` 1, `src/lib.rs` 1 | Android's alone: the desktops give each window a window of the system's | not yet |
@@ -163,6 +163,19 @@ connections, both ways (`scripts/mse-interop.sh`,
 `a_seeder_that_takes_only_encrypted_connections_is_reached`. The protocol's own
 tests are in `src/mse.rs` (run from `desktop/vendor/librqbit` with
 `cargo test --lib mse`, as the crate is not a workspace member).
+
+## librqbit-tracker-comms 9.1.0
+
+The client librqbit announces to trackers with (gaps rows H33c to H33e), with
+`resources/` (a test's fixture) removed as from the other librqbit crates. Its
+change, `dm(caps)` in `src/tracker_comms.rs`: an HTTP tracker's answer is read a
+piece at a time and refused past `MOST_HTTP_ANSWER` (1 MiB; a list of 50 peers
+is under a kilobyte), and the wait before announcing to it again is never under
+`LEAST_HTTP_INTERVAL` (60 s), as the UDP side holds a least of its own: an
+interval of 0 had dm announce again at once, thousands of times a minute.
+Tests: dm-core's `tests/torrent_network.rs`,
+`a_tracker_answering_interval_zero_is_not_asked_again_at_once` and
+`a_trackers_endless_answer_is_cut_off_at_the_cap`.
 
 ## librqbit-sha1-wrapper 9.1.0
 

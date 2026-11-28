@@ -5018,8 +5018,6 @@ dependencies = [
 [[package]]
 name = "librqbit-tracker-comms"
 version = "9.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3753f7f7a0dd00cf9fb088d2ba203c7e4df93028f922b5da5ac42e14cdf9b2e7"
 dependencies = [
  "anyhow",
  "async-stream",
