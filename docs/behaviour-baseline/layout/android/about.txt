@@ -15,7 +15,7 @@
 "Options" 335 888.5 386 908
 
 [dialog "About EDM" 420x200]
-"EDM" 198 68 222 100.5
+"EDM" 192 68 228 100.5
 "Version <version>" somewhere
 "A free download manager, written in Rust." 25.5 149.5 394.5 174
 "Source code" 80.5 190 179.5 200

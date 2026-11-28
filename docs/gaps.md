@@ -88,7 +88,11 @@ of 77 rows. B25's macOS pictures retaken (the window says EDM; Download details'
 design changes since 2026-11-21 were never pictured). B40 (Don't download kept the row) and B48
 (Shift-F3 stayed on its row) failed in that run and held in the one before and the one after.
 The latest run (after the store-for-secrets fix, f9ba1b19): 76 of 77, B36's doorbell timing
-alone (1340 ms under a load of 8 to 10; 227 ms alone). The QA script's own checks were behind the window's
+alone (1340 ms under a load of 8 to 10; 227 ms alone). Then for 0.10.4 (dfd97f5a): 76 of 77,
+B73 alone: the second address of a finished file failed at once ("a file of the same name and
+size is already in the list") instead of asking; it held in the three runs before, on the same
+code. Open: find what makes that question not asked (a race between the first row's finish and
+the second's check, or the answer remembered from B39's question?). The QA script's own checks were behind the window's
 typographic apostrophes (B38, B68, B72, B77) and B74 now holds; fixed.
 
 **Left, in order:** push main and watch CI (the first run with `crates/edm-*`; the Linux
