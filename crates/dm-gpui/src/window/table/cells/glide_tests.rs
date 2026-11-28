@@ -107,3 +107,30 @@ fn settled_bars_leave_no_state() {
     assert!(!settling(id + 1, false, false));
     assert!(!SETTLING.with(|s| s.borrow().contains_key(&(id + 1))));
 }
+
+/// A gliding bar is drawn where it stands at the moment, a few frames a tick and no more: not
+/// at the display's every refresh, which drew the whole window 120 times a second for as long
+/// as a download ran (gaps row C0c).
+#[test]
+fn a_glide_is_drawn_a_few_times_a_tick_not_at_every_refresh() {
+    let frames = GLIDE.as_secs_f32() / GLIDE_FRAME.as_secs_f32();
+    assert!(
+        (5.0..=10.0).contains(&frames),
+        "{frames} frames a glide: too few read as jumps, more cost the window's CPU"
+    );
+    // Mid-glide, the bar is drawn on its way, and its glide is kept.
+    let id = 7_000_101;
+    let _ = glided(id, 0.1, gpui::div());
+    let _ = glided(id, 0.9, gpui::div());
+    std::thread::sleep(GLIDE / 2);
+    let _ = glided(id, 0.9, gpui::div());
+    let (from, to, set_out) = GLIDES.with(|g| g.borrow()[&id]);
+    let here = glide_at(from, to, set_out.elapsed());
+    assert!(here > 0.1 && here <= 0.9, "{here}");
+    std::thread::sleep(GLIDE);
+    assert_eq!(
+        glide_at(from, to, set_out.elapsed()),
+        0.9,
+        "done within its tick"
+    );
+}

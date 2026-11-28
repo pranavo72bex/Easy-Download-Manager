@@ -79,31 +79,73 @@ fn glide_at(from: f32, to: f32, elapsed: std::time::Duration) -> f32 {
     from + (to - from) * done
 }
 
+/// How often a gliding bar is drawn again: 30 times a second. GPUI's own animation drew the
+/// whole window at the display's every refresh (120 a second on a ProMotion screen) for as
+/// long as any download ran, each glide lasting a whole tick: most of the window's CPU while
+/// downloading (gaps row C0c). Seven or eight steps a tick still read as one movement.
+pub(crate) const GLIDE_FRAME: std::time::Duration = std::time::Duration::from_millis(33);
+
+thread_local! {
+    /// Whether a frame for the gliding bars is asked for already: one for them all.
+    static GLIDE_FRAME_DUE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The gliding bars' frame asked for while this lives ([`GLIDE_FRAME_DUE`]).
+struct FrameDue;
+
+impl Drop for FrameDue {
+    fn drop(&mut self) {
+        GLIDE_FRAME_DUE.set(false);
+    }
+}
+
 /// A bar's fill at `target` of its track, gliding there from where it is drawn now rather than
-/// jumping at each tick (gaps row K7). An animation of GPUI's own, drawn only while it moves;
-/// none where the system asks for less motion.
+/// jumping at each tick (gaps row K7): drawn where it stands at this moment, and while it moves
+/// the window is drawn again [`GLIDE_FRAME`] later. None where the system asks for less motion.
 fn glided(id: u64, target: f32, fill: gpui::Div) -> AnyElement {
-    use gpui::{Animation, AnimationExt};
-    let (from, to) = GLIDES.with(|g| {
+    let now = std::time::Instant::now();
+    let (from, to, set_out) = GLIDES.with(|g| {
         let mut g = g.borrow_mut();
-        let now = std::time::Instant::now();
         let entry = g.entry(id).or_insert((target, target, now));
         if (entry.1 - target).abs() > 0.0005 {
             // From where the bar stands, not from the last figure: no jump back at a tick.
             let here = glide_at(entry.0, entry.1, now - entry.2);
             *entry = (here, target, now);
         }
-        (entry.0, entry.1)
+        *entry
     });
-    if STILL.load(std::sync::atomic::Ordering::Relaxed) || (to - from).abs() < 0.0005 {
+    let elapsed = now - set_out;
+    if STILL.load(std::sync::atomic::Ordering::Relaxed)
+        || (to - from).abs() < 0.0005
+        || elapsed >= GLIDE
+    {
         return fill.w(relative(to)).into_any_element();
     }
-    fill.with_animation(
-        gpui::ElementId::Name(format!("glide-{id}-{}", (to * 10_000.0) as u32).into()),
-        Animation::new(GLIDE).with_easing(gpui::linear),
-        move |fill, delta| fill.w(relative(from + (to - from) * delta)),
-    )
-    .into_any_element()
+    fill.w(relative(glide_at(from, to, elapsed)))
+        .child(
+            gpui::canvas(
+                |_, window, cx| {
+                    if GLIDE_FRAME_DUE.get() {
+                        return;
+                    }
+                    GLIDE_FRAME_DUE.set(true);
+                    // Asked for again by the next glide however this ends: a window closed
+                    // before the frame drops the wait, and its guard with it.
+                    let due = FrameDue;
+                    window
+                        .spawn(cx, async move |cx| {
+                            cx.background_executor().timer(GLIDE_FRAME).await;
+                            drop(due);
+                            let _ = cx.update(|window, _| window.refresh());
+                        })
+                        .detach();
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .size_0(),
+        )
+        .into_any_element()
 }
 
 /// Whether the list has been drawn yet, and for each download's row when it was first drawn

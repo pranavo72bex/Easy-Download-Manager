@@ -9315,3 +9315,18 @@ buttons stay `native::button`, the one way a button is drawn.
   rule (`ranged::grow`) is unchanged: a second "before" window for every judgement was weighed
   and dropped, as it delays growth by a second where each connection is held down (`bench`
   `per_conn`). With fourteen busy processes beside it the test held 9 in four runs of four.
+
+## A gliding bar drawn 30 times a second, not at every refresh, 2026-11-28 (gaps row C0c)
+
+- A running bar's glide (K7, E21) was GPUI's `with_animation`, lasting one 250 ms tick and begun
+  again at the next, so for as long as any download ran the window asked for a frame at every
+  display refresh and GPUI drew the whole window each time (60 a second on this M1, 120 on a
+  ProMotion screen). `sample` of `capped` showed the main thread 16 % busy in display-link frames.
+- Now the bar is drawn where `glide_at` says it stands at that moment, and while it moves a
+  canvas in it asks for one refresh `GLIDE_FRAME` (33 ms) later, one for all the bars at once
+  (a thread-local flag, reset by a guard dropped with the wait even where the window closes).
+  Seven or eight steps a tick read as one movement.
+- Measured on the M1, release build, five runs each: `capped` 2,040 ms median with the window,
+  1,060 after, 790 with no window; `ui-bench.py --only busy` 21.3 % to 18.7 %.
+- Weighed and dropped: no glide at all (the bar jumped four times a second, which K7 fixed);
+  glide only for steps of several points (the track's width is not known where the bar is made).
