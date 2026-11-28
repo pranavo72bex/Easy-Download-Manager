@@ -86,8 +86,9 @@ Versions: app and Android 0.11.0 (versionCode 4), extension 3.6.0. Tests, clippy
 extension's Edge checks and the debug APK on the emulator pass. `human-qa.py` on this Mac: 74
 of 77 rows. B25's macOS pictures retaken (the window says EDM; Download details' and Add URL's
 design changes since 2026-11-21 were never pictured). B40 (Don't download kept the row) and B48
-(Shift-F3 stayed on its row) failed in that run and held in the one before it; both open to a
-run that tells whether they are timing. The QA script's own checks were behind the window's
+(Shift-F3 stayed on its row) failed in that run and held in the one before and the one after.
+The latest run (after the store-for-secrets fix, f9ba1b19): 76 of 77, B36's doorbell timing
+alone (1340 ms under a load of 8 to 10; 227 ms alone). The QA script's own checks were behind the window's
 typographic apostrophes (B38, B68, B72, B77) and B74 now holds; fixed.
 
 **Left, in order:** push main and watch CI (the first run with `crates/edm-*`; the Linux
