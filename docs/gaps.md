@@ -79,6 +79,17 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
+## Next session (written 2026-11-28)
+
+**Done** (committed on main, not pushed): `ai-health.py`'s FAIL was GitHub skipping the worker's
+schedule (started by hand). Main's red Desktop: the phone's Linux goldens (run 46044817366's
+artifact), the harness's touch bringing the test clock to the present (Windows' press test),
+`grow.rs`'s shared rate making up a stall (macOS, a second failure). Deep fuzz (#72): both finds
+were fixed already; run 46096626288 started to show it. C0c: a gliding bar drawn 30 times a
+second (`capped` CPU halved). Options' presets in Arabic at 400 points (the old note's item 4)
+were fixed in `b9537898`. **Start with:** main's Desktop and Deep fuzz runs once pushed; then
+C0c's last 270 ms of the window, or the engine's 790 against 281.
+
 ## Next session (written 2026-11-27, night; for 2026-11-28)
 
 **Done tonight** (pushed to main): Desktop CI green again (Linux and Windows goldens from run
