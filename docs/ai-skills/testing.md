@@ -27,3 +27,4 @@
 - 2026-11-26: 104 lines remain uncovered in xtask tasks.rs — mostly in exit_with, build, test functions that call process exit or run cargo/shell; these resist in-process unit testing
 - 2026-11-26: 17 new headless tests in dm-desktop-base cover port.rs: answer_requests, downloads.add/speed_limit via answer_inside, run() commands, and run_on_queue — all driven through the public command.run API
 - 2026-11-27: Golden tests in dm-gpui store baselines at docs/behaviour-baseline/layout/linux/; after intentional layout changes, regenerate with DM_GOLDEN=write (outputs to target/goldens-new/linux/) and copy over the old baselines.
+- 2026-11-28: Test in more_dialogs.rs:221 only connects to 127.0.0.1 but asserts against GitHub releases URL pattern — likely a misconfigured test double or missing mock setup
