@@ -10,7 +10,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Response;
 use dm_core::{client, download};
@@ -30,10 +29,10 @@ async fn a_streams_segment_is_written_as_it_comes() {
         eprintln!("this platform does not report memory; skipping");
         return;
     }
-    // Made once and handed out by reference: the server holds it, and that is before the
-    // measuring starts.
-    let segment = bytes::Bytes::from((0..SEGMENT).map(|i| (i % 251) as u8).collect::<Vec<u8>>());
-    async fn handler(State(segment): State<bytes::Bytes>, uri: axum::http::Uri) -> Response {
+    // Made as it is sent, a piece at a time: a segment held whole by the server was counted in
+    // the process's growth when its pages, paged out under a loaded machine, were touched again
+    // to be sent (168 MB "grown" for 160 MiB on the Mac, gaps row 223).
+    async fn handler(uri: axum::http::Uri) -> Response {
         let ok = |body: Body, length: usize| {
             Response::builder()
                 .status(StatusCode::OK)
@@ -47,19 +46,14 @@ async fn a_streams_segment_is_written_as_it_comes() {
                             #EXTINF:10.0,\nseg0.ts\n#EXT-X-ENDLIST\n";
                 ok(Body::from(list), list.len())
             }
-            "/v/seg0.ts" => ok(Body::from(segment.clone()), segment.len()),
+            "/v/seg0.ts" => ok(Body::from_stream(made()), SEGMENT),
             _ => Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::empty())
                 .unwrap(),
         }
     }
-    let addr = common::serve(
-        axum::Router::new()
-            .fallback(handler)
-            .with_state(segment.clone()),
-    )
-    .await;
+    let addr = common::serve(axum::Router::new().fallback(handler)).await;
     let resident = || memory_stats::memory_stats().unwrap().physical_mem as u64;
 
     let before = resident();
@@ -85,14 +79,46 @@ async fn a_streams_segment_is_written_as_it_comes() {
     sampler.join().unwrap();
     let fetched = fetched.expect("the stream failed");
     assert_eq!(fetched.bytes, SEGMENT as u64);
-    assert!(
-        std::fs::read(&fetched.path).unwrap() == segment,
-        "the file is not the segment"
-    );
+    assert!(is_the_segment(&fetched.path), "the file is not the segment");
     let grew = peak.load(Ordering::Relaxed).saturating_sub(before);
     assert!(
         grew < (64 * MB) as u64,
         "fetching a {SEGMENT}-byte segment grew the process by {grew} bytes at its most: the \
          segment is being held"
     );
+}
+
+/// A piece of the segment as served: byte `i` of it is `i % 251`.
+const PIECE: usize = 256 * 1024;
+
+/// The segment, made a piece at a time as it is sent.
+fn made() -> impl futures_util::Stream<Item = Result<bytes::Bytes, std::io::Error>> {
+    futures_util::stream::iter((0..SEGMENT).step_by(PIECE).map(|from| {
+        let to = (from + PIECE).min(SEGMENT);
+        Ok(bytes::Bytes::from(
+            (from..to).map(|i| (i % 251) as u8).collect::<Vec<u8>>(),
+        ))
+    }))
+}
+
+/// Whether the file at `path` is the segment byte for byte, read a piece at a time.
+fn is_the_segment(path: &std::path::Path) -> bool {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).unwrap();
+    let mut piece = vec![0u8; PIECE];
+    let mut at = 0usize;
+    loop {
+        let n = file.read(&mut piece).unwrap();
+        if n == 0 {
+            return at == SEGMENT;
+        }
+        if piece[..n]
+            .iter()
+            .enumerate()
+            .any(|(k, &b)| b != ((at + k) % 251) as u8)
+        {
+            return false;
+        }
+        at += n;
+    }
 }
