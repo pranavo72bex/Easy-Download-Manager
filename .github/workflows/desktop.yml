@@ -665,6 +665,19 @@ jobs:
             > installers/latest.json
           cat installers/latest.json
 
+      # The package managers' manifests for this release (gaps row C18): a Homebrew cask,
+      # a Scoop manifest, winget's three files and a Flatpak manifest, written from the
+      # latest.json above, so each names this release's files and digests. Zipped onto the
+      # release page for the maintainer to submit (docs/RELEASING.md › Package managers);
+      # after latest.json, so dm's update check never offers the zip as an installer.
+      - name: The package managers' manifests
+        run: |
+          version="${GITHUB_REF_NAME#desktop-v}"
+          rm -rf packaging/managers
+          python3 scripts/package-managers.py installers/latest.json
+          (cd packaging && zip -r "../installers/dm_${version}_package-managers.zip" managers)
+          unzip -l "installers/dm_${version}_package-managers.zip"
+
       # dm believes a manifest only with the project's signature beside it,
       # `latest.json.sig` (gaps row F6; dm-shell's app/update.rs). The private
       # key is the repository secret DM_UPDATE_SIGNING_KEY, made by

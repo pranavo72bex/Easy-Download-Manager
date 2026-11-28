@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- Where a second or third network is set, Download details says how fast each answered last, before the download starts.
 - While a download runs, the window uses about half the CPU it did: a progress bar's glide is drawn 30 times a second instead of at the screen's every refresh, and looks the same.
 - The toolbar's buttons, the side panel's places and the list's column headings darken while pressed, as the window's other buttons do; they only lit under the pointer.
 - On a phone, a tap shows on what it touches the moment the finger lands: a download card, its buttons, the bottom tabs, menu items, the Places drawer, Options' pages and every button darken under the finger, as Android's own controls do. Before, nothing showed a tap until whatever it opened appeared.

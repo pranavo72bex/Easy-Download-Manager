@@ -258,8 +258,10 @@ new tag's digest once the tag is pushed.
 
 ## Package managers
 
-Once the release is published (not a draft: the manifests point at its files),
-write the manifests from its `latest.json`:
+The release job writes them for each `desktop-v*` tag and puts them on the
+release page as `dm_<version>_package-managers.zip` (the `packaging/managers/`
+folder, from that release's `latest.json`). To write them again by hand, once the
+release is published (not a draft: the manifests point at its files):
 
 ```sh
 python3 scripts/package-managers.py

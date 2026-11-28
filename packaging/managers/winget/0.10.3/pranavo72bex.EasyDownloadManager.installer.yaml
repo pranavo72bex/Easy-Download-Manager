@@ -1,5 +1,5 @@
 PackageIdentifier: pranavo72bex.EasyDownloadManager
-PackageVersion: 0.10.0
+PackageVersion: 0.10.3
 InstallerType: nullsoft
 Scope: user
 UpgradeBehavior: install
@@ -9,7 +9,7 @@ FileExtensions:
 - torrent
 Installers:
 - Architecture: x64
-  InstallerUrl: https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.0/dm_0.10.0_x64-setup.exe
-  InstallerSha256: C7C4D26B5034E5580795A6D919401F7B9428DC3309DA4C4865B65916D60E99C6
+  InstallerUrl: https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.3/dm_0.10.3_x64-setup.exe
+  InstallerSha256: B26AAC4A1940CB68782976EA6BF1F95399CA85D979654153F63A26956E66CEE0
 ManifestType: installer
 ManifestVersion: 1.6.0

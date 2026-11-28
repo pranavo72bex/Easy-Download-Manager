@@ -29,10 +29,10 @@ modules:
       - type: file
         dest-filename: dm.deb
         only-arches: [x86_64]
-        url: https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.0/dm_0.10.0_amd64.deb
-        sha256: 7326ada6ecceab5fe4c60da7ad194647a6736ce6a2862e2bdb31fe0af5c72e99
+        url: https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.3/dm_0.10.3_amd64.deb
+        sha256: 01986b9d85143292d6332088a1493b96cfd2801596a2dec654e1e4fe3e48fc1a
       - type: file
         dest-filename: dm.deb
         only-arches: [aarch64]
-        url: https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.0/dm_0.10.0_arm64.deb
-        sha256: 63028f60e4786b499ca731c6b6254d83b71bbde8b6689fb18a1eb981927058fb
+        url: https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.3/dm_0.10.3_arm64.deb
+        sha256: a88799563dcf4231ec24febd67680bfd9c8c0e2556ef281acd2e19193ea1cb51

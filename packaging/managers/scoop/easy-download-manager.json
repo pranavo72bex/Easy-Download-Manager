@@ -1,15 +1,15 @@
 {
-    "version": "0.10.0",
+    "version": "0.10.3",
     "description": "A download manager: many connections, resume, and a queue",
     "homepage": "https://github.com/pranavo72bex/Easy-Download-Manager",
     "license": "GPL-3.0-or-later",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.0/dm_0.10.0_x64-portable.zip",
-            "hash": "e0d76e539949c84b7ee7de60f50ed8175354abd13d802db479bc846ded72230e"
+            "url": "https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v0.10.3/dm_0.10.3_x64-portable.zip",
+            "hash": "a0526277f79756f71a62724088a59063d89fbfda2a0e7aca88321828a34a2f84"
         }
     },
-    "extract_dir": "dm_0.10.0_x64-portable",
+    "extract_dir": "dm_0.10.3_x64-portable",
     "bin": [
         [
             "dm-gpui.exe",

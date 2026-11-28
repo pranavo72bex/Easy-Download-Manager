@@ -1,5 +1,5 @@
 PackageIdentifier: pranavo72bex.EasyDownloadManager
-PackageVersion: 0.10.0
+PackageVersion: 0.10.3
 PackageLocale: en-US
 Publisher: pranavo72bex
 PublisherUrl: https://github.com/pranavo72bex
@@ -13,6 +13,6 @@ Tags:
 - download-manager
 - downloader
 - torrent
-ReleaseNotesUrl: https://github.com/pranavo72bex/Easy-Download-Manager/releases/tag/desktop-v0.10.0
+ReleaseNotesUrl: https://github.com/pranavo72bex/Easy-Download-Manager/releases/tag/desktop-v0.10.3
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

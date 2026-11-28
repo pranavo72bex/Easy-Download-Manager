@@ -8,6 +8,7 @@
 
 use super::*;
 
+mod networks;
 mod no_record;
 
 /// What each section is drawn with: the look in force, the screen its words
@@ -34,6 +35,7 @@ impl Look {
             t("Note"),
             t("Delete file after"),
             t("Queue"),
+            t("Networks"),
         ]);
         Self {
             theme,
@@ -582,6 +584,19 @@ impl Details {
                 // Close under the size, as a hint under its field (`native::hint_under`).
                 .mt(px(-native::HINT_PULL))
                 .mb(px(space::XS)),
+            )
+        })
+        // How fast each network answered last, where there is more than one (gaps row K4): the
+        // progress window says it while the download runs; here, before it starts.
+        .when_some(self.networks_said(), |d, said| {
+            d.child(
+                look.row(
+                    "Networks",
+                    div()
+                        .text_color(theme.muted)
+                        .child(screen.label(said))
+                        .into_any_element(),
+                ),
             )
         })
         .child(
