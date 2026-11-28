@@ -909,11 +909,11 @@ async fn a_plain_page_is_read_as_the_tv_client_without_a_solver() {
         .ends_with("Plain_ one [plainFirst1].mp4"));
     assert_eq!(read["formats"].as_array().unwrap().len(), 6);
     let picture = &read["requested_formats"][0];
-    assert_eq!(picture["edm_init_range"], "0-740");
-    assert_eq!(picture["edm_index_range"], "741-900");
+    assert_eq!(picture["dm_init_range"], "0-740");
+    assert_eq!(picture["dm_index_range"], "741-900");
     assert_eq!(picture["filesize"], 8000);
     assert_eq!(picture["fps"], 30);
-    assert_eq!(read["requested_formats"][1]["edm_init_range"], Value::Null);
+    assert_eq!(read["requested_formats"][1]["dm_init_range"], Value::Null);
 
     let watch = asked_with("/watch?v=plainFirst1");
     assert_eq!(watch[0].method, "GET");

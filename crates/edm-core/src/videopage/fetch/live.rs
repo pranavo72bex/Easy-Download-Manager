@@ -34,7 +34,7 @@ pub(super) async fn record(
     let read_again = move || async move {
         let again = resolve(url, options, false).await?;
         let live = again.info.is_live == Some(true);
-        Ok::<_, Error>(again.info.edm_framed.filter(|_| live))
+        Ok::<_, Error>(again.info.dm_framed.filter(|_| live))
     };
     let recorded =
         crate::youtube::framed::record_live(client, framed, &wanted, options, report, read_again)

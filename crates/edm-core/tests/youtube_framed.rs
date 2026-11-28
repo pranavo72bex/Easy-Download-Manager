@@ -505,7 +505,7 @@ async fn a_format_with_an_address_is_taken_before_the_framed_stream() {
     assert_eq!(pair[0]["format_id"], "136");
     assert_eq!(pair[0]["protocol"], "https");
     assert_eq!(pair[1]["protocol"], "https");
-    assert!(at_720.get("edm_framed").is_none());
+    assert!(at_720.get("dm_framed").is_none());
     // At 1080, only the framed stream has it: both formats from there.
     let best = youtube::read(
         &client(),
@@ -523,14 +523,14 @@ async fn a_format_with_an_address_is_taken_before_the_framed_stream() {
     assert_eq!(pair[0]["format_id"], "137");
     assert!(pair
         .iter()
-        .all(|f| f["protocol"] == "edm_framed" && f["url"].is_null()));
-    assert_eq!(pair[0]["edm_framed"]["itag"], 137);
-    assert_eq!(pair[0]["edm_framed"]["lmt"], 1_700_000_000_000_137u64);
-    assert!(best["edm_framed"]["url"]
+        .all(|f| f["protocol"] == "dm_framed" && f["url"].is_null()));
+    assert_eq!(pair[0]["dm_framed"]["itag"], 137);
+    assert_eq!(pair[0]["dm_framed"]["lmt"], 1_700_000_000_000_137u64);
+    assert!(best["dm_framed"]["url"]
         .as_str()
         .unwrap()
         .contains("/videoplayback?id=framedMixed"));
-    assert_eq!(best["edm_framed"]["client_name"], 7);
+    assert_eq!(best["dm_framed"]["client_name"], 7);
 }
 
 /// A stream that wants a proof-of-origin token, or refuses, fails the download in words.

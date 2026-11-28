@@ -32,7 +32,7 @@ const ALG: &str = "chacha20poly1305";
 /// How the key is made from the passphrase, by name.
 const KDF: &str = "pbkdf2-hmac-sha256";
 /// Authenticated with the text, so a sealed text of another kind is not opened as this one.
-const AAD: &[u8] = b"EDM passphrase seal 1";
+const AAD: &[u8] = b"dm passphrase seal 1";
 /// SHA-256's block, which HMAC pads its key to.
 const BLOCK: usize = 64;
 

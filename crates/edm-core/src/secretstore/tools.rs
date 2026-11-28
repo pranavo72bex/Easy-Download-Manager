@@ -23,7 +23,7 @@ impl ToolStore {
 
 /// Whether the tool can be started at all (a lookup of a name nobody keeps).
 pub fn present() -> bool {
-    run(&ToolStore::SYSTEM.lookup_args("EDM:probe"), None).is_ok()
+    run(&ToolStore::SYSTEM.lookup_args("dm:probe"), None).is_ok()
 }
 
 impl ToolStore {
@@ -40,7 +40,7 @@ impl ToolStore {
         self.in_keychain(&[
             "find-generic-password",
             "-a",
-            "EDM",
+            "dm",
             "-s",
             &keyed(name),
             "-w",
@@ -49,10 +49,21 @@ impl ToolStore {
     #[cfg(target_os = "linux")]
     fn lookup_args(&self, name: &str) -> Vec<String> {
         let _ = &self.keychain;
-        ["lookup", "service", "EDM", "name", name]
+        ["lookup", "service", "dm", "name", name]
             .map(String::from)
             .to_vec()
     }
+}
+
+/// The line `security -i` reads to keep `text` under `name` (already `keyed`), in `keychain` if
+/// one is named. The account and service are dm's as they were before the rename to EDM: what is
+/// kept under them is found by an EDM updated from dm.
+#[cfg(target_os = "macos")]
+fn add_line(name: &str, text: &str, keychain: Option<&str>) -> String {
+    format!(
+        "add-generic-password -U -a dm -s {name} -w {text}{}\n",
+        keychain.map(|k| format!(" {k}")).unwrap_or_default()
+    )
 }
 
 /// A word `security -i` cannot mis-split: no space, line break or quote.
@@ -74,7 +85,7 @@ fn keyed(name: &str) -> std::borrow::Cow<'_, str> {
         name.into()
     } else {
         format!(
-            "EDM:b64:{}",
+            "dm:b64:{}",
             base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(name)
         )
         .into()
@@ -125,7 +136,7 @@ impl SecretStore for ToolStore {
         // appears in a command line, where any program of the account could read it.
         #[cfg(target_os = "linux")]
         let out = run(
-            &["store", "--label=EDM", "service", "EDM", "name", name].map(String::from),
+            &["store", "--label=EDM", "service", "dm", "name", name].map(String::from),
             Some(text.as_bytes()),
         )?;
         #[cfg(target_os = "macos")]
@@ -137,13 +148,7 @@ impl SecretStore for ToolStore {
             if !self.keychain.as_deref().is_none_or(plain) {
                 return Err("a keychain path EDM does not use".to_string());
             }
-            let line = format!(
-                "add-generic-password -U -an EDM -s {name} -w {text}{}\n",
-                self.keychain
-                    .as_deref()
-                    .map(|k| format!(" {k}"))
-                    .unwrap_or_default()
-            );
+            let line = add_line(&name, &text, self.keychain.as_deref());
             run(&["-i".to_string()], Some(line.as_bytes()))?
         };
         if out.status.success() {
@@ -155,9 +160,9 @@ impl SecretStore for ToolStore {
 
     fn delete(&self, name: &str) -> Result<(), String> {
         #[cfg(target_os = "linux")]
-        let args = ["clear", "service", "EDM", "name", name].map(String::from);
+        let args = ["clear", "service", "dm", "name", name].map(String::from);
         #[cfg(target_os = "macos")]
-        let args = self.in_keychain(&["delete-generic-password", "-a", "EDM", "-s", &keyed(name)]);
+        let args = self.in_keychain(&["delete-generic-password", "-a", "dm", "-s", &keyed(name)]);
         let out = run(&args, None)?;
         // Forgetting what is not there is not an error: the tools end unsuccessfully for it.
         let _ = out;

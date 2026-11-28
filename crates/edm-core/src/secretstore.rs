@@ -27,7 +27,7 @@ use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 
 /// The name of the key that seals the queue's file of secrets.
-pub const QUEUE_KEY: &str = "EDM:queue-secrets-key";
+pub const QUEUE_KEY: &str = "dm:queue-secrets-key";
 
 /// The edition of the sealed file's envelope.
 const ENVELOPE_VERSION: u32 = 1;
@@ -141,7 +141,7 @@ pub enum Opened {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Envelope {
-    edm_secret_store: u32,
+    dm_secret_store: u32,
     alg: String,
     key: String,
     nonce: String,
@@ -192,7 +192,7 @@ pub fn seal_with(store: &dyn SecretStore, key_name: &str, plain: &[u8]) -> Resul
         .map_err(|_| "the secrets could not be sealed".to_string())?;
     let b64 = base64::engine::general_purpose::STANDARD;
     let envelope = Envelope {
-        edm_secret_store: ENVELOPE_VERSION,
+        dm_secret_store: ENVELOPE_VERSION,
         alg: "chacha20poly1305".to_string(),
         key: key_name.to_string(),
         nonce: b64.encode(nonce),
@@ -211,7 +211,7 @@ pub fn open_with(store: &dyn SecretStore, bytes: &[u8]) -> Opened {
     let Ok(envelope) = serde_json::from_slice::<Envelope>(bytes) else {
         return Opened::Plain;
     };
-    if envelope.edm_secret_store != ENVELOPE_VERSION || envelope.alg != "chacha20poly1305" {
+    if envelope.dm_secret_store != ENVELOPE_VERSION || envelope.alg != "chacha20poly1305" {
         return Opened::Failed(
             "the secrets were sealed by a newer EDM, which this one cannot open".to_string(),
         );

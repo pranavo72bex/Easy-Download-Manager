@@ -93,13 +93,13 @@ async fn bytes_fetched_are_told_by_the_engines_ledgers() {
     assert!(!fetched_any(&staging).await, "no staging at all");
     std::fs::create_dir_all(staging.join("elsewhere/parts")).unwrap();
     std::fs::write(staging.join("elsewhere/parts/done-0"), "99").unwrap();
-    std::fs::create_dir_all(staging.join(".edm-f140")).unwrap();
-    std::fs::create_dir_all(staging.join(".edm-f137/parts")).unwrap();
-    std::fs::write(staging.join(".edm-f137/parts/piece-0"), "99").unwrap();
-    std::fs::write(staging.join(".edm-f137/parts/done-0"), "0").unwrap();
-    std::fs::write(staging.join(".edm-f137/parts/done-1"), "many").unwrap();
+    std::fs::create_dir_all(staging.join(".dm-f140")).unwrap();
+    std::fs::create_dir_all(staging.join(".dm-f137/parts")).unwrap();
+    std::fs::write(staging.join(".dm-f137/parts/piece-0"), "99").unwrap();
+    std::fs::write(staging.join(".dm-f137/parts/done-0"), "0").unwrap();
+    std::fs::write(staging.join(".dm-f137/parts/done-1"), "many").unwrap();
     assert!(!fetched_any(&staging).await);
-    std::fs::write(staging.join(".edm-f137/parts/done-2"), " 4096\n").unwrap();
+    std::fs::write(staging.join(".dm-f137/parts/done-2"), " 4096\n").unwrap();
     assert!(fetched_any(&staging).await);
 }
 

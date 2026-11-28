@@ -888,7 +888,6 @@
  "Download complete — {}": "ダウンロード完了 — {}",
  "Details": "詳細",
  "Double-click a download to watch its progress.": "ダウンロードをダブルクリックすると進行状況を確認できます。",
- "Tap a download to watch its progress.": "ダウンロードをタップすると進行状況を確認できます。",
  "User-Agent": "ユーザーエージェント",
  "Request headers": "リクエストヘッダー",
  "Name: value | Name: value": "名前: 値 | 名前: 値",

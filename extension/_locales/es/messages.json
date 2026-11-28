@@ -95,7 +95,7 @@
     "message": "EDM está abierto"
   },
   "popupConnected": {
-    "message": "Conectado an EDM $VERSION$",
+    "message": "Conectado a EDM $VERSION$",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -103,7 +103,7 @@
     }
   },
   "popupConnectedOld": {
-    "message": "Conectado an EDM $VERSION$ · actualiza la aplicación EDM: hasta entonces el navegador conserva sus descargas",
+    "message": "Conectado a EDM $VERSION$ · actualiza la aplicación EDM: hasta entonces el navegador conserva sus descargas",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -248,7 +248,7 @@
     "message": "EDM no respondió a tiempo. Inténtalo de nuevo, o haz clic derecho en el vídeo y elige «Descargar el medio con EDM»."
   },
   "panelSending": {
-    "message": "Enviando an EDM…"
+    "message": "Enviando a EDM…"
   },
   "panelNotTaken": {
     "message": "EDM no pudo tomarlo"
@@ -257,7 +257,7 @@
     "message": "EDM se actualizó: recarga esta página para usarlo"
   },
   "panelSent": {
-    "message": "Enviado an EDM"
+    "message": "Enviado a EDM"
   },
   "panelInBrowser": {
     "message": "Descargando en el navegador"
@@ -310,7 +310,7 @@
     "message": "Descargar"
   },
   "toastSentMany": {
-    "message": "$COUNT$ descargas enviadas an EDM",
+    "message": "$COUNT$ descargas enviadas a EDM",
     "description": "The one toast for several downloads handed to the app together.",
     "placeholders": {
       "count": {

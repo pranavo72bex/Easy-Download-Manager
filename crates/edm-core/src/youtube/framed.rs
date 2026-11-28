@@ -31,7 +31,7 @@ pub mod wire;
 pub use session::{fetch, record_live};
 
 /// The protocol a reading names a framed format by (`videopage` fetches it here).
-pub const PROTOCOL: &str = "edm_framed";
+pub const PROTOCOL: &str = "dm_framed";
 
 /// Said where the stream wants a proof-of-origin token.
 pub const WANTS_TOKEN: &str =
@@ -174,17 +174,17 @@ pub(super) fn pick_of(f: &Format) -> Pick {
 }
 
 /// The reading marked for the framed stream where any format `chosen` is framed: the stream
-/// beside it (`edm_framed`), and each chosen format named by it (its protocol [`PROTOCOL`],
+/// beside it (`dm_framed`), and each chosen format named by it (its protocol [`PROTOCOL`],
 /// its pick), a format with an address among them too: one stream serves them all.
 pub(super) fn mark_reading(reading: &mut Value, framed: Option<&Framed>, chosen: &[Format]) {
     let Some(framed) = framed.filter(|_| chosen.iter().any(|f| f.framed)) else {
         return;
     };
-    reading["edm_framed"] = serde_json::to_value(framed).unwrap_or_default();
+    reading["dm_framed"] = serde_json::to_value(framed).unwrap_or_default();
     let mark = |entry: &mut Value, f: &Format| {
         entry["protocol"] = json!(PROTOCOL);
         entry["url"] = Value::Null;
-        entry["edm_framed"] = serde_json::to_value(pick_of(f)).unwrap_or_default();
+        entry["dm_framed"] = serde_json::to_value(pick_of(f)).unwrap_or_default();
     };
     match reading
         .get_mut("requested_formats")

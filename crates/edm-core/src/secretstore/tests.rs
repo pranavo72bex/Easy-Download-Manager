@@ -107,7 +107,7 @@ fn a_missing_or_wrong_key_is_refused_with_a_reason() {
 fn an_edition_this_edm_does_not_know_is_said_not_guessed() {
     let store = MemoryStore::default();
     let sealed = seal_with(&store, QUEUE_KEY, PLAIN).unwrap();
-    let newer = tampered(&sealed, |e| e.edm_secret_store = 99);
+    let newer = tampered(&sealed, |e| e.dm_secret_store = 99);
     match open_with(&store, &newer) {
         Opened::Failed(why) => assert!(why.contains("newer EDM"), "{why}"),
         other => panic!("{other:?}"),

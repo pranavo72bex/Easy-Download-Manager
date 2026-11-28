@@ -93,7 +93,7 @@ pub(super) fn copy_across(from: &Path, to: &Path) -> std::io::Result<Option<Stri
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let staging = parent.join(format!(".{name}.edm-moving"));
+    let staging = parent.join(format!(".{name}.dm-moving"));
     // One left by a move that was interrupted is no use to anyone.
     let _ = std::fs::remove_dir_all(&staging);
     if let Err(e) = copy_tree(from, &staging) {

@@ -247,6 +247,30 @@ fn a_started_download_says_once_where_its_progress_is() {
     assert!(h.said().is_empty(), "said a second time");
 }
 
+/// In a phone's layout the hint is not said: a card shows its progress where it lies and a tap
+/// opens it, and the sentence only pushed the speed limiter off the narrow bar (the
+/// maintainer's /unslop, 2026-11-28). It stays due, for a window widened later.
+#[test]
+fn a_phone_layout_says_nothing_of_where_progress_is() {
+    let world = world();
+    let mut h = world.harness_with(Settings {
+        hinted_details: false,
+        ..world.settings()
+    });
+    h.resize(412.0, 900.0);
+    h.until("the phone's layout", |h| {
+        h.view(|view| view.layout.narrow.laid_out)
+    });
+    h.view(|view| view.backend.add(&world.url("stalled.bin")).unwrap());
+    h.until("it to run", running);
+    h.view(|view| {
+        view.status.said = None;
+        view.details_hint();
+    });
+    assert!(h.said().is_empty(), "said {:?}", h.said());
+    assert!(!h.view(|view| view.backend.settings()).hinted_details);
+}
+
 /// The progress window of a download that finishes goes with it, whether or not the complete
 /// window is on (it is not, by default): left open it said "Complete" with no button to press,
 /// one more for each download after it.

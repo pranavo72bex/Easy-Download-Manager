@@ -178,7 +178,7 @@ async fn fetch_stream(
     if let Some(agent) = stream.agent.as_deref() {
         crate::prefer_agent(&stream.url, interned(agent));
     }
-    let own = options.parts_dir.join(format!(".edm-f{}", stream.id));
+    let own = options.parts_dir.join(format!(".dm-f{}", stream.id));
     let name = stream
         .target
         .file_name()

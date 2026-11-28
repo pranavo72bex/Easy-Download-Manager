@@ -338,7 +338,6 @@
  "The most parts of a file EDM fetches at once. It opens more only while they make it faster; some sites limit it.",
  "Data allowance (MB, 0 for none)",
  "Allowance period (hours)",
- "Tap a download to watch its progress.",
  "Free some space, or choose a folder on another drive (Options › Folders), then tap Retry",
  "Check the address, or try again later. If a firewall or security program asks about EDM, allow it, then tap Retry",
  "Check that the computer’s date and time are right, then tap Retry",

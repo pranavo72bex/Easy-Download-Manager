@@ -225,8 +225,8 @@ pub(super) fn reading_json(
             "downloader_options": {"http_chunk_size": CHUNK},
             // EDM's own, for cutting a part: where the stream's first boxes
             // and its index are.
-            "edm_init_range": f.init.map(|(a, b)| format!("{a}-{b}")),
-            "edm_index_range": f.index.map(|(a, b)| format!("{a}-{b}")),
+            "dm_init_range": f.init.map(|(a, b)| format!("{a}-{b}")),
+            "dm_index_range": f.index.map(|(a, b)| format!("{a}-{b}")),
         });
         // Numbered pieces state no size: about, from the bitrate and the video's length, for
         // the quality list's sizes.

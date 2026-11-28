@@ -80,7 +80,7 @@ impl SecretStore for CredentialStore {
             ));
         }
         let mut target = wide(name);
-        let mut user = wide("EDM");
+        let mut user = wide("dm");
         // SAFETY: `CREDENTIALW` is plain data (integers and pointers); all zero is a valid,
         // empty credential, and the fields the call reads are set below.
         let mut credential: CREDENTIALW = unsafe { std::mem::zeroed() };

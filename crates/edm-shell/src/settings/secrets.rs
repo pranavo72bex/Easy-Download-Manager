@@ -30,15 +30,15 @@ pub(super) fn store() -> Option<&'static dyn SecretStore> {
 }
 
 fn login_name(ns: &str, host: &str, user: &str) -> String {
-    format!("EDM:login:{ns}:{host}\n{user}")
+    format!("dm:login:{ns}:{host}\n{user}")
 }
 
 fn proxy_name(ns: &str) -> String {
-    format!("EDM:proxy:{ns}")
+    format!("dm:proxy:{ns}")
 }
 
 fn dialup_name(ns: &str) -> String {
-    format!("EDM:dialup:{ns}")
+    format!("dm:dialup:{ns}")
 }
 
 impl Settings {

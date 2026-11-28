@@ -117,7 +117,7 @@ pub async fn download_page(
             "EDM: {url}: fetched from its formats that are not numbered pieces"
         );
         for id in &numbered {
-            let _ = tokio::fs::remove_dir_all(staging.join(format!(".edm-f{id}"))).await;
+            let _ = tokio::fs::remove_dir_all(staging.join(format!(".dm-f{id}"))).await;
         }
         outcome = match resolve(url, options, true).await {
             Ok(read) => match read.plan(staging) {
@@ -239,7 +239,7 @@ async fn fetched_any(staging: &Path) -> bool {
         return false;
     };
     while let Ok(Some(folder)) = folders.next_entry().await {
-        if !folder.file_name().to_string_lossy().starts_with(".edm-f") {
+        if !folder.file_name().to_string_lossy().starts_with(".dm-f") {
             continue;
         }
         let Ok(mut parts) = tokio::fs::read_dir(folder.path().join("parts")).await else {
@@ -358,7 +358,7 @@ struct Info {
     /// The framed stream its formats are fetched from, where EDM's reading chose one served by
     /// it alone (gaps row Y2).
     #[serde(default)]
-    edm_framed: Option<crate::youtube::framed::Framed>,
+    dm_framed: Option<crate::youtube::framed::Framed>,
 }
 
 /// A chapter of a video: where it starts, in seconds, and its name.
@@ -393,12 +393,12 @@ struct Format {
     /// EDM's own reading's word on where the stream's first boxes and its
     /// index of pieces are ("start-end"), for cutting a part (`clip`).
     #[serde(default)]
-    edm_init_range: Option<String>,
+    dm_init_range: Option<String>,
     #[serde(default)]
-    edm_index_range: Option<String>,
+    dm_index_range: Option<String>,
     /// EDM's own reading's word on how the framed stream names this format.
     #[serde(default)]
-    edm_framed: Option<crate::youtube::framed::Pick>,
+    dm_framed: Option<crate::youtube::framed::Pick>,
 }
 
 /// A "start-end" byte range, both ends inclusive.
@@ -549,10 +549,10 @@ impl Read {
         let framed_of = |format: &Format| {
             let ours = format.protocol.as_deref() == Some(crate::youtube::framed::PROTOCOL)
                 && info.read_by.as_deref() == Some("EDM");
-            format.edm_framed.clone().filter(|_| ours)
+            format.dm_framed.clone().filter(|_| ours)
         };
         let framed = info
-            .edm_framed
+            .dm_framed
             .clone()
             .filter(|_| formats.iter().all(|f| framed_of(f).is_some()));
         if framed.is_none() && formats.iter().any(|f| framed_of(f).is_some()) {
@@ -613,8 +613,8 @@ impl Read {
                         .iter()
                         .filter_map(|(name, value)| Some((name.as_str(), value.as_str()?))),
                 ),
-                init: range_of(format.edm_init_range.as_deref()),
-                index: range_of(format.edm_index_range.as_deref()),
+                init: range_of(format.dm_init_range.as_deref()),
+                index: range_of(format.dm_index_range.as_deref()),
                 numbered,
                 framed: pick,
             });

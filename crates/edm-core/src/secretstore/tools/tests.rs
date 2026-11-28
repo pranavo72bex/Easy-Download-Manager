@@ -106,10 +106,10 @@ fn a_sign_ins_name_with_a_line_break_is_kept_and_forgotten_in_the_real_store() {
 #[cfg(target_os = "macos")]
 #[test]
 fn a_name_security_would_split_is_kept_under_a_plain_one_and_a_plain_one_as_it_is() {
-    assert_eq!(keyed("EDM:proxy:host:3128:me"), "EDM:proxy:host:3128:me");
-    let odd = keyed("EDM:login:x:example.com\nann o'neil");
-    assert!(odd.starts_with("EDM:b64:") && plain(&odd), "{odd}");
-    assert_ne!(odd, keyed("EDM:login:x:example.com\nann o'neim"));
+    assert_eq!(keyed("dm:proxy:host:3128:me"), "dm:proxy:host:3128:me");
+    let odd = keyed("dm:login:x:example.com\nann o'neil");
+    assert!(odd.starts_with("dm:b64:") && plain(&odd), "{odd}");
+    assert_ne!(odd, keyed("dm:login:x:example.com\nann o'neim"));
 }
 
 #[test]
@@ -140,4 +140,24 @@ fn a_file_of_secrets_is_sealed_with_a_key_the_real_store_keeps() {
         super::super::open_with(store, &sealed),
         super::super::Opened::Failed(_)
     ));
+}
+
+/// The line that keeps a secret names the account with `-a`, as `security` reads it, and the
+/// account and the names are dm's from before the rename, so an updated EDM finds what dm kept.
+/// (The rename's grammar pass once made it "-an EDM", which `security` refuses: every key failed
+/// to be kept, and the window said the system's store could not be used.)
+#[cfg(target_os = "macos")]
+#[test]
+fn the_line_that_keeps_a_secret_is_one_security_reads() {
+    assert_eq!(
+        add_line("dm:queue-secrets-key", "QUJD", None),
+        "add-generic-password -U -a dm -s dm:queue-secrets-key -w QUJD\n"
+    );
+    assert!(add_line("n", "t", Some("/k.keychain")).ends_with(" /k.keychain\n"));
+    assert_eq!(super::super::QUEUE_KEY, "dm:queue-secrets-key");
+    let lookup = ToolStore::SYSTEM.lookup_args("dm:probe");
+    assert_eq!(
+        lookup[..5],
+        ["find-generic-password", "-a", "dm", "-s", "dm:probe"]
+    );
 }

@@ -44,7 +44,7 @@ pub(super) fn out_of_room(error: &Error, dirs: [&std::path::Path; 2]) -> Option<
 }
 
 /// Where a row's unfinished parts go in a folder a person chose for it.
-pub const UNFINISHED: &str = ".edm-unfinished";
+pub const UNFINISHED: &str = ".dm-unfinished";
 
 /// Moves a folder, across disks if it has to: copied whole, then the
 /// original removed.

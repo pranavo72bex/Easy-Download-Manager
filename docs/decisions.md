@@ -9356,7 +9356,14 @@ the window's goldens changed with it, at that approval. What is kept, and why:
   and the extension's storage keys and message names (`dm.catch`, `dm.catch.paused`,
   `dm.formats`…): renamed, an updated extension forgot the sites and rules a person had set.
   The bench reads results of either app name (`dm` before, `edm` now), so main's last numbers
-  still compare.
+  still compare. Kept for the same reason, found by QA's window saying the system's store for
+  secrets could not be used: the names in the Keychain, the Secret Service and the Credential
+  Manager (account and service `dm`, `dm:queue-secrets-key`, `dm:login:`, `dm:proxy:`,
+  `dm:dialup:`, `dm:b64:`), the sealed file's `dm_secret_store`, a backup's passphrase seal, the
+  folders of downloads under way (`.dm-unfinished`, `.dm-f…`, `.dm-moving`) and the YouTube
+  reader's `dm_framed` and range fields. The rename's grammar pass ("a EDM" to "an EDM") had
+  made the Keychain's `-a` flag `-an` and Spanish, Italian and Polish "a dm" "an EDM"; both
+  undone, the first held by `the_line_that_keeps_a_secret_is_one_security_reads`.
 - Done by a script (word-bounded: `dm-`/`dm_` to `edm-`/`edm_`, `DM_` to `EDM_`, `com.dm.` to
   `com.edm.`, `Dm…` types to `Edm…`, the word to EDM in text and `edm` in code), then
   the compiler and the tests for what it missed (`libdm_android`, `\ndm-…` in strings).

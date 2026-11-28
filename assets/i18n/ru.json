@@ -888,7 +888,6 @@
  "Download complete — {}": "Загрузка завершена — {}",
  "Details": "Подробности",
  "Double-click a download to watch its progress.": "Дважды щёлкните загрузку, чтобы следить за ходом.",
- "Tap a download to watch its progress.": "Нажмите на загрузку, чтобы следить за её ходом.",
  "User-Agent": "User-Agent",
  "Request headers": "Заголовки запроса",
  "Name: value | Name: value": "Имя: значение | Имя: значение",
