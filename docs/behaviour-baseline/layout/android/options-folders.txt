@@ -15,11 +15,11 @@
 "Options" 335 888.5 386 908
 
 [dialog "Options" 880x600]
-"General" 44 131.5 107 156
-"Folders" 44 181.5 107 206
-"Downloads" 44 231.5 125 256
-"Advanced" 44 281.5 116 306
-"Sign-ins" 44 331.5 116 356
+"General" 48 131.5 111 156
+"Folders" 48 181.5 111 206
+"Downloads" 48 231.5 129 256
+"Advanced" 48 281.5 120 306
+"Sign-ins" 48 331.5 120 356
 "Folders" 220 68 860 102
 "Download folder, Folders by category, Unpack when done" 220 104 860 125
 "Download folder" 220 147 860 171.5
@@ -30,8 +30,8 @@
 "A download already begun keeps the folder it began in." 220 320 700 341
 "Sort finished files into folders by category" 220 370.5 808 395
 "Turn on sorting to set the kinds’ folders and your own categories." 220 409 700 451
-"Folders by category" 220 485 860 509.5
-"Videos" 640 519.5 860 525
+"Folders by category" 220 485 860 506
+"Videos" 640 516 860 525
 "?" 477.5 547.5 486.5 572
 "Restore defaults" 533 547.5 677 572
 "Cancel" 719 547.5 773 572

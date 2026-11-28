@@ -15,20 +15,20 @@
 "Options" 335 888.5 386 908
 
 [dialog "Scheduler" 720x520]
-"Queues" 16 68 704 92.5
-"Main queue" 52 110 142 134.5
-"Recheck queue" 52 160 169 184.5
-"Start now" 31 218 112 242.5
-"Stop" 150 218 186 242.5
-"The hours when downloads may run, in every queue without hours of its own." 16 279.5 704 300.5
-"Only download between set hours" 18 326 650 350.5
-"Start at" 16 388 88 412.5
-"01" 106 388 124 412.5
-":" 200 388 209 412.5
-"00" 223 388 241 412.5
-"Stop at" 337 388 400 412.5
-"07" 418 388 436 412.5
-":" 512 388 521 412.5
-"00" 535 388 553 412.5
-"Local time. Hours that end before they start run overnight." 16 426.5 496 447.5
-"Every week, on the days ticked" 38 477 308 501.5
+"Queues" 16 68 704 89
+"Main queue" 56 106.5 146 131
+"Recheck queue" 56 156.5 173 181
+"Start now" 31 214.5 112 239
+"Stop" 150 214.5 186 239
+"The hours when downloads may run, in every queue without hours of its own." 16 276 704 297
+"Only download between set hours" 18 322.5 650 347
+"Start at" 16 384.5 89 409
+"01" 107 384.5 125 409
+":" 201 384.5 210 409
+"00" 224 384.5 242 409
+"Stop at" 338 384.5 411 409
+"07" 429 384.5 447 409
+":" 523 384.5 532 409
+"00" 546 384.5 564 409
+"Local time. Hours that end before they start run overnight." 16 423 496 444
+"Every week, on the days ticked" 38 473.5 308 498

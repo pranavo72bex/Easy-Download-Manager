@@ -668,7 +668,6 @@ Each passed on its re-run; a second failure makes it a row.
 - `window_tests::lists::schedule_and_status::when_the_queue_runs_dry_dm_chimes_and_counts_down_to_what_was_chosen`
   (Windows CI, Desktop on `38ff305c`, 2026-11-27: the second Add URL's "Start now" not on screen;
   the next commit's run passed).
-- `grow.rs` `a_server_that_shares_one_rate_keeps_eight` (macOS CI, 11 connections of 9).
 - `secretstore::credentials`' 32-byte key test (Windows, a whole run).
 - `instance::tests::a_dm_starting_while_the_host_probes_waits_the_probe_out` (Windows, under load).
 - `human-qa.py` on macOS, late in the walk, 2026-11-23 with 16 connections: B73's "The same file is

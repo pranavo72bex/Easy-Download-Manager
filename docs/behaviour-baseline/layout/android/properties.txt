@@ -6,18 +6,18 @@
 "3 downloads" 24 37 308 58
 "Filter" 324 19.5 348 43.5
 "Menu" 376 19.5 400 43.5
-"report.pdf" 64 77 296 103
-"Waiting for Start queue" 80 121 260 142
-"Resume download" 318 99.5 338 119.5
-"Row menu" 374 99.5 394 119.5
-"holiday.mp4" 64 169 296 195
-"Waiting for Start queue" 80 213 260 234
-"Resume download" 318 191.5 338 211.5
-"Row menu" 374 191.5 394 211.5
-"archive.zip" 64 261 296 287
-"Waiting for Start queue" 80 305 260 326
-"Resume download" 318 283.5 338 303.5
-"Row menu" 374 283.5 394 303.5
+"report.pdf" 64 71 296 97
+"Waiting for Start queue" 80 115 260 136
+"Resume download" 316 91.5 340 115.5
+"Row menu" 372 91.5 396 115.5
+"holiday.mp4" 64 151 296 177
+"Waiting for Start queue" 80 195 260 216
+"Resume download" 316 171.5 340 195.5
+"Row menu" 372 171.5 396 195.5
+"archive.zip" 64 231 296 257
+"Waiting for Start queue" 80 275 260 296
+"Resume download" 316 251.5 340 275.5
+"Row menu" 372 251.5 396 275.5
 "Add URL" 355 790 381 816
 "All" 40.5 888.5 62.5 908
 "Unfinished" 118.5 888.5 190.5 908
@@ -34,6 +34,7 @@
 "Category" 16 252.5 544 273.5
 "Documents" 16 275.5 544 300
 "Will be saved to" 16 314 544 335
-"/tmp/dm-golden/Downloads/report.pdf" 16 337 544 361.5
-"Referrer" 16 375.5 544 396.5
-"—" 16 398.5 544 420
+"/tmp/dm-golden/Downloads/report.pdf" 16 337 544 351
+"?" 343 375 353 401
+"Cancel" 399 375.5 453 400
+"Save" 494 375.5 530 400

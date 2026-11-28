@@ -6,20 +6,20 @@
 "3 downloads" 40 74.5 204 116.5
 "Filter" 236 39.5 284 87.5
 "Menu" 340 39.5 388 87.5
-"report.pdf" 128 154.5 256 206.5
-"Waiting for Start queue" 160 242.5 164 284.5
-"Resume download" 224 199.5 264 239.5
-"Row menu" 336 199.5 376 239.5
-"holiday.mp4" 128 338.5 256 390.5
-"Waiting for Start queue" 160 426.5 164 468.5
-"Resume download" 224 383.5 264 423.5
-"Row menu" 336 383.5 376 423.5
-"archive.zip" 128 522.5 256 574.5
-"Waiting for Start queue" 160 610.5 164 652.5
-"Resume download" 224 567.5 264 607.5
-"Row menu" 336 567.5 376 607.5
+"report.pdf" 128 142.5 256 194.5
+"Waiting for Start queue" 160 230.5 164 272.5
+"Resume download" 220 183.5 268 231.5
+"Row menu" 332 183.5 380 231.5
+"holiday.mp4" 128 302.5 256 354.5
+"Waiting for Start queue" 160 390.5 164 432.5
+"Resume download" 220 343.5 268 391.5
+"Row menu" 332 343.5 380 391.5
+"archive.zip" 128 462.5 256 514.5
+"Waiting for Start queue" 160 550.5 164 592.5
+"Resume download" 220 503.5 268 551.5
+"Row menu" 332 503.5 380 551.5
 "Add URL" 298 665 350 717
-"All" 34 862 78 901
-"Unfinished" 112 862 256 901
-"Places" 268.5 862 355.5 901
-"Options" 373.5 862 412 901
+"All" 29.5 862 73.5 901
+"Unfinished" 111 862 198 901
+"Places" 214 862 301 901
+"Options" 317 862 404 901

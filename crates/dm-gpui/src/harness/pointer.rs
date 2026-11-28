@@ -113,6 +113,12 @@ impl Harness {
         at: gpui::Point<gpui::Pixels>,
         phase: gpui::TouchPhase,
     ) {
+        // The touch lands now: the test clock brought to the present first, so what it starts
+        // (a press's time limit, `widgets::press`) runs from this moment, not from the last
+        // step's, however long a slow machine took since (Windows' CI, main's Desktop run).
+        let now = std::time::Instant::now();
+        self.cx.executor().advance_clock(now - self.clock);
+        self.clock = now;
         self.cx.update(|cx| {
             let _ = window.update(cx, |_, window, cx| {
                 window.dispatch_event(

@@ -14,11 +14,11 @@
 "Places" 235.5 888.5 279.5 908
 "Options" 335 888.5 386 908
 
-[dialog "Speed limiter" 722x300]
-"Speed limit (KB/s, 0 for none)" 16 79.5 604 104
-"0" 616 68 706 116
-"Data allowance (MB, 0 for none)" 16 141.5 604 166
-"0" 616 130 706 178
-"Allowance period (hours)" 16 203.5 604 228
-"1" 616 192 706 240
-"Slower between set hours" 18 265.5 652 290
+[dialog "Speed limiter" 605x300]
+"Speed limit (KB/s, 0 for none)" 16 79.5 487 104
+"0" 499 68 589 116
+"Data allowance (MB, 0 for none)" 16 141.5 487 166
+"0" 499 130 589 178
+"Allowance period (hours)" 16 203.5 487 228
+"1" 499 192 589 240
+"Slower between set hours" 18 265.5 535 290

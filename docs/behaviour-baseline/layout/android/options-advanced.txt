@@ -15,26 +15,26 @@
 "Options" 335 888.5 386 908
 
 [dialog "Options" 880x600]
-"General" 44 131.5 107 156
-"Folders" 44 181.5 107 206
-"Downloads" 44 231.5 125 256
-"Advanced" 44 281.5 116 306
-"Sign-ins" 44 331.5 116 356
+"General" 48 131.5 111 156
+"Folders" 48 181.5 111 206
+"Downloads" 48 231.5 129 256
+"Advanced" 48 281.5 120 306
+"Sign-ins" 48 331.5 120 356
 "Advanced" 220 68 860 102
 "Network, Sites with their own connection limit, Proxy" 220 104 860 125
-"Network" 220 147 860 171.5
-"Speed limit (KB/s, 0 for none)" 220 193 758 217.5
-"0" 770 181.5 860 229.5
-"Keeps dm from using all of your connection." 220 231.5 700 252.5
-"Attempts per connection (0 to keep trying)" 220 282 758 306.5
-"15" 770 270.5 860 318.5
-"How many times dm tries again after a connection fails." 220 320.5 700 341.5
-"Wait between attempts (seconds, 0 for automatic)" 220 371 758 395.5
-"0" 770 359.5 860 407.5
-"How long dm waits before it tries again." 220 409.5 700 430.5
-"Time out a silent connection after (seconds)" 220 460 758 484.5
-"30" 770 448.5 860 496.5
-"How long a connection may say nothing before dm gives up on it." 220 498.5 700 525
+"Network" 220 147 860 168
+"Speed limit (KB/s, 0 for none)" 220 189.5 758 214
+"0" 770 178 860 226
+"Keeps dm from using all of your connection." 220 228 700 249
+"Attempts per connection (0 to keep trying)" 220 278.5 758 303
+"15" 770 267 860 315
+"How many times dm tries again after a connection fails." 220 317 700 338
+"Wait between attempts (seconds, 0 for automatic)" 220 367.5 758 392
+"0" 770 356 860 404
+"How long dm waits before it tries again." 220 406 700 427
+"Time out a silent connection after (seconds)" 220 456.5 758 481
+"30" 770 445 860 493
+"How long a connection may say nothing before dm gives up on it." 220 495 700 525
 "?" 477.5 547.5 486.5 572
 "Restore defaults" 533 547.5 677 572
 "Cancel" 719 547.5 773 572

@@ -27,6 +27,9 @@ use common::{options, serve, tempdir};
 
 const CHUNK: usize = 16 * 1024;
 
+/// How much of a stall a shared rate makes up after it ([`Pace::Shared`]).
+const CATCH_UP: Duration = Duration::from_millis(250);
+
 fn body(size: usize) -> Arc<Vec<u8>> {
     Arc::new(
         (0..size)
@@ -80,7 +83,10 @@ impl Pace {
             }
             Pace::Shared(rate, next) => {
                 let mut next = next.lock().unwrap();
-                let at = (*next).max(now);
+                // A moment the server missed (a busy runner did not run it) is made up after, as
+                // a real rate's bucket does: lost for good, it lowered the rate measured before a
+                // connection was added, and the next window read as a raise (11 of 9 on macOS CI).
+                let at = (*next).max(now.checked_sub(CATCH_UP).unwrap_or(now));
                 *next = at + Duration::from_secs_f64(CHUNK as f64 / *rate as f64);
                 at
             }

@@ -9298,3 +9298,20 @@ buttons stay `native::button`, the one way a button is drawn.
   (`press::claims` and `press::face`, a press claimed under a name and drawn by another
   element): the whole quarter lit, seen on the emulator, was a hard grey box, where Android's own
   tab bars light the pill.
+- 2026-11-28, main's Desktop run red on Windows (`no press shown on the ⋮`): the harness's test
+  clock is moved on by the real time since the last step, so on a slow runner a press could
+  start already more than its 1.5 s old and be lifted at once. The harness's touch now brings
+  the clock to the present before the finger lands (`harness/pointer.rs`); a 1.6 s pause put
+  before the touch failed the test here before and passes after.
+
+## Stalls on a busy runner made up by the test server's shared rate, 2026-11-28
+
+- `tests/grow.rs`'s `a_server_that_shares_one_rate_keeps_eight` failed twice on macOS CI with 11
+  connections of 9 (the watch list's rule: a second failure is fixed). Eleven is one misjudged
+  window: a raise read for the first added connection, then two more. The test server's shared
+  rate lost whatever moment the runner did not run it, so a stall lowered the rate measured
+  before the connection was added, and the window after read as a raise.
+- The server now makes up to 250 ms of a stall after it, as a real rate's bucket does. dm's
+  rule (`ranged::grow`) is unchanged: a second "before" window for every judgement was weighed
+  and dropped, as it delays growth by a second where each connection is held down (`bench`
+  `per_conn`). With fourteen busy processes beside it the test held 9 in four runs of four.

@@ -15,11 +15,11 @@
 "Options" 335 888.5 386 908
 
 [dialog "Options" 880x600]
-"General" 44 131.5 107 156
-"Folders" 44 181.5 107 206
-"Downloads" 44 231.5 125 256
-"Advanced" 44 281.5 116 306
-"Sign-ins" 44 331.5 116 356
+"General" 48 131.5 111 156
+"Folders" 48 181.5 111 206
+"Downloads" 48 231.5 129 256
+"Advanced" 48 281.5 120 306
+"Sign-ins" 48 331.5 120 356
 "Downloads" 220 68 860 102
 "Connections per file, Queues with their own limit, Queues that start at a set time" 220 104 860 125
 "Connections per file" 220 158.5 758 183

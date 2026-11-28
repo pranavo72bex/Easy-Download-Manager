@@ -6,18 +6,18 @@
 "3 Downloads" 24 37 308 58
 "Filter" 324 19.5 348 43.5
 "Menü" 376 19.5 400 43.5
-"report.pdf" 64 77 296 103
-"Wartet auf »Warteschlange starten«" 80 121 288 142
-"Download fortsetzen" 318 99.5 338 119.5
-"Menü der Zeile" 374 99.5 394 119.5
-"holiday.mp4" 64 169 296 195
-"Wartet auf »Warteschlange starten«" 80 213 288 234
-"Download fortsetzen" 318 191.5 338 211.5
-"Menü der Zeile" 374 191.5 394 211.5
-"archive.zip" 64 261 296 287
-"Wartet auf »Warteschlange starten«" 80 305 288 326
-"Download fortsetzen" 318 283.5 338 303.5
-"Menü der Zeile" 374 283.5 394 303.5
+"report.pdf" 64 71 296 97
+"Wartet auf »Warteschlange starten«" 80 115 288 136
+"Download fortsetzen" 316 91.5 340 115.5
+"Menü der Zeile" 372 91.5 396 115.5
+"holiday.mp4" 64 151 296 177
+"Wartet auf »Warteschlange starten«" 80 195 288 216
+"Download fortsetzen" 316 171.5 340 195.5
+"Menü der Zeile" 372 171.5 396 195.5
+"archive.zip" 64 231 296 257
+"Wartet auf »Warteschlange starten«" 80 275 288 296
+"Download fortsetzen" 316 251.5 340 275.5
+"Menü der Zeile" 372 251.5 396 275.5
 "URL hinzufügen" 355 790 381 816
 "Alle" 37 888.5 66 908
 "Unvollständig" 107.5 888.5 201.5 908
