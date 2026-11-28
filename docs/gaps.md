@@ -87,7 +87,7 @@ artifact), the harness's touch bringing the test clock to the present (Windows' 
 `grow.rs`'s shared rate making up a stall (macOS, a second failure). Deep fuzz (#72): both finds
 were fixed already; run 46096626288 started to show it. C0c: a gliding bar drawn 30 times a
 second (`capped` CPU halved). Options' presets in Arabic at 400 points (the old note's item 4)
-were fixed in `b9537898`. K4 closed (Download details' Networks line, contract B02); C18's release step writes the package managers' manifests (its first run is the next `desktop-v*` tag: read that step's log). H33 closed: a peer's piece requests capped at 500 (vendored librqbit), and librqbit-tracker-comms vendored (the eighth copy) for an HTTP tracker's 1 MiB answer cap and 60 s least interval. H11d: the fuzz nights read, none open. **Start with:** main's Desktop and Deep fuzz runs once pushed; then
+were fixed in `b9537898`. K4 closed (Download details' Networks line, contract B02); C18's release step writes the package managers' manifests (its first run is the next `desktop-v*` tag: read that step's log). H33 closed: a peer's piece requests capped at 500 (vendored librqbit), and librqbit-tracker-comms vendored (the eighth copy) for an HTTP tracker's 1 MiB answer cap and 60 s least interval. H11d: the fuzz nights read, none open. Rows 223 and N33b: `hls_memory` measured the test server's copy of its segment; fixed, 20 of 20 under load. Left for a session (not the bots): N33c's 20 full runs under load, C0c's engine CPU, rows needing Windows or a person. **Start with:** main's Desktop and Deep fuzz runs once pushed; then
 C0c's last 270 ms of the window, or the engine's 790 against 281.
 
 ## Next session (written 2026-11-27, night; for 2026-11-28)
