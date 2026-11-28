@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- A download's speed no longer drops to nothing when a busy computer pauses for a moment just after the first bytes arrive.
 - A torrent tracker that answers "ask again now" is asked again a minute later at the soonest, and one whose answer never ends is let go of after a megabyte.
 - While sharing a torrent, a peer that asks for pieces without end and takes none of them is disconnected, instead of filling dm's memory with its requests.
 - Where a second or third network is set, Download details says how fast each answered last, before the download starts.

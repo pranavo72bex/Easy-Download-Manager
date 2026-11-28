@@ -94,12 +94,15 @@ impl Meter {
         if seconds > 0.0 {
             let moved = downloaded.saturating_sub(self.last_bytes) as f64;
             let instant = moved / seconds;
-            self.speed = if self.speed == 0.0 || self.warm == 1 {
+            // The first interval's figure is replaced by the next that brings bytes, not by one
+            // that brings none: a loaded computer's quiet moment after the first bytes set a
+            // finished download's rate to nothing (a loaded run of the tests, 2026-11-28).
+            self.speed = if self.speed == 0.0 || (self.warm == 1 && moved > 0.0) {
                 instant
             } else {
                 self.speed * (1.0 - WEIGHT) + instant * WEIGHT
             };
-            if self.warm == 1 || (self.warm == 0 && moved > 0.0) {
+            if moved > 0.0 && self.warm < 2 {
                 self.warm += 1;
             }
         }

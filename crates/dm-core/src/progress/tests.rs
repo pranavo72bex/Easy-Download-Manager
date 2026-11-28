@@ -58,6 +58,18 @@ fn the_first_interval_that_brought_bytes_is_replaced_not_averaged() {
     assert!(p > 500_000.0 && p < 1_000_000.0, "{p}");
 }
 
+/// A quiet interval after the first bytes (a loaded computer, or a file already whole) keeps
+/// a rate, decaying, rather than setting it to nothing; the next interval with bytes is then
+/// the figure, as the first whole one is.
+#[test]
+fn a_quiet_interval_after_the_first_bytes_does_not_wipe_the_rate() {
+    let mut m = Meter::new(Some(12_000_000), 0);
+    assert_eq!(m.sample(3_000_000, secs(0.25)).speed, 12_000_000.0);
+    let quiet = m.sample(3_000_000, secs(0.25)).speed;
+    assert!(quiet > 0.0, "a quiet moment wiped the rate");
+    assert_eq!(m.sample(4_000_000, secs(0.25)).speed, 4_000_000.0);
+}
+
 #[test]
 fn a_sample_over_no_time_does_not_produce_an_infinity() {
     let mut m = Meter::new(Some(1000), 0);
