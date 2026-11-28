@@ -50,7 +50,7 @@ use std::{
     num::NonZeroU32,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -89,7 +89,7 @@ use crate::{
     file_ops::FileOps,
     limits::Limits,
     peer_connection::{
-        PeerConnection, PeerConnectionHandler, PeerConnectionOptions, WriterRequest,
+        PeerConnection, PeerConnectionHandler, PeerConnectionOptions, UploadQueued, WriterRequest,
     },
     piece_tracker::{AcquireRequest, AcquireResult, PieceTracker},
     session::CheckedIncomingConnection,
@@ -212,6 +212,7 @@ pub struct TorrentStateLive {
     ratelimit_upload_tx: tokio::sync::mpsc::UnboundedSender<(
         tokio::sync::mpsc::UnboundedSender<WriterRequest>,
         ChunkInfo,
+        UploadQueued,
     )>,
     ratelimits: Limits,
 }
@@ -262,6 +263,7 @@ impl TorrentStateLive {
         let (ratelimit_upload_tx, ratelimit_upload_rx) = tokio::sync::mpsc::unbounded_channel::<(
             tokio::sync::mpsc::UnboundedSender<WriterRequest>,
             ChunkInfo,
+            UploadQueued,
         )>();
         let ratelimits = Limits::new(paused.shared.options.ratelimits);
 
@@ -445,9 +447,11 @@ impl TorrentStateLive {
         mut rx: tokio::sync::mpsc::UnboundedReceiver<(
             tokio::sync::mpsc::UnboundedSender<WriterRequest>,
             ChunkInfo,
+            UploadQueued,
         )>,
     ) -> crate::Result<()> {
-        while let Some((tx, ci)) = rx.recv().await {
+        // dm(caps): `queued` counts the request against its peer until its chunk is written.
+        while let Some((tx, ci, queued)) = rx.recv().await {
             tokio::select! {
                 _ = tx.closed() => {
                     continue;
@@ -466,7 +470,7 @@ impl TorrentStateLive {
                     }
                 }
             }
-            let _ = tx.send(WriterRequest::ReadChunkRequest(ci));
+            let _ = tx.send(WriterRequest::ReadChunkRequest(ci, Some(queued)));
         }
         Ok(())
     }
@@ -488,6 +492,7 @@ impl TorrentStateLive {
             tx,
             counters,
             first_message_received: AtomicBool::new(false),
+            upload_queued: Default::default(),
             cancel_token: self.cancellation_token.child_token(),
             client_name_and_version: self.shared.client_name_and_version().to_owned(),
         };
@@ -553,6 +558,7 @@ impl TorrentStateLive {
             tx,
             counters,
             first_message_received: AtomicBool::new(false),
+            upload_queued: Default::default(),
             cancel_token: state.cancellation_token.child_token(),
             client_name_and_version: state.shared.client_name_and_version().to_owned(),
         };
@@ -1022,6 +1028,12 @@ impl PeerFlowControl {
     }
 }
 
+/// dm(caps): the most piece requests of one peer that wait to be uploaded at once (queued or
+/// waiting to be written). A client
+/// keeps about 250 in flight (libtorrent's and others' `reqq`); past twice that, a peer only
+/// grows dm's memory (gaps row H33b).
+pub(crate) const MOST_UPLOAD_REQUESTS_QUEUED: usize = 500;
+
 // All peer state that would never be used by other actors should pe put here.
 // This state tracks a live peer.
 struct PeerHandler {
@@ -1043,6 +1055,9 @@ struct PeerHandler {
     tx: PeerTx,
 
     first_message_received: AtomicBool,
+
+    // dm(caps): how many of this peer's piece requests wait in the upload queue.
+    upload_queued: Arc<AtomicUsize>,
 
     cancel_token: CancellationToken,
 
@@ -1528,9 +1543,17 @@ impl PeerHandler {
             );
         }
 
+        // dm(caps): a peer asking for more than it could be sending for is cut off, rather than
+        // its requests queueing without end (gaps row H33b).
+        let queued = UploadQueued::new(&self.upload_queued);
+        if queued.count() > MOST_UPLOAD_REQUESTS_QUEUED {
+            anyhow::bail!(
+                "peer has more than {MOST_UPLOAD_REQUESTS_QUEUED} piece requests waiting; disconnecting"
+            );
+        }
         self.state
             .ratelimit_upload_tx
-            .send((self.tx.clone(), chunk_info))?;
+            .send((self.tx.clone(), chunk_info, queued))?;
         Ok(())
     }
 

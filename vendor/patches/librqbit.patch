@@ -146,7 +146,7 @@ src/lib.rs:
   1. The encrypted connections' module, `mse`.
 
 diff --git a/src/lib.rs b/src/lib.rs
-index 29843e0..0311c5f 100644
+index 29843e0..f94808e 100644
 --- a/src/lib.rs
 +++ b/src/lib.rs
 @@ -61,6 +61,8 @@ mod ip_ranges;
@@ -166,7 +166,7 @@ encrypted. With its own tests (`cargo test --lib mse`).
 
 diff --git a/src/mse.rs b/src/mse.rs
 new file mode 100644
-index 0000000..023e5f6
+index 0000000..51f1ff9
 --- /dev/null
 +++ b/src/mse.rs
 @@ -0,0 +1,588 @@
@@ -767,12 +767,53 @@ src/peer_connection.rs:
      encrypted again where the peer hangs up on that (`plaintext_refused`);
      the connect and handshake become `connect_and_handshake`, which runs
      `mse::initiate` before the BitTorrent handshake when asked to.
+  dm(caps): `UploadQueued`, a peer's piece request counted against it until its chunk
+  is written; `ReadChunkRequest` carries it and the writer lets it go after the write
+  (gaps row H33b).
 
 diff --git a/src/peer_connection.rs b/src/peer_connection.rs
-index ca2690c..35de6e1 100644
+index ca2690c..e80b4c5 100644
 --- a/src/peer_connection.rs
 +++ b/src/peer_connection.rs
-@@ -83,6 +83,11 @@ pub struct PeerConnectionOptions {
+@@ -57,12 +57,36 @@ pub trait PeerConnectionHandler {
+     }
+ }
+ 
++/// dm(caps): one piece request of a peer waiting to be uploaded, counted against the peer for as
++/// long as it lives: in the upload queue, then until its chunk is written (gaps row H33b).
++#[derive(Debug)]
++pub struct UploadQueued(std::sync::Arc<std::sync::atomic::AtomicUsize>);
++
++impl UploadQueued {
++    pub(crate) fn new(count: &std::sync::Arc<std::sync::atomic::AtomicUsize>) -> Self {
++        count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
++        Self(count.clone())
++    }
++
++    /// How many of its peer's requests wait, this one among them.
++    pub(crate) fn count(&self) -> usize {
++        self.0.load(std::sync::atomic::Ordering::Relaxed)
++    }
++}
++
++impl Drop for UploadQueued {
++    fn drop(&mut self) {
++        self.0.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
++    }
++}
++
+ #[derive(Debug)]
+ pub enum WriterRequest {
+     Message(Message<'static>),
+     UtMetadata(UtMetadata<ByteBufOwned>),
+     UtPex(UtPex<ByteBufOwned>),
+-    ReadChunkRequest(ChunkInfo),
++    // dm(caps): with its count against the peer's requests waiting, until it is written.
++    ReadChunkRequest(ChunkInfo, Option<UploadQueued>),
+     Disconnect(anyhow::Result<()>),
+ }
+ 
+@@ -83,6 +107,11 @@ pub struct PeerConnectionOptions {
      /// one at a stream's read position after a seek, is requested only after
      /// those, so a smaller window makes streams react faster to seeks.
      pub max_request_window: Option<usize>,
@@ -784,7 +825,7 @@ index ca2690c..35de6e1 100644
  }
  
  pub(crate) struct PeerConnection<H> {
-@@ -116,6 +121,16 @@ pub(crate) async fn with_timeout<T>(
+@@ -116,6 +145,16 @@ pub(crate) async fn with_timeout<T>(
      fut.await
  }
  
@@ -801,7 +842,7 @@ index ca2690c..35de6e1 100644
  struct ManagePeerArgs {
      handshake_supports_extended: bool,
      read_buf: ReadBuf,
-@@ -212,7 +227,6 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
+@@ -212,7 +251,6 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
          outgoing_chan: tokio::sync::mpsc::UnboundedReceiver<WriterRequest>,
          have_broadcast: tokio::sync::broadcast::Receiver<ValidPieceIndex>,
      ) -> Result<()> {
@@ -809,7 +850,7 @@ index ca2690c..35de6e1 100644
          let rwtimeout = self
              .options
              .read_write_timeout
-@@ -223,60 +237,111 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
+@@ -223,60 +261,111 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
              .connect_timeout
              .unwrap_or_else(|| Duration::from_secs(10));
  
@@ -963,6 +1004,25 @@ index ca2690c..35de6e1 100644
      }
  
      async fn manage_peer(&self, args: ManagePeerArgs) -> Result<()> {
+@@ -381,6 +470,8 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
+                 tokio::task::yield_now().await;
+ 
+                 let mut uploaded_add = None;
++                // dm(caps): a chunk's count against its peer, let go once it is written.
++                let mut _writing: Option<UploadQueued> = None;
+ 
+                 trace!("about to send: {:?}", &req);
+                 let ext_msg_ids = &|| {
+@@ -401,7 +492,8 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
+                         Message::Extended(ExtendedMessage::UtPex(ut_pex.as_borrowed()))
+                             .serialize(&mut *write_buf, ext_msg_ids)?
+                     }
+-                    WriterRequest::ReadChunkRequest(chunk) => {
++                    WriterRequest::ReadChunkRequest(chunk, queued) => {
++                        _writing = queued;
+                         #[allow(unused_mut)]
+                         let mut skip_reading_for_e2e_tests = false;
+ 
 src/session.rs:
   1. Under rust-tls ring is made the process's TLS provider where none is,
      as reqwest is built without one (a client built with none panics).
@@ -1240,7 +1300,7 @@ index 5e02415..0bd537b 100644
 +    Ok(())
  }
 diff --git a/src/storage/filesystem/fs.rs b/src/storage/filesystem/fs.rs
-index 749e6af..6e0844b 100644
+index 749e6af..8d81cb3 100644
 --- a/src/storage/filesystem/fs.rs
 +++ b/src/storage/filesystem/fs.rs
 @@ -127,6 +127,15 @@ impl TorrentStorage for FilesystemStorage {
@@ -1310,12 +1370,79 @@ index 749e6af..6e0844b 100644
 +}
 src/torrent_state/live/mod.rs:
   1, 2. Each peer's connection options take `peer_require_encryption`.
+  dm(caps): `MOST_UPLOAD_REQUESTS_QUEUED` (500), each peer's requests waiting counted
+  (`PeerHandler::upload_queued`, raised in `on_download_request`, carried through the
+  upload queue to the writer); a peer past it is cut off (gaps row H33b).
 
 diff --git a/src/torrent_state/live/mod.rs b/src/torrent_state/live/mod.rs
-index 804ef26..96537c9 100644
+index 804ef26..52bad8b 100644
 --- a/src/torrent_state/live/mod.rs
 +++ b/src/torrent_state/live/mod.rs
-@@ -495,6 +495,7 @@ impl TorrentStateLive {
+@@ -50,7 +50,7 @@ use std::{
+     num::NonZeroU32,
+     sync::{
+         Arc,
+-        atomic::{AtomicBool, AtomicU64, Ordering},
++        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+     },
+     time::{Duration, Instant},
+ };
+@@ -89,7 +89,7 @@ use crate::{
+     file_ops::FileOps,
+     limits::Limits,
+     peer_connection::{
+-        PeerConnection, PeerConnectionHandler, PeerConnectionOptions, WriterRequest,
++        PeerConnection, PeerConnectionHandler, PeerConnectionOptions, UploadQueued, WriterRequest,
+     },
+     piece_tracker::{AcquireRequest, AcquireResult, PieceTracker},
+     session::CheckedIncomingConnection,
+@@ -212,6 +212,7 @@ pub struct TorrentStateLive {
+     ratelimit_upload_tx: tokio::sync::mpsc::UnboundedSender<(
+         tokio::sync::mpsc::UnboundedSender<WriterRequest>,
+         ChunkInfo,
++        UploadQueued,
+     )>,
+     ratelimits: Limits,
+ }
+@@ -262,6 +263,7 @@ impl TorrentStateLive {
+         let (ratelimit_upload_tx, ratelimit_upload_rx) = tokio::sync::mpsc::unbounded_channel::<(
+             tokio::sync::mpsc::UnboundedSender<WriterRequest>,
+             ChunkInfo,
++            UploadQueued,
+         )>();
+         let ratelimits = Limits::new(paused.shared.options.ratelimits);
+ 
+@@ -445,9 +447,11 @@ impl TorrentStateLive {
+         mut rx: tokio::sync::mpsc::UnboundedReceiver<(
+             tokio::sync::mpsc::UnboundedSender<WriterRequest>,
+             ChunkInfo,
++            UploadQueued,
+         )>,
+     ) -> crate::Result<()> {
+-        while let Some((tx, ci)) = rx.recv().await {
++        // dm(caps): `queued` counts the request against its peer until its chunk is written.
++        while let Some((tx, ci, queued)) = rx.recv().await {
+             tokio::select! {
+                 _ = tx.closed() => {
+                     continue;
+@@ -466,7 +470,7 @@ impl TorrentStateLive {
+                     }
+                 }
+             }
+-            let _ = tx.send(WriterRequest::ReadChunkRequest(ci));
++            let _ = tx.send(WriterRequest::ReadChunkRequest(ci, Some(queued)));
+         }
+         Ok(())
+     }
+@@ -488,6 +492,7 @@ impl TorrentStateLive {
+             tx,
+             counters,
+             first_message_received: AtomicBool::new(false),
++            upload_queued: Default::default(),
+             cancel_token: self.cancellation_token.child_token(),
+             client_name_and_version: self.shared.client_name_and_version().to_owned(),
+         };
+@@ -495,6 +500,7 @@ impl TorrentStateLive {
          let options = PeerConnectionOptions {
              connect_timeout: self.shared.options.peer_connect_timeout,
              read_write_timeout: self.shared.options.peer_read_write_timeout,
@@ -1323,7 +1450,15 @@ index 804ef26..96537c9 100644
              ..Default::default()
          };
          let peer_connection = PeerConnection::new(
-@@ -560,6 +561,7 @@ impl TorrentStateLive {
+@@ -552,6 +558,7 @@ impl TorrentStateLive {
+             tx,
+             counters,
+             first_message_received: AtomicBool::new(false),
++            upload_queued: Default::default(),
+             cancel_token: state.cancellation_token.child_token(),
+             client_name_and_version: state.shared.client_name_and_version().to_owned(),
+         };
+@@ -560,6 +567,7 @@ impl TorrentStateLive {
          let options = PeerConnectionOptions {
              connect_timeout: state.shared.options.peer_connect_timeout,
              read_write_timeout: state.shared.options.peer_read_write_timeout,
@@ -1331,7 +1466,49 @@ index 804ef26..96537c9 100644
              ..Default::default()
          };
          let peer_connection = PeerConnection::new(
-@@ -2035,8 +2037,9 @@ impl PeerHandler {
+@@ -1020,6 +1028,12 @@ impl PeerFlowControl {
+     }
+ }
+ 
++/// dm(caps): the most piece requests of one peer that wait to be uploaded at once (queued or
++/// waiting to be written). A client
++/// keeps about 250 in flight (libtorrent's and others' `reqq`); past twice that, a peer only
++/// grows dm's memory (gaps row H33b).
++pub(crate) const MOST_UPLOAD_REQUESTS_QUEUED: usize = 500;
++
+ // All peer state that would never be used by other actors should pe put here.
+ // This state tracks a live peer.
+ struct PeerHandler {
+@@ -1042,6 +1056,9 @@ struct PeerHandler {
+ 
+     first_message_received: AtomicBool,
+ 
++    // dm(caps): how many of this peer's piece requests wait in the upload queue.
++    upload_queued: Arc<AtomicUsize>,
++
+     cancel_token: CancellationToken,
+ 
+     client_name_and_version: String,
+@@ -1526,9 +1543,17 @@ impl PeerHandler {
+             );
+         }
+ 
++        // dm(caps): a peer asking for more than it could be sending for is cut off, rather than
++        // its requests queueing without end (gaps row H33b).
++        let queued = UploadQueued::new(&self.upload_queued);
++        if queued.count() > MOST_UPLOAD_REQUESTS_QUEUED {
++            anyhow::bail!(
++                "peer has more than {MOST_UPLOAD_REQUESTS_QUEUED} piece requests waiting; disconnecting"
++            );
++        }
+         self.state
+             .ratelimit_upload_tx
+-            .send((self.tx.clone(), chunk_info))?;
++            .send((self.tx.clone(), chunk_info, queued))?;
+         Ok(())
+     }
+ 
+@@ -2035,8 +2060,9 @@ impl PeerHandler {
      }
  
      fn on_pex_message(&self, msg: UtPex<ByteBuf<'_>>) {
@@ -1362,7 +1539,7 @@ index 3cd3477..74480d7 100644
              Entry::Occupied(_) => None,
              Entry::Vacant(vac) => {
 diff --git a/src/torrent_state/mod.rs b/src/torrent_state/mod.rs
-index db47001..b2db02e 100644
+index db47001..5b51bd1 100644
 --- a/src/torrent_state/mod.rs
 +++ b/src/torrent_state/mod.rs
 @@ -113,6 +113,8 @@ pub(crate) struct ManagedTorrentOptions {

@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- While sharing a torrent, a peer that asks for pieces without end and takes none of them is disconnected, instead of filling dm's memory with its requests.
 - Where a second or third network is set, Download details says how fast each answered last, before the download starts.
 - While a download runs, the window uses about half the CPU it did: a progress bar's glide is drawn 30 times a second instead of at the screen's every refresh, and looks the same.
 - The toolbar's buttons, the side panel's places and the list's column headings darken while pressed, as the window's other buttons do; they only lit under the pointer.

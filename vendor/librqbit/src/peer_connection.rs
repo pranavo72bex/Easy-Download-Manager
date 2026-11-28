@@ -57,12 +57,36 @@ pub trait PeerConnectionHandler {
     }
 }
 
+/// dm(caps): one piece request of a peer waiting to be uploaded, counted against the peer for as
+/// long as it lives: in the upload queue, then until its chunk is written (gaps row H33b).
+#[derive(Debug)]
+pub struct UploadQueued(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+impl UploadQueued {
+    pub(crate) fn new(count: &std::sync::Arc<std::sync::atomic::AtomicUsize>) -> Self {
+        count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Self(count.clone())
+    }
+
+    /// How many of its peer's requests wait, this one among them.
+    pub(crate) fn count(&self) -> usize {
+        self.0.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+impl Drop for UploadQueued {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 #[derive(Debug)]
 pub enum WriterRequest {
     Message(Message<'static>),
     UtMetadata(UtMetadata<ByteBufOwned>),
     UtPex(UtPex<ByteBufOwned>),
-    ReadChunkRequest(ChunkInfo),
+    // dm(caps): with its count against the peer's requests waiting, until it is written.
+    ReadChunkRequest(ChunkInfo, Option<UploadQueued>),
     Disconnect(anyhow::Result<()>),
 }
 
@@ -446,6 +470,8 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
                 tokio::task::yield_now().await;
 
                 let mut uploaded_add = None;
+                // dm(caps): a chunk's count against its peer, let go once it is written.
+                let mut _writing: Option<UploadQueued> = None;
 
                 trace!("about to send: {:?}", &req);
                 let ext_msg_ids = &|| {
@@ -466,7 +492,8 @@ impl<H: PeerConnectionHandler> PeerConnection<H> {
                         Message::Extended(ExtendedMessage::UtPex(ut_pex.as_borrowed()))
                             .serialize(&mut *write_buf, ext_msg_ids)?
                     }
-                    WriterRequest::ReadChunkRequest(chunk) => {
+                    WriterRequest::ReadChunkRequest(chunk, queued) => {
+                        _writing = queued;
                         #[allow(unused_mut)]
                         let mut skip_reading_for_e2e_tests = false;
 

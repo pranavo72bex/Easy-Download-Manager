@@ -200,3 +200,119 @@ async fn a_peer_sending_endless_pex_cannot_grow_the_known_peers_past_the_cap() {
     control.pause();
     let _ = tokio::time::timeout(Duration::from_secs(10), run).await;
 }
+
+/// A peer asking dm to upload pieces without end, and reading none of them, is cut off once 500
+/// of its requests wait, within moments, rather than its requests queueing until the write
+/// times out ten seconds later (gaps row H33b): the attack refused is a peer growing dm's
+/// memory with requests it never takes.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_peer_that_asks_for_pieces_without_end_is_cut_off() {
+    use librqbit::spawn_utils::BlockingSpawner;
+    use librqbit::{
+        AddTorrent, AddTorrentOptions, CreateTorrentOptions, ListenerMode, ListenerOptions,
+        Session, SessionOptions,
+    };
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    // dm's engine seeding a file of 64 chunks, on the loopback.
+    let data: Vec<u8> = (0..1024 * 1024u32)
+        .map(|i| i.wrapping_mul(2654435761) as u8)
+        .collect();
+    let seed = common::tempdir();
+    std::fs::write(seed.path().join("asked.bin"), &data).unwrap();
+    let listening = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let seeder_addr = listening.local_addr().unwrap();
+    drop(listening);
+    let seeder = Session::new_with_opts(
+        seed.path().to_path_buf(),
+        SessionOptions {
+            dht: None,
+            disable_local_service_discovery: true,
+            persistence: None,
+            listen: Some(ListenerOptions {
+                mode: ListenerMode::TcpOnly,
+                listen_addr: seeder_addr,
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let torrent = librqbit::create_torrent(
+        &seed.path().join("asked.bin"),
+        CreateTorrentOptions {
+            name: Some("asked.bin"),
+            trackers: vec![],
+            piece_length: Some(256 * 1024),
+        },
+        &BlockingSpawner::new(1),
+    )
+    .await
+    .unwrap();
+    let hash = torrent.info_hash();
+    let handle = seeder
+        .add_torrent(
+            AddTorrent::TorrentFileBytes(torrent.as_bytes().unwrap()),
+            Some(AddTorrentOptions {
+                overwrite: true,
+                output_folder: Some(seed.path().to_str().unwrap().to_owned()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap()
+        .into_handle()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(30), handle.wait_until_completed())
+        .await
+        .expect("the seeder never checked its file")
+        .unwrap();
+
+    // A peer: the handshake, interested, then requests for every chunk over and over.
+    let mut socket = tokio::net::TcpStream::connect(seeder_addr).await.unwrap();
+    let mut greeting = vec![19];
+    greeting.extend_from_slice(b"BitTorrent protocol");
+    greeting.extend_from_slice(&[0; 8]);
+    greeting.extend_from_slice(&hash.0);
+    greeting.extend_from_slice(b"-DMTEST-000000000002");
+    socket.write_all(&greeting).await.unwrap();
+    let mut theirs = [0u8; peer::HANDSHAKE];
+    socket.read_exact(&mut theirs).await.unwrap();
+    assert_eq!(
+        &theirs[28..48],
+        &hash.0,
+        "the seeder answered for another torrent"
+    );
+    let mut asks = vec![0, 0, 0, 1, 2];
+    for n in 0..2000u32 {
+        let chunk = n % 64;
+        asks.extend_from_slice(&13u32.to_be_bytes());
+        asks.push(6);
+        asks.extend_from_slice(&(chunk / 16).to_be_bytes());
+        asks.extend_from_slice(&((chunk % 16) * 16384).to_be_bytes());
+        asks.extend_from_slice(&16384u32.to_be_bytes());
+    }
+    let began = std::time::Instant::now();
+    // Sent while reading nothing: the seeder's answers back up behind the unread socket.
+    let (mut reader, mut writer) = socket.into_split();
+    let _ = writer.write_all(&asks).await;
+    // Cut off: reading what is in the socket's buffer ends at its close.
+    let closed = tokio::time::timeout(Duration::from_secs(8), async {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let mut buf = vec![0u8; 1 << 16];
+        loop {
+            match reader.read(&mut buf).await {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {}
+            }
+        }
+    })
+    .await;
+    assert!(
+        closed.is_ok() && began.elapsed() < Duration::from_secs(9),
+        "the peer was not cut off within moments: {:?}",
+        began.elapsed()
+    );
+    seeder.stop().await;
+}
