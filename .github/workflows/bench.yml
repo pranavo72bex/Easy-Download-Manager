@@ -69,7 +69,7 @@ jobs:
       - name: The benchmark, EDM alone
         shell: bash
         env:
-          BENCH_APPS: EDM
+          BENCH_APPS: edm
           BENCH_REPS: "3"
           EDM_BINARY: ${{ github.workspace }}/target/release/edm-gpui
         run: |

@@ -8,7 +8,7 @@
 use super::*;
 
 /// Where the app's catch rules are kept between the worker's naps.
-pub(super) const RULES_KEY: &str = "EDM.catch";
+pub(super) const RULES_KEY: &str = "dm.catch";
 
 /// Keeps the app's catch rules where a worker woken by a download can read
 /// them at once. Asking the app means starting its host, which takes long
@@ -32,7 +32,7 @@ pub(super) async fn remember_rules(rules: &CatchRules) {
 }
 
 /// Where the site rules the app served in its hello are kept between the worker's naps.
-pub(super) const SERVED_KEY: &str = "EDM.rules";
+pub(super) const SERVED_KEY: &str = "dm.rules";
 
 thread_local! {
     /// Whether the kept site rules were looked for in this worker's life.
@@ -73,7 +73,7 @@ pub(super) async fn ensure_served() {
 }
 
 /// Where the right-click menu the app last served is kept (`Hello::menus`).
-pub(super) const MENUS_KEY: &str = "EDM.menus";
+pub(super) const MENUS_KEY: &str = "dm.menus";
 
 /// Keeps the menu the app served (or that it served none: an older app's extension makes its
 /// own), and makes the browser's menu again where it changed.

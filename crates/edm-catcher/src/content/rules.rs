@@ -55,9 +55,9 @@ pub(super) fn local_storage() -> Option<JsValue> {
         .filter(|l| l.is_object())
 }
 
-/// The app's catch rules as the background keeps them (`EDM.catch`): the
+/// The app's catch rules as the background keeps them (`dm.catch`): the
 /// panel is off everywhere where they say so.
-pub(super) const RULES_KEY: &str = "EDM.catch";
+pub(super) const RULES_KEY: &str = "dm.catch";
 
 /// Whether the rules, as stored, turn the panel off everywhere; applied at
 /// once, and hidden where it shows.

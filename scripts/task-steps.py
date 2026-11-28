@@ -530,7 +530,7 @@ def t10_run(edm, s, files, work):
     s.click("Low speed (256 KB/s)")
     kept = s.until(lambda: edm.settings().get("speed_limit") == 256, 6)
     said = edm.inspect().get("said", "")
-    return bool(kept), f"speed_limit {EDM.settings().get('speed_limit')}; the status line: {said!r}"
+    return bool(kept), f"speed_limit {edm.settings().get('speed_limit')}; the status line: {said!r}"
 
 
 def t11_setup(edm, files, work):
@@ -708,7 +708,7 @@ def t19_run(edm, s, files, work):
     s.type(str(new))
     s.click("OK")
     kept = s.until(lambda: pathlib.Path(edm.settings().get("download_dir") or "") == new, 6)
-    return bool(kept), f"download_dir {EDM.settings().get('download_dir')}; still open: {edm.dialogs()}"
+    return bool(kept), f"download_dir {edm.settings().get('download_dir')}; still open: {edm.dialogs()}"
 
 
 DRIVEN = {

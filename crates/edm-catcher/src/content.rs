@@ -7,7 +7,7 @@
 //!
 //! It raises a panel at the top right of a video or audio player when the
 //! pointer is over it or it starts playing, and a click hands the media to
-//! the EDM app through the background (`EDM.media`). It reads nothing else on
+//! the EDM app through the background (`dm.media`). It reads nothing else on
 //! the page and sends nothing until the panel is clicked.
 //!
 //! The panel lives in a shadow root on a fixed host, so the page's styles

@@ -1018,7 +1018,7 @@ def walk(edm, origin):
     left = list((WORK / "home" / "downloads").rglob("pageno*"))
     check("B40", "Don’t download removes the row and keeps nothing",
           said is not None and edm.row("pageno.zip") is None and not left,
-          f"row kept: {EDM.row('pageno.zip') is not None}, files: {left}")
+          f"row kept: {edm.row('pageno.zip') is not None}, files: {left}")
 
     print("\nThe queue and speed", flush=True)
     edm.call("downloads.add", urls=[f"{files}/q{i}.bin" for i in range(1, 6)])
@@ -1166,7 +1166,7 @@ def walk(edm, origin):
     check("B46", "a double-click on a running download opens its progress window",
           bool(first) and "File properties" not in titles,
           f"{titles}; the row was {before}; the click: {clicked}; "
-          f"the window said {[t for t in EDM.texts() if 'ui.bin' in t or '%' in t][:8]}")
+          f"the window said {[t for t in edm.texts() if 'ui.bin' in t or '%' in t][:8]}")
     check("B46", "its title starts with how far it is",
           bool(re.match(r"^\d+% ", first)), f"{first!r}")
     pause(3)
@@ -1278,7 +1278,7 @@ def walk(edm, origin):
     pause(0.8)
     check("B38", "an unfinished download: Remove asks, Keep it keeps it, Remove download takes it off",
           # The title is the window's own; the sentence wraps wherever the window is wide enough.
-          "Remove an unfinished download" in asked_titles and "This download isn't finished." in " ".join(asked)
+          "Remove an unfinished download" in asked_titles and "This download isn’t finished." in " ".join(asked)
           and "Remove download" in asked and "Keep it" in asked and still and still["state"]["kind"] == "paused"
           and edm.row("stopme.bin") is None,
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
@@ -1613,7 +1613,7 @@ def walk(edm, origin):
         return seen
 
     sound_note = ("Where a video has its sound in several languages, this one is taken; "
-                  "where none speaks it, the video's own.")
+                  "where none speaks it, the video’s own.")
     words = downloads_page()
     laid_out = ("Video quality" in words and "Sound language" in words
                 and words.index("Video quality") < words.index("Sound language"))
@@ -1712,7 +1712,7 @@ def walk(edm, origin):
     same = saved is not None and saved.read_bytes() == DATA["private.bin"]
     check("B69", "Download details has Keep no record; ticked, the finished download's row goes and its file stays whole",
           asked and "Keep no record" in ticked and same and edm.row("private.bin") is None,
-          f"words {ticked[:12]}, file {saved}, row {EDM.row('private.bin')}")
+          f"words {ticked[:12]}, file {saved}, row {edm.row('private.bin')}")
     left = naming("private.bin")
     check("B69", "and none of EDM's own files names it, settings.json's Recent list included",
           same and not left, f"named in {left}")
@@ -1944,7 +1944,7 @@ def same_file_again(edm, files):
           and "A finished download in the list has this name and size." in said
           and all(w in said for w in ("Show it", "Download again", "Remember my choice"))
           and edm.row("mirror=2") is None and copies() == ["same.bin"],
-          f"first {first and first['state']}; words {said}; row {EDM.row('mirror=2')}; files {copies()}")
+          f"first {first and first['state']}; words {said}; row {edm.row('mirror=2')}; files {copies()}")
 
     edm.add(f"{files}/same.bin?mirror=3")
     end = time.time() + 40
@@ -2094,7 +2094,7 @@ def only_through(edm, files):
             return None
         return saved.get("only_through", "")
 
-    note = ("Every download goes out over this network alone, such as your VPN's. While it is not "
+    note = ("Every download goes out over this network alone, such as your VPN’s. While it is not "
             "connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// "
             "streams do not start while one is chosen (on Windows, torrents too), and the second "
             "network is not used.")
@@ -2203,7 +2203,7 @@ def forgetting():
         check("B70", "with 7 days set, EDM opened forgets a download finished 10 days ago, keeps one of yesterday, and both files stay",
               edm.row("old.bin") is None and edm.row("new.bin") is not None
               and (saved / "old.bin").is_file() and (saved / "new.bin").is_file(),
-              f"rows {[r['filename'] for r in EDM.rows()]}")
+              f"rows {[r['filename'] for r in edm.rows()]}")
         edm.call("ui.window", to="shown")
         pause(0.6)
         edm.open_options()
@@ -2277,7 +2277,7 @@ def backing_up():
         shown = opened("Back up EDM")
         words = " ".join(edm.dialog_texts())
         check("B72", "File › Back up EDM… says what a backup holds, with Passphrase and Passphrase again",
-              shown and "One file of EDM's settings" in words and "Passphrase again" in words, f"{edm.dialogs()}: {words[:200]}")
+              shown and "One file of EDM’s settings" in words and "Passphrase again" in words, f"{edm.dialogs()}: {words[:200]}")
         typed(passphrase)
         edm.call("ui.key", key="Tab")
         typed(passphrase)
@@ -2513,7 +2513,7 @@ def archive_password(origin):
     """B78 (gaps row C2b): Extract here on an archive none of the saved passwords opens asks
     for its password in "Archive password"; a wrong one is said there and the window stays
     open, and the right one, with "Keep this password" on, extracts it and closes the window.
-    The archive is the AES ZIP of edm-core's fixtures, its password "EDM secret"."""
+    The archive is the AES ZIP of edm-core's fixtures, its password "dm secret"."""
     home = WORK / "archive-password"
     saved = home / "downloads"
     saved.mkdir(parents=True)
@@ -2549,7 +2549,7 @@ def archive_password(origin):
         wrong = edm.wait_for_text("That password does not open it.", 15)
         check("B78", "a wrong password is said in the window, which stays open",
               wrong and "Archive password" in edm.dialogs(), f"dialogs {edm.dialogs()}")
-        edm.call("ui.type", text="EDM secret")
+        edm.call("ui.type", text="dm secret")
         pause(0.4)
         edm.click("Keep this password")
         edm.click("Extract")

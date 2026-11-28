@@ -213,14 +213,14 @@ def main():
         print(f"  (info) panel element on a script-src 'none' page: {has_panel}")
         tab_id = cc.wait_for(lambda: worker.evaluate(
             "chrome.tabs.query({active: true, lastFocusedWindow: true}).then(ts => ts[0] && ts[0].id)"), 5)
-        links = worker.evaluate(f"chrome.tabs.sendMessage({tab_id}, {{type: 'EDM.links', selected: false}}).then(r => r.links)")
+        links = worker.evaluate(f"chrome.tabs.sendMessage({tab_id}, {{type: 'dm.links', selected: false}}).then(r => r.links)")
         check("the page's links are answered by the plain page script",
               links and len(links) == 2 and links[0].endswith("/files/alt.bin"), str(links))
         # Alt-click: the content script's message reaches the worker, which
         # remembers the URL; read it back by Alt-clicking and asking the
         # worker's own listener through a page-message spy.
         worker.evaluate("""globalThis.__skips = []; chrome.runtime.onMessage.addListener((m) => {
-            if (m && m.type === 'EDM.skip') globalThis.__skips.push(m.src); return false; }); true""")
+            if (m && m.type === 'dm.skip') globalThis.__skips.push(m.src); return false; }); true""")
         r = tab.evaluate("(() => { const b = document.getElementById('l').getBoundingClientRect(); return [b.left + 5, b.top + 5]; })()")
         for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
             p = {"type": kind, "x": r[0], "y": r[1], "button": "left", "modifiers": 1}

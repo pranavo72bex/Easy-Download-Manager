@@ -72,7 +72,7 @@ for (const { f, j } of results) {
   e.files.push(path.basename(f));
   for (const r of j.runs) {
     const run = { ...r, transferSeconds: r.seconds != null && r.firstRequestMs != null ? r.seconds - r.firstRequestMs / 1000 : null };
-    if (r.app === 'EDM') e.edm.push(run); else if (r.app === 'refa') e.refa.push(run);
+    if ((r.app === 'edm' || r.app === 'dm')) e.edm.push(run); else if (r.app === 'refa') e.refa.push(run);
   }
   byScenario.set(j.scenario, e);
 }
@@ -92,7 +92,7 @@ for (const sc of [...byScenario.keys()].sort((a, b) => order.indexOf(a) - order.
   const out = { scenario: sc, label: spec?.label || got.label, dmRuns: got.edm.length, whole: got.edm.filter((r) => r.ok).length, rows: [] };
   report.scenarios.push(out);
   if (!got.edm.length) { out.note = 'no EDM runs'; continue; }
-  if (out.whole < got.edm.length) report.worse.push(`${sc}: ${got.EDM.length - out.whole} of ${got.edm.length} EDM runs did not end with every file whole`);
+  if (out.whole < got.edm.length) report.worse.push(`${sc}: ${got.edm.length - out.whole} of ${got.edm.length} EDM runs did not end with every file whole`);
   if (fresh) {
     out.note = `no baseline yet: reference A has not been measured on ${NEW_CASES[sc]}; EDM's numbers are recorded, not judged${got.params?.rttMs && got.params.tls === false && sc === 'wan' ? ' (this run was plain HTTP: BENCH_WAN_TLS=0)' : ''}`;
     report.notJudged.push(`${sc}: no baseline yet`);

@@ -141,7 +141,7 @@ def part_of(name, page, base, engine_dl, engine_home, worker):
     if page["line"] != "mp4":
         page_url = tab.evaluate("location.href")
         ask = ("chrome.tabs.query({}).then(ts => { const t = ts.find(t => t.url === %s); return t"
-               " ? dmReady.then(m => m.on_page_message({type: 'EDM.formats', src: '', frame: %s},"
+               " ? dmReady.then(m => m.on_page_message({type: 'dm.formats', src: '', frame: %s},"
                " {id: chrome.runtime.id, tab: {id: t.id, url: %s}, url: %s})).then(r => (r.choices || []).length)"
                " : 0; })") % ((json.dumps(page_url),) * 4)
         heard = cc.wait_for(lambda: worker.evaluate(ask), 30)

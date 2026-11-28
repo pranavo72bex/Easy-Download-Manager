@@ -1,0 +1,293 @@
+{
+  "about": "Every kind of frame extension 3.5.0 sends to the host, as it sends it, and every kind of reply it reads with the fields it reads: 3.4.0's, its greeting, and the frames of the mechanisms the app drives (gaps row A22): the served menu and a click on an item the app added (menu.clicked), the catch question (catch.judge), words the app has said (notice, status) and the panel's list made by the app (media.streams). Never edited: a later app must keep answering these and a later reply must keep reading as these did. A new extension release adds a file of its own.",
+  "requests": [
+    {
+      "protocolVersion": 1,
+      "type": "engine.hello",
+      "extensionVersion": "3.6.0",
+      "features": [
+        "reads-any-reply",
+        "renews",
+        "menus",
+        "judges-catch",
+        "says",
+        "lists-streams"
+      ]
+    },
+    {
+      "protocolVersion": 1,
+      "type": "settings.get"
+    },
+    {
+      "protocolVersion": 2,
+      "type": "download.start",
+      "id": "c1-1763100000000",
+      "url": "https://files.example.com/setup.exe",
+      "referrer": "https://example.com/get",
+      "caught": true,
+      "cookies": "s=1",
+      "headers": [
+        [
+          "User-Agent",
+          "Mozilla/5.0"
+        ],
+        [
+          "Accept-Language",
+          "en"
+        ]
+      ],
+      "mime": "application/octet-stream",
+      "deadline": 14000,
+      "held": true
+    },
+    {
+      "protocolVersion": 1,
+      "type": "download.start",
+      "id": "m2-1763100000000",
+      "url": "https://example.com/a.zip",
+      "referrer": "https://example.com/list",
+      "caught": true,
+      "title": "a.zip"
+    },
+    {
+      "protocolVersion": 1,
+      "type": "download.start",
+      "id": "p3-1763100000000",
+      "url": "https://cdn.example/v.mp4",
+      "referrer": "https://example.com/watch",
+      "quality": "720",
+      "sound": "https://cdn.example/a.m4a",
+      "label": "720p MP4",
+      "ask": true,
+      "from": "0:10",
+      "to": "1:30",
+      "cookies": "s=1",
+      "cookies_once": true,
+      "post": {
+        "form": "a=1&b=2",
+        "contentType": "application/x-www-form-urlencoded"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "type": "download.start",
+      "id": "renew-1763100000000-0",
+      "url": "https://cdn.example/v.mp4?sig=new",
+      "referrer": "https://example.com/watch",
+      "ask": true,
+      "renews": true
+    },
+    {
+      "protocolVersion": 1,
+      "type": "media.formats",
+      "url": "https://www.youtube.com/watch?v=abc",
+      "referrer": "https://www.youtube.com/",
+      "cookies": "s=1"
+    },
+    {
+      "protocolVersion": 1,
+      "type": "download.batch",
+      "id": "b4-1763100000000",
+      "page": "https://example.com/list",
+      "urls": [
+        "https://example.com/a.zip",
+        "https://example.com/b.zip"
+      ],
+      "texts": {
+        "https://example.com/a.zip": "Part A"
+      },
+      "names": {
+        "https://example.com/b.zip": "b-renamed.zip"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "type": "app.show"
+    },
+    {
+      "protocolVersion": 1,
+      "type": "catch.judge",
+      "id": "j7-1763200000000",
+      "url": "https://files.example.com/setup.exe",
+      "askedUrl": "https://example.com/get/setup",
+      "referrer": "https://example.com/get",
+      "filename": "/Users/a/Downloads/setup.exe",
+      "mime": "application/octet-stream",
+      "size": 4200000,
+      "browser": "Google Chrome",
+      "everyType": true
+    },
+    {
+      "protocolVersion": 1,
+      "type": "menu.clicked",
+      "id": "c0-1763200000000",
+      "item": "edm-new-item",
+      "linkUrl": "https://example.com/a.zip",
+      "srcUrl": "https://cdn.example/v.mp4",
+      "pageUrl": "https://example.com/list",
+      "frameUrl": "https://example.com/frame",
+      "selectionText": "two words",
+      "mediaType": "video",
+      "title": "A list",
+      "cookies": "s=1",
+      "cookiesOnce": true
+    },
+    {
+      "protocolVersion": 1,
+      "type": "media.streams",
+      "page": "https://example.com/watch",
+      "streams": [
+        {
+          "url": "https://cdn.example/master.m3u8",
+          "kind": "Hls",
+          "label": "1080p HLS stream",
+          "members": [
+            "https://cdn.example/1080.m3u8"
+          ],
+          "length": 95
+        },
+        {
+          "url": "https://cdn.example/v.mp4",
+          "kind": "Picture",
+          "size": 5000000,
+          "label": "720p video file",
+          "by_ranges": true
+        },
+        {
+          "url": "https://cdn.example/a.mp4",
+          "kind": "Sound",
+          "size": 900000,
+          "label": "audio file"
+        }
+      ]
+    }
+  ],
+  "replies": [
+    {
+      "protocolVersion": 1,
+      "type": "engine.hello",
+      "engineVersion": "0.10.0",
+      "protocol": 2,
+      "renews": true
+    },
+    {
+      "protocolVersion": 1,
+      "type": "settings.get",
+      "catch": {
+        "enabled": true,
+        "extensions": [],
+        "minSizeKb": 0,
+        "skipHosts": []
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "type": "download.started",
+      "id": "c1-1763100000000",
+      "shown": true
+    },
+    {
+      "protocolVersion": 1,
+      "type": "download.failed",
+      "id": "c1-1763100000000",
+      "failure": {
+        "message": "no"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "type": "media.formats",
+      "choices": [
+        {
+          "label": "720p MP4",
+          "quality": "720",
+          "size": 1000
+        }
+      ]
+    },
+    {
+      "protocolVersion": 1,
+      "type": "app.shown"
+    },
+    {
+      "protocolVersion": 1,
+      "type": "engine.hello",
+      "engineVersion": "0.11.0",
+      "protocol": 2,
+      "renews": true,
+      "features": [
+        "renews",
+        "menus",
+        "judges-catch",
+        "lists-streams"
+      ],
+      "menus": [
+        {
+          "id": "edm-link",
+          "title": "Download link with EDM",
+          "contexts": [
+            "link"
+          ],
+          "does": "link"
+        },
+        {
+          "id": "edm-new-item",
+          "title": "Download this with EDM",
+          "contexts": [
+            "image"
+          ],
+          "does": "app"
+        }
+      ],
+      "status": {
+        "line": "Connected to EDM 0.11.0",
+        "bad": false
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "type": "catch.judged",
+      "id": "j7-1763200000000",
+      "take": true
+    },
+    {
+      "protocolVersion": 1,
+      "type": "catch.judged",
+      "id": "j7-1763200000000",
+      "take": false,
+      "reason": "smaller than EDM's minimum size to catch"
+    },
+    {
+      "protocolVersion": 1,
+      "type": "download.started",
+      "id": "c1-1763100000000",
+      "notice": {
+        "title": "Sent to EDM",
+        "body": "setup.exe"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "type": "download.failed",
+      "id": "c1-1763100000000",
+      "failure": {
+        "message": "no"
+      },
+      "notice": {
+        "title": "Kept in the browser",
+        "body": "no"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "type": "media.streams",
+      "streams": [
+        {
+          "url": "https://cdn.example/master.m3u8",
+          "kind": "Hls",
+          "label": "1080p HLS stream"
+        }
+      ]
+    }
+  ]
+}

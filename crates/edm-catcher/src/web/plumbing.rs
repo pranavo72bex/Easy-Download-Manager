@@ -19,7 +19,7 @@ pub(super) fn ext() -> JsValue {
 
 /// `a.b.c` of an object, or undefined anywhere along the way.
 /// One property of `from`, named whole. Storage keys have dots in them
-/// (`EDM.catch`), which [`get`] would read as a path: the catch rules kept
+/// (`dm.catch`), which [`get`] would read as a path: the catch rules kept
 /// between the worker's naps were never read back that way.
 pub(super) fn field(from: &JsValue, key: &str) -> JsValue {
     if from.is_object() {

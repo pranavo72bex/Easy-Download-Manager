@@ -112,14 +112,14 @@ data = base64.b64encode((pkg / "edm_catcher_bg.wasm").read_bytes()).decode()
 (pkg / "background.js").write_text(
     "// Built by scripts/package.sh: starts the extension's background, which is Rust (crates/edm-catcher/src)\n"
     + "// compiled to WebAssembly, with the WebAssembly written in here.\n"
-    + "import * as EDM from './edm_catcher.js';\n"
+    + "import * as edm from './edm_catcher.js';\n"
     + "const text = atob('" + data + "');\n"
     + "const bytes = new Uint8Array(text.length);\n"
     + "for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);\n"
-    + "EDM.initSync({ module: bytes });\n"
-    + "EDM.background_start();\n"
+    + "edm.initSync({ module: bytes });\n"
+    + "edm.background_start();\n"
     + "// For a test harness attached to the worker; nothing in the extension uses it.\n"
-    + "globalThis.dmReady = Promise.resolve(EDM);\n")
+    + "globalThis.dmReady = Promise.resolve(edm);\n")
 (pkg / "popup.js").write_text(
     "// Built by scripts/package.sh: starts the toolbar popup, which is Rust (crates/edm-catcher/src/popup.rs).\n"
     + "import init, { popup_start } from './edm_catcher.js';\n"

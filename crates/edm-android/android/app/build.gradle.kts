@@ -11,11 +11,11 @@
 // and the build type's source set packs that folder. Gradle properties (-P on the command
 // line, or in gradle.properties):
 //
-//   EDM.abis        the processors, comma-separated: arm64-v8a, armeabi-v7a, x86_64. Unset:
+//   edm.abis        the processors, comma-separated: arm64-v8a, armeabi-v7a, x86_64. Unset:
 //                  the one of the phone or emulator Android Studio runs on, else arm64-v8a
-//   EDM.skipCargo   true: build no Rust; the library is already in src/main/jniLibs (CI builds
+//   edm.skipCargo   true: build no Rust; the library is already in src/main/jniLibs (CI builds
 //                  it itself with cargo-ndk, .github/workflows/android.yml)
-//   EDM.ndkVersion  the NDK under the SDK's ndk/ folder (default below)
+//   edm.ndkVersion  the NDK under the SDK's ndk/ folder (default below)
 //
 // From a terminal: `gradle assembleDebug -Pdm.abis=arm64-v8a,x86_64`.
 
@@ -36,7 +36,7 @@ val dmMinSdk = 29
 // The NDK Android Studio's SDK Manager installs (SDK Tools, NDK (Side by side), "Show
 // Package Details"); cargo-ndk links the library with it and AGP strips it with it.
 val dmNdkVersion: String =
-    providers.gradleProperty("EDM.ndkVersion").orNull?.trim()?.takeIf { it.isNotEmpty() }
+    providers.gradleProperty("edm.ndkVersion").orNull?.trim()?.takeIf { it.isNotEmpty() }
         ?: "27.2.12479018"
 
 // Each Android processor and Rust's target for it.
@@ -46,17 +46,17 @@ val dmRustTargets = mapOf(
     "x86_64" to "x86_64-linux-android",
 )
 
-// EDM.abis if given; else the first processor of the device Android Studio is running on that
+// edm.abis if given; else the first processor of the device Android Studio is running on that
 // EDM builds for (Studio passes android.injected.build.abi, e.g. "arm64-v8a,armeabi-v7a,armeabi");
 // else arm64-v8a, the processor of Apple-silicon emulators and of phones.
 val dmAbis: List<String> = run {
-    val given = providers.gradleProperty("EDM.abis").orNull
+    val given = providers.gradleProperty("edm.abis").orNull
         ?.split(',', ' ')?.map { it.trim() }?.filter { it.isNotEmpty() }
     if (!given.isNullOrEmpty()) {
         val unknown = given.filter { it !in dmRustTargets }
         if (unknown.isNotEmpty()) {
             throw GradleException(
-                "EDM.abis names ${unknown.joinToString()}; EDM builds for " +
+                "edm.abis names ${unknown.joinToString()}; EDM builds for " +
                     dmRustTargets.keys.joinToString(),
             )
         }
@@ -69,7 +69,7 @@ val dmAbis: List<String> = run {
 }
 
 val dmSkipCargo: Boolean =
-    providers.gradleProperty("EDM.skipCargo").orNull?.trim()?.toBoolean() ?: false
+    providers.gradleProperty("edm.skipCargo").orNull?.trim()?.toBoolean() ?: false
 
 // The cargo workspace: the repository's root (this project is crates/edm-android/android).
 val dmWorkspace: File = rootDir.resolve("../../..").canonicalFile
@@ -103,8 +103,8 @@ android {
         targetSdk = 35
         // Raised by one at each release (a tag android-v<versionName>): Android and F-Droid
         // take an update only with a higher one. A number, not computed, so F-Droid reads it.
-        versionCode = 3
-        versionName = "0.10.3"
+        versionCode = 4
+        versionName = "0.11.0"
         // The activity's `android.app.lib_name`: libedm_android.so without `lib` and `.so`.
         manifestPlaceholders["nativeLibraryName"] = "edm_android"
     }
@@ -153,7 +153,7 @@ android {
     // compiled: gpui-mobile's GpuiInputActivity and GpuiPathPicker (dev/gpui/mobile), which
     // gpui-android calls by name, and EDM's own (com/edm/android: EdmActivity, EdmService,
     // EdmActionReceiver, EdmBootReceiver), each handing its events to Rust (gaps rows N5, N6, N12).
-    // The library: src/main/jniLibs when it is built outside Gradle (CI, EDM.skipCargo), and
+    // The library: src/main/jniLibs when it is built outside Gradle (CI, edm.skipCargo), and
     // the build type's own folder that cargoNdkDebug / cargoNdkRelease fill, which wins over
     // main. A folder per build type, so a build of both (`gradle assemble`) never packs one
     // type's library in the other's APK.

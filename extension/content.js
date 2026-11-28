@@ -29,7 +29,7 @@
     const data = event.data;
     if (event.source !== window || data?.source !== 'edm-media-seen' || typeof data.url !== 'string') return;
     try {
-      ext.runtime.sendMessage({ type: 'EDM.media-seen', url: data.url }).catch(() => {});
+      ext.runtime.sendMessage({ type: 'dm.media-seen', url: data.url }).catch(() => {});
     } catch { /* the extension was updated under this page */ }
   });
 
@@ -76,7 +76,7 @@
     if (!active || !fresh || !catchingNow() || privateTab) { open(); return; }
     gestureTaken = true;
     try {
-      ext.runtime.sendMessage({ type: 'EDM.magnet', src: data.url, frame: '' })
+      ext.runtime.sendMessage({ type: 'dm.magnet', src: data.url, frame: '' })
         .then((answer) => { if (!answer?.ok) open(); })
         .catch(open);
     } catch { open(); }
@@ -87,7 +87,7 @@
   // comes back here to the background, which finds the streams (in Rust, only
   // where the rules for the site name that request). Only from this page.
   try {
-    ext.runtime.sendMessage({ type: 'EDM.page-rules' }).then((answer) => {
+    ext.runtime.sendMessage({ type: 'dm.page-rules' }).then((answer) => {
       // The element the site's rule says holds a video's title (gaps row 124), for the panel
       // and for the name a download is given.
       if (answer?.ok && typeof answer.title === 'string' && answer.title.length < 300) {
@@ -110,7 +110,7 @@
     if (event.source !== window || data?.source !== 'edm-page-answer'
       || typeof data.url !== 'string' || typeof data.body !== 'string') return;
     try {
-      ext.runtime.sendMessage({ type: 'EDM.page-answer', url: data.url, body: data.body }).catch(() => {});
+      ext.runtime.sendMessage({ type: 'dm.page-answer', url: data.url, body: data.body }).catch(() => {});
     } catch { /* the extension was updated under this page */ }
   });
 
@@ -156,13 +156,13 @@
     }
   };
   try {
-    ext.storage.local.get(['EDM.catch', 'EDM.catching']).then((got) => {
-      readKeys(got?.['EDM.catch']);
-      popupOn = got?.['EDM.catching'] !== false;
+    ext.storage.local.get(['dm.catch', 'dm.catching']).then((got) => {
+      readKeys(got?.['dm.catch']);
+      popupOn = got?.['dm.catching'] !== false;
     }).catch(() => {});
     ext.storage.onChanged.addListener((changes) => {
-      readKeys(changes?.['EDM.catch']?.newValue);
-      if (changes && 'EDM.catching' in changes) popupOn = changes['EDM.catching'].newValue !== false;
+      readKeys(changes?.['dm.catch']?.newValue);
+      if (changes && 'dm.catching' in changes) popupOn = changes['dm.catching'].newValue !== false;
     });
   } catch {
     // No storage here; the keys stay as they ship.
@@ -193,7 +193,7 @@
         // Opened by the page itself where EDM does not take it, so the
         // browser's prompt names the site, as it would without EDM, not the
         // extension (torrent check 4).
-        ext.runtime.sendMessage({ type: 'EDM.magnet', src: String(magnet.href), frame: '' })
+        ext.runtime.sendMessage({ type: 'dm.magnet', src: String(magnet.href), frame: '' })
           .then((answer) => { if (!answer?.ok) openMagnet(magnet.href); })
           .catch(() => { openMagnet(magnet.href); });
       } catch {
@@ -214,7 +214,7 @@
         const open = () => { if (newTab) window.open(href, '_blank', 'noopener'); else window.location.href = href; };
         event.preventDefault();
         try {
-          ext.runtime.sendMessage({ type: 'EDM.inline', src: href, frame: '' })
+          ext.runtime.sendMessage({ type: 'dm.inline', src: href, frame: '' })
             .then((answer) => { if (!answer?.ok) open(); })
             .catch(open);
         } catch {
@@ -237,19 +237,19 @@
     if (take) event.preventDefault();
     // The property, not the attribute: resolved against the page.
     try {
-      ext.runtime.sendMessage({ type: keep ? 'EDM.skip' : 'EDM.take', src: String(link.href), frame: '' })
+      ext.runtime.sendMessage({ type: keep ? 'dm.skip' : 'dm.take', src: String(link.href), frame: '' })
         .catch(() => {});
     } catch {
       // The extension was updated or removed under this page.
     }
   }, true);
 
-  // The background's 'EDM.track': the first bytes of a file the page's player fetched, read from the
+  // The background's 'dm.track': the first bytes of a file the page's player fetched, read from the
   // page, whose referrer its server checks (issue #56: Bilibili's bilivideo.com mirrors refuse the
   // background's own read with 403). Only https, only the range asked for, no redirect followed,
   // the bytes kept to what was asked; the background reads from them whether it is picture or sound.
   ext.runtime.onMessage.addListener((message, _sender, reply) => {
-    if (!message || message.type !== 'EDM.track') return false;
+    if (!message || message.type !== 'dm.track') return false;
     const cap = Math.min(Number(message.cap) || 0, 65536);
     let url;
     try { url = new URL(String(message.url)); } catch { url = null; }
@@ -267,7 +267,7 @@
     return true;
   });
 
-  // The background's 'EDM.links': the addresses a page holds, or the selection holds, in the order a
+  // The background's 'dm.links': the addresses a page holds, or the selection holds, in the order a
   // person would look for them: links (`a`, then `area`), images, then for "all links" the frames
   // and every address written in an inline script, and for "selected links" the plain-text
   // addresses in the selection and in a selected textarea (not a selected link's own text).
@@ -283,7 +283,7 @@
     return found;
   };
   ext.runtime.onMessage.addListener((message, _sender, reply) => {
-    if (!message || message.type !== 'EDM.links') return false;
+    if (!message || message.type !== 'dm.links') return false;
     const selected = message.selected === true;
     const selection = selected ? window.getSelection() : null;
     const selectionText = selection ? String(selection) : '';
@@ -489,7 +489,7 @@
       } catch { /* a selector the page cannot read */ }
       const title = ruled || document.title.trim()
         || (document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '').trim();
-      try { reply = await send({ type: 'EDM.media', src: extra.url || srcOf(), title, ...extra.fields }); } catch (e) { reply = { ok: false, said: t('panelUpdated', 'EDM was updated: reload this page to use it') }; }
+      try { reply = await send({ type: 'dm.media', src: extra.url || srcOf(), title, ...extra.fields }); } catch (e) { reply = { ok: false, said: t('panelUpdated', 'EDM was updated: reload this page to use it') }; }
       said(reply?.ok ? t('panelSent', 'Sent to EDM') + '. ' + (extra.label ? extra.label + ': ' : '') + answered(reply.said || '') : (reply?.said || t('panelNotTaken', 'EDM could not take it')));
       hideSoon(2500, true);
     };
@@ -523,7 +523,7 @@
       busy = true;
       said(t('panelReading', 'Reading qualities…'));
       try {
-        const reply = await send({ type: 'EDM.formats', src: srcOf() });
+        const reply = await send({ type: 'dm.formats', src: srcOf() });
         said('');
         if (!reply?.ok) { said(reply?.said || t('panelNoAnswer', 'EDM did not answer')); hideSoon(5000, true); return; }
         const given = Array.isArray(reply.choices) ? reply.choices : [];
@@ -594,12 +594,12 @@
     (async () => {
       // Put into this frame by the background (pkg/panel.js), which
       // leaves the panel's functions here once its WebAssembly is ready.
-      const put = await ext.runtime.sendMessage({ type: 'EDM.panel-load' });
+      const put = await ext.runtime.sendMessage({ type: 'dm.panel-load' });
       if (!put?.ok) throw new Error(put?.said ?? 'the panel was not put in');
-      const EDM = await globalThis.__dmPanelCode;
-      EDM.content_start(ext);
-      if (played) EDM.content_played(played);
-      else if (point) EDM.content_pointer(point.x, point.y);
+      const edm = await globalThis.__dmPanelCode;
+      edm.content_start(ext);
+      if (played) edm.content_played(played);
+      else if (point) edm.content_pointer(point.x, point.y);
     })().catch((e) => { console.debug('EDM:', e); lite.start(); });
   };
   const hasMedia = (root) => {

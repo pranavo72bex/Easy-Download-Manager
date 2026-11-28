@@ -3065,7 +3065,7 @@ download, so `downloads.onCreated` never fires and a type on EDM's list was
 read, not caught. The page script now sees the person's plain left click
 (`isTrusted`, no key held, no `download` attribute, an http(s) link to one of
 the browser-shown types that is also on the app's list), keeps the page from
-opening it, and asks the background (`EDM.inline`); the background applies the
+opening it, and asks the background (`dm.inline`); the background applies the
 app's rules (`CatchRules::takes`, the master switch, the popup's switch, not a
 private window) and hands the file over. Any "no" (no app, a site to leave
 alone, a failed hand-off) makes the page open the link itself, so a click is
@@ -3117,7 +3117,7 @@ ever and kept in the settings file (`hinted_big`, for a download of 5 GB or
 more; the Scheduler is what it names): said again, it is a nag. The close
 button asks once (`on_close`: ask, tray, exit) and the answer is the setting,
 changeable in Options, so no answer is hidden. "Pause capturing on this site"
-is a list in the extension's storage (`EDM.catch.paused`), as "Take every
+is a list in the extension's storage (`dm.catch.paused`), as "Take every
 download from this site" is, not a setting in the app: the app's skip list
 (Options › Browser) is the app's own, for every browser, and a popup that
 wrote into it would need the host to be running. Restore defaults copies a
@@ -3622,7 +3622,7 @@ fetched its `.wasm`, both listed as web-accessible. Brave on YouTube logged
 must match" for those loads (reproduced by `stress.sh` on real YouTube, on tabs
 opened after the first), whichever address the manifest gave (`use_dynamic_url`
 on or off). Blink logs that when a fetch is checked against the page's origin
-rather than the extension's. Now `content.js` sends `EDM.panel-load`; the
+rather than the extension's. Now `content.js` sends `dm.panel-load`; the
 background calls `scripting.executeScript({ files: ['pkg/panel.js'] })` for
 that tab and frame; `panel.js` is wasm-bindgen's `no-modules` glue with the
 WebAssembly written into it as base64 (`scripts/package.sh`), so the page's
@@ -4335,7 +4335,7 @@ in place by a file and not a release. Decisions:
 * Additive only. The extension adds what it is served to its own tables and nothing served removes a built-in
   rule, so a missing, older, oversize (256 KiB, one native-messaging frame holds 1 MiB), malformed or
   other-format document costs nothing: the extension decides as it was built to.
-* The served rules are kept in the extension's storage (`EDM.rules`) and put back when the worker wakes, since
+* The served rules are kept in the extension's storage (`dm.rules`) and put back when the worker wakes, since
   waking is when a download arrives and asking the app takes longer than a small download.
 * The page hook reads only JSON, at most 1 MiB, only for requests the rules of the page's site name, and
   the extension re-checks the site and the request before it finds anything, so a page cannot make the
@@ -9352,7 +9352,11 @@ the window's goldens changed with it, at that approval. What is kept, and why:
   package-manager manifests, the CachyOS reproduction's AppImage), and the gecko id (never had
   dm in it). Inside: the vendored crates' `dm(<tag>):` marks, test archives sealed with
   "dm secret", the frozen reference-A benchmark, CHANGELOG's released entries and
-  `docs/history/`, and settings keys such as `identify_as_dm` (a person's saved settings use them).
+  `docs/history/`, settings keys such as `identify_as_dm` (a person's saved settings use them),
+  and the extension's storage keys and message names (`dm.catch`, `dm.catch.paused`,
+  `dm.formats`…): renamed, an updated extension forgot the sites and rules a person had set.
+  The bench reads results of either app name (`dm` before, `edm` now), so main's last numbers
+  still compare.
 - Done by a script (word-bounded: `dm-`/`dm_` to `edm-`/`edm_`, `DM_` to `EDM_`, `com.dm.` to
   `com.edm.`, `Dm…` types to `Edm…`, the word to EDM in text and `edm` in code), then
   the compiler and the tests for what it missed (`libdm_android`, `\ndm-…` in strings).

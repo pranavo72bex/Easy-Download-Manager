@@ -833,7 +833,7 @@ def main():
             if at:
                 x("xdotool", "click", "1")
             off = wait_for(lambda: ask_worker(
-                "chrome.storage.local.get('EDM.catching').then(r => r['EDM.catching'] === false)"), 5)
+                "chrome.storage.local.get('dm.catching').then(r => r['dm.catching'] === false)"), 5)
             check("6. its 'Catch downloads', clicked, is switched off", off,
                   str(popup.evaluate("document.getElementById('catching').checked")))
             shoot("6-catching-off", tab)

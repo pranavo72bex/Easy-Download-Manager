@@ -1,6 +1,6 @@
 [package]
 name = "edm-android"
-version = "0.10.3"
+version = "0.11.0"
 authors = ["pranavo72bex"]
 license = "GPL-3.0-or-later"
 edition = "2021"

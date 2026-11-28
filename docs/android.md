@@ -27,7 +27,7 @@ work; from a terminal: `./gradlew installDebug -Pdm.abis=arm64-v8a` with `JAVA_H
 4. **The NDK and CMake,** in Android Studio: Settings › Languages & Frameworks › Android SDK ›
    SDK Tools, tick "Show Package Details", then under "NDK (Side by side)" tick **27.2.12479018**
    (the one `app/build.gradle.kts` names) and tick "CMake"; Apply. Another NDK version works too:
-   the build then says which it used, or name it with `EDM.ndkVersion=<version>` in
+   the build then says which it used, or name it with `edm.ndkVersion=<version>` in
    `~/.gradle/gradle.properties`.
 5. **Android 15's platform** (API 35) comes with Android Studio; if not, SDK Platforms › Android
    15. **JDK 17.** Gradle 8.14.3 does not run on Java 25, which newer Android Studios carry:
@@ -53,7 +53,7 @@ work; from a terminal: `./gradlew installDebug -Pdm.abis=arm64-v8a` with `JAVA_H
    what changed, and Gradle skips the step when no file under `crates`,
    `vendor`, `assets`, `Cargo.toml` or `Cargo.lock` changed. The processor is
    the one of the device chosen (arm64-v8a on an Apple-silicon Mac and on phones); to build
-   others, put `EDM.abis=arm64-v8a,x86_64` in `~/.gradle/gradle.properties`.
+   others, put `edm.abis=arm64-v8a,x86_64` in `~/.gradle/gradle.properties`.
 4. A phone works the same: Developer options › USB debugging on, plugged in, chosen in the
    toolbar.
 
@@ -328,9 +328,9 @@ types at once, never packs one type's library in the other's APK). Its Gradle pr
 
 | Property | Default | What it does |
 |----------|---------|--------------|
-| `EDM.abis` | the device Android Studio runs on, else `arm64-v8a` | the processors, comma-separated: `arm64-v8a`, `armeabi-v7a`, `x86_64` |
-| `EDM.skipCargo` | `false` | `true`: no Rust built; the library is already in `app/src/main/jniLibs` (CI) |
-| `EDM.ndkVersion` | `27.2.12479018` | the NDK under the SDK's `ndk/` (also the one the Android Gradle plugin strips with); `ANDROID_NDK_HOME` wins for cargo-ndk |
+| `edm.abis` | the device Android Studio runs on, else `arm64-v8a` | the processors, comma-separated: `arm64-v8a`, `armeabi-v7a`, `x86_64` |
+| `edm.skipCargo` | `false` | `true`: no Rust built; the library is already in `app/src/main/jniLibs` (CI) |
+| `edm.ndkVersion` | `27.2.12479018` | the NDK under the SDK's `ndk/` (also the one the Android Gradle plugin strips with); `ANDROID_NDK_HOME` wins for cargo-ndk |
 
 cargo is looked for on PATH, then in `CARGO_HOME/bin` and `~/.cargo/bin`; a missing cargo,
 cargo-ndk, Rust target or NDK stops the build with the command that installs it. Gradle skips the
@@ -365,7 +365,7 @@ out unsigned (`app-release-unsigned.apk`).
 
 | Job | When | Its steps |
 |-----|------|-----------|
-| `android` | each push to main, each pull request touching `crates/` | cargo-ndk check for arm64-v8a and x86_64; clippy for arm64-v8a with `-D warnings` (`missing_const_for_thread_local` allowed: on Android it flags every `const { }` thread-local); edm-android's host tests; the x86_64 library with cargo-ndk; Android 35's platform and build tools from the runner's SDK; Gradle 8.14.3, checked against its SHA-256; `gradle assembleDebug -Pdm.skipCargo=true` (the library built above; the runner's NDK as `EDM.ndkVersion`); the APK kept as the artifact `edm-android-x86_64-apk` |
+| `android` | each push to main, each pull request touching `crates/` | cargo-ndk check for arm64-v8a and x86_64; clippy for arm64-v8a with `-D warnings` (`missing_const_for_thread_local` allowed: on Android it flags every `const { }` thread-local); edm-android's host tests; the x86_64 library with cargo-ndk; Android 35's platform and build tools from the runner's SDK; Gradle 8.14.3, checked against its SHA-256; `gradle assembleDebug -Pdm.skipCargo=true` (the library built above; the runner's NDK as `edm.ndkVersion`); the APK kept as the artifact `edm-android-x86_64-apk` |
 | `emulator` | after `android`, for API 29 and API 35 | KVM opened to the runner's user; the emulator, platform-tools and Google's x86_64 system image through `sdkmanager`; an AVD at a phone's size (1080 x 2340, 420 dpi), booted without a window, the GPU in software (SwiftShader); `scripts/android-emulator-check.sh`; what it saw kept as `edm-android-emulator-api<N>` |
 | `release` | a tag `android-v<version>`, after both above pass | the three Rust targets; the tag checked against edm-android's `Cargo.toml` and Gradle's `versionName`; the library for arm64-v8a, armeabi-v7a and x86_64 (paths remapped); platform and build tools; Gradle; EDM's key from the secrets, else a notice; `gradle assembleRelease -Pdm.skipCargo=true`; `apksigner verify --print-certs`, its certificate's SHA-256 required to be the README's (gaps H22) and written into the release's notes; the merged release manifest held to `manifest-kept.txt` (`cargo xtask android-manifest`, gaps H17); `edm-<version>.apk` (or `edm-<version>-unsigned.apk`) and its `.sha256` attached to a draft release, never marked latest |
 
@@ -414,7 +414,7 @@ and N12:
 ## A release
 
 Raise `versionCode` by one, then tag the commit `android-v<version>`, where the version is
-edm-android's `Cargo.toml` and Gradle's `versionName` (both 0.10.3 now). Not `v*` (the
+edm-android's `Cargo.toml` and Gradle's `versionName` (both 0.11.0 now). Not `v*` (the
 extension's releases, `release.yml`) or `desktop-v*` (the desktop's). The release job drafts a
 GitHub release holding one APK for the three processors and its SHA-256.
 
@@ -457,7 +457,7 @@ submitted. What it needs, and where EDM stands:
   crates/edm-android/android`; `gradle: [yes]`; the NDK by version (`ndk:`, the one the
   release run prints); `sudo` installing Rust 1.98.1 with rustup (with the three Android
   targets) and cargo-ndk; and a `prebuild:` running the release job's `cargo ndk … build
-  --release --locked` from the repository's root, with `gradleprops: [EDM.skipCargo=true]` so Gradle does
+  --release --locked` from the repository's root, with `gradleprops: [edm.skipCargo=true]` so Gradle does
   not build it again. `UpdateCheckMode: Tags ^android-v.*$`, which reads
   `versionName` and `versionCode` from `app/build.gradle.kts` (both literal there for that
   reason).

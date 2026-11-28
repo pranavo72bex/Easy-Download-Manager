@@ -9,19 +9,19 @@ use super::*;
 
 /// Whether downloads are caught at all, as the toolbar popup's switch sets
 /// it in the extension's local storage. Absent means on.
-pub const CATCHING_KEY: &str = "EDM.catching";
+pub const CATCHING_KEY: &str = "dm.catching";
 
 /// The toolbar popup asking how the app is, and asking it to show itself.
-pub const STATUS_MESSAGE: &str = "EDM.status";
+pub const STATUS_MESSAGE: &str = "dm.status";
 /// The message the popup sends to ask the app to show itself.
-pub const OPEN_MESSAGE: &str = "EDM.open";
+pub const OPEN_MESSAGE: &str = "dm.open";
 /// The toolbar popup asking the background what the app is fetching (gaps row U18).
-pub const DOWNLOADS_MESSAGE: &str = "EDM.downloads";
+pub const DOWNLOADS_MESSAGE: &str = "dm.downloads";
 
 /// Where the sites the panel is kept off are stored, in the extension's
 /// local storage: read by the page script, written by its × menu and the
 /// toolbar popup.
-pub const PANEL_OFF_KEY: &str = "EDM.panel.off";
+pub const PANEL_OFF_KEY: &str = "dm.panel.off";
 
 /// The site a page is on, as a person names it: its host, without `www.`.
 pub fn site_of(url: &str) -> Option<String> {
@@ -46,7 +46,7 @@ pub fn panel_off(off: &[String], url: &str) -> bool {
 
 /// Where the sites whose every download is taken are kept, from the toolbar
 /// popup: "Take every download from this site".
-pub const CATCH_ALL_KEY: &str = "EDM.catch.all";
+pub const CATCH_ALL_KEY: &str = "dm.catch.all";
 
 /// Whether every download from the site at `url` is taken, whatever the
 /// app's catch rules say about its type or size: its site is listed, or a
@@ -70,7 +70,7 @@ pub fn forced_download(all: &[String], found: &Catchable) -> bool {
 /// Where the sites whose downloads the browser keeps are listed, from the
 /// toolbar popup: "Pause capturing on this site". A click with the take key
 /// held still hands its download over.
-pub const PAUSED_KEY: &str = "EDM.catch.paused";
+pub const PAUSED_KEY: &str = "dm.catch.paused";
 
 /// Whether capturing is paused for the site at `url`: its site is listed, or
 /// a site it is part of.
@@ -90,7 +90,7 @@ pub fn paused_download(list: &[String], found: &Catchable) -> bool {
 /// are kept, from the toolbar popup: "Hand over this site's sign-in". The
 /// browser's `cookies` permission is asked for the first time one is
 /// switched on, and only then.
-pub const COOKIES_SITES_KEY: &str = "EDM.cookies.sites";
+pub const COOKIES_SITES_KEY: &str = "dm.cookies.sites";
 
 /// Whether the site at `url` is one whose cookies go with its downloads.
 pub fn cookies_wanted(sites: &[String], url: &str) -> bool {

@@ -207,7 +207,7 @@ def sites(base, origin, engine_dl, engine_home, worker):
     settings = json.loads((engine_home / "settings.json").read_text(encoding="utf-8"))
     settings["catch"] = DEFAULT_CATCH
     (engine_home / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
-    worker.evaluate("chrome.storage.local.set({'EDM.catch': %s})" % json.dumps(DEFAULT_CATCH))
+    worker.evaluate("chrome.storage.local.set({'dm.catch': %s})" % json.dumps(DEFAULT_CATCH))
     worker.evaluate("dmReady.then(m => m.forget_app())")
     results = []
     for name in WANT:

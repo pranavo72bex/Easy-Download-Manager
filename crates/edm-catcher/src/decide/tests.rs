@@ -54,7 +54,7 @@ fn the_plain_page_script_answers_by_the_names_the_background_uses() {
         assert!(script.contains(&format!("rules.{field}")), "{field}");
     }
     // Registered before the WebAssembly is asked for, not after.
-    let load = script.find("'EDM.panel-load'").unwrap();
+    let load = script.find("'dm.panel-load'").unwrap();
     assert!(script.find("addEventListener('click'").unwrap() < load);
     assert!(script.find("onMessage.addListener").unwrap() < load);
 }
@@ -1881,13 +1881,12 @@ fn the_panels_part_line_hands_over_a_time_and_nothing_else() {
     assert_eq!(part_text(&"1".repeat(40)).len(), 16);
     // What the page script sends is read, a Part line or not.
     let click: PanelClick =
-        serde_json::from_str(r#"{"type":"EDM.panel","src":"u","from":"1:00","to":"2:00"}"#)
-            .unwrap();
+        serde_json::from_str(r#"{"type":"dm.panel","src":"u","from":"1:00","to":"2:00"}"#).unwrap();
     assert_eq!(
         (click.from.as_deref(), click.to.as_deref()),
         (Some("1:00"), Some("2:00"))
     );
-    let plain: PanelClick = serde_json::from_str(r#"{"type":"EDM.panel","src":"u"}"#).unwrap();
+    let plain: PanelClick = serde_json::from_str(r#"{"type":"dm.panel","src":"u"}"#).unwrap();
     assert!(plain.from.is_none() && plain.to.is_none());
 }
 
@@ -2770,8 +2769,8 @@ fn the_background_and_the_popup_have_no_javascript_of_their_own() {
         assert!(!extension.join(gone).exists(), "extension/{gone} is back");
     }
     let package = include_str!("../../../../scripts/package.sh");
-    assert!(package.contains("EDM.initSync({ module: bytes });"));
-    assert!(package.contains("EDM.background_start();"));
+    assert!(package.contains("dm.initSync({ module: bytes });"));
+    assert!(package.contains("dm.background_start();"));
     assert!(package.contains("popup_start()"));
     // The two started scripts register nothing and decide nothing themselves.
     for decided in [
@@ -2858,7 +2857,7 @@ fn a_newer_app_is_still_one_to_hand_to() {
 }
 
 /// What the app drives (gaps row A22), read the way this extension reads it, from the replies
-/// frozen for it in edm-protocol's `tests/wire/extension-3.5.0.json` and from a newer app's: the
+/// frozen for it in edm-protocol's `tests/wire/extension-3.6.0.json` and from a newer app's: the
 /// menu it serves, its catch verdict, its own words and the panel's list.
 #[test]
 fn the_app_drives_the_menu_the_catch_its_words_and_the_panel_list() {
@@ -2868,7 +2867,7 @@ fn the_app_drives_the_menu_the_catch_its_words_and_the_panel_list() {
     };
     use edm_protocol::{feature, menu_does, Reply};
     let file: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../edm-protocol/tests/wire/extension-3.5.0.json"
+        "../../../edm-protocol/tests/wire/extension-3.6.0.json"
     ))
     .unwrap();
     let replies = file["replies"].as_array().unwrap();
@@ -2965,7 +2964,7 @@ fn the_app_drives_the_menu_the_catch_its_words_and_the_panel_list() {
 #[test]
 fn the_frames_this_release_sends_are_the_frozen_ones() {
     let file: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../edm-protocol/tests/wire/extension-3.5.0.json"
+        "../../../edm-protocol/tests/wire/extension-3.6.0.json"
     ))
     .unwrap();
     assert_eq!(

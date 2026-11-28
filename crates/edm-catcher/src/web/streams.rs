@@ -10,7 +10,7 @@ use super::*;
 /// Where a tab's streams are kept between the worker's naps: the session's
 /// storage, which the browser clears when it closes.
 pub(super) fn streams_key(tab: i64) -> String {
-    format!("EDM.streams.{tab}")
+    format!("dm.streams.{tab}")
 }
 
 /// A response the browser received, read for media a page's player loads,
@@ -214,13 +214,13 @@ pub fn on_send_headers(details: JsValue) {
 }
 
 /// Where the request headers are kept between the worker's naps.
-const SENT_KEY: &str = "EDM.sent";
+const SENT_KEY: &str = "dm.sent";
 
 /// Where the hosts each tab's requests went to are kept between the worker's naps.
-const REACHED_KEY: &str = "EDM.sent.reached";
+const REACHED_KEY: &str = "dm.sent.reached";
 
 /// Where the streams handed to EDM are kept between the worker's naps.
-const HANDED_KEY: &str = "EDM.handed";
+const HANDED_KEY: &str = "dm.handed";
 
 /// The least time between two looks for renewed addresses: every request the
 /// browser sends calls here, and a look compares each handed stream with

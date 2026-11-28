@@ -568,7 +568,7 @@ def p_proxy(ctx):
         try:
             edm.add([f"{base}/f/byp/{MB}/byp.bin"])
             wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 60)
-            measure("proxy", f"bypass list names the host: proxy saw {len(proxy.log)}, server {sc.Stats.requests}, {EDM.rows()[0]['state']['kind']}")
+            measure("proxy", f"bypass list names the host: proxy saw {len(proxy.log)}, server {sc.Stats.requests}, {edm.rows()[0]['state']['kind']}")
             if proxy.log:
                 finding("low", "proxy", f"a host on the bypass list was still fetched through the proxy ({len(proxy.log)} requests)")
         finally:
@@ -692,7 +692,7 @@ def p_ftp(ctx):
     try:
         edm.add([f"{base}/bounce1_{MB}.bin"])
         wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 60)
-        measure("ftp", f"PASV naming 127.0.0.2: {EDM.rows()[0]['state']['kind']}")
+        measure("ftp", f"PASV naming 127.0.0.2: {edm.rows()[0]['state']['kind']}")
         if edm.rows()[0]["state"]["kind"] != "completed":
             finding("low", "ftp", "when the passive reply names another address, the download failed; EDM connects to the server it logged in to (an FTP bounce is not possible), so this is a refusal of a server that is wrong, not a hole")
     finally:
@@ -809,7 +809,7 @@ def p_mcp(ctx):
         answered = len([l for l in out.splitlines() if l.strip()])
         measure("mcp", f"500 tool calls in one session: {answered} answers in {time.time() - t0:.1f}s, exit {rc}")
         wait_for(lambda: len([r for r in edm.rows() if "mcp" in r["url"]]) >= 500, 60)
-        measure("mcp", f"{len([r for r in EDM.rows() if '/mcp' in r['url']])} downloads came of it")
+        measure("mcp", f"{len([r for r in edm.rows() if '/mcp' in r['url']])} downloads came of it")
         # Malformed input.
         for label, payload in (("not json", b"hello\n"), ("array", b"[1,2]\n"), ("no method", b'{"jsonrpc":"2.0","id":1}\n'),
                                ("unknown tool", (init + '\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"rm_rf","arguments":{}}}\n').encode()),
@@ -1051,7 +1051,7 @@ def p_realtorrent(ctx):
                     measure("realtorrent", f"paused at {pr['downloaded'] // 1024} KB")
                     time.sleep(5)
                     after = edm.rows()[0]["progress"]["downloaded"]
-                    measure("realtorrent", f"5 s later {after // 1024} KB, state {EDM.rows()[0]['state']['kind']}")
+                    measure("realtorrent", f"5 s later {after // 1024} KB, state {edm.rows()[0]['state']['kind']}")
                     if after > pr["downloaded"] + 3 * MB:
                         finding("medium", "realtorrent", "a paused torrent kept receiving data")
                     edm.call("downloads.resume", ids=[r["id"]])
@@ -1260,7 +1260,7 @@ def p_detach(ctx):
                 edm.call("downloads.resume", ids=[row["id"]])
                 wait_for(lambda: edm.rows()[0]["state"]["kind"] in ("completed", "failed"), 240)
                 ok, bad = verify(edm.rows(), {"drive.bin": ("drive", size)})
-                measure("detach", f"with the drive back and resumed: {EDM.rows()[0]['state']['kind']}, byte-exact: {ok == 1}")
+                measure("detach", f"with the drive back and resumed: {edm.rows()[0]['state']['kind']}, byte-exact: {ok == 1}")
                 if ok != 1:
                     finding("high", "detach", f"after the drive came back the file did not land whole: {bad[:1]}")
         finally:

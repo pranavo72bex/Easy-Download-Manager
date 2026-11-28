@@ -24,7 +24,7 @@
 //
 // Environment (all optional):
 //   EDM_BINARY             EDM to run (default: a release build under CARGO_TARGET_DIR or target)
-//   BENCH_APPS            EDM, or refa,EDM (default: refa,EDM on Windows when bench/local.json names it)
+//   BENCH_APPS            edm, or refa,edm (default: refa,edm on Windows when bench/local.json names it)
 //   BENCH_OUT             results folder (default: bench/results/<system>-<date>)
 //   BENCH_WORK            scratch folder (default: <temp>/edm-bench)
 //   BENCH_EDM_HOME         EDM's home for the run (default: <work>/edm-home, wiped first)
@@ -85,7 +85,7 @@ function defaultDm() {
 }
 const EDM = process.env.EDM_BINARY || defaultDm();
 const HEADLESS = process.env.BENCH_EDM_HEADLESS === '1';
-const APPS = (process.env.BENCH_APPS || (WIN && REFA.exe ? 'refa,EDM' : 'EDM')).split(',').map((s) => s.trim()).filter(Boolean);
+const APPS = (process.env.BENCH_APPS || (WIN && REFA.exe ? 'refa,edm' : 'edm')).split(',').map((s) => s.trim()).filter(Boolean);
 const WITH_REFA = APPS.includes('refa');
 const WORK = process.env.BENCH_WORK || path.join(os.tmpdir(), 'edm-bench');
 const OUT = process.env.BENCH_OUT || path.join(HERE, 'results', `${process.platform}-${new Date().toISOString().slice(0, 10)}`);
@@ -97,7 +97,7 @@ const RUN = Date.now().toString(36);
 const CURL = process.env.BENCH_CURL || (WIN && fs.existsSync(path.join(process.env.SystemRoot || 'C:\Windows', 'System32', 'curl.exe'))
   ? path.join(process.env.SystemRoot || 'C:\Windows', 'System32', 'curl.exe') : 'curl');
 
-if (APPS.includes('EDM') && (!EDM || !fs.existsSync(EDM))) {
+if (APPS.includes('edm') && (!EDM || !fs.existsSync(EDM))) {
   console.error(`No EDM to run: set EDM_BINARY, or build one cargo build --release -p ${SHIPPED}.`);
   process.exit(2);
 }
@@ -105,7 +105,7 @@ if (WITH_REFA && !(WIN && REFA.exe && REFA.process && REFA.title)) {
   console.error('Reference A runs only on Windows, named in bench/local.json (see bench/local.example.json).');
   process.exit(2);
 }
-if (EDM && /[\\/]debug[\\/]/.test(EDM)) console.warn(`warning: ${DM} is a debug build; the baseline is judged against a release build`);
+if (EDM && /[\\/]debug[\\/]/.test(EDM)) console.warn(`warning: ${EDM} is a debug build; the baseline is judged against a release build`);
 fs.mkdirSync(OUT, { recursive: true });
 
 // ─── The bytes served: a seeded 1 MiB block, each 4 KiB stamped with its MiB, so a piece put in
@@ -334,7 +334,7 @@ setInterval(() => {
 const samples = []; // { t, app, pid, ws, priv, cpu } (bytes, bytes or null, ms)
 const watched = new Map(); // pid -> app, on macOS and Linux
 let sampler = null;
-const appOfImage = (name) => (EDM && name.toLowerCase() === path.parse(EDM).name.toLowerCase() ? 'EDM' : REFA.process && name.toLowerCase() === REFA.process.toLowerCase() ? 'refa' : null);
+const appOfImage = (name) => (EDM && name.toLowerCase() === path.parse(EDM).name.toLowerCase() ? 'edm' : REFA.process && name.toLowerCase() === REFA.process.toLowerCase() ? 'refa' : null);
 function startSampler() {
   if (WIN) {
     const names = [EDM && path.parse(EDM).name, WITH_REFA && REFA.process].filter(Boolean).map((n) => `'${n}'`).join(',');
@@ -469,7 +469,7 @@ class Dm {
     // unless the computer itself is pointed at it.
     const named = nameServer && !NAME_SYSTEM ? { EDM_BENCH_DNS: `127.0.0.1:${nameServer.port}` } : {};
     this.proc = spawn(EDM, HEADLESS ? ['--headless', '--control', '0'] : ['--control', '0'], { env: { ...process.env, EDM_HOME: this.home, ...(tls ? { EDM_BENCH_CA: tls.certFile } : {}), ...named }, stdio: 'ignore' });
-    watched.set(this.proc.pid, 'EDM');
+    watched.set(this.proc.pid, 'edm');
     const portFile = path.join(this.home, 'control.port');
     for (let i = 0; i < 400; i++) { if (fs.existsSync(portFile) && fs.readFileSync(portFile, 'utf8').trim()) break; await sleep(50); }
     if (!fs.existsSync(portFile)) throw new Error(`EDM wrote no control port into ${this.home} within 20 s`);
@@ -620,7 +620,7 @@ async function once(app, name, sc, rep) {
     outageDroppedRequests: run.requests.filter((q) => q.dropped).length,
     outageAtMs: run.outage ? run.outage.start - run.firstReq : null,
     perRequest: run.requests.slice(0, 60).map((q) => [q.t - run.firstReq, q.sent ?? 0, q.range, q.dropped ? 'dropped' : '']),
-    ...usage(app, r.t0, r.t1 || Date.now(), app === 'EDM' ? edm?.proc?.pid ?? null : null),
+    ...usage(app, r.t0, r.t1 || Date.now(), app === 'edm' ? edm?.proc?.pid ?? null : null),
     states: r.states, errors: r.errors, line, lookups, timeline: run.timeline.filter((_, i) => i % 2 === 0),
   };
   runs.delete(key);
@@ -686,7 +686,7 @@ async function scenario(name) {
   const out = [];
   for (let rep = 1; rep <= sc.reps; rep++) {
     // Each repetition alternates which app goes first.
-    const order = rep % 2 ? ['refa', 'EDM'] : ['EDM', 'refa'];
+    const order = rep % 2 ? ['refa', 'edm'] : ['edm', 'refa'];
     for (const app of order.filter((a) => APPS.includes(a) && runsCase(a, sc))) { out.push(await once(app, name, sc, rep)); await sleep(3000); }
   }
   delete DATA[name];
@@ -740,7 +740,7 @@ async function inet() {
   const out = [];
   for (const f of INET) {
     for (let rep = 1; rep <= 2; rep++) {
-      const order = rep % 2 ? ['refa', 'EDM'] : ['EDM', 'refa'];
+      const order = rep % 2 ? ['refa', 'edm'] : ['edm', 'refa'];
       for (const app of order.filter((a) => APPS.includes(a))) {
         const r = app === 'refa'
           ? await runRefa([f.url + `?r=${rep}${RUN}`], [f.name], f.size, path.join(WORK, 'inet-refa', `${rep}-${RUN}-${f.name}`), 600000, false)
@@ -749,7 +749,7 @@ async function inet() {
         const digest = file && fs.existsSync(file) ? await shaFile(file) : null;
         const secs = r.t1 ? (r.t1 - r.t0) / 1000 : null;
         const res = { app, url: f.url, rep, ok: !!r.t1, seconds: secs, mbps: secs ? +(f.size / MiB / secs).toFixed(2) : null, sha256: digest,
-          ...usage(app, r.t0, r.t1 || Date.now(), app === 'EDM' ? edm?.proc?.pid ?? null : null), errors: r.errors };
+          ...usage(app, r.t0, r.t1 || Date.now(), app === 'edm' ? edm?.proc?.pid ?? null : null), errors: r.errors };
         console.log(JSON.stringify(res));
         out.push(res);
         if (file && fs.existsSync(file)) fs.rmSync(file, { force: true });
@@ -763,10 +763,10 @@ async function inet() {
 // ─── Idle: each app with its window up and nothing to do, for 20 s.
 async function idle() {
   if (WITH_REFA) { await refaUp(); spawn(REFA.exe, [], { detached: true, stdio: 'ignore' }).unref(); }
-  if (APPS.includes('EDM')) await dmUp();
+  if (APPS.includes('edm')) await dmUp();
   await sleep(3000);
   const t0 = Date.now(); await sleep(20000); const t1 = Date.now();
-  const out = APPS.map((app) => ({ app, scenario: 'idle', rep: 1, ok: true, ...usage(app, t0, t1, app === 'EDM' ? edm?.proc?.pid ?? null : null) }));
+  const out = APPS.map((app) => ({ app, scenario: 'idle', rep: 1, ok: true, ...usage(app, t0, t1, app === 'edm' ? edm?.proc?.pid ?? null : null) }));
   console.log(JSON.stringify(out));
   write('idle', { scenario: 'idle', label: 'window up, nothing to do, 20 s', runs: out });
 }

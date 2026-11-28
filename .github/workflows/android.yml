@@ -97,8 +97,8 @@ jobs:
           echo "$RUNNER_TEMP/gradle-8.14.3/bin" >> "$GITHUB_PATH"
       # A debug APK, signed with the debug key Gradle makes for the run: an APK to install on an
       # emulator or a test phone, not a release (a release is signed with EDM's own key, N14).
-      # EDM.skipCargo: the library is built above, so Gradle's own cargoNdk task (Android
-      # Studio's) is skipped; EDM.ndkVersion: Gradle strips with the NDK cargo-ndk used.
+      # edm.skipCargo: the library is built above, so Gradle's own cargoNdk task (Android
+      # Studio's) is skipped; edm.ndkVersion: Gradle strips with the NDK cargo-ndk used.
       - name: The APK, for the emulator (x86_64)
         working-directory: crates/edm-android/android
         run: gradle --no-daemon assembleDebug -Pdm.skipCargo=true "-Pdm.ndkVersion=$EDM_NDK_VERSION"

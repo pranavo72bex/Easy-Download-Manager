@@ -1920,7 +1920,7 @@ def p_hidden(ctx):
                     return now if same else None
                 came = wait_for(back_where_it_stood, 5, every=0.1)
                 check("hidden", "tray: shown again, the window is where it stood before", bool(came),
-                      f"before {stood}; after {(EDM.call('ui.windows').get('result') or {}).get('main')}")
+                      f"before {stood}; after {(edm.call('ui.windows').get('result') or {}).get('main')}")
         finally:
             edm.stop()
             shutil.rmtree(edm.out, ignore_errors=True)
@@ -2394,7 +2394,7 @@ def p_handlers(ctx):
         measure("handlers", f"a 1 GB file moved to another volume: OK answered in {took * 1000:.0f} ms, the row there in {took_all:.1f} s; ui.texts meanwhile median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
         check("handlers", "Move/Rename to another volume moves the whole file and the row follows it",
               bool(arrived) and moved.exists() and moved.stat().st_size == size and not (edm.out / "big.bin").exists(),
-              f"{EDM.rows()[0].get('path')}")
+              f"{edm.rows()[0].get('path')}")
         answers_held("the move", answers)
         # Browse…: the system's folder panel open, the window still drawing and answering. The
         # panel is left open; the EDM is ended with it.

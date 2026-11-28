@@ -456,7 +456,7 @@ def one(base, name, site, engine_dl, worker=None):
         page = tab.evaluate("location.href")
         out["formats"] = worker.evaluate(
             "chrome.tabs.query({}).then(ts => { const t = ts.find(t => t.url === %s);"
-            " return t ? dmReady.then(m => m.on_page_message({type: 'EDM.formats', src: '', frame: %s},"
+            " return t ? dmReady.then(m => m.on_page_message({type: 'dm.formats', src: '', frame: %s},"
             " {id: chrome.runtime.id, tab: {id: t.id}, url: %s})) : 'no tab'; })" % (json.dumps(page), json.dumps(page), json.dumps(page)))
     cc.hover(tab, page_rect(rect))
     # SITES_HOLD=<seconds>: the video left playing under the pointer for that long, for a
@@ -687,7 +687,7 @@ def sites(base, origin, engine_dl, engine_home, worker):
     shipped["revision"] = 1000
     rules.write_text(json.dumps(shipped), encoding="utf-8")
     ask_again = ("dmReady.then(m => { m.forget_app();"
-                 " return m.on_page_message({type: 'EDM.status'}, {id: chrome.runtime.id}); })")
+                 " return m.on_page_message({type: 'dm.status'}, {id: chrome.runtime.id}); })")
     worker.evaluate(ask_again)
     try:
         each_site(base, engine_dl, worker, results)

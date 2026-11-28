@@ -17,10 +17,10 @@ use super::*;
 pub const MAX_ANSWER_BYTES: usize = 1024 * 1024;
 
 /// The page script telling the extension the answer to a request the rules name.
-pub const PAGE_ANSWER_MESSAGE: &str = "EDM.page-answer";
+pub const PAGE_ANSWER_MESSAGE: &str = "dm.page-answer";
 
 /// The page script asking which requests of its site's answers are read.
-pub const PAGE_RULES_MESSAGE: &str = "EDM.page-rules";
+pub const PAGE_RULES_MESSAGE: &str = "dm.page-rules";
 
 /// The most addresses taken from one answer.
 const MOST_ADDRESSES: usize = 50;

@@ -17,7 +17,7 @@ use crate::words;
 
 /// The toolbar popup asking the background to have the app do something to a download
 /// ([`edm_protocol::Act`]): its `does` and `id` beside the type.
-pub const ACT_MESSAGE: &str = "EDM.act";
+pub const ACT_MESSAGE: &str = "dm.act";
 
 /// What the app said it is fetching and has fetched (`downloads.list`).
 #[derive(Debug, Clone, PartialEq, Default)]

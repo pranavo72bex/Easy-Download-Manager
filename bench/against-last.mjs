@@ -47,7 +47,7 @@ export function load(inputs) {
     if (j.scenario === 'ceiling') { out.ceiling = j.results || null; continue; }
     if (!Array.isArray(j.runs) || !j.scenario || j.scenario === 'inet') continue;
     out.meta ||= j.meta || null;
-    const edm = j.runs.filter((r) => r.app === 'EDM').map((r) => ({ ...r, transferSeconds: r.seconds != null && r.firstRequestMs != null ? r.seconds - r.firstRequestMs / 1000 : null }));
+    const edm = j.runs.filter((r) => (r.app === 'edm' || r.app === 'dm')).map((r) => ({ ...r, transferSeconds: r.seconds != null && r.firstRequestMs != null ? r.seconds - r.firstRequestMs / 1000 : null }));
     out.scenarios.set(j.scenario, [...(out.scenarios.get(j.scenario) || []), ...edm]);
   }
   return out;
@@ -118,7 +118,7 @@ export function markdown(report, now, last) {
 function selfTest() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edm-against-last-'));
   const write = (sub, name, body) => { fs.mkdirSync(path.join(dir, sub), { recursive: true }); fs.writeFileSync(path.join(dir, sub, `${name}.json`), JSON.stringify(body)); };
-  const run = (o) => ({ app: 'EDM', ok: true, seconds: 10, firstRequestMs: 500, lastByteToDoneMs: 200, refetchedPct: 1, peakWorkingSetMB: 50, peakPrivateMB: 30, cpuMs: 1000, ...o });
+  const run = (o) => ({ app: 'edm', ok: true, seconds: 10, firstRequestMs: 500, lastByteToDoneMs: 200, refetchedPct: 1, peakWorkingSetMB: 50, peakPrivateMB: 30, cpuMs: 1000, ...o });
   try {
     write('last', 'ceiling', { scenario: 'ceiling', results: { fast: { best: 2 } } });
     write('now', 'ceiling', { scenario: 'ceiling', results: { fast: { best: 3 } } });
@@ -132,8 +132,8 @@ function selfTest() {
     write('last', 'flaky', { scenario: 'flaky', runs: [run({})] });
     write('now', 'flaky', { scenario: 'flaky', runs: [run({}), run({ ok: false })] });
     write('last', 'outage', { scenario: 'outage', runs: [run({})] });
-    write('last', 'idle', { scenario: 'idle', runs: [{ app: 'EDM', ok: true, peakWorkingSetMB: 40, peakPrivateMB: 20, cpuMs: 200 }] });
-    write('now', 'idle', { scenario: 'idle', runs: [{ app: 'EDM', ok: true, peakWorkingSetMB: 41, peakPrivateMB: 20, cpuMs: 250 }] });
+    write('last', 'idle', { scenario: 'idle', runs: [{ app: 'edm', ok: true, peakWorkingSetMB: 40, peakPrivateMB: 20, cpuMs: 200 }] });
+    write('now', 'idle', { scenario: 'idle', runs: [{ app: 'edm', ok: true, peakWorkingSetMB: 41, peakPrivateMB: 20, cpuMs: 250 }] });
     const now = load([path.join(dir, 'now')]), last = load([path.join(dir, 'last')]);
     const r = judge(now, last, 20);
     const row = (sc, k) => r.scenarios.find((s) => s.scenario === sc)?.rows.find((x) => x.metric === k);

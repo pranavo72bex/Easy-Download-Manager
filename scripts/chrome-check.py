@@ -1073,7 +1073,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     last = {}
     def early_listed():
         reply = worker.evaluate(
-            f"dmReady.then(m => m.on_page_message({{type: 'EDM.formats', src: '', frame: '{origin}/early.html'}},"
+            f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/early.html'}},"
             f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/early.html'}}))")
         last["reply"] = reply
         choices = (reply or {}).get("choices", [])
@@ -1093,7 +1093,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     time.sleep(1)
     tab_id = worker.evaluate(f"chrome.tabs.query({{url: '{origin}/pieces.html*'}}).then(t => t[t.length - 1].id)")
     reply = worker.evaluate(
-        f"dmReady.then(m => m.on_page_message({{type: 'EDM.formats', src: '', frame: '{origin}/pieces.html'}},"
+        f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/pieces.html'}},"
         f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/pieces.html'}}))")
     lines = [c for c in (reply or {}).get("choices", []) if c.get("sound")]
     check("a picture and a sound fetched in byte ranges are one line, the larger picture with the sound (row 119)",
@@ -1132,14 +1132,14 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
 
 
 def answer_rule_checks(origin, worker, tab_id):
-    """An answer handed to the worker as the page script hands it (`EDM.page-answer`) is read only
+    """An answer handed to the worker as the page script hands it (`dm.page-answer`) is read only
     where the served rules name the page's site and the request, and only as JSON of at most
     1 MiB: each handed for the same tab, then the panel's list for the tab asked."""
     other_site = origin.replace("127.0.0.1", "localhost")
 
     def hand(page, asked, body_js):
         worker.evaluate(
-            f"dmReady.then(m => m.on_page_message({{type: 'EDM.page-answer', url: '{origin}{asked}',"
+            f"dmReady.then(m => m.on_page_message({{type: 'dm.page-answer', url: '{origin}{asked}',"
             f" body: {body_js}}}, {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{page}/early.html'}}))")
 
     def stream(name, pad=0):
@@ -1155,7 +1155,7 @@ def answer_rule_checks(origin, worker, tab_id):
 
     def listed():
         reply = worker.evaluate(
-            f"dmReady.then(m => m.on_page_message({{type: 'EDM.formats', src: '', frame: '{origin}/early.html'}},"
+            f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/early.html'}},"
             f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/early.html'}}))")
         return [c.get("url") or "" for c in (reply or {}).get("choices", [])]
 
@@ -1627,7 +1627,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
           gone and not (panel(tab) or {}).get("shown"), str(panel(tab)))
     # What the popup's switch does: the site taken off the list. The page
     # follows the list, so no reload is needed.
-    worker.evaluate("chrome.storage.local.set({'EDM.panel.off': []}).then(() => 1)")
+    worker.evaluate("chrome.storage.local.set({'dm.panel.off': []}).then(() => 1)")
     hover(tab, tab.evaluate(VIDEO_RECT))
     back = wait_for(lambda: (panel(tab) or {}).get("shown"), 5)
     check("and letting the site back brings the panel back, without a reload", bool(back), str(panel(tab)))
@@ -2006,7 +2006,7 @@ def main():
               worker.evaluate("dmReady.then(m => m.app_status())"))
         # The app drives the extension (gaps row A22): the right-click menu is the one its hello
         # served, kept for the worker's next start, each item naming what it does.
-        served = worker.evaluate("chrome.storage.local.get('EDM.menus').then(g => g['EDM.menus'])") or []
+        served = worker.evaluate("chrome.storage.local.get('dm.menus').then(g => g['dm.menus'])") or []
         check("the right-click menu is the one the app served",
               [(m.get("id"), m.get("does")) for m in served] == [
                   ("edm-link", "link"), ("edm-media", "media"),
@@ -2165,25 +2165,25 @@ def main():
 
         # The popup's "Take every download from this site": a type the
         # app's rules leave is taken all the same, and only while listed.
-        worker.evaluate("chrome.storage.local.set({'EDM.catch.all': ['127.0.0.1']}).then(() => 'ok')")
+        worker.evaluate("chrome.storage.local.set({'dm.catch.all': ['127.0.0.1']}).then(() => 'ok')")
         click(base, origin, "forced.txt")
         taken = wait_for(lambda: whole(engine_dl, "forced.txt"), 60)
         check("with 'Take every download from this site' on, a type the rules leave goes to EDM",
               taken and not (browser_dl / "forced.txt").exists(),
               f"EDM folder: {sorted(p.name for p in engine_dl.iterdir())}; "
               f"browser folder: {sorted(p.name for p in browser_dl.iterdir())}")
-        worker.evaluate("chrome.storage.local.remove('EDM.catch.all').then(() => 'ok')")
+        worker.evaluate("chrome.storage.local.remove('dm.catch.all').then(() => 'ok')")
 
         # The popup's "Pause capturing on this site": a type the app catches
         # stays with the browser while the site is listed, and goes to EDM
         # again once it is not.
-        worker.evaluate("chrome.storage.local.set({'EDM.catch.paused': ['127.0.0.1']}).then(() => 'ok')")
+        worker.evaluate("chrome.storage.local.set({'dm.catch.paused': ['127.0.0.1']}).then(() => 'ok')")
         click(base, origin, "paused.bin")
         kept = wait_for(lambda: whole(browser_dl, "paused.bin"), 60)
         check("with 'Pause capturing on this site' on, a type the app catches stays with the browser",
               kept and not (engine_dl / "paused.bin").exists(),
               f"EDM folder: {sorted(p.name for p in engine_dl.iterdir())}")
-        worker.evaluate("chrome.storage.local.remove('EDM.catch.paused').then(() => 'ok')")
+        worker.evaluate("chrome.storage.local.remove('dm.catch.paused').then(() => 'ok')")
         click(base, origin, "resumed.bin")
         taken = wait_for(lambda: whole(engine_dl, "resumed.bin"), 60)
         check("and goes to EDM again once the site is not paused",
@@ -2353,7 +2353,7 @@ def main():
 
         popup = open_tab(base, f"chrome-extension://{ext_id}/popup.html")
         loaded(popup, "/popup.html", "#catching")
-        catching = lambda: worker.evaluate("chrome.storage.local.get('EDM.catching').then(r => String(r['EDM.catching']))")
+        catching = lambda: worker.evaluate("chrome.storage.local.get('dm.catching').then(r => String(r['dm.catching']))")
         popup.evaluate("document.getElementById('catching').click(), 1", gesture=True)
         wait_for(lambda: catching() == "false", 5)
         # off.bin is in EDM's list already, from "Download all links"; what
@@ -2386,7 +2386,7 @@ def main():
         stale = open_tab(base, f"{origin}/arriving.html")
         wait_for(lambda: stale.evaluate("document.links.length") == len(ARRIVING), 10)
         stale_tab = worker.evaluate(f"chrome.tabs.query({{}}).then(t => t.filter(x => x.url === '{origin}/arriving.html').map(x => x.id))")
-        alive = worker.evaluate(f"chrome.tabs.sendMessage({stale_tab[-1]}, {{type: 'EDM.links'}})"
+        alive = worker.evaluate(f"chrome.tabs.sendMessage({stale_tab[-1]}, {{type: 'dm.links'}})"
                                 ".then(() => 'answered', e => String(e))")
         before = len(queued_main())
         worker.evaluate(

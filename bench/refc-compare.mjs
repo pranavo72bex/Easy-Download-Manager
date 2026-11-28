@@ -26,7 +26,7 @@ let behind = 0;
 for (const [name, c] of Object.entries(ref)) {
   const file = fs.readdirSync(dir).find((f) => f.startsWith(`${name}`) && f.endsWith('.json'));
   if (!file) { rows.push(`${name.padEnd(10)} not run`); continue; }
-  const runs = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')).runs.filter((r) => r.app === 'EDM' && r.ok);
+  const runs = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')).runs.filter((r) => (r.app === 'edm' || r.app === 'dm') && r.ok);
   const m = (k) => median(runs.map((r) => r[k]));
   const pairs = [
     ['time', m('seconds') === null ? null : m('seconds') * 1000, c.medianMs],

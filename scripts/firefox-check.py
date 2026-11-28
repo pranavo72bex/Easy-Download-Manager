@@ -654,7 +654,7 @@ def main():
             for _ in range(20):
                 seen = resolve("the background noted it, for the panel's list",
                                "browser.storage.session.get(null).then(o => Object.entries(o)"
-                               ".filter(([k]) => k.startsWith('EDM.streams.'))"
+                               ".filter(([k]) => k.startsWith('dm.streams.'))"
                                ".map(([, v]) => v.map(s => s.label + ' ' + s.url.split('/').pop()).join(', ')).join('; ') || '')",
                                seconds=5)
                 if seen and "stream.m3u8" in seen:

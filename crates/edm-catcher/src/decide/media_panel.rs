@@ -209,10 +209,10 @@ pub const PLAYER_LIST_PATIENCE_MS: f64 = 15_000.0;
 pub const PLAYER_ASK_EVERY_MS: i32 = 500;
 
 /// The page script telling what a video player asked for.
-pub const MEDIA_SEEN_MESSAGE: &str = "EDM.media-seen";
+pub const MEDIA_SEEN_MESSAGE: &str = "dm.media-seen";
 
 /// The page script asking what qualities a player's video comes in.
-pub const FORMATS_MESSAGE: &str = "EDM.formats";
+pub const FORMATS_MESSAGE: &str = "dm.formats";
 
 /// What the panel's "Part" line was typed as, ready to hand over: only a
 /// short run of digits, colons, dots and the letters h, m, s ("1:30",
@@ -305,36 +305,36 @@ pub fn human_size(bytes: u64) -> String {
 }
 
 /// The message type a panel click is sent as.
-pub const PANEL_MESSAGE: &str = "EDM.media";
+pub const PANEL_MESSAGE: &str = "dm.media";
 
 /// A page that found a player asking that the app's rules be current, so
 /// the panel switch in the app's Options reaches it within a minute of
 /// being changed rather than at the next download.
-pub const RULES_MESSAGE: &str = "EDM.rules";
+pub const RULES_MESSAGE: &str = "dm.rules";
 
 /// Alt-click: a link clicked with Alt held is left to the browser.
 /// The page script says so before the browser starts the download.
-pub const SKIP_MESSAGE: &str = "EDM.skip";
+pub const SKIP_MESSAGE: &str = "dm.skip";
 
 /// A click with the rules' take key held: its download goes to the app
 /// whatever the types and size floor say.
-pub const TAKE_MESSAGE: &str = "EDM.take";
+pub const TAKE_MESSAGE: &str = "dm.take";
 
 /// A click on a magnet link on a page: the torrent is the app's, as a
 /// clicked `.torrent` file is. Left alone, it went to whatever the system
 /// opens magnets with, which on macOS and Windows was never EDM.
-pub const MAGNET_MESSAGE: &str = "EDM.magnet";
+pub const MAGNET_MESSAGE: &str = "dm.magnet";
 
 /// A plain click on a link to a file the browser would show in the tab (a
 /// PDF, a video, a song) instead of downloading it. Such a click starts no
 /// download, so EDM never saw it; the page script asks the app to take it, and
 /// the browser opens it as it would have where the app cannot.
-pub const INLINE_MESSAGE: &str = "EDM.inline";
+pub const INLINE_MESSAGE: &str = "dm.inline";
 
 /// The page script asking for the panel's code once its page shows media: the background puts
 /// [`PANEL_FILE`] into the asking frame itself (an `import()` from the page was checked against
 /// the page's origin, and Brave refused it on YouTube).
-pub const PANEL_LOAD_MESSAGE: &str = "EDM.panel-load";
+pub const PANEL_LOAD_MESSAGE: &str = "dm.panel-load";
 
 /// The panel's code with its WebAssembly, as `scripts/package.sh` builds it.
 pub const PANEL_FILE: &str = "pkg/panel.js";

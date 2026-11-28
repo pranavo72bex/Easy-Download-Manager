@@ -1,6 +1,6 @@
 [package]
 name = "edm-shell"
-version = "0.10.3"
+version = "0.11.0"
 license = "GPL-3.0-or-later"
 edition = "2021"
 # Never published: its paths to the other crates are this repository's

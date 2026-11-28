@@ -1,6 +1,6 @@
 [package]
 name = "edm-catcher"
-version = "3.5.0"
+version = "3.6.0"
 license = "GPL-3.0-or-later"
 edition = "2021"
 description = "EDM's browser extension: catches downloads and hands them to the app"

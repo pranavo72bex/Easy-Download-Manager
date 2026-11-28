@@ -20,6 +20,10 @@ fn released() -> Vec<(&'static str, Value)> {
             "extension-3.5.0.json",
             include_str!("wire/extension-3.5.0.json"),
         ),
+        (
+            "extension-3.6.0.json",
+            include_str!("wire/extension-3.6.0.json"),
+        ),
     ]
     .into_iter()
     .map(|(name, text)| (name, serde_json::from_str(text).expect(name)))
